@@ -17,6 +17,8 @@ limitations under the License.
 package controller
 
 import (
+	"context"
+
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 
@@ -26,7 +28,9 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/types"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
@@ -76,6 +80,17 @@ func (r *ReconcileCDI) getNamespacedArgs(cr *cdiv1.CDI) *cdinamespaced.FactoryAr
 	if cr != nil {
 		if cr.Spec.ImagePullPolicy != "" {
 			result.PullPolicy = string(cr.Spec.ImagePullPolicy)
+		}
+		if cr.Spec.PriorityClass != nil && string(*cr.Spec.PriorityClass) != "" {
+			result.PriorityClassName = string(*cr.Spec.PriorityClass)
+		} else {
+			result.PriorityClassName = "openshift-user-critical"
+		}
+		// Verify the priority class name exists.
+		priorityClass := &schedulingv1.PriorityClass{}
+		if err := r.client.Get(context.TODO(), types.NamespacedName{Name: result.PriorityClassName}, priorityClass); err != nil {
+			// Any error we cannot determine if priority class exists.
+			result.PriorityClassName = ""
 		}
 		result.InfraNodePlacement = &cr.Spec.Infra
 	}
