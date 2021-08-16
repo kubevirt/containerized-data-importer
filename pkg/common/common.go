@@ -31,8 +31,6 @@ const (
 
 	// PrometheusLabel provides the label to indicate prometheus metrics are available in the pods.
 	PrometheusLabel = "prometheus.cdi.kubevirt.io"
-	// PrometheusServiceName is the name of the prometheus service created by the operator.
-	PrometheusServiceName = "cdi-prometheus-metrics"
 
 	// UploadTargetLabel has the UID of upload target PVC
 	UploadTargetLabel = CDIComponentLabel + "/uploadTarget"

@@ -23,7 +23,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -35,7 +34,6 @@ import (
 const (
 	controllerResourceName = "cdi-deployment"
 	prometheusLabel        = common.PrometheusLabel
-	prometheusServiceName  = common.PrometheusServiceName
 )
 
 func createControllerResources(args *FactoryArgs) []client.Object {
@@ -51,7 +49,6 @@ func createControllerResources(args *FactoryArgs) []client.Object {
 			args.PullPolicy,
 			args.InfraNodePlacement),
 		createInsecureRegConfigMap(),
-		createPrometheusService(),
 	}
 }
 
@@ -275,20 +272,4 @@ func createInsecureRegConfigMap() *corev1.ConfigMap {
 			Labels: utils.ResourceBuilder.WithCommonLabels(nil),
 		},
 	}
-}
-
-func createPrometheusService() *corev1.Service {
-	service := utils.ResourceBuilder.CreateService(prometheusServiceName, prometheusLabel, "", nil)
-	service.Spec.Ports = []corev1.ServicePort{
-		{
-			Name: "metrics",
-			Port: 443,
-			TargetPort: intstr.IntOrString{
-				Type:   intstr.String,
-				StrVal: "metrics",
-			},
-			Protocol: corev1.ProtocolTCP,
-		},
-	}
-	return service
 }

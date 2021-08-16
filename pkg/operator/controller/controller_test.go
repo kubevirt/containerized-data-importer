@@ -188,18 +188,6 @@ var _ = Describe("Controller", func() {
 				validateEvents(args.reconciler, createNotReadyEventValidationMap())
 			})
 
-			It("should create prometheus service", func() {
-				args := createArgs()
-				doReconcile(args)
-
-				svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: common.PrometheusServiceName}}
-				obj, err := getObject(args.client, svc)
-				Expect(err).ToNot(HaveOccurred())
-
-				svc = obj.(*corev1.Service)
-				Expect(svc.OwnerReferences[0].UID).Should(Equal(args.cdi.UID))
-			})
-
 			It("should create requeue when configmap exists with another owner", func() {
 				cm := &corev1.ConfigMap{
 					ObjectMeta: metav1.ObjectMeta{
@@ -1666,7 +1654,6 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.Secret cdi-uploadserver-client-signer"] = false
 	match[normalCreateSuccess+" *v1.ConfigMap cdi-uploadserver-client-signer-bundle"] = false
 	match[normalCreateSuccess+" *v1.Secret cdi-uploadserver-client-cert"] = false
-	match[normalCreateSuccess+" *v1.Service cdi-prometheus-metrics"] = false
 	match[normalCreateEnsured+" SecurityContextConstraint exists"] = false
 	return match
 }
