@@ -73,7 +73,7 @@ const (
 	// TinyCoreTarMD5 is the MD5 hash of first 100k bytes of tinyCore tar image
 	TinyCoreTarMD5 = "aec1a39d753b4b7cc81ee02bc625a342"
 	// TinyCoreBlockMD5 is the MD5 hash of first 100k bytes of tinyCore image on block device
-	TinyCoreBlockMD5 = "d41d8cd98f00b204e9800998ecf8427e"
+	TinyCoreBlockMD5 = "2a7a52285c846314d1dbd79e9818270d"
 	// ImageioMD5 is the MD5 hash of first 100k bytes of imageio image
 	ImageioMD5 = "91150be031835ccfac458744da57d4f6"
 	// VcenterMD5 is the MD5 hash of first 100k bytes of Vcenter image
