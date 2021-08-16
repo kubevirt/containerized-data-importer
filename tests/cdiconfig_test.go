@@ -293,7 +293,7 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 
 	It("[test_id:4950]Keep current value on no http rule ingress", func() {
 		manifestFile = "manifests/ingressNoHttp.yaml"
-		controllerPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, "app=containerized-data-importer")
+		controllerPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
 		Expect(err).ToNot(HaveOccurred())
 		currentRestarts := controllerPod.Status.ContainerStatuses[0].RestartCount
 		fmt.Fprintf(GinkgoWriter, "INFO: Current number of restarts: %d\n", currentRestarts)
@@ -311,7 +311,7 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 		for i := 0; i < 10; i++ {
 			// Check for 20 seconds if the deployment pod crashed.
 			time.Sleep(2 * time.Second)
-			controllerPod, err = utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, "app=containerized-data-importer")
+			controllerPod, err = utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
 			Expect(err).ToNot(HaveOccurred())
 			// Restarts will increase if we crashed due to null pointer.
 			Expect(currentRestarts).To(Equal(controllerPod.Status.ContainerStatuses[0].RestartCount))

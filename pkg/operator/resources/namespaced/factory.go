@@ -38,6 +38,7 @@ type FactoryArgs struct {
 	UploadServerImage      string `required:"true" split_words:"true"`
 	Verbosity              string `required:"true"`
 	PullPolicy             string `required:"true" split_words:"true"`
+	PriorityClassName      string
 	Namespace              string
 	InfraNodePlacement     *sdkapi.NodePlacement
 }
