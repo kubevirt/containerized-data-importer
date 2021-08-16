@@ -502,10 +502,7 @@ http_file(
 http_file(
     name = "nbdkit-server-aarch64",
     sha256 = "28d0872b0aa914859e479c75ecb3fb3061c7c1701495ec5f3bd166f2c6309204",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/n/nbdkit-server-1.24.5-1.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/28d0872b0aa914859e479c75ecb3fb3061c7c1701495ec5f3bd166f2c6309204",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/28d0872b0aa914859e479c75ecb3fb3061c7c1701495ec5f3bd166f2c6309204"],
 )
 
 http_file(
@@ -517,10 +514,7 @@ http_file(
 http_file(
     name = "nbdkit-basic-filters-aarch64",
     sha256 = "21a40e61d1966509fc6a7575c5af36b6ec31cf44106f674121a1e9996399694b",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/n/nbdkit-basic-filters-1.24.5-1.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/21a40e61d1966509fc6a7575c5af36b6ec31cf44106f674121a1e9996399694b",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/21a40e61d1966509fc6a7575c5af36b6ec31cf44106f674121a1e9996399694b"],
 )
 
 http_file(
@@ -538,10 +532,7 @@ http_file(
 http_file(
     name = "nbdkit-xz-filter-aarch64",
     sha256 = "132b5f5185754d18bb45135f3ec2803aa7ad1c5273b9a34c371986796b753825",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/n/nbdkit-xz-filter-1.24.5-1.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/132b5f5185754d18bb45135f3ec2803aa7ad1c5273b9a34c371986796b753825",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/132b5f5185754d18bb45135f3ec2803aa7ad1c5273b9a34c371986796b753825"],
 )
 
 http_file(
@@ -556,10 +547,7 @@ http_file(
 http_file(
     name = "nbdkit-gzip-filter-aarch64",
     sha256 = "63461edfa15ee1d3861a46202fa1494bbd2ff0e9e83b9d5359df369adc59214b",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/n/nbdkit-gzip-filter-1.24.5-1.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/63461edfa15ee1d3861a46202fa1494bbd2ff0e9e83b9d5359df369adc59214b",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/63461edfa15ee1d3861a46202fa1494bbd2ff0e9e83b9d5359df369adc59214b"],
 )
 
 http_file(
@@ -571,10 +559,7 @@ http_file(
 http_file(
     name = "nbdkit-curl-plugin-aarch64",
     sha256 = "63461edfa15ee1d3861a46202fa1494bbd2ff0e9e83b9d5359df369adc59214b",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/n/nbdkit-gzip-filter-1.24.5-1.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/63461edfa15ee1d3861a46202fa1494bbd2ff0e9e83b9d5359df369adc59214b",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/63461edfa15ee1d3861a46202fa1494bbd2ff0e9e83b9d5359df369adc59214b"],
 )
 
 http_file(
