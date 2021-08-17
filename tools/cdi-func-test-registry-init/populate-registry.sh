@@ -114,6 +114,9 @@ function pushImages {
 #remove storage.conf if exists
 rm -rf /etc/containers/storage.conf
 
+#building using buildah requires a properly installed shadow-utils package (which in turn requires SETFCAP)
+rpm --restore shadow-utils 2>/dev/null
+
 #start health beat
 health $HEALTH_PATH $HEALTH_PERIOD &
 
