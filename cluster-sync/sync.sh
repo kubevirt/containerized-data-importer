@@ -80,6 +80,12 @@ function wait_cdi_available {
   fi
 }
 
+function configure_uploadproxy_override {
+  host_port=$(./cluster-up/cli.sh ports uploadproxy | xargs)
+  override="127.0.0.1:$host_port"
+  _kubectl patch cdi ${CR_NAME} --type=merge -p '{"spec": {"config": {"uploadProxyURLOverride": "'"$override"'"}}}'
+}
+
 OLD_CDI_VER_PODS="./_out/tests/old_cdi_ver_pods"
 NEW_CDI_VER_PODS="./_out/tests/new_cdi_ver_pods"
 
@@ -119,6 +125,7 @@ if [ "${KUBEVIRT_PROVIDER}" != "external" ] && [ "${CDI_SYNC}" == "test-infra" ]
   _kubectl apply -f "./_out/manifests/file-host.yaml"
   _kubectl apply -f "./_out/manifests/registry-host.yaml"
   _kubectl apply -f "./_out/manifests/test-proxy.yaml"
+  _kubectl apply -f "./_out/manifests/uploadproxy-nodeport.yaml"
   # Imageio test service:
   _kubectl apply -f "./_out/manifests/imageio.yaml"
   # vCenter (VDDK) test service:
@@ -203,6 +210,9 @@ else
   _kubectl apply -f "./_out/manifests/release/cdi-cr.yaml"
   wait_cdi_available
 fi
+
+# Configure CDI upload proxy URL override
+configure_uploadproxy_override
 
 # Grab all the CDI crds so we can check if they are structural schemas
 cdi_crds=$(_kubectl get crd -l cdi.kubevirt.io -o jsonpath={.items[*].metadata.name})
