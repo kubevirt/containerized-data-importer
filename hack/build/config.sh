@@ -86,19 +86,3 @@ function parseTestOpts() {
         esac
     done
 }
-
-function getTestPullPolicy() {
-    local pp
-    case "${KUBEVIRT_PROVIDER}" in
-    "k8s-1.13.3")
-        pp=$PULL_POLICY
-        ;;
-    "os-3.11.0")
-        pp=Always
-        ;;
-    "okd-4.1")
-        pp=Always
-        ;;
-    esac
-    echo "$pp"
-}

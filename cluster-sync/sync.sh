@@ -21,7 +21,7 @@ CDI_UPGRADE_RETRY_COUNT=${CDI_UPGRADE_RETRY_COUNT:-60}
 # Set controller verbosity to 3 for functional tests.
 export VERBOSITY=3
 
-PULL_POLICY=$(getTestPullPolicy)
+PULL_POLICY=${PULL_POLICY:-IfNotPresent}
 # The default DOCKER_PREFIX is set to kubevirt and used for builds, however we don't use that for cluster-sync
 # instead we use a local registry; so here we'll check for anything != "external"
 # wel also confuse this by swapping the setting of the DOCKER_PREFIX variable around based on it's context, for
@@ -36,7 +36,7 @@ if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
 fi
 
 # Need to set the DOCKER_PREFIX appropriately in the call to `make docker push`, otherwise make will just pass in the default `kubevirt`
-DOCKER_PREFIX=$MANIFEST_REGISTRY PULL_POLICY=$(getTestPullPolicy) make manifests
+DOCKER_PREFIX=$MANIFEST_REGISTRY PULL_POLICY=$PULL_POLICY make manifests
 DOCKER_PREFIX=$DOCKER_PREFIX make push
 
 function kill_running_operator {
