@@ -1034,13 +1034,14 @@ var _ = Describe("All DataVolume Tests", func() {
 	})
 
 	var _ = Describe("Smart clone", func() {
-		It("Should not allow smart clone, if no source pvc provided", func() {
+		It("Should not return storage class, if no source pvc provided", func() {
 			dv := newImportDataVolume("test-dv")
 			reconciler := createDatavolumeReconciler(dv)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			possible, err := reconciler.snapshotSmartClonePossible(dv, dv.Spec.PVC)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(possible).To(BeFalse())
+			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no source PVC provided"))
+			Expect(snapclass).To(BeEmpty())
 		})
 
 		It("Should not return storage class, if no CSI CRDs exist", func() {
@@ -1051,11 +1052,12 @@ var _ = Describe("All DataVolume Tests", func() {
 			})
 			reconciler := createDatavolumeReconciler(dv, sc)
 			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("CSI snapshot CRDs not found"))
 			Expect(snapclass).To(BeEmpty())
 		})
 
-		It("Should not return snapshot class, if source PVC doesn't exist", func() {
+		It("Should not return storage class, if source PVC doesn't exist", func() {
 			dv := newCloneDataVolumeWithPVCNS("test-dv", "ns2")
 			scName := "test"
 			sc := createStorageClass(scName, map[string]string{
@@ -1063,22 +1065,24 @@ var _ = Describe("All DataVolume Tests", func() {
 			})
 			reconciler := createDatavolumeReconciler(dv, sc)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			possible, err := reconciler.snapshotSmartClonePossible(dv, dv.Spec.PVC)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(possible).To(BeFalse())
+			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("source PVC not found"))
+			Expect(snapclass).To(BeEmpty())
 		})
 
-		It("Should not allow smart clone, if source PVC exist, but no storage class exists, and no storage class in PVC def", func() {
+		It("Should not return storage class, if source PVC exist, but no storage class exists, and no storage class in PVC def", func() {
 			dv := newCloneDataVolume("test-dv")
 			pvc := createPvc("test", metav1.NamespaceDefault, nil, nil)
 			reconciler := createDatavolumeReconciler(dv, pvc)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			possible, err := reconciler.snapshotSmartClonePossible(dv, dv.Spec.PVC)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(possible).To(BeFalse())
+			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("Target PVC storage class not found"))
+			Expect(snapclass).To(BeEmpty())
 		})
 
-		It("Should not allow smart clone, if source SC and target SC do not match", func() {
+		It("Should not return storage class, if source SC and target SC do not match", func() {
 			dv := newCloneDataVolume("test-dv")
 			targetSc := "testsc"
 			tsc := createStorageClass(targetSc, map[string]string{
@@ -1092,12 +1096,13 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &sourceSc, nil, nil, corev1.ClaimBound)
 			reconciler := createDatavolumeReconciler(ssc, tsc, dv, pvc)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			possible, err := reconciler.snapshotSmartClonePossible(dv, dv.Spec.PVC)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(possible).To(BeFalse())
+			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("source PVC and target PVC belong to different storage classes"))
+			Expect(snapclass).To(BeEmpty())
 		})
 
-		It("Should not return snapshot class, if storage class does not exist", func() {
+		It("Should not return storage class, if storage class does not exist", func() {
 			dv := newCloneDataVolume("test-dv")
 			scName := "testsc"
 			dv.Spec.PVC.StorageClassName = &scName
@@ -1110,7 +1115,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(snapclass).To(BeEmpty())
 		})
 
-		It("Should not return snapshot class, if storage class does not exist", func() {
+		It("Should not return storage class, if storage class does not exist", func() {
 			dv := newCloneDataVolume("test-dv")
 			scName := "testsc"
 			sc := createStorageClass(scName, map[string]string{
@@ -1121,7 +1126,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			reconciler := createDatavolumeReconciler(sc, dv, pvc)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("could not match snapshotter with storage class, falling back to host assisted clone"))
 			Expect(snapclass).To(BeEmpty())
 		})
 
