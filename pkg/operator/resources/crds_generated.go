@@ -1466,6 +1466,9 @@ spec:
                       type: object
                     type: array
                 type: object
+              priorityClass:
+                description: PriorityClass of the CDI control plane
+                type: string
               uninstallStrategy:
                 description: CDIUninstallStrategy defines the state to leave CDI on uninstall
                 enum:

@@ -17,6 +17,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	schedulev1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -778,6 +779,119 @@ var _ = Describe("ALL Operator tests", func() {
 
 					return true
 				}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+			})
+		})
+
+		var _ = Describe("Priority class tests", func() {
+			var (
+				cdi                   *cdiv1.CDI
+				systemClusterCritical = cdiv1.CDIPriorityClass("system-cluster-critical")
+				osUserCrit            = &schedulev1.PriorityClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "openshift-user-critical",
+					},
+					Value: 10000,
+				}
+			)
+			f := framework.NewFramework("operator-priority-class-test")
+			verifyPodPriorityClass := func(prefix, priorityClassName, labelSelector string) {
+				Eventually(func() string {
+					controllerPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, prefix, labelSelector)
+					if err != nil {
+						return ""
+					}
+					return controllerPod.Spec.PriorityClassName
+				}, 2*time.Minute, 1*time.Second).Should(BeEquivalentTo(priorityClassName))
+			}
+
+			BeforeEach(func() {
+				cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+				if errors.IsNotFound(err) {
+					Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
+				}
+				Expect(err).ToNot(HaveOccurred())
+				cdi = cr
+				if cr.Spec.PriorityClass != nil {
+					By(fmt.Sprintf("Current priority class is: [%s]", *cr.Spec.PriorityClass))
+				}
+			})
+
+			AfterEach(func() {
+				if cdi == nil {
+					return
+				}
+
+				cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				cr.Spec.PriorityClass = cdi.Spec.PriorityClass
+
+				_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				if !utils.IsOpenshift(f.K8sClient) {
+					Eventually(func() bool {
+						return errors.IsNotFound(f.K8sClient.SchedulingV1().PriorityClasses().Delete(context.TODO(), osUserCrit.Name, metav1.DeleteOptions{}))
+					}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+				}
+				By("Ensuring the CDI priority class is restored")
+				prioClass := ""
+				if cr.Spec.PriorityClass != nil {
+					prioClass = string(*cr.Spec.PriorityClass)
+				}
+				// Deployment
+				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(prioClass), common.CDILabelSelector)
+				// API server
+				verifyPodPriorityClass(cdiApiServerPodPrefix, string(prioClass), "")
+				// Upload server
+				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(prioClass), "")
+				By("Verifying there is just a single cdi controller pod")
+				Eventually(func() error {
+					_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
+					return err
+				}, 2*time.Minute, 1*time.Second).Should(BeNil())
+				By("Ensuring this pod is the leader")
+				Eventually(func() bool {
+					controllerPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
+					Expect(err).ToNot(HaveOccurred())
+					log := getLog(f, controllerPod.Name)
+					return checkLogForRegEx(logIsLeaderRegex, log)
+				}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+
+			})
+
+			It("should use kubernetes priority class if set", func() {
+				cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+				if errors.IsNotFound(err) {
+					Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
+				}
+				Expect(err).ToNot(HaveOccurred())
+				By("Setting the priority class to system cluster critical, which is known to exist")
+				cr.Spec.PriorityClass = &systemClusterCritical
+				_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				By("Verifying the CDI deployment is updated")
+				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(systemClusterCritical), common.CDILabelSelector)
+				By("Verifying the CDI api server is updated")
+				verifyPodPriorityClass(cdiApiServerPodPrefix, string(systemClusterCritical), "")
+				By("Verifying the CDI upload proxy server is updated")
+				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(systemClusterCritical), "")
+			})
+
+			It("should use openshift priority class if not set and available", func() {
+				_, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+				if errors.IsNotFound(err) {
+					Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
+				}
+				_, err = f.K8sClient.SchedulingV1().PriorityClasses().Create(context.TODO(), osUserCrit, metav1.CreateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				By("Verifying the CDI control plane is updated")
+				// Deployment
+				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
+				// API server
+				verifyPodPriorityClass(cdiApiServerPodPrefix, string(osUserCrit.Name), "")
+				// Upload server
+				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(osUserCrit.Name), "")
 			})
 		})
 	})

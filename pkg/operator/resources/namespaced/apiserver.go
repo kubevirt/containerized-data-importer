@@ -42,7 +42,7 @@ func createAPIServerResources(args *FactoryArgs) []client.Object {
 		createAPIServerRoleBinding(),
 		createAPIServerRole(),
 		createAPIServerService(),
-		createAPIServerDeployment(args.APIServerImage, args.Verbosity, args.PullPolicy, args.InfraNodePlacement),
+		createAPIServerDeployment(args.APIServerImage, args.Verbosity, args.PullPolicy, args.PriorityClassName, args.InfraNodePlacement),
 	}
 }
 
@@ -87,9 +87,12 @@ func createAPIServerService() *corev1.Service {
 	return service
 }
 
-func createAPIServerDeployment(image, verbosity, pullPolicy string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
+func createAPIServerDeployment(image, verbosity, pullPolicy, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
 	deployment := utils.CreateDeployment(apiServerRessouceName, cdiLabel, apiServerRessouceName, apiServerRessouceName, 1, infraNodePlacement)
+	if priorityClassName != "" {
+		deployment.Spec.Template.Spec.PriorityClassName = priorityClassName
+	}
 	container := utils.CreateContainer(apiServerRessouceName, image, verbosity, pullPolicy)
 	container.ReadinessProbe = &corev1.Probe{
 		Handler: corev1.Handler{
