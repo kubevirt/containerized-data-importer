@@ -40,6 +40,7 @@ import (
 	aggregatorapifake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
 	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
@@ -123,10 +124,19 @@ var _ = Describe("Auth config tests", func() {
 		authorizer := &testAuthorizer{}
 		authConfigWatcher := NewAuthConfigWatcher(ctx, client)
 
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, authConfigWatcher, nil)
+		installerLabels := map[string]string{
+			common.AppKubernetesPartOfLabel:  "testing",
+			common.AppKubernetesVersionLabel: "v0.0.0-tests",
+		}
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, authConfigWatcher, nil, installerLabels)
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)
+
+		secret, err := client.CoreV1().Secrets("cdi").Get(context.TODO(), "cdi-api-signing-key", metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(secret.Labels[common.AppKubernetesComponentLabel]).To(Equal("storage"))
+		Expect(secret.Labels[common.AppKubernetesVersionLabel]).To(Equal(installerLabels[common.AppKubernetesVersionLabel]))
 
 		req, err := http.NewRequest("GET", "/apis", nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -151,7 +161,7 @@ var _ = Describe("Auth config tests", func() {
 		authorizer := &testAuthorizer{}
 		acw := NewAuthConfigWatcher(ctx, client).(*authConfigWatcher)
 
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, nil)
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, nil, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)
@@ -184,7 +194,7 @@ var _ = Describe("Auth config tests", func() {
 		acw := NewAuthConfigWatcher(ctx, client).(*authConfigWatcher)
 		certWatcher := NewFakeCertWatcher()
 
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, certWatcher)
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, certWatcher, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)
