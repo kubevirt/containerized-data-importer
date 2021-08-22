@@ -17,6 +17,8 @@ limitations under the License.
 package namespaced
 
 import (
+	"fmt"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -94,6 +96,26 @@ func createAPIServerDeployment(image, verbosity, pullPolicy, priorityClassName s
 		deployment.Spec.Template.Spec.PriorityClassName = priorityClassName
 	}
 	container := utils.CreateContainer(apiServerRessouceName, image, verbosity, pullPolicy)
+	container.Env = []corev1.EnvVar{
+		{
+			Name: common.InstallerPartOfLabel,
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  fmt.Sprintf("metadata.labels['%s']", common.AppKubernetesPartOfLabel),
+				},
+			},
+		},
+		{
+			Name: common.InstallerVersionLabel,
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  fmt.Sprintf("metadata.labels['%s']", common.AppKubernetesVersionLabel),
+				},
+			},
+		},
+	}
 	container.ReadinessProbe = &corev1.Probe{
 		Handler: corev1.Handler{
 			HTTPGet: &corev1.HTTPGetAction{

@@ -49,7 +49,9 @@ func newSecret(namespace, secretName string, data map[string][]byte, owner *meta
 			Name:      secretName,
 			Namespace: namespace,
 			Labels: map[string]string{
-				common.CDIComponentLabel: "keystore",
+				common.CDIComponentLabel:           "keystore",
+				common.AppKubernetesComponentLabel: "storage",
+				common.AppKubernetesManagedByLabel: "cdi-apiserver",
 			},
 		},
 		Type: "Opaque",

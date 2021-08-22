@@ -130,7 +130,7 @@ var _ = Describe("Create Private Key", func() {
 	It("Should create a Private Key", func() {
 		client := k8sfake.NewSimpleClientset()
 
-		privateKey, err := GetOrCreatePrivateKey(client, namespace, secret)
+		privateKey, err := GetOrCreatePrivateKey(client, namespace, secret, map[string]string{})
 		Expect(err).NotTo(HaveOccurred())
 
 		actions := []core.Action{}
@@ -154,7 +154,7 @@ var _ = Describe("Create Private Key", func() {
 
 		client := k8sfake.NewSimpleClientset(kubeobjects...)
 
-		returnedPrivateKey, err := GetOrCreatePrivateKey(client, namespace, secret)
+		returnedPrivateKey, err := GetOrCreatePrivateKey(client, namespace, secret, map[string]string{})
 		Expect(err).NotTo(HaveOccurred())
 
 		actions := []core.Action{}
