@@ -1675,8 +1675,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	})
 
 	Describe("Progress reporting on import datavolume", func() {
-		It("[test_id:3934]Should report progress while importing", func() {
-			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs))
+		table.DescribeTable("Should report progress while importing", func(url string) {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(url, f.CdiInstallNs))
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
@@ -1704,7 +1704,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				progress := dv.Status.Progress
 				return progressRegExp.MatchString(string(progress))
 			}, timeout, pollingInterval).Should(BeTrue())
-		})
+		},
+			table.Entry("[test_id:3934]when image is qcow2", utils.TinyCoreQcow2URLRateLimit),
+			table.Entry("[test_id:6902]when image is qcow2.gz", utils.TinyCoreQcow2GzURLRateLimit),
+		)
 	})
 
 	Describe("[rfe_id:4223][crit:high] DataVolume - WaitForFirstConsumer", func() {
