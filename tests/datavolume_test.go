@@ -191,6 +191,42 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		return utils.NewDataVolumeWithVddkWarmImport(dataVolumeName, size, backingFile, s.Name, thumbprint, url, vmid.String(), currentCheckpoint, previousCheckpoint, finalCheckpoint)
 	}
 
+	createImageIoDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+		cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+		Expect(err).To(BeNil())
+		stringData := map[string]string{
+			common.KeyAccess: "YWRtaW5AaW50ZXJuYWw=",
+			common.KeySecret: "MTIzNDU2",
+		}
+		ResetImageIoInventory(f)
+		s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, "mysecret"))
+		return utils.NewDataVolumeWithImageioImport(dataVolumeName, size, url, s.Name, cm, "123")
+	}
+
+	createImageIoWarmImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+		cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+		Expect(err).To(BeNil())
+		stringData := map[string]string{
+			common.KeyAccess: "YWRtaW5AaW50ZXJuYWw=",
+			common.KeySecret: "MTIzNDU2",
+		}
+		s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, "mysecret"))
+		diskID := "disk-678"
+		snapshots := []string{
+			"cirros.raw",
+			"cirros-snapshot1.qcow2",
+			"cirros-snapshot2.qcow2",
+		}
+		CreateImageIoWarmImportInventory(f, diskID, "storagedomain-876", snapshots)
+		var checkpoints []cdiv1.DataVolumeCheckpoint
+		parent := ""
+		for _, checkpoint := range snapshots {
+			checkpoints = append(checkpoints, cdiv1.DataVolumeCheckpoint{Current: checkpoint, Previous: parent})
+			parent = checkpoint
+		}
+		return utils.NewDataVolumeWithImageioWarmImport(dataVolumeName, size, url, s.Name, cm, diskID, checkpoints, true)
+	}
+
 	AfterEach(func() {
 		if sourcePvc != nil {
 			By("[AfterEach] Clean up target PVC")
@@ -215,17 +251,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			readyCondition   *cdiv1.DataVolumeCondition
 			boundCondition   *cdiv1.DataVolumeCondition
 			runningCondition *cdiv1.DataVolumeCondition
-		}
-
-		createImageIoDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
-			cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-			Expect(err).To(BeNil())
-			stringData := map[string]string{
-				common.KeyAccess: "YWRtaW5AaW50ZXJuYWw=",
-				common.KeySecret: "MTIzNDU2",
-			}
-			s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, "mysecret"))
-			return utils.NewDataVolumeWithImageioImport(dataVolumeName, size, url, s.Name, cm, "123")
 		}
 
 		createHTTPSDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
@@ -647,6 +672,30 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
+			table.Entry("[test_id:3937]succeed creating warm import dv from imageio source", dataVolumeTestArguments{
+				name:             "dv-imageio-test",
+				size:             "1Gi",
+				url:              imageioURL,
+				dvFunc:           createImageIoWarmImportDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-imageio-test Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
 			table.Entry("[rfe_id:1277][crit:high][test_id:1360]succeed creating clone dv", dataVolumeTestArguments{
 				name:        "dv-clone-test1",
 				size:        "1Gi",
@@ -892,10 +941,16 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				dataVolume = utils.NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName, "1G", url(), f.BlockSCName)
 			case "import-vddk":
 				dataVolume = createVddkDataVolume(dataVolumeName, "1Gi", vcenterURL())
-				utils.ModifyDataVolumeWithVDDKImportToBlockPV(dataVolume, f.BlockSCName)
+				utils.ModifyDataVolumeWithImportToBlockPV(dataVolume, f.BlockSCName)
 			case "warm-import-vddk":
 				dataVolume = createVddkWarmImportDataVolume(dataVolumeName, "1Gi", vcenterURL())
-				utils.ModifyDataVolumeWithVDDKImportToBlockPV(dataVolume, f.BlockSCName)
+				utils.ModifyDataVolumeWithImportToBlockPV(dataVolume, f.BlockSCName)
+			case "import-imageio":
+				dataVolume = createImageIoDataVolume(dataVolumeName, "1Gi", imageioURL())
+				utils.ModifyDataVolumeWithImportToBlockPV(dataVolume, f.BlockSCName)
+			case "warm-import-imageio":
+				dataVolume = createImageIoWarmImportDataVolume(dataVolumeName, "1Gi", imageioURL())
+				utils.ModifyDataVolumeWithImportToBlockPV(dataVolume, f.BlockSCName)
 			}
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -931,6 +986,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[test_id:3933]succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
 			table.Entry("[test_id:3935]succeed import from VDDK to block volume", "import-vddk", "", nil, "dv-vddk-import-test", controller.ImportSucceeded, cdiv1.Succeeded),
 			table.Entry("[test_id:3936]succeed warm import from VDDK to block volume", "warm-import-vddk", "", nil, "dv-vddk-warm-import-test", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[test_id:3938]succeed import from ImageIO to block volume", "import-imageio", "", nil, "dv-imageio-import-test", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[test_id:3944]succeed warm import from ImageIO to block volume", "warm-import-imageio", "", nil, "dv-imageio-warm-import-test", controller.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 
