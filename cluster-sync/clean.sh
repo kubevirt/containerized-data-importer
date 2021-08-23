@@ -17,7 +17,7 @@ LABELS=("operator.cdi.kubevirt.io" "cdi.kubevirt.io" "prometheus.cdi.kubevirt.io
 NAMESPACES=(default kube-system cdi)
 
 set +e
-_kubectl patch cdi cdi --type=json -p '[{ "op": "remove", "path": "/metadata/finalizers" }]'
+_kubectl patch cdi ${CR_NAME} --type=json -p '[{ "op": "remove", "path": "/metadata/finalizers" }]'
 set -e
 
 _kubectl get ot --all-namespaces -o=custom-columns=NAME:.metadata.name,NAMESPACE:.metadata.namespace,FINALIZERS:.metadata.finalizers --no-headers | grep objectTransfer | while read p; do
