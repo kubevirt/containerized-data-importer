@@ -321,11 +321,11 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(true))
 		})
 
-		DescribeTable("should", func(oldFinalCheckpoint bool, oldCheckpoints []string, newFinalCheckpoint bool, newCheckpoints []string, modifyDV func(*cdiv1.DataVolume), expectedSuccess bool, sourceType string) {
-			oldDV := newMultistageDataVolume("multi-stage", oldFinalCheckpoint, oldCheckpoints, sourceType)
+		DescribeTable("should", func(oldFinalCheckpoint bool, oldCheckpoints []string, newFinalCheckpoint bool, newCheckpoints []string, modifyDV func(*cdiv1.DataVolume), expectedSuccess bool, sourceFunc func() *cdiv1.DataVolumeSource) {
+			oldDV := newMultistageDataVolume("multi-stage", oldFinalCheckpoint, oldCheckpoints, sourceFunc)
 			oldBytes, _ := json.Marshal(&oldDV)
 
-			newDV := newMultistageDataVolume("multi-stage", newFinalCheckpoint, newCheckpoints, sourceType)
+			newDV := newMultistageDataVolume("multi-stage", newFinalCheckpoint, newCheckpoints, sourceFunc)
 			if modifyDV != nil {
 				modifyDV(newDV)
 			}
@@ -351,17 +351,17 @@ var _ = Describe("Validating Webhook", func() {
 			resp := validateAdmissionReview(ar)
 			Expect(resp.Allowed).To(Equal(expectedSuccess))
 		},
-			Entry("accept a spec change on multi-stage VDDK import fields", false, []string{"stage-1"}, true, []string{"stage-1", "stage-2"}, nil, true, "vddk"),
+			Entry("accept a spec change on multi-stage VDDK import fields", false, []string{"stage-1"}, true, []string{"stage-1", "stage-2"}, nil, true, vddkSource),
 
-			Entry("reject a spec change on un-approved fields of a multi-stage VDDK import", false, []string{"stage-1"}, true, []string{"stage-1", "stage-2"}, func(newDV *cdiv1.DataVolume) { newDV.Spec.Source.VDDK.URL = "testing123" }, false, "vddk"),
+			Entry("reject a spec change on un-approved fields of a multi-stage VDDK import", false, []string{"stage-1"}, true, []string{"stage-1", "stage-2"}, func(newDV *cdiv1.DataVolume) { newDV.Spec.Source.VDDK.URL = "testing123" }, false, vddkSource),
 
-			Entry("accept identical multi-stage VDDK import field changes", false, []string{"stage-1"}, false, []string{"stage-1"}, nil, true, "vddk"),
+			Entry("accept identical multi-stage VDDK import field changes", false, []string{"stage-1"}, false, []string{"stage-1"}, nil, true, vddkSource),
 
-			Entry("reject a spec change on un-approved fields, even with identical non-empty multi-stage fields", false, []string{"stage-1"}, false, []string{"stage-1"}, func(newDV *cdiv1.DataVolume) { newDV.Spec.Source.VDDK.URL = "tesing123" }, false, "vddk"),
+			Entry("reject a spec change on un-approved fields, even with identical non-empty multi-stage fields", false, []string{"stage-1"}, false, []string{"stage-1"}, func(newDV *cdiv1.DataVolume) { newDV.Spec.Source.VDDK.URL = "tesing123" }, false, vddkSource),
 
-			Entry("accept a spec change on multi-stage ImageIO import fields", false, []string{"snapshot-123"}, true, []string{"snapshot-123", "snapshot-234"}, nil, true, "imageio"),
+			Entry("accept a spec change on multi-stage ImageIO import fields", false, []string{"snapshot-123"}, true, []string{"snapshot-123", "snapshot-234"}, nil, true, imageIOSource),
 
-			Entry("reject a spec change on source type that does not support multi-stage import", false, []string{}, true, []string{}, nil, false, "blank"),
+			Entry("reject a spec change on source type that does not support multi-stage import", false, []string{}, true, []string{}, nil, false, blankSource),
 		)
 	})
 
@@ -446,7 +446,36 @@ var _ = Describe("Validating Webhook", func() {
 	})
 })
 
-func newMultistageDataVolume(name string, final bool, checkpoints []string, sourceType string) *cdiv1.DataVolume {
+func vddkSource() *cdiv1.DataVolumeSource {
+	return &cdiv1.DataVolumeSource{
+		VDDK: &cdiv1.DataVolumeSourceVDDK{
+			BackingFile: "disk.img",
+			URL:         "http://example.com/data",
+			UUID:        "12345",
+			Thumbprint:  "aa:bb:cc",
+			SecretRef:   "secret",
+		},
+	}
+}
+
+func imageIOSource() *cdiv1.DataVolumeSource {
+	return &cdiv1.DataVolumeSource{
+		Imageio: &cdiv1.DataVolumeSourceImageIO{
+			URL:           "http://example.com/data",
+			DiskID:        "disk-123",
+			SecretRef:     "secret",
+			CertConfigMap: "certs",
+		},
+	}
+}
+
+func blankSource() *cdiv1.DataVolumeSource {
+	return &cdiv1.DataVolumeSource{
+		Blank: &cdiv1.DataVolumeBlankImage{},
+	}
+}
+
+func newMultistageDataVolume(name string, final bool, checkpoints []string, sourceFunc func() *cdiv1.DataVolumeSource) *cdiv1.DataVolume {
 	pvc := newPVCSpec(pvcSizeDefault)
 
 	previous := ""
@@ -459,33 +488,7 @@ func newMultistageDataVolume(name string, final bool, checkpoints []string, sour
 		previous = checkpoint
 	}
 
-	var source *cdiv1.DataVolumeSource
-	if sourceType == "vddk" {
-		source = &cdiv1.DataVolumeSource{
-			VDDK: &cdiv1.DataVolumeSourceVDDK{
-				BackingFile: "disk.img",
-				URL:         "http://example.com/data",
-				UUID:        "12345",
-				Thumbprint:  "aa:bb:cc",
-				SecretRef:   "secret",
-			},
-		}
-	} else if sourceType == "imageio" {
-		source = &cdiv1.DataVolumeSource{
-			Imageio: &cdiv1.DataVolumeSourceImageIO{
-				URL:           "http://example.com/data",
-				DiskID:        "disk-123",
-				SecretRef:     "secret",
-				CertConfigMap: "certs",
-			},
-		}
-	} else if sourceType == "blank" {
-		source = &cdiv1.DataVolumeSource{
-			Blank: &cdiv1.DataVolumeBlankImage{},
-		}
-	} else {
-		return nil
-	}
+	source := sourceFunc()
 
 	namespace := metav1.NamespaceDefault
 	dv := &cdiv1.DataVolume{
