@@ -41,6 +41,8 @@ const (
 	HTTPSTinyCoreQcow2URL = "https://cdi-file-host.%s/tinyCore.qcow2"
 	// TinyCoreQcow2URLRateLimit provides a test url for the tineyCore qcow2 image via rate-limiting proxy
 	TinyCoreQcow2URLRateLimit = "http://cdi-file-host.%s:82/tinyCore.qcow2"
+	// TinyCoreQcow2GzURLRateLimit provides a test url for the tineyCore qcow2.gz image via rate-limiting proxy
+	TinyCoreQcow2GzURLRateLimit = "http://cdi-file-host.%s:82/tinyCore.qcow2.gz"
 	// HTTPSTinyCoreVmdkURL provides a test url for the tineyCore qcow2 image
 	HTTPSTinyCoreVmdkURL = "https://cdi-file-host.%s/tinyCore.vmdk"
 	// HTTPSTinyCoreVdiURL provides a test url for the tineyCore qcow2 image
