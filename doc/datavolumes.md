@@ -189,8 +189,42 @@ spec:
 [Get VDDK ConfigMap example](../manifests/example/vddk-configmap.yaml)
 [Ways to find thumbprint](https://libguestfs.org/nbdkit-vddk-plugin.1.html#THUMBPRINTS)
 
-### Multi-stage Import
-The VDDK source is currently the only type of DataVolume that can perform a multi-stage import. In a multi-stage import, multiple pods are started in succession to copy different parts of the source to an existing base disk image. The VDDK source uses a multi-stage import to perform warm migration: after copying an initial disk image, it queries the VMware host for the blocks that changed in between two snapshots. Each delta is applied to the disk image, and only the final delta copy needs the source VM to be powered off, minimizing downtime.
+## Multi-stage Import
+ In a multi-stage import, multiple pods are started in succession to copy different parts of the source to an existing base disk image. Currently only the [ImageIO](#multi-stage-imageio-import) and [VDDK](#multi-stage-vddk-import) data sources support multi-stage imports.
+
+### Multi-stage ImageIO Import
+ The ImageIO source allows a warm migration from RHV/oVirt with a snapshot-based multi-stage import. After copying an initial raw disk image as a base, subsequent QCOW snapshots can be applied on top of this base so that only relatively small images need to be downloaded to copy the latest changes from the source. The ImageIO importer downloads each QCOW to scratch space, checks that its backing file matches the expected ID of the previous checkpoint, then rebases and commits the image to the previously-downloaded image in the PV.
+
+ To create a multi-stage ImageIO import, find the ID of the disk to import along with the IDs of each snapshot that needs to be transferred. Add these IDs as in the following example CRD, and set the finalCheckpoint flag if no further snapshots will be downloaded. The DataVolume will go through the usual import sequence and move to the "Paused" state after each checkpoint. If the finalCheckpoint flag was set to true, the DataVolume will move to "Succeeded" after importing the last checkpoint specified in this list.
+
+ ```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: "imageio"
+ spec:
+  source:
+    imageio:
+      url: "https://rhv.example.local/ovirt-engine/api"
+      secretRef: "endpoint-secret"
+      certConfigMap: "tls-certs"
+      diskId: "3406e724-7d02-4225-a620-3e6ef646c68c"
+  finalCheckpoint: false
+  checkpoints:
+    - previous: ""
+      current: "1c44c27e-d2d8-49c4-841a-cc26c4b1e406"
+    - previous: "1c44c27e-d2d8-49c4-841a-cc26c4b1e406"
+      current: "c55bb7bb-20f2-46b5-a7f3-11fd6010b7d0"
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: "32Gi"
+ ```
+
+### Multi-stage VDDK Import
+ The VDDK source uses a multi-stage import to perform warm migration: after copying an initial disk image, it queries the VMware host for the blocks that changed in between two snapshots. Each delta is applied to the disk image, and only the final delta copy needs the source VM to be powered off, minimizing downtime.
 
 To create a multi-stage VDDK import, first [enable changed block tracking](https://kb.vmware.com/s/article/1031873) on the source VM. Take an initial snapshot of the VM (snapshot-1), and take another snapshot (snapshot-2) after the VM has run long enough to save more data to disk. Create a DataVolume spec similar to the example below, specifying a list of checkpoints and a finalCheckpoint boolean to indicate if there are no further snapshots to copy. The first importer pod to appear will copy the full disk contents of snapshot-1 to the disk image provided by the PVC, and the second importer pod will quickly copy only the blocks that changed between snapshot-1 and snapshot-2. If finalCheckpoint is set to false, the resulting DataVolume will wait in a "Paused" state until further checkpoints are provided. The DataVolume will only move to "Succeeded" when finalCheckpoint is true and the last checkpoint in the list has been copied. It is not necessary to provide all the checkpoints up-front, because updates are allowed to be applied to these fields (finalCheckpoint and checkpoints).
 
