@@ -65,6 +65,10 @@ const (
 	CirrosURL = "http://cdi-file-host.%s/cirros-qcow2.img"
 	// ImageioURL provides URL of oVirt engine hosting imageio
 	ImageioURL = "https://imageio.%s:12346/ovirt-engine/api"
+	// ImageioRootURL provides the base path to fakeovirt, for inventory modifications
+	ImageioRootURL = "https://imageio.%s:12346"
+	// ImageioImageURL provides the base path to imageiotest, for test images
+	ImageioImageURL = "https://imageio.%s:12345"
 	// VcenterURL provides URL of vCenter/ESX simulator
 	VcenterURL = "https://vcenter.%s:8989/sdk"
 
@@ -227,6 +231,35 @@ func NewDataVolumeWithImageioImport(dataVolumeName string, size string, httpURL 
 					DiskID:        diskID,
 				},
 			},
+			PVC: &k8sv1.PersistentVolumeClaimSpec{
+				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+}
+
+// NewDataVolumeWithImageioWarmImport initializes a DataVolume struct for a multi-stage import from oVirt snapshots
+func NewDataVolumeWithImageioWarmImport(dataVolumeName string, size string, httpURL string, secret string, configMap string, diskID string, checkpoints []cdiv1.DataVolumeCheckpoint, finalCheckpoint bool) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dataVolumeName,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				Imageio: &cdiv1.DataVolumeSourceImageIO{
+					URL:           httpURL,
+					SecretRef:     secret,
+					CertConfigMap: configMap,
+					DiskID:        diskID,
+				},
+			},
+			FinalCheckpoint: finalCheckpoint,
+			Checkpoints:     checkpoints,
 			PVC: &k8sv1.PersistentVolumeClaimSpec{
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
@@ -425,8 +458,8 @@ func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registr
 	}
 }
 
-// ModifyDataVolumeWithVDDKImportToBlockPV modifies a DataVolume struct (created by NewDataVolumeWithVddkImport) for importing disks from vCenter/ESX to a block PV
-func ModifyDataVolumeWithVDDKImportToBlockPV(dataVolume *cdiv1.DataVolume, storageClassName string) *cdiv1.DataVolume {
+// ModifyDataVolumeWithImportToBlockPV modifies a DataVolume struct for import to a block PV
+func ModifyDataVolumeWithImportToBlockPV(dataVolume *cdiv1.DataVolume, storageClassName string) *cdiv1.DataVolume {
 	volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock)
 	dataVolume.Spec.PVC.VolumeMode = &volumeMode
 	dataVolume.Spec.PVC.StorageClassName = &storageClassName
