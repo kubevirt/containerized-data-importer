@@ -129,6 +129,7 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 			},
 			Resources: []string{
 				"storageclasses",
+				"csidrivers",
 			},
 			Verbs: []string{
 				"get",

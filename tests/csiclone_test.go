@@ -72,4 +72,35 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high] CSI Vol
 		verifyPVC(dataVolume, f, utils.DefaultPvcMountPath, expectedMd5)
 	})
 
+	It("[posneg:negative][test_id:6655] Support for CSI Clone strategy in storage profile with SC HPP - negative", func() {
+		if f.IsCSIVolumeCloneStorageClassAvailable() {
+			Skip("Test should only run on non-csi storage")
+		}
+
+		By(fmt.Sprintf("configure storage profile %s", cloneStorageClassName))
+		utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, cloneStorageClassName, originalProfileSpec, cdiv1.CloneStrategyCsiClone)
+
+		dataVolume, _ := createDataVolumeDontWait("dv-csi-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, cloneStorageClassName, f)
+		waitForDvPhase(cdiv1.CloneScheduled, dataVolume, f)
+		verifyEvent(controller.ErrUnableToClone, dataVolume.Namespace, f)
+	})
 })
+
+func createDataVolumeDontWait(dataVolumeName, testPath string, volumeMode v1.PersistentVolumeMode, scName string, f *framework.Framework) (*cdiv1.DataVolume, string) {
+	sourcePvc := createAndPopulateSourcePVC(dataVolumeName, volumeMode, scName, f)
+	md5, err := f.GetMD5(f.Namespace, sourcePvc, testPath, utils.UploadFileSize)
+	Expect(err).ToNot(HaveOccurred())
+	zero := int64(0)
+	err = utils.DeletePodByName(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, &zero)
+
+	By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
+	dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)
+	if scName != "" {
+		dataVolume.Spec.PVC.StorageClassName = &scName
+	}
+	By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+	dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+	Expect(err).ToNot(HaveOccurred())
+
+	return dataVolume, md5
+}
