@@ -59,7 +59,7 @@ type ImageioDataSource struct {
 }
 
 // NewImageioDataSource creates a new instance of the ovirt-imageio data provider.
-func NewImageioDataSource(endpoint string, accessKey string, secKey string, certDir string, diskID string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string) (*ImageioDataSource, error) {
+func NewImageioDataSource(endpoint string, accessKey string, secKey string, certDir string, diskID string, currentCheckpoint string, previousCheckpoint string) (*ImageioDataSource, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	imageioReader, contentLength, it, conn, err := createImageioReader(ctx, endpoint, accessKey, secKey, certDir, diskID, currentCheckpoint, previousCheckpoint)
 	if err != nil {
@@ -456,11 +456,11 @@ func getSnapshot(conn ConnectionInterface, disk *ovirtsdk4.Disk, snapshotID stri
 			continue
 		}
 
-		storageDomainsService := conn.SystemService().StorageDomainsService()
-		storageDomainService := storageDomainsService.StorageDomainService(storageDomainName)
-		diskSnapshotsService := storageDomainService.DiskSnapshotsService()
-		snapshotsListRequest := diskSnapshotsService.List()
-		snapshotsListResponse, err := snapshotsListRequest.Send()
+		storageDomainService := conn.SystemService().StorageDomainsService().StorageDomainService(storageDomainName)
+		if storageDomainService == nil {
+			return nil, errors.Errorf("no service available for storage domain %s", storageDomainName)
+		}
+		snapshotsListResponse, err := storageDomainService.DiskSnapshotsService().List().Send()
 		if err != nil {
 			return nil, errors.Wrapf(err, "error listing snapshots in storage domain %s", storageDomainName)
 		}
@@ -519,8 +519,7 @@ func getTransfer(conn ConnectionInterface, disk *ovirtsdk4.Disk, snapshot *ovirt
 		return nil, uint64(0), errors.Wrap(err, "Error preparing transfer object")
 	}
 
-	transfersService := conn.SystemService().ImageTransfersService()
-	transfer := transfersService.Add()
+	transfer := conn.SystemService().ImageTransfersService().Add()
 	transfer.ImageTransfer(imageTransfer)
 	var it = &ovirtsdk4.ImageTransfer{}
 	for {
