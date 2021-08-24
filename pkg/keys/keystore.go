@@ -29,6 +29,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 )
 
@@ -41,7 +42,7 @@ const (
 )
 
 // GetOrCreatePrivateKey gets or creates a private key secret
-func GetOrCreatePrivateKey(client kubernetes.Interface, namespace, secretName string) (*rsa.PrivateKey, error) {
+func GetOrCreatePrivateKey(client kubernetes.Interface, namespace, secretName string, installerLabels map[string]string) (*rsa.PrivateKey, error) {
 	secret, err := client.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 	if err != nil {
 		if !k8serrors.IsNotFound(err) {
@@ -58,6 +59,7 @@ func GetOrCreatePrivateKey(client kubernetes.Interface, namespace, secretName st
 		if err != nil {
 			return nil, errors.Wrap(err, "Error creating prvate key secret")
 		}
+		util.SetRecommendedLabels(secret, installerLabels, "cdi-apiserver")
 
 		secret, err = client.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 		if err != nil {

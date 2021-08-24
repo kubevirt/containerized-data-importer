@@ -100,6 +100,8 @@ type cdiAPIApp struct {
 	certWarcher CertWatcher
 
 	tokenGenerator token.Generator
+
+	installerLabels map[string]string
 }
 
 // UploadTokenRequestAPI returns web service for swagger generation
@@ -117,7 +119,8 @@ func NewCdiAPIServer(bindAddress string,
 	cdiClient cdiclient.Interface,
 	authorizor CdiAPIAuthorizer,
 	authConfigWatcher AuthConfigWatcher,
-	certWatcher CertWatcher) (CdiAPIServer, error) {
+	certWatcher CertWatcher,
+	installerLabels map[string]string) (CdiAPIServer, error) {
 	var err error
 	app := &cdiAPIApp{
 		bindAddress:       bindAddress,
@@ -128,6 +131,7 @@ func NewCdiAPIServer(bindAddress string,
 		authorizer:        authorizor,
 		authConfigWatcher: authConfigWatcher,
 		certWarcher:       certWatcher,
+		installerLabels:   installerLabels,
 	}
 
 	err = app.getKeysAndCerts()
@@ -192,7 +196,7 @@ func (app *cdiAPIApp) Start(ch <-chan struct{}) error {
 func (app *cdiAPIApp) getKeysAndCerts() error {
 	namespace := util.GetNamespace()
 
-	privateKey, err := keys.GetOrCreatePrivateKey(app.client, namespace, apiSigningKeySecretName)
+	privateKey, err := keys.GetOrCreatePrivateKey(app.client, namespace, apiSigningKeySecretName, app.installerLabels)
 	if err != nil {
 		return errors.Wrap(err, "Error getting/creating signing key")
 	}

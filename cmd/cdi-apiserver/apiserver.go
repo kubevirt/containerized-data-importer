@@ -22,8 +22,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/kelseyhightower/envconfig"
 	"os"
+
+	"github.com/kelseyhightower/envconfig"
 
 	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
@@ -34,6 +35,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	certwatcher "kubevirt.io/containerized-data-importer/pkg/util/cert/watcher"
 	"kubevirt.io/containerized-data-importer/pkg/version/verflag"
 )
@@ -44,14 +46,14 @@ const (
 
 	// Default address api listens on.
 	defaultHost = "0.0.0.0"
-
 )
 
 var (
-	configPath string
-	masterURL  string
-	verbose    string
-    apiServerArgs APIServerEnvs
+	configPath      string
+	masterURL       string
+	verbose         string
+	apiServerArgs   APIServerEnvs
+	installerLabels map[string]string
 )
 
 // APIServerEnvs contains environment variables read for setting custom cert paths
@@ -78,6 +80,14 @@ func init() {
 	})
 	if verbose == defVerbose {
 		klog.V(1).Infof("Note: increase the -v level in the api deployment for more detailed logging, eg. -v=%d or -v=%d\n", 2, 3)
+	}
+
+	installerLabels = map[string]string{}
+	if partOfVal := os.Getenv(common.InstallerPartOfLabel); len(partOfVal) != 0 {
+		installerLabels[common.AppKubernetesPartOfLabel] = partOfVal
+	}
+	if versionVal := os.Getenv(common.InstallerVersionLabel); len(versionVal) != 0 {
+		installerLabels[common.AppKubernetesVersionLabel] = versionVal
 	}
 }
 
@@ -126,7 +136,8 @@ func main() {
 		cdiClient,
 		authorizor,
 		authConfigWatcher,
-		certWatcher)
+		certWatcher,
+		installerLabels)
 	if err != nil {
 		klog.Fatalf("Upload api failed to initialize: %v\n", errors.WithStack(err))
 	}
