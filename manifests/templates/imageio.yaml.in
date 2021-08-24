@@ -17,7 +17,7 @@ spec:
         app: imageio
         cdi.kubevirt.io/testing: ""
     spec:
-      serviceAccountName: cdi-sa
+      serviceAccountName: cdi-testing-sa
       initContainers:
       - name: init
         image: {{ .DockerRepo }}/imageio-init:{{ .DockerTag }}
