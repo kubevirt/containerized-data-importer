@@ -17,7 +17,7 @@ spec:
         name: cdi-test-proxy
         cdi.kubevirt.io/testing: ""
     spec:
-      serviceAccountName: cdi-sa
+      serviceAccountName: cdi-testing-sa
       containers:
       - name: http
         image: {{ .DockerRepo }}/cdi-func-test-proxy:{{ .DockerTag }}
