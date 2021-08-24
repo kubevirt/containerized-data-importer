@@ -488,8 +488,6 @@ func newMultistageDataVolume(name string, final bool, checkpoints []string, sour
 		previous = checkpoint
 	}
 
-	source := sourceFunc()
-
 	namespace := metav1.NamespaceDefault
 	dv := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
@@ -503,7 +501,7 @@ func newMultistageDataVolume(name string, final bool, checkpoints []string, sour
 		},
 		Status: cdiv1.DataVolumeStatus{},
 		Spec: cdiv1.DataVolumeSpec{
-			Source:          source,
+			Source:          sourceFunc(),
 			FinalCheckpoint: final,
 			Checkpoints:     dvCheckpoints,
 			PVC:             pvc,
