@@ -571,10 +571,7 @@ http_file(
 http_file(
     name = "libxcrypt-compat-aarch64",
     sha256 = "f36cfd27003bcfc6f5fba9b99414402397f4b57fd503e84514a06d794f313346",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/l/libxcrypt-compat-4.4.23-1.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/f36cfd27003bcfc6f5fba9b99414402397f4b57fd503e84514a06d794f313346",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/f36cfd27003bcfc6f5fba9b99414402397f4b57fd503e84514a06d794f313346"],
 )
 
 http_file(
