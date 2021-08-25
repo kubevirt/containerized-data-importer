@@ -412,6 +412,21 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 			return r.reconcileSmartClonePvc(log, datavolume, pvcSpec, transferName, snapshotClassName)
 		}
 		if selectedCloneStrategy == CsiClone {
+			csiDriverAvailable, err := r.storageClassCSIDriverExists(pvcSpec.StorageClassName)
+			if err != nil && !k8serrors.IsNotFound(err) {
+				return reconcile.Result{}, err
+			}
+			if !csiDriverAvailable {
+				// err csi clone not possible
+				return reconcile.Result{},
+					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.CloneScheduled, datavolume, pvc, selectedCloneStrategy,
+						DataVolumeEvent{
+							eventType: corev1.EventTypeWarning,
+							reason:    ErrUnableToClone,
+							message:   fmt.Sprintf("CSI Clone configured, but no CSIDriver available for %s", *pvcSpec.StorageClassName),
+						})
+			}
+
 			return r.reconcileCsiClonePvc(log, datavolume, pvcSpec, transferName)
 		}
 
@@ -1388,6 +1403,27 @@ func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVol
 	}
 	// We are not done yet, force a re-reconcile in 2 seconds to get an update.
 	return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
+}
+
+func (r *DatavolumeReconciler) storageClassCSIDriverExists(storageClassName *string) (bool, error) {
+	log := r.log.WithName("getCsiDriverForStorageClass").V(3)
+
+	storageClass, err := GetStorageClassByName(r.client, storageClassName)
+	if err != nil {
+		return false, err
+	}
+	if storageClass == nil {
+		log.Info("Target PVC's Storage Class not found")
+		return false, nil
+	}
+
+	csiDriver := &storagev1.CSIDriver{}
+
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: storageClass.Provisioner}, csiDriver); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.DataVolume, targetStorageSpec *corev1.PersistentVolumeClaimSpec) (string, error) {
