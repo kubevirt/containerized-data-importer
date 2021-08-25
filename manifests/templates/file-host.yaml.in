@@ -19,7 +19,7 @@ spec:
     spec:
       securityContext:
         runAsUser: 0
-      serviceAccountName: cdi-sa
+      serviceAccountName: cdi-testing-sa
       initContainers:
       - name: init
         image: {{ .DockerRepo }}/cdi-func-test-file-host-init:{{ .DockerTag }}
