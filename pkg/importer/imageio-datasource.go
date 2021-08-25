@@ -42,6 +42,8 @@ type ImageioDataSource struct {
 	ctx           context.Context
 	cancel        context.CancelFunc
 	cancelLock    sync.Mutex
+	cleanupLock   sync.Mutex
+	cleanupDone   bool
 	// stack of readers
 	readers *FormatReaders
 	// url the url to report to the caller of getURL, could be the endpoint, or a file in scratch space.
@@ -63,12 +65,17 @@ func NewImageioDataSource(endpoint string, accessKey string, secKey string, cert
 	ctx, cancel := context.WithCancel(context.Background())
 	imageioReader, contentLength, it, conn, err := createImageioReader(ctx, endpoint, accessKey, secKey, certDir, diskID, currentCheckpoint, previousCheckpoint)
 	if err != nil {
+		cleanupError := cleanupTransfer(conn, it)
+		if cleanupError != nil {
+			klog.Errorf("Failed to close image transfer after failure creating data source: %v", cleanupError)
+		}
 		cancel()
 		return nil, err
 	}
 	imageioSource := &ImageioDataSource{
 		ctx:              ctx,
 		cancel:           cancel,
+		cleanupLock:      sync.Mutex{},
 		imageioReader:    imageioReader,
 		contentLength:    contentLength,
 		imageTransfer:    it,
@@ -110,11 +117,7 @@ func (is *ImageioDataSource) Info() (ProcessingPhase, error) {
 
 // Transfer is called to transfer the data from the source to a scratch location.
 func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
-	defer func() {
-		if err := cleanupTransfer(is.connection, is.imageTransfer); err == nil {
-			is.imageTransfer = nil // If successful, this avoids an unnecessary cleanup in Close
-		}
-	}()
+	defer is.cleanupTransfer()
 	// we know that there won't be archives
 	size, _ := util.GetAvailableSpace(path)
 	if size <= int64(0) {
@@ -153,11 +156,7 @@ func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 
 // TransferFile is called to transfer the data from the source to the passed in file.
 func (is *ImageioDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
-	defer func() {
-		if err := cleanupTransfer(is.connection, is.imageTransfer); err == nil {
-			is.imageTransfer = nil // If successful, this avoids an unnecessary cleanup in Close
-		}
-	}()
+	defer is.cleanupTransfer()
 	is.readers.StartProgressUpdate()
 	err := util.StreamDataToFile(is.readers.TopReader(), fileName)
 	if err != nil {
@@ -177,9 +176,7 @@ func (is *ImageioDataSource) Close() error {
 	if is.readers != nil {
 		err = is.readers.Close()
 	}
-	if is.imageTransfer != nil {
-		cleanupTransfer(is.connection, is.imageTransfer)
-	}
+	is.cleanupTransfer()
 	if is.connection != nil {
 		err = is.connection.Close()
 	}
@@ -277,12 +274,10 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 	// Use the create client from http source.
 	client, err := createHTTPClient(certDir)
 	if err != nil {
-		cleanupTransfer(conn, it)
 		return nil, uint64(0), it, conn, err
 	}
 	transferURL, available := it.TransferUrl()
 	if !available {
-		cleanupTransfer(conn, it)
 		return nil, uint64(0), it, conn, errors.New("Error transfer url not available")
 	}
 
@@ -291,11 +286,9 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 
 	resp, err := client.Do(req)
 	if err != nil {
-		cleanupTransfer(conn, it)
 		return nil, uint64(0), it, conn, errors.Wrap(err, "Sending request failed")
 	}
 	if resp.StatusCode != http.StatusOK {
-		cleanupTransfer(conn, it)
 		return nil, uint64(0), it, conn, errors.Errorf("bad status: %s", resp.Status)
 	}
 
@@ -308,6 +301,22 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 		Current: 0,
 	}
 	return countingReader, total, it, conn, nil
+}
+
+// Wrapper around cleanupTransfer that also clears is.imageTransfer.
+// Avoids unnecessary cleanup work when the transfer is interrupted by SIGTERM.
+func (is *ImageioDataSource) cleanupTransfer() {
+	is.cleanupLock.Lock()
+	defer is.cleanupLock.Unlock()
+	if is.cleanupDone {
+		return
+	}
+	err := cleanupTransfer(is.connection, is.imageTransfer)
+	if err != nil {
+		klog.Errorf("Failed to clean up image transfer: %v", err)
+	} else {
+		is.cleanupDone = true
+	}
 }
 
 // cleanupTransfer makes sure the disk is unlocked before shutting down importer
@@ -538,15 +547,14 @@ func getTransfer(conn ConnectionInterface, disk *ovirtsdk4.Disk, snapshot *ovirt
 		}
 		phase, available := it.Phase()
 		if !available {
-			return nil, uint64(0), errors.New("Error phase not available")
+			return it, uint64(0), errors.New("Error phase not available")
 		}
 		if phase == ovirtsdk4.IMAGETRANSFERPHASE_INITIALIZING {
 			time.Sleep(1 * time.Second)
 		} else if phase == ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING {
 			break
 		} else {
-			cleanupTransfer(conn, it)
-			return nil, uint64(0), errors.Errorf("Error transfer phase: %s", phase)
+			return it, uint64(0), errors.Errorf("Error transfer phase: %s", phase)
 		}
 	}
 
