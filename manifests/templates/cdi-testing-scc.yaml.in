@@ -1,0 +1,14 @@
+kind: SecurityContextConstraints
+apiVersion: security.openshift.io/v1
+metadata:
+  labels:
+    cdi.kubevirt.io/testing: ""
+  name: cdi-testing-scc
+allowedCapabilities:
+- 'SETFCAP'
+seLinuxContext:
+  type: RunAsAny
+runAsUser:
+  type: RunAsAny
+users:
+- system:serviceaccount:{{ .Namespace }}:cdi-testing-sa
