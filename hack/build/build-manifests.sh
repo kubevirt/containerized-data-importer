@@ -26,7 +26,7 @@ echo "DOCKER_PREFIX=${DOCKER_PREFIX}"
 echo "DOCKER_TAG=${DOCKER_TAG}"
 echo "VERBOSITY=${VERBOSITY}"
 echo "PULL_POLICY=${PULL_POLICY}"
-echo "NAMESPACE=${NAMESPACE}"
+echo "CDI_NAMESPACE=${CDI_NAMESPACE}"
 
 source "${script_dir}"/resource-generator.sh
 

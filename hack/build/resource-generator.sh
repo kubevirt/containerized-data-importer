@@ -47,7 +47,7 @@ function generateResourceManifest() {
             -uploadserver-image="${DOCKER_PREFIX}/${UPLOADSERVER_IMAGE_NAME}:${DOCKER_TAG}" \
             -verbosity="${VERBOSITY}" \
             -pull-policy="${PULL_POLICY}" \
-            -namespace="${NAMESPACE}"
+            -namespace="${CDI_NAMESPACE}"
     ) 1>>"${targetDir}/"$manifestName
 
     (
@@ -130,7 +130,7 @@ function populateResourceManifest() {
             -verbosity="${VERBOSITY}" \
             -pull-policy="${PULL_POLICY}" \
             -cr-name="${CR_NAME}" \
-            -namespace="${NAMESPACE}" \
+            -namespace="${CDI_NAMESPACE}" \
             -generated-manifests-path=${generatedManifests}
     ) 1>>"${targetDir}/"$outfile
 
