@@ -145,7 +145,7 @@ func main() {
 				os.Exit(1)
 			}
 		case controller.SourceImageio:
-			dp, err = importer.NewImageioDataSource(ep, acc, sec, certDir, diskID)
+			dp, err = importer.NewImageioDataSource(ep, acc, sec, certDir, diskID, currentCheckpoint, previousCheckpoint)
 			if err != nil {
 				klog.Errorf("%+v", err)
 				err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to imageio data source: %+v", err))

@@ -256,6 +256,20 @@ var _ = Describe("Data Processor", func() {
 			Expect(tmpDir).To(Equal(mdp.transferPath))
 		})
 	})
+
+	table.DescribeTable("should avoid cleanup before delta copies", func(dataSource DataSourceInterface, expectedCleanup bool) {
+		tmpDir, err := ioutil.TempDir("", "scratch")
+		Expect(err).ToNot(HaveOccurred())
+		defer os.RemoveAll(tmpDir)
+
+		dp := NewDataProcessor(dataSource, "dest", "dataDir", tmpDir, "1G", 0.055, false)
+		Expect(dp.needsDataCleanup).To(Equal(expectedCleanup))
+	},
+		table.Entry("ImageIO delta copy", &ImageioDataSource{currentSnapshot: "123", previousSnapshot: "123"}, false),
+		table.Entry("ImageIO base copy", &ImageioDataSource{currentSnapshot: "123", previousSnapshot: ""}, true),
+		table.Entry("VDDK delta copy", &VDDKDataSource{CurrentSnapshot: "123", PreviousSnapshot: "123"}, false),
+		table.Entry("VDDK base copy", &VDDKDataSource{CurrentSnapshot: "123", PreviousSnapshot: ""}, true),
+	)
 })
 
 var _ = Describe("Convert", func() {
@@ -441,6 +455,53 @@ var _ = Describe("DataProcessorResume", func() {
 	})
 })
 
+var _ = Describe("MergeDelta", func() {
+	It("Should correctly move to merge phase, then rebase and commit", func() {
+		url := &url.URL{}
+		originalBackingFile := "original-backing-file"
+		expectedBackingFile := "rebased-backing-file"
+		originalActualSize := int64(5)
+		expectedActualSize := int64(6)
+
+		mdp := &MockDataProvider{
+			infoResponse:     ProcessingPhaseTransferScratch,
+			transferResponse: ProcessingPhaseMergeDelta,
+			needsScratch:     true,
+			url:              url,
+		}
+
+		dp := NewDataProcessor(mdp, expectedBackingFile, "dataDir", "scratchDataDir", "", 0.055, false)
+		err := errors.New("this operation should not be called")
+		info := &image.ImgInfo{
+			Format:      "",
+			BackingFile: originalBackingFile,
+			VirtualSize: 10,
+			ActualSize:  originalActualSize,
+		}
+		qemuOperations := NewFakeQEMUOperations(err, err, fakeInfoOpRetVal{info, nil}, err, err, nil)
+		replaceQEMUOperations(qemuOperations, func() {
+			// Check original backing file and size before processing
+			info, err := qemuOperations.Info(url)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(info.BackingFile).To(Equal(originalBackingFile))
+			Expect(info.ActualSize).To(Equal(originalActualSize))
+
+			// This should run rebase and commit
+			err = dp.ProcessData()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(2).To(Equal(len(mdp.calledPhases)))
+			Expect(ProcessingPhaseInfo).To(Equal(mdp.calledPhases[0]))
+			Expect(ProcessingPhaseTransferScratch).To(Equal(mdp.calledPhases[1]))
+
+			// Verify backing file was rebased and committed to main data file
+			info, err = qemuOperations.Info(url)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(info.BackingFile).To(Equal(expectedBackingFile))
+			Expect(info.ActualSize).To(Equal(expectedActualSize))
+		})
+	})
+})
+
 func replaceQEMUOperations(replacement image.QEMUOperations, f func()) {
 	orig := qemuOperations
 	if replacement != nil {
@@ -475,6 +536,24 @@ func (o *fakeQEMUOperations) Info(url *url.URL) (*image.ImgInfo, error) {
 
 func (o *fakeQEMUOperations) CreateBlankImage(dest string, size resource.Quantity, preallocate bool) error {
 	return o.e6
+}
+
+// Simulate rebase by changing the backing file.
+func (o *fakeQEMUOperations) Rebase(backingFile string, delta string) error {
+	if o.ret4.imgInfo == nil {
+		return errors.New("invalid image info")
+	}
+	o.ret4.imgInfo.BackingFile = backingFile
+	return nil
+}
+
+// Simulate commit by increasing the image size.
+func (o *fakeQEMUOperations) Commit(image string) error {
+	if o.ret4.imgInfo == nil {
+		return errors.New("invalid image info")
+	}
+	o.ret4.imgInfo.ActualSize++
+	return nil
 }
 
 func NewQEMUAllErrors() image.QEMUOperations {

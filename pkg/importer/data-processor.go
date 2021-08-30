@@ -57,6 +57,8 @@ const (
 	ProcessingPhasePause ProcessingPhase = "Pause"
 	// ProcessingPhaseError is the phase in which we encountered an error and need to exit ungracefully.
 	ProcessingPhaseError ProcessingPhase = "Error"
+	// ProcessingPhaseMergeDelta is the phase in a multi-stage import where a delta image downloaded to scratch is applied to the base image
+	ProcessingPhaseMergeDelta ProcessingPhase = "MergeDelta"
 )
 
 // ValidationSizeError is an error indication size validation failure.
@@ -128,6 +130,10 @@ func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratch
 	vddkSource, isVddk := dataSource.(*VDDKDataSource)
 	if isVddk {
 		needsDataCleanup = !vddkSource.IsDeltaCopy()
+	}
+	imageioSource, isImageio := dataSource.(*ImageioDataSource)
+	if isImageio {
+		needsDataCleanup = !imageioSource.IsDeltaCopy()
 	}
 	dp := &DataProcessor{
 		currentPhase:       ProcessingPhaseInfo,
@@ -220,6 +226,11 @@ func (dp *DataProcessor) ProcessDataWithPause() error {
 			dp.currentPhase, err = dp.resize()
 			if err != nil {
 				err = errors.Wrap(err, "Unable to resize disk image to requested size")
+			}
+		case ProcessingPhaseMergeDelta:
+			dp.currentPhase, err = dp.merge()
+			if err != nil {
+				err = errors.Wrap(err, "Unable to apply delta to base image")
 			}
 		default:
 			return errors.Errorf("Unknown processing phase %s", dp.currentPhase)
@@ -366,4 +377,20 @@ func GetUsableSpace(filesystemOverhead float64, availableSpace int64) int64 {
 	// This later conflicts with image size validation.
 	qemuImgCorrection := util.RoundDown(spaceWithOverhead, util.DefaultAlignBlockSize)
 	return qemuImgCorrection
+}
+
+// Rebase and commit a delta image to its backing file
+func (dp *DataProcessor) merge() (ProcessingPhase, error) {
+	klog.V(1).Info("Merging QCOW to base image.")
+	imageURL := dp.source.GetURL()
+	if imageURL == nil {
+		return ProcessingPhaseError, errors.New("bad URL in data source")
+	}
+	if err := qemuOperations.Rebase(dp.dataFile, imageURL.String()); err != nil {
+		return ProcessingPhaseError, errors.Wrap(err, "error rebasing image")
+	}
+	if err := qemuOperations.Commit(imageURL.String()); err != nil {
+		return ProcessingPhaseError, errors.Wrap(err, "error committing image")
+	}
+	return ProcessingPhaseComplete, nil
 }

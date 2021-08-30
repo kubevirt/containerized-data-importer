@@ -1218,6 +1218,7 @@ var _ = Describe("Preallocation", func() {
 				common.KeyAccess: "YWRtaW5AaW50ZXJuYWw=",
 				common.KeySecret: "MTIzNDU2",
 			}
+			tests.ResetImageIoInventory(f)
 			s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, "mysecret"))
 			return utils.NewDataVolumeWithImageioImport("import-dv", "100Mi", imageioURL(), s.Name, cm, "123")
 		}),

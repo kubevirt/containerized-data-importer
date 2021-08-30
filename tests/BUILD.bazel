@@ -2,13 +2,18 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "go_default_library",
-    srcs = ["utils.go"],
+    srcs = [
+        "imageio-inventory.go",
+        "utils.go",
+    ],
     importpath = "kubevirt.io/containerized-data-importer/tests",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/apis/core/v1beta1:go_default_library",
         "//tests/framework:go_default_library",
+        "//tests/utils:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",
+        "//vendor/github.com/onsi/gomega:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api:go_default_library",
@@ -105,5 +110,7 @@ exports_files(
         "images/cirros-large-physical-size.raw.xz",
         "images/cirros-large-physical-size.qcow2",
         "images/invalid_qcow_images/invalid-qcow-large-memory.img",
+        "images/cirros-snapshot1.qcow2",
+        "images/cirros-snapshot2.qcow2",
     ],
 )
