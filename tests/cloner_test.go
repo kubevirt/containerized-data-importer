@@ -208,6 +208,53 @@ var _ = Describe("all clone tests", func() {
 				doInUseCloneTest(f, pvcDef, targetNs, "target-dv")
 			})
 
+			It("[posneg:negative][test_id:6612]Clone with CSI as PVC source with target name that already exists", func() {
+				if cloneType == "network" {
+					Skip("Cannot simulate target pvc name conflict for host-assisted clone ")
+				}
+				pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
+				sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
+				targetNamespaceName := f.Namespace.Name
+
+				// 1. use the srcPvc so the clone cannot be started
+				pod, err := f.CreateExecutorPodWithPVC("temp-pod", f.Namespace.Name, sourcePvc)
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(func() bool {
+					pod, err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					return pod.Status.Phase == v1.PodRunning
+				}, 90*time.Second, 2*time.Second).Should(BeTrue())
+
+				// 2. Create a clone DataVolume
+				targetDV := utils.NewCloningDataVolume("target-pvc", "1Gi", sourcePvc)
+				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNamespaceName, targetDV)
+				Expect(err).ToNot(HaveOccurred())
+
+				// 3. Knowing that clone cannot yet advance, Create targetPvc with a "conflicting name"
+				By(fmt.Sprintf("Creating target pvc: %s/target-pvc", targetNamespaceName))
+				annotations := map[string]string{"cdi.kubevirt.io/conflicting-pvc": dataVolumeName}
+
+				targetPvc, err := utils.CreatePVCFromDefinition(f.K8sClient, targetNamespaceName,
+					utils.NewPVCDefinition("target-pvc", "1Gi", annotations, nil))
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindIfWaitForFirstConsumer(targetPvc)
+
+				actualCloneType := utils.GetCloneType(f.CdiClient, dataVolume)
+				if actualCloneType == "snapshot" {
+					eventReason := controller.SmartCloneSourceInUse
+					verifyEvent(eventReason, targetNamespaceName, f)
+				} else if actualCloneType == "csivolumeclone" {
+					verifyEvent(controller.CSICloneSourceInUse, targetNamespaceName, f)
+				} else {
+					Fail(fmt.Sprintf("Unknown clonetype %s", actualCloneType))
+				}
+				err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				//verify event
+				verifyEvent(controller.ErrResourceExists, targetNamespaceName, f)
+			})
+
 			It("[test_id:1356]Should not clone anything when CloneOf annotation exists", func() {
 				pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 				sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
@@ -460,7 +507,7 @@ var _ = Describe("all clone tests", func() {
 			ClonerBehavior(cloneStorageClassName, "snapshot")
 		})
 
-		Context("CSI Clone", func() {
+		Context("[rfe_id:4219]CSI Clone", func() {
 			BeforeEach(func() {
 				if !f.IsCSIVolumeCloneStorageClassAvailable() {
 					Skip("SmartClone does not work without SnapshotStorageClass")
