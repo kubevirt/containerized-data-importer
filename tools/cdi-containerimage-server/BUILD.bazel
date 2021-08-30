@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["main.go"],
+    importpath = "kubevirt.io/containerized-data-importer/tools/cdi-containerimage-server",
+    visibility = ["//visibility:private"],
+    deps = ["//vendor/github.com/pkg/errors:go_default_library"],
+)
+
+go_binary(
+    name = "cdi-containerimage-server",
+    embed = [":go_default_library"],
+    pure = "on",
+    visibility = ["//visibility:public"],
+)
+
+sh_binary(
+    name = "import",
+    srcs = ["import.sh"],
+    visibility = ["//visibility:public"],
+)
+
+exports_files(
+    [
+        "import.sh",
+    ],
+)

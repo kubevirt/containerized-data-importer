@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
@@ -61,6 +62,8 @@ const (
 	AnnCertConfigMap = AnnAPIGroup + "/storage.import.certConfigMap"
 	// AnnContentType provides a const for the PVC content-type
 	AnnContentType = AnnAPIGroup + "/storage.contentType"
+	// AnnRegistryImportMethod provides a const for registry import method annotation
+	AnnRegistryImportMethod = AnnAPIGroup + "/storage.import.registryImportMethod"
 	// AnnImportPod provides a const for our PVC importPodName annotation
 	AnnImportPod = AnnAPIGroup + "/storage.import.importPodName"
 	// AnnRequiresScratch provides a const for our PVC requires scratch annotation
@@ -638,7 +641,9 @@ func (r *ImportReconciler) requiresScratchSpace(pvc *corev1.PersistentVolumeClai
 		case SourceGlance:
 			scratchRequired = true
 		case SourceRegistry:
-			scratchRequired = true
+			if pvc.Annotations[AnnRegistryImportMethod] != "cri" {
+				scratchRequired = true
+			}
 		}
 	}
 	value, ok := pvc.Annotations[AnnRequiresScratch]
@@ -748,6 +753,19 @@ func getEndpoint(pvc *corev1.PersistentVolumeClaim) (string, error) {
 	return ep, nil
 }
 
+// returns the import image part of the endpoint string
+func getImportImage(pvc *corev1.PersistentVolumeClaim) (string, error) {
+	ep, err := getEndpoint(pvc)
+	if err != nil {
+		return "", nil
+	}
+	parts := strings.Split(ep, "://")
+	if len(parts) != 2 {
+		return "", errors.Errorf("illegal registry endpoint %s", ep)
+	}
+	return parts[1], nil
+}
+
 // getValueFromAnnotation returns the value of an annotation
 func getValueFromAnnotation(pvc *corev1.PersistentVolumeClaim, annotation string) string {
 	value, _ := pvc.Annotations[annotation]
@@ -782,7 +800,17 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 		return nil, err
 	}
 
-	pod := makeImporterPodSpec(pvc.Namespace, image, verbose, pullPolicy, podEnvVar, pvc, scratchPvcName, podResourceRequirements, workloadNodePlacement, vddkImageName, priorityClassName)
+	var pod *corev1.Pod
+	if getSource(pvc) == SourceRegistry && pvc.Annotations[AnnRegistryImportMethod] == "cri" {
+		importImage, err := getImportImage(pvc)
+		if err != nil {
+			return nil, err
+		}
+		pod = makeCriImporterPodSpec(pvc.Namespace, image, importImage, pullPolicy, pvc, podResourceRequirements, workloadNodePlacement, priorityClassName)
+	} else {
+		pod = makeImporterPodSpec(pvc.Namespace, image, verbose, pullPolicy, podEnvVar, pvc, scratchPvcName, podResourceRequirements, workloadNodePlacement, vddkImageName, priorityClassName)
+	}
+
 	util.SetRecommendedLabels(pod, installerLabels, "cdi-controller")
 
 	if err := client.Create(context.TODO(), pod); err != nil {
@@ -790,6 +818,127 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 	}
 	log.V(3).Info("importer pod created\n", "pod.Name", pod.Name, "pod.Namespace", pod.Namespace, "image name", image)
 	return pod, nil
+}
+
+// makeCriImporterPodSpec creates and return the container runtime interface importer pod spec based on the passed-in importImage and pvc.
+func makeCriImporterPodSpec(namespace, image, importImage, pullPolicy string, pvc *corev1.PersistentVolumeClaim, podResourceRequirements *corev1.ResourceRequirements, workloadNodePlacement *sdkapi.NodePlacement, priorityClassName string) *corev1.Pod {
+	// importer pod name contains the pvc name
+	podName, _ := pvc.Annotations[AnnImportPod]
+
+	blockOwnerDeletion := true
+	isController := true
+
+	volumes := []corev1.Volume{
+		{
+			Name: "shared-volume",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: DataVolName,
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: pvc.Name,
+					ReadOnly:  false,
+				},
+			},
+		},
+	}
+
+	pod := &corev1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: namespace,
+			Annotations: map[string]string{
+				AnnCreatedBy: "yes",
+			},
+			Labels: map[string]string{
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: common.ImporterPodName,
+				common.PrometheusLabel:   "",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "v1",
+					Kind:               "PersistentVolumeClaim",
+					Name:               pvc.Name,
+					UID:                pvc.GetUID(),
+					BlockOwnerDeletion: &blockOwnerDeletion,
+					Controller:         &isController,
+				},
+			},
+		},
+		Spec: corev1.PodSpec{
+			InitContainers: []corev1.Container{
+				{
+					Name:    "init",
+					Image:   image,
+					Command: []string{"sh", "-c", "cp /usr/bin/cdi-containerimage-server /shared/server"},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							MountPath: "/shared",
+							Name:      "shared-volume",
+						},
+					},
+					ImagePullPolicy: corev1.PullPolicy(pullPolicy),
+				},
+			},
+			Containers: []corev1.Container{
+				{
+					Name:    "server",
+					Image:   importImage,
+					Command: []string{"/shared/server", "-p", "8100", "-image-dir", "/disk", "-ready-file", "/shared/ready", "-done-file", "/shared/done"},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							MountPath: "/shared",
+							Name:      "shared-volume",
+						},
+					},
+					ImagePullPolicy: corev1.PullPolicy(pullPolicy),
+				},
+				{
+					Name:    common.ImporterPodName,
+					Image:   image,
+					Command: []string{"/usr/bin/import.sh", "8100", "/shared/ready", "/shared/done", "disk.img", "/data/disk.img"},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							MountPath: "/shared",
+							Name:      "shared-volume",
+						},
+						{
+							MountPath: "/data",
+							Name:      DataVolName,
+						},
+					},
+					Ports: []corev1.ContainerPort{
+						{
+							Name:          "metrics",
+							ContainerPort: 8443,
+							Protocol:      corev1.ProtocolTCP,
+						},
+					},
+					ImagePullPolicy: corev1.PullPolicy(pullPolicy),
+				},
+			},
+			RestartPolicy:     corev1.RestartPolicyOnFailure,
+			Volumes:           volumes,
+			NodeSelector:      workloadNodePlacement.NodeSelector,
+			Tolerations:       workloadNodePlacement.Tolerations,
+			Affinity:          workloadNodePlacement.Affinity,
+			PriorityClassName: priorityClassName,
+		},
+	}
+
+	if podResourceRequirements != nil {
+		pod.Spec.Containers[0].Resources = *podResourceRequirements
+		pod.Spec.Containers[1].Resources = *podResourceRequirements
+	}
+	return pod
 }
 
 // makeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.

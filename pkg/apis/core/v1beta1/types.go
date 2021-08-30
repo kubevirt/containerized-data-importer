@@ -152,13 +152,32 @@ type DataVolumeSourceS3 struct {
 
 // DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source
 type DataVolumeSourceRegistry struct {
-	//URL is the url of the Docker registry source
+	//URL is the url of the registry source (starting with docker:// for Docker, or is:// for ImageStream)
 	URL string `json:"url"`
+	//ImportMethod is the import method: "skopeo" (default), or "cri"
+	ImportMethod RegistryImportMethod `json:"importMethod,omitempty"`
 	//SecretRef provides the secret reference needed to access the Registry source
 	SecretRef string `json:"secretRef,omitempty"`
 	//CertConfigMap provides a reference to the Registry certs
 	CertConfigMap string `json:"certConfigMap,omitempty"`
 }
+
+const (
+	// RegistryTransportDocker is docker transport prefix
+	RegistryTransportDocker = "docker"
+	// RegistryTransportImageStream is image streamstransport prefix
+	RegistryTransportImageStream = "is"
+)
+
+// RegistryImportMethod represents the registry import method
+type RegistryImportMethod string
+
+const (
+	// RegistryImportSkopeo is the standard import method
+	RegistryImportSkopeo RegistryImportMethod = "skopeo"
+	// RegistryImportCri is the container runtime interface based import method
+	RegistryImportCri RegistryImportMethod = "cri"
+)
 
 // DataVolumeSourceHTTP can be either an http or https endpoint, with an optional basic auth user name and password, and an optional configmap containing additional CAs
 type DataVolumeSourceHTTP struct {

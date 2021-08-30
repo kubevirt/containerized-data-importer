@@ -2296,11 +2296,14 @@ spec:
                       certConfigMap:
                         description: CertConfigMap provides a reference to the Registry certs
                         type: string
+                      importMethod:
+                        description: 'ImportMethod is the import method: "skopeo" (default), or "cri"'
+                        type: string
                       secretRef:
                         description: SecretRef provides the secret reference needed to access the Registry source
                         type: string
                       url:
-                        description: URL is the url of the Docker registry source
+                        description: URL is the url of the registry source (starting with docker:// for Docker, or is:// for ImageStream)
                         type: string
                     required:
                     - url
@@ -3083,11 +3086,14 @@ spec:
                       certConfigMap:
                         description: CertConfigMap provides a reference to the Registry certs
                         type: string
+                      importMethod:
+                        description: 'ImportMethod is the import method: "skopeo" (default), or "cri"'
+                        type: string
                       secretRef:
                         description: SecretRef provides the secret reference needed to access the Registry source
                         type: string
                       url:
-                        description: URL is the url of the Docker registry source
+                        description: URL is the url of the registry source (starting with docker:// for Docker, or is:// for ImageStream)
                         type: string
                     required:
                     - url

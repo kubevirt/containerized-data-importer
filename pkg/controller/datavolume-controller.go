@@ -2239,6 +2239,7 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 		}
 	} else if dataVolume.Spec.Source.Registry != nil {
 		annotations[AnnSource] = SourceRegistry
+		annotations[AnnRegistryImportMethod] = string(dataVolume.Spec.Source.Registry.ImportMethod)
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.Registry.URL
 		annotations[AnnContentType] = string(dataVolume.Spec.ContentType)
 		if dataVolume.Spec.Source.Registry.SecretRef != "" {

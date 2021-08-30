@@ -15714,8 +15714,15 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceRegistry(ref common.ReferenceC
 				Properties: map[string]spec.Schema{
 					"url": {
 						SchemaProps: spec.SchemaProps{
-							Description: "URL is the url of the Docker registry source",
+							Description: "URL is the url of the registry source (starting with docker:// for Docker, or is:// for ImageStream)",
 							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"importMethod": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ImportMethod is the import method: \"skopeo\" (default), or \"cri\"",
 							Type:        []string{"string"},
 							Format:      "",
 						},

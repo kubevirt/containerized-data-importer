@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"strings"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
@@ -240,14 +241,45 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 		return causes
 	}
 
-	if spec.Source.Registry != nil && spec.ContentType != "" && string(spec.ContentType) != string(cdiv1.DataVolumeKubeVirt) {
-		sourceType = field.Child("contentType").String()
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("ContentType must be " + string(cdiv1.DataVolumeKubeVirt) + " when Source is Registry"),
-			Field:   sourceType,
-		})
-		return causes
+	if spec.Source.Registry != nil {
+		if spec.ContentType != "" && string(spec.ContentType) != string(cdiv1.DataVolumeKubeVirt) {
+			sourceType = field.Child("contentType").String()
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("ContentType must be %s when Source is Registry", cdiv1.DataVolumeKubeVirt),
+				Field:   sourceType,
+			})
+			return causes
+		}
+		url := spec.Source.Registry.URL
+		parts := strings.Split(url, "://")
+		if len(parts) != 2 {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("Illegal registry source URL %s", url),
+				Field:   field.Child("source", "Registry", "URL").String(),
+			})
+			return causes
+		}
+		transport := parts[0]
+		if transport != cdiv1.RegistryTransportDocker && transport != cdiv1.RegistryTransportImageStream {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("Transport is neither %s or %s in url %s", cdiv1.RegistryTransportDocker, cdiv1.RegistryTransportImageStream, url),
+				Field:   field.Child("source", "Registry", "URL").String(),
+			})
+			return causes
+
+		}
+		importMethod := spec.Source.Registry.ImportMethod
+		if importMethod != "" && importMethod != cdiv1.RegistryImportSkopeo && importMethod != cdiv1.RegistryImportCri {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("ImportMethod %s is neither %s, %s or \"\"", importMethod, cdiv1.RegistryImportSkopeo, cdiv1.RegistryImportCri),
+				Field:   field.Child("source", "Registry", "importMethod").String(),
+			})
+			return causes
+		}
 	}
 
 	if spec.Source.Imageio != nil {
