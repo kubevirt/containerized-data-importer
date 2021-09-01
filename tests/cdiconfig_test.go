@@ -417,16 +417,20 @@ var _ = Describe("CDI ingress config tests", func() {
 	})
 
 	It("Should not crash and uploadProxy empty, if ingress defined without service", func() {
-		ingress = createIngress("test-ingress", f.CdiInstallNs, "cdi-uploadproxy", ingressUrl)
+		ingress = createNoServiceIngress("test-ingress", f.CdiInstallNs)
 		// The cdi controller will not process this ingress because it doesn't have the url we are looking for.
 		_, err := f.K8sClient.NetworkingV1().Ingresses(f.CdiInstallNs).Create(context.TODO(), ingress, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		By("Expecting uploadproxy url to be blank")
-		Eventually(func() bool {
+		By("Expecting uploadproxy url to be the default url")
+		Eventually(func() string {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			return config.Status.UploadProxyURL == nil
-		}, time.Second*30, time.Second).Should(BeTrue())
+			proxyUrl := ""
+			if config.Status.UploadProxyURL != nil {
+				proxyUrl = *config.Status.UploadProxyURL
+			}
+			return proxyUrl
+		}, time.Second*30, time.Second).Should(Equal(defaultUrl))
 	})
 })
 
