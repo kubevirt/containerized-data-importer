@@ -46,6 +46,7 @@ go_test(
     deps = [
         "//pkg/apis/upload/v1beta1:go_default_library",
         "//pkg/client/clientset/versioned/fake:go_default_library",
+        "//pkg/common:go_default_library",
         "//pkg/keys/keystest:go_default_library",
         "//pkg/util:go_default_library",
         "//pkg/util/cert:go_default_library",
