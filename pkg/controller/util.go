@@ -9,13 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-	"kubevirt.io/containerized-data-importer/pkg/token"
-
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	ocpconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -29,12 +26,12 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiv1utils "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1/utils"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
-
-	ocpconfigv1 "github.com/openshift/api/config/v1"
 )
 
 const (
@@ -596,7 +593,7 @@ func simplifyKnownMessage(msg string) string {
 	return msg
 }
 
-func setVddkAnnotations(anno map[string]string, pod *corev1.Pod) {
+func setVddkAnnotations(anno map[string]string, pod *v1.Pod) {
 	if pod.Status.ContainerStatuses[0].State.Terminated == nil {
 		return
 	}
@@ -820,7 +817,7 @@ func getPriorityClass(pvc *v1.PersistentVolumeClaim) string {
 	return anno[AnnPriorityClassName]
 }
 
-func shouldDeletePod(pvc *corev1.PersistentVolumeClaim) bool {
+func shouldDeletePod(pvc *v1.PersistentVolumeClaim) bool {
 	return pvc.GetAnnotations()[AnnPodRetainAfterCompletion] != "true" || pvc.DeletionTimestamp != nil
 }
 
@@ -859,22 +856,17 @@ func HasFinalizer(object metav1.Object, value string) bool {
 	return false
 }
 
-func validateCloneTokenPVC(validator token.Validator, source, target *corev1.PersistentVolumeClaim) error {
+func validateCloneTokenPVC(t string, v token.Validator, source, target *v1.PersistentVolumeClaim) error {
 	if source.Namespace == target.Namespace {
 		return nil
 	}
 
-	tok, ok := target.Annotations[AnnCloneToken]
-	if !ok {
-		return errors.New("clone token missing")
-	}
-
-	tokenData, err := validator.Validate(tok)
+	tokenData, err := v.Validate(t)
 	if err != nil {
 		return errors.Wrap(err, "error verifying token")
 	}
 
-	return validateTokenData(tokenData, source.Namespace, source.Name, target.Namespace, target.Name)
+	return validateTokenData(tokenData, source.Namespace, source.Name, target.Namespace, target.Name, string(target.UID))
 }
 
 func validateCloneTokenDV(validator token.Validator, dv *cdiv1.DataVolume) error {
@@ -892,16 +884,18 @@ func validateCloneTokenDV(validator token.Validator, dv *cdiv1.DataVolume) error
 		return errors.Wrap(err, "error verifying token")
 	}
 
-	return validateTokenData(tokenData, dv.Spec.Source.PVC.Namespace, dv.Spec.Source.PVC.Name, dv.Namespace, dv.Name)
+	return validateTokenData(tokenData, dv.Spec.Source.PVC.Namespace, dv.Spec.Source.PVC.Name, dv.Namespace, dv.Name, "")
 }
 
-func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNamespace, targetName string) error {
+func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNamespace, targetName, targetUID string) error {
+	uid := tokenData.Params["uid"]
 	if tokenData.Operation != token.OperationClone ||
 		tokenData.Name != srcName ||
 		tokenData.Namespace != srcNamespace ||
 		tokenData.Resource.Resource != "persistentvolumeclaims" ||
 		tokenData.Params["targetNamespace"] != targetNamespace ||
-		tokenData.Params["targetName"] != targetName {
+		tokenData.Params["targetName"] != targetName ||
+		(uid != "" && uid != targetUID) {
 		return errors.New("invalid token")
 	}
 

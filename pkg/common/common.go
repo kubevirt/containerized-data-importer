@@ -176,6 +176,9 @@ const (
 	// CloneTokenIssuer is the JWT issuer for clone tokens
 	CloneTokenIssuer = "cdi-apiserver"
 
+	// ExtendedCloneTokenIssuer is the JWT issuer for clone tokens
+	ExtendedCloneTokenIssuer = "cdi-deployment"
+
 	// QemuSubGid is the gid used as the qemu group in fsGroup
 	QemuSubGid = int64(107)
 

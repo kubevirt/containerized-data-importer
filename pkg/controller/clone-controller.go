@@ -37,14 +37,14 @@ import (
 )
 
 const (
-	cloneControllerAgentName = "clone-controller"
-
 	//AnnCloneRequest sets our expected annotation for a CloneRequest
 	AnnCloneRequest = "k8s.io/CloneRequest"
 	//AnnCloneOf is used to indicate that cloning was complete
 	AnnCloneOf = "k8s.io/CloneOf"
 	// AnnCloneToken is the annotation containing the clone token
 	AnnCloneToken = "cdi.kubevirt.io/storage.clone.token"
+	// AnnExtendedCloneToken is the annotation containing the long term clone token
+	AnnExtendedCloneToken = "cdi.kubevirt.io/storage.extended.clone.token"
 
 	//CloneUniqueID is used as a special label to be used when we search for the pod
 	CloneUniqueID = "cdi.kubevirt.io/storage.clone.cloneUniqeId"
@@ -54,11 +54,14 @@ const (
 	// ErrIncompatiblePVC provides a const to indicate a clone is not possible due to an incompatible PVC
 	ErrIncompatiblePVC = "ErrIncompatiblePVC"
 
-	// APIServerPublicKeyDir is the path to the apiserver public key dir
-	APIServerPublicKeyDir = "/var/run/cdi/apiserver/key"
+	// TokenKeyDir is the path to the apiserver public key dir
+	TokenKeyDir = "/var/run/cdi/token/keys"
 
-	// APIServerPublicKeyPath is the path to the apiserver public key
-	APIServerPublicKeyPath = APIServerPublicKeyDir + "/id_rsa.pub"
+	// TokenPublicKeyPath is the path to the apiserver public key
+	TokenPublicKeyPath = TokenKeyDir + "/id_rsa.pub"
+
+	// TokenPrivateKeyPath is the path to the apiserver private key
+	TokenPrivateKeyPath = TokenKeyDir + "/id_rsa"
 
 	// CloneSucceededPVC provides a const to indicate a clone to the PVC succeeded
 	CloneSucceededPVC = "CloneSucceeded"
@@ -83,7 +86,8 @@ type CloneReconciler struct {
 	clientCertGenerator generator.CertGenerator
 	serverCAFetcher     fetcher.CertBundleFetcher
 	log                 logr.Logger
-	tokenValidator      token.Validator
+	longTokenValidator  token.Validator
+	shortTokenValidator token.Validator
 	image               string
 	verbose             string
 	pullPolicy          string
@@ -103,7 +107,8 @@ func NewCloneController(mgr manager.Manager,
 		client:              mgr.GetClient(),
 		scheme:              mgr.GetScheme(),
 		log:                 log.WithName("clone-controller"),
-		tokenValidator:      newCloneTokenValidator(apiServerKey),
+		shortTokenValidator: newCloneTokenValidator(common.CloneTokenIssuer, apiServerKey),
+		longTokenValidator:  newCloneTokenValidator(common.ExtendedCloneTokenIssuer, apiServerKey),
 		image:               image,
 		verbose:             verbose,
 		pullPolicy:          pullPolicy,
@@ -161,8 +166,8 @@ func addCloneControllerWatches(mgr manager.Manager, cloneController controller.C
 	return nil
 }
 
-func newCloneTokenValidator(key *rsa.PublicKey) token.Validator {
-	return token.NewValidator(common.CloneTokenIssuer, key, cloneTokenLeeway)
+func newCloneTokenValidator(issuer string, key *rsa.PublicKey) token.Validator {
+	return token.NewValidator(issuer, key, cloneTokenLeeway)
 }
 
 func (r *CloneReconciler) shouldReconcile(pvc *corev1.PersistentVolumeClaim, log logr.Logger) bool {
@@ -228,8 +233,8 @@ func (r *CloneReconciler) Reconcile(_ context.Context, req reconcile.Request) (r
 		return reconcile.Result{}, nil
 	}
 
-	if requeue, err := r.reconcileSourcePod(sourcePod, pvc, log); requeue || err != nil {
-		return reconcile.Result{Requeue: requeue}, err
+	if requeueAfter, err := r.reconcileSourcePod(sourcePod, pvc, log); requeueAfter != 0 || err != nil {
+		return reconcile.Result{RequeueAfter: requeueAfter}, err
 	}
 
 	if err := r.updatePvcFromPod(sourcePod, pvc, log); err != nil {
@@ -238,33 +243,33 @@ func (r *CloneReconciler) Reconcile(_ context.Context, req reconcile.Request) (r
 	return reconcile.Result{}, nil
 }
 
-func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *corev1.PersistentVolumeClaim, log logr.Logger) (bool, error) {
+func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *corev1.PersistentVolumeClaim, log logr.Logger) (time.Duration, error) {
 	if sourcePod == nil {
 		sourcePvc, err := r.getCloneRequestSourcePVC(targetPvc)
 		if err != nil {
-			return false, err
+			return 0, err
 		}
 
 		sourcePopulated, err := IsPopulated(sourcePvc, r.client)
 		if err != nil {
-			return false, err
+			return 0, err
 		}
 		if !sourcePopulated {
-			return true, nil
+			return 0, nil
 		}
 
 		if err := r.validateSourceAndTarget(sourcePvc, targetPvc); err != nil {
-			return false, err
+			return 0, err
 		}
 
 		clientName, ok := targetPvc.Annotations[AnnUploadClientName]
 		if !ok {
-			return false, errors.Errorf("PVC %s/%s missing required %s annotation", targetPvc.Namespace, targetPvc.Name, AnnUploadClientName)
+			return 0, errors.Errorf("PVC %s/%s missing required %s annotation", targetPvc.Namespace, targetPvc.Name, AnnUploadClientName)
 		}
 
 		pods, err := GetPodsUsingPVCs(r.client, sourcePvc.Namespace, sets.NewString(sourcePvc.Name), true)
 		if err != nil {
-			return false, err
+			return 0, err
 		}
 
 		if len(pods) > 0 {
@@ -274,16 +279,16 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 				r.recorder.Eventf(targetPvc, corev1.EventTypeWarning, CloneSourceInUse,
 					"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, sourcePvc.Name)
 			}
-			return true, nil
+			return 2 * time.Second, nil
 		}
 
 		sourcePod, err := r.CreateCloneSourcePod(r.image, r.pullPolicy, clientName, targetPvc, log)
 		if err != nil {
-			return false, err
+			return 0, err
 		}
 		log.V(3).Info("Created source pod ", "sourcePod.Namespace", sourcePod.Namespace, "sourcePod.Name", sourcePod.Name)
 	}
-	return false, nil
+	return 0, nil
 }
 
 func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
@@ -373,7 +378,18 @@ func (r *CloneReconciler) findCloneSourcePod(pvc *corev1.PersistentVolumeClaim) 
 }
 
 func (r *CloneReconciler) validateSourceAndTarget(sourcePvc, targetPvc *corev1.PersistentVolumeClaim) error {
-	if err := validateCloneTokenPVC(r.tokenValidator, sourcePvc, targetPvc); err != nil {
+	// first check for extended token
+	v := r.longTokenValidator
+	tok, ok := targetPvc.Annotations[AnnExtendedCloneToken]
+	if !ok {
+		tok, ok = targetPvc.Annotations[AnnCloneToken]
+		if !ok {
+			return errors.New("clone token missing")
+		}
+		v = r.shortTokenValidator
+	}
+
+	if err := validateCloneTokenPVC(tok, v, sourcePvc, targetPvc); err != nil {
 		return err
 	}
 	contentType, err := ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc)
