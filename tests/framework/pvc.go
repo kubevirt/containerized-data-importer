@@ -168,7 +168,7 @@ func (f *Framework) GetMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolu
 
 	cmd := "md5sum " + fileName
 	if numBytes > 0 {
-		cmd = fmt.Sprintf("head -c %d %s | md5sum", numBytes, fileName)
+		cmd = fmt.Sprintf("head -c %d %s 1> null && head -c %d %s | md5sum", numBytes, fileName, numBytes, fileName)
 	}
 
 	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
