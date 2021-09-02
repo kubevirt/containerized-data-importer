@@ -15714,7 +15714,7 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceRegistry(ref common.ReferenceC
 				Properties: map[string]spec.Schema{
 					"url": {
 						SchemaProps: spec.SchemaProps{
-							Description: "URL is the url of the registry source (starting with docker:// for Docker, or is:// for ImageStream)",
+							Description: "URL is the url of the registry source (starting with the scheme: docker, oci-archive, is)",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",

@@ -152,7 +152,7 @@ type DataVolumeSourceS3 struct {
 
 // DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source
 type DataVolumeSourceRegistry struct {
-	//URL is the url of the registry source (starting with docker:// for Docker, or is:// for ImageStream)
+	//URL is the url of the registry source (starting with the scheme: docker, oci-archive, is)
 	URL string `json:"url"`
 	//ImportMethod is the import method: "skopeo" (default), or "cri"
 	ImportMethod RegistryImportMethod `json:"importMethod,omitempty"`
@@ -163,10 +163,12 @@ type DataVolumeSourceRegistry struct {
 }
 
 const (
-	// RegistryTransportDocker is docker transport prefix
-	RegistryTransportDocker = "docker"
-	// RegistryTransportImageStream is image streamstransport prefix
-	RegistryTransportImageStream = "is"
+	// RegistrySchemeDocker is docker scheme prefix
+	RegistrySchemeDocker = "docker"
+	// RegistrySchemeOci is oci-archive scheme prefix
+	RegistrySchemeOci = "oci-archive"
+	// RegistrySchemeImageStream is image stream scheme prefix
+	RegistrySchemeImageStream = "is"
 )
 
 // RegistryImportMethod represents the registry import method

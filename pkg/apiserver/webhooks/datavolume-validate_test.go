@@ -74,6 +74,39 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(true))
 		})
 
+		It("should reject DataVolume with Registry source on create with non-kubevirt contentType", func() {
+			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
+			dataVolume.Spec.ContentType = cdiv1.DataVolumeArchive
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with Registry source on create with illegal source URL", func() {
+			dataVolume := newRegistryDataVolume("testDV", "docker/::registry:5000/test")
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with Registry source on create with illegal transport in source URL", func() {
+			dataVolume := newRegistryDataVolume("testDV", "joker://registry:5000/test")
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with Registry source on create with illegal importMethod", func() {
+			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
+			dataVolume.Spec.Source.Registry.ImportMethod = "nosuch"
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should accept DataVolume with Registry source on create with supported importMethod", func() {
+			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
+			dataVolume.Spec.Source.Registry.ImportMethod = cdiv1.RegistryImportCri
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(true))
+		})
+
 		It("should accept DataVolume with PVC source on create", func() {
 			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
 			pvc := &corev1.PersistentVolumeClaim{

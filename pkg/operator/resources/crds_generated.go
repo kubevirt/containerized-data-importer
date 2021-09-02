@@ -2303,7 +2303,7 @@ spec:
                         description: SecretRef provides the secret reference needed to access the Registry source
                         type: string
                       url:
-                        description: URL is the url of the registry source (starting with docker:// for Docker, or is:// for ImageStream)
+                        description: 'URL is the url of the registry source (starting with the scheme: docker, oci-archive, is)'
                         type: string
                     required:
                     - url
@@ -3093,7 +3093,7 @@ spec:
                         description: SecretRef provides the secret reference needed to access the Registry source
                         type: string
                       url:
-                        description: URL is the url of the registry source (starting with docker:// for Docker, or is:// for ImageStream)
+                        description: 'URL is the url of the registry source (starting with the scheme: docker, oci-archive, is)'
                         type: string
                     required:
                     - url

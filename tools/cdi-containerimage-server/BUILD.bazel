@@ -14,15 +14,3 @@ go_binary(
     pure = "on",
     visibility = ["//visibility:public"],
 )
-
-sh_binary(
-    name = "import",
-    srcs = ["import.sh"],
-    visibility = ["//visibility:public"],
-)
-
-exports_files(
-    [
-        "import.sh",
-    ],
-)

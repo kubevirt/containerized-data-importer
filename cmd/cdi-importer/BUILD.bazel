@@ -18,7 +18,6 @@ rpm_image(
             "@nbdkit-xz-filter//file",
             "@nbdkit-gzip-filter//file",
             "@qemu-img-aarch64//file",
-            "@qemu-block-curl-aarch64//file",
             "@xen-libs-aarch64//file",
             "@libaio-aarch64//file",
             "@capstone-aarch64//file",
@@ -91,7 +90,6 @@ container_image(
     files = [
         ":cdi-importer",
         "//tools/cdi-containerimage-server",
-        "//tools/cdi-containerimage-server:import.sh",
     ],
     visibility = ["//visibility:public"],
 )

@@ -23,9 +23,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
+	uri "net/url"
 	"reflect"
-	"strings"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
@@ -51,7 +50,7 @@ func validateSourceURL(sourceURL string) string {
 	if sourceURL == "" {
 		return "source URL is empty"
 	}
-	url, err := url.ParseRequestURI(sourceURL)
+	url, err := uri.ParseRequestURI(sourceURL)
 	if err != nil {
 		return fmt.Sprintf("Invalid source URL: %s", sourceURL)
 	}
@@ -251,9 +250,9 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 			})
 			return causes
 		}
-		url := spec.Source.Registry.URL
-		parts := strings.Split(url, "://")
-		if len(parts) != 2 {
+		sourceURL := spec.Source.Registry.URL
+		url, err := uri.Parse(sourceURL)
+		if err != nil {
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueInvalid,
 				Message: fmt.Sprintf("Illegal registry source URL %s", url),
@@ -261,11 +260,11 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 			})
 			return causes
 		}
-		transport := parts[0]
-		if transport != cdiv1.RegistryTransportDocker && transport != cdiv1.RegistryTransportImageStream {
+		scheme := url.Scheme
+		if scheme != cdiv1.RegistrySchemeDocker && scheme != cdiv1.RegistrySchemeOci && scheme != cdiv1.RegistrySchemeImageStream {
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("Transport is neither %s or %s in url %s", cdiv1.RegistryTransportDocker, cdiv1.RegistryTransportImageStream, url),
+				Message: fmt.Sprintf("Illegal registry source URL scheme %s", url),
 				Field:   field.Child("source", "Registry", "URL").String(),
 			})
 			return causes

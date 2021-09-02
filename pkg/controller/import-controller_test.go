@@ -748,6 +748,8 @@ var _ = Describe("Import test env", func() {
 			certConfigMap:      "",
 			diskID:             "",
 			uuid:               "",
+			readyFile:          "",
+			doneFile:           "",
 			backingFile:        "",
 			thumbprint:         "",
 			filesystemOverhead: "0.055",
@@ -992,6 +994,14 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 		{
 			Name:  common.ImporterUUID,
 			Value: podEnvVar.uuid,
+		},
+		{
+			Name:  common.ImporterReadyFile,
+			Value: podEnvVar.readyFile,
+		},
+		{
+			Name:  common.ImporterDoneFile,
+			Value: podEnvVar.doneFile,
 		},
 		{
 			Name:  common.ImporterBackingFile,
