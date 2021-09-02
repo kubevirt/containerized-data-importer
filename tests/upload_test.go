@@ -234,8 +234,10 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(token).ToNot(BeEmpty())
 
 		By("Do upload")
-		err = uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, syncUploadPath, token, http.StatusOK)
-		Expect(err).To(HaveOccurred())
+		Eventually(func() bool {
+			err = uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, syncUploadPath, token, http.StatusOK)
+			return err != nil && strings.Contains(err.Error(), "Unexpected return value 500")
+		}, timeout, pollingInterval).Should(BeTrue())
 
 		uploadPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))

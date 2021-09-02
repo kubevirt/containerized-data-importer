@@ -492,25 +492,27 @@ var _ = Describe("CDI route config tests", func() {
 var _ = Describe("CDIConfig instance management", func() {
 	f := framework.NewFramework("cdiconfig-test")
 
-	It("[test_id:4952]Should re-create the object if deleted", func() {
-		By("Verifying the object exists")
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		// Save the UID, so we can check it against a new one.
-		orgUID := config.GetUID()
-		GinkgoWriter.Write([]byte(fmt.Sprintf("Original CDIConfig UID: %s\n", orgUID)))
-		By("Deleting the object")
-		err = f.CdiClient.CdiV1beta1().CDIConfigs().Delete(context.TODO(), config.Name, metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
+	Context("[Destructive]", func() {
+		It("[test_id:4952]Should re-create the object if deleted", func() {
+			By("Verifying the object exists")
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			// Save the UID, so we can check it against a new one.
+			orgUID := config.GetUID()
+			GinkgoWriter.Write([]byte(fmt.Sprintf("Original CDIConfig UID: %s\n", orgUID)))
+			By("Deleting the object")
+			err = f.CdiClient.CdiV1beta1().CDIConfigs().Delete(context.TODO(), config.Name, metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
 
-		Eventually(func() bool {
-			newConfig, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-			if err != nil {
-				return false
-			}
-			GinkgoWriter.Write([]byte(fmt.Sprintf("New CDIConfig UID: %s\n", newConfig.GetUID())))
-			return orgUID != newConfig.GetUID()
-		}, time.Second*30, time.Second).Should(BeTrue())
+			Eventually(func() bool {
+				newConfig, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+				GinkgoWriter.Write([]byte(fmt.Sprintf("New CDIConfig UID: %s\n", newConfig.GetUID())))
+				return orgUID != newConfig.GetUID() && !apiequality.Semantic.DeepEqual(newConfig.Status, cdiv1.CDIConfigStatus{})
+			}, time.Second*30, time.Second).Should(BeTrue())
+		})
 	})
 })
 
