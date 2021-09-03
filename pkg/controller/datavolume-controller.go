@@ -1397,6 +1397,10 @@ func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVol
 	}
 	pod, err := r.getPodFromPvc(podNamespace, pvcUID)
 	if err == nil {
+		if pod.Status.Phase != corev1.PodRunning {
+			// Avoid long timeouts and error traces from HTTP get when pod is already gone
+			return reconcile.Result{}, nil
+		}
 		if err := updateProgressUsingPod(datavolume, pod); err != nil {
 			return reconcile.Result{}, err
 		}
