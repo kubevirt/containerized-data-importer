@@ -254,6 +254,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			if strings.Contains(log, "qemu-img execution failed") {
 				return true
 			}
+			if strings.Contains(log, "calculated new size is < than current size, not resizing") {
+				return true
+			}
 			By("Failed to find error messages about a too large image in log:")
 			By(log)
 			return false

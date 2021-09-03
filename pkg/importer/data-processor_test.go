@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 
 	"kubevirt.io/containerized-data-importer/pkg/image"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 type fakeInfoOpRetVal struct {
@@ -24,8 +25,8 @@ type fakeInfoOpRetVal struct {
 const TestImagesDir = "../../tests/images"
 
 const (
-	SmallActualSize  = 1024
-	SmallVirtualSize = 1024
+	SmallActualSize  = 1024 * 1024
+	SmallVirtualSize = 1024 * 1024
 )
 
 var (
@@ -243,10 +244,10 @@ var _ = Describe("Data Processor", func() {
 			url:              url,
 		}
 		dp := NewDataProcessor(mdp, "", "dataDir", tmpDir, "1G", 0.055, false)
-		dp.availableSpace = int64(1500)
+		dp.availableSpace = int64(1536000)
 		usableSpace := dp.getUsableSpace()
 
-		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(usableSpace, 0))
+		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(usableSpace, 1024*1024))
 		replaceQEMUOperations(qemuOperations, func() {
 			err = dp.ProcessData()
 			Expect(err).ToNot(HaveOccurred())
@@ -269,6 +270,38 @@ var _ = Describe("Data Processor", func() {
 		table.Entry("ImageIO base copy", &ImageioDataSource{currentSnapshot: "123", previousSnapshot: ""}, true),
 		table.Entry("VDDK delta copy", &VDDKDataSource{CurrentSnapshot: "123", PreviousSnapshot: "123"}, false),
 		table.Entry("VDDK base copy", &VDDKDataSource{CurrentSnapshot: "123", PreviousSnapshot: ""}, true),
+	)
+
+	const (
+		Mi              = int64(1024 * 1024)
+		Gi              = 1024 * Mi
+		noOverhead      = float64(0)
+		defaultOverhead = float64(0.055)
+		largeOverhead   = float64(0.75)
+	)
+	table.DescribeTable("getusablespace should return properly aligned sizes,", func(virtualSize int64, overhead float64) {
+		for i := int64(virtualSize - 1024); i < virtualSize+1024; i++ {
+			// Requested space is virtualSize rounded up to 1Mi alignment / (1 - overhead) rounded up
+			requestedSpace := int64(float64(util.RoundUp(i, util.DefaultAlignBlockSize)+1) / float64(1-overhead))
+			if i <= virtualSize {
+				Expect(GetUsableSpace(overhead, requestedSpace)).To(Equal(virtualSize))
+			} else {
+				Expect(GetUsableSpace(overhead, requestedSpace)).To(Equal(virtualSize + Mi))
+			}
+		}
+	},
+		table.Entry("1Mi virtual size, 0 overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, noOverhead),
+		table.Entry("1Mi virtual size, default overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, defaultOverhead),
+		table.Entry("1Mi virtual size, large overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, largeOverhead),
+		table.Entry("40Mi virtual size, 0 overhead to be 40Mi if <= 1Mi and 41Mi if > 40Mi", 40*Mi, noOverhead),
+		table.Entry("40Mi virtual size, default overhead to be 40Mi if <= 1Mi and 41Mi if > 40Mi", 40*Mi, defaultOverhead),
+		table.Entry("40Mi virtual size, large overhead to be 40Mi if <= 40Mi and 41Mi if > 40Mi", 40*Mi, largeOverhead),
+		table.Entry("1Gi virtual size, 0 overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, noOverhead),
+		table.Entry("1Gi virtual size, default overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, defaultOverhead),
+		table.Entry("1Gi virtual size, large overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, largeOverhead),
+		table.Entry("40Gi virtual size, 0 overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, noOverhead),
+		table.Entry("40Gi virtual size, default overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, defaultOverhead),
+		table.Entry("40Gi virtual size, large overhead to be 40Gi if <= 40Gi and 41Gi if > 40Gi", 40*Gi, largeOverhead),
 	)
 })
 
@@ -429,9 +462,9 @@ var _ = Describe("ResizeImage", func() {
 			}
 		})
 	},
-		table.Entry("successfully resize to imageSize when imageSize > info.VirtualSize and < totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(1500), 0)), "1500", int64(2048), false),
-		table.Entry("successfully resize to totalSize when imageSize > info.VirtualSize and > totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(2048), 0)), "2500", int64(2048), false),
-		table.Entry("successfully do nothing when imageSize = info.VirtualSize and > totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(1024), 0)), "1024", int64(1024), false),
+		table.Entry("successfully resize to imageSize when imageSize > info.VirtualSize and < totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(1500*1024), 0)), "1536000", int64(2048*1024), false),
+		table.Entry("successfully resize to totalSize when imageSize > info.VirtualSize and > totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(2048*1024), 0)), "2560000", int64(2048*1024), false),
+		table.Entry("successfully do nothing when imageSize = info.VirtualSize and > totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(1024*1024), 0)), "1048576", int64(1024*1024), false),
 		table.Entry("fail to resize to with blank imageSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(2048), 0)), "", int64(2048), true),
 		table.Entry("fail to resize to with blank imageSize", NewQEMUAllErrors(), "", int64(2048), true),
 	)
@@ -525,7 +558,7 @@ func (o *fakeQEMUOperations) Validate(*url.URL, int64, float64) error {
 
 func (o *fakeQEMUOperations) Resize(dest string, size resource.Quantity, preallocate bool) error {
 	if o.resizeQuantity != nil {
-		Expect(o.resizeQuantity.Cmp(size)).To(Equal(0))
+		Expect(o.resizeQuantity.Cmp(size)).To(Equal(0), "sizes don't match %v, %v", o.resizeQuantity.String(), size.String())
 	}
 	return o.e3
 }
