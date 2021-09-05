@@ -78,13 +78,13 @@ done
 
 if [ "${CDI_CLEAN}" == "all" ] && [ -n "$(_kubectl get ns | grep "cdi ")" ]; then
     echo "Clean cdi namespace"
-    _kubectl delete ns $NAMESPACE
+    _kubectl delete ns $CDI_NAMESPACE
 
     start_time=0
     sample=10
     timeout=120
     echo "Waiting for cdi namespace to disappear ..."
-    while [ -n "$(_kubectl get ns | grep "$NAMESPACE ")" ]; do
+    while [ -n "$(_kubectl get ns | grep "$CDI_NAMESPACE ")" ]; do
         sleep $sample
         start_time=$((current_time + sample))
         if [[ $current_time -gt $timeout ]]; then
