@@ -40,6 +40,8 @@ import (
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
+	"github.com/vmware/govmomi/vim25"
+	"github.com/vmware/govmomi/vim25/methods"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	"golang.org/x/sys/unix"
@@ -227,6 +229,7 @@ type VMwareVMOperations interface {
 	Reference() types.ManagedObjectReference
 	FindSnapshot(context.Context, string) (*types.ManagedObjectReference, error)
 	QueryChangedDiskAreas(context.Context, *types.ManagedObjectReference, *types.ManagedObjectReference, *types.VirtualDisk, int64) (types.DiskChangeInfo, error)
+	Client() *vim25.Client
 }
 
 // VMwareClient holds a connection to the VMware API with pre-filled information about one VM
@@ -779,26 +782,41 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		}
 	}
 
-	// Find previous snapshot object if requested
-	var previousSnapshot *types.ManagedObjectReference
-	if previousCheckpoint != "" {
-		previousSnapshot, err = vmware.vm.FindSnapshot(vmware.context, previousCheckpoint)
-		if err != nil {
-			klog.Errorf("Could not find previous snapshot %s: %v", previousCheckpoint, err)
-			return nil, err
-		}
-	}
-
 	// If this is a warm migration (current and previous checkpoints set),
 	// then get the list of changed blocks from VMware for a delta copy.
 	var changed *types.DiskChangeInfo
-	if currentSnapshot != nil && previousSnapshot != nil {
-		changedAreas, err := vmware.vm.QueryChangedDiskAreas(vmware.context, previousSnapshot, currentSnapshot, backingFileObject, 0)
-		if err != nil {
-			klog.Errorf("Unable to query changed areas: %s", err)
-			return nil, err
+	if currentSnapshot != nil && previousCheckpoint != "" {
+		// Check if this is a snapshot or a change ID, and query disk areas as appropriate.
+		// Change IDs look like: 52 de c0 d9 b9 43 9d 10-61 d5 4c 1b e9 7b 65 63/81
+		changeIdPattern := `([0-9a-fA-F]{2}\s?)*-([0-9a-fA-F]{2}\s?)*\/([0-9a-fA-F]*)`
+		if matched, _ := regexp.MatchString(changeIdPattern, previousCheckpoint); matched {
+			request := types.QueryChangedDiskAreas{
+				ChangeId:    previousCheckpoint,
+				DeviceKey:   backingFileObject.Key,
+				Snapshot:    currentSnapshot,
+				StartOffset: 0,
+				This:        vmware.vm.Reference(),
+			}
+			response, err := methods.QueryChangedDiskAreas(vmware.context, vmware.vm.Client(), &request)
+			if err != nil {
+				return nil, err
+			}
+			changed = &response.Returnval
+		} else { // Previous checkpoint is a snapshot
+			previousSnapshot, err := vmware.vm.FindSnapshot(vmware.context, previousCheckpoint)
+			if err != nil {
+				klog.Errorf("Could not find previous snapshot %s: %v", previousCheckpoint, err)
+				return nil, err
+			}
+			if previousSnapshot != nil {
+				changedAreas, err := vmware.vm.QueryChangedDiskAreas(vmware.context, previousSnapshot, currentSnapshot, backingFileObject, 0)
+				if err != nil {
+					klog.Errorf("Unable to query changed areas: %s", err)
+					return nil, err
+				}
+				changed = &changedAreas
+			}
 		}
-		changed = &changedAreas
 	}
 
 	diskFileName := backingFile // By default, just set the nbdkit file name to the given backingFile path

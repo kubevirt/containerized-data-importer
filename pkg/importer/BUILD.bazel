@@ -45,6 +45,8 @@ go_library(
             "//vendor/github.com/vmware/govmomi:go_default_library",
             "//vendor/github.com/vmware/govmomi/find:go_default_library",
             "//vendor/github.com/vmware/govmomi/object:go_default_library",
+            "//vendor/github.com/vmware/govmomi/vim25:go_default_library",
+            "//vendor/github.com/vmware/govmomi/vim25/methods:go_default_library",
             "//vendor/github.com/vmware/govmomi/vim25/mo:go_default_library",
             "//vendor/github.com/vmware/govmomi/vim25/types:go_default_library",
             "//vendor/golang.org/x/sys/unix:go_default_library",
