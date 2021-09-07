@@ -18,6 +18,7 @@ package importer
 
 import (
 	"fmt"
+	"math"
 	"net/url"
 	"os"
 
@@ -313,6 +314,11 @@ func ResizeImage(dataFile, imageSize string, totalTargetSpace int64, preallocati
 			klog.V(1).Infof("No need to resize image. Requested size: %s, Image size: %d.\n", imageSize, info.VirtualSize)
 			return nil
 		}
+		// Check if calculated size is < imageSize, and return error if so.
+		if currentImageSizeQuantity.Cmp(minSizeQuantity) == 1 {
+			klog.V(1).Infof("Calculated new size is < than current size, not resizing: requested size %s, virtual size: %d.\n", minSizeQuantity.String(), info.VirtualSize)
+			return nil
+		}
 		klog.V(1).Infof("Expanding image size to: %s\n", minSizeQuantity.String())
 		return qemuOperations.Resize(dataFile, minSizeQuantity, preallocation)
 	}
@@ -361,9 +367,9 @@ func (dp *DataProcessor) getUsableSpace() int64 {
 
 // GetUsableSpace calculates space to use taking file system overhead into account
 func GetUsableSpace(filesystemOverhead float64, availableSpace int64) int64 {
-	spaceWithOverhead := int64((1 - filesystemOverhead) * float64(availableSpace))
+	// +1 always rounds up.
+	spaceWithOverhead := int64(math.Ceil((1 - filesystemOverhead) * float64(availableSpace)))
 	// qemu-img will round up, making us use more than the usable space.
 	// This later conflicts with image size validation.
-	qemuImgCorrection := util.RoundDown(spaceWithOverhead, util.DefaultAlignBlockSize)
-	return qemuImgCorrection
+	return util.RoundDown(spaceWithOverhead, util.DefaultAlignBlockSize)
 }
