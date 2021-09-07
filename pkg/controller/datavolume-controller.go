@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -2512,10 +2513,12 @@ func getDefaultAccessModes(c client.Client, storageClass *storagev1.StorageClass
 
 // GetRequiredSpace calculates space required taking file system overhead into account
 func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
-	// count overhead as a percentage of the whole/new size
-	spaceWithOverhead := int64(float64(requestedSpace) / (1 - filesystemOverhead))
-	// qemu-img will round up, making us use more than the usable space.
-	// This later conflicts with image size validation.
-	qemuImgCorrection := util.RoundUp(spaceWithOverhead, util.DefaultAlignBlockSize)
-	return qemuImgCorrection
+	// the `image` has to be aligned correctly, so the space requested has to be aligned to
+	// next value that is a multiple of a block size
+	alignedSize := util.RoundUp(requestedSpace, util.DefaultAlignBlockSize)
+
+	// count overhead as a percentage of the whole/new size, including aligned image
+	// and the space required by filesystem metadata
+	spaceWithOverhead := int64(math.Ceil(float64(alignedSize) / (1 - filesystemOverhead)))
+	return spaceWithOverhead
 }
