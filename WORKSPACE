@@ -200,10 +200,7 @@ http_file(
 http_file(
     name = "xen-libs-aarch64",
     sha256 = "cda623f50ec363b1dc8a27ac969973198d6853ec373dc5d26dcdf14978c0415e",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/x/xen-libs-4.14.2-2.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/cda623f50ec363b1dc8a27ac969973198d6853ec373dc5d26dcdf14978c0415e",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/cda623f50ec363b1dc8a27ac969973198d6853ec373dc5d26dcdf14978c0415e"],
 )
 
 http_file(
