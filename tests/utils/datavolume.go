@@ -73,6 +73,8 @@ const (
 	ImageioImageURL = "https://imageio.%s:12345"
 	// VcenterURL provides URL of vCenter/ESX simulator
 	VcenterURL = "https://vcenter.%s:8989/sdk"
+	// TrustedRegistryURL provides the base path to trusted registry test url for the tinycore.iso image wrapped in docker container
+	TrustedRegistryURL = "docker://%s/cdi-func-test-tinycore:%s"
 
 	// TinyCoreMD5 is the MD5 hash of first 100k bytes of tinyCore image
 	TinyCoreMD5 = "3710416a680523c7d07538cb1026c60c"

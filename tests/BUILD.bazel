@@ -118,14 +118,14 @@ exports_files(
 )
 
 pkg_tar(
-    name = "test-image-cri-tar",
+    name = "tinycore-tar",
     srcs = [":images/tinyCore.iso"],
     package_dir = "/disk",
     strip_prefix = "/tests/images",
 )
 
 container_image(
-    name = "cdi-test-image-cri",
-    tars = [":test-image-cri-tar"],
+    name = "cdi-func-test-tinycore",
+    tars = [":tinycore-tar"],
     visibility = ["//visibility:public"],
 )

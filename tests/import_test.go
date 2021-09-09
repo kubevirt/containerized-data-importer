@@ -1032,7 +1032,7 @@ var _ = Describe("Preallocation", func() {
 		md5PrefixSize       = int64(100000)
 		config              *cdiv1.CDIConfig
 		origSpec            *cdiv1.CDIConfigSpec
-		trustedRegistryURL  = "docker://registry:5000/cdi-test-image-cri"
+		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix, f.DockerTag) }
 	)
 
 	BeforeEach(func() {
@@ -1230,8 +1230,8 @@ var _ = Describe("Preallocation", func() {
 			dataVolume.Spec.Source.Registry.CertConfigMap = cm
 			return dataVolume
 		}),
-		Entry("Registry CRI import", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
-			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", trustedRegistryURL)
+		Entry("Registry node pull import", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
+			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", trustedRegistryURL())
 			dataVolume.Spec.Source.Registry.PullMethod = cdiv1.RegistryPullNode
 			return dataVolume
 		}),

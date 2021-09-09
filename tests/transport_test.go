@@ -26,7 +26,7 @@ var _ = Describe("Transport Tests", func() {
 		targetRawImage          = "tinycoreqcow2"
 		targetArchivedImage     = "tinycoreisotar"
 		targetArchivedImageHash = "b354a50183e70ee2ed3413eea67fe153"
-		targetCriTestImage      = "cdi-test-image-cri"
+		targetNodePullImage     = "cdi-func-test-tinycore"
 	)
 
 	var (
@@ -49,8 +49,15 @@ var _ = Describe("Transport Tests", func() {
 			err error // prevent shadowing
 		)
 
+		var endpoint string
+		if registryImportMethod == string(cdiv1.RegistryPullNode) {
+			endpoint = ep() + "/" + file + ":" + f.DockerTag
+		} else {
+			endpoint = ep() + "/" + file
+		}
+
 		pvcAnn := map[string]string{
-			controller.AnnEndpoint:             ep() + "/" + file,
+			controller.AnnEndpoint:             endpoint,
 			controller.AnnSecret:               "",
 			controller.AnnSource:               source,
 			controller.AnnRegistryImportMethod: registryImportMethod,
@@ -143,7 +150,7 @@ var _ = Describe("Transport Tests", func() {
 	registryNoAuthEp := func() string { return fmt.Sprintf("docker://%s", utils.RegistryHostName+"."+f.CdiInstallNs) }
 	registryAuthEp := func() string { return fmt.Sprintf("docker://%s.%s:%d", utils.RegistryHostName, f.CdiInstallNs, 1443) }
 	altRegistryNoAuthEp := func() string { return fmt.Sprintf("docker://%s.%s:%d", utils.RegistryHostName, f.CdiInstallNs, 5000) }
-	trustedCriRegistryEp := func() string { return "docker://registry:5000" }
+	trustedRegistryEp := func() string { return fmt.Sprintf("docker://%s", f.DockerPrefix) }
 
 	DescribeTable("Transport Test Table", it,
 		Entry("[test_id:5059]should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "", "", false, true),
@@ -163,6 +170,6 @@ var _ = Describe("Transport Tests", func() {
 		Entry("[test_id:5073]should not connect to https endpoint without cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "", "", false, false),
 		Entry("[test_id:5074]should connect to https endpoint with cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "cdi-file-host-certs", "", false, true),
 		Entry("[test_id:5075]should not connect to https endpoint with bad cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "cdi-docker-registry-host-certs", "", false, false),
-		Entry("[test_id:7240]should succeed to CRI import from registry when image contains valid qcow file, no auth", trustedCriRegistryEp, targetCriTestImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "", string(cdiv1.RegistryPullNode), false, true),
+		Entry("[test_id:7240]should succeed to node pull import from registry when image contains valid iso file, no auth", trustedRegistryEp, targetNodePullImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "", string(cdiv1.RegistryPullNode), false, true),
 	)
 })
