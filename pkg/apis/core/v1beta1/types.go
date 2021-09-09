@@ -152,10 +152,10 @@ type DataVolumeSourceS3 struct {
 
 // DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source
 type DataVolumeSourceRegistry struct {
-	//URL is the url of the registry source (starting with the scheme: docker, oci-archive, is)
+	//URL is the url of the registry source (starting with the scheme: docker, oci-archive, imagestream)
 	URL string `json:"url"`
-	//ImportMethod is the import method: "skopeo" (default), or "cri"
-	ImportMethod RegistryImportMethod `json:"importMethod,omitempty"`
+	//PullMethod can be either "pod" (default import), or "node" (node docker cache based import)
+	PullMethod RegistryPullMethod `json:"pullMethod,omitempty"`
 	//SecretRef provides the secret reference needed to access the Registry source
 	SecretRef string `json:"secretRef,omitempty"`
 	//CertConfigMap provides a reference to the Registry certs
@@ -168,17 +168,17 @@ const (
 	// RegistrySchemeOci is oci-archive scheme prefix
 	RegistrySchemeOci = "oci-archive"
 	// RegistrySchemeImageStream is image stream scheme prefix
-	RegistrySchemeImageStream = "is"
+	RegistrySchemeImageStream = "imagestream"
 )
 
-// RegistryImportMethod represents the registry import method
-type RegistryImportMethod string
+// RegistryPullMethod represents the registry import pull method
+type RegistryPullMethod string
 
 const (
-	// RegistryImportSkopeo is the standard import method
-	RegistryImportSkopeo RegistryImportMethod = "skopeo"
-	// RegistryImportCri is the container runtime interface based import method
-	RegistryImportCri RegistryImportMethod = "cri"
+	// RegistryPullPod is the standard import
+	RegistryPullPod RegistryPullMethod = "pod"
+	// RegistryPullNode is the node docker cache based import
+	RegistryPullNode RegistryPullMethod = "node"
 )
 
 // DataVolumeSourceHTTP can be either an http or https endpoint, with an optional basic auth user name and password, and an optional configmap containing additional CAs

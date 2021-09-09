@@ -270,11 +270,11 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 			return causes
 
 		}
-		importMethod := spec.Source.Registry.ImportMethod
-		if importMethod != "" && importMethod != cdiv1.RegistryImportSkopeo && importMethod != cdiv1.RegistryImportCri {
+		importMethod := spec.Source.Registry.PullMethod
+		if importMethod != "" && importMethod != cdiv1.RegistryPullPod && importMethod != cdiv1.RegistryPullNode {
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("ImportMethod %s is neither %s, %s or \"\"", importMethod, cdiv1.RegistryImportSkopeo, cdiv1.RegistryImportCri),
+				Message: fmt.Sprintf("ImportMethod %s is neither %s, %s or \"\"", importMethod, cdiv1.RegistryPullPod, cdiv1.RegistryPullNode),
 				Field:   field.Child("source", "Registry", "importMethod").String(),
 			})
 			return causes

@@ -163,6 +163,6 @@ var _ = Describe("Transport Tests", func() {
 		Entry("[test_id:5073]should not connect to https endpoint without cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "", "", false, false),
 		Entry("[test_id:5074]should connect to https endpoint with cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "cdi-file-host-certs", "", false, true),
 		Entry("[test_id:5075]should not connect to https endpoint with bad cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "cdi-docker-registry-host-certs", "", false, false),
-		Entry("[test_id:XXXX]should succeed to CRI import from registry when image contains valid qcow file, no auth", trustedCriRegistryEp, targetCriTestImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "", string(cdiv1.RegistryImportCri), false, true),
+		Entry("[test_id:7240]should succeed to CRI import from registry when image contains valid qcow file, no auth", trustedCriRegistryEp, targetCriTestImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "", string(cdiv1.RegistryPullNode), false, true),
 	)
 })

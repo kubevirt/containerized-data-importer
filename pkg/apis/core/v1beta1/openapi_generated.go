@@ -15714,15 +15714,15 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceRegistry(ref common.ReferenceC
 				Properties: map[string]spec.Schema{
 					"url": {
 						SchemaProps: spec.SchemaProps{
-							Description: "URL is the url of the registry source (starting with the scheme: docker, oci-archive, is)",
+							Description: "URL is the url of the registry source (starting with the scheme: docker, oci-archive, imagestream)",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"importMethod": {
+					"pullMethod": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ImportMethod is the import method: \"skopeo\" (default), or \"cri\"",
+							Description: "PullMethod can be either \"pod\" (default import), or \"node\" (node docker cache based import)",
 							Type:        []string{"string"},
 							Format:      "",
 						},

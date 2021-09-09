@@ -87,7 +87,7 @@ func main() {
 
 	os.Remove(*doneFile)
 	if err := server.Shutdown(context.TODO()); err != nil {
-		log.Fatalf("Shutdown failed: %v", err)
+		log.Printf("Shutdown failed: %v\n", err)
 	}
 	log.Println("Importer has completed")
 }

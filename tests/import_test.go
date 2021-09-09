@@ -1131,7 +1131,7 @@ var _ = Describe("Preallocation", func() {
 		Expect(ok).To(BeFalse())
 	})
 
-	DescribeTable("All import paths should contain Preallocation step", func(shouldPreallocate bool, expectedMD5, path string, dvFunc func() *cdiv1.DataVolume) {
+	DescribeTable("[test_id:7241] All import paths should contain Preallocation step", func(shouldPreallocate bool, expectedMD5, path string, dvFunc func() *cdiv1.DataVolume) {
 		dv := dvFunc()
 		By(fmt.Sprintf("Creating new datavolume %s", dv.Name))
 		preallocation := true
@@ -1232,7 +1232,7 @@ var _ = Describe("Preallocation", func() {
 		}),
 		Entry("Registry CRI import", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
 			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", trustedRegistryURL)
-			dataVolume.Spec.Source.Registry.ImportMethod = cdiv1.RegistryImportCri
+			dataVolume.Spec.Source.Registry.PullMethod = cdiv1.RegistryPullNode
 			return dataVolume
 		}),
 		Entry("VddkImport", true, utils.VcenterMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {

@@ -2296,14 +2296,14 @@ spec:
                       certConfigMap:
                         description: CertConfigMap provides a reference to the Registry certs
                         type: string
-                      importMethod:
-                        description: 'ImportMethod is the import method: "skopeo" (default), or "cri"'
+                      pullMethod:
+                        description: PullMethod can be either "pod" (default import), or "node" (node docker cache based import)
                         type: string
                       secretRef:
                         description: SecretRef provides the secret reference needed to access the Registry source
                         type: string
                       url:
-                        description: 'URL is the url of the registry source (starting with the scheme: docker, oci-archive, is)'
+                        description: 'URL is the url of the registry source (starting with the scheme: docker, oci-archive, imagestream)'
                         type: string
                     required:
                     - url
@@ -3086,14 +3086,14 @@ spec:
                       certConfigMap:
                         description: CertConfigMap provides a reference to the Registry certs
                         type: string
-                      importMethod:
-                        description: 'ImportMethod is the import method: "skopeo" (default), or "cri"'
+                      pullMethod:
+                        description: PullMethod can be either "pod" (default import), or "node" (node docker cache based import)
                         type: string
                       secretRef:
                         description: SecretRef provides the secret reference needed to access the Registry source
                         type: string
                       url:
-                        description: 'URL is the url of the registry source (starting with the scheme: docker, oci-archive, is)'
+                        description: 'URL is the url of the registry source (starting with the scheme: docker, oci-archive, imagestream)'
                         type: string
                     required:
                     - url

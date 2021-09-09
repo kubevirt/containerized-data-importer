@@ -3943,8 +3943,8 @@
       "description": "CertConfigMap provides a reference to the Registry certs",
       "type": "string"
      },
-     "importMethod": {
-      "description": "ImportMethod is the import method: \"skopeo\" (default), or \"cri\"",
+     "pullMethod": {
+      "description": "PullMethod can be either \"pod\" (default import), or \"node\" (node docker cache based import)",
       "type": "string"
      },
      "secretRef": {
@@ -3952,7 +3952,7 @@
       "type": "string"
      },
      "url": {
-      "description": "URL is the url of the registry source (starting with the scheme: docker, oci-archive, is)",
+      "description": "URL is the url of the registry source (starting with the scheme: docker, oci-archive, imagestream)",
       "type": "string",
       "default": ""
      }

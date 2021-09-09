@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
-
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -31,6 +29,7 @@ import (
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 )
 
 const (
@@ -133,6 +132,20 @@ type importPodEnvVar struct {
 	httpsProxy         string
 	noProxy            string
 	certConfigMapProxy string
+}
+
+type importerPodArgs struct {
+	image                   string
+	importImage             string
+	verbose                 string
+	pullPolicy              string
+	podEnvVar               *importPodEnvVar
+	pvc                     *corev1.PersistentVolumeClaim
+	scratchPvcName          *string
+	podResourceRequirements *corev1.ResourceRequirements
+	workloadNodePlacement   *sdkapi.NodePlacement
+	vddkImageName           *string
+	priorityClassName       string
 }
 
 // NewImportController creates a new instance of the import controller.
@@ -463,7 +476,17 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		return err
 	}
 	// all checks passed, let's create the importer pod!
-	pod, err := createImporterPod(r.log, r.client, r.image, r.verbose, r.pullPolicy, podEnvVar, pvc, scratchPvcName, vddkImageName, getPriorityClass(pvc), r.installerLabels)
+	podArgs := &importerPodArgs{
+		image:             r.image,
+		verbose:           r.verbose,
+		pullPolicy:        r.pullPolicy,
+		podEnvVar:         podEnvVar,
+		pvc:               pvc,
+		scratchPvcName:    scratchPvcName,
+		vddkImageName:     vddkImageName,
+		priorityClassName: getPriorityClass(pvc),
+	}
+	pod, err := createImporterPod(r.log, r.client, podArgs, r.installerLabels)
 
 	if err != nil {
 		return err
@@ -642,7 +665,7 @@ func (r *ImportReconciler) requiresScratchSpace(pvc *corev1.PersistentVolumeClai
 		case SourceGlance:
 			scratchRequired = true
 		case SourceRegistry:
-			scratchRequired = pvc.Annotations[AnnRegistryImportMethod] != string(cdiv1.RegistryImportCri)
+			scratchRequired = pvc.Annotations[AnnRegistryImportMethod] != string(cdiv1.RegistryPullNode)
 		}
 	}
 	value, ok := pvc.Annotations[AnnRequiresScratch]
@@ -788,41 +811,42 @@ func createImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 // createImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
 // name, and pvc. A nil secret means the endpoint credentials are not passed to the
 // importer pod.
-func createImporterPod(log logr.Logger, client client.Client, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, vddkImageName *string, priorityClassName string, installerLabels map[string]string) (*corev1.Pod, error) {
-	podResourceRequirements, err := GetDefaultPodResourceRequirements(client)
+func createImporterPod(log logr.Logger, client client.Client, args *importerPodArgs, installerLabels map[string]string) (*corev1.Pod, error) {
+	var err error
+	args.podResourceRequirements, err = GetDefaultPodResourceRequirements(client)
 	if err != nil {
 		return nil, err
 	}
 
-	workloadNodePlacement, err := GetWorkloadNodePlacement(client)
+	args.workloadNodePlacement, err = GetWorkloadNodePlacement(client)
 	if err != nil {
 		return nil, err
 	}
 
 	var pod *corev1.Pod
-	if getSource(pvc) == SourceRegistry && pvc.Annotations[AnnRegistryImportMethod] == string(cdiv1.RegistryImportCri) {
-		importImage, err := getImportImage(pvc)
+	if getSource(args.pvc) == SourceRegistry && args.pvc.Annotations[AnnRegistryImportMethod] == string(cdiv1.RegistryPullNode) {
+		args.importImage, err = getImportImage(args.pvc)
 		if err != nil {
 			return nil, err
 		}
-		pod = makeCriImporterPodSpec(pvc.Namespace, image, importImage, verbose, pullPolicy, podEnvVar, pvc, podResourceRequirements, workloadNodePlacement, priorityClassName)
+		pod = makeCriImporterPodSpec(args)
 	} else {
-		pod = makeImporterPodSpec(pvc.Namespace, image, verbose, pullPolicy, podEnvVar, pvc, scratchPvcName, podResourceRequirements, workloadNodePlacement, vddkImageName, priorityClassName)
+		pod = makeImporterPodSpec(args)
 	}
 
 	util.SetRecommendedLabels(pod, installerLabels, "cdi-controller")
 
-	if err := client.Create(context.TODO(), pod); err != nil {
+	if err = client.Create(context.TODO(), pod); err != nil {
 		return nil, err
 	}
-	log.V(3).Info("importer pod created\n", "pod.Name", pod.Name, "pod.Namespace", pod.Namespace, "image name", image)
+	log.V(3).Info("importer pod created\n", "pod.Name", pod.Name, "pod.Namespace", pod.Namespace, "image name", args.image)
 	return pod, nil
 }
 
 // makeCriImporterPodSpec creates and return the container runtime interface importer pod spec based on the passed-in importImage and pvc.
-func makeCriImporterPodSpec(namespace, image, importImage, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, podResourceRequirements *corev1.ResourceRequirements, workloadNodePlacement *sdkapi.NodePlacement, priorityClassName string) *corev1.Pod {
+func makeCriImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 	// importer pod name contains the pvc name
-	podName, _ := pvc.Annotations[AnnImportPod]
+	podName, _ := args.pvc.Annotations[AnnImportPod]
 
 	blockOwnerDeletion := true
 	isController := true
@@ -838,14 +862,14 @@ func makeCriImporterPodSpec(namespace, image, importImage, verbose, pullPolicy s
 			Name: DataVolName,
 			VolumeSource: corev1.VolumeSource{
 				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: pvc.Name,
+					ClaimName: args.pvc.Name,
 					ReadOnly:  false,
 				},
 			},
 		},
 	}
 
-	importerContainer := makeImporterContainerSpec(image, verbose, pullPolicy)
+	importerContainer := makeImporterContainerSpec(args.image, args.verbose, args.pullPolicy)
 
 	pod := &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -854,7 +878,7 @@ func makeCriImporterPodSpec(namespace, image, importImage, verbose, pullPolicy s
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      podName,
-			Namespace: namespace,
+			Namespace: args.pvc.Namespace,
 			Annotations: map[string]string{
 				AnnCreatedBy: "yes",
 			},
@@ -867,8 +891,8 @@ func makeCriImporterPodSpec(namespace, image, importImage, verbose, pullPolicy s
 				{
 					APIVersion:         "v1",
 					Kind:               "PersistentVolumeClaim",
-					Name:               pvc.Name,
-					UID:                pvc.GetUID(),
+					Name:               args.pvc.Name,
+					UID:                args.pvc.GetUID(),
 					BlockOwnerDeletion: &blockOwnerDeletion,
 					Controller:         &isController,
 				},
@@ -878,8 +902,8 @@ func makeCriImporterPodSpec(namespace, image, importImage, verbose, pullPolicy s
 			InitContainers: []corev1.Container{
 				{
 					Name:            "init",
-					Image:           image,
-					ImagePullPolicy: corev1.PullPolicy(pullPolicy),
+					Image:           args.image,
+					ImagePullPolicy: corev1.PullPolicy(args.pullPolicy),
 					Command:         []string{"sh", "-c", "cp /usr/bin/cdi-containerimage-server /shared/server"},
 					VolumeMounts: []corev1.VolumeMount{
 						{
@@ -893,8 +917,8 @@ func makeCriImporterPodSpec(namespace, image, importImage, verbose, pullPolicy s
 				*importerContainer,
 				{
 					Name:            "server",
-					Image:           importImage,
-					ImagePullPolicy: corev1.PullPolicy(pullPolicy),
+					Image:           args.importImage,
+					ImagePullPolicy: corev1.PullPolicy(args.pullPolicy),
 					Command:         []string{"/shared/server", "-p", "8100", "-image-dir", "/disk", "-ready-file", "/shared/ready", "-done-file", "/shared/done"},
 					VolumeMounts: []corev1.VolumeMount{
 						{
@@ -906,18 +930,18 @@ func makeCriImporterPodSpec(namespace, image, importImage, verbose, pullPolicy s
 			},
 			RestartPolicy:     corev1.RestartPolicyOnFailure,
 			Volumes:           volumes,
-			NodeSelector:      workloadNodePlacement.NodeSelector,
-			Tolerations:       workloadNodePlacement.Tolerations,
-			Affinity:          workloadNodePlacement.Affinity,
-			PriorityClassName: priorityClassName,
+			NodeSelector:      args.workloadNodePlacement.NodeSelector,
+			Tolerations:       args.workloadNodePlacement.Tolerations,
+			Affinity:          args.workloadNodePlacement.Affinity,
+			PriorityClassName: args.priorityClassName,
 		},
 	}
 
-	podEnvVar.source = SourceHTTP
-	podEnvVar.ep = "http://localhost:8100/disk.img"
-	podEnvVar.readyFile = "/shared/ready"
-	podEnvVar.doneFile = "/shared/done"
-	setImporterPodCommons(pod, podEnvVar, pvc, podResourceRequirements)
+	args.podEnvVar.source = SourceHTTP
+	args.podEnvVar.ep = "http://localhost:8100/disk.img"
+	args.podEnvVar.readyFile = "/shared/ready"
+	args.podEnvVar.doneFile = "/shared/done"
+	setImporterPodCommons(pod, args.podEnvVar, args.pvc, args.podResourceRequirements)
 	pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
 		MountPath: "/shared",
 		Name:      "shared-volume",
@@ -927,9 +951,9 @@ func makeCriImporterPodSpec(namespace, image, importImage, verbose, pullPolicy s
 }
 
 // makeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
-func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, podResourceRequirements *corev1.ResourceRequirements, workloadNodePlacement *sdkapi.NodePlacement, vddkImageName *string, priorityClassName string) *corev1.Pod {
+func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 	// importer pod name contains the pvc name
-	podName, _ := pvc.Annotations[AnnImportPod]
+	podName, _ := args.pvc.Annotations[AnnImportPod]
 
 	blockOwnerDeletion := true
 	isController := true
@@ -939,26 +963,26 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 			Name: DataVolName,
 			VolumeSource: corev1.VolumeSource{
 				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: pvc.Name,
+					ClaimName: args.pvc.Name,
 					ReadOnly:  false,
 				},
 			},
 		},
 	}
 
-	if scratchPvcName != nil {
+	if args.scratchPvcName != nil {
 		volumes = append(volumes, corev1.Volume{
 			Name: ScratchVolName,
 			VolumeSource: corev1.VolumeSource{
 				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: *scratchPvcName,
+					ClaimName: *args.scratchPvcName,
 					ReadOnly:  false,
 				},
 			},
 		})
 	}
 
-	importerContainer := makeImporterContainerSpec(image, verbose, pullPolicy)
+	importerContainer := makeImporterContainerSpec(args.image, args.verbose, args.pullPolicy)
 
 	pod := &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -967,7 +991,7 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      podName,
-			Namespace: namespace,
+			Namespace: args.pvc.Namespace,
 			Annotations: map[string]string{
 				AnnCreatedBy: "yes",
 			},
@@ -980,8 +1004,8 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 				{
 					APIVersion:         "v1",
 					Kind:               "PersistentVolumeClaim",
-					Name:               pvc.Name,
-					UID:                pvc.GetUID(),
+					Name:               args.pvc.Name,
+					UID:                args.pvc.GetUID(),
 					BlockOwnerDeletion: &blockOwnerDeletion,
 					Controller:         &isController,
 				},
@@ -993,23 +1017,23 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 			},
 			RestartPolicy:     corev1.RestartPolicyOnFailure,
 			Volumes:           volumes,
-			NodeSelector:      workloadNodePlacement.NodeSelector,
-			Tolerations:       workloadNodePlacement.Tolerations,
-			Affinity:          workloadNodePlacement.Affinity,
-			PriorityClassName: priorityClassName,
+			NodeSelector:      args.workloadNodePlacement.NodeSelector,
+			Tolerations:       args.workloadNodePlacement.Tolerations,
+			Affinity:          args.workloadNodePlacement.Affinity,
+			PriorityClassName: args.priorityClassName,
 		},
 	}
 
-	setImporterPodCommons(pod, podEnvVar, pvc, podResourceRequirements)
+	setImporterPodCommons(pod, args.podEnvVar, args.pvc, args.podResourceRequirements)
 
-	if scratchPvcName != nil {
+	if args.scratchPvcName != nil {
 		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
 			Name:      ScratchVolName,
 			MountPath: common.ScratchDataDir,
 		})
 	}
 
-	if vddkImageName != nil {
+	if args.vddkImageName != nil {
 		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
 			Name: "vddk-vol-mount",
 			VolumeSource: corev1.VolumeSource{
@@ -1018,7 +1042,7 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 		})
 		pod.Spec.InitContainers = append(pod.Spec.InitContainers, corev1.Container{
 			Name:  "vddk-side-car",
-			Image: *vddkImageName,
+			Image: *args.vddkImageName,
 			VolumeMounts: []corev1.VolumeMount{
 				{
 					Name:      "vddk-vol-mount",
@@ -1032,7 +1056,7 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 		})
 	}
 
-	if podEnvVar.certConfigMap != "" {
+	if args.podEnvVar.certConfigMap != "" {
 		vm := corev1.VolumeMount{
 			Name:      CertVolName,
 			MountPath: common.ImporterCertDir,
@@ -1043,7 +1067,7 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: podEnvVar.certConfigMap,
+						Name: args.podEnvVar.certConfigMap,
 					},
 				},
 			},
@@ -1053,13 +1077,13 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
 	}
 
-	if podEnvVar.certConfigMapProxy != "" {
+	if args.podEnvVar.certConfigMapProxy != "" {
 		vm := corev1.VolumeMount{
 			Name:      ProxyCertVolName,
 			MountPath: common.ImporterProxyCertDir,
 		}
 		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
-		pod.Spec.Volumes = append(pod.Spec.Volumes, createProxyConfigMapVolume(CertVolName, podEnvVar.certConfigMapProxy))
+		pod.Spec.Volumes = append(pod.Spec.Volumes, createProxyConfigMapVolume(CertVolName, args.podEnvVar.certConfigMapProxy))
 	}
 
 	return pod

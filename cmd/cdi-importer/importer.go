@@ -51,7 +51,6 @@ func waitForReadyFile() {
 		}
 		time.Sleep(time.Second)
 	}
-	os.Remove(readyFile)
 }
 
 func touchDoneFile() {
@@ -215,7 +214,6 @@ func main() {
 		processor := importer.NewDataProcessor(dp, dest, dataDir, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
 		waitForReadyFile()
 		err = processor.ProcessData()
-		touchDoneFile()
 		if err != nil {
 			klog.Errorf("%+v", err)
 			if err == importer.ErrRequiresScratchSpace {
@@ -229,6 +227,7 @@ func main() {
 			dp.Close()
 			os.Exit(1)
 		}
+		touchDoneFile()
 		preallocationApplied = processor.PreallocationApplied()
 	}
 	message := "Import Complete"

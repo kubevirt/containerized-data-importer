@@ -693,7 +693,16 @@ var _ = Describe("Create Importer Pod", func() {
 			filesystemOverhead: "0.055",
 			insecureTLS:        false,
 		}
-		pod, err := createImporterPod(reconciler.log, reconciler.client, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName, nil, pvc.Annotations[AnnPriorityClassName], map[string]string{})
+		podArgs := &importerPodArgs{
+			image:             testImage,
+			verbose:           "5",
+			pullPolicy:        testPullPolicy,
+			podEnvVar:         podEnvVar,
+			pvc:               pvc,
+			scratchPvcName:    scratchPvcName,
+			priorityClassName: pvc.Annotations[AnnPriorityClassName],
+		}
+		pod, err := createImporterPod(reconciler.log, reconciler.client, podArgs, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying PVC owns pod")
 		Expect(len(pod.GetOwnerReferences())).To(Equal(1))

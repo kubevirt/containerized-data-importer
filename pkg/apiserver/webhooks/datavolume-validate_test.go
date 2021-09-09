@@ -95,14 +95,14 @@ var _ = Describe("Validating Webhook", func() {
 
 		It("should reject DataVolume with Registry source on create with illegal importMethod", func() {
 			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
-			dataVolume.Spec.Source.Registry.ImportMethod = "nosuch"
+			dataVolume.Spec.Source.Registry.PullMethod = "nosuch"
 			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))
 		})
 
 		It("should accept DataVolume with Registry source on create with supported importMethod", func() {
 			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
-			dataVolume.Spec.Source.Registry.ImportMethod = cdiv1.RegistryImportCri
+			dataVolume.Spec.Source.Registry.PullMethod = cdiv1.RegistryPullNode
 			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(true))
 		})
