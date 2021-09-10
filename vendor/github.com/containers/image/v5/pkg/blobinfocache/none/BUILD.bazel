@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["none.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/pkg/blobinfocache/none",
+    importpath = "github.com/containers/image/v5/pkg/blobinfocache/none",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/containers/image/v5/types:go_default_library",
+        "//vendor/github.com/opencontainers/go-digest:go_default_library",
+    ],
+)

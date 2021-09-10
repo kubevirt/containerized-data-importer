@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "rbac.go",
+        "resources.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/resources",
+    importpath = "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/resources",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/k8s.io/api/apps/v1:go_default_library",
+        "//vendor/k8s.io/api/core/v1:go_default_library",
+        "//vendor/k8s.io/api/rbac/v1:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
+        "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api:go_default_library",
+    ],
+)

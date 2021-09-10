@@ -1,0 +1,10 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["management_state.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/openshift/library-go/pkg/operator/management",
+    importpath = "github.com/openshift/library-go/pkg/operator/management",
+    visibility = ["//visibility:public"],
+    deps = ["//vendor/github.com/openshift/api/operator/v1:go_default_library"],
+)

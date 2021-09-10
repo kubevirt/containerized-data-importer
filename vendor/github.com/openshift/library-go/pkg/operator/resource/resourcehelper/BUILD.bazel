@@ -1,0 +1,16 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["resource_helpers.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/openshift/library-go/pkg/operator/resource/resourcehelper",
+    importpath = "github.com/openshift/library-go/pkg/operator/resource/resourcehelper",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/openshift/api:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/api/meta:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/runtime/schema:go_default_library",
+        "//vendor/k8s.io/client-go/kubernetes/scheme:go_default_library",
+    ],
+)

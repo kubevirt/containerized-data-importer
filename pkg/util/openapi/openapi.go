@@ -13,10 +13,10 @@ import (
 
 func createOpenAPIConfig(webServices []*restful.WebService) restfulspec.Config {
 	return restfulspec.Config{
-		WebServices:                   webServices,
-		WebServicesURL:                "",
-		APIPath:                       "/swaggerapi",
-		PostBuildSwaggerObjectHandler: addInfoToSwaggerObject,
+		WebServices:    webServices,
+		WebServicesURL: "",
+		APIPath:        "/swaggerapi",
+		//PostBuildSwaggerObjectHandler: restfulspec.PostBuildSwaggerObjectFunc(addInfoToSwaggerObject),
 	}
 }
 
