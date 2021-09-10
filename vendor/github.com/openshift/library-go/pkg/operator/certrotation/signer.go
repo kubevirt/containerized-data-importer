@@ -2,7 +2,6 @@ package certrotation
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"time"
 
@@ -17,34 +16,22 @@ import (
 	corev1listers "k8s.io/client-go/listers/core/v1"
 )
 
-// RotatedSigningCASecret rotates a self-signed signing CA stored in a secret. It creates a new one when
-// - refresh duration is over
-// - or 80% of validity is over (if RefreshOnlyWhenExpired is false)
-// - or the CA is expired.
-type RotatedSigningCASecret struct {
-	// Namespace is the namespace of the Secret.
-	Namespace string
-	// Name is the name of the Secret.
-	Name string
-	// Validity is the duration from time.Now() until the signing CA expires. If RefreshOnlyWhenExpired
-	// is false, the signing cert is rotated when 80% of validity is reached.
-	Validity time.Duration
-	// Refresh is the duration after signing CA creation when it is rotated at the latest. It is ignored
-	// if RefreshOnlyWhenExpired is true, or if Refresh > Validity.
-	Refresh time.Duration
-	// RefreshOnlyWhenExpired set to true means to ignore 80% of validity and the Refresh duration for rotation,
-	// but only rotate when the signing CA expires. This is useful for auto-recovery when we want to enforce
-	// rotation on expiration only, but not interfere with the ordinary rotation controller.
+// SigningRotation rotates a self-signed signing CA stored in a secret. It creates a new one when <RefreshPercentage>
+// of the lifetime of the old CA has passed.
+type SigningRotation struct {
+	Namespace              string
+	Name                   string
+	Validity               time.Duration
+	Refresh                time.Duration
 	RefreshOnlyWhenExpired bool
 
-	// Plumbing:
 	Informer      corev1informers.SecretInformer
 	Lister        corev1listers.SecretLister
 	Client        corev1client.SecretsGetter
 	EventRecorder events.Recorder
 }
 
-func (c RotatedSigningCASecret) ensureSigningCertKeyPair(ctx context.Context) (*crypto.CA, error) {
+func (c SigningRotation) EnsureSigningCertKeyPair() (*crypto.CA, error) {
 	originalSigningCertKeyPairSecret, err := c.Lister.Secrets(c.Namespace).Get(c.Name)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, err
@@ -56,7 +43,7 @@ func (c RotatedSigningCASecret) ensureSigningCertKeyPair(ctx context.Context) (*
 	}
 	signingCertKeyPairSecret.Type = corev1.SecretTypeTLS
 
-	if needed, reason := needNewSigningCertKeyPair(signingCertKeyPairSecret.Annotations, c.Refresh, c.RefreshOnlyWhenExpired); needed {
+	if reason := needNewSigningCertKeyPair(signingCertKeyPairSecret.Annotations, c.Refresh, c.RefreshOnlyWhenExpired); len(reason) > 0 {
 		c.EventRecorder.Eventf("SignerUpdateRequired", "%q in %q requires a new signing cert/key pair: %v", c.Name, c.Namespace, reason)
 		if err := setSigningCertKeyPairSecret(signingCertKeyPairSecret, c.Validity); err != nil {
 			return nil, err
@@ -64,7 +51,7 @@ func (c RotatedSigningCASecret) ensureSigningCertKeyPair(ctx context.Context) (*
 
 		LabelAsManagedSecret(signingCertKeyPairSecret, CertificateTypeSigner)
 
-		actualSigningCertKeyPairSecret, _, err := resourceapply.ApplySecret(ctx, c.Client, c.EventRecorder, signingCertKeyPairSecret)
+		actualSigningCertKeyPairSecret, _, err := resourceapply.ApplySecret(c.Client, c.EventRecorder, signingCertKeyPairSecret)
 		if err != nil {
 			return nil, err
 		}
@@ -79,32 +66,32 @@ func (c RotatedSigningCASecret) ensureSigningCertKeyPair(ctx context.Context) (*
 	return signingCertKeyPair, nil
 }
 
-func needNewSigningCertKeyPair(annotations map[string]string, refresh time.Duration, refreshOnlyWhenExpired bool) (bool, string) {
+func needNewSigningCertKeyPair(annotations map[string]string, refresh time.Duration, refreshOnlyWhenExpired bool) string {
 	notBefore, notAfter, reason := getValidityFromAnnotations(annotations)
 	if len(reason) > 0 {
-		return true, reason
+		return reason
 	}
 
 	if time.Now().After(notAfter) {
-		return true, "already expired"
+		return "already expired"
 	}
 
 	if refreshOnlyWhenExpired {
-		return false, ""
+		return ""
 	}
 
-	validity := notAfter.Sub(notBefore)
-	at80Percent := notAfter.Add(-validity / 5)
-	if time.Now().After(at80Percent) {
-		return true, fmt.Sprintf("past its latest possible time %v", at80Percent)
+	maxWait := notAfter.Sub(notBefore) / 5
+	latestTime := notAfter.Add(-maxWait)
+	if time.Now().After(latestTime) {
+		return fmt.Sprintf("past its latest possible time %v", latestTime)
 	}
 
-	developerSpecifiedRefresh := notBefore.Add(refresh)
-	if time.Now().After(developerSpecifiedRefresh) {
-		return true, fmt.Sprintf("past its refresh time %v", developerSpecifiedRefresh)
+	refreshTime := notBefore.Add(refresh)
+	if time.Now().After(refreshTime) {
+		return fmt.Sprintf("past its refresh time %v", refreshTime)
 	}
 
-	return false, ""
+	return ""
 }
 
 func getValidityFromAnnotations(annotations map[string]string) (notBefore time.Time, notAfter time.Time, reason string) {

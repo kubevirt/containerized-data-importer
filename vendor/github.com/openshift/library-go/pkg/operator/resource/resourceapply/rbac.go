@@ -17,16 +17,14 @@ import (
 )
 
 // ApplyClusterRole merges objectmeta, requires rules, aggregation rules are not allowed for now.
-func ApplyClusterRole(ctx context.Context, client rbacclientv1.ClusterRolesGetter, recorder events.Recorder, required *rbacv1.ClusterRole) (*rbacv1.ClusterRole, bool, error) {
+func ApplyClusterRole(client rbacclientv1.ClusterRolesGetter, recorder events.Recorder, required *rbacv1.ClusterRole) (*rbacv1.ClusterRole, bool, error) {
 	if required.AggregationRule != nil && len(required.AggregationRule.ClusterRoleSelectors) != 0 {
 		return nil, false, fmt.Errorf("cannot create an aggregated cluster role")
 	}
 
-	existing, err := client.ClusterRoles().Get(ctx, required.Name, metav1.GetOptions{})
+	existing, err := client.ClusterRoles().Get(context.TODO(), required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		requiredCopy := required.DeepCopy()
-		actual, err := client.ClusterRoles().Create(
-			ctx, resourcemerge.WithCleanLabelsAndAnnotations(requiredCopy).(*rbacv1.ClusterRole), metav1.CreateOptions{})
+		actual, err := client.ClusterRoles().Create(context.TODO(), required, metav1.CreateOptions{})
 		reportCreateEvent(recorder, required, err)
 		return actual, true, err
 	}
@@ -50,19 +48,17 @@ func ApplyClusterRole(ctx context.Context, client rbacclientv1.ClusterRolesGette
 		klog.Infof("ClusterRole %q changes: %v", required.Name, JSONPatchNoError(existing, existingCopy))
 	}
 
-	actual, err := client.ClusterRoles().Update(ctx, existingCopy, metav1.UpdateOptions{})
+	actual, err := client.ClusterRoles().Update(context.TODO(), existingCopy, metav1.UpdateOptions{})
 	reportUpdateEvent(recorder, required, err)
 	return actual, true, err
 }
 
 // ApplyClusterRoleBinding merges objectmeta, requires subjects and role refs
 // TODO on non-matching roleref, delete and recreate
-func ApplyClusterRoleBinding(ctx context.Context, client rbacclientv1.ClusterRoleBindingsGetter, recorder events.Recorder, required *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, bool, error) {
-	existing, err := client.ClusterRoleBindings().Get(ctx, required.Name, metav1.GetOptions{})
+func ApplyClusterRoleBinding(client rbacclientv1.ClusterRoleBindingsGetter, recorder events.Recorder, required *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, bool, error) {
+	existing, err := client.ClusterRoleBindings().Get(context.TODO(), required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		requiredCopy := required.DeepCopy()
-		actual, err := client.ClusterRoleBindings().Create(
-			ctx, resourcemerge.WithCleanLabelsAndAnnotations(requiredCopy).(*rbacv1.ClusterRoleBinding), metav1.CreateOptions{})
+		actual, err := client.ClusterRoleBindings().Create(context.TODO(), required, metav1.CreateOptions{})
 		reportCreateEvent(recorder, required, err)
 		return actual, true, err
 	}
@@ -84,7 +80,7 @@ func ApplyClusterRoleBinding(ctx context.Context, client rbacclientv1.ClusterRol
 
 	requiredCopy.RoleRef.APIGroup = rbacv1.GroupName
 	for i := range requiredCopy.Subjects {
-		if requiredCopy.Subjects[i].Kind == "User" {
+		if existingCopy.Subjects[i].Kind == "User" {
 			requiredCopy.Subjects[i].APIGroup = rbacv1.GroupName
 		}
 	}
@@ -105,18 +101,16 @@ func ApplyClusterRoleBinding(ctx context.Context, client rbacclientv1.ClusterRol
 		klog.Infof("ClusterRoleBinding %q changes: %v", requiredCopy.Name, JSONPatchNoError(existing, existingCopy))
 	}
 
-	actual, err := client.ClusterRoleBindings().Update(ctx, existingCopy, metav1.UpdateOptions{})
+	actual, err := client.ClusterRoleBindings().Update(context.TODO(), existingCopy, metav1.UpdateOptions{})
 	reportUpdateEvent(recorder, requiredCopy, err)
 	return actual, true, err
 }
 
 // ApplyRole merges objectmeta, requires rules
-func ApplyRole(ctx context.Context, client rbacclientv1.RolesGetter, recorder events.Recorder, required *rbacv1.Role) (*rbacv1.Role, bool, error) {
-	existing, err := client.Roles(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
+func ApplyRole(client rbacclientv1.RolesGetter, recorder events.Recorder, required *rbacv1.Role) (*rbacv1.Role, bool, error) {
+	existing, err := client.Roles(required.Namespace).Get(context.TODO(), required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		requiredCopy := required.DeepCopy()
-		actual, err := client.Roles(required.Namespace).Create(
-			ctx, resourcemerge.WithCleanLabelsAndAnnotations(requiredCopy).(*rbacv1.Role), metav1.CreateOptions{})
+		actual, err := client.Roles(required.Namespace).Create(context.TODO(), required, metav1.CreateOptions{})
 		reportCreateEvent(recorder, required, err)
 		return actual, true, err
 	}
@@ -138,19 +132,17 @@ func ApplyRole(ctx context.Context, client rbacclientv1.RolesGetter, recorder ev
 	if klog.V(4).Enabled() {
 		klog.Infof("Role %q changes: %v", required.Namespace+"/"+required.Name, JSONPatchNoError(existing, existingCopy))
 	}
-	actual, err := client.Roles(required.Namespace).Update(ctx, existingCopy, metav1.UpdateOptions{})
+	actual, err := client.Roles(required.Namespace).Update(context.TODO(), existingCopy, metav1.UpdateOptions{})
 	reportUpdateEvent(recorder, required, err)
 	return actual, true, err
 }
 
 // ApplyRoleBinding merges objectmeta, requires subjects and role refs
 // TODO on non-matching roleref, delete and recreate
-func ApplyRoleBinding(ctx context.Context, client rbacclientv1.RoleBindingsGetter, recorder events.Recorder, required *rbacv1.RoleBinding) (*rbacv1.RoleBinding, bool, error) {
-	existing, err := client.RoleBindings(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
+func ApplyRoleBinding(client rbacclientv1.RoleBindingsGetter, recorder events.Recorder, required *rbacv1.RoleBinding) (*rbacv1.RoleBinding, bool, error) {
+	existing, err := client.RoleBindings(required.Namespace).Get(context.TODO(), required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		requiredCopy := required.DeepCopy()
-		actual, err := client.RoleBindings(required.Namespace).Create(
-			ctx, resourcemerge.WithCleanLabelsAndAnnotations(requiredCopy).(*rbacv1.RoleBinding), metav1.CreateOptions{})
+		actual, err := client.RoleBindings(required.Namespace).Create(context.TODO(), required, metav1.CreateOptions{})
 		reportCreateEvent(recorder, required, err)
 		return actual, true, err
 	}
@@ -172,7 +164,7 @@ func ApplyRoleBinding(ctx context.Context, client rbacclientv1.RoleBindingsGette
 
 	requiredCopy.RoleRef.APIGroup = rbacv1.GroupName
 	for i := range requiredCopy.Subjects {
-		if requiredCopy.Subjects[i].Kind == "User" {
+		if existingCopy.Subjects[i].Kind == "User" {
 			requiredCopy.Subjects[i].APIGroup = rbacv1.GroupName
 		}
 	}
@@ -193,7 +185,7 @@ func ApplyRoleBinding(ctx context.Context, client rbacclientv1.RoleBindingsGette
 		klog.Infof("RoleBinding %q changes: %v", requiredCopy.Namespace+"/"+requiredCopy.Name, JSONPatchNoError(existing, existingCopy))
 	}
 
-	actual, err := client.RoleBindings(requiredCopy.Namespace).Update(ctx, existingCopy, metav1.UpdateOptions{})
+	actual, err := client.RoleBindings(requiredCopy.Namespace).Update(context.TODO(), existingCopy, metav1.UpdateOptions{})
 	reportUpdateEvent(recorder, requiredCopy, err)
 	return actual, true, err
 }

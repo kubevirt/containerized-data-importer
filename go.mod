@@ -9,10 +9,8 @@ require (
 	github.com/coreos/go-semver v0.3.0
 	github.com/elazarl/goproxy v0.0.0-20190911111923-ecfe977594f1 // indirect
 	github.com/emicklei/go-restful v2.10.0+incompatible
-	github.com/emicklei/go-restful-openapi v1.2.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.4.0
-	github.com/go-openapi/spec v0.19.3
 	github.com/golang/snappy v0.0.2
 	github.com/google/uuid v1.1.2
 	github.com/kelseyhightower/envconfig v1.4.0
@@ -53,7 +51,7 @@ require (
 replace (
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20210908182622-85977bee0722
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20210831095141-e19a065e79f7
-	//github.com/openshift/library-go => github.com/mhenriks/library-go master
+	github.com/openshift/library-go => github.com/mhenriks/library-go v0.0.0-20210511195009-51ba86622560
 	github.com/operator-framework/operator-lifecycle-manager => github.com/operator-framework/operator-lifecycle-manager v0.19.1-0.20210908235324-2fd014019ca8
 
 	k8s.io/api => k8s.io/api v0.22.1
