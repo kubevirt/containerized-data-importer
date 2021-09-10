@@ -1,6 +1,7 @@
 package certrotation
 
 import (
+	"context"
 	"crypto/x509"
 	"fmt"
 	"strings"
@@ -21,19 +22,38 @@ import (
 	corev1listers "k8s.io/client-go/listers/core/v1"
 )
 
-// TargetRotation rotates a key and cert signed by a CA. It creates a new one when <RefreshPercentage>
-// of the lifetime of the old cert has passed, or if the common name of the CA changes.
-type TargetRotation struct {
+// RotatedSelfSignedCertKeySecret rotates a key and cert signed by a signing CA and stores it in a secret.
+//
+// It creates a new one when
+// - refresh duration is over
+// - or 80% of validity is over (if RefreshOnlyWhenExpired is false)
+// - or the cert is expired.
+// - or the signing CA changes.
+type RotatedSelfSignedCertKeySecret struct {
+	// Namespace is the namespace of the Secret.
 	Namespace string
-	Name      string
-	Validity  time.Duration
-	Refresh   time.Duration
+	// Name is the name of the Secret.
+	Name string
+	// Validity is the duration from time.Now() until the certificate expires. If RefreshOnlyWhenExpired
+	// is false, the key and certificate is rotated when 80% of validity is reached.
+	Validity time.Duration
+	// Refresh is the duration after certificate creation when it is rotated at the latest. It is ignored
+	// if RefreshOnlyWhenExpired is true, or if Refresh > Validity.
+	// Refresh is ignored until the signing CA at least 10% in its life-time to ensure it is deployed
+	// through-out the cluster.
+	Refresh time.Duration
 	// RefreshOnlyWhenExpired allows rotating only certs that are already expired. (for autorecovery)
 	// If false (regular flow) it rotates at the refresh interval but no later then 4/5 of the cert lifetime.
+
+	// RefreshOnlyWhenExpired set to true means to ignore 80% of validity and the Refresh duration for rotation,
+	// but only rotate when the certificate expires. This is useful for auto-recovery when we want to enforce
+	// rotation on expiration only, but not interfere with the ordinary rotation controller.
 	RefreshOnlyWhenExpired bool
 
+	// CertCreator does the actual cert generation.
 	CertCreator TargetCertCreator
 
+	// Plumbing:
 	Informer      corev1informers.SecretInformer
 	Lister        corev1listers.SecretLister
 	Client        corev1client.SecretsGetter
@@ -41,17 +61,21 @@ type TargetRotation struct {
 }
 
 type TargetCertCreator interface {
+	// NewCertificate creates a new key-cert pair with the given signer.
 	NewCertificate(signer *crypto.CA, validity time.Duration) (*crypto.TLSCertificateConfig, error)
-	NeedNewTargetCertKeyPair(annotations map[string]string, signer *crypto.CA, caBundleCerts []*x509.Certificate, refresh time.Duration, refreshOnlyWhenExpired bool) string
+	// NeedNewTargetCertKeyPair decides whether a new cert-key pair is needed. It returns a non-empty reason if it is the case.
+	NeedNewTargetCertKeyPair(currentSecretAnnotations map[string]string, signer *crypto.CA, caBundleCerts []*x509.Certificate, refresh time.Duration, refreshOnlyWhenExpired bool) string
 	// SetAnnotations gives an option to override or set additional annotations
 	SetAnnotations(cert *crypto.TLSCertificateConfig, annotations map[string]string) map[string]string
 }
 
+// TargetCertRechecker is an optional interface to be implemented by the TargetCertCreator to enforce
+// a controller run.
 type TargetCertRechecker interface {
 	RecheckChannel() <-chan struct{}
 }
 
-func (c TargetRotation) EnsureTargetCertKeyPair(signingCertKeyPair *crypto.CA, caBundleCerts []*x509.Certificate) error {
+func (c RotatedSelfSignedCertKeySecret) ensureTargetCertKeyPair(ctx context.Context, signingCertKeyPair *crypto.CA, caBundleCerts []*x509.Certificate) error {
 	// at this point our trust bundle has been updated.  We don't know for sure that consumers have updated, but that's why we have a second
 	// validity percentage.  We always check to see if we need to sign.  Often we are signing with an old key or we have no target
 	// and need to mint one
@@ -75,7 +99,7 @@ func (c TargetRotation) EnsureTargetCertKeyPair(signingCertKeyPair *crypto.CA, c
 
 		LabelAsManagedSecret(targetCertKeyPairSecret, CertificateTypeTarget)
 
-		actualTargetCertKeyPairSecret, _, err := resourceapply.ApplySecret(c.Client, c.EventRecorder, targetCertKeyPairSecret)
+		actualTargetCertKeyPairSecret, _, err := resourceapply.ApplySecret(ctx, c.Client, c.EventRecorder, targetCertKeyPairSecret)
 		if err != nil {
 			return err
 		}
@@ -129,6 +153,7 @@ func needNewTargetCertKeyPairForTime(annotations map[string]string, signer *cryp
 		return reason
 	}
 
+	// Is cert expired?
 	if time.Now().After(notAfter) {
 		return "already expired"
 	}
@@ -137,10 +162,11 @@ func needNewTargetCertKeyPairForTime(annotations map[string]string, signer *cryp
 		return ""
 	}
 
-	maxWait := notAfter.Sub(notBefore) / 5
-	latestTime := notAfter.Add(-maxWait)
-	if time.Now().After(latestTime) {
-		return fmt.Sprintf("past its latest possible time %v", latestTime)
+	// Are we at 80% of validity?
+	validity := notAfter.Sub(notBefore)
+	at80Percent := notAfter.Add(-validity / 5)
+	if time.Now().After(at80Percent) {
+		return fmt.Sprintf("past its latest possible time %v", at80Percent)
 	}
 
 	// If Certificate is past its refresh time, we may have action to take. We only do this if the signer is old enough.

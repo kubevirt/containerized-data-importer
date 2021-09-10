@@ -3,9 +3,10 @@ package openapi
 import (
 	"github.com/emicklei/go-restful"
 	restfulspec "github.com/emicklei/go-restful-openapi"
-	"github.com/go-openapi/spec"
+
 	"k8s.io/kube-openapi/pkg/builder"
 	"k8s.io/kube-openapi/pkg/common"
+	"k8s.io/kube-openapi/pkg/validation/spec"
 )
 
 // code stolen/adapted from https://github.com/kubevirt/kubevirt/blob/master/pkg/util/openapi/openapi.go

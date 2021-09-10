@@ -9,6 +9,9 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // CloudCredential provides a means to configure an operator to manage CredentialsRequests.
+//
+// Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
+// +openshift:compatibility-gen:level=1
 type CloudCredential struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -54,6 +57,9 @@ type CloudCredentialSpec struct {
 	// It also allows putting the operator into "manual" mode if desired.
 	// Leaving the field in default mode runs CCO so that the cluster's cloud credentials
 	// will be dynamically probed for capabilities (on supported clouds/platforms).
+	// Supported modes:
+	//   AWS/Azure/GCP: "" (Default), "Mint", "Passthrough", "Manual"
+	//   Others: Do not set value as other platforms only support running in "Passthrough"
 	// +optional
 	CredentialsMode CloudCredentialsMode `json:"credentialsMode,omitempty"`
 }
@@ -65,6 +71,8 @@ type CloudCredentialStatus struct {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
+// +openshift:compatibility-gen:level=1
 type CloudCredentialList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`

@@ -2,6 +2,8 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 // +genclient
@@ -18,6 +20,9 @@ import (
 // https://github.com/kubernetes/dns/blob/master/docs/specification.md
 //
 // More details: https://kubernetes.io/docs/tasks/administer-cluster/coredns
+//
+// Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
+// +openshift:compatibility-gen:level=1
 type DNS struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -42,6 +47,29 @@ type DNSSpec struct {
 	//
 	// +optional
 	Servers []Server `json:"servers,omitempty"`
+
+	// nodePlacement provides explicit control over the scheduling of DNS
+	// pods.
+	//
+	// Generally, it is useful to run a DNS pod on every node so that DNS
+	// queries are always handled by a local DNS pod instead of going over
+	// the network to a DNS pod on another node.  However, security policies
+	// may require restricting the placement of DNS pods to specific nodes.
+	// For example, if a security policy prohibits pods on arbitrary nodes
+	// from communicating with the API, a node selector can be specified to
+	// restrict DNS pods to nodes that are permitted to communicate with the
+	// API.  Conversely, if running DNS pods on nodes with a particular
+	// taint is desired, a toleration can be specified for that taint.
+	//
+	// If unset, defaults are used. See nodePlacement for more details.
+	//
+	// +optional
+	NodePlacement DNSNodePlacement `json:"nodePlacement,omitempty"`
+
+	// managementState indicates whether the DNS operator should manage cluster
+	// DNS
+	// +optional
+	ManagementState ManagementState `json:"managementState,omitempty"`
 }
 
 // Server defines the schema for a server that runs per instance of CoreDNS.
@@ -71,6 +99,36 @@ type ForwardPlugin struct {
 	//
 	// +kubebuilder:validation:MaxItems=15
 	Upstreams []string `json:"upstreams"`
+}
+
+// DNSNodePlacement describes the node scheduling configuration for DNS pods.
+type DNSNodePlacement struct {
+	// nodeSelector is the node selector applied to DNS pods.
+	//
+	// If empty, the default is used, which is currently the following:
+	//
+	//   kubernetes.io/os: linux
+	//
+	// This default is subject to change.
+	//
+	// If set, the specified selector is used and replaces the default.
+	//
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
+	// tolerations is a list of tolerations applied to DNS pods.
+	//
+	// If empty, the DNS operator sets a toleration for the
+	// "node-role.kubernetes.io/master" taint.  This default is subject to
+	// change.  Specifying tolerations without including a toleration for
+	// the "node-role.kubernetes.io/master" taint may be risky as it could
+	// lead to an outage if all worker nodes become unavailable.
+	//
+	// Note that the daemon controller adds some tolerations as well.  See
+	// https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+	//
+	// +optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
 const (
@@ -125,6 +183,9 @@ type DNSStatus struct {
 // +kubebuilder:object:root=true
 
 // DNSList contains a list of DNS
+//
+// Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
+// +openshift:compatibility-gen:level=1
 type DNSList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
