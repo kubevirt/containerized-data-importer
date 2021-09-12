@@ -62,6 +62,8 @@ const (
 	AnnContentType = AnnAPIGroup + "/storage.contentType"
 	// AnnRegistryImportMethod provides a const for registry import method annotation
 	AnnRegistryImportMethod = AnnAPIGroup + "/storage.import.registryImportMethod"
+	// AnnRegistryImageStream provides a const for registry image stream annotation
+	AnnRegistryImageStream = AnnAPIGroup + "/storage.import.registryImageStream"
 	// AnnImportPod provides a const for our PVC importPodName annotation
 	AnnImportPod = AnnAPIGroup + "/storage.import.importPodName"
 	// AnnRequiresScratch provides a const for our PVC requires scratch annotation
@@ -92,6 +94,10 @@ const (
 
 	// ImportTargetInUse is reason for event created when an import pvc is in use
 	ImportTargetInUse = "ImportTargetInUse"
+
+	// importPodImageStreamFinalizer ensures image stream import pod is deleted when pvc is deleted,
+	// as in this case pod has no pvc OwnerReference
+	importPodImageStreamFinalizer = "cdi.kubevirt.io/importImageStream"
 )
 
 // ImportReconciler members
@@ -213,6 +219,10 @@ func isPVCComplete(pvc *corev1.PersistentVolumeClaim) bool {
 	return exists && (phase == string(corev1.PodSucceeded))
 }
 
+func isImageStream(pvc *corev1.PersistentVolumeClaim) bool {
+	return pvc.Annotations[AnnRegistryImageStream] == "true"
+}
+
 // Reconcile the reconcile loop for the CDIConfig object.
 func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("PVC", req.NamespacedName)
@@ -266,11 +276,9 @@ func (r *ImportReconciler) findImporterPod(pvc *corev1.PersistentVolumeClaim, lo
 		}
 		return nil, nil
 	}
-
-	if !metav1.IsControlledBy(pod, pvc) {
+	if !metav1.IsControlledBy(pod, pvc) && !isImageStream(pvc) {
 		return nil, errors.Errorf("Pod is not owned by PVC")
 	}
-
 	log.V(1).Info("Pod is owned by PVC", pod.Name, pvc.Name)
 	return pod, nil
 }
@@ -318,7 +326,7 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 	} else {
 		if pvc.DeletionTimestamp != nil {
 			log.V(1).Info("PVC being terminated, delete pods", "pod.Name", pod.Name)
-			if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
+			if err := r.cleanup(pvc, pod, log); err != nil {
 				return reconcile.Result{}, err
 			}
 		} else {
@@ -428,9 +436,22 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		}
 		if shouldDeletePod(pvc) {
 			log.V(1).Info("Deleting pod", "pod.Name", pod.Name)
-			if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
+			if err := r.cleanup(pvc, pod, log); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func (r *ImportReconciler) cleanup(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, log logr.Logger) error {
+	if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
+		return err
+	}
+	if HasFinalizer(pvc, importPodImageStreamFinalizer) {
+		RemoveFinalizer(pvc, importPodImageStreamFinalizer)
+		if err := r.updatePVC(pvc, log); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -487,11 +508,19 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		priorityClassName: getPriorityClass(pvc),
 	}
 	pod, err := createImporterPod(r.log, r.client, podArgs, r.installerLabels)
-
 	if err != nil {
 		return err
 	}
 	r.log.V(1).Info("Created POD", "pod.Name", pod.Name)
+
+	// If importing from image stream, add finalizer
+	if isImageStream(pvc) {
+		AddFinalizer(pvc, importPodImageStreamFinalizer)
+		if err := r.updatePVC(pvc, r.log); err != nil {
+			return err
+		}
+	}
+
 	if requiresScratch {
 		r.log.V(1).Info("Pod requires scratch space")
 		return r.createScratchPvcForPod(pvc, pod)
@@ -776,10 +805,13 @@ func getEndpoint(pvc *corev1.PersistentVolumeClaim) (string, error) {
 }
 
 // returns the import image part of the endpoint string
-func getImportImage(pvc *corev1.PersistentVolumeClaim) (string, error) {
+func getRegistryImportImage(pvc *corev1.PersistentVolumeClaim) (string, error) {
 	ep, err := getEndpoint(pvc)
 	if err != nil {
 		return "", nil
+	}
+	if isImageStream(pvc) {
+		return ep, nil
 	}
 	url, err := url.Parse(ep)
 	if err != nil {
@@ -825,11 +857,11 @@ func createImporterPod(log logr.Logger, client client.Client, args *importerPodA
 
 	var pod *corev1.Pod
 	if getSource(args.pvc) == SourceRegistry && args.pvc.Annotations[AnnRegistryImportMethod] == string(cdiv1.RegistryPullNode) {
-		args.importImage, err = getImportImage(args.pvc)
+		args.importImage, err = getRegistryImportImage(args.pvc)
 		if err != nil {
 			return nil, err
 		}
-		pod = makeCriImporterPodSpec(args)
+		pod = makeNodeImporterPodSpec(args)
 	} else {
 		pod = makeImporterPodSpec(args)
 	}
@@ -839,17 +871,15 @@ func createImporterPod(log logr.Logger, client client.Client, args *importerPodA
 	if err = client.Create(context.TODO(), pod); err != nil {
 		return nil, err
 	}
+
 	log.V(3).Info("importer pod created\n", "pod.Name", pod.Name, "pod.Namespace", pod.Namespace, "image name", args.image)
 	return pod, nil
 }
 
-// makeCriImporterPodSpec creates and return the container runtime interface importer pod spec based on the passed-in importImage and pvc.
-func makeCriImporterPodSpec(args *importerPodArgs) *corev1.Pod {
+// makeNodeImporterPodSpec creates and returns the node docker cache based importer pod spec based on the passed-in importImage and pvc.
+func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 	// importer pod name contains the pvc name
 	podName, _ := args.pvc.Annotations[AnnImportPod]
-
-	blockOwnerDeletion := true
-	isController := true
 
 	volumes := []corev1.Volume{
 		{
@@ -886,16 +916,6 @@ func makeCriImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 				common.CDILabelKey:       common.CDILabelValue,
 				common.CDIComponentLabel: common.ImporterPodName,
 				common.PrometheusLabel:   "",
-			},
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion:         "v1",
-					Kind:               "PersistentVolumeClaim",
-					Name:               args.pvc.Name,
-					UID:                args.pvc.GetUID(),
-					BlockOwnerDeletion: &blockOwnerDeletion,
-					Controller:         &isController,
-				},
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -935,6 +955,29 @@ func makeCriImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			Affinity:          args.workloadNodePlacement.Affinity,
 			PriorityClassName: args.priorityClassName,
 		},
+	}
+
+	/**
+	FIXME: When registry source is ImageStream, if we set importer pod OwnerReference (to its pvc, like all other cases),
+	for some reason (OCP issue?) we get the following error:
+		Failed to pull image "imagestream-name": rpc error: code = Unknown
+		desc = Error reading manifest latest in docker.io/library/imagestream-name: errors:
+		denied: requested access to the resource is denied
+		unauthorized: authentication required
+	When we don't set pod OwnerReferences, all works well.
+	*/
+	if !isImageStream(args.pvc) {
+		blockOwnerDeletion := true
+		isController := true
+		ownerRef := metav1.OwnerReference{
+			APIVersion:         "v1",
+			Kind:               "PersistentVolumeClaim",
+			Name:               args.pvc.Name,
+			UID:                args.pvc.GetUID(),
+			BlockOwnerDeletion: &blockOwnerDeletion,
+			Controller:         &isController,
+		}
+		pod.OwnerReferences = append(pod.OwnerReferences, ownerRef)
 	}
 
 	args.podEnvVar.source = SourceHTTP

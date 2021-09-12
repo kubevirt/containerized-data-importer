@@ -152,14 +152,21 @@ type DataVolumeSourceS3 struct {
 
 // DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source
 type DataVolumeSourceRegistry struct {
-	//URL is the url of the registry source (starting with the scheme: docker, oci-archive, imagestream)
-	URL string `json:"url"`
+	//URL is the url of the registry source (starting with the scheme: docker, oci-archive)
+	// +optional
+	URL *string `json:"url,omitempty"`
+	//ImageStream is the name of image stream for import
+	// +optional
+	ImageStream *string `json:"imageStream,omitempty"`
 	//PullMethod can be either "pod" (default import), or "node" (node docker cache based import)
-	PullMethod RegistryPullMethod `json:"pullMethod,omitempty"`
+	// +optional
+	PullMethod *RegistryPullMethod `json:"pullMethod,omitempty"`
 	//SecretRef provides the secret reference needed to access the Registry source
-	SecretRef string `json:"secretRef,omitempty"`
+	// +optional
+	SecretRef *string `json:"secretRef,omitempty"`
 	//CertConfigMap provides a reference to the Registry certs
-	CertConfigMap string `json:"certConfigMap,omitempty"`
+	// +optional
+	CertConfigMap *string `json:"certConfigMap,omitempty"`
 }
 
 const (
@@ -167,8 +174,6 @@ const (
 	RegistrySchemeDocker = "docker"
 	// RegistrySchemeOci is oci-archive scheme prefix
 	RegistrySchemeOci = "oci-archive"
-	// RegistrySchemeImageStream is image stream scheme prefix
-	RegistrySchemeImageStream = "imagestream"
 )
 
 // RegistryPullMethod represents the registry import pull method

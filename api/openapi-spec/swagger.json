@@ -3935,12 +3935,13 @@
    "v1beta1.DataVolumeSourceRegistry": {
     "description": "DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source",
     "type": "object",
-    "required": [
-     "url"
-    ],
     "properties": {
      "certConfigMap": {
       "description": "CertConfigMap provides a reference to the Registry certs",
+      "type": "string"
+     },
+     "imageStream": {
+      "description": "ImageStream is the name of image stream for import",
       "type": "string"
      },
      "pullMethod": {
@@ -3952,9 +3953,8 @@
       "type": "string"
      },
      "url": {
-      "description": "URL is the url of the registry source (starting with the scheme: docker, oci-archive, imagestream)",
-      "type": "string",
-      "default": ""
+      "description": "URL is the url of the registry source (starting with the scheme: docker, oci-archive)",
+      "type": "string"
      }
     }
    },

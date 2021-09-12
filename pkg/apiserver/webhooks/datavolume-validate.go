@@ -23,7 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	uri "net/url"
+	neturl "net/url"
 	"reflect"
 
 	admissionv1 "k8s.io/api/admission/v1"
@@ -50,7 +50,7 @@ func validateSourceURL(sourceURL string) string {
 	if sourceURL == "" {
 		return "source URL is empty"
 	}
-	url, err := uri.ParseRequestURI(sourceURL)
+	url, err := neturl.ParseRequestURI(sourceURL)
 	if err != nil {
 		return fmt.Sprintf("Invalid source URL: %s", sourceURL)
 	}
@@ -251,30 +251,58 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 			return causes
 		}
 		sourceURL := spec.Source.Registry.URL
-		url, err := uri.Parse(sourceURL)
-		if err != nil {
+		sourceIS := spec.Source.Registry.ImageStream
+		if (sourceURL == nil && sourceIS == nil) || (sourceURL != nil && sourceIS != nil) {
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("Illegal registry source URL %s", url),
-				Field:   field.Child("source", "Registry", "URL").String(),
+				Message: fmt.Sprintf("Source registry should have either URL or ImageStream"),
+				Field:   field.Child("source", "Registry").String(),
 			})
 			return causes
 		}
-		scheme := url.Scheme
-		if scheme != cdiv1.RegistrySchemeDocker && scheme != cdiv1.RegistrySchemeOci && scheme != cdiv1.RegistrySchemeImageStream {
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("Illegal registry source URL scheme %s", url),
-				Field:   field.Child("source", "Registry", "URL").String(),
-			})
-			return causes
-
+		if sourceURL != nil {
+			url, err := neturl.Parse(*sourceURL)
+			if err != nil {
+				causes = append(causes, metav1.StatusCause{
+					Type:    metav1.CauseTypeFieldValueInvalid,
+					Message: fmt.Sprintf("Illegal registry source URL %s", *sourceURL),
+					Field:   field.Child("source", "Registry", "URL").String(),
+				})
+				return causes
+			}
+			scheme := url.Scheme
+			if scheme != cdiv1.RegistrySchemeDocker && scheme != cdiv1.RegistrySchemeOci {
+				causes = append(causes, metav1.StatusCause{
+					Type:    metav1.CauseTypeFieldValueInvalid,
+					Message: fmt.Sprintf("Illegal registry source URL scheme %s", url),
+					Field:   field.Child("source", "Registry", "URL").String(),
+				})
+				return causes
+			}
 		}
 		importMethod := spec.Source.Registry.PullMethod
-		if importMethod != "" && importMethod != cdiv1.RegistryPullPod && importMethod != cdiv1.RegistryPullNode {
+		if importMethod != nil && *importMethod != cdiv1.RegistryPullPod && *importMethod != cdiv1.RegistryPullNode {
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("ImportMethod %s is neither %s, %s or \"\"", importMethod, cdiv1.RegistryPullPod, cdiv1.RegistryPullNode),
+				Message: fmt.Sprintf("ImportMethod %s is neither %s, %s or \"\"", *importMethod, cdiv1.RegistryPullPod, cdiv1.RegistryPullNode),
+				Field:   field.Child("source", "Registry", "importMethod").String(),
+			})
+			return causes
+		}
+
+		if sourceIS != nil && *sourceIS == "" {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("Source registry ImageStream is not valid"),
+				Field:   field.Child("source", "Registry", "importMethod").String(),
+			})
+			return causes
+		}
+
+		if sourceIS != nil && (importMethod == nil || *importMethod != cdiv1.RegistryPullNode) {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("Source registry ImageStream is supported only with node pull import method"),
 				Field:   field.Child("source", "Registry", "importMethod").String(),
 			})
 			return causes

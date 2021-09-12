@@ -75,6 +75,8 @@ const (
 	VcenterURL = "https://vcenter.%s:8989/sdk"
 	// TrustedRegistryURL provides the base path to trusted registry test url for the tinycore.iso image wrapped in docker container
 	TrustedRegistryURL = "docker://%s/cdi-func-test-tinycore:%s"
+	// TrustedRegistryIS provides the base path to trusted registry test fake imagestream for the tinycore.iso image wrapped in docker container
+	TrustedRegistryIS = "%s/cdi-func-test-tinycore:%s"
 
 	// TinyCoreMD5 is the MD5 hash of first 100k bytes of tinyCore image
 	TinyCoreMD5 = "3710416a680523c7d07538cb1026c60c"
@@ -447,7 +449,7 @@ func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registr
 		Spec: cdiv1.DataVolumeSpec{
 			Source: &cdiv1.DataVolumeSource{
 				Registry: &cdiv1.DataVolumeSourceRegistry{
-					URL: registryURL,
+					URL: &registryURL,
 				},
 			},
 			PVC: &k8sv1.PersistentVolumeClaimSpec{

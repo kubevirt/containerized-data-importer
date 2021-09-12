@@ -1033,6 +1033,7 @@ var _ = Describe("Preallocation", func() {
 		config              *cdiv1.CDIConfig
 		origSpec            *cdiv1.CDIConfigSpec
 		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix, f.DockerTag) }
+		trustedRegistryIS   = func() string { return fmt.Sprintf(utils.TrustedRegistryIS, f.DockerPrefix, f.DockerTag) }
 	)
 
 	BeforeEach(func() {
@@ -1227,12 +1228,22 @@ var _ = Describe("Preallocation", func() {
 			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", tinyCoreRegistryURL())
 			cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 			Expect(err).To(BeNil())
-			dataVolume.Spec.Source.Registry.CertConfigMap = cm
+			dataVolume.Spec.Source.Registry.CertConfigMap = &cm
 			return dataVolume
 		}),
 		Entry("Registry node pull import", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
+			pullMethod := cdiv1.RegistryPullNode
 			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", trustedRegistryURL())
-			dataVolume.Spec.Source.Registry.PullMethod = cdiv1.RegistryPullNode
+			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
+			return dataVolume
+		}),
+		Entry("Registry ImageStream-wannabe node pull import", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
+			pullMethod := cdiv1.RegistryPullNode
+			imageStreamWannabe := trustedRegistryIS()
+			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", "")
+			dataVolume.Spec.Source.Registry.URL = nil
+			dataVolume.Spec.Source.Registry.ImageStream = &imageStreamWannabe
+			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
 			return dataVolume
 		}),
 		Entry("VddkImport", true, utils.VcenterMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {

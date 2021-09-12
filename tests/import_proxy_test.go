@@ -184,7 +184,7 @@ var _ = Describe("Import Proxy tests", func() {
 		dv := utils.NewDataVolumeWithRegistryImport("import-dv", "1Gi", fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs))
 		cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 		Expect(err).To(BeNil())
-		dv.Spec.Source.Registry.CertConfigMap = cm
+		dv.Spec.Source.Registry.CertConfigMap = &cm
 		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).To(BeNil())
 		dvName = dv.Name

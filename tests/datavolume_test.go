@@ -104,7 +104,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		dataVolume := utils.NewDataVolumeWithRegistryImport(dataVolumeName, size, url)
 		cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 		Expect(err).To(BeNil())
-		dataVolume.Spec.Source.Registry.CertConfigMap = cm
+		dataVolume.Spec.Source.Registry.CertConfigMap = &cm
 		return dataVolume
 	}
 
@@ -112,7 +112,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		dataVolume := utils.NewDataVolumeWithRegistryImport(dataVolumeName, size, url)
 		cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 		Expect(err).To(BeNil())
-		dataVolume.Spec.Source.Registry.CertConfigMap = cm
+		dataVolume.Spec.Source.Registry.CertConfigMap = &cm
 		return dataVolume
 	}
 
@@ -2151,13 +2151,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	})
 
 	Describe("Registry import with missing configmap", func() {
-		const cmName = "cert-registry-cm"
+		cmName := "cert-registry-cm"
 
 		It("[test_id:4963]Import POD should remain pending until CM exists", func() {
 			var pvc *v1.PersistentVolumeClaim
 
 			dataVolumeDef := utils.NewDataVolumeWithRegistryImport("missing-cm-registry-dv", "1Gi", tinyCoreIsoRegistryURL())
-			dataVolumeDef.Spec.Source.Registry.CertConfigMap = cmName
+			dataVolumeDef.Spec.Source.Registry.CertConfigMap = &cmName
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolumeDef)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)

@@ -2239,14 +2239,28 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 		}
 	} else if dataVolume.Spec.Source.Registry != nil {
 		annotations[AnnSource] = SourceRegistry
-		annotations[AnnRegistryImportMethod] = string(dataVolume.Spec.Source.Registry.PullMethod)
-		annotations[AnnEndpoint] = dataVolume.Spec.Source.Registry.URL
-		annotations[AnnContentType] = string(dataVolume.Spec.ContentType)
-		if dataVolume.Spec.Source.Registry.SecretRef != "" {
-			annotations[AnnSecret] = dataVolume.Spec.Source.Registry.SecretRef
+		pullMethod := dataVolume.Spec.Source.Registry.PullMethod
+		if pullMethod != nil && *pullMethod != "" {
+			annotations[AnnRegistryImportMethod] = string(*pullMethod)
 		}
-		if dataVolume.Spec.Source.Registry.CertConfigMap != "" {
-			annotations[AnnCertConfigMap] = dataVolume.Spec.Source.Registry.CertConfigMap
+		url := dataVolume.Spec.Source.Registry.URL
+		if url != nil && *url != "" {
+			annotations[AnnEndpoint] = *url
+		} else {
+			imageStream := dataVolume.Spec.Source.Registry.ImageStream
+			if imageStream != nil && *imageStream != "" {
+				annotations[AnnEndpoint] = *imageStream
+				annotations[AnnRegistryImageStream] = "true"
+			}
+		}
+		annotations[AnnContentType] = string(dataVolume.Spec.ContentType)
+		secretRef := dataVolume.Spec.Source.Registry.SecretRef
+		if secretRef != nil && *secretRef != "" {
+			annotations[AnnSecret] = *secretRef
+		}
+		certConfigMap := dataVolume.Spec.Source.Registry.CertConfigMap
+		if certConfigMap != nil && *certConfigMap != "" {
+			annotations[AnnCertConfigMap] = *certConfigMap
 		}
 	} else if dataVolume.Spec.Source.PVC != nil {
 		sourceNamespace := dataVolume.Spec.Source.PVC.Namespace
