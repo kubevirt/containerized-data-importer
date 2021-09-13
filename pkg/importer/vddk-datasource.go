@@ -247,6 +247,7 @@ func createNbdKitWrapper(vmware *VMwareClient, diskFileName string) (*NbdKitWrap
 // VMwareConnectionOperations provides a mockable interface for the things needed from VMware client objects.
 type VMwareConnectionOperations interface {
 	Logout(context.Context) error
+	IsVC() bool
 }
 
 // VMwareVMOperations provides a mockable interface for the things needed from VMware VM objects.
@@ -460,8 +461,22 @@ func FindVM(context context.Context, conn *govmomi.Client, uuid string) (string,
 // MaxBlockStatusLength limits the maximum block status request size to 2GB
 const MaxBlockStatusLength = (2 << 30)
 
-// MaxPreadLength limits individual data block transfers to 23MB, larger block sizes fail
-const MaxPreadLength = (23 << 20)
+// MaxPreadLengthESX limits individual VDDK data block transfers to 23MB.
+// Larger block sizes fail immediately.
+const MaxPreadLengthESX = (23 << 20)
+
+// MaxPreadLengthVC limits indidivual VDDK data block transfers to 2MB only when
+// connecting to vCenter. With vCenter endpoints, multiple simultaneous importer
+// pods with larger read sizes cause allocation failures on the server, and the
+// imports start to fail:
+//         "NfcFssrvrProcessErrorMsg: received NFC error 5 from server:
+//          Failed to allocate the requested 24117272 bytes"
+const MaxPreadLengthVC = (2 << 20)
+
+// MaxPreadLength is the maxmimum read size to request from VMware. Default to
+// the larger option, and reduce it in createVddkDataSource when connecting to
+// vCenter endpoints.
+var MaxPreadLength uint32 = MaxPreadLengthESX
 
 // NbdOperations provides a mockable interface for the things needed from libnbd.
 type NbdOperations interface {
@@ -588,7 +603,7 @@ func CopyRange(handle NbdOperations, sink VDDKDataSink, block *BlockStatusData, 
 		return err
 	}
 
-	buffer := bytes.Repeat([]byte{0}, MaxPreadLength)
+	buffer := bytes.Repeat([]byte{0}, int(MaxPreadLength))
 	count := uint32(0)
 	for count < block.Length {
 		if block.Length-count < MaxPreadLength {
@@ -845,6 +860,12 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 			klog.Errorf("Unable to get source disk size: %v", err)
 			return nil, err
 		}
+	}
+
+	MaxPreadLength = MaxPreadLengthESX
+	if vmware.conn.IsVC() {
+		klog.Infof("Connected to vCenter, restricting read request size to %d.", MaxPreadLengthVC)
+		MaxPreadLength = MaxPreadLengthVC
 	}
 
 	source := &VDDKDataSource{
