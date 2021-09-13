@@ -232,6 +232,9 @@ type VMwareVMOperations interface {
 	Client() *vim25.Client
 }
 
+// Mock underlying QueryChangedDiskAreas for unit test, distinct from the one in VMwareVMOperations
+var QueryChangedDiskAreas = methods.QueryChangedDiskAreas
+
 // VMwareClient holds a connection to the VMware API with pre-filled information about one VM
 type VMwareClient struct {
 	conn       VMwareConnectionOperations // *govmomi.Client
@@ -797,7 +800,7 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 				StartOffset: 0,
 				This:        vmware.vm.Reference(),
 			}
-			response, err := methods.QueryChangedDiskAreas(vmware.context, vmware.vm.Client(), &request)
+			response, err := QueryChangedDiskAreas(vmware.context, vmware.vm.Client(), &request)
 			if err != nil {
 				return nil, err
 			}

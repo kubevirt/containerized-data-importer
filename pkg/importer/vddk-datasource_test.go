@@ -16,7 +16,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
+	"github.com/vmware/govmomi/vim25/soap"
 	"github.com/vmware/govmomi/vim25/types"
 	v1 "k8s.io/api/core/v1"
 	"kubevirt.io/containerized-data-importer/pkg/image"
@@ -217,6 +219,51 @@ var _ = Describe("VDDK data source", func() {
 
 		deltaSum := md5.Sum(mockSinkBuffer)
 		Expect(changedSourceSum).To(Equal(deltaSum))
+	})
+
+	It("VDDK delta copy should accept a change ID as a checkpoint", func() {
+		diskName := "disk"
+		snapshotName := "checkpoint-2"
+		changeID := "52 de c0 d9 b9 43 9d 10-61 d5 4c 1b e9 7b 65 63/81"
+		newVddkDataSource = createVddkDataSource
+
+		snapshots := createSnapshots(snapshotName, "")
+		currentVMwareFunctions.FindSnapshot = func(ctx context.Context, nameOrID string) (*types.ManagedObjectReference, error) {
+			return &snapshots.RootSnapshotList[0].Snapshot, nil
+		}
+		currentVMwareFunctions.Properties = func(ctx context.Context, ref types.ManagedObjectReference, property []string, result interface{}) error {
+			switch out := result.(type) {
+			case *mo.VirtualMachine:
+				if property[0] == "config.hardware.device" {
+					out.Config = createVirtualDiskConfig(diskName, 12345)
+				} else if property[0] == "snapshot" {
+					out.Snapshot = snapshots
+				}
+			case *mo.VirtualMachineSnapshot:
+				out.Config = *createVirtualDiskConfig("snapshotdisk", 123456)
+			}
+			return nil
+		}
+
+		changeInfo := types.DiskChangeInfo{
+			StartOffset: 100,
+			Length:      1000,
+			ChangedArea: []types.DiskChangeExtent{
+				{
+					Start:  0,
+					Length: 1000,
+				},
+			},
+		}
+		QueryChangedDiskAreas = func(ctx context.Context, r soap.RoundTripper, req *types.QueryChangedDiskAreas) (*types.QueryChangedDiskAreasResponse, error) {
+			return &types.QueryChangedDiskAreasResponse{
+				Returnval: changeInfo,
+			}, nil
+		}
+
+		ds, err := NewVDDKDataSource("", "", "", "", "", diskName, snapshotName, changeID, "", v1.PersistentVolumeFilesystem)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ds.ChangedBlocks).To(Equal(&changeInfo))
 	})
 
 	DescribeTable("disk name lookup", func(targetDiskName string, diskName string, snapshotDiskName string, expectedSuccess bool) {
@@ -508,6 +555,7 @@ type mockVMwareFunctions struct {
 	Reference             func() types.ManagedObjectReference
 	FindSnapshot          func(context.Context, string) (*types.ManagedObjectReference, error)
 	QueryChangedDiskAreas func(context.Context, *types.ManagedObjectReference, *types.ManagedObjectReference, *types.VirtualDisk, int64) (types.DiskChangeInfo, error)
+	Client                func() *vim25.Client
 }
 
 func defaultMockVMwareFunctions() mockVMwareFunctions {
@@ -523,6 +571,9 @@ func defaultMockVMwareFunctions() mockVMwareFunctions {
 	}
 	ops.QueryChangedDiskAreas = func(ctx context.Context, baseSnapshot *types.ManagedObjectReference, changedSnapshot *types.ManagedObjectReference, disk *types.VirtualDisk, offset int64) (types.DiskChangeInfo, error) {
 		return types.DiskChangeInfo{}, nil
+	}
+	ops.Client = func() *vim25.Client {
+		return &vim25.Client{}
 	}
 	return *ops
 }
@@ -545,6 +596,10 @@ func (ops *mockVMwareVMOperations) FindSnapshot(ctx context.Context, nameOrID st
 
 func (ops *mockVMwareVMOperations) QueryChangedDiskAreas(ctx context.Context, baseSnapshot *types.ManagedObjectReference, changedSnapshot *types.ManagedObjectReference, disk *types.VirtualDisk, offset int64) (types.DiskChangeInfo, error) {
 	return currentVMwareFunctions.QueryChangedDiskAreas(ctx, baseSnapshot, changedSnapshot, disk, offset)
+}
+
+func (ops *mockVMwareVMOperations) Client() *vim25.Client {
+	return currentVMwareFunctions.Client()
 }
 
 func createMockVMwareClient(endpoint string, accessKey string, secKey string, thumbprint string, uuid string) (*VMwareClient, error) {
