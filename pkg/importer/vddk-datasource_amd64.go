@@ -232,7 +232,7 @@ type VMwareVMOperations interface {
 	Client() *vim25.Client
 }
 
-// Mock underlying QueryChangedDiskAreas for unit test, distinct from the one in VMwareVMOperations
+// QueryChangedDiskAreas mocks the underlying QueryChangedDiskAreas for unit test, distinct from the one in VMwareVMOperations
 var QueryChangedDiskAreas = methods.QueryChangedDiskAreas
 
 // VMwareClient holds a connection to the VMware API with pre-filled information about one VM
@@ -791,8 +791,8 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	if currentSnapshot != nil && previousCheckpoint != "" {
 		// Check if this is a snapshot or a change ID, and query disk areas as appropriate.
 		// Change IDs look like: 52 de c0 d9 b9 43 9d 10-61 d5 4c 1b e9 7b 65 63/81
-		changeIdPattern := `([0-9a-fA-F]{2}\s?)*-([0-9a-fA-F]{2}\s?)*\/([0-9a-fA-F]*)`
-		if matched, _ := regexp.MatchString(changeIdPattern, previousCheckpoint); matched {
+		changeIDPattern := `([0-9a-fA-F]{2}\s?)*-([0-9a-fA-F]{2}\s?)*\/([0-9a-fA-F]*)`
+		if matched, _ := regexp.MatchString(changeIDPattern, previousCheckpoint); matched {
 			request := types.QueryChangedDiskAreas{
 				ChangeId:    previousCheckpoint,
 				DeviceKey:   backingFileObject.Key,
