@@ -135,7 +135,7 @@ func (f *Framework) CreateAndPopulateSourcePVC(pvcDef *k8sv1.PersistentVolumeCla
 	// Create the source PVC and populate it with a file, so we can verify the clone.
 	sourcePvc, err := f.CreatePVCFromDefinition(pvcDef)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	pod, err := f.CreatePod(f.NewPodWithPVC(podName, fillCommand, sourcePvc))
+	pod, err := f.CreatePod(f.NewPodWithPVC(podName, fillCommand+"&& sync", sourcePvc))
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	err = f.WaitTimeoutForPodStatus(pod.Name, k8sv1.PodSucceeded, utils.PodWaitForTime)
