@@ -17,7 +17,10 @@ package image
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/url"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -128,44 +131,59 @@ func init() {
 var expectedLimits = &system.ProcessLimitValues{AddressSpaceLimit: 1 << 30, CPUTimeLimit: 30}
 
 var _ = Describe("Convert to Raw", func() {
+	var tmpDir, destPath string
+
+	BeforeEach(func() {
+		tmpDir, err := ioutil.TempDir(os.TempDir(), "qemutestdest")
+		Expect(err).NotTo(HaveOccurred())
+		By("tmpDir: " + tmpDir)
+		destPath = filepath.Join(tmpDir, "dest")
+		_, err = os.Create(destPath)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		os.RemoveAll(tmpDir)
+	})
+
 	It("should return no error if exec function returns no error", func() {
-		replaceExecFunction(mockExecFunction("", "", nil, "convert", "-p", "-O", "raw", "source", "dest"), func() {
-			err := convertToRaw("source", "dest", false)
+		replaceExecFunction(mockExecFunction("", "", nil, "convert", "-p", "-O", "raw", "source", destPath), func() {
+			err := convertToRaw("source", destPath, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	It("should return conversion error if exec function returns error", func() {
-		replaceExecFunction(mockExecFunction("", "exit 1", nil, "convert", "-p", "-O", "raw", "source", "dest"), func() {
-			err := convertToRaw("source", "dest", false)
+		replaceExecFunction(mockExecFunction("", "exit 1", nil, "convert", "-p", "-O", "raw", "source", destPath), func() {
+			err := convertToRaw("source", destPath, false)
 			Expect(err).To(HaveOccurred())
 			Expect(strings.Contains(err.Error(), "could not convert image to raw")).To(BeTrue())
 		})
 	})
 
 	It("should stream file to destination", func() {
-		replaceExecFunction(mockExecFunction("", "", nil, "convert", "-p", "-O", "raw", "/somefile/somewhere", "dest"), func() {
+		replaceExecFunction(mockExecFunction("", "", nil, "convert", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
 			ep, err := url.Parse("/somefile/somewhere")
 			Expect(err).NotTo(HaveOccurred())
-			err = ConvertToRawStream(ep, "dest", false)
+			err = ConvertToRawStream(ep, destPath, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	It("should add preallocation if requested", func() {
-		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-o", "preallocation=falloc", "-t", "none", "-p", "-O", "raw", "/somefile/somewhere", "dest"), func() {
+		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-o", "preallocation=falloc", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
 			ep, err := url.Parse("/somefile/somewhere")
 			Expect(err).NotTo(HaveOccurred())
-			err = ConvertToRawStream(ep, "dest", true)
+			err = ConvertToRawStream(ep, destPath, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	It("should not add preallocation if not requested", func() {
-		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "none", "-p", "-O", "raw", "/somefile/somewhere", "dest"), func() {
+		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
 			ep, err := url.Parse("/somefile/somewhere")
 			Expect(err).NotTo(HaveOccurred())
-			err = ConvertToRawStream(ep, "dest", false)
+			err = ConvertToRawStream(ep, destPath, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
