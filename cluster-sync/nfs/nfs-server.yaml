@@ -64,6 +64,10 @@ spec:
             chmod 777 /data/nfs/disk9;
             mkdir /data/nfs/disk10;
             chmod 777 /data/nfs/disk10;
+            mkdir /data/nfs/extraDisk1;
+            chmod 777 /data/nfs/extraDisk1;
+            mkdir /data/nfs/extraDisk2;
+            chmod 777 /data/nfs/extraDisk2;
             /usr/bin/nfsd.sh
       volumes:
       - name: nfsdata
