@@ -1506,7 +1506,7 @@ func (r *DatavolumeReconciler) advancedClonePossible(dataVolume *cdiv1.DataVolum
 		return false, err
 	}
 
-	return r.validateCloneSizeCompatible(sourcePvc, targetStorageSpec)
+	return r.validateAdvancedCloneSizeCompatible(sourcePvc, targetStorageSpec)
 }
 
 func (r *DatavolumeReconciler) validateSameStorageClass(
@@ -1548,7 +1548,7 @@ func (r *DatavolumeReconciler) validateSameVolumeMode(
 	return true, nil
 }
 
-func (r *DatavolumeReconciler) validateCloneSizeCompatible(
+func (r *DatavolumeReconciler) validateAdvancedCloneSizeCompatible(
 	sourcePvc *corev1.PersistentVolumeClaim,
 	targetStorageSpec *corev1.PersistentVolumeClaimSpec) (bool, error) {
 
@@ -1560,9 +1560,13 @@ func (r *DatavolumeReconciler) validateCloneSizeCompatible(
 	srcCapacity, hasSrcCapacity := sourcePvc.Status.Capacity[corev1.ResourceStorage]
 	targetRequest, hasTargetRequest := targetStorageSpec.Resources.Requests[corev1.ResourceStorage]
 	allowExpansion := srcStorageClass.AllowVolumeExpansion != nil && *srcStorageClass.AllowVolumeExpansion
-	if !hasSrcCapacity || !hasTargetRequest || (srcCapacity.Cmp(targetRequest) < 0 && !allowExpansion) {
+	if !hasSrcCapacity || !hasTargetRequest {
 		// return error so we retry the reconcile
-		return false, errors.New("source/target sizes not compatible")
+		return false, errors.New("source/target size info missing")
+	}
+
+	if srcCapacity.Cmp(targetRequest) < 0 && !allowExpansion {
+		return false, nil
 	}
 
 	return true, nil
