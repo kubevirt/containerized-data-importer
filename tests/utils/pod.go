@@ -131,7 +131,7 @@ func findPodByCompFuncOnce(clientSet *kubernetes.Clientset, namespace, prefix, l
 
 // WaitTimeoutForPodReady waits for the given pod to be created and ready
 func WaitTimeoutForPodReady(clientSet *kubernetes.Clientset, podName, namespace string, timeout time.Duration) error {
-	return WaitTimeoutForPodStatus(clientSet, podName, namespace, k8sv1.PodRunning, timeout)
+	return WaitTimeoutForPodCondition(clientSet, podName, namespace, k8sv1.PodReady, timeout)
 }
 
 // WaitTimeoutForPodSucceeded waits for pod to succeed
@@ -149,6 +149,11 @@ func WaitTimeoutForPodStatus(clientSet *kubernetes.Clientset, podName, namespace
 	return wait.PollImmediate(2*time.Second, timeout, podStatus(clientSet, podName, namespace, status))
 }
 
+// WaitTimeoutForPodCondition waits for the given pod to be created and have an expected condition
+func WaitTimeoutForPodCondition(clientSet *kubernetes.Clientset, podName, namespace string, conditionType k8sv1.PodConditionType, timeout time.Duration) error {
+	return wait.PollImmediate(2*time.Second, timeout, podCondition(clientSet, podName, namespace, conditionType))
+}
+
 func podStatus(clientSet *kubernetes.Clientset, podName, namespace string, status k8sv1.PodPhase) wait.ConditionFunc {
 	return func() (bool, error) {
 		pod, err := clientSet.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
@@ -162,6 +167,27 @@ func podStatus(clientSet *kubernetes.Clientset, podName, namespace string, statu
 		switch pod.Status.Phase {
 		case status:
 			return true, nil
+		}
+		return false, nil
+	}
+}
+
+func podCondition(clientSet *kubernetes.Clientset, podName, namespace string, conditionType k8sv1.PodConditionType) wait.ConditionFunc {
+	return func() (bool, error) {
+		pod, err := clientSet.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		for _, cond := range pod.Status.Conditions {
+			if cond.Type == conditionType {
+				fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Checking POD %s condition: %s=%s\n", podName, string(cond.Type), string(cond.Status))
+				if cond.Status == k8sv1.ConditionTrue {
+					return true, nil
+				}
+			}
 		}
 		return false, nil
 	}
