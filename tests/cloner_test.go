@@ -632,7 +632,7 @@ var _ = Describe("all clone tests", func() {
 			By("Waiting for import to be completed")
 			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
 
-			pvDef := framework.NfsPvDef(1, framework.BiggerDiskPrefix, utils.NfsService.Spec.ClusterIP, framework.BiggerNfsPvSize)
+			pvDef := framework.NfsPvDef(1, framework.ExtraNfsDiskPrefix, utils.NfsService.Spec.ClusterIP, framework.BiggerNfsPvSize)
 			pv, err := utils.CreatePVFromDefinition(f.K8sClient, pvDef)
 			Expect(err).ToNot(HaveOccurred())
 			bigPV = pv
