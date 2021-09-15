@@ -16,9 +16,14 @@ import (
 )
 
 const (
+	// DefaultNfsPvSize is the default nfs pv capacity
 	DefaultNfsPvSize = "10Gi"
-	BiggerNfsPvSize  = "20Gi"
-	BiggerDiskPrefix = "/extraDisk"
+
+	// BiggerNfsPvSize is the bigger nfs pv capacity
+	BiggerNfsPvSize = "20Gi"
+
+	// ExtraNfsDiskPrefix is the prefix for extra nfs disks
+	ExtraNfsDiskPrefix = "/extraDisk"
 
 	timeout         = time.Second * 90
 	pollingInterval = time.Second
@@ -55,6 +60,7 @@ func deleteNFSPVs(client *kubernetes.Clientset, cdiNs string) error {
 	return nil
 }
 
+// NfsPvDef creates pv defs for nfs
 func NfsPvDef(index int, prefix, serviceIP, size string) *corev1.PersistentVolume {
 	is := strconv.Itoa(index)
 	return &corev1.PersistentVolume{
