@@ -466,13 +466,14 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 			return reconcile.Result{}, err
 		}
 	case CsiClone:
-		if pvc.Status.Phase == corev1.ClaimBound {
+		switch pvc.Status.Phase {
+		case corev1.ClaimBound:
 			if err := r.setCloneOfOnPvc(pvc); err != nil {
 				return reconcile.Result{}, err
 			}
-		} else if pvc.Status.Phase == corev1.ClaimPending {
+		case corev1.ClaimPending:
 			return reconcile.Result{}, r.updateCloneStatusPhase(cdiv1.CSICloneInProgress, datavolume, pvc, selectedCloneStrategy)
-		} else if pvc.Status.Phase == corev1.ClaimLost {
+		case corev1.ClaimLost:
 			return reconcile.Result{},
 				r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Failed, datavolume, pvc, selectedCloneStrategy,
 					DataVolumeEvent{
