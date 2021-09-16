@@ -599,6 +599,69 @@ var _ = Describe("all clone tests", func() {
 		})
 	})
 
+	var _ = Describe("With nfs and larger target capacity", func() {
+		f := framework.NewFramework(namespacePrefix)
+		var (
+			bigPV *v1.PersistentVolume
+			bigDV *cdiv1.DataVolume
+		)
+
+		AfterEach(func() {
+			if bigDV != nil {
+				err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, bigDV.Name)
+				Expect(err).ToNot(HaveOccurred())
+			}
+
+			if bigPV != nil {
+				err := utils.WaitTimeoutForPVDeleted(f.K8sClient, bigPV, 30*time.Second)
+				Expect(err).ToNot(HaveOccurred())
+			}
+		})
+
+		It("should successfully clone", func() {
+			if !utils.IsNfs() {
+				Skip("NFS specific test")
+			}
+
+			By("Creating a source from a real image")
+			sourceDv := utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+			sourceDv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
+
+			By("Waiting for import to be completed")
+			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+
+			pvDef := framework.NfsPvDef(1, framework.ExtraNfsDiskPrefix, utils.NfsService.Spec.ClusterIP, framework.BiggerNfsPvSize)
+			pv, err := utils.CreatePVFromDefinition(f.K8sClient, pvDef)
+			Expect(err).ToNot(HaveOccurred())
+			bigPV = pv
+
+			targetDv := utils.NewDataVolumeForImageCloning("target-dv", framework.BiggerNfsPvSize, f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+			targetDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
+			Expect(err).ToNot(HaveOccurred())
+			bigDV = targetDv
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv)
+
+			By("Waiting for clone to be completed")
+			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, targetDv.Name, 3*90*time.Second)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verify target is bigger")
+			srcPVC, err := f.K8sClient.CoreV1().PersistentVolumeClaims(sourceDv.Namespace).Get(context.TODO(), sourceDv.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			targetPVC, err := f.K8sClient.CoreV1().PersistentVolumeClaims(targetDv.Namespace).Get(context.TODO(), targetDv.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			srcCapacity := srcPVC.Status.Capacity.Storage()
+			Expect(srcCapacity).ToNot(BeNil())
+			targetCapacity := targetPVC.Status.Capacity.Storage()
+			Expect(targetCapacity).ToNot(BeNil())
+			Expect(srcCapacity.Cmp(*targetCapacity)).To(Equal(-1))
+		})
+	})
+
 	var _ = Describe("Validate Data Volume clone to smaller size", func() {
 		f := framework.NewFramework(namespacePrefix)
 		tinyCoreIsoURL := func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
