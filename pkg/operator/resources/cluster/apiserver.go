@@ -28,7 +28,6 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdicorev1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiuploadv1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
@@ -49,7 +48,6 @@ func createStaticAPIServerResources(args *FactoryArgs) []client.Object {
 func createDynamicAPIServerResources(args *FactoryArgs) []client.Object {
 	return []client.Object{
 		createAPIService("v1beta1", args.Namespace, args.Client, args.Logger),
-		createAPIService("v1alpha1", args.Namespace, args.Client, args.Logger),
 		createDataVolumeValidatingWebhook(args.Namespace, args.Client, args.Logger),
 		createDataVolumeMutatingWebhook(args.Namespace, args.Client, args.Logger),
 		createCDIValidatingWebhook(args.Namespace, args.Client, args.Logger),
@@ -210,7 +208,6 @@ func createDataVolumeValidatingWebhook(namespace string, c client.Client, l logr
 						APIGroups: []string{cdicorev1.SchemeGroupVersion.Group},
 						APIVersions: []string{
 							cdicorev1.SchemeGroupVersion.Version,
-							cdicorev1alpha1.SchemeGroupVersion.Version,
 						},
 						Resources: []string{"datavolumes"},
 						Scope:     &allScopes,
@@ -279,7 +276,6 @@ func createCDIValidatingWebhook(namespace string, c client.Client, l logr.Logger
 						APIGroups: []string{cdicorev1.SchemeGroupVersion.Group},
 						APIVersions: []string{
 							cdicorev1.SchemeGroupVersion.Version,
-							cdicorev1alpha1.SchemeGroupVersion.Version,
 						},
 						Resources: []string{"cdis"},
 						Scope:     &allScopes,
@@ -425,7 +421,6 @@ func createDataVolumeMutatingWebhook(namespace string, c client.Client, l logr.L
 						APIGroups: []string{cdicorev1.SchemeGroupVersion.Group},
 						APIVersions: []string{
 							cdicorev1.SchemeGroupVersion.Version,
-							cdicorev1alpha1.SchemeGroupVersion.Version,
 						},
 						Resources: []string{"datavolumes"},
 						Scope:     &allScopes,
