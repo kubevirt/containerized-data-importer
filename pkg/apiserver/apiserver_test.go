@@ -158,10 +158,6 @@ func getExpectedAPIGroup() metav1.APIGroup {
 				GroupVersion: "upload.cdi.kubevirt.io/v1beta1",
 				Version:      "v1beta1",
 			},
-			{
-				GroupVersion: "upload.cdi.kubevirt.io/v1alpha1",
-				Version:      "v1alpha1",
-			},
 		},
 		ServerAddressByClientCIDRs: []metav1.ServerAddressByClientCIDR{
 			{
@@ -246,7 +242,6 @@ var _ = Describe("API server tests", func() {
 		Expect(reflect.DeepEqual(expectedResourceList, resourceList)).To(BeTrue())
 	},
 		table.Entry("for beta api", "v1beta1"),
-		table.Entry("for alpha api", "v1alpha1"),
 	)
 
 	It("Get API group", func() {
@@ -273,7 +268,6 @@ var _ = Describe("API server tests", func() {
 				"/apis",
 				"/apis/",
 				"/apis/upload.cdi.kubevirt.io",
-				"/apis/upload.cdi.kubevirt.io/v1alpha1",
 				"/apis/upload.cdi.kubevirt.io/v1beta1",
 				"/healthz",
 				"/openapi/v2",

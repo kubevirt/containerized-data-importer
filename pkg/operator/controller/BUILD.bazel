@@ -16,7 +16,6 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/pkg/operator/controller",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/controller:go_default_library",
         "//pkg/operator:go_default_library",
@@ -51,6 +50,7 @@ go_library(
         "//vendor/k8s.io/client-go/tools/cache:go_default_library",
         "//vendor/k8s.io/client-go/tools/record:go_default_library",
         "//vendor/k8s.io/kube-aggregator/pkg/apis/apiregistration/v1:go_default_library",
+        "//vendor/kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks:go_default_library",
@@ -75,7 +75,6 @@ go_test(
     ],
     embed = [":go_default_library"],
     deps = [
-        "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/operator/resources/cert:go_default_library",
         "//pkg/operator/resources/cluster:go_default_library",
@@ -103,6 +102,7 @@ go_test(
         "//vendor/k8s.io/client-go/rest:go_default_library",
         "//vendor/k8s.io/client-go/tools/record:go_default_library",
         "//vendor/k8s.io/kube-aggregator/pkg/apis/apiregistration/v1:go_default_library",
+        "//vendor/kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/reconciler:go_default_library",

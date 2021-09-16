@@ -70,7 +70,7 @@ const (
 	healthzPath = "/healthz"
 )
 
-var uploadTokenVersions = []string{"v1beta1", "v1alpha1"}
+var uploadTokenVersions = []string{"v1beta1"}
 
 // CdiAPIServer is the public interface to the CDI API
 type CdiAPIServer interface {

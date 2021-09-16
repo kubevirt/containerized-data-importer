@@ -6,7 +6,6 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/pkg/operator/resources/generate/install",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/util:go_default_library",
         "//vendor/github.com/ghodss/yaml:go_default_library",
         "//vendor/github.com/go-logr/logr:go_default_library",
@@ -21,6 +20,7 @@ go_library(
         "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
         "//vendor/k8s.io/kube-aggregator/pkg/apis/apiregistration/v1:go_default_library",
+        "//vendor/kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client:go_default_library",
     ],
 )

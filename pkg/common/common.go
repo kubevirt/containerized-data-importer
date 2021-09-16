@@ -223,23 +223,19 @@ var ProxyPaths = append(
 // SyncUploadPaths are paths to POST CDI uploads
 var SyncUploadPaths = []string{
 	UploadPathSync,
-	"/v1alpha1/upload",
 }
 
 // AsyncUploadPaths are paths to POST CDI uploads in async mode
 var AsyncUploadPaths = []string{
 	UploadPathAsync,
-	"/v1alpha1/upload-async",
 }
 
 // SyncUploadFormPaths are paths to POST CDI uploads as form data
 var SyncUploadFormPaths = []string{
 	UploadFormSync,
-	"/v1alpha1/upload-form",
 }
 
 // AsyncUploadFormPaths are paths to POST CDI uploads as form data in async mode
 var AsyncUploadFormPaths = []string{
 	UploadFormAsync,
-	"/v1alpha1/upload-form-async",
 }

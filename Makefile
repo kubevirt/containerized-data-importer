@@ -44,7 +44,7 @@ clean:
 update-codegen:
 	${DO_BAZ} "./hack/update-codegen.sh"
 
-generate: update-codegen bazel-generate
+generate: update-codegen deps-update
 
 generate-verify:
 	${DO_BAZ} "./hack/verify-codegen.sh"

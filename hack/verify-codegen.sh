@@ -25,6 +25,9 @@ TMP_DIFFROOT="${SCRIPT_ROOT}/_tmp/pkg"
 _tmp="${SCRIPT_ROOT}/_tmp"
 
 cleanup() {
+    if [[ -d "${_tmp}/vendor/kubevirt.io/containerized-data-importer" ]]; then
+        mv "${_tmp}/vendor/kubevirt.io/containerized-data-importer" "${SCRIPT_ROOT}/vendor/kubevirt.io/"
+    fi
     rm -rf "${_tmp}"
 }
 trap "cleanup" EXIT SIGINT
@@ -33,6 +36,9 @@ cleanup
 
 mkdir -p "${TMP_DIFFROOT}"
 cp -a "${DIFFROOT}"/* "${TMP_DIFFROOT}"
+
+mkdir -p "${_tmp}/vendor/kubevirt.io"
+mv "${SCRIPT_ROOT}/vendor/kubevirt.io/containerized-data-importer" "${_tmp}/vendor/kubevirt.io/"
 
 "${SCRIPT_ROOT}/hack/update-codegen.sh"
 echo "diffing ${DIFFROOT} against freshly generated codegen"

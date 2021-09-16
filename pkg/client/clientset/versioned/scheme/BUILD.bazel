@@ -9,12 +9,12 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/apis/core/v1beta1:go_default_library",
-        "//pkg/apis/upload/v1beta1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime/schema:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime/serializer:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/util/runtime:go_default_library",
+        "//vendor/kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1:go_default_library",
+        "//vendor/kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1:go_default_library",
     ],
 )

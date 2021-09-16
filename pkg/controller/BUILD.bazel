@@ -17,8 +17,6 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/pkg/controller",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/apis/core/v1beta1:go_default_library",
-        "//pkg/apis/core/v1beta1/utils:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/feature-gates:go_default_library",
         "//pkg/operator:go_default_library",
@@ -51,6 +49,8 @@ go_library(
         "//vendor/k8s.io/client-go/tools/cache:go_default_library",
         "//vendor/k8s.io/client-go/tools/record:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
+        "//vendor/kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1:go_default_library",
+        "//vendor/kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1/utils:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/cache:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client:go_default_library",
@@ -80,7 +80,6 @@ go_test(
     ],
     embed = [":go_default_library"],
     deps = [
-        "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/feature-gates:go_default_library",
         "//pkg/operator:go_default_library",
@@ -111,6 +110,7 @@ go_test(
         "//vendor/k8s.io/client-go/tools/cache:go_default_library",
         "//vendor/k8s.io/client-go/tools/record:go_default_library",
         "//vendor/k8s.io/cluster-bootstrap/token/api:go_default_library",
+        "//vendor/kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client/fake:go_default_library",

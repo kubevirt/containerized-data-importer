@@ -1212,15 +1212,6 @@ var _ = Describe("Controller", func() {
 										{Name: "Phase", Type: "string", JSONPath: ".status.phase"},
 									},
 								},
-								{
-									Name:    "v1alpha1",
-									Served:  true,
-									Storage: false,
-									AdditionalPrinterColumns: []extv1.CustomResourceColumnDefinition{
-										{Name: "Age", Type: "date", JSONPath: ".metadata.creationTimestamp"},
-										{Name: "Phase", Type: "string", JSONPath: ".status.phase"},
-									},
-								},
 							},
 							Names: extv1.CustomResourceDefinitionNames{
 								Kind:     "FakeCDI",
@@ -1638,7 +1629,6 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.Role cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.Deployment cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.APIService v1beta1.upload.cdi.kubevirt.io"] = false
-	match[normalCreateSuccess+" *v1.APIService v1alpha1.upload.cdi.kubevirt.io"] = false
 	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration cdi-api-datavolume-validate"] = false
 	match[normalCreateSuccess+" *v1.MutatingWebhookConfiguration cdi-api-datavolume-mutate"] = false
 	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration cdi-api-validate"] = false

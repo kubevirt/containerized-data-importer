@@ -13,7 +13,6 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/client/clientset/versioned:go_default_library",
         "//pkg/clone:go_default_library",
         "//pkg/common:go_default_library",
@@ -34,6 +33,7 @@ go_library(
         "//vendor/k8s.io/apimachinery/pkg/util/validation/field:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
+        "//vendor/kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api:go_default_library",
     ],
 )
@@ -49,7 +49,6 @@ go_test(
     ],
     embed = [":go_default_library"],
     deps = [
-        "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/client/clientset/versioned/fake:go_default_library",
         "//pkg/controller:go_default_library",
         "//vendor/github.com/appscode/jsonpatch:go_default_library",
@@ -64,6 +63,7 @@ go_test(
         "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes/fake:go_default_library",
         "//vendor/k8s.io/client-go/testing:go_default_library",
+        "//vendor/kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api:go_default_library",
     ],
 )

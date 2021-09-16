@@ -37,9 +37,6 @@ const (
 
 	syncFormPath  = "/v1beta1/upload-form"
 	asyncFormPath = "/v1beta1/upload-form-async"
-
-	alphaSyncUploadPath  = "/v1alpha1/upload"
-	alphaAsyncUploadPath = "/v1alpha1/upload-async"
 )
 
 type uploadFunc func(string, string, int) error
@@ -163,8 +160,6 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	},
 		Entry("[test_id:1368]succeed given a valid token", uploadImage, true, http.StatusOK),
 		Entry("[test_id:5078]succeed given a valid token (async)", uploadImageAsync, true, http.StatusOK),
-		Entry("[test_id:5079]succeed given a valid token (alpha)", uploadImageAlpha, true, http.StatusOK),
-		Entry("[test_id:5080]succeed given a valid token (async alpha)", uploadImageAsyncAlpha, true, http.StatusOK),
 		Entry("[test_id:5081]succeed given a valid token (form)", uploadForm, true, http.StatusOK),
 		Entry("[test_id:5082]succeed given a valid token (form async)", uploadFormAsync, true, http.StatusOK),
 		Entry("[posneg:negative][test_id:1369]fail given an invalid token", uploadImage, false, http.StatusUnauthorized),
@@ -383,14 +378,6 @@ func uploadImage(portForwardURL, token string, expectedStatus int) error {
 
 func uploadImageAsync(portForwardURL, token string, expectedStatus int) error {
 	return uploadFileNameToPath(binaryRequestFunc, utils.UploadFile, portForwardURL, asyncUploadPath, token, expectedStatus)
-}
-
-func uploadImageAlpha(portForwardURL, token string, expectedStatus int) error {
-	return uploadFileNameToPath(binaryRequestFunc, utils.UploadFile, portForwardURL, alphaSyncUploadPath, token, expectedStatus)
-}
-
-func uploadImageAsyncAlpha(portForwardURL, token string, expectedStatus int) error {
-	return uploadFileNameToPath(binaryRequestFunc, utils.UploadFile, portForwardURL, alphaAsyncUploadPath, token, expectedStatus)
 }
 
 func uploadForm(portForwardURL, token string, expectedStatus int) error {
