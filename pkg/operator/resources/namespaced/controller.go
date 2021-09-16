@@ -153,7 +153,7 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 	container.VolumeMounts = []corev1.VolumeMount{
 		{
 			Name:      "cdi-api-signing-key",
-			MountPath: controller.APIServerPublicKeyDir,
+			MountPath: controller.TokenKeyDir,
 		},
 		{
 			Name:      "uploadserver-ca-cert",
@@ -183,6 +183,10 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 						{
 							Key:  "id_rsa.pub",
 							Path: "id_rsa.pub",
+						},
+						{
+							Key:  "id_rsa",
+							Path: "id_rsa",
 						},
 					},
 					DefaultMode: &defaultMode,

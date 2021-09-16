@@ -1559,12 +1559,14 @@ func createDatavolumeReconcilerWithoutConfig(objects ...runtime.Object) *Datavol
 	rec := record.NewFakeRecorder(10)
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	r := &DatavolumeReconciler{
-		client:       cl,
-		scheme:       s,
-		log:          dvLog,
-		recorder:     rec,
-		extClientSet: extfakeclientset,
-		featureGates: featuregates.NewFeatureGates(cl),
+		client:         cl,
+		scheme:         s,
+		log:            dvLog,
+		recorder:       rec,
+		extClientSet:   extfakeclientset,
+		featureGates:   featuregates.NewFeatureGates(cl),
+		tokenValidator: &FakeValidator{match: "foobar"},
+		tokenGenerator: &FakeGenerator{token: "foobar"},
 		installerLabels: map[string]string{
 			common.AppKubernetesPartOfLabel:  "testing",
 			common.AppKubernetesVersionLabel: "v0.0.0-tests",

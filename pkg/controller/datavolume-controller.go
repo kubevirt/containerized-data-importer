@@ -212,6 +212,7 @@ type DatavolumeReconciler struct {
 	image           string
 	pullPolicy      string
 	tokenValidator  token.Validator
+	tokenGenerator  token.Generator
 	installerLabels map[string]string
 }
 
@@ -260,20 +261,23 @@ func NewDatavolumeController(
 	extClientSet extclientset.Interface,
 	log logr.Logger,
 	image, pullPolicy string,
-	apiServerKey *rsa.PublicKey,
+	tokenPublicKey *rsa.PublicKey,
+	tokenPrivateKey *rsa.PrivateKey,
 	installerLabels map[string]string,
 ) (controller.Controller, error) {
 	client := mgr.GetClient()
 	reconciler := &DatavolumeReconciler{
-		client:          client,
-		scheme:          mgr.GetScheme(),
-		extClientSet:    extClientSet,
-		log:             log.WithName("datavolume-controller"),
-		recorder:        mgr.GetEventRecorderFor("datavolume-controller"),
-		featureGates:    featuregates.NewFeatureGates(client),
-		image:           image,
-		pullPolicy:      pullPolicy,
-		tokenValidator:  newCloneTokenValidator(apiServerKey),
+		client:         client,
+		scheme:         mgr.GetScheme(),
+		extClientSet:   extClientSet,
+		log:            log.WithName("datavolume-controller"),
+		recorder:       mgr.GetEventRecorderFor("datavolume-controller"),
+		featureGates:   featuregates.NewFeatureGates(client),
+		image:          image,
+		pullPolicy:     pullPolicy,
+		tokenValidator: newCloneTokenValidator(common.CloneTokenIssuer, tokenPublicKey),
+		// for long term tokens to handle cross namespace dumb clones
+		tokenGenerator:  newLongTermCloneTokenGenerator(tokenPrivateKey),
 		installerLabels: installerLabels,
 	}
 	datavolumeController, err := controller.New("datavolume-controller", mgr, controller.Options{
@@ -456,31 +460,71 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		}
 	}
 
-	if selectedCloneStrategy == SmartClone || selectedCloneStrategy == CsiClone {
-		if selectedCloneStrategy == CsiClone {
-			if pvc.Status.Phase == corev1.ClaimBound {
-				if err := r.setCloneOfOnPvc(pvc); err != nil {
-					return reconcile.Result{}, err
-				}
-			} else if pvc.Status.Phase == corev1.ClaimPending {
-				return reconcile.Result{}, r.updateCloneStatusPhase(cdiv1.CSICloneInProgress, datavolume, pvc, selectedCloneStrategy)
-			} else if pvc.Status.Phase == corev1.ClaimLost {
-				return reconcile.Result{},
-					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Failed, datavolume, pvc, selectedCloneStrategy,
-						DataVolumeEvent{
-							eventType: corev1.EventTypeWarning,
-							reason:    ErrClaimLost,
-							message:   fmt.Sprintf(MessageErrClaimLost, pvc.Name),
-						})
-			}
+	switch selectedCloneStrategy {
+	case HostAssistedClone:
+		if err := r.ensureExtendedToken(pvc); err != nil {
+			return reconcile.Result{}, err
 		}
-
+	case CsiClone:
+		switch pvc.Status.Phase {
+		case corev1.ClaimBound:
+			if err := r.setCloneOfOnPvc(pvc); err != nil {
+				return reconcile.Result{}, err
+			}
+		case corev1.ClaimPending:
+			return reconcile.Result{}, r.updateCloneStatusPhase(cdiv1.CSICloneInProgress, datavolume, pvc, selectedCloneStrategy)
+		case corev1.ClaimLost:
+			return reconcile.Result{},
+				r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Failed, datavolume, pvc, selectedCloneStrategy,
+					DataVolumeEvent{
+						eventType: corev1.EventTypeWarning,
+						reason:    ErrClaimLost,
+						message:   fmt.Sprintf(MessageErrClaimLost, pvc.Name),
+					})
+		}
+		fallthrough
+	case SmartClone:
 		return r.finishClone(log, datavolume, pvc, pvcSpec, transferName, selectedCloneStrategy)
 	}
 
 	// Finally, we update the status block of the DataVolume resource to reflect the
 	// current state of the world
 	return r.reconcileDataVolumeStatus(datavolume, pvc)
+}
+
+func (r *DatavolumeReconciler) ensureExtendedToken(pvc *corev1.PersistentVolumeClaim) error {
+	_, ok := pvc.Annotations[AnnExtendedCloneToken]
+	if ok {
+		return nil
+	}
+
+	token, ok := pvc.Annotations[AnnCloneToken]
+	if !ok {
+		return fmt.Errorf("token missing")
+	}
+
+	payload, err := r.tokenValidator.Validate(token)
+	if err != nil {
+		return err
+	}
+
+	if payload.Params == nil {
+		payload.Params = make(map[string]string)
+	}
+	payload.Params["uid"] = string(pvc.UID)
+
+	newToken, err := r.tokenGenerator.Generate(payload)
+	if err != nil {
+		return err
+	}
+
+	pvc.Annotations[AnnExtendedCloneToken] = newToken
+
+	if err := r.client.Update(context.TODO(), pvc); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *DatavolumeReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec) (cloneStrategy, error) {
@@ -526,7 +570,7 @@ func (r *DatavolumeReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume,
 		}
 	}
 
-	return NoClone, nil
+	return HostAssistedClone, nil
 }
 
 func (r *DatavolumeReconciler) createPvcForDatavolume(log logr.Logger, datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
@@ -2525,4 +2569,8 @@ func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
 	// and the space required by filesystem metadata
 	spaceWithOverhead := int64(math.Ceil(float64(alignedSize) / (1 - filesystemOverhead)))
 	return spaceWithOverhead
+}
+
+func newLongTermCloneTokenGenerator(key *rsa.PrivateKey) token.Generator {
+	return token.NewGenerator(common.ExtendedCloneTokenIssuer, key, 10*365*24*time.Hour)
 }

@@ -31,6 +31,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/controller/transfer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 )
@@ -172,7 +173,8 @@ func start(ctx context.Context, cfg *rest.Config) {
 	}
 
 	// TODO: Current DV controller had threadiness 3, should we do the same here, defaults to one thread.
-	if _, err := controller.NewDatavolumeController(mgr, extClient, log, clonerImage, pullPolicy, getAPIServerPublicKey(), installerLabels); err != nil {
+	if _, err := controller.NewDatavolumeController(mgr, extClient, log,
+		clonerImage, pullPolicy, getTokenPublicKey(), getTokenPrivateKey(), installerLabels); err != nil {
 		klog.Errorf("Unable to setup datavolume controller: %v", err)
 		os.Exit(1)
 	}
@@ -182,7 +184,7 @@ func start(ctx context.Context, cfg *rest.Config) {
 		os.Exit(1)
 	}
 
-	if _, err := controller.NewCloneController(mgr, log, clonerImage, pullPolicy, verbose, uploadClientCertGenerator, uploadServerBundleFetcher, getAPIServerPublicKey(), installerLabels); err != nil {
+	if _, err := controller.NewCloneController(mgr, log, clonerImage, pullPolicy, verbose, uploadClientCertGenerator, uploadServerBundleFetcher, getTokenPublicKey(), installerLabels); err != nil {
 		klog.Errorf("Unable to setup clone controller: %v", err)
 		os.Exit(1)
 	}
@@ -288,8 +290,8 @@ func startSmartController(extclient extclientset.Interface, mgr manager.Manager,
 	}
 }
 
-func getAPIServerPublicKey() *rsa.PublicKey {
-	keyBytes, err := ioutil.ReadFile(controller.APIServerPublicKeyPath)
+func getTokenPublicKey() *rsa.PublicKey {
+	keyBytes, err := ioutil.ReadFile(controller.TokenPublicKeyPath)
 	if err != nil {
 		klog.Fatalf("Error reading apiserver public key")
 	}
@@ -297,6 +299,25 @@ func getAPIServerPublicKey() *rsa.PublicKey {
 	key, err := controller.DecodePublicKey(keyBytes)
 	if err != nil {
 		klog.Fatalf("Error decoding public key")
+	}
+
+	return key
+}
+
+func getTokenPrivateKey() *rsa.PrivateKey {
+	bytes, err := ioutil.ReadFile(controller.TokenPrivateKeyPath)
+	if err != nil {
+		klog.Fatalf("Error reading private key")
+	}
+
+	obj, err := cert.ParsePrivateKeyPEM(bytes)
+	if err != nil {
+		klog.Fatalf("Error decoding private key")
+	}
+
+	key, ok := obj.(*rsa.PrivateKey)
+	if !ok {
+		klog.Fatalf("Invalid private key format")
 	}
 
 	return key

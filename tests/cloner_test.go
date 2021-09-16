@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"crypto/rsa"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -22,6 +23,8 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	"kubevirt.io/containerized-data-importer/pkg/token"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -1665,7 +1668,8 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 
 	validateCloneType(f, dv)
 
-	if utils.GetCloneType(f.CdiClient, dv) == "snapshot" {
+	switch utils.GetCloneType(f.CdiClient, dv) {
+	case "snapshot":
 		sns := dv.Spec.Source.PVC.Namespace
 		if sns == "" {
 			sns = dv.Namespace
@@ -1677,6 +1681,28 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 		for _, s := range snapshots.Items {
 			Expect(s.DeletionTimestamp).ToNot(BeNil())
 		}
+	case "network":
+		s, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(context.TODO(), "cdi-api-signing-key", metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		bytes, ok := s.Data["id_rsa.pub"]
+		Expect(ok).To(BeTrue())
+		objs, err := cert.ParsePublicKeysPEM(bytes)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(objs).To(HaveLen(1))
+		v := token.NewValidator("cdi-deployment", objs[0].(*rsa.PublicKey), time.Minute)
+
+		By("checking long token added")
+		Eventually(func() bool {
+			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(targetNs.Name).Get(context.TODO(), targetPvc.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			t, ok := pvc.Annotations[controller.AnnExtendedCloneToken]
+			if !ok {
+				return false
+			}
+			_, err = v.Validate(t)
+			Expect(err).ToNot(HaveOccurred())
+			return true
+		}, 10*time.Second, assertionPollInterval).Should(BeTrue())
 	}
 }
 
