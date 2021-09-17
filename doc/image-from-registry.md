@@ -2,15 +2,15 @@
 The purpose of this document is to show how to create registry image containing a Virtual Machine image that can be imported into a PV.
 
 ## Prerequisites
-Import from registry should be able to consume the same container images as [containerDisk](https://github.com/kubevirt/kubevirt/blob/master/docs/container-register-disks.md).
+Import from registry should be able to consume the same container images as [containerDisk](https://github.com/kubevirt/kubevirt/blob/main/docs/container-register-disks.md).
 Thus the VM disk image file to be consumed must be located under /disk directory in the container image. The file can be in any of the supported formats : qcow2, raw, archived image file. There are no special naming constraints for the VM disk file.
 
 ## Import VM disk image file from existing containerDisk images in kubevirt repository
-For example vmidisks/fedora25:latest as described in [containerDisk](https://github.com/kubevirt/kubevirt/blob/master/docs/container-register-disks.md)
+For example vmidisks/fedora25:latest as described in [containerDisk](https://github.com/kubevirt/kubevirt/blob/main/docs/container-register-disks.md)
 
 ## Create a container image with Buildah
 Buildah is a tool that facilitates building Open Container Initiative (OCI) container images.
-More information is available here: [Buildah tutorial](https://github.com/containers/buildah/blob/master/docs/tutorials/02-registries-repositories.md).
+More information is available here: [Buildah tutorial](https://github.com/containers/buildah/blob/main/docs/tutorials/02-registries-repositories.md).
 
 Create a new directory `/tmp/vmdisk` with the following Docker file and a vm image file (ex: `fedora28.qcow2`)
 Create a new container image with the following docker file
