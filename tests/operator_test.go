@@ -66,7 +66,7 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(scc.Users).Should(ContainElement(cdiSA))
 			})
 
-			// Condition flags can be found here with their meaning https://github.com/kubevirt/hyperconverged-cluster-operator/blob/master/docs/conditions.md
+			// Condition flags can be found here with their meaning https://github.com/kubevirt/hyperconverged-cluster-operator/blob/main/docs/conditions.md
 			It("[test_id:3953]Condition flags on CR should be healthy and operating", func() {
 				cdiObjects, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).ToNot(HaveOccurred())

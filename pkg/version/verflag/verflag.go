@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Used https://github.com/kubernetes/kubernetes/blob/master/pkg/version/verflag/verflag.go as a template
+// Used https://github.com/kubernetes/component-base/blob/master/version/verflag/verflag.go as a template
 
 // Package verflag defines utility functions to handle command line flags
 // related to version of CDI.

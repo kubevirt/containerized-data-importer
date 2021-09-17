@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Retrieved from https://github.com/kubevirt/kubevirt/blob/master/pkg/version/types.go
+// Retrieved from https://github.com/kubevirt/kubevirt/blob/main/staging/src/kubevirt.io/client-go/version/types.go
 
 package version
 

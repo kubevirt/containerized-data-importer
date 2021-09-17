@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Retrieved from https://github.com/kubevirt/kubevirt/blob/master/pkg/version/base.go
+// Retrieved from https://github.com/kubevirt/kubevirt/blob/main/staging/src/kubevirt.io/client-go/version/base.go
 
 package version
 
