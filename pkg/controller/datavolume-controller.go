@@ -2422,6 +2422,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 
 		return pvcSpec, nil
 	}
+	pvcSpec.StorageClassName = &storageClass.Name
 
 	// given storageClass we can apply defaults if needed
 	if len(pvcSpec.AccessModes) == 0 {
