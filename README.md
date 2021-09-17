@@ -1,6 +1,5 @@
 # Containerized Data Importer
 
-[![Build Status](https://travis-ci.org/kubevirt/containerized-data-importer.svg?branch=master)](https://travis-ci.org/kubevirt/containerized-data-importer)
 [![Go Report Card](https://goreportcard.com/badge/github.com/kubevirt/containerized-data-importer)](https://goreportcard.com/report/github.com/kubevirt/containerized-data-importer)
 [![Coverage Status](https://img.shields.io/coveralls/kubevirt/containerized-data-importer/master.svg)](https://coveralls.io/github/kubevirt/containerized-data-importer?branch=master)
 [![Licensed under Apache License version 2.0](https://img.shields.io/github/license/kubevirt/containerized-data-importer.svg)](https://www.apache.org/licenses/LICENSE-2.0)
