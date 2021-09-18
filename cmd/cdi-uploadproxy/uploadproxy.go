@@ -24,12 +24,11 @@ const (
 
 	// Default address api listens on.
 	defaultHost = "0.0.0.0"
-
 )
 
 var (
 	configPath      string
-	masterURL       string
+	kubeURL         string
 	verbose         string
 	uploadProxyEnvs UploadProxyEnvs
 )
@@ -46,7 +45,7 @@ type UploadProxyEnvs struct {
 func init() {
 	// flags
 	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG")
-	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
+	flag.StringVar(&kubeURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
 	klog.InitFlags(nil)
 	flag.Parse()
 
@@ -74,7 +73,7 @@ func main() {
 		klog.Fatalf("Unable to get environment variables: %v\n", errors.WithStack(err))
 	}
 
-	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, configPath)
+	cfg, err := clientcmd.BuildConfigFromFlags(kubeURL, configPath)
 	if err != nil {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
 	}
