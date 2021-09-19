@@ -126,3 +126,47 @@ Add the registry to CDIConfig insecureRegistries in the `cdi` namespace.
 ```bash
 kubectl patch cdi cdi --patch '{"spec": {"config": {"insecureRegistries": ["my-private-registry-host:5000"]}}}' --type merge
 ```
+
+# Import registry image into a Data volume using node docker cache
+
+We also support import using `node pullMethod` which is based on the node docker cache. This is useful when registry image is usable via `Container.Image` but CDI  importer is not authorized to access it (e.g. registry.redhat.io requires a pull secret):
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: registry-image-datavolume
+spec:
+  source:
+    registry:
+      url: "docker://kubevirt/cirros-container-disk-demo:devel"
+      pullMethod: node
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 5Gi
+```
+
+Using this method we also support import from OpenShift `imageStream` instead of `url`:
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: registry-image-datavolume
+spec:
+  source:
+    registry:
+      imageStream: rhel8-guest-is
+      pullMethod: node
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 5Gi
+```
+
+More information on image streams is available [here](https://docs.openshift.com/container-platform/4.8/openshift_images/image-streams-manage.html) and [here](https://www.tutorialworks.com/openshift-imagestreams).
