@@ -1179,6 +1179,14 @@ var _ = Describe("Preallocation", func() {
 		} else {
 			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Equal("true"))
 		}
+
+		if dv.Spec.Source.Registry != nil && dv.Spec.Source.Registry.ImageStream != nil {
+			By("Verify image lookup annotation")
+			podName := pvc.Annotations[controller.AnnImportPod]
+			pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), podName, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pod.Annotations[controller.AnnOpenShiftImageLookup]).To(Equal("*"))
+		}
 	},
 		Entry("HTTP import (ISO image)", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", tinyCoreIsoURL())
@@ -1244,6 +1252,7 @@ var _ = Describe("Preallocation", func() {
 			dataVolume.Spec.Source.Registry.URL = nil
 			dataVolume.Spec.Source.Registry.ImageStream = &imageStreamWannabe
 			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
+			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 			return dataVolume
 		}),
 		Entry("VddkImport", true, utils.VcenterMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {

@@ -444,7 +444,8 @@ func NewDataVolumeForImageCloning(dataVolumeName, size, namespace, pvcName strin
 func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registryURL string) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: dataVolumeName,
+			Name:        dataVolumeName,
+			Annotations: map[string]string{},
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: &cdiv1.DataVolumeSource{

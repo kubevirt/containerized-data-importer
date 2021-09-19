@@ -84,6 +84,9 @@ const (
 	//AnnDefaultStorageClass is the annotation indicating that a storage class is the default one.
 	AnnDefaultStorageClass = "storageclass.kubernetes.io/is-default-class"
 
+	// AnnOpenShiftImageLookup is the annotation for OpenShift image stream lookup
+	AnnOpenShiftImageLookup = "alpha.image.policy.openshift.io/resolve-names"
+
 	// ErrImportFailedPVC provides a const to indicate an import to the PVC failed
 	ErrImportFailedPVC = "ErrImportFailed"
 	// ImportSucceededPVC provides a const to indicate an import to the PVC failed
@@ -513,8 +516,9 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 	}
 	r.log.V(1).Info("Created POD", "pod.Name", pod.Name)
 
-	// If importing from image stream, add finalizer
-	if isImageStream(pvc) {
+	// If importing from image stream, add finalizer. Note we don't watch the importer pod in this case,
+	// so to prevent a deadlock we add finalizer only if the pod is not retained after completion.
+	if isImageStream(pvc) && pvc.GetAnnotations()[AnnPodRetainAfterCompletion] != "true" {
 		AddFinalizer(pvc, importPodImageStreamFinalizer)
 		if err := r.updatePVC(pvc, r.log); err != nil {
 			return err
@@ -966,7 +970,9 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 		unauthorized: authentication required
 	When we don't set pod OwnerReferences, all works well.
 	*/
-	if !isImageStream(args.pvc) {
+	if isImageStream(args.pvc) {
+		pod.Annotations[AnnOpenShiftImageLookup] = "*"
+	} else {
 		blockOwnerDeletion := true
 		isController := true
 		ownerRef := metav1.OwnerReference{
