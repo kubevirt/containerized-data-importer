@@ -82,9 +82,11 @@ func (DataVolumeSourceS3) SwaggerDoc() map[string]string {
 func (DataVolumeSourceRegistry) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":              "DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source",
-		"url":           "URL is the url of the Docker registry source",
-		"secretRef":     "SecretRef provides the secret reference needed to access the Registry source",
-		"certConfigMap": "CertConfigMap provides a reference to the Registry certs",
+		"url":           "URL is the url of the registry source (starting with the scheme: docker, oci-archive)\n+optional",
+		"imageStream":   "ImageStream is the name of image stream for import\n+optional",
+		"pullMethod":    "PullMethod can be either \"pod\" (default import), or \"node\" (node docker cache based import)\n+optional",
+		"secretRef":     "SecretRef provides the secret reference needed to access the Registry source\n+optional",
+		"certConfigMap": "CertConfigMap provides a reference to the Registry certs\n+optional",
 	}
 }
 

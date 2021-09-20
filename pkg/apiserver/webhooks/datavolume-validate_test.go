@@ -68,8 +68,86 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(false))
 		})
 
-		It("should accept DataVolume with Registry source on create", func() {
+		It("should accept DataVolume with Registry source URL on create", func() {
 			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(true))
+		})
+
+		It("should accept DataVolume with Registry source ImageStream and node PullMethod on create", func() {
+			imageStream := "istream"
+			pullNode := cdiv1.RegistryPullNode
+			registrySource := cdiv1.DataVolumeSource{
+				Registry: &cdiv1.DataVolumeSourceRegistry{ImageStream: &imageStream, PullMethod: &pullNode},
+			}
+			pvc := newPVCSpec(pvcSizeDefault)
+			dataVolume := newDataVolume("testDV", registrySource, pvc)
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(true))
+		})
+
+		It("should reject DataVolume with Registry source ImageStream and pod PullMethod on create", func() {
+			imageStream := "istream"
+			registrySource := cdiv1.DataVolumeSource{
+				Registry: &cdiv1.DataVolumeSourceRegistry{ImageStream: &imageStream},
+			}
+			pvc := newPVCSpec(pvcSizeDefault)
+			dataVolume := newDataVolume("testDV", registrySource, pvc)
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with Registry source on create with no url or ImageStream", func() {
+			registrySource := cdiv1.DataVolumeSource{}
+			pvc := newPVCSpec(pvcSizeDefault)
+			dataVolume := newDataVolume("testDV", registrySource, pvc)
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with Registry source on create with both url and ImageStream", func() {
+			url := "docker://registry:5000/test"
+			imageStream := "istream"
+			registrySource := cdiv1.DataVolumeSource{
+				Registry: &cdiv1.DataVolumeSourceRegistry{URL: &url, ImageStream: &imageStream},
+			}
+			pvc := newPVCSpec(pvcSizeDefault)
+			dataVolume := newDataVolume("testDV", registrySource, pvc)
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with Registry source on create with non-kubevirt contentType", func() {
+			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
+			dataVolume.Spec.ContentType = cdiv1.DataVolumeArchive
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with Registry source on create with illegal source URL", func() {
+			dataVolume := newRegistryDataVolume("testDV", "docker/::registry:5000/test")
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with Registry source on create with illegal transport in source URL", func() {
+			dataVolume := newRegistryDataVolume("testDV", "joker://registry:5000/test")
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with Registry source on create with illegal importMethod", func() {
+			pullMethod := cdiv1.RegistryPullMethod("nosuch")
+			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
+			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should accept DataVolume with Registry source on create with supported importMethod", func() {
+			pullMethod := cdiv1.RegistryPullNode
+			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
+			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
 			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(true))
 		})
@@ -520,7 +598,7 @@ func newHTTPDataVolume(name, url string) *cdiv1.DataVolume {
 
 func newRegistryDataVolume(name, url string) *cdiv1.DataVolume {
 	registrySource := cdiv1.DataVolumeSource{
-		Registry: &cdiv1.DataVolumeSourceRegistry{URL: url},
+		Registry: &cdiv1.DataVolumeSourceRegistry{URL: &url},
 	}
 	pvc := newPVCSpec(pvcSizeDefault)
 	return newDataVolume(name, registrySource, pvc)

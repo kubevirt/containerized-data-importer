@@ -77,6 +77,8 @@ type Clients struct {
 	SnapshotSCName string
 	BlockSCName    string
 	CsiCloneSCName string
+	DockerPrefix   string
+	DockerTag      string
 
 	//  k8sClient provides our k8s client pointer
 	K8sClient *kubernetes.Clientset

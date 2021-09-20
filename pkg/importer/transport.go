@@ -31,6 +31,7 @@ import (
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -85,9 +86,9 @@ func parseImageName(img string) (types.ImageReference, error) {
 		return nil, errors.Errorf(`Invalid image name "%s", expected colon-separated transport:reference`, img)
 	}
 	switch parts[0] {
-	case "docker":
+	case cdiv1.RegistrySchemeDocker:
 		return docker.ParseReference(parts[1])
-	case "oci-archive":
+	case cdiv1.RegistrySchemeOci:
 		return archive.ParseReference(parts[1])
 	}
 	return nil, errors.Errorf(`Invalid image name "%s", unknown transport`, img)

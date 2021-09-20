@@ -1085,6 +1085,8 @@ var _ = Describe("Preallocation", func() {
 		md5PrefixSize       = int64(100000)
 		config              *cdiv1.CDIConfig
 		origSpec            *cdiv1.CDIConfigSpec
+		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix, f.DockerTag) }
+		trustedRegistryIS   = func() string { return fmt.Sprintf(utils.TrustedRegistryIS, f.DockerPrefix, f.DockerTag) }
 	)
 
 	BeforeEach(func() {
@@ -1183,7 +1185,7 @@ var _ = Describe("Preallocation", func() {
 		Expect(ok).To(BeFalse())
 	})
 
-	DescribeTable("All import paths should contain Preallocation step", func(shouldPreallocate bool, expectedMD5, path string, dvFunc func() *cdiv1.DataVolume) {
+	DescribeTable("[test_id:7241] All import paths should contain Preallocation step", func(shouldPreallocate bool, expectedMD5, path string, dvFunc func() *cdiv1.DataVolume) {
 		dv := dvFunc()
 		By(fmt.Sprintf("Creating new datavolume %s", dv.Name))
 		preallocation := true
@@ -1229,6 +1231,14 @@ var _ = Describe("Preallocation", func() {
 			}
 		} else {
 			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Equal("true"))
+		}
+
+		if dv.Spec.Source.Registry != nil && dv.Spec.Source.Registry.ImageStream != nil {
+			By("Verify image lookup annotation")
+			podName := pvc.Annotations[controller.AnnImportPod]
+			pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), podName, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pod.Annotations[controller.AnnOpenShiftImageLookup]).To(Equal("*"))
 		}
 	},
 		Entry("HTTP import (ISO image)", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
@@ -1279,7 +1289,23 @@ var _ = Describe("Preallocation", func() {
 			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", tinyCoreRegistryURL())
 			cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 			Expect(err).To(BeNil())
-			dataVolume.Spec.Source.Registry.CertConfigMap = cm
+			dataVolume.Spec.Source.Registry.CertConfigMap = &cm
+			return dataVolume
+		}),
+		Entry("Registry node pull import", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
+			pullMethod := cdiv1.RegistryPullNode
+			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", trustedRegistryURL())
+			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
+			return dataVolume
+		}),
+		Entry("Registry ImageStream-wannabe node pull import", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
+			pullMethod := cdiv1.RegistryPullNode
+			imageStreamWannabe := trustedRegistryIS()
+			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", "")
+			dataVolume.Spec.Source.Registry.URL = nil
+			dataVolume.Spec.Source.Registry.ImageStream = &imageStreamWannabe
+			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
+			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 			return dataVolume
 		}),
 		Entry("VddkImport", true, utils.VcenterMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {

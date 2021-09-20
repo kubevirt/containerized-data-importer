@@ -41,6 +41,10 @@ BLOCK_SC=${BLOCK_SC:-rook-ceph-block}
 # so on one SC we can test CSI clone and on the other the smartclone
 CSICLONE_SC=${CSICLONE_SC:-rook-ceph-block}
 
+OPERATOR_CONTAINER_IMAGE=$(./cluster-up/kubectl.sh get deployment -n $CDI_NAMESPACE cdi-operator -o'custom-columns=spec:spec.template.spec.containers[0].image' --no-headers)
+DOCKER_PREFIX=${OPERATOR_CONTAINER_IMAGE%/*}
+DOCKER_TAG=${OPERATOR_CONTAINER_IMAGE##*:}
+
 if [ -z "${KUBECTL+x}" ]; then
     kubevirtci_kubectl="${BASE_PATH}/${KUBEVIRT_PROVIDER}/.kubectl"
     if [ -e ${kubevirtci_kubectl} ]; then
@@ -65,8 +69,10 @@ arg_gocli="${GOCLI:+-gocli-path=$GOCLI}"
 arg_sc_snap="${SNAPSHOT_SC:+-snapshot-sc=$SNAPSHOT_SC}"
 arg_sc_block="${BLOCK_SC:+-block-sc=$BLOCK_SC}"
 arg_sc_csi="${CSICLONE_SC:+-csiclone-sc=$CSICLONE_SC}"
+arg_docker_prefix="${DOCKER_PREFIX:+-docker-prefix=$DOCKER_PREFIX}"
+arg_docker_tag="${DOCKER_TAG:+-docker-tag=$DOCKER_TAG}"
 
-test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc} ${arg_gocli} ${arg_sc_snap} ${arg_sc_block} ${arg_sc_csi}"
+test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc} ${arg_gocli} ${arg_sc_snap} ${arg_sc_block} ${arg_sc_csi} ${arg_docker_prefix} ${arg_docker_tag}"
 
 echo 'Wait until all CDI Pods are ready'
 retry_counter=0

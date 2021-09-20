@@ -15714,8 +15714,21 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceRegistry(ref common.ReferenceC
 				Properties: map[string]spec.Schema{
 					"url": {
 						SchemaProps: spec.SchemaProps{
-							Description: "URL is the url of the Docker registry source",
-							Default:     "",
+							Description: "URL is the url of the registry source (starting with the scheme: docker, oci-archive)",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"imageStream": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ImageStream is the name of image stream for import",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"pullMethod": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PullMethod can be either \"pod\" (default import), or \"node\" (node docker cache based import)",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -15735,7 +15748,6 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceRegistry(ref common.ReferenceC
 						},
 					},
 				},
-				Required: []string{"url"},
 			},
 		},
 	}

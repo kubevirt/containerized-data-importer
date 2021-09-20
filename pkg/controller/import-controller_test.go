@@ -693,7 +693,16 @@ var _ = Describe("Create Importer Pod", func() {
 			filesystemOverhead: "0.055",
 			insecureTLS:        false,
 		}
-		pod, err := createImporterPod(reconciler.log, reconciler.client, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName, nil, pvc.Annotations[AnnPriorityClassName], map[string]string{})
+		podArgs := &importerPodArgs{
+			image:             testImage,
+			verbose:           "5",
+			pullPolicy:        testPullPolicy,
+			podEnvVar:         podEnvVar,
+			pvc:               pvc,
+			scratchPvcName:    scratchPvcName,
+			priorityClassName: pvc.Annotations[AnnPriorityClassName],
+		}
+		pod, err := createImporterPod(reconciler.log, reconciler.client, podArgs, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying PVC owns pod")
 		Expect(len(pod.GetOwnerReferences())).To(Equal(1))
@@ -748,6 +757,8 @@ var _ = Describe("Import test env", func() {
 			certConfigMap:      "",
 			diskID:             "",
 			uuid:               "",
+			readyFile:          "",
+			doneFile:           "",
 			backingFile:        "",
 			thumbprint:         "",
 			filesystemOverhead: "0.055",
@@ -992,6 +1003,14 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 		{
 			Name:  common.ImporterUUID,
 			Value: podEnvVar.uuid,
+		},
+		{
+			Name:  common.ImporterReadyFile,
+			Value: podEnvVar.readyFile,
+		},
+		{
+			Name:  common.ImporterDoneFile,
+			Value: podEnvVar.doneFile,
 		},
 		{
 			Name:  common.ImporterBackingFile,

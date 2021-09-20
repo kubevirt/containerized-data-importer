@@ -32,6 +32,8 @@ var (
 	snapshotSCName = flag.String("snapshot-sc", "", "The Storage Class supporting snapshots")
 	blockSCName    = flag.String("block-sc", "", "The Storage Class supporting block mode volumes")
 	csiCloneSCName = flag.String("csiclone-sc", "", "The Storage Class supporting CSI Volume Cloning")
+	dockerPrefix   = flag.String("docker-prefix", "", "The docker host:port")
+	dockerTag      = flag.String("docker-tag", "", "The docker tag")
 )
 
 func TestTests(t *testing.T) {
@@ -57,6 +59,8 @@ func BuildTestSuite() {
 		framework.ClientsInstance.SnapshotSCName = *snapshotSCName
 		framework.ClientsInstance.BlockSCName = *blockSCName
 		framework.ClientsInstance.CsiCloneSCName = *csiCloneSCName
+		framework.ClientsInstance.DockerPrefix = *dockerPrefix
+		framework.ClientsInstance.DockerTag = *dockerTag
 
 		fmt.Fprintf(ginkgo.GinkgoWriter, "Kubectl path: %s\n", framework.ClientsInstance.KubectlPath)
 		fmt.Fprintf(ginkgo.GinkgoWriter, "OC path: %s\n", framework.ClientsInstance.OcPath)
@@ -67,6 +71,8 @@ func BuildTestSuite() {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "Snapshot SC: %s\n", framework.ClientsInstance.SnapshotSCName)
 		fmt.Fprintf(ginkgo.GinkgoWriter, "Block SC: %s\n", framework.ClientsInstance.BlockSCName)
 		fmt.Fprintf(ginkgo.GinkgoWriter, "CSI Volume Cloning SC: %s\n", framework.ClientsInstance.CsiCloneSCName)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "DockerPrefix: %s\n", framework.ClientsInstance.DockerPrefix)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "DockerTag: %s\n", framework.ClientsInstance.DockerTag)
 
 		restConfig, err := framework.ClientsInstance.LoadConfig()
 		if err != nil {

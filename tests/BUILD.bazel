@@ -1,4 +1,6 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+load("@io_bazel_rules_docker//container:container.bzl", "container_image")
+load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
 
 go_library(
     name = "go_default_library",
@@ -115,4 +117,17 @@ exports_files(
         "images/cirros-snapshot1.qcow2",
         "images/cirros-snapshot2.qcow2",
     ],
+)
+
+pkg_tar(
+    name = "tinycore-tar",
+    srcs = [":images/tinyCore.iso"],
+    package_dir = "/disk",
+    strip_prefix = "/tests/images",
+)
+
+container_image(
+    name = "cdi-func-test-tinycore",
+    tars = [":tinycore-tar"],
+    visibility = ["//visibility:public"],
 )

@@ -2296,14 +2296,18 @@ spec:
                       certConfigMap:
                         description: CertConfigMap provides a reference to the Registry certs
                         type: string
+                      imageStream:
+                        description: ImageStream is the name of image stream for import
+                        type: string
+                      pullMethod:
+                        description: PullMethod can be either "pod" (default import), or "node" (node docker cache based import)
+                        type: string
                       secretRef:
                         description: SecretRef provides the secret reference needed to access the Registry source
                         type: string
                       url:
-                        description: URL is the url of the Docker registry source
+                        description: 'URL is the url of the registry source (starting with the scheme: docker, oci-archive)'
                         type: string
-                    required:
-                    - url
                     type: object
                 required:
                 - registry
@@ -3083,14 +3087,18 @@ spec:
                       certConfigMap:
                         description: CertConfigMap provides a reference to the Registry certs
                         type: string
+                      imageStream:
+                        description: ImageStream is the name of image stream for import
+                        type: string
+                      pullMethod:
+                        description: PullMethod can be either "pod" (default import), or "node" (node docker cache based import)
+                        type: string
                       secretRef:
                         description: SecretRef provides the secret reference needed to access the Registry source
                         type: string
                       url:
-                        description: URL is the url of the Docker registry source
+                        description: 'URL is the url of the registry source (starting with the scheme: docker, oci-archive)'
                         type: string
-                    required:
-                    - url
                     type: object
                   s3:
                     description: DataVolumeSourceS3 provides the parameters to create a Data Volume from an S3 source

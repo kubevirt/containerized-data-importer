@@ -152,13 +152,39 @@ type DataVolumeSourceS3 struct {
 
 // DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source
 type DataVolumeSourceRegistry struct {
-	//URL is the url of the Docker registry source
-	URL string `json:"url"`
+	//URL is the url of the registry source (starting with the scheme: docker, oci-archive)
+	// +optional
+	URL *string `json:"url,omitempty"`
+	//ImageStream is the name of image stream for import
+	// +optional
+	ImageStream *string `json:"imageStream,omitempty"`
+	//PullMethod can be either "pod" (default import), or "node" (node docker cache based import)
+	// +optional
+	PullMethod *RegistryPullMethod `json:"pullMethod,omitempty"`
 	//SecretRef provides the secret reference needed to access the Registry source
-	SecretRef string `json:"secretRef,omitempty"`
+	// +optional
+	SecretRef *string `json:"secretRef,omitempty"`
 	//CertConfigMap provides a reference to the Registry certs
-	CertConfigMap string `json:"certConfigMap,omitempty"`
+	// +optional
+	CertConfigMap *string `json:"certConfigMap,omitempty"`
 }
+
+const (
+	// RegistrySchemeDocker is docker scheme prefix
+	RegistrySchemeDocker = "docker"
+	// RegistrySchemeOci is oci-archive scheme prefix
+	RegistrySchemeOci = "oci-archive"
+)
+
+// RegistryPullMethod represents the registry import pull method
+type RegistryPullMethod string
+
+const (
+	// RegistryPullPod is the standard import
+	RegistryPullPod RegistryPullMethod = "pod"
+	// RegistryPullNode is the node docker cache based import
+	RegistryPullNode RegistryPullMethod = "node"
+)
 
 // DataVolumeSourceHTTP can be either an http or https endpoint, with an optional basic auth user name and password, and an optional configmap containing additional CAs
 type DataVolumeSourceHTTP struct {

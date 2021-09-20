@@ -2,12 +2,14 @@ package tests
 
 import (
 	"fmt"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -24,6 +26,7 @@ var _ = Describe("Transport Tests", func() {
 		targetRawImage          = "tinycoreqcow2"
 		targetArchivedImage     = "tinycoreisotar"
 		targetArchivedImageHash = "b354a50183e70ee2ed3413eea67fe153"
+		targetNodePullImage     = "cdi-func-test-tinycore"
 	)
 
 	var (
@@ -40,16 +43,24 @@ var _ = Describe("Transport Tests", func() {
 
 	// it() is the body of the test and is executed once per Entry() by DescribeTable()
 	// closes over c and ns
-	it := func(ep func() string, file, expectedHash, accessKey, secretKey, source, certConfigMap string, insecureRegistry, shouldSucceed bool) {
+	it := func(ep func() string, file, expectedHash, accessKey, secretKey, source, certConfigMap, registryImportMethod string, insecureRegistry, shouldSucceed bool) {
 
 		var (
 			err error // prevent shadowing
 		)
 
+		var endpoint string
+		if registryImportMethod == string(cdiv1.RegistryPullNode) {
+			endpoint = ep() + "/" + file + ":" + f.DockerTag
+		} else {
+			endpoint = ep() + "/" + file
+		}
+
 		pvcAnn := map[string]string{
-			controller.AnnEndpoint: ep() + "/" + file,
-			controller.AnnSecret:   "",
-			controller.AnnSource:   source,
+			controller.AnnEndpoint:             endpoint,
+			controller.AnnSecret:               "",
+			controller.AnnSource:               source,
+			controller.AnnRegistryImportMethod: registryImportMethod,
 		}
 
 		if accessKey != "" || secretKey != "" {
@@ -127,7 +138,6 @@ var _ = Describe("Transport Tests", func() {
 			}, timeout, pollingInterval).Should(BeTrue())
 		}
 	}
-
 	httpNoAuthEp := func() string {
 		return fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
 	}
@@ -140,23 +150,26 @@ var _ = Describe("Transport Tests", func() {
 	registryNoAuthEp := func() string { return fmt.Sprintf("docker://%s", utils.RegistryHostName+"."+f.CdiInstallNs) }
 	registryAuthEp := func() string { return fmt.Sprintf("docker://%s.%s:%d", utils.RegistryHostName, f.CdiInstallNs, 1443) }
 	altRegistryNoAuthEp := func() string { return fmt.Sprintf("docker://%s.%s:%d", utils.RegistryHostName, f.CdiInstallNs, 5000) }
+	trustedRegistryEp := func() string { return fmt.Sprintf("docker://%s", f.DockerPrefix) }
+
 	DescribeTable("Transport Test Table", it,
-		Entry("[test_id:5059]should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "", false, true),
-		Entry("[test_id:5060]should connect to http endpoint with credentials", httpAuthEp, targetFile, "", utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, "", false, true),
-		Entry("[test_id:5061]should not connect to http endpoint with invalid credentials", httpAuthEp, targetFile, "", "invalid", "invalid", controller.SourceHTTP, "", false, false),
-		Entry("[test_id:5062]should connect to QCOW http endpoint without credentials", httpNoAuthEp, targetQCOWFile, utils.UploadFileMD5, "", "", controller.SourceHTTP, "", false, true),
-		Entry("[test_id:5063]should connect to QCOW http endpoint with credentials", httpAuthEp, targetQCOWFile, utils.UploadFileMD5, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, "", false, true),
-		Entry("[test_id:5064]should succeed to import from registry when image contains valid qcow file, custom cert", registryNoAuthEp, targetQCOWImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "cdi-docker-registry-host-certs", false, true),
-		Entry("[test_id:5065]should fail to import from registry when image contains valid qcow file, custom cert+auth, invalid credentials", registryAuthEp, targetQCOWImage, utils.UploadFileMD5, "invalid", "invalid", controller.SourceRegistry, "cdi-docker-registry-host-certs", true, false),
-		Entry("[test_id:5066]should succeed to import from registry when image contains valid qcow file, custom cert+auth, valid credentials", registryAuthEp, targetQCOWImage, utils.UploadFileMD5, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceRegistry, "cdi-docker-registry-host-certs", true, true),
-		Entry("[test_id:5067]should succeed to import from registry when image contains valid qcow file, no auth", registryNoAuthEp, targetQCOWImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "", true, true),
-		Entry("[test_id:5068]should succeed to import from registry when image contains valid qcow file, auth", altRegistryNoAuthEp, targetQCOWImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "", true, true),
-		Entry("[test_id:5069]should fail no certs", registryNoAuthEp, targetQCOWImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "", false, false),
-		Entry("[test_id:5070]should fail bad certs", registryNoAuthEp, targetQCOWImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "cdi-file-host-certs", false, false),
-		Entry("[test_id:5071]should succeed to import from registry when image contains valid raw file", registryNoAuthEp, targetRawImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "cdi-docker-registry-host-certs", false, true),
-		Entry("[test_id:5072]should succeed to import from registry when image contains valid archived raw file", registryNoAuthEp, targetArchivedImage, targetArchivedImageHash, "", "", controller.SourceRegistry, "cdi-docker-registry-host-certs", false, true),
-		Entry("[test_id:5073]should not connect to https endpoint without cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "", false, false),
-		Entry("[test_id:5074]should connect to https endpoint with cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "cdi-file-host-certs", false, true),
-		Entry("[test_id:5075]should not connect to https endpoint with bad cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "cdi-docker-registry-host-certs", false, false),
+		Entry("[test_id:5059]should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "", "", false, true),
+		Entry("[test_id:5060]should connect to http endpoint with credentials", httpAuthEp, targetFile, "", utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, "", "", false, true),
+		Entry("[test_id:5061]should not connect to http endpoint with invalid credentials", httpAuthEp, targetFile, "", "invalid", "invalid", controller.SourceHTTP, "", "", false, false),
+		Entry("[test_id:5062]should connect to QCOW http endpoint without credentials", httpNoAuthEp, targetQCOWFile, utils.UploadFileMD5, "", "", controller.SourceHTTP, "", "", false, true),
+		Entry("[test_id:5063]should connect to QCOW http endpoint with credentials", httpAuthEp, targetQCOWFile, utils.UploadFileMD5, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, "", "", false, true),
+		Entry("[test_id:5064]should succeed to import from registry when image contains valid qcow file, custom cert", registryNoAuthEp, targetQCOWImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "cdi-docker-registry-host-certs", "", false, true),
+		Entry("[test_id:5065]should fail to import from registry when image contains valid qcow file, custom cert+auth, invalid credentials", registryAuthEp, targetQCOWImage, utils.UploadFileMD5, "invalid", "invalid", controller.SourceRegistry, "cdi-docker-registry-host-certs", "", true, false),
+		Entry("[test_id:5066]should succeed to import from registry when image contains valid qcow file, custom cert+auth, valid credentials", registryAuthEp, targetQCOWImage, utils.UploadFileMD5, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceRegistry, "cdi-docker-registry-host-certs", "", true, true),
+		Entry("[test_id:5067]should succeed to import from registry when image contains valid qcow file, no auth", registryNoAuthEp, targetQCOWImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "", "", true, true),
+		Entry("[test_id:5068]should succeed to import from registry when image contains valid qcow file, auth", altRegistryNoAuthEp, targetQCOWImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "", "", true, true),
+		Entry("[test_id:5069]should fail no certs", registryNoAuthEp, targetQCOWImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "", "", false, false),
+		Entry("[test_id:5070]should fail bad certs", registryNoAuthEp, targetQCOWImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "cdi-file-host-certs", "", false, false),
+		Entry("[test_id:5071]should succeed to import from registry when image contains valid raw file", registryNoAuthEp, targetRawImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "cdi-docker-registry-host-certs", "", false, true),
+		Entry("[test_id:5072]should succeed to import from registry when image contains valid archived raw file", registryNoAuthEp, targetArchivedImage, targetArchivedImageHash, "", "", controller.SourceRegistry, "cdi-docker-registry-host-certs", "", false, true),
+		Entry("[test_id:5073]should not connect to https endpoint without cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "", "", false, false),
+		Entry("[test_id:5074]should connect to https endpoint with cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "cdi-file-host-certs", "", false, true),
+		Entry("[test_id:5075]should not connect to https endpoint with bad cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "cdi-docker-registry-host-certs", "", false, false),
+		Entry("[test_id:7240]should succeed to node pull import from registry when image contains valid iso file, no auth", trustedRegistryEp, targetNodePullImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "", string(cdiv1.RegistryPullNode), false, true),
 	)
 })

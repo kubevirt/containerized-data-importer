@@ -18,6 +18,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -37,6 +38,31 @@ import (
 func init() {
 	klog.InitFlags(nil)
 	flag.Parse()
+}
+
+func waitForReadyFile() {
+	readyFile, _ := util.ParseEnvVar(common.ImporterReadyFile, false)
+	if readyFile == "" {
+		return
+	}
+	for {
+		if _, err := os.Stat(readyFile); err == nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func touchDoneFile() {
+	doneFile, _ := util.ParseEnvVar(common.ImporterDoneFile, false)
+	if doneFile == "" {
+		return
+	}
+	f, err := os.OpenFile(doneFile, os.O_CREATE|os.O_EXCL, 0666)
+	if err != nil {
+		klog.Errorf("Failed creating file %s: %+v", doneFile, err)
+	}
+	f.Close()
 }
 
 func main() {
@@ -186,6 +212,7 @@ func main() {
 		}
 		defer dp.Close()
 		processor := importer.NewDataProcessor(dp, dest, dataDir, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
+		waitForReadyFile()
 		err = processor.ProcessData()
 		if err != nil {
 			klog.Errorf("%+v", err)
@@ -200,6 +227,7 @@ func main() {
 			dp.Close()
 			os.Exit(1)
 		}
+		touchDoneFile()
 		preallocationApplied = processor.PreallocationApplied()
 	}
 	message := "Import Complete"

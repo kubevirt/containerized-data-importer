@@ -89,6 +89,7 @@ container_image(
     ],
     files = [
         ":cdi-importer",
+        "//tools/cdi-containerimage-server",
     ],
     visibility = ["//visibility:public"],
 )
