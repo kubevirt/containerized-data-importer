@@ -17,6 +17,8 @@ spec:
         app: imageio
         cdi.kubevirt.io/testing: ""
     spec:
+      securityContext:
+        runAsUser: 0
       serviceAccountName: cdi-testing-sa
       initContainers:
       - name: init
