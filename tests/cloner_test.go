@@ -1317,9 +1317,11 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Kill upload pod to force error")
-			// exit code 137 = 128 + 9, it means parent process issued kill -9, in our case it is not a problem
-			_, _, err = f.ExecShellInPod(utils.UploadPodName(targetPvc), targetNs.Name, "kill 1")
-			Expect(err).To(Or(
+			Eventually(func() error {
+				// exit code 137 = 128 + 9, it means parent process issued kill -9, in our case it is not a problem
+				_, _, err = f.ExecShellInPod(utils.UploadPodName(targetPvc), targetNs.Name, "kill 1")
+				return err
+			}, shortTimeout, fastPollingInterval).Should(Or(
 				BeNil(),
 				WithTransform(errAsString, ContainSubstring("137"))))
 
