@@ -19,12 +19,13 @@ apiVersion: cdi.kubevirt.io/v1beta1
 kind: StorageProfile
 metadata: 
   name: hostpath-provisioner
-spec: 
+spec:
   claimPropertySets: 
   - accessModes:
     - ReadWriteOnce
     volumeMode: 
       Filesystem
+  cloneStrategy: snapshot
 status:
     storageClass: hostpath-provisioner
     provisioner: kubevirt.io/hostpath-provisioner
@@ -32,12 +33,14 @@ status:
     - accessModes: 
       - ReadWriteOnce
       volumeMode: Filesystem
+    cloneStrategy: snapshot
 ```
 
 Current version supports the following parameters:
-- `accessMode` - contains the desired access modes the volume should have
-- `volumeMode` -  defines what type of volume is required by the claim
 - `cloneStrategy` - defines the preferred method for performing a CDI clone
+- `claimPropertySets` contains a list of `claimPropertySet` (currently only one supported) 
+  - `accessMode` - contains the desired access modes the volume should have
+  - `volumeMode` - defines what type of volume is required by the claim
 
 Values for accessModes and volumeMode are exactly the same as for PVC: `accessModes` is a list of `[ReadWriteMany|ReadWriteOnce|ReadOnlyMany]`
 and `volumeMode` is a single value `Filesystem` or `Block`. The value for `cloneStrategy` ca be one of: `copy`,`snapshot`,`csi-clone`. 

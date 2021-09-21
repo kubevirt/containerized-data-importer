@@ -1697,8 +1697,8 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 
 			defaultCloneStrategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)
 			cloneStrategy := &defaultCloneStrategy
-			if len(spec.ClaimPropertySets) > 0 {
-				cloneStrategy = spec.ClaimPropertySets[0].CloneStrategy
+			if spec.CloneStrategy != nil {
+				cloneStrategy = spec.CloneStrategy
 			}
 
 			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})

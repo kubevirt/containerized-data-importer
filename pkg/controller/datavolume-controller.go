@@ -2426,12 +2426,8 @@ func (r *DatavolumeReconciler) getPreferredCloneStrategyForStorageClass(storageC
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot get StorageProfile")
 	}
-	if len(storageProfile.Status.ClaimPropertySets) > 0 {
-		cloneStrategy := storageProfile.Status.ClaimPropertySets[0].CloneStrategy
-		return cloneStrategy, nil
-	}
 
-	return nil, nil
+	return storageProfile.Status.CloneStrategy, nil
 }
 
 func getDefaultVolumeMode(c client.Client, storageClass *storagev1.StorageClass) (*corev1.PersistentVolumeMode, error) {
