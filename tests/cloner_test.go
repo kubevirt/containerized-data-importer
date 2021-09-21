@@ -1286,9 +1286,12 @@ var _ = Describe("all clone tests", func() {
 
 		It("[test_id:4000] Create a data volume and then clone it while killing the container and verify retry count", func() {
 			By("Prepare source PVC")
-			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
-			pvcDef.Namespace = f.Namespace.Name
-			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
+			sourceDV := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+			sourceDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDV)
+			Expect(err).ToNot(HaveOccurred())
+
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDV)
+			sourcePvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourceDV.Namespace).Get(context.TODO(), sourceDV.Name, metav1.GetOptions{})
 
 			By("Create clone DV")
 			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
@@ -1296,7 +1299,7 @@ var _ = Describe("all clone tests", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 			f.AddNamespaceToDelete(targetNs)
-			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvcDef)
+			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", sourcePvc)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -1317,11 +1320,9 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Kill upload pod to force error")
-			Eventually(func() error {
-				// exit code 137 = 128 + 9, it means parent process issued kill -9, in our case it is not a problem
-				_, _, err = f.ExecShellInPod(utils.UploadPodName(targetPvc), targetNs.Name, "kill 1")
-				return err
-			}, shortTimeout, fastPollingInterval).Should(Or(
+			// exit code 137 = 128 + 9, it means parent process issued kill -9, in our case it is not a problem
+			_, _, err = f.ExecShellInPod(utils.UploadPodName(targetPvc), targetNs.Name, "kill 1")
+			Expect(err).To(Or(
 				BeNil(),
 				WithTransform(errAsString, ContainSubstring("137"))))
 
