@@ -58,6 +58,8 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 
 	storageProfile.Status.StorageClass = &sc.Name
 	storageProfile.Status.Provisioner = &sc.Provisioner
+	storageProfile.Status.CloneStrategy = storageProfile.Spec.CloneStrategy
+
 	storageProfile.Status.ClaimPropertySets = storageProfile.Spec.ClaimPropertySets
 
 	var claimPropertySet *cdiv1.ClaimPropertySet

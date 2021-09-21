@@ -52,10 +52,7 @@ func ConfigureCloneStrategy(client client.Client,
 	gomega.Eventually(func() *cdiv1.CDICloneStrategy {
 		profile, err := clientSet.CdiV1beta1().StorageProfiles().Get(context.TODO(), storageClassName, metav1.GetOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		if len(profile.Status.ClaimPropertySets) > 0 {
-			return profile.Status.ClaimPropertySets[0].CloneStrategy
-		}
-		return nil
+		return profile.Status.CloneStrategy
 	}, time.Second*30, time.Second).Should(gomega.Equal(&cloneStrategy))
 
 	return nil
@@ -63,12 +60,7 @@ func ConfigureCloneStrategy(client client.Client,
 
 func updateCloneStrategy(originalProfileSpec *cdiv1.StorageProfileSpec, cloneStrategy cdiv1.CDICloneStrategy) *cdiv1.StorageProfileSpec {
 	newProfileSpec := originalProfileSpec.DeepCopy()
-
-	if len(newProfileSpec.ClaimPropertySets) == 0 {
-		newProfileSpec.ClaimPropertySets = []cdiv1.ClaimPropertySet{{CloneStrategy: &cloneStrategy}}
-	} else {
-		newProfileSpec.ClaimPropertySets[0].CloneStrategy = &cloneStrategy
-	}
+	newProfileSpec.CloneStrategy = &cloneStrategy
 
 	return newProfileSpec
 }
