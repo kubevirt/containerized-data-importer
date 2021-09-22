@@ -3461,14 +3461,14 @@ spec:
                       items:
                         type: string
                       type: array
-                    cloneStrategy:
-                      description: CloneStrategy defines the preferred method for performing a CDI clone
-                      type: string
                     volumeMode:
                       description: VolumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.
                       type: string
                   type: object
                 type: array
+              cloneStrategy:
+                description: CloneStrategy defines the preferred method for performing a CDI clone
+                type: string
             type: object
           status:
             description: StorageProfileStatus provides the most recently observed status of the StorageProfile
@@ -3483,14 +3483,14 @@ spec:
                       items:
                         type: string
                       type: array
-                    cloneStrategy:
-                      description: CloneStrategy defines the preferred method for performing a CDI clone
-                      type: string
                     volumeMode:
                       description: VolumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.
                       type: string
                   type: object
                 type: array
+              cloneStrategy:
+                description: CloneStrategy defines the preferred method for performing a CDI clone
+                type: string
               provisioner:
                 description: The Storage class provisioner plugin name
                 type: string

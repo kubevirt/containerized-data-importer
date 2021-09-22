@@ -670,10 +670,10 @@ func createStorageProfileWithCloneStrategy(name string,
 		Status: cdiv1.StorageProfileStatus{
 			StorageClass: &name,
 			ClaimPropertySets: []cdiv1.ClaimPropertySet{{
-				AccessModes:   accessModes,
-				VolumeMode:    &volumeMode,
-				CloneStrategy: cloneStrategy,
+				AccessModes: accessModes,
+				VolumeMode:  &volumeMode,
 			}},
+			CloneStrategy: cloneStrategy,
 		},
 	}
 }

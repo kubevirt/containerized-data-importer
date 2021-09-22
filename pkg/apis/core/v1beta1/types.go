@@ -364,6 +364,8 @@ type StorageProfile struct {
 
 //StorageProfileSpec defines specification for StorageProfile
 type StorageProfileSpec struct {
+	// CloneStrategy defines the preferred method for performing a CDI clone
+	CloneStrategy *CDICloneStrategy `json:"cloneStrategy,omitempty"`
 	// ClaimPropertySets is a provided set of properties applicable to PVC
 	ClaimPropertySets []ClaimPropertySet `json:"claimPropertySets,omitempty"`
 }
@@ -374,6 +376,8 @@ type StorageProfileStatus struct {
 	StorageClass *string `json:"storageClass,omitempty"`
 	// The Storage class provisioner plugin name
 	Provisioner *string `json:"provisioner,omitempty"`
+	// CloneStrategy defines the preferred method for performing a CDI clone
+	CloneStrategy *CDICloneStrategy `json:"cloneStrategy,omitempty"`
 	// ClaimPropertySets computed from the spec and detected in the system
 	ClaimPropertySets []ClaimPropertySet `json:"claimPropertySets,omitempty"`
 }
@@ -388,8 +392,6 @@ type ClaimPropertySet struct {
 	// Value of Filesystem is implied when not included in claim spec.
 	// +optional
 	VolumeMode *corev1.PersistentVolumeMode `json:"volumeMode,omitempty" protobuf:"bytes,6,opt,name=volumeMode,casttype=PersistentVolumeMode"`
-	// CloneStrategy defines the preferred method for performing a CDI clone
-	CloneStrategy *CDICloneStrategy `json:"cloneStrategy,omitempty"`
 }
 
 //StorageProfileList provides the needed parameters to request a list of StorageProfile from the system
