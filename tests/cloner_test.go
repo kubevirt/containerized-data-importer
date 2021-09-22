@@ -1316,7 +1316,7 @@ var _ = Describe("all clone tests", func() {
 			utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
 
 			By("Wait for upload pod")
-			err = utils.WaitTimeoutForPodReady(f.K8sClient, utils.UploadPodName(targetPvc), targetNs.Name, utils.PodWaitForTime)
+			err = utils.WaitTimeoutForPodReadyPollPeriod(f.K8sClient, utils.UploadPodName(targetPvc), targetNs.Name, utils.PodWaitIntervalFast, utils.PodWaitForTime)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Kill upload pod to force error")
