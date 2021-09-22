@@ -225,7 +225,7 @@ redeploy the manifests above, and re-run the tests.
 
 ### Submit PRs
 
-All PRs should originate from forks of kubevirt.io/containerized-data-importer.  Work should not be done directly in the upstream repository.  Open new working branches from master/HEAD of your forked repository and push them to your remote repo.  Then submit PRs of the working branch against the upstream master branch.
+All PRs should originate from forks of kubevirt.io/containerized-data-importer.  Work should not be done directly in the upstream repository.  Open new working branches from main/HEAD of your forked repository and push them to your remote repo.  Then submit PRs of the working branch against the upstream main branch.
 
 ### Releases
 

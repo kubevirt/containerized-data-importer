@@ -13,7 +13,7 @@ Each one is useful for different use cases, which we will explain below. Note th
 Manual hostPath based storage is basically a mapping between a path on the host to a PV. This is the simplest form of storage and should be a good starting point. If you are trying CDI with [minikube](https://github.com/kubernetes/minikube) we will provide an example to get started.
 
 #### minikube example
-The contents here are directly taken from the [minikube persistent volume documentation](https://github.com/kubernetes/minikube/blob/master/docs/persistent_volumes.md) and we encourage you to read and understand that document.
+The contents here are directly taken from the [minikube persistent volume documentation](https://minikube.sigs.k8s.io/docs/handbook/persistent_volumes/) and we encourage you to read and understand that document.
 
 ```yaml
 apiVersion: v1
@@ -32,7 +32,7 @@ spec:
 This will create a 5Gi sized PV, and now you are ready to apply one of the many [examples](../manifests/example) to this PV. If you run 
 
 ```bash
-kubectl create -f  https://github.com/kubevirt/containerized-data-importer/blob/master/manifests/example/import-kubevirt-datavolume.yaml
+kubectl create -f  https://github.com/kubevirt/containerized-data-importer/blob/main/manifests/example/import-kubevirt-datavolume.yaml
 ```
 
 It will create a Data Volume (DV) and import a cirros virtual disk image to that DV. If you try some of the other examples you might find that some of them require [scratch space](scratch-space.md). To create scratch space you simply need another PV available and CDI will automatically make use of it while importing. For cloning you will also need two PVs, one that contains the source data, and one that will be the target.

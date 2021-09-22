@@ -31,8 +31,8 @@ import (
 )
 
 const (
-	//containerDiskImageDir - Expected disk image location in container image as described in
-	//https://github.com/kubevirt/kubevirt/blob/master/docs/container-register-disks.md
+	// containerDiskImageDir - Expected disk image location in container image as described in
+	// https://github.com/kubevirt/kubevirt/blob/main/docs/container-register-disks.md
 	containerDiskImageDir = "disk"
 )
 

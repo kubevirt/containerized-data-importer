@@ -8,7 +8,7 @@ import (
 	"k8s.io/kube-openapi/pkg/common"
 )
 
-// code stolen/adapted from https://github.com/kubevirt/kubevirt/blob/master/pkg/util/openapi/openapi.go
+// code stolen/adapted from https://github.com/kubevirt/kubevirt/blob/main/pkg/util/openapi/openapi.go
 
 func createOpenAPIConfig(webServices []*restful.WebService) restfulspec.Config {
 	return restfulspec.Config{

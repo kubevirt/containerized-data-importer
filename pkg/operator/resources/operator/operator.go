@@ -473,7 +473,7 @@ _The CDI Operator does not support updates yet._
 			Links: []csvv1.AppLink{
 				{
 					Name: "CDI",
-					URL:  "https://github.com/kubevirt/containerized-data-importer/blob/master/README.md",
+					URL:  "https://github.com/kubevirt/containerized-data-importer/blob/main/README.md",
 				},
 				{
 					Name: "Source Code",

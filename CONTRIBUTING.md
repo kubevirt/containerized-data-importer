@@ -18,7 +18,7 @@ As an add-on to Kubernetes, CDI shares some philosophy and design choices:
 * Declarative and Reactive (Operator pattern) approach
 
 This short page shall help to get started with the projects and topics
-surrounding them.  If you notice a strong similarity with the [KubeVirt contribution guidelines](https://github.com/kubevirt/kubevirt/blob/master/CONTRIBUTING.md) it's because we have taken inspiration from their success.
+surrounding them.  If you notice a strong similarity with the [KubeVirt contribution guidelines](https://github.com/kubevirt/kubevirt/blob/main/CONTRIBUTING.md) it's because we have taken inspiration from their success.
 
 
 ## Contributing to CDI
@@ -79,7 +79,7 @@ Before your PR can be merged it must meet the following criteria:
 * [README.md](README.md) has been updated if core functionality is affected.
 * Complex features need standalone documentation in [doc/](doc/).
 * Functionality must be fully tested.  Unit test code coverage as reported by
-  [Goveralls](https://coveralls.io/github/kubevirt/containerized-data-importer?branch=master)
+  [Goveralls](https://coveralls.io/github/kubevirt/containerized-data-importer?branch=main)
   must not decrease unless justification is given (ie. you're adding generated
   code).
 

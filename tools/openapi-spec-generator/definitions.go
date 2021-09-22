@@ -32,7 +32,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
-// code stolen/adapted from https://github.com/kubevirt/kubevirt/blob/master/pkg/virt-api/rest/definitions.go
+// code stolen/adapted from https://github.com/kubevirt/kubevirt/blob/main/pkg/virt-api/rest/definitions.go
 
 const (
 	mimeJSON       string = "application/json"
