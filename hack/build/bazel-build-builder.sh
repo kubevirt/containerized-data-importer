@@ -26,15 +26,35 @@ if ! git diff-index --quiet HEAD~1 hack/build/docker; then
   UNTAGGED_BUILDER_IMAGE=quay.io/kubevirt/kubevirt-cdi-bazel-builder
   BUILDER_TAG=$(date +"%y%m%d%H%M")-$(git rev-parse --short HEAD)
   echo "$DOCKER_PREFIX:$DOCKER_TAG"
+  #Prepare env for build multi-arch image
+  ARCHITECTURES="amd64 arm64"
+  docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
-  #Build the encapsulated compile and test container
-  (cd ${BUILDER_SPEC} && docker build --tag ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG} .)
+  #Build and push multi-arch builder
+  for ARCH in ${ARCHITECTURES}; do
+      case ${ARCH} in
+      amd64)
+          bazel_arch="x86_64"
+          ;;
+      *)
+          bazel_arch=${ARCH}
+          ;;
+      esac
 
-  DIGEST=$(docker images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
-  echo "Image: ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}"
-  echo "Digest: ${DIGEST}"
+      #Build the encapsulated compile and test container
+      docker pull --platform="linux/${ARCH}" registry.fedoraproject.org/fedora-minimal:33
+      (cd ${BUILDER_SPEC} && docker build --platform="linux/${ARCH}" --build-arg ARCH="${ARCH}" --build-arg BAZEL_ARCH=${bazel_arch} --tag ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}-${ARCH} .)
 
-  docker push ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
+      DIGEST=$(docker images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
+      echo "Image: ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}-${ARCH}"
+      echo "Digest: ${DIGEST}"
+
+      docker push ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}-${ARCH}
+      TMP_IMAGES="${TMP_IMAGES} ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}-${ARCH}"
+  done
+
+  # Create and push multiarch manifest
+  export DOCKER_CLI_EXPERIMENTAL=enabled
+  docker manifest create --amend ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG} ${TMP_IMAGES}
+  docker manifest push ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
 fi
-
-
