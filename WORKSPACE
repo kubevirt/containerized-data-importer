@@ -210,7 +210,10 @@ http_file(
 http_file(
     name = "nginx-aarch64",
     sha256 = "83fc09de039811209969208f5024530f0d0125dc86d87e33fb1a08d80ef33b56",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux//updates/33/Everything/aarch64/Packages/n/nginx-1.20.1-6.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux//updates/33/Everything/aarch64/Packages/n/nginx-1.20.1-6.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/83fc09de039811209969208f5024530f0d0125dc86d87e33fb1a08d80ef33b56",
+    ],
 )
 
 http_file(
@@ -264,7 +267,10 @@ http_file(
 http_file(
     name = "gperftools-lib-aarch64",
     sha256 = "dc7b9de2314ba469cbce71ec2f690f163aab3b8de40fb684b5d156065eb039bd",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux//updates/33/Everything/aarch64/Packages/g/gperftools-libs-2.8.1-1.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux//updates/33/Everything/aarch64/Packages/g/gperftools-libs-2.8.1-1.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/dc7b9de2314ba469cbce71ec2f690f163aab3b8de40fb684b5d156065eb039bd",
+    ],
 )
 
 http_file(
@@ -276,7 +282,10 @@ http_file(
 http_file(
     name = "libunwind-aarch64",
     sha256 = "fa1e6a6529c0de1dc7a1245546d630fc97639fe87533975a92e04e1ad5c5b7bd",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/libunwind-1.4.0-4.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/libunwind-1.4.0-4.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/fa1e6a6529c0de1dc7a1245546d630fc97639fe87533975a92e04e1ad5c5b7bd",
+    ],
 )
 
 # nginx-mimetypes is a noarch rpm which support both x86_64 and aarch64
@@ -302,7 +311,10 @@ http_file(
 http_file(
     name = "buildah-aarch64",
     sha256 = "d74512b6c17698627fbadd8bf10108a3dac43e428515c25a7a86296e1bf5e96c",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux//updates/33/Everything/aarch64/Packages/b/buildah-1.22.3-1.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux//updates/33/Everything/aarch64/Packages/b/buildah-1.22.3-1.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/d74512b6c17698627fbadd8bf10108a3dac43e428515c25a7a86296e1bf5e96c",
+    ],
 )
 
 http_file(
@@ -352,7 +364,10 @@ http_file(
 http_file(
     name = "lvm2-aarch64",
     sha256 = "b29e2b64e6d305278192ae1575edd26720977973378c62dbc533ec102af96d59",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/lvm2-2.03.10-1.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/lvm2-2.03.10-1.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/b29e2b64e6d305278192ae1575edd26720977973378c62dbc533ec102af96d59",
+    ],
 )
 
 http_file(
@@ -364,7 +379,10 @@ http_file(
 http_file(
     name = "lvm2-libs-aarch64",
     sha256 = "e08db34f3cc649428baa4e5733485ef8df931f417b2c2fc20a7b7b1f9402c049",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/lvm2-libs-2.03.10-1.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/lvm2-libs-2.03.10-1.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/e08db34f3cc649428baa4e5733485ef8df931f417b2c2fc20a7b7b1f9402c049",
+    ],
 )
 
 http_file(
@@ -376,7 +394,10 @@ http_file(
 http_file(
     name = "device-mapper-aarch64",
     sha256 = "2cca39ca6e3c78698d28ece07dd4b9e1f6ac55f197583540a4b5df783bdb990c",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-1.02.173-1.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-1.02.173-1.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/2cca39ca6e3c78698d28ece07dd4b9e1f6ac55f197583540a4b5df783bdb990c",
+    ],
 )
 
 http_file(
@@ -388,7 +409,10 @@ http_file(
 http_file(
     name = "device-mapper-libs-aarch64",
     sha256 = "694ed46b1e411e7df03ed5cf6f8f47d3af3d9d38b5ca640bf022aa223dcdf0d8",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-libs-1.02.173-1.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-libs-1.02.173-1.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/694ed46b1e411e7df03ed5cf6f8f47d3af3d9d38b5ca640bf022aa223dcdf0d8",
+    ],
 )
 
 http_file(
@@ -403,7 +427,10 @@ http_file(
 http_file(
     name = "device-mapper-event-aarch64",
     sha256 = "455dc4c6ca5b891446cdfb1969224a50fbeedc04c9109f84d659836ad8d41f02",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-event-1.02.173-1.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-event-1.02.173-1.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/455dc4c6ca5b891446cdfb1969224a50fbeedc04c9109f84d659836ad8d41f02",
+    ],
 )
 
 http_file(
@@ -415,7 +442,10 @@ http_file(
 http_file(
     name = "device-mapper-event-libs-aarch64",
     sha256 = "6115e4527ddf3b0b3a0fe5178da66511d4330f5d8f536920bf72f40ed7fc45d7",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-event-libs-1.02.173-1.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-event-libs-1.02.173-1.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/6115e4527ddf3b0b3a0fe5178da66511d4330f5d8f536920bf72f40ed7fc45d7",
+    ],
 )
 
 http_file(
@@ -430,7 +460,10 @@ http_file(
 http_file(
     name = "device-mapper-persistent-data-aarch64",
     sha256 = "27b51e601d2cd6d6deafa22e57b7a53f6edebdee6bf69ab27a6f39ad43209950",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-persistent-data-0.8.5-4.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-persistent-data-0.8.5-4.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/27b51e601d2cd6d6deafa22e57b7a53f6edebdee6bf69ab27a6f39ad43209950",
+    ],
 )
 
 http_file(
@@ -442,7 +475,10 @@ http_file(
 http_file(
     name = "compat-readline5-aarch64",
     sha256 = "aacbb76b25d0c09f58a3821757ea6f609622c1a61024af89898a4cc90076277d",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/c/compat-readline5-5.2-37.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/c/compat-readline5-5.2-37.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/aacbb76b25d0c09f58a3821757ea6f609622c1a61024af89898a4cc90076277d",
+    ],
 )
 
 http_file(
@@ -454,7 +490,10 @@ http_file(
 http_file(
     name = "kmod-aarch64",
     sha256 = "b22fdd1514126927902da7e05e6c2c73f04d3ecfe93896c003fd55822d203d72",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/k/kmod-27-3.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/k/kmod-27-3.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/b22fdd1514126927902da7e05e6c2c73f04d3ecfe93896c003fd55822d203d72",
+    ],
 )
 
 # basesystem is a noarch rpm which support both x86_64 and aarch64
@@ -473,7 +512,10 @@ http_file(
 http_file(
     name = "bash-aarch64",
     sha256 = "278a1a1515db1bdda811747358fc64c2fa95f1709cf70646518952b62dd6c591",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/b/bash-5.0.17-2.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/b/bash-5.0.17-2.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/278a1a1515db1bdda811747358fc64c2fa95f1709cf70646518952b62dd6c591",
+    ],
 )
 
 # fedora-gpg-keys is a noarch rpm which support both x86_64 and aarch64
@@ -513,7 +555,10 @@ http_file(
 http_file(
     name = "filesystem-aarch64",
     sha256 = "da4099138efb6fd069feede5d7e4cd371e9f69a9e363cee5fd58ab79c03840b0",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/f/filesystem-3.14-3.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/f/filesystem-3.14-3.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/da4099138efb6fd069feede5d7e4cd371e9f69a9e363cee5fd58ab79c03840b0",
+    ],
 )
 
 http_file(
@@ -525,7 +570,10 @@ http_file(
 http_file(
     name = "glibc-aarch64",
     sha256 = "0c66a66c85f70ce8481b9217083bdd43cf049d3e44c4d1c12e6bc395f2c164f4",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/g/glibc-2.32-1.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/g/glibc-2.32-1.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/0c66a66c85f70ce8481b9217083bdd43cf049d3e44c4d1c12e6bc395f2c164f4",
+    ],
 )
 
 http_file(
@@ -537,7 +585,10 @@ http_file(
 http_file(
     name = "glibc-all-langpacks-aarch64",
     sha256 = "2d60426e2e4e5b0275a4df5b37d306e7402f22cfe0406e3b333c6895f5aac86d",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/g/glibc-all-langpacks-2.32-1.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/g/glibc-all-langpacks-2.32-1.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/2d60426e2e4e5b0275a4df5b37d306e7402f22cfe0406e3b333c6895f5aac86d",
+    ],
 )
 
 http_file(
@@ -549,7 +600,10 @@ http_file(
 http_file(
     name = "glibc-common-aarch64",
     sha256 = "f7a9cadb1bf5603749ae43a255d7677fd76d0927e407de29b16823aad69d5c77",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/g/glibc-common-2.32-1.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/g/glibc-common-2.32-1.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/f7a9cadb1bf5603749ae43a255d7677fd76d0927e407de29b16823aad69d5c77",
+    ],
 )
 
 http_file(
@@ -561,7 +615,10 @@ http_file(
 http_file(
     name = "libgcc-aarch64",
     sha256 = "86c2752b2ca016cd12313a2baae046349aefc0605ac96614779e15dac699866f",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/libgcc-10.2.1-3.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/libgcc-10.2.1-3.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/86c2752b2ca016cd12313a2baae046349aefc0605ac96614779e15dac699866f",
+    ],
 )
 
 http_file(
@@ -573,7 +630,10 @@ http_file(
 http_file(
     name = "libselinux-aarch64",
     sha256 = "3e50b11882b29b9590a3cdb8dcb80098fd8606ef5824f01838c981c4c4007e3b",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/libselinux-3.1-2.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/libselinux-3.1-2.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/3e50b11882b29b9590a3cdb8dcb80098fd8606ef5824f01838c981c4c4007e3b",
+    ],
 )
 
 http_file(
@@ -585,7 +645,10 @@ http_file(
 http_file(
     name = "libsepol-aarch64",
     sha256 = "19bedd354211c58bd9ec935b3087c47ba1f34bb43bd06e0a66e751f6027ed841",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/libsepol-3.1-3.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/libsepol-3.1-3.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/19bedd354211c58bd9ec935b3087c47ba1f34bb43bd06e0a66e751f6027ed841",
+    ],
 )
 
 # ncurses-base is a noarch rpm which support both x86_64 and aarch64
@@ -604,7 +667,10 @@ http_file(
 http_file(
     name = "ncurses-lib-aarch64",
     sha256 = "0ee8d448ba3b455d707bef95d8eb8670f2015fc9f2bb729fdc843e8336f3575d",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/n/ncurses-libs-6.2-3.20200222.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/n/ncurses-libs-6.2-3.20200222.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/0ee8d448ba3b455d707bef95d8eb8670f2015fc9f2bb729fdc843e8336f3575d",
+    ],
 )
 
 http_file(
@@ -616,7 +682,10 @@ http_file(
 http_file(
     name = "pcre2-aarch64",
     sha256 = "3d4f19a66291f4793ba535678caae6cd8290679d874069bb6b1b8fe3bc1bd7e6",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/p/pcre2-10.35-7.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/p/pcre2-10.35-7.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/3d4f19a66291f4793ba535678caae6cd8290679d874069bb6b1b8fe3bc1bd7e6",
+    ],
 )
 
 # setup is a noarch rpm which support both x86_64 and aarch64
@@ -645,7 +714,10 @@ http_file(
 http_file(
     name = "iscsi-initiator-utils-aarch64",
     sha256 = "beaffad5e12d35e08a1f97981483fab25e9e6c68ce5fd3ab0b287ba69270f823",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/i/iscsi-initiator-utils-6.2.1.1-0.gitac87641.fc33.2.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/i/iscsi-initiator-utils-6.2.1.1-0.gitac87641.fc33.2.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/beaffad5e12d35e08a1f97981483fab25e9e6c68ce5fd3ab0b287ba69270f823",
+    ],
 )
 
 http_file(
@@ -657,7 +729,10 @@ http_file(
 http_file(
     name = "iscsi-initiator-utils-iscsiuio-aarch64",
     sha256 = "f5d5cb9778079a14df107cb18d71e025ede4437dd0707ebf94b05ca50f8516eb",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/i/iscsi-initiator-utils-iscsiuio-6.2.1.1-0.gitac87641.fc33.2.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/i/iscsi-initiator-utils-iscsiuio-6.2.1.1-0.gitac87641.fc33.2.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/f5d5cb9778079a14df107cb18d71e025ede4437dd0707ebf94b05ca50f8516eb",
+    ],
 )
 
 http_file(
@@ -669,7 +744,10 @@ http_file(
 http_file(
     name = "isns-utils-libs-aarch64",
     sha256 = "d3c0f53f79a8c9e0d3b524914572c4ef96d0e14ad437bdb384732832f3885c43",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/i/isns-utils-libs-0.97-11.fc33.aarch64.rpm"],
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/i/isns-utils-libs-0.97-11.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/d3c0f53f79a8c9e0d3b524914572c4ef96d0e14ad437bdb384732832f3885c43",
+    ],
 )
 
 http_file(
@@ -816,5 +894,8 @@ http_file(
 http_file(
     name = "libseccomp-aarch64",
     sha256 = "ab5a824d402c717bfe8e01cfb216a70fd4a7e1d66d2d7baa80ac6ad6581081c9",
-    urls = ["http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/libseccomp-2.5.0-3.fc33.aarch64.rpm"]
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/libseccomp-2.5.0-3.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/ab5a824d402c717bfe8e01cfb216a70fd4a7e1d66d2d7baa80ac6ad6581081c9",
+    ],
 )
