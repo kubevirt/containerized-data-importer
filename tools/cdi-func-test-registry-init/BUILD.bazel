@@ -5,14 +5,30 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_image")
 
 rpm_image(
     name = "cdi-func-test-registry-init-base-image",
-    base = "@fedora//image",
-    rpms = [
-        "@qemu-img//file",
-        "@xen-libs//file",
-        "@libaio//file",
-        "@liburing//file",
-        "@capstone//file",
-    ],
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
+    base = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
+        "//conditions:default": "@fedora//image",
+    }),
+    rpms = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "@qemu-img-aarch64//file",
+            "@xen-libs-aarch64//file",
+            "@libaio-aarch64//file",
+            "@liburing-aarch64//file",
+            "@capstone-aarch64//file",
+        ],
+        "//conditions:default": [
+            "@qemu-img//file",
+            "@xen-libs//file",
+            "@libaio//file",
+            "@liburing//file",
+            "@capstone//file",
+        ],
+    }),
 )
 
 # Init
@@ -37,6 +53,10 @@ go_binary(
 
 container_image(
     name = "cdi-func-test-registry-init-file-image",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
     base = ":cdi-func-test-registry-init-base-image",
     directory = "/",
     tars = [":test-img-tar"],
@@ -44,6 +64,10 @@ container_image(
 
 container_image(
     name = "cdi-func-test-registry-exec-init-image",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
     base = ":cdi-func-test-registry-init-file-image",
     directory = "/usr/bin",
     files = [":cdi-func-test-registry-init"],
@@ -52,6 +76,10 @@ container_image(
 
 container_image(
     name = "cdi-func-test-registry-init-image",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
     base = ":cdi-func-test-registry-exec-init-image",
     directory = "/usr/bin",
     entrypoint = [
@@ -71,17 +99,36 @@ pkg_tar(
 #Populate
 rpm_image(
     name = "cdi-func-test-registry-populate-base-image",
-    base = "@fedora//image",
-    rpms = [
-        "@buildah//file",
-        "@libseccomp//file",
-        "@device-mapper-libs//file",
-        "@containers-common//file",
-    ],
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
+    base = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
+        "//conditions:default": "@fedora//image",
+    }),
+    rpms = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "@buildah-aarch64//file",
+            "@libseccomp-aarch64//file",
+            "@device-mapper-libs-aarch64//file",
+            "@containers-common-aarch64//file",
+        ],
+        "//conditions:default": [
+            "@buildah//file",
+            "@libseccomp//file",
+            "@device-mapper-libs//file",
+            "@containers-common//file",
+        ],
+    }),
 )
 
 container_image(
     name = "cdi-func-test-registry-populate-image",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
     base = ":cdi-func-test-registry-populate-base-image",
     directory = "/",
     entrypoint = ["./populate-registry.sh"],
@@ -106,7 +153,14 @@ pkg_tar(
 #Registry image
 container_image(
     name = "cdi-func-test-registry-image",
-    base = "@registry//image",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
+    base = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "@registry-aarch64//image",
+        "//conditions:default": "@registry//image",
+    }),
     directory = "/",
     entrypoint = ["/start-registry.sh"],
     ports = ["443"],

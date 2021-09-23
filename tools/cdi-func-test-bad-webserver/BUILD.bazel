@@ -1,10 +1,23 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 load("@io_bazel_rules_docker//go:image.bzl", "go_image")
+load("@io_bazel_rules_docker//container:container.bzl", "container_image")
+
+container_image(
+    name = "cdi-func-test-bad-webserver-image-base",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
+    base = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
+        "//conditions:default": "@fedora//image",
+    }),
+)
 
 go_image(
     name = "cdi-func-test-bad-webserver-image",
     srcs = ["main.go"],
-    base = "@fedora//image",
+    base = ":cdi-func-test-bad-webserver-image-base",
     importpath = "kubevirt.io/containerized-data-importer/tools/cdi-func-test-bad-webserver",
     visibility = ["//visibility:public"],
 )

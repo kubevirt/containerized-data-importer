@@ -5,26 +5,58 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_image")
 
 rpm_image(
     name = "cdi-func-test-file-host-init-base-image",
-    base = "@fedora//image",
-    rpms = [
-        "@qemu-img//file",
-        "@xen-libs//file",
-        "@libaio//file",
-        "@liburing//file",
-        "@capstone//file",
-    ],
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
+    base = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
+        "//conditions:default": "@fedora//image",
+    }),
+    rpms = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "@qemu-img-aarch64//file",
+            "@xen-libs-aarch64//file",
+            "@libaio-aarch64//file",
+            "@liburing-aarch64//file",
+            "@capstone-aarch64//file",
+        ],
+        "//conditions:default": [
+            "@qemu-img//file",
+            "@xen-libs//file",
+            "@libaio//file",
+            "@liburing//file",
+            "@capstone//file",
+        ],
+    }),
 )
 
 rpm_image(
     name = "cdi-func-test-file-host-http-base-image",
-    base = "@fedora//image",
-    rpms = [
-        "@nginx//file",
-        "@gperftools-lib//file",
-        "@libunwind//file",
-        "@nginx-mimetypes//file",
-        "@nginx-filesystem//file",
-    ],
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
+    base = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
+        "//conditions:default": "@fedora//image",
+    }),
+    rpms = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "@nginx//file",
+            "@gperftools-lib//file",
+            "@libunwind//file",
+            "@nginx-mimetypes//file",
+            "@nginx-filesystem//file",
+        ],
+        "//conditions:default": [
+            "@nginx//file",
+            "@gperftools-lib//file",
+            "@libunwind//file",
+            "@nginx-mimetypes//file",
+            "@nginx-filesystem//file",
+        ],
+    }),
 )
 
 go_library(
@@ -48,6 +80,10 @@ go_binary(
 
 container_image(
     name = "cdi-func-test-file-host-init-file-image",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
     base = ":cdi-func-test-file-host-init-base-image",
     directory = "/",
     tars = [
@@ -58,6 +94,10 @@ container_image(
 
 container_image(
     name = "cdi-func-test-file-host-init-image",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
     base = ":cdi-func-test-file-host-init-file-image",
     directory = "/usr/bin",
     entrypoint = [
@@ -70,6 +110,10 @@ container_image(
 
 container_image(
     name = "cdi-func-test-file-host-http-image",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
     base = ":cdi-func-test-file-host-http-base-image",
     cmd = "mkdir -p /usr/share/nginx/html/images/priv",
     directory = "/",
