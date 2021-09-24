@@ -370,6 +370,9 @@ github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/
 # github.com/ovirt/go-ovirt v4.3.4+incompatible
 ## explicit
 github.com/ovirt/go-ovirt
+# github.com/ovirt/go-ovirt-client v0.6.0
+## explicit
+github.com/ovirt/go-ovirt-client
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors

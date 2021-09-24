@@ -518,6 +518,8 @@ github.com/ostreedev/ostree-go v0.0.0-20190702140239-759a8c1ac913 h1:TnbXhKzrTOy
 github.com/ostreedev/ostree-go v0.0.0-20190702140239-759a8c1ac913/go.mod h1:J6OG6YJVEWopen4avK3VNQSnALmmjvniMmni/YFYAwc=
 github.com/ovirt/go-ovirt v4.3.4+incompatible h1:jXcJpcXyNZ3mXJ1IVU3l3tMpE4JEUSNjqRiEJnVpG40=
 github.com/ovirt/go-ovirt v4.3.4+incompatible/go.mod h1:r33ZGjVKCPMiI6hw791/Zx8tNKk0Gn+4VFWbOfyIvZQ=
+github.com/ovirt/go-ovirt-client v0.6.0 h1:onKiHAput0Uh+YLYWlYRA0fQiDgqKGlhd7ZmgVh3oZ0=
+github.com/ovirt/go-ovirt-client v0.6.0/go.mod h1:LvCGQgqp9TmreCfbYXkVxDVNgmZ9/6e2fWtO58IH+oc=
 github.com/pascaldekloe/goe v0.0.0-20180627143212-57f6aae5913c/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
 github.com/pborman/uuid v1.2.0 h1:J7Q5mO4ysT1dv8hyrUGHb9+ooztCXu1D8MY8DZYsu3g=
 github.com/pborman/uuid v1.2.0/go.mod h1:X/NO0urCmaxf9VXbdlT7C2Yzkj2IKimNn4k+gtPdI/k=
