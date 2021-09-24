@@ -43,9 +43,9 @@ rpm_image(
     }),
     rpms = select({
         "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "@nginx//file",
-            "@gperftools-lib//file",
-            "@libunwind//file",
+            "@nginx-aarch64//file",
+            "@gperftools-lib-aarch64//file",
+            "@libunwind-aarch64//file",
             "@nginx-mimetypes//file",
             "@nginx-filesystem//file",
         ],
