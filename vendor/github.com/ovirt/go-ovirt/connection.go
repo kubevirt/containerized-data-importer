@@ -41,13 +41,16 @@ type LogFunc func(format string, v ...interface{})
 // It is intended as the entry point for the SDK, and it provides access to the `system` service and, from there,
 // to the rest of the services provided by the API.
 type Connection struct {
-	url      *url.URL
-	username string
-	password string
-	token    string
-	insecure bool
-	caFile   string
-	headers  map[string]string
+	url       *url.URL
+	username  string
+	password  string
+	token     string
+	insecure  bool
+	tlsConfig *tls.Config
+	certPool  *x509.CertPool
+	caFile    string
+	caCert    []byte
+	headers   map[string]string
 	// Debug options
 	logFunc LogFunc
 
@@ -66,12 +69,13 @@ func (c *Connection) URL() string {
 	return c.url.String()
 }
 
-// Test tests the connectivity with the server using the credentials provided in connection.
-// If connectivity works correctly and the credentials are valid, it returns a nil error,
-// or it will return an error containing the reason as the message.
+// Test tests the connectivity with the server using the system service.
 func (c *Connection) Test() error {
-	_, err := c.authenticate()
-	return err
+	_, err := c.SystemService().Get().Send()
+	if err != nil {
+		return fmt.Errorf("failed to validate the connection (%w)", err)
+	}
+	return nil
 }
 
 func (c *Connection) getHref(object Href) (string, bool) {
@@ -103,7 +107,7 @@ func (c *Connection) FollowLink(object Href) (interface{}, error) {
 		prefix = prefix + "/"
 	}
 	if !strings.HasPrefix(href, prefix) {
-		return nil, fmt.Errorf("The URL '%v' isn't compatible with the base URL of the connection", href)
+		return nil, fmt.Errorf("the URL '%v' isn't compatible with the base URL of the connection", href)
 	}
 	path := href[len(prefix):]
 	service, err := NewSystemService(c, "").Service(path)
@@ -123,6 +127,10 @@ func (c *Connection) FollowLink(object Href) (interface{}, error) {
 		requestCaller = serviceValue.MethodByName("Get").Call([]reflect.Value{})[0]
 	}
 	callerResponse := requestCaller.MethodByName("Send").Call([]reflect.Value{})[0]
+	if callerResponse.IsNil() {
+		return nil, errors.New("Could not get response")
+	}
+
 	// Get the method index, which is not the Must version
 	methodIndex := 0
 	callerResponseType := callerResponse.Type()
@@ -205,7 +213,7 @@ func (c *Connection) revokeAccessToken() error {
 
 	if ssoResp.SsoError != "" {
 		return &AuthError{
-			baseError{
+			baseError: baseError{
 				Msg: fmt.Sprintf("Error during SSO token revoke %s : %s", ssoResp.SsoErrorCode, ssoResp.SsoError),
 			},
 		}
@@ -226,38 +234,6 @@ type ssoResponseJSON struct {
 
 // Execute a get request to the SSO server and return the response.
 func (c *Connection) getSsoResponse(inputURL *url.URL, parameters map[string]string) (*ssoResponseJSON, error) {
-	// Configure TLS parameters:
-	var tlsConfig *tls.Config
-	if inputURL.Scheme == "https" {
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: c.insecure,
-		}
-		if len(c.caFile) > 0 {
-			if _, err := os.Stat(c.caFile); os.IsNotExist(err) {
-				return nil, fmt.Errorf("The CA File '%s' doesn't exist", c.caFile)
-			}
-			pool := x509.NewCertPool()
-			caCerts, err := ioutil.ReadFile(c.caFile)
-			if err != nil {
-				return nil, err
-			}
-			if !pool.AppendCertsFromPEM(caCerts) {
-				return nil, fmt.Errorf("Failed to parse CA Certificate in file '%s'", c.caFile)
-			}
-			tlsConfig.RootCAs = pool
-		}
-	}
-
-	c.client = &http.Client{
-		Timeout: c.timeout,
-		Transport: &http.Transport{
-			// Close the http connection after calling resp.Body.Close()
-			DisableKeepAlives:  true,
-			DisableCompression: !c.compress,
-			TLSClientConfig:    tlsConfig,
-		},
-	}
-
 	// POST request body:
 	formValues := make(url.Values)
 	for k1, v1 := range parameters {
@@ -286,10 +262,20 @@ func (c *Connection) getSsoResponse(inputURL *url.URL, parameters map[string]str
 	if err != nil {
 		return nil, err
 	}
+
+	if resp.StatusCode == 401 {
+		// Don't bother decoding, this will be a HTML message
+		return nil, &AuthError{
+			baseError: baseError{
+				Msg: fmt.Sprintf("authentication failed (response was: %v)", string(body)),
+			},
+		}
+	}
+
 	var jsonObj ssoResponseJSON
 	err = json.Unmarshal(body, &jsonObj)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to parse non-array sso with response %v", string(body))
+		return nil, fmt.Errorf("failed to parse non-array sso with response %v (%w)", string(body), err)
 	}
 	// Unmarshal successfully
 	if jsonObj.AccessToken != "" || jsonObj.SsoError != "" || jsonObj.SsoErrorCode != "" {
@@ -299,7 +285,7 @@ func (c *Connection) getSsoResponse(inputURL *url.URL, parameters map[string]str
 	var jsonObjList ssoResponseJSONParent
 	err = json.Unmarshal(body, &jsonObjList)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to parse array sso with response %v", string(body))
+		return nil, fmt.Errorf("failed to parse array sso with response %v (%w)", string(body), err)
 	}
 	if len(jsonObjList.children) > 0 {
 		jsonObj.AccessToken = jsonObjList.children[0].AccessToken
@@ -452,6 +438,36 @@ func (connBuilder *ConnectionBuilder) CAFile(caFilePath string) *ConnectionBuild
 	return connBuilder
 }
 
+// TLSConfig sets a custom TLS configuration for the connection. This overrides any CA certificates that may have been
+// passed.
+func (connBuilder *ConnectionBuilder) TLSConfig(tlsConfig *tls.Config) *ConnectionBuilder {
+	if connBuilder.err != nil {
+		return connBuilder
+	}
+	connBuilder.conn.tlsConfig = tlsConfig
+	return connBuilder
+}
+
+// CertPool sets the base certificate pool for the connection.
+func (connBuilder *ConnectionBuilder) CertPool(certPool *x509.CertPool) *ConnectionBuilder {
+	// If already has errors, just return
+	if connBuilder.err != nil {
+		return connBuilder
+	}
+	connBuilder.conn.certPool = certPool
+	return connBuilder
+}
+
+// CACert sets the caCert field for `Connection` instance
+func (connBuilder *ConnectionBuilder) CACert(caCert []byte) *ConnectionBuilder {
+	// If already has errors, just return
+	if connBuilder.err != nil {
+		return connBuilder
+	}
+	connBuilder.conn.caCert = caCert
+	return connBuilder
+}
+
 // Headers sets a map of custom HTTP headers to be added to each HTTP request
 func (connBuilder *ConnectionBuilder) Headers(headers map[string]string) *ConnectionBuilder {
 	// If already has errors, just return
@@ -503,35 +519,50 @@ func (connBuilder *ConnectionBuilder) Build() (*Connection, error) {
 
 	// Check parameters
 	if connBuilder.conn.url == nil {
-		return nil, errors.New("The URL must not be empty")
+		return nil, errors.New("the URL must not be empty")
 	}
 	if len(connBuilder.conn.username) == 0 {
-		return nil, errors.New("The Username must not be empty")
+		return nil, errors.New("the username must not be empty")
 	}
 	if len(connBuilder.conn.password) == 0 {
-		return nil, errors.New("The Password must not be empty")
+		return nil, errors.New("the password must not be empty")
 	}
 
-	// Construct http.Client
-	var tlsConfig *tls.Config
 	if connBuilder.conn.url.Scheme == "https" {
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: connBuilder.conn.insecure,
-		}
-		if len(connBuilder.conn.caFile) > 0 {
-			// Check if the CA File specified exists.
-			if _, err := os.Stat(connBuilder.conn.caFile); os.IsNotExist(err) {
-				return nil, fmt.Errorf("The ca file '%s' doesn't exist", connBuilder.conn.caFile)
+		if connBuilder.conn.tlsConfig == nil {
+			connBuilder.conn.tlsConfig = &tls.Config{
+				InsecureSkipVerify: connBuilder.conn.insecure,
 			}
-			pool := x509.NewCertPool()
-			caCerts, err := ioutil.ReadFile(connBuilder.conn.caFile)
-			if err != nil {
-				return nil, err
+			if !connBuilder.conn.insecure {
+				certPool := connBuilder.conn.certPool
+				var err error
+				if certPool == nil {
+					certPool, err = x509.SystemCertPool()
+					if err != nil {
+						// This happens when the system cert pool is not available.
+						// This is the case on Windows, see https://github.com/golang/go/issues/16736
+						certPool = x509.NewCertPool()
+					}
+				}
+				var caCerts []byte
+				if len(connBuilder.conn.caFile) > 0 {
+					// Check if the CA File specified exists.
+					if _, err := os.Stat(connBuilder.conn.caFile); os.IsNotExist(err) {
+						return nil, fmt.Errorf("failed to check the CA file '%s' (%w)", connBuilder.conn.caFile, err)
+					}
+					caCerts, err = ioutil.ReadFile(connBuilder.conn.caFile)
+					if err != nil {
+						return nil, err
+					}
+
+				} else {
+					caCerts = connBuilder.conn.caCert
+				}
+				if len(caCerts) > 0 && !certPool.AppendCertsFromPEM(caCerts) {
+					return nil, fmt.Errorf("failed to parse CA certificate(s)")
+				}
+				connBuilder.conn.tlsConfig.RootCAs = certPool
 			}
-			if !pool.AppendCertsFromPEM(caCerts) {
-				return nil, fmt.Errorf("Failed to parse CA Certificate in file '%s'", connBuilder.conn.caFile)
-			}
-			tlsConfig.RootCAs = pool
 		}
 	}
 	connBuilder.conn.client = &http.Client{
@@ -540,7 +571,7 @@ func (connBuilder *ConnectionBuilder) Build() (*Connection, error) {
 			// Close the http connection after calling resp.Body.Close()
 			DisableKeepAlives:  true,
 			DisableCompression: !connBuilder.conn.compress,
-			TLSClientConfig:    tlsConfig,
+			TLSClientConfig:    connBuilder.conn.tlsConfig,
 		},
 	}
 	return connBuilder.conn, nil

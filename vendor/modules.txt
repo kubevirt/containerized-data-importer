@@ -146,7 +146,7 @@ github.com/fsnotify/fsnotify
 # github.com/ghodss/yaml v1.0.0
 ## explicit
 github.com/ghodss/yaml
-# github.com/go-logr/logr v0.3.0
+# github.com/go-logr/logr v0.4.0
 ## explicit
 github.com/go-logr/logr
 # github.com/go-logr/zapr v0.2.0
@@ -183,7 +183,7 @@ github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
 # github.com/google/gofuzz v1.1.0
 github.com/google/gofuzz
-# github.com/google/uuid v1.1.2
+# github.com/google/uuid v1.3.0
 ## explicit
 github.com/google/uuid
 # github.com/googleapis/gnostic v0.5.1
@@ -367,7 +367,7 @@ github.com/openshift/library-go/pkg/operator/v1helpers
 ## explicit
 github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators
 github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1
-# github.com/ovirt/go-ovirt v4.3.4+incompatible
+# github.com/ovirt/go-ovirt v0.0.0-20210809163552-d4276e35d3db
 ## explicit
 github.com/ovirt/go-ovirt
 # github.com/ovirt/go-ovirt-client v0.6.0
@@ -977,7 +977,7 @@ k8s.io/gengo/generator
 k8s.io/gengo/namer
 k8s.io/gengo/parser
 k8s.io/gengo/types
-# k8s.io/klog/v2 v2.4.0
+# k8s.io/klog/v2 v2.10.0
 ## explicit
 k8s.io/klog/v2
 # k8s.io/kube-aggregator v0.20.2 => k8s.io/kube-aggregator v0.20.2
