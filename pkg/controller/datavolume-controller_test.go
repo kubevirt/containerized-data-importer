@@ -97,7 +97,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume.Spec.PVC.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
 			importDataVolume.Spec.PVC.VolumeMode = &volumeBlock
 
-			reconciler = createDatavolumeReconciler(importDataVolume)
+			defaultStorageClass := createStorageClass("defaultSc", map[string]string{AnnDefaultStorageClass: "true"})
+			reconciler = createDatavolumeReconciler(defaultStorageClass, importDataVolume)
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc := &corev1.PersistentVolumeClaim{}
@@ -107,26 +108,76 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
 			Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadWriteOnce))
+			Expect(pvc.Spec.StorageClassName).To(BeNil())
+			Expect(pvc.Spec.VolumeMode).ToNot(BeNil())
+			Expect(*pvc.Spec.VolumeMode).To(Equal(corev1.PersistentVolumeBlock))
+		})
+
+		It("Should explicitly set computed storageClassName on a PVC, when not provided in dv", func() {
+			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
+			// spec with accessMode/VolumeMode so storageprofile is not needed
+			importDataVolume.Spec.Storage = createStorageSpec()
+			defaultStorageClass := createStorageClass("defaultSc", map[string]string{AnnDefaultStorageClass: "true"})
+			reconciler = createDatavolumeReconciler(defaultStorageClass, importDataVolume)
+
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Name).To(Equal("test-dv"))
+			Expect(pvc.Spec.StorageClassName).ToNot(Equal("defaultSc"))
 		})
 
 		It("Should set params on a PVC from import DV.Storage", func() {
-			volumeBlock := corev1.PersistentVolumeBlock
+			// spec with accessMode/VolumeMode so storageprofile is not needed
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
-			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
-				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-				VolumeMode:  &volumeBlock,
-			}
+			importDataVolume.Spec.Storage = createStorageSpec()
+			defaultStorageClass := createStorageClass("defaultSc", map[string]string{AnnDefaultStorageClass: "true"})
+			reconciler = createDatavolumeReconciler(defaultStorageClass, importDataVolume)
 
-			reconciler = createDatavolumeReconciler(importDataVolume)
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
+
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
-
 			Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
 			Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadWriteOnce))
+			Expect(pvc.Spec.VolumeMode).ToNot(BeNil())
+			Expect(*pvc.Spec.VolumeMode).To(Equal(corev1.PersistentVolumeBlock))
+			Expect(pvc.Spec.StorageClassName).ToNot(Equal("defaultSc"))
+		})
+
+		It("Should fail on missing size, without storageClass", func() {
+			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
+			// spec with accessMode/VolumeMode so storageprofile is not needed
+			importDataVolume.Spec.Storage = createStorageSpec()
+			importDataVolume.Spec.Storage.Resources = corev1.ResourceRequirements{}
+			defaultStorageClass := createStorageClass("defaultSc", map[string]string{AnnDefaultStorageClass: "true"})
+			reconciler = createDatavolumeReconciler(defaultStorageClass, importDataVolume)
+
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("missing storage size"))
+		})
+
+		It("Should fail on missing size, with StorageClass", func() {
+			storageClassName := "defaultSc"
+			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
+			// spec with accessMode/VolumeMode so storageprofile is not needed
+			importDataVolume.Spec.Storage = createStorageSpec()
+			importDataVolume.Spec.Storage.Resources = corev1.ResourceRequirements{}
+			importDataVolume.Spec.Storage.StorageClassName = &storageClassName
+			defaultStorageClass := createStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"})
+			reconciler = createDatavolumeReconciler(defaultStorageClass, importDataVolume)
+
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("missing storage size"))
 		})
 
 		It("Should set params on a PVC from storageProfile when import DV has no accessMode", func() {
@@ -1469,6 +1520,20 @@ var _ = Describe("All DataVolume Tests", func() {
 		Entry("40Gi virtual size, large overhead to be 40Gi if <= 40Gi and 41Gi if > 40Gi", 40*Gi, largeOverhead),
 	)
 })
+
+func createStorageSpec() *cdiv1.StorageSpec {
+	volumeBlock := corev1.PersistentVolumeBlock
+
+	return &cdiv1.StorageSpec{
+		AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+		VolumeMode:  &volumeBlock,
+		Resources: corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceStorage: resource.MustParse("1G"),
+			},
+		},
+	}
+}
 
 func podUsingCloneSource(dv *cdiv1.DataVolume, readOnly bool) *corev1.Pod {
 	return &corev1.Pod{

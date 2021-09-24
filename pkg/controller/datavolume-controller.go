@@ -2434,29 +2434,27 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 			recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid, "DataVolume.storage spec is missing accessMode and no storageClass to choose profile")
 			return nil, errors.Errorf("DataVolume spec is missing accessMode")
 		}
-
-		return pvcSpec, nil
+	} else {
+		// given storageClass we can apply defaults if needed
+		if len(pvcSpec.AccessModes) == 0 {
+			accessModes, err := getDefaultAccessModes(client, storageClass)
+			if err != nil {
+				log.V(1).Info("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
+				recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid,
+					fmt.Sprintf("DataVolume.storage spec is missing accessMode and cannot get access mode from StorageProfile %s", getName(storageClass)))
+				return nil, err
+			}
+			pvcSpec.AccessModes = append(pvcSpec.AccessModes, accessModes...)
+		}
+		if pvcSpec.VolumeMode == nil || *pvcSpec.VolumeMode == "" {
+			volumeMode, err := getDefaultVolumeMode(client, storageClass)
+			if err != nil {
+				return nil, err
+			}
+			pvcSpec.VolumeMode = volumeMode
+		}
 	}
 	pvcSpec.StorageClassName = &storageClass.Name
-
-	// given storageClass we can apply defaults if needed
-	if len(pvcSpec.AccessModes) == 0 {
-		accessModes, err := getDefaultAccessModes(client, storageClass)
-		if err != nil {
-			log.V(1).Info("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
-			recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid,
-				fmt.Sprintf("DataVolume.storage spec is missing accessMode and cannot get access mode from StorageProfile %s", getName(storageClass)))
-			return nil, err
-		}
-		pvcSpec.AccessModes = append(pvcSpec.AccessModes, accessModes...)
-	}
-	if pvcSpec.VolumeMode == nil || *pvcSpec.VolumeMode == "" {
-		volumeMode, err := getDefaultVolumeMode(client, storageClass)
-		if err != nil {
-			return nil, err
-		}
-		pvcSpec.VolumeMode = volumeMode
-	}
 
 	requestedVolumeSize, err := volumeSize(client, storage, pvcSpec.VolumeMode)
 	if err != nil {
