@@ -19,6 +19,10 @@ import (
 const (
 	// PodWaitForTime is the time to wait for Pod operations to complete
 	PodWaitForTime = defaultPollPeriod
+	// PodWaitForTimeFast is the fast time to wait for Pod operations to complete (30 sec)
+	PodWaitForTimeFast = defaultPollPeriodFast
+	// PodWaitIntervalFast is the fast polling interval (250ms)
+	PodWaitIntervalFast = 250 * time.Millisecond
 
 	podCreateTime = defaultPollPeriod
 	podDeleteTime = defaultPollPeriod
@@ -131,7 +135,12 @@ func findPodByCompFuncOnce(clientSet *kubernetes.Clientset, namespace, prefix, l
 
 // WaitTimeoutForPodReady waits for the given pod to be created and ready
 func WaitTimeoutForPodReady(clientSet *kubernetes.Clientset, podName, namespace string, timeout time.Duration) error {
-	return WaitTimeoutForPodCondition(clientSet, podName, namespace, k8sv1.PodReady, timeout)
+	return WaitTimeoutForPodCondition(clientSet, podName, namespace, k8sv1.PodReady, 2*time.Second, timeout)
+}
+
+// WaitTimeoutForPodReadyPollPeriod waits for the given pod to be created and ready using the passed in poll period
+func WaitTimeoutForPodReadyPollPeriod(clientSet *kubernetes.Clientset, podName, namespace string, pollperiod, timeout time.Duration) error {
+	return WaitTimeoutForPodCondition(clientSet, podName, namespace, k8sv1.PodReady, pollperiod, timeout)
 }
 
 // WaitTimeoutForPodSucceeded waits for pod to succeed
@@ -150,8 +159,8 @@ func WaitTimeoutForPodStatus(clientSet *kubernetes.Clientset, podName, namespace
 }
 
 // WaitTimeoutForPodCondition waits for the given pod to be created and have an expected condition
-func WaitTimeoutForPodCondition(clientSet *kubernetes.Clientset, podName, namespace string, conditionType k8sv1.PodConditionType, timeout time.Duration) error {
-	return wait.PollImmediate(2*time.Second, timeout, podCondition(clientSet, podName, namespace, conditionType))
+func WaitTimeoutForPodCondition(clientSet *kubernetes.Clientset, podName, namespace string, conditionType k8sv1.PodConditionType, pollperiod, timeout time.Duration) error {
+	return wait.PollImmediate(pollperiod, timeout, podCondition(clientSet, podName, namespace, conditionType))
 }
 
 func podStatus(clientSet *kubernetes.Clientset, podName, namespace string, status k8sv1.PodPhase) wait.ConditionFunc {
