@@ -29,6 +29,7 @@ require (
 	github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190725173916-b56e63a643cc
 	github.com/ovirt/go-ovirt v4.3.4+incompatible
 	github.com/ovirt/go-ovirt-client v0.6.0
+	github.com/ovirt/go-ovirt-client-log-klog v1.0.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/client_model v0.2.0

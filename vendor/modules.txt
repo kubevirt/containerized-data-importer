@@ -373,6 +373,11 @@ github.com/ovirt/go-ovirt
 # github.com/ovirt/go-ovirt-client v0.6.0
 ## explicit
 github.com/ovirt/go-ovirt-client
+# github.com/ovirt/go-ovirt-client-log-klog v1.0.0
+## explicit
+github.com/ovirt/go-ovirt-client-log-klog
+# github.com/ovirt/go-ovirt-client-log/v2 v2.1.0
+github.com/ovirt/go-ovirt-client-log/v2
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors

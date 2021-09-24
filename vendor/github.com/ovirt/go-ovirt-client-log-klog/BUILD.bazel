@@ -1,0 +1,16 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "klog.go",
+        "verbose.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/ovirt/go-ovirt-client-log-klog",
+    importpath = "github.com/ovirt/go-ovirt-client-log-klog",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/ovirt/go-ovirt-client-log/v2:go_default_library",
+        "//vendor/k8s.io/klog/v2:go_default_library",
+    ],
+)

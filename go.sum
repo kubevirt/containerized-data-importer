@@ -520,6 +520,10 @@ github.com/ovirt/go-ovirt v4.3.4+incompatible h1:jXcJpcXyNZ3mXJ1IVU3l3tMpE4JEUSN
 github.com/ovirt/go-ovirt v4.3.4+incompatible/go.mod h1:r33ZGjVKCPMiI6hw791/Zx8tNKk0Gn+4VFWbOfyIvZQ=
 github.com/ovirt/go-ovirt-client v0.6.0 h1:onKiHAput0Uh+YLYWlYRA0fQiDgqKGlhd7ZmgVh3oZ0=
 github.com/ovirt/go-ovirt-client v0.6.0/go.mod h1:LvCGQgqp9TmreCfbYXkVxDVNgmZ9/6e2fWtO58IH+oc=
+github.com/ovirt/go-ovirt-client-log-klog v1.0.0 h1:xXG2M9FQifMATM5tlzyIA7qdQtcQ8P1kBoTdTt4iJGY=
+github.com/ovirt/go-ovirt-client-log-klog v1.0.0/go.mod h1:lWAyf9bu9+AkS+PKr0J2auzCsxLixDuTeYHhvLtpcLY=
+github.com/ovirt/go-ovirt-client-log/v2 v2.1.0 h1:cJsHS5CDftm0MseV3LoWKD8Y7lV1k/bdjtlJVxrcm98=
+github.com/ovirt/go-ovirt-client-log/v2 v2.1.0/go.mod h1:mDoU3KIwftpsgZGzXGk5d2UEJYTY0bYMfg/GwPapXL0=
 github.com/pascaldekloe/goe v0.0.0-20180627143212-57f6aae5913c/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
 github.com/pborman/uuid v1.2.0 h1:J7Q5mO4ysT1dv8hyrUGHb9+ooztCXu1D8MY8DZYsu3g=
 github.com/pborman/uuid v1.2.0/go.mod h1:X/NO0urCmaxf9VXbdlT7C2Yzkj2IKimNn4k+gtPdI/k=
