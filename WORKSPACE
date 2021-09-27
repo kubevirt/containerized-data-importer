@@ -311,10 +311,7 @@ http_file(
 http_file(
     name = "buildah-aarch64",
     sha256 = "d74512b6c17698627fbadd8bf10108a3dac43e428515c25a7a86296e1bf5e96c",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux//updates/33/Everything/aarch64/Packages/b/buildah-1.22.3-1.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/d74512b6c17698627fbadd8bf10108a3dac43e428515c25a7a86296e1bf5e96c",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/d74512b6c17698627fbadd8bf10108a3dac43e428515c25a7a86296e1bf5e96c"],
 )
 
 http_file(
