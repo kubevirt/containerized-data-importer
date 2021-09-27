@@ -72,7 +72,7 @@ type Clients struct {
 	OcPath         string
 	CdiInstallNs   string
 	KubeConfig     string
-	Master         string
+	KubeURL        string
 	GoCLIPath      string
 	SnapshotSCName string
 	BlockSCName    string
@@ -252,7 +252,7 @@ func DeleteNS(c *kubernetes.Clientset, ns string) error {
 
 // GetDynamicClient gets an instance of a dynamic client that performs generic operations on arbitrary k8s API objects.
 func (c *Clients) GetDynamicClient() (dynamic.Interface, error) {
-	cfg, err := clientcmd.BuildConfigFromFlags(c.Master, c.KubeConfig)
+	cfg, err := clientcmd.BuildConfigFromFlags(c.KubeURL, c.KubeConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +265,7 @@ func (c *Clients) GetDynamicClient() (dynamic.Interface, error) {
 
 // GetCdiClient gets an instance of a kubernetes client that includes all the CDI extensions.
 func (c *Clients) GetCdiClient() (*cdiClientset.Clientset, error) {
-	cfg, err := clientcmd.BuildConfigFromFlags(c.Master, c.KubeConfig)
+	cfg, err := clientcmd.BuildConfigFromFlags(c.KubeURL, c.KubeConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +278,7 @@ func (c *Clients) GetCdiClient() (*cdiClientset.Clientset, error) {
 
 // GetExtClient gets an instance of a kubernetes client that includes all the api extensions.
 func (c *Clients) GetExtClient() (*extclientset.Clientset, error) {
-	cfg, err := clientcmd.BuildConfigFromFlags(c.Master, c.KubeConfig)
+	cfg, err := clientcmd.BuildConfigFromFlags(c.KubeURL, c.KubeConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +372,7 @@ func (c *Clients) GetKubeClient() (*kubernetes.Clientset, error) {
 
 // LoadConfig loads our specified kubeconfig
 func (c *Clients) LoadConfig() (*rest.Config, error) {
-	return clientcmd.BuildConfigFromFlags(c.Master, c.KubeConfig)
+	return clientcmd.BuildConfigFromFlags(c.KubeURL, c.KubeConfig)
 }
 
 // GetKubeClientFromRESTConfig provides a function to get a K8s client using hte REST config

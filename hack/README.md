@@ -78,9 +78,9 @@ These may be passed to a target as `$ make VARIABLE=value target`
 
              `make TEST_ARGS="--test-args=-ginkgo.noColor=true" test-functional >& foo`.
 
-  Note: the following extra flags are not supported in TEST_ARGS: -master, -cdi-namespace, -kubeconfig, -kubectl-path
+  Note: the following extra flags are not supported in TEST_ARGS: -kubeurl, -cdi-namespace, -kubeconfig, -kubectl-path
 since these flags are overridden by the _hack/build/run-functional-tests.sh_ script.
-To change the default settings for these values the KUBE_MASTER_URL, CDI_NAMESPACE, KUBECONFIG, and KUBECTL variables, respectively, must be set.
+To change the default settings for these values the KUBE_URL, CDI_NAMESPACE, KUBECONFIG, and KUBECTL variables, respectively, must be set.
 - `RELREF`: Required by `release-description`. Must be a commit or tag.  Should be the more recent than `PREREF`
 - `PREREF`: Required by `release-description`. Must also be a commit or tag.  Should be the later than `RELREF`
 
