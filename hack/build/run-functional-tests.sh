@@ -33,7 +33,7 @@ KUBEVIRTCI_CONFIG_PATH="$(
 BASE_PATH=${KUBEVIRTCI_CONFIG_PATH:-$PWD}
 KUBECONFIG=${KUBECONFIG:-$BASE_PATH/$KUBEVIRT_PROVIDER/.kubeconfig}
 GOCLI=${GOCLI:-${CDI_DIR}/cluster-up/cli.sh}
-KUBE_MASTER_URL=${KUBE_MASTER_URL:-""}
+KUBE_URL=${KUBE_URL:-""}
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}
 SNAPSHOT_SC=${SNAPSHOT_SC:-rook-ceph-block}
 BLOCK_SC=${BLOCK_SC:-rook-ceph-block}
@@ -60,7 +60,7 @@ parseTestOpts "${@}"
 echo $KUBECONFIG
 echo $KUBECTL
 
-arg_master="${KUBE_MASTER_URL:+-master=$KUBE_MASTER_URL}"
+arg_kubeurl="${KUBE_URL:+-kubeurl=$KUBE_URL}"
 arg_namespace="${CDI_NAMESPACE:+-cdi-namespace=$CDI_NAMESPACE}"
 arg_kubeconfig="${KUBECONFIG:+-kubeconfig=$KUBECONFIG}"
 arg_kubectl="${KUBECTL:+-kubectl-path=$KUBECTL}"
@@ -72,7 +72,7 @@ arg_sc_csi="${CSICLONE_SC:+-csiclone-sc=$CSICLONE_SC}"
 arg_docker_prefix="${DOCKER_PREFIX:+-docker-prefix=$DOCKER_PREFIX}"
 arg_docker_tag="${DOCKER_TAG:+-docker-tag=$DOCKER_TAG}"
 
-test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc} ${arg_gocli} ${arg_sc_snap} ${arg_sc_block} ${arg_sc_csi} ${arg_docker_prefix} ${arg_docker_tag}"
+test_args="${test_args} -ginkgo.v ${arg_kubeurl} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc} ${arg_gocli} ${arg_sc_snap} ${arg_sc_block} ${arg_sc_csi} ${arg_docker_prefix} ${arg_docker_tag}"
 
 echo 'Wait until all CDI Pods are ready'
 retry_counter=0

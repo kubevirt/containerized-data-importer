@@ -27,7 +27,7 @@ var (
 	ocPath         = flag.String("oc-path", "oc", "The path to the oc binary")
 	cdiInstallNs   = flag.String("cdi-namespace", "cdi", "The namespace of the CDI controller")
 	kubeConfig     = flag.String("kubeconfig", "/var/run/kubernetes/admin.kubeconfig", "The absolute path to the kubeconfig file")
-	master         = flag.String("master", "", "master url:port")
+	kubeURL        = flag.String("kubeurl", "", "kube URL url:port")
 	goCLIPath      = flag.String("gocli-path", "cli.sh", "The path to cli script")
 	snapshotSCName = flag.String("snapshot-sc", "", "The Storage Class supporting snapshots")
 	blockSCName    = flag.String("block-sc", "", "The Storage Class supporting block mode volumes")
@@ -54,7 +54,7 @@ func BuildTestSuite() {
 		framework.ClientsInstance.OcPath = *ocPath
 		framework.ClientsInstance.CdiInstallNs = *cdiInstallNs
 		framework.ClientsInstance.KubeConfig = *kubeConfig
-		framework.ClientsInstance.Master = *master
+		framework.ClientsInstance.KubeURL = *kubeURL
 		framework.ClientsInstance.GoCLIPath = *goCLIPath
 		framework.ClientsInstance.SnapshotSCName = *snapshotSCName
 		framework.ClientsInstance.BlockSCName = *blockSCName
@@ -66,7 +66,7 @@ func BuildTestSuite() {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "OC path: %s\n", framework.ClientsInstance.OcPath)
 		fmt.Fprintf(ginkgo.GinkgoWriter, "CDI install NS: %s\n", framework.ClientsInstance.CdiInstallNs)
 		fmt.Fprintf(ginkgo.GinkgoWriter, "Kubeconfig: %s\n", framework.ClientsInstance.KubeConfig)
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Master: %s\n", framework.ClientsInstance.Master)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "KubeURL: %s\n", framework.ClientsInstance.KubeURL)
 		fmt.Fprintf(ginkgo.GinkgoWriter, "GO CLI path: %s\n", framework.ClientsInstance.GoCLIPath)
 		fmt.Fprintf(ginkgo.GinkgoWriter, "Snapshot SC: %s\n", framework.ClientsInstance.SnapshotSCName)
 		fmt.Fprintf(ginkgo.GinkgoWriter, "Block SC: %s\n", framework.ClientsInstance.BlockSCName)

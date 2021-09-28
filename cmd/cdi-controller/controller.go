@@ -42,7 +42,7 @@ const (
 
 var (
 	kubeconfig             string
-	masterURL              string
+	kubeURL                string
 	importerImage          string
 	clonerImage            string
 	uploadServerImage      string
@@ -71,7 +71,7 @@ type ControllerEnvs struct {
 //   specified we do an in-cluster config. For testing it's easiest to export KUBECONFIG.
 func init() {
 	// flags
-	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
+	flag.StringVar(&kubeURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
 	klog.InitFlags(nil)
 	flag.Parse()
 
@@ -226,7 +226,7 @@ func main() {
 	logf.SetLogger(zap.New(zap.UseDevMode(debug)))
 	logf.Log.WithName("main").Info("Verbosity level", "verbose", verbose, "debug", debug)
 
-	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
+	cfg, err := clientcmd.BuildConfigFromFlags(kubeURL, kubeconfig)
 	if err != nil {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
 	}

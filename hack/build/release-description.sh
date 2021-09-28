@@ -78,8 +78,8 @@ Additional Resources
 - [How to contribute][contributing]
 - [License][license]
 
-[contributing]: https://github.com/kubevirt/containerized-data-importer/blob/master/hack/README.md
-[license]: https://github.com/kubevirt/containerized-data-importer/blob/master/LICENSE
+[contributing]: https://github.com/kubevirt/containerized-data-importer/blob/main/hack/README.md
+[license]: https://github.com/kubevirt/containerized-data-importer/blob/main/LICENSE
 EOF
 }
 

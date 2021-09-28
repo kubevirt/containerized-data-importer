@@ -1,7 +1,7 @@
 # Containerized Data Importer
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/kubevirt/containerized-data-importer)](https://goreportcard.com/report/github.com/kubevirt/containerized-data-importer)
-[![Coverage Status](https://img.shields.io/coveralls/kubevirt/containerized-data-importer/master.svg)](https://coveralls.io/github/kubevirt/containerized-data-importer?branch=master)
+[![Coverage Status](https://img.shields.io/coveralls/kubevirt/containerized-data-importer/main.svg)](https://coveralls.io/github/kubevirt/containerized-data-importer?branch=main)
 [![Licensed under Apache License version 2.0](https://img.shields.io/github/license/kubevirt/containerized-data-importer.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
 **Containerized-Data-Importer (CDI)** is a persistent storage management add-on for Kubernetes.
@@ -76,7 +76,7 @@ Create a DataVolume and populate it with data from an http source
 $ kubectl create -f https://raw.githubusercontent.com/kubevirt/containerized-data-importer/$VERSION/manifests/example/import-kubevirt-datavolume.yaml
 ```
 
-There are quite a few examples in the [example manifests](https://github.com/kubevirt/containerized-data-importer/tree/master/manifests/example), check them out as a reference to create DataVolumes from additional sources like registries, S3 and your local system.
+There are quite a few examples in the [example manifests](https://github.com/kubevirt/containerized-data-importer/tree/main/manifests/example), check them out as a reference to create DataVolumes from additional sources like registries, S3 and your local system.
 
 ## Hack it
 

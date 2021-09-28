@@ -234,7 +234,7 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 		if version.LessThan(minVersion) {
 			Skip(fmt.Sprintf("kubernetes version %s, doesn't support network ingress", version.String()))
 		}
-		cfg, err := clientcmd.BuildConfigFromFlags(f.Master, f.KubeConfig)
+		cfg, err := clientcmd.BuildConfigFromFlags(f.KubeURL, f.KubeConfig)
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking if a route exists, we set that as default")
 		openshiftClient, err := route1client.NewForConfig(cfg)
@@ -349,7 +349,7 @@ var _ = Describe("CDI ingress config tests", func() {
 	)
 
 	BeforeEach(func() {
-		cfg, err := clientcmd.BuildConfigFromFlags(f.Master, f.KubeConfig)
+		cfg, err := clientcmd.BuildConfigFromFlags(f.KubeURL, f.KubeConfig)
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking if a route exists, we set that as default")
 		openshiftClient, err := route1client.NewForConfig(cfg)
@@ -479,7 +479,7 @@ var _ = Describe("CDI route config tests", func() {
 	)
 
 	BeforeEach(func() {
-		cfg, err := clientcmd.BuildConfigFromFlags(f.Master, f.KubeConfig)
+		cfg, err := clientcmd.BuildConfigFromFlags(f.KubeURL, f.KubeConfig)
 		Expect(err).ToNot(HaveOccurred())
 		openshiftClient, err = route1client.NewForConfig(cfg)
 		Expect(err).ToNot(HaveOccurred())

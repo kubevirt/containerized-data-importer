@@ -74,6 +74,7 @@ test-functional: build-functest
 # test-lint runs gofmt and golint tests against src files
 test-lint:
 	${DO_BAZ} "./hack/build/run-lint-checks.sh"
+	"./hack/ci/language.sh"
 
 docker-registry-cleanup:
 	./hack/build/cleanup_docker.sh
