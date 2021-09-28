@@ -68,6 +68,40 @@ func ResetImageIoInventory(f *framework.Framework, configurators ...string) {
 	gomega.Expect(err).To(gomega.BeNil())
 }
 
+// CreateImageIoDefaultInventory resets ImageIO inventory to the defaults, and adds a response for the base /ovirt-engine/api URL.
+func CreateImageIoDefaultInventory(f *framework.Framework) {
+	ResetImageIoInventory(f)
+
+	// Final catch-all API response
+	responseSequences := []imageIoMockResponseSequence{
+		{
+			Path:   "/ovirt-engine/api",
+			Method: "GET",
+			Responses: []imageIoMockResponse{
+				{
+					ResponseBody: "<api/>",
+					ResponseCode: 200,
+				},
+			},
+		},
+	}
+
+	// Encode JSON and return bytes to send to curl's stdin
+	responseSequenceJSON := new(bytes.Buffer)
+	encoder := json.NewEncoder(responseSequenceJSON)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(responseSequences)
+	gomega.Expect(err).To(gomega.BeNil())
+
+	// Find the imageio simulator pod
+	pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "imageio-deployment", "app=imageio")
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	gomega.Expect(pod).ToNot(gomega.BeNil())
+
+	// Create single response to /ovirt-engine/api
+	postInventoryStubs(f, pod, responseSequenceJSON)
+}
+
 // CreateImageIoWarmImportInventory constructs ImageIO inventory updates for a multi-stage import
 func CreateImageIoWarmImportInventory(f *framework.Framework, diskID string, storageDomainID string, snapshots []string) {
 	imageioImageURL := fmt.Sprintf(utils.ImageioImageURL, f.CdiInstallNs)
@@ -281,6 +315,18 @@ func createResponseSequences(data *imageIoInventoryData) *bytes.Buffer {
 			},
 		})
 	}
+
+	// Final catch-all API response
+	responseSequences = append(responseSequences, imageIoMockResponseSequence{
+		Path:   "/ovirt-engine/api",
+		Method: "GET",
+		Responses: []imageIoMockResponse{
+			{
+				ResponseBody: "<api/>",
+				ResponseCode: 200,
+			},
+		},
+	})
 
 	// Encode JSON and return bytes to send to curl's stdin
 	responseSequenceJSON := new(bytes.Buffer)

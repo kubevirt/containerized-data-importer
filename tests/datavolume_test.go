@@ -195,10 +195,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 		Expect(err).To(BeNil())
 		stringData := map[string]string{
-			common.KeyAccess: "YWRtaW5AaW50ZXJuYWw=",
-			common.KeySecret: "MTIzNDU2",
+			common.KeyAccess: "admin@internal",
+			common.KeySecret: "123456",
 		}
-		ResetImageIoInventory(f)
+		CreateImageIoDefaultInventory(f)
 		s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, "mysecret"))
 		return utils.NewDataVolumeWithImageioImport(dataVolumeName, size, url, s.Name, cm, "123")
 	}
@@ -207,8 +207,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 		Expect(err).To(BeNil())
 		stringData := map[string]string{
-			common.KeyAccess: "YWRtaW5AaW50ZXJuYWw=",
-			common.KeySecret: "MTIzNDU2",
+			common.KeyAccess: "admin@internal",
+			common.KeySecret: "123456",
 		}
 		s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, "mysecret"))
 		diskID := "disk-678"

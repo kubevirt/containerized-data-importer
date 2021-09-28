@@ -1278,10 +1278,10 @@ var _ = Describe("Preallocation", func() {
 			cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 			Expect(err).To(BeNil())
 			stringData := map[string]string{
-				common.KeyAccess: "YWRtaW5AaW50ZXJuYWw=",
-				common.KeySecret: "MTIzNDU2",
+				common.KeyAccess: "admin@internal",
+				common.KeySecret: "12345",
 			}
-			tests.ResetImageIoInventory(f)
+			tests.CreateImageIoDefaultInventory(f)
 			s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, "mysecret"))
 			return utils.NewDataVolumeWithImageioImport("import-dv", "100Mi", imageioURL(), s.Name, cm, "123")
 		}),
