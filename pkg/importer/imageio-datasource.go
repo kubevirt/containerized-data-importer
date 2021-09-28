@@ -30,6 +30,8 @@ import (
 	"time"
 
 	ovirtsdk4 "github.com/ovirt/go-ovirt"
+	ovirtclient "github.com/ovirt/go-ovirt-client"
+	ovirtclientlog "github.com/ovirt/go-ovirt-client-log-klog"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 
@@ -1032,8 +1034,33 @@ func (wrapper *ConnectionWrapper) Close() error {
 	return wrapper.conn.Close()
 }
 
+type extraSettings struct {
+	compression  bool
+	extraHeaders map[string]string
+}
+
+func (e *extraSettings) Compression() bool {
+	return e.compression
+}
+func (e *extraSettings) ExtraHeaders() map[string]string {
+	return e.extraHeaders
+}
+
 func getOvirtClient(ep string, accessKey string, secKey string) (ConnectionInterface, error) {
-	conn, err := ovirtsdk4.NewConnectionBuilder().URL(ep).Username(accessKey).Password(secKey).Insecure(true).Compress(true).Build()
+	var conn *ovirtsdk4.Connection
+
+	tls := ovirtclient.TLS().Insecure()
+	logger := ovirtclientlog.New()
+	extras := &extraSettings{
+		compression:  true,
+		extraHeaders: nil,
+	}
+
+	client, err := ovirtclient.New(ep, accessKey, secKey, tls, logger, extras)
+	if client != nil {
+		conn = client.GetSDKClient()
+	}
+
 	return &ConnectionWrapper{
 		conn: conn,
 	}, err
