@@ -441,6 +441,10 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		}
 		pvc = newPvc
 	} else {
+		pvc, err = r.resourceRequestsUpdate(pvc, pvcSpec)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 		if getSource(pvc) == SourceVDDK {
 			changed, err := r.getVddkAnnotations(datavolume, pvc)
 			if err != nil {
@@ -878,6 +882,19 @@ func (r *DatavolumeReconciler) doCrossNamespaceClone(log logr.Logger,
 	}
 
 	return nil, nil
+}
+
+func (r *DatavolumeReconciler) resourceRequestsUpdate(pvc *corev1.PersistentVolumeClaim, pvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
+	if !reflect.DeepEqual(pvc.Spec.Resources.Requests, pvcSpec.Resources.Requests) {
+		pvc.Spec.Resources.Requests = pvcSpec.Resources.Requests
+		if err := r.client.Update(context.TODO(), pvc); err != nil {
+			return nil, err
+		}
+		if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: pvc.Namespace, Name: pvc.Name}, pvc); err != nil {
+			return nil, err
+		}
+	}
+	return pvc, nil
 }
 
 func (r *DatavolumeReconciler) getVddkAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (bool, error) {

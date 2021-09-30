@@ -92,6 +92,7 @@ func getAPIServerClusterPolicyRules() []rbacv1.PolicyRule {
 			},
 			Verbs: []string{
 				"get",
+				"update",
 			},
 		},
 		{

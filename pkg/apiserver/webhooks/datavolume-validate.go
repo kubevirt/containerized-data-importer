@@ -30,6 +30,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kvalidation "k8s.io/apimachinery/pkg/util/validation"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
@@ -458,7 +459,62 @@ func validateStorageSize(resources v1.ResourceRequirements, field *k8sfield.Path
 	return nil, true
 }
 
+func getStorageRequest(dv cdiv1.DataVolume) (resource.Quantity, bool) {
+	if dv.Spec.PVC != nil {
+		request, ok := dv.Spec.PVC.Resources.Requests["storage"]
+		return request, ok
+	}
+	if dv.Spec.Storage != nil {
+		request, ok := dv.Spec.Storage.Resources.Requests["storage"]
+		return request, ok
+	}
+	return *resource.NewQuantity(0, resource.DecimalSI), false
+}
+
+func setStorageRequest(dv cdiv1.DataVolume, newStorageSize resource.Quantity) cdiv1.DataVolume {
+	if dv.Spec.PVC != nil {
+		dv.Spec.PVC.Resources.Requests["storage"] = newStorageSize
+	}
+	if dv.Spec.Storage != nil {
+		dv.Spec.Storage.Resources.Requests["storage"] = newStorageSize
+	}
+	return dv
+}
+
+func (wh *dataVolumeValidatingWebhook) validateStorageSizeUpdate(dv cdiv1.DataVolume) *metav1.StatusCause {
+	missingSizeCause := metav1.StatusCause{
+		Type:    metav1.CauseTypeFieldValueInvalid,
+		Message: "PVC size is missing",
+		Field:   k8sfield.NewPath("DataVolume").Child("Spec").Child("PVC", "resources", "requests", "size").String(),
+	}
+	errCause := func(err error) *metav1.StatusCause {
+		return &metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Got error %s", err),
+			Field:   k8sfield.NewPath("DataVolume").Child("Spec").Child("PVC", "resources", "requests", "size").String(),
+		}
+	}
+	pvc, err := wh.k8sClient.CoreV1().PersistentVolumeClaims(dv.GetNamespace()).Get(context.TODO(), dv.GetName(), metav1.GetOptions{})
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return errCause(err)
+		}
+		return nil
+	}
+	newRequest, ok := getStorageRequest(dv)
+	if !ok {
+		return &missingSizeCause
+	}
+	pvc.Spec.Resources.Requests["storage"] = newRequest
+	_, err = wh.k8sClient.CoreV1().PersistentVolumeClaims(dv.GetNamespace()).Update(context.TODO(), pvc, metav1.UpdateOptions{DryRun: []string{metav1.DryRunAll}})
+	if err != nil {
+		return errCause(err)
+	}
+	return nil
+}
+
 func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
+	var causes []metav1.StatusCause
 	if err := validateDataVolumeResource(ar); err != nil {
 		return toAdmissionResponseError(err)
 	}
@@ -478,6 +534,24 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 			return toAdmissionResponseError(err)
 		}
 
+		cause := wh.validateStorageSizeUpdate(dv)
+		if cause != nil {
+			causes = append(causes, *cause)
+			return toRejectedAdmissionResponse(causes)
+		}
+		// We later test that the old DV and DV have no spec changes.
+		// Make sure this test passes despite the storage request change.
+		newStorageRequest, ok := getStorageRequest(dv)
+		if !ok {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: "PVC size is missing",
+				Field:   k8sfield.NewPath("DataVolume").Child("Spec").Child("PVC", "resources", "requests", "size").String(),
+			})
+			return toRejectedAdmissionResponse(causes)
+		}
+		oldDV = setStorageRequest(oldDV, newStorageRequest)
+
 		// Always admit checkpoint updates for multi-stage migrations.
 		multiStageAdmitted := false
 		isMultiStage := dv.Spec.Source != nil && len(dv.Spec.Checkpoints) > 0 &&
@@ -496,7 +570,6 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 
 		if !multiStageAdmitted && !apiequality.Semantic.DeepEqual(dv.Spec, oldDV.Spec) {
 			klog.Errorf("Cannot update spec for DataVolume %s/%s", dv.GetNamespace(), dv.GetName())
-			var causes []metav1.StatusCause
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueDuplicate,
 				Message: fmt.Sprintf("Cannot update DataVolume Spec"),
@@ -506,7 +579,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 		}
 	}
 
-	causes := validateDataVolumeName(dv.Name)
+	causes = validateDataVolumeName(dv.Name)
 	if len(causes) > 0 {
 		klog.Infof("rejected DataVolume admission")
 		return toRejectedAdmissionResponse(causes)
@@ -527,7 +600,6 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 				// datavolume controller, and we can't use it.
 				if (pvcOwner == nil) || (pvcOwner.Kind != "DataVolume") {
 					klog.Errorf("destination PVC %s/%s already exists", pvc.GetNamespace(), pvc.GetName())
-					var causes []metav1.StatusCause
 					causes = append(causes, metav1.StatusCause{
 						Type:    metav1.CauseTypeFieldValueDuplicate,
 						Message: fmt.Sprintf("Destination PVC %s/%s already exists", pvc.GetNamespace(), pvc.GetName()),

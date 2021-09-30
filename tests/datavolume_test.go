@@ -880,6 +880,64 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					string(dv.Status.Progress) == "N/A"
 			}, timeout, pollingInterval).Should(BeTrue())
 		})
+
+		Describe("dataVolume expanding storage requests", func() {
+			BeforeEach(func() {
+				sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
+				if err != nil {
+					Skip(fmt.Sprintf("Snapshot storage class %s not found", f.SnapshotSCName))
+				}
+				allowsExpansion := sc.AllowVolumeExpansion != nil && *sc.AllowVolumeExpansion
+				if !allowsExpansion {
+					Skip(fmt.Sprintf("Snapshot storage class %s doesn't allow PVC expansion", f.SnapshotSCName))
+				}
+			})
+
+			It("Should allow expansion", func() {
+				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", cirrosURL())
+				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Waiting for PVC to exist")
+				Eventually(func() error {
+					_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+					return err
+				}, timeout, pollingInterval).Should(BeNil())
+
+				By("Increasing DV spec size request")
+				dataVolume, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				dataVolume.Spec.PVC.Resources.Requests[v1.ResourceStorage] = resource.MustParse("1.5Gi")
+				_, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Update(context.TODO(), dataVolume, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Waiting for PVC spec size request to grow")
+				Eventually(func() bool {
+					pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					return pvc.Spec.Resources.Requests.Storage().Cmp(resource.MustParse("1.5Gi")) != -1
+				}, timeout, pollingInterval).Should(BeTrue())
+			})
+
+			It("Should forbid reducing size with webhook", func() {
+				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", cirrosURL())
+				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Waiting for PVC to exist")
+				Eventually(func() error {
+					_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+					return err
+				}, timeout, pollingInterval).Should(BeNil())
+
+				By("Decreasing DV spec size request")
+				dataVolume, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				dataVolume.Spec.PVC.Resources.Requests[v1.ResourceStorage] = resource.MustParse("0.5Gi")
+				_, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Update(context.TODO(), dataVolume, metav1.UpdateOptions{})
+				Expect(err).To(HaveOccurred())
+			})
+		})
 	})
 
 	Describe("[rfe_id:1111][test_id:2001][crit:low][vendor:cnv-qe@redhat.com][level:component]Verify multiple blank disk creations in parallel", func() {

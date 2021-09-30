@@ -331,40 +331,6 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(true))
 		})
 
-		It("should reject DataVolume spec PVC size update", func() {
-			blankSource := cdiv1.DataVolumeSource{
-				Blank: &cdiv1.DataVolumeBlankImage{},
-			}
-			pvc := newPVCSpec(pvcSizeDefault)
-			newDataVolume := newDataVolume("testDv", blankSource, pvc)
-			newBytes, _ := json.Marshal(&newDataVolume)
-
-			oldDataVolume := newDataVolume.DeepCopy()
-			oldDataVolume.Spec.PVC.Resources.Requests["storage"] =
-				*resource.NewQuantity(pvcSizeDefault+1, resource.BinarySI)
-			oldBytes, _ := json.Marshal(oldDataVolume)
-
-			ar := &admissionv1.AdmissionReview{
-				Request: &admissionv1.AdmissionRequest{
-					Operation: admissionv1.Update,
-					Resource: metav1.GroupVersionResource{
-						Group:    cdiv1.SchemeGroupVersion.Group,
-						Version:  cdiv1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: newBytes,
-					},
-					OldObject: runtime.RawExtension{
-						Raw: oldBytes,
-					},
-				},
-			}
-
-			resp := validateAdmissionReview(ar)
-			Expect(resp.Allowed).To(Equal(false))
-		})
-
 		It("should accept DataVolume spec PVC size format update", func() {
 			blankSource := cdiv1.DataVolumeSource{
 				Blank: &cdiv1.DataVolumeBlankImage{},
