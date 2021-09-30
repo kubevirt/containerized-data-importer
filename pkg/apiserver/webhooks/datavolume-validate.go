@@ -60,12 +60,12 @@ func validateSourceURL(sourceURL string) string {
 	return ""
 }
 
-func validateDataVolumeName(name string) []metav1.StatusCause {
+func validateNameLength(name string) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 	if len(name) > kvalidation.DNS1123SubdomainMaxLength {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Name of data volume cannot be more than %d characters", kvalidation.DNS1123SubdomainMaxLength),
+			Message: fmt.Sprintf("Name cannot be longer than %d characters", kvalidation.DNS1123SubdomainMaxLength),
 			Field:   "",
 		})
 	}
@@ -250,63 +250,12 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 			})
 			return causes
 		}
-		sourceURL := spec.Source.Registry.URL
-		sourceIS := spec.Source.Registry.ImageStream
-		if (sourceURL == nil && sourceIS == nil) || (sourceURL != nil && sourceIS != nil) {
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("Source registry should have either URL or ImageStream"),
-				Field:   field.Child("source", "Registry").String(),
-			})
-			return causes
-		}
-		if sourceURL != nil {
-			url, err := neturl.Parse(*sourceURL)
-			if err != nil {
-				causes = append(causes, metav1.StatusCause{
-					Type:    metav1.CauseTypeFieldValueInvalid,
-					Message: fmt.Sprintf("Illegal registry source URL %s", *sourceURL),
-					Field:   field.Child("source", "Registry", "URL").String(),
-				})
-				return causes
-			}
-			scheme := url.Scheme
-			if scheme != cdiv1.RegistrySchemeDocker && scheme != cdiv1.RegistrySchemeOci {
-				causes = append(causes, metav1.StatusCause{
-					Type:    metav1.CauseTypeFieldValueInvalid,
-					Message: fmt.Sprintf("Illegal registry source URL scheme %s", url),
-					Field:   field.Child("source", "Registry", "URL").String(),
-				})
-				return causes
-			}
-		}
-		importMethod := spec.Source.Registry.PullMethod
-		if importMethod != nil && *importMethod != cdiv1.RegistryPullPod && *importMethod != cdiv1.RegistryPullNode {
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("ImportMethod %s is neither %s, %s or \"\"", *importMethod, cdiv1.RegistryPullPod, cdiv1.RegistryPullNode),
-				Field:   field.Child("source", "Registry", "importMethod").String(),
-			})
+
+		causes := validateDataVolumeSourceRegistry(spec.Source.Registry, field)
+		if len(causes) > 0 {
 			return causes
 		}
 
-		if sourceIS != nil && *sourceIS == "" {
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("Source registry ImageStream is not valid"),
-				Field:   field.Child("source", "Registry", "importMethod").String(),
-			})
-			return causes
-		}
-
-		if sourceIS != nil && (importMethod == nil || *importMethod != cdiv1.RegistryPullNode) {
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("Source registry ImageStream is supported only with node pull import method"),
-				Field:   field.Child("source", "Registry", "importMethod").String(),
-			})
-			return causes
-		}
 	}
 
 	if spec.Source.Imageio != nil {
@@ -346,6 +295,69 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 				causes = append(causes, *cause)
 			}
 		}
+	}
+
+	return causes
+}
+
+func validateDataVolumeSourceRegistry(sourceRegistry *cdiv1.DataVolumeSourceRegistry, field *k8sfield.Path) []metav1.StatusCause {
+	var causes []metav1.StatusCause
+	sourceURL := sourceRegistry.URL
+	sourceIS := sourceRegistry.ImageStream
+	if (sourceURL == nil && sourceIS == nil) || (sourceURL != nil && sourceIS != nil) {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Source registry should have either URL or ImageStream"),
+			Field:   field.Child("source", "Registry").String(),
+		})
+		return causes
+	}
+	if sourceURL != nil {
+		url, err := neturl.Parse(*sourceURL)
+		if err != nil {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("Illegal registry source URL %s", *sourceURL),
+				Field:   field.Child("source", "Registry", "URL").String(),
+			})
+			return causes
+		}
+		scheme := url.Scheme
+		if scheme != cdiv1.RegistrySchemeDocker && scheme != cdiv1.RegistrySchemeOci {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("Illegal registry source URL scheme %s", url),
+				Field:   field.Child("source", "Registry", "URL").String(),
+			})
+			return causes
+		}
+	}
+	importMethod := sourceRegistry.PullMethod
+	if importMethod != nil && *importMethod != cdiv1.RegistryPullPod && *importMethod != cdiv1.RegistryPullNode {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("ImportMethod %s is neither %s, %s or \"\"", *importMethod, cdiv1.RegistryPullPod, cdiv1.RegistryPullNode),
+			Field:   field.Child("source", "Registry", "importMethod").String(),
+		})
+		return causes
+	}
+
+	if sourceIS != nil && *sourceIS == "" {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Source registry ImageStream is not valid"),
+			Field:   field.Child("source", "Registry", "importMethod").String(),
+		})
+		return causes
+	}
+
+	if sourceIS != nil && (importMethod == nil || *importMethod != cdiv1.RegistryPullNode) {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Source registry ImageStream is supported only with node pull import method"),
+			Field:   field.Child("source", "Registry", "importMethod").String(),
+		})
+		return causes
 	}
 
 	return causes
@@ -506,7 +518,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 		}
 	}
 
-	causes := validateDataVolumeName(dv.Name)
+	causes := validateNameLength(dv.Name)
 	if len(causes) > 0 {
 		klog.Infof("rejected DataVolume admission")
 		return toRejectedAdmissionResponse(causes)

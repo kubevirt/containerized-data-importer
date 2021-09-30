@@ -22,7 +22,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,7 +37,7 @@ import (
 )
 
 var (
-	dicLog = logf.Log.WithName("data-import-cron-controller-test")
+	cronLog = logf.Log.WithName("data-import-cron-controller-test")
 )
 
 var _ = Describe("All DataImportCron Tests", func() {
@@ -53,12 +52,12 @@ var _ = Describe("All DataImportCron Tests", func() {
 			}
 		})
 
-		FIt("Should do nothing and return nil when no DataImportCron exists", func() {
+		It("Should do nothing and return nil when no DataImportCron exists", func() {
 			reconciler = createDataImportCronReconciler()
-			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dic", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-cron", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
-			pvc := &corev1.PersistentVolumeClaim{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dic", Namespace: metav1.NamespaceDefault}, pvc)
+			cron := &cdiv1.DataImportCron{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-cron", Namespace: metav1.NamespaceDefault}, cron)
 			Expect(err).To(HaveOccurred())
 			if !k8serrors.IsNotFound(err) {
 				Fail("Error getting DataImportCron")
@@ -77,7 +76,7 @@ func createDataImportCronReconciler(objects ...runtime.Object) *DataImportCronRe
 	r := &DataImportCronReconciler{
 		client:   cl,
 		scheme:   s,
-		log:      dicLog,
+		log:      cronLog,
 		recorder: rec,
 	}
 	return r

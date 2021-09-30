@@ -224,6 +224,21 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"watch",
 				"create",
 				"update",
+				"delete",
+			},
+		},
+		{
+			APIGroups: []string{
+				"image.openshift.io",
+			},
+			Resources: []string{
+				"imagestreams",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+				"update",
 			},
 		},
 	}

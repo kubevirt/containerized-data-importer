@@ -3824,7 +3824,8 @@ spec:
                 description: CurrentImportDataVolumeName is the current import DataVolume
                 type: string
               currentImportDigest:
-                description: CurrentImportDigest is the digest of the currently imported image
+                description: CurrentImportDigest is the digest of the currently imported
+                  image
                 type: string
               lastExecutionTimestamp:
                 description: LastExecutionTimestamp is the time of the last polling

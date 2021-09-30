@@ -908,3 +908,21 @@ http_file(
         "https://storage.googleapis.com/builddeps/ab5a824d402c717bfe8e01cfb216a70fd4a7e1d66d2d7baa80ac6ad6581081c9",
     ],
 )
+
+http_file(
+    name = "skopeo",
+    sha256 = "69d782e6796682205cab2264330cc87e8c9fce0adcb39b91be6b292fb49a0407",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/s/skopeo-1.2.0-3.fc33.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/69d782e6796682205cab2264330cc87e8c9fce0adcb39b91be6b292fb49a0407",
+    ],
+)
+
+http_file(
+    name = "skopeo-aarch64",
+    sha256 = "34797f853fa66bab3d020fd5b2a35fa993dd19db0c0ce0d0be1cf02eab7f3146",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/s/skopeo-1.2.0-3.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/34797f853fa66bab3d020fd5b2a35fa993dd19db0c0ce0d0be1cf02eab7f3146",
+    ],
+)

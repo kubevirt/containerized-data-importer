@@ -6,6 +6,7 @@ go_library(
         "apiserver.go",
         "cdiconfig.go",
         "controller.go",
+        "cronjob.go",
         "datasource.go",
         "datavolume.go",
         "factory.go",

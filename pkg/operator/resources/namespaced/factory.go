@@ -54,6 +54,7 @@ var factoryFunctions = map[string]factoryFunc{
 	"apiserver":   createAPIServerResources,
 	"controller":  createControllerResources,
 	"uploadproxy": createUploadProxyResources,
+	"cronjob":     createCronJobResources,
 }
 
 // CreateAllResources creates all namespaced resources

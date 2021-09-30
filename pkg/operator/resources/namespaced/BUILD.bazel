@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "apiserver.go",
         "controller.go",
+        "cronjob.go",
         "factory.go",
         "uploadproxy.go",
     ],

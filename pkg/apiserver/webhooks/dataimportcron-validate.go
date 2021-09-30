@@ -23,12 +23,15 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/gorhill/cronexpr"
+
 	admissionv1 "k8s.io/api/admission/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
+
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 )
@@ -38,30 +41,32 @@ type dataImportCronValidatingWebhook struct {
 	cdiClient cdiclient.Interface
 }
 
-//FIXME: complete validation
 func (wh *dataImportCronValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
-	klog.V(3).Infof("FIXME Admit resource type %s", ar.Request.Resource.Resource)
-	/* FIXME
 	if ar.Request.Resource.Group != cdiv1.CDIGroupVersionKind.Group || ar.Request.Resource.Resource != "dataimportcrons" {
 		klog.V(3).Infof("Got unexpected resource type %s", ar.Request.Resource.Resource)
 		return toAdmissionResponseError(fmt.Errorf("unexpected resource: %s", ar.Request.Resource.Resource))
 	}
-	*/
+
 	raw := ar.Request.Object.Raw
-	dic := cdiv1.DataImportCron{}
-	err := json.Unmarshal(raw, &dic)
+	cron := cdiv1.DataImportCron{}
+	err := json.Unmarshal(raw, &cron)
 	if err != nil {
 		return toAdmissionResponseError(err)
 	}
 
+	causes := validateNameLength(cron.Name)
+	if len(causes) > 0 {
+		return toRejectedAdmissionResponse(causes)
+	}
+
 	if ar.Request.Operation == admissionv1.Update {
-		oldDic := cdiv1.DataImportCron{}
-		err = json.Unmarshal(ar.Request.OldObject.Raw, &oldDic)
+		oldCron := cdiv1.DataImportCron{}
+		err = json.Unmarshal(ar.Request.OldObject.Raw, &oldCron)
 		if err != nil {
 			return toAdmissionResponseError(err)
 		}
-		if !apiequality.Semantic.DeepEqual(dic.Spec, oldDic.Spec) {
-			klog.Errorf("Cannot update spec for DataImportCron %s/%s", dic.GetNamespace(), dic.GetName())
+		if !apiequality.Semantic.DeepEqual(cron.Spec, oldCron.Spec) {
+			klog.Errorf("Cannot update spec for DataImportCron %s/%s", cron.GetNamespace(), cron.GetName())
 			var causes []metav1.StatusCause
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueDuplicate,
@@ -73,5 +78,65 @@ func (wh *dataImportCronValidatingWebhook) Admit(ar admissionv1.AdmissionReview)
 		return allowedAdmissionResponse()
 	}
 
+	causes = wh.validateDataImportCronSpec(ar.Request, k8sfield.NewPath("spec"), &cron.Spec, &cron.Namespace)
+	if len(causes) > 0 {
+		klog.Infof("rejected DataVolume admission %s", causes)
+		return toRejectedAdmissionResponse(causes)
+	}
+
 	return allowedAdmissionResponse()
+}
+
+func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *admissionv1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataImportCronSpec, namespace *string) []metav1.StatusCause {
+	var causes []metav1.StatusCause
+
+	if spec.Source.Registry == nil {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Missing registry source"),
+			Field:   field.Child("Source").String(),
+		})
+		return causes
+	}
+
+	causes = validateDataVolumeSourceRegistry(spec.Source.Registry, field)
+	if len(causes) > 0 {
+		return causes
+	}
+
+	if _, err := cronexpr.Parse(spec.Schedule); err != nil {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Illegal cron schedule"),
+			Field:   field.Child("Schedule").String(),
+		})
+		return causes
+	}
+
+	if spec.GarbageCollect != nil &&
+		*spec.GarbageCollect != cdiv1.DataImportCronGarbageCollectNever &&
+		*spec.GarbageCollect != cdiv1.DataImportCronGarbageCollectOutdated {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Illegal GarbageCollect value"),
+			Field:   field.Child("Schedule").String(),
+		})
+		return causes
+	}
+
+	if spec.ManagedDataSource == "" {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Illegal ManagedDataSource value"),
+			Field:   field.Child("ManagedDataSource").String(),
+		})
+		return causes
+	}
+
+	causes = validateNameLength(spec.ManagedDataSource)
+	if len(causes) > 0 {
+		return causes
+	}
+
+	return causes
 }

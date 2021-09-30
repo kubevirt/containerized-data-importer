@@ -199,7 +199,7 @@ func start(ctx context.Context, cfg *rest.Config) {
 		os.Exit(1)
 	}
 
-	if _, err := controller.NewDataImportCronController(mgr, log); err != nil {
+	if _, err := controller.NewDataImportCronController(mgr, log, importerImage, pullPolicy); err != nil {
 		klog.Errorf("Unable to setup dataimportcron controller: %v", err)
 		os.Exit(1)
 	}

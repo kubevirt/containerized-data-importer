@@ -19,179 +19,142 @@ package controller
 import (
 	"context"
 	"sort"
-	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/gorhill/cronexpr"
 	imagev1 "github.com/openshift/api/image/v1"
 	"github.com/pkg/errors"
 
 	batchv1 "k8s.io/api/batch/v1"
-	//FIXME: use batchv1 or v2alpha1
 	v1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 // DataImportCronReconciler members
 type DataImportCronReconciler struct {
-	client         client.Client
-	uncachedClient client.Client
-	recorder       record.EventRecorder
-	scheme         *runtime.Scheme
-	log            logr.Logger
+	client       client.Client
+	recorder     record.EventRecorder
+	scheme       *runtime.Scheme
+	log          logr.Logger
+	image        string
+	pullPolicy   string
+	cdiNamespace string
 }
 
 const (
+	// AnnSourceDesiredDigest is the digest of the pending updated image
+	AnnSourceDesiredDigest = AnnAPIGroup + "/storage.import.sourceDesiredDigest"
+	// AnnSourceUpdatePending indicates the source image digest was updated, and the image is pending for import based on the cron schedule
+	AnnSourceUpdatePending = AnnAPIGroup + "/storage.import.sourceUpdatePending"
+	// AnnCronInitialized indicates the cron was initialized
+	AnnCronInitialized = AnnAPIGroup + "/storage.import.cronInitialzed"
+	// AnnNextCronTime is the next time stamp which satisfies the cron expression
+	AnnNextCronTime = AnnAPIGroup + "/storage.import.nextCronTime"
+
+	// dataImportCronFinalizer ensures CronJob is deleted when DataImportCron is deleted, as there is no cross-namespace OwnerReference
+	dataImportCronFinalizer = "cdi.kubevirt.io/dataImportCronFinalizer"
+
 	dataImportControllerName      = "dataimportcron-controller"
-	annCronJobActiveJobName       = "cronJobActiveJobName"
-	annCronJobDigest              = "cronJobDigest"
-	cronJobImageStreamTermMessage = "imagestream"
 	labelDataImportCronName       = "dataimportcron-name"
 	recentImportsToKeepPerCronJob = 3
 )
 
 // Reconcile loop for DataImportCronReconciler
-func (r *DataImportCronReconciler) Reconcile(_ context.Context, req reconcile.Request) (reconcile.Result, error) {
+func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithName("Reconcile")
-	dataImportCron := &cdiv1.DataImportCron{}
-	if err := r.client.Get(context.TODO(), req.NamespacedName, dataImportCron); err != nil {
-		if k8serrors.IsNotFound(err) {
-			log.Info("DataImportCron not found", "name", req.NamespacedName)
-			return reconcile.Result{}, nil
-		}
-		return reconcile.Result{}, err
-	}
-	return r.reconcileDataImportCron(dataImportCron)
-}
 
-// Reconcile DataImportCron
-func (r *DataImportCronReconciler) reconcileDataImportCron(dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
-	cronJob, err := r.getCronJob(dataImportCron)
-	if err != nil {
+	dataImportCron := &cdiv1.DataImportCron{}
+	err := r.client.Get(ctx, req.NamespacedName, dataImportCron)
+	if err == nil {
+		return r.reconcileDataImportCron(ctx, dataImportCron)
+	}
+	if !k8serrors.IsNotFound(err) {
 		return reconcile.Result{}, err
 	}
-	digest, err := r.getDigest(dataImportCron, cronJob)
-	if err != nil {
+
+	imageStream := &imagev1.ImageStream{}
+	err = r.client.Get(ctx, req.NamespacedName, imageStream)
+	if err == nil {
+		return r.reconcileImageStream(ctx, imageStream)
+	}
+	if !k8serrors.IsNotFound(err) && !runtime.IsNotRegisteredError(err) {
 		return reconcile.Result{}, err
 	}
-	if err := r.updateStatus(dataImportCron); err != nil {
-		return reconcile.Result{}, err
-	}
-	if r.shouldImport(dataImportCron, digest) {
-		if err := r.createImportDataVolume(dataImportCron, cronJob); err != nil {
-			return reconcile.Result{}, err
-		}
-	}
+
+	log.Info("Obj not found", "name", req.NamespacedName)
 	return reconcile.Result{}, nil
 }
 
-func (r *DataImportCronReconciler) getCronJob(dataImportCron *cdiv1.DataImportCron) (*v1beta1.CronJob, error) {
-	log := r.log.WithName("getCronJob")
-	// If no k8s cron job found, create a new one
-	cronJob := &v1beta1.CronJob{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: dataImportCron.Namespace, Name: dataImportCron.Name}, cronJob); err != nil {
-		if k8serrors.IsNotFound(err) {
-			cronJob := newCronJob(dataImportCron)
-			if err := r.client.Create(context.TODO(), cronJob); err != nil {
-				log.Error(err, "Unable to create CronJob")
-				return nil, err
-			}
-			return cronJob, nil
-		}
-		return nil, err
+// Reconcile DataImportCron
+func (r *DataImportCronReconciler) reconcileDataImportCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
+	if dataImportCron.DeletionTimestamp != nil {
+		err := r.cleanup(ctx, dataImportCron)
+		return reconcile.Result{}, err
 	}
-	return cronJob, nil
+	if dataImportCron.Annotations[AnnCronInitialized] != "true" {
+		return r.initCron(ctx, dataImportCron)
+	}
+	return r.update(ctx, dataImportCron)
 }
 
-func (r *DataImportCronReconciler) getDigest(dataImportCron *cdiv1.DataImportCron, cronJob *v1beta1.CronJob) (string, error) {
-	log := r.log.WithName("getDigest")
-	activeJobName := cronJob.Annotations[annCronJobActiveJobName]
-	if cronJob.Status.Active != nil {
-		jobName := cronJob.Status.Active[0].Name
-		if jobName == "" || jobName == activeJobName {
-			return "", nil
+func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
+	res := reconcile.Result{}
+	if dataImportCron.Annotations == nil {
+		dataImportCron.Annotations = make(map[string]string)
+	}
+
+	if dataImportCron.Spec.Source.Registry.ImageStream != nil {
+		digest, err := r.getImageStreamDigest(ctx, dataImportCron)
+		if err != nil {
+			return res, err
 		}
-		log.Info("Cron job started", "name", jobName)
-		cronJob.Annotations[annCronJobActiveJobName] = jobName
-		if err := r.client.Update(context.TODO(), cronJob); err != nil {
-			log.Error(err, "Unable to update cron job with the currently running job", "name", jobName)
-			return "", err
+		dataImportCron.Annotations[AnnSourceDesiredDigest] = digest
+		res, err = r.setNextCronTime(dataImportCron)
+		if err != nil {
+			return res, err
 		}
-		return "", nil
-	}
-	if activeJobName == "" {
-		return "", nil
-	}
-	cronJobDigest := cronJob.Annotations[annCronJobDigest]
-	if cronJobDigest != "" {
-		return cronJobDigest, nil
-	}
-	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			"job-name": activeJobName,
-		},
-	})
-	if err != nil {
-		return "", err
-	}
-	podList := &corev1.PodList{}
-	if err := r.client.List(context.TODO(), podList, &client.ListOptions{Namespace: dataImportCron.Namespace, LabelSelector: selector}); err != nil {
-		log.Error(err, "error listing pods")
-		return "", err
-	}
-	podCount := len(podList.Items)
-	if podCount == 0 {
-		log.Info("No pods found for cron job %s", activeJobName)
-		return "", nil
-	}
-	if podCount > 1 {
-		return "", errors.Errorf("%d pods found for cron job %s", podCount, activeJobName)
-	}
-	cronPod := podList.Items[0]
-	if cronPod.Status.ContainerStatuses != nil {
-		term := cronPod.Status.ContainerStatuses[0].State.Terminated
-		if term != nil {
-			log.Info("CronJob ended", "name", activeJobName, "term.Message", term.Message)
-			digest := term.Message
-			if strings.HasPrefix(term.Message, cronJobImageStreamTermMessage) {
-				digest, err = r.getImageStreamDigest(dataImportCron)
-				if err != nil {
-					return "", err
-				}
-				log.Info("ImageStream", "digest", digest)
-			}
-			cronJob.Annotations[annCronJobDigest] = digest
-			cronJob.Annotations[annCronJobActiveJobName] = ""
-			if err := r.client.Update(context.TODO(), cronJob); err != nil {
-				log.Error(err, "Unable to update cron job with no currently running job")
-				return "", err
-			}
-			return digest, nil
+	} else if dataImportCron.Spec.Source.Registry.URL != nil {
+		cronJob := r.newCronJob(dataImportCron)
+		if err := r.client.Create(ctx, cronJob); err != nil {
+			r.log.Error(err, "Unable to create CronJob")
+			return res, err
 		}
+		AddFinalizer(dataImportCron, dataImportCronFinalizer)
 	}
-	return "", nil
+
+	dataImportCron.Annotations[AnnCronInitialized] = "true"
+	if err := r.client.Update(ctx, dataImportCron); err != nil {
+		r.log.Error(err, "Unable to update DataImportCron", "Name", dataImportCron.Name)
+		return res, err
+	}
+	return res, nil
 }
 
-func (r *DataImportCronReconciler) getImageStreamDigest(dataImportCron *cdiv1.DataImportCron) (string, error) {
+func (r *DataImportCronReconciler) getImageStreamDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (string, error) {
 	imageStream := &imagev1.ImageStream{}
 	imageStreamName := types.NamespacedName{
 		Namespace: dataImportCron.Namespace,
 		Name:      *dataImportCron.Spec.Source.Registry.ImageStream,
 	}
-	if err := r.client.Get(context.TODO(), imageStreamName, imageStream); err != nil {
+	if err := r.client.Get(ctx, imageStreamName, imageStream); err != nil {
 		return "", err
 	}
 	tags := imageStream.Status.Tags
@@ -201,40 +164,124 @@ func (r *DataImportCronReconciler) getImageStreamDigest(dataImportCron *cdiv1.Da
 	return tags[0].Items[0].Image, nil
 }
 
-// Update DataSource and DataImportCron PVC on successful completion
-// FIXME: update all needed status fields and conditions
-func (r *DataImportCronReconciler) updateStatus(dataImportCron *cdiv1.DataImportCron) error {
-	log := r.log.WithName("updateStatus")
-	dvName := dataImportCron.Status.CurrentImportDataVolumeName
-	if dvName == "" {
-		return nil
+func (r *DataImportCronReconciler) pollImageStreamDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
+	nextTime, err := time.Parse(time.RFC3339, dataImportCron.Annotations[AnnNextCronTime])
+	if err != nil {
+		return reconcile.Result{}, err
 	}
-	// Get the currently imported DataVolume
-	dataVolume := &cdiv1.DataVolume{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: dataImportCron.Namespace, Name: dvName}, dataVolume); err != nil {
-		if k8serrors.IsNotFound(err) {
-			log.Info("DataVolume not found", "name", dvName)
+	if nextTime.Before(time.Now()) {
+		desiredDigest := dataImportCron.Annotations[AnnSourceDesiredDigest]
+		if desiredDigest != "" && desiredDigest != dataImportCron.Status.CurrentImportDigest {
+			dataImportCron.Annotations[AnnSourceUpdatePending] = "true"
 		}
-		return err
+		return r.setNextCronTime(dataImportCron)
+	}
+	return reconcile.Result{}, nil
+}
+
+func (r *DataImportCronReconciler) setNextCronTime(dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
+	now := time.Now()
+	expr, err := cronexpr.Parse(dataImportCron.Spec.Schedule)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	nextTime := expr.Next(now)
+	diffSec := time.Duration(nextTime.Sub(now).Seconds()) + 1
+	res := reconcile.Result{Requeue: true, RequeueAfter: diffSec * time.Second}
+	dataImportCron.Annotations[AnnNextCronTime] = nextTime.Format(time.RFC3339)
+	r.log.Info("setNextCronTime", "nextTime", nextTime)
+	return res, err
+}
+
+// Reconcile ImageStream
+func (r *DataImportCronReconciler) reconcileImageStream(ctx context.Context, imageStream *imagev1.ImageStream) (reconcile.Result, error) {
+	tags := imageStream.Status.Tags
+	if len(tags) == 0 || len(tags[0].Items) == 0 {
+		return reconcile.Result{}, errors.Errorf("No imageStream tag items %s", imageStream.Name)
+	}
+	digest := tags[0].Items[0].Image
+
+	// Find DataImportCron and update its DesiredDigest
+	cronList := &cdiv1.DataImportCronList{}
+	if err := r.client.List(ctx, cronList); err != nil {
+		r.log.Error(err, "Error listing DataImportCrons")
+		return reconcile.Result{}, err
 	}
 
-	now := metav1.Now()
-	dataImportCron.Status.LastExecutionTimestamp = &now
-	if dataVolume.Status.Phase != cdiv1.Succeeded {
-		if err := r.client.Update(context.TODO(), dataImportCron); err != nil {
-			log.Error(err, "Unable to update DataImportCron with last execution timestamp", "Name", dataImportCron.Name)
-			return err
+	// FIXME: verify it's actually updated
+	for _, cron := range cronList.Items {
+		istream := cron.Spec.Source.Registry.ImageStream
+		if istream != nil && *istream == imageStream.Name {
+			r.log.Info("reconcileImageStream update", "DesiredDigest", digest, "cron", cron.Name)
+			cron.Annotations[AnnSourceDesiredDigest] = digest
+			if err := r.client.Update(ctx, &cron); err != nil {
+				r.log.Error(err, "Unable to update DataImportCron with DesiredDigest", "cron", cron.Name)
+				return reconcile.Result{}, err
+			}
 		}
-		return nil
 	}
+	return reconcile.Result{}, nil
+}
+
+// FIXME: update all conditions
+func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
+	log := r.log.WithName("update")
+	res := reconcile.Result{}
+
+	dvName := dataImportCron.Status.CurrentImportDataVolumeName
+	if dvName != "" {
+		// Get the currently imported DataVolume
+		dataVolume := &cdiv1.DataVolume{}
+		if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: dvName}, dataVolume); err != nil {
+			if k8serrors.IsNotFound(err) {
+				log.Info("DataVolume not found", "name", dvName)
+			}
+			return res, err
+		}
+
+		now := metav1.Now()
+		dataImportCron.Status.LastExecutionTimestamp = &now
+
+		if dataVolume.Status.Phase == cdiv1.Succeeded {
+			if err := r.updateSucceeded(ctx, dataImportCron, dataVolume); err != nil {
+				return res, err
+			}
+		}
+	}
+
+	// We use the poller returned reconcile.Result for RequeueAfter if needed
+	var err error
+	if dataImportCron.Annotations[AnnNextCronTime] != "" {
+		res, err = r.pollImageStreamDigest(ctx, dataImportCron)
+		if err != nil {
+			return res, err
+		}
+	}
+
+	if dataImportCron.Annotations[AnnSourceUpdatePending] == "true" {
+		if err := r.createImportDataVolume(ctx, dataImportCron); err != nil {
+			return res, err
+		}
+	}
+
+	if err := r.client.Update(ctx, dataImportCron); err != nil {
+		log.Error(err, "Unable to update DataImportCron", "Name", dataImportCron.Name)
+		return res, err
+	}
+	return res, nil
+}
+
+// Update DataSource and DataImportCron PVC on successful completion
+func (r *DataImportCronReconciler) updateSucceeded(ctx context.Context, dataImportCron *cdiv1.DataImportCron, dataVolume *cdiv1.DataVolume) error {
+	log := r.log.WithName("update")
 	dataSourceName := dataImportCron.Spec.ManagedDataSource
 	dataSource := &cdiv1.DataSource{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: dataVolume.Namespace, Name: dataSourceName}, dataSource); err != nil {
+	if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataVolume.Namespace, Name: dataSourceName}, dataSource); err != nil {
 		// DataSource was not found, so create it
 		if k8serrors.IsNotFound(err) {
 			log.Info("Create DataSource", "name", dataSourceName)
 			dataSource = newDataSource(dataImportCron)
-			if err := r.client.Create(context.TODO(), dataSource); err != nil {
+			if err := r.client.Create(ctx, dataSource); err != nil {
 				log.Error(err, "Unable to create DataSource", "name", dataSourceName)
 				return err
 			}
@@ -243,77 +290,60 @@ func (r *DataImportCronReconciler) updateStatus(dataImportCron *cdiv1.DataImport
 			return err
 		}
 	}
+	if !isOwner(dataSource, dataImportCron) {
+		dataSource.OwnerReferences = append(dataSource.OwnerReferences, metav1.OwnerReference{
+			APIVersion: dataImportCron.APIVersion,
+			Kind:       dataImportCron.Kind,
+			Name:       dataImportCron.Name,
+			UID:        dataImportCron.UID,
+		})
+	}
 
 	// Update DataSource and DataImportCron status if needed
 	sourcePVC := &cdiv1.DataVolumeSourcePVC{Namespace: dataVolume.Namespace, Name: dataVolume.Name}
-	isDataSourceOwner := isOwner(dataSource, dataImportCron)
-	if dataSource.Spec.Source.PVC == nil || *dataSource.Spec.Source.PVC != *sourcePVC || !isDataSourceOwner {
+	if dataSource.Spec.Source.PVC == nil || *dataSource.Spec.Source.PVC != *sourcePVC {
 		dataSource.Spec.Source.PVC = sourcePVC
-		if !isDataSourceOwner {
-			dataSource.OwnerReferences = append(dataSource.OwnerReferences, metav1.OwnerReference{
-				APIVersion: dataImportCron.APIVersion,
-				Kind:       dataImportCron.Kind,
-				Name:       dataImportCron.Name,
-				UID:        dataImportCron.UID,
-			})
-		}
-		if err := r.client.Update(context.TODO(), dataSource); err != nil {
+		if err := r.client.Update(ctx, dataSource); err != nil {
 			log.Error(err, "Unable to update DataSource with source PVC", "Name", dataSourceName, "PVC", sourcePVC)
 			return err
 		}
 		dataImportCron.Status.LastImportedPVC = sourcePVC
+		now := metav1.Now()
 		dataImportCron.Status.LastImportTimestamp = &now
 	}
+
 	// Mark no current import
 	dataImportCron.Status.CurrentImportDataVolumeName = ""
-	if err := r.client.Update(context.TODO(), dataImportCron); err != nil {
-		log.Error(err, "Unable to update DataImportCron with last imported PVC", "Name", dataImportCron.Name, "PVC", sourcePVC)
-		return err
-	}
+
 	// Garbage collection
-	if err := r.garbageCollectOldImports(dataImportCron); err != nil {
-		return err
+	if dataImportCron.Spec.GarbageCollect != nil &&
+		*dataImportCron.Spec.GarbageCollect == cdiv1.DataImportCronGarbageCollectOutdated {
+		if err := r.garbageCollectOldImports(ctx, dataImportCron); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-//FIXME: do we want immediate initial import (may cause storming) or on first cron job execution?
-func (r *DataImportCronReconciler) shouldImport(dataImportCron *cdiv1.DataImportCron, digest string) bool {
-	log := r.log.WithName("shouldImport")
-	currentDigest := dataImportCron.Status.CurrentImportDigest
-	currentImportDvName := dataImportCron.Status.CurrentImportDataVolumeName
-	log.Info("Checking", "currentImportDvName", currentImportDvName, "currentDigest", currentDigest, "newDigest", digest)
-	return currentImportDvName == "" && digest != "" && currentDigest != digest
-}
-
-func (r *DataImportCronReconciler) createImportDataVolume(dataImportCron *cdiv1.DataImportCron, cronJob *v1beta1.CronJob) error {
+func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
 	log := r.log.WithName("createImportDataVolume")
 	dataSourceName := dataImportCron.Spec.ManagedDataSource
-	digest := cronJob.Annotations[annCronJobDigest]
+	digest := dataImportCron.Annotations[AnnSourceDesiredDigest]
 	dvName := getDvName(dataSourceName, digest)
 	log.Info("Creating new source DataVolume", "name", dvName)
 	dv := newSourceDataVolume(dataImportCron, dvName)
-	if err := r.client.Create(context.TODO(), dv); err != nil {
+	if err := r.client.Create(ctx, dv); err != nil {
 		log.Error(err, "Unable to create DataVolume", "name", dvName)
 		return err
 	}
 	// Update references to current import
 	dataImportCron.Status.CurrentImportDataVolumeName = dvName
 	dataImportCron.Status.CurrentImportDigest = digest
-	if err := r.client.Update(context.TODO(), dataImportCron); err != nil {
-		log.Error(err, "Unable to update DataImportCron annotations", "Name", dataImportCron.Name)
-		return err
-	}
-	// Mark no current import
-	cronJob.Annotations[annCronJobDigest] = ""
-	if err := r.client.Update(context.TODO(), cronJob); err != nil {
-		log.Error(err, "Unable to update cronJob annotations", "Name", cronJob.Name)
-		return err
-	}
+	dataImportCron.Annotations[AnnSourceUpdatePending] = "false"
 	return nil
 }
 
-func (r *DataImportCronReconciler) garbageCollectOldImports(dataImportCron *cdiv1.DataImportCron) error {
+func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
 	log := r.log.WithName("garbageCollectOldImports")
 	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
 		MatchLabels: map[string]string{
@@ -324,7 +354,7 @@ func (r *DataImportCronReconciler) garbageCollectOldImports(dataImportCron *cdiv
 		return err
 	}
 	dvList := &cdiv1.DataVolumeList{}
-	if err := r.uncachedClient.List(context.TODO(), dvList, &client.ListOptions{Namespace: dataImportCron.Namespace, LabelSelector: selector}); err != nil {
+	if err := r.client.List(ctx, dvList, &client.ListOptions{Namespace: dataImportCron.Namespace, LabelSelector: selector}); err != nil {
 		log.Error(err, "error listing dvs")
 		return err
 	}
@@ -340,7 +370,7 @@ func (r *DataImportCronReconciler) garbageCollectOldImports(dataImportCron *cdiv
 		if recentImports <= recentImportsToKeepPerCronJob {
 			break
 		}
-		if err := r.client.Delete(context.TODO(), &dv); err != nil {
+		if err := r.client.Delete(ctx, &dv); err != nil {
 			if k8serrors.IsNotFound(err) {
 				log.Info("DataVolume not found for deletion", "name", dv.Name)
 				continue
@@ -354,21 +384,37 @@ func (r *DataImportCronReconciler) garbageCollectOldImports(dataImportCron *cdiv
 	return nil
 }
 
-// NewDataImportCronController creates a new instance of the DataImportCron controller
-func NewDataImportCronController(mgr manager.Manager, log logr.Logger) (controller.Controller, error) {
-	uncachedClient, err := client.New(mgr.GetConfig(), client.Options{
-		Scheme: mgr.GetScheme(),
-		Mapper: mgr.GetRESTMapper(),
-	})
-	if err != nil {
-		return nil, err
+func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+	if !HasFinalizer(dataImportCron, dataImportCronFinalizer) {
+		return nil
 	}
+	cronJob := &v1beta1.CronJob{}
+	err := r.client.Get(ctx, types.NamespacedName{Namespace: r.cdiNamespace, Name: dataImportCron.Name}, cronJob)
+	if IgnoreNotFound(err) != nil {
+		return err
+	}
+	if err == nil {
+		if err = r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
+			return err
+		}
+	}
+	RemoveFinalizer(dataImportCron, dataImportCronFinalizer)
+	if err = r.client.Update(ctx, dataImportCron); err != nil {
+		return err
+	}
+	return nil
+}
+
+// NewDataImportCronController creates a new instance of the DataImportCron controller
+func NewDataImportCronController(mgr manager.Manager, log logr.Logger, importerImage, pullPolicy string) (controller.Controller, error) {
 	reconciler := &DataImportCronReconciler{
-		client:         mgr.GetClient(),
-		uncachedClient: uncachedClient,
-		recorder:       mgr.GetEventRecorderFor(dataImportControllerName),
-		scheme:         mgr.GetScheme(),
-		log:            log.WithName(dataImportControllerName),
+		client:       mgr.GetClient(),
+		recorder:     mgr.GetEventRecorderFor(dataImportControllerName),
+		scheme:       mgr.GetScheme(),
+		log:          log.WithName(dataImportControllerName),
+		image:        importerImage,
+		pullPolicy:   pullPolicy,
+		cdiNamespace: util.GetNamespace(),
 	}
 	dataImportCronController, err := controller.New(dataImportControllerName, mgr, controller.Options{Reconciler: reconciler})
 	if err != nil {
@@ -397,52 +443,35 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 	}); err != nil {
 		return err
 	}
-	if err := c.Watch(&source.Kind{Type: &v1beta1.CronJob{}}, &handler.EnqueueRequestForOwner{
-		OwnerType:    &cdiv1.DataImportCron{},
-		IsController: true,
-	}); err != nil {
+	isList := &imagev1.ImageStreamList{}
+	if err := mgr.GetClient().List(context.TODO(), isList); err == nil {
+		if err := c.Watch(&source.Kind{Type: &imagev1.ImageStream{}}, &handler.EnqueueRequestForObject{}); err != nil {
+			return err
+		}
+	} else if meta.IsNoMatchError(err) {
+		log.Info("ImageStreams are supported only on OpenShift")
+	} else {
 		return err
 	}
 	return nil
 }
 
-func newCronJob(cron *cdiv1.DataImportCron) *v1beta1.CronJob {
-	var container corev1.Container
-	if cron.Spec.Source.Registry.URL != nil {
-		container = corev1.Container{
-			Name:  "skopeo",
-			Image: "quay.io/skopeo/stable",
-			Command: []string{"/usr/bin/sh", "-c",
-				"skopeo inspect " + *cron.Spec.Source.Registry.URL +
-					" | awk -F'\"' '/Digest/{print $4}' > /dev/termination-log",
-			},
-			ImagePullPolicy: corev1.PullIfNotPresent,
-		}
-	} else if cron.Spec.Source.Registry.ImageStream != nil {
-		container = corev1.Container{
-			Name:  "busybox",
-			Image: "busybox",
-			Command: []string{"sh", "-c",
-				"echo " + cronJobImageStreamTermMessage + " > /dev/termination-log",
-			},
-			ImagePullPolicy: corev1.PullIfNotPresent,
-		}
+func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) *v1beta1.CronJob {
+	container := corev1.Container{
+		Name:  "cdi-source-update-poller",
+		Image: r.image,
+		Command: []string{
+			"/usr/bin/cdi-source-update-poller",
+			"-ns", cron.Namespace,
+			"-cron", cron.Name,
+			"-url", *cron.Spec.Source.Registry.URL,
+		},
+		ImagePullPolicy: corev1.PullPolicy(r.pullPolicy),
 	}
-
 	job := &v1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cron.Name,
-			Namespace: cron.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(cron, schema.GroupVersionKind{
-					Group:   cdiv1.SchemeGroupVersion.Group,
-					Version: cdiv1.SchemeGroupVersion.Version,
-					Kind:    "DataImportCron",
-				}),
-			},
-			Annotations: map[string]string{
-				annCronJobActiveJobName: "",
-			},
+			Namespace: r.cdiNamespace,
 		},
 		Spec: v1beta1.CronJobSpec{
 			Schedule:          cron.Spec.Schedule,
@@ -451,8 +480,9 @@ func newCronJob(cron *cdiv1.DataImportCron) *v1beta1.CronJob {
 				Spec: batchv1.JobSpec{
 					Template: corev1.PodTemplateSpec{
 						Spec: corev1.PodSpec{
-							RestartPolicy: corev1.RestartPolicyNever,
-							Containers:    []corev1.Container{container},
+							RestartPolicy:      corev1.RestartPolicyNever,
+							Containers:         []corev1.Container{container},
+							ServiceAccountName: "cdi-cronjob",
 						},
 					},
 				},
@@ -477,9 +507,6 @@ func newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdi
 			Labels: map[string]string{
 				labelDataImportCronName: cron.Name,
 			},
-			Annotations: map[string]string{
-				//AnnPodRetainAfterCompletion: "true",
-			},
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: &cdiv1.DataVolumeSource{
@@ -489,7 +516,7 @@ func newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdi
 				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 				Resources: corev1.ResourceRequirements{
 					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: resource.MustParse("5Gi"), //FIXME
+						corev1.ResourceStorage: resource.MustParse("20Gi"), //FIXME
 					},
 				},
 			},
