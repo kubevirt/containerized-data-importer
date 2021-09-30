@@ -3,7 +3,9 @@ package util
 import (
 	"bufio"
 	"bytes"
+	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -337,4 +339,22 @@ func SetRecommendedLabels(obj metav1.Object, installerLabels map[string]string, 
 	mergedLabels = MergeLabels(installerLabels, mergedLabels)
 
 	obj.SetLabels(mergedLabels)
+}
+
+// Md5sum calculates the md5sum of a given file
+func Md5sum(filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hash := md5.New()
+
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
+
+	hashInBytes := hash.Sum(nil)[:16]
+	return hex.EncodeToString(hashInBytes), nil
 }

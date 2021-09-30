@@ -13,8 +13,13 @@ import (
 )
 
 const (
+	imagesPath = "./images"
+	// TinyCoreFile is the file name of tine core
+	TinyCoreFile = "/tinyCore.iso"
+	// CirrosQCow2File is the file name of cirros qcow
+	CirrosQCow2File = "/cirros-qcow2.img"
 	// UploadFile is the file to upload
-	UploadFile = "./images/tinyCore.iso"
+	UploadFile = imagesPath + TinyCoreFile
 	// UploadFileLargeVirtualDiskQcow is the file to upload (QCOW2)
 	UploadFileLargeVirtualDiskQcow = "./images/cirros-large-virtual-size.qcow2"
 	// UploadFileLargeVirtualDiskXz is the file to upload (XZ-compressed RAW file)
@@ -23,6 +28,8 @@ const (
 	UploadFileLargePhysicalDiskQcow = "./images/cirros-large-physical-size.qcow2"
 	// UploadFileLargePhysicalDiskXz is the file to upload (XZ-compressed RAW file)
 	UploadFileLargePhysicalDiskXz = "./images/cirros-large-physical-size.raw.xz"
+	// UploadCirrosFile is the file to upload (QCOW2)
+	UploadCirrosFile = imagesPath + CirrosQCow2File
 
 	// UploadFileSize is the size of UploadFile
 	UploadFileSize = 18874368

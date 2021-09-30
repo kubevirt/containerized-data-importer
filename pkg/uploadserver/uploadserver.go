@@ -83,6 +83,7 @@ type imageReadCloser func(*http.Request) (io.ReadCloser, error)
 // may be overridden in tests
 var uploadProcessorFunc = newUploadStreamProcessor
 var uploadProcessorFuncAsync = newAsyncUploadStreamProcessor
+var uploadArchiveProcessorFunc = newUploadArchiveStreamProcessor
 
 func bodyReadCloser(r *http.Request) (io.ReadCloser, error) {
 	return r.Body, nil
@@ -137,6 +138,9 @@ func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsC
 	}
 	for _, path := range common.AsyncUploadPaths {
 		server.mux.HandleFunc(path, server.uploadHandlerAsync(bodyReadCloser))
+	}
+	for _, path := range common.ArchiveUploadPaths {
+		server.mux.HandleFunc(path, server.uploadArchiveHandler(bodyReadCloser))
 	}
 	for _, path := range common.SyncUploadFormPaths {
 		server.mux.HandleFunc(path, server.uploadHandler(formReadCloser))
@@ -396,6 +400,39 @@ func (app *uploadServerApp) uploadHandler(irc imageReadCloser) http.HandlerFunc 
 	}
 }
 
+func (app *uploadServerApp) uploadArchiveHandler(irc imageReadCloser) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !app.validateShouldHandleRequest(w, r) {
+			return
+		}
+
+		klog.Infof("Upload archive\n")
+
+		readCloser, err := irc(r)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+
+		err = uploadArchiveProcessorFunc(readCloser)
+
+		app.mutex.Lock()
+		defer app.mutex.Unlock()
+
+		app.uploading = false
+		if err != nil {
+			klog.Errorf("Saving stream failed: %s", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		app.done = true
+
+		close(app.doneChan)
+
+		klog.Infof("Wrote archive data to %s", app.destination)
+	}
+}
+
 func (app *uploadServerApp) PreallocationApplied() bool {
 	return app.preallocationApplied
 }
@@ -420,6 +457,17 @@ func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, file
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
 	err := processor.ProcessData()
 	return processor.PreallocationApplied(), err
+}
+
+func newUploadArchiveStreamProcessor(stream io.ReadCloser) error {
+	destDir := common.ImporterVolumePath
+	if err := importer.CleanDir(destDir); err != nil {
+		return errors.Wrapf(err, "error removing contents of %s", destDir)
+	}
+	if err := util.UnArchiveTar(stream, destDir); err != nil {
+		return errors.Wrapf(err, "error unarchiving to %s", destDir)
+	}
+	return nil
 }
 
 // Clone file system to block device or file system

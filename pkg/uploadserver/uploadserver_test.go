@@ -209,7 +209,7 @@ var _ = Describe("Upload server tests", func() {
 
 	table.DescribeTable("Process unavailable", func(uploadPath string) {
 		withProcessorSuccess(func() {
-			req, err := http.NewRequest("POST", common.UploadPathAsync, strings.NewReader("data"))
+			req, err := http.NewRequest("POST", uploadPath, strings.NewReader("data"))
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -224,6 +224,7 @@ var _ = Describe("Upload server tests", func() {
 	},
 		table.Entry("async", common.UploadPathAsync),
 		table.Entry("sync", common.UploadPathSync),
+		table.Entry("archive", common.UploadArchivePath),
 		table.Entry("form async", common.UploadFormAsync),
 		table.Entry("form sync", common.UploadFormSync),
 	)
@@ -245,6 +246,7 @@ var _ = Describe("Upload server tests", func() {
 	},
 		table.Entry("async", common.UploadPathAsync),
 		table.Entry("sync", common.UploadPathSync),
+		table.Entry("archive", common.UploadArchivePath),
 		table.Entry("form async", common.UploadFormAsync),
 		table.Entry("form sync", common.UploadFormSync),
 	)
@@ -314,6 +316,7 @@ var _ = Describe("Upload server tests", func() {
 	},
 		table.Entry("async", withAsyncProcessorFailure, common.UploadPathAsync),
 		table.Entry("sync", withProcessorFailure, common.UploadPathSync),
+		table.Entry("archive", withProcessorFailure, common.UploadArchivePath),
 	)
 
 	table.DescribeTable("Stream fail form", func(processorFunc func(func()), uploadPath string) {

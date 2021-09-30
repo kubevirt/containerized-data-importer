@@ -127,7 +127,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		By("Verify the image contents")
 		Expect(f.VerifyBlankDisk(f.Namespace, pvc)).To(BeTrue())
 		By("Verifying the image is sparse")
-		Expect(f.VerifySparse(f.Namespace, pvc)).To(BeTrue())
+		Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
 		By("Verifying permissions are 660")
 		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
 		if utils.DefaultStorageCSIRespectsFsGroup {

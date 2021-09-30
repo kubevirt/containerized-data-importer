@@ -1,10 +1,7 @@
 package util
 
 import (
-	"crypto/md5"
 	"encoding/base64"
-	"encoding/hex"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -136,9 +133,9 @@ var _ = Describe("Copy files", func() {
 	It("Should copy file from source to dest, with valid source and dest", func() {
 		err = CopyFile(filepath.Join(TestImagesDir, "content.tar"), filepath.Join(destTmp, "target.tar"))
 		Expect(err).ToNot(HaveOccurred())
-		sourceMd5, err := md5sum(filepath.Join(TestImagesDir, "content.tar"))
+		sourceMd5, err := Md5sum(filepath.Join(TestImagesDir, "content.tar"))
 		Expect(err).ToNot(HaveOccurred())
-		targetMd5, err := md5sum(filepath.Join(destTmp, "target.tar"))
+		targetMd5, err := Md5sum(filepath.Join(destTmp, "target.tar"))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourceMd5).Should(Equal(targetMd5))
 	})
@@ -153,24 +150,3 @@ var _ = Describe("Copy files", func() {
 		Expect(err).To(HaveOccurred())
 	})
 })
-
-func md5sum(filePath string) (string, error) {
-	var returnMD5String string
-
-	file, err := os.Open(filePath)
-	if err != nil {
-		return returnMD5String, err
-	}
-	defer file.Close()
-
-	hash := md5.New()
-
-	if _, err := io.Copy(hash, file); err != nil {
-		return returnMD5String, err
-	}
-
-	hashInBytes := hash.Sum(nil)[:16]
-	returnMD5String = hex.EncodeToString(hashInBytes)
-
-	return returnMD5String, nil
-}
