@@ -28,7 +28,7 @@ FUNC_TEST_BAD_WEBSERVER="cdi-func-test-bad-webserver"
 FUNC_TEST_PROXY="cdi-func-test-proxy"
 # update this whenever builder Dockerfile is updated
 BUILDER_TAG=${BUILDER_TAG:-0.0.13}
-BUILDER_IMAGE=${BUILDER_IMAGE:-quay.io/kubevirt/kubevirt-cdi-bazel-builder@sha256:45ff791390bcd3902781e0f790083f30bba8553d2568e34e75675228c5d4bfb5
+BUILDER_IMAGE=${BUILDER_IMAGE:-quay.io/kubevirt/kubevirt-cdi-bazel-builder@sha256:dad7ca592f31b375803ed9f1c517734044e1bc925fde08dc7324d04f2e8ac053
 }
 
 BINARIES="cmd/${OPERATOR} cmd/${CONTROLLER} cmd/${IMPORTER} cmd/${CLONER} cmd/${APISERVER} cmd/${UPLOADPROXY} cmd/${UPLOADSERVER} cmd/${OPERATOR} tools/${FUNC_TEST_INIT} tools/${FUNC_TEST_REGISTRY_INIT} tools/${FUNC_TEST_BAD_WEBSERVER} tools/${FUNC_TEST_PROXY}"
