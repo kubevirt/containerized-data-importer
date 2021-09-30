@@ -23,6 +23,8 @@ rpm_image(
             "@capstone-aarch64//file",
             "@ostree-libs-aarch64//file",
             "@containers-common-aarch64//file",
+            "@skopeo-aarch64//file",
+            "@device-mapper-libs-aarch64//file",
         ],
         "//conditions:default": [
             "@liburing//file",
@@ -40,6 +42,8 @@ rpm_image(
             "@capstone//file",
             "@ostree-libs//file",
             "@containers-common//file",
+            "@skopeo//file",
+            "@device-mapper-libs//file",
         ],
     }),
 )
@@ -90,6 +94,7 @@ container_image(
     files = [
         ":cdi-importer",
         "//tools/cdi-containerimage-server",
+        "//tools/cdi-source-update-poller",
     ],
     visibility = ["//visibility:public"],
 )

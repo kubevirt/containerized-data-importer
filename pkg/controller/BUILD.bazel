@@ -31,6 +31,7 @@ go_library(
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1/utils:go_default_library",
         "//vendor/github.com/go-logr/logr:go_default_library",
+        "//vendor/github.com/gorhill/cronexpr:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1:go_default_library",
         "//vendor/github.com/openshift/api/config/v1:go_default_library",
         "//vendor/github.com/openshift/api/image/v1:go_default_library",
