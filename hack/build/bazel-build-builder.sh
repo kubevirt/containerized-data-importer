@@ -18,18 +18,23 @@ set -e
 script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
-echo "$DOCKER_PREFIX:$DOCKER_TAG"
-BUILDER_SPEC="${BUILD_DIR}/docker/builder"
 
-# When building and pushing a new image we do not provide the sha hash
-# because docker assigns that for us.
-UNTAGGED_BUILDER_IMAGE=quay.io/kubevirt/kubevirt-cdi-bazel-builder
+if ! git diff-index --quiet HEAD~1 hack/build/docker; then
+  #Since this only runs during the post-submit job, the PR will have squashed into a single
+  #commit and we can use HEAD~1 to compare.
+  BUILDER_SPEC="${BUILD_DIR}/docker/builder"
+  UNTAGGED_BUILDER_IMAGE=quay.io/kubevirt/kubevirt-cdi-bazel-builder
+  BUILDER_TAG=$(date +"%y%m%d%H%M")-$(git rev-parse --short HEAD)
+  echo "$DOCKER_PREFIX:$DOCKER_TAG"
 
-# Build the encapsulated compile and test container
-(cd ${BUILDER_SPEC} && docker build --tag ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG} .)
+  #Build the encapsulated compile and test container
+  (cd ${BUILDER_SPEC} && docker build --tag ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG} .)
 
-DIGEST=$(docker images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
-echo "Image: ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}"
-echo "Digest: ${DIGEST}"
+  DIGEST=$(docker images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
+  echo "Image: ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}"
+  echo "Digest: ${DIGEST}"
 
-docker push ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
+  docker push ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
+fi
+
+
