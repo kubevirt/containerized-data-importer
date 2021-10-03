@@ -333,7 +333,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	)
 })
 
-var TestFakeError = errors.New("TestFakeError")
+var ErrorTestFake = errors.New("TestFakeError")
 
 // LimitThenErrorReader returns a Reader that reads from r
 // but stops with FakeError after n bytes.
@@ -351,7 +351,7 @@ type limitThenErrorReader struct {
 
 func (l *limitThenErrorReader) Read(p []byte) (n int, err error) {
 	if l.n <= 0 {
-		return 0, TestFakeError // EOF
+		return 0, ErrorTestFake // EOF
 	}
 	if int64(len(p)) > l.n {
 		p = p[0:l.n]
@@ -600,11 +600,6 @@ var _ = Describe("Block PV upload Test", func() {
 			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultPvcMountPath, utils.UploadFileMD5, utils.UploadFileSize)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
-		} else {
-			// TODO framework.VerifyPVCIsEmpty doesn't make sense for block devices
-			//By("Verify PVC empty")
-			//_, err = framework.VerifyPVCIsEmpty(f, pvc)
-			//Expect(err).ToNot(HaveOccurred())
 		}
 	},
 		Entry("[test_id:1368]succeed given a valid token (block)", true, http.StatusOK),
@@ -707,7 +702,7 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify Quota was exceeded in logs")
-		matchString := fmt.Sprintf("pods \\\"cdi-upload-upload-test\\\" is forbidden: exceeded quota: test-quota, requested")
+		matchString := "pods \\\"cdi-upload-upload-test\\\" is forbidden: exceeded quota: test-quota, requested"
 		Eventually(func() string {
 			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 			Expect(err).NotTo(HaveOccurred())
@@ -725,7 +720,7 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify Quota was exceeded in logs")
-		matchString := fmt.Sprintf("pods \\\"cdi-upload-upload-test\\\" is forbidden: exceeded quota: test-quota, requested")
+		matchString := "pods \\\"cdi-upload-upload-test\\\" is forbidden: exceeded quota: test-quota, requested"
 		Eventually(func() string {
 			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 			Expect(err).NotTo(HaveOccurred())
@@ -1109,10 +1104,7 @@ var _ = Describe("Preallocation", func() {
 
 		Eventually(func() bool {
 			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			if k8serrors.IsNotFound(err) {
-				return true
-			}
-			return false
+			return k8serrors.IsNotFound(err)
 		}, timeout, pollingInterval).Should(BeTrue())
 	})
 

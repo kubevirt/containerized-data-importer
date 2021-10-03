@@ -67,14 +67,14 @@ func storageProvisionerKey(sc *storagev1.StorageClass) string {
 var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageClass) string{
 	"pxd.openstorage.org": func(sc *storagev1.StorageClass) string {
 		//https://docs.portworx.com/portworx-install-with-kubernetes/storage-operations/create-pvcs/create-shared-pvcs/
-		val, _ := sc.Parameters["shared"]
+		val := sc.Parameters["shared"]
 		if val == "true" {
 			return "pxd.openstorage.org/shared"
 		}
 		return "pxd.openstorage.org"
 	},
 	"kubernetes.io/portworx-volume": func(sc *storagev1.StorageClass) string {
-		val, _ := sc.Parameters["shared"]
+		val := sc.Parameters["shared"]
 		if val == "true" {
 			return "kubernetes.io/portworx-volume/shared"
 		}
@@ -82,7 +82,7 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 	},
 	"csi.trident.netapp.io": func(sc *storagev1.StorageClass) string {
 		//https://netapp-trident.readthedocs.io/en/stable-v20.04/kubernetes/concepts/objects.html#kubernetes-storageclass-objects
-		val, _ := sc.Parameters["backendType"]
+		val := sc.Parameters["backendType"]
 		if val == "ontap-nas" {
 			return "csi.trident.netapp.io/ontap-nas"
 		} else if val == "ontap-san" {
