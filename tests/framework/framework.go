@@ -854,30 +854,42 @@ func (r *KubernetesReporter) logLogs(kubeCli *kubernetes.Clientset, since time.D
 	}
 
 	for _, pod := range pods.Items {
-		for _, container := range pod.Spec.Containers {
-			current, err := os.OpenFile(filepath.Join(logsdir, fmt.Sprintf("%d_%s_%s-%s.log", r.FailureCount, pod.Namespace, pod.Name, container.Name)), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "failed to open the file: %v\n", err)
-				return
-			}
-			defer current.Close()
+		containerLists := [][]v1.Container{
+			pod.Spec.Containers,
+			pod.Spec.InitContainers,
+		}
+		for i, containers := range containerLists {
+			for _, container := range containers {
+				current, err := os.OpenFile(filepath.Join(logsdir, fmt.Sprintf("%d_%s_%s-%s.log", r.FailureCount, pod.Namespace, pod.Name, container.Name)), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "failed to open the file: %v\n", err)
+					return
+				}
+				defer current.Close()
 
-			previous, err := os.OpenFile(filepath.Join(logsdir, fmt.Sprintf("%d_%s_%s-%s_previous.log", r.FailureCount, pod.Namespace, pod.Name, container.Name)), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "failed to open the file: %v\n", err)
-				return
-			}
-			defer previous.Close()
+				previous, err := os.OpenFile(filepath.Join(logsdir, fmt.Sprintf("%d_%s_%s-%s_previous.log", r.FailureCount, pod.Namespace, pod.Name, container.Name)), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "failed to open the file: %v\n", err)
+					return
+				}
+				defer previous.Close()
 
-			logStart := metav1.NewTime(startTime)
-			logs, err := kubeCli.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{SinceTime: &logStart, Container: container.Name}).DoRaw(context.TODO())
-			if err == nil {
-				fmt.Fprintln(current, string(logs))
-			}
+				logOptions := v1.PodLogOptions{Container: container.Name, Previous: false}
+				if i == 0 {
+					// For regular containers (not init) we want to specify specific time
+					logStart := metav1.NewTime(startTime)
+					logOptions.SinceTime = &logStart
+				}
+				logs, err := kubeCli.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &logOptions).DoRaw(context.TODO())
+				if err == nil {
+					fmt.Fprintln(current, string(logs))
+				}
 
-			logs, err = kubeCli.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{SinceTime: &logStart, Container: container.Name, Previous: true}).DoRaw(context.TODO())
-			if err == nil {
-				fmt.Fprintln(previous, string(logs))
+				logOptions.Previous = true
+				logs, err = kubeCli.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &logOptions).DoRaw(context.TODO())
+				if err == nil {
+					fmt.Fprintln(previous, string(logs))
+				}
 			}
 		}
 	}
