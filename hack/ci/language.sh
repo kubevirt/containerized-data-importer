@@ -15,7 +15,6 @@ VIOLATIONS=$(git grep -iI -E $PHRASES -- \
 	':!cluster-sync' \
 	':!*generated*' \
 	':!*swagger.json*' \
-	':!hack/gen-swagger-doc/deploy.sh' \
 	':!hack/ci/language.sh' \
 		"${CDI_DIR}" \
 		| grep -v \
