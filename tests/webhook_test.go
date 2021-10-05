@@ -211,8 +211,10 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				}, 60*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
 
 				// now can create clone of dv in source
-				_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).Create(context.TODO(), targetDV, metav1.CreateOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				Eventually(func() error {
+					_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).Create(context.TODO(), targetDV, metav1.CreateOptions{})
+					return err
+				}, 60*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
 
 				// let's do another manual check as well
 				allowed, reason, err = clone.CanServiceAccountClonePVC(&sarProxy{client: f.K8sClient},
