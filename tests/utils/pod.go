@@ -115,7 +115,7 @@ func findPodByCompFuncOnce(clientSet *kubernetes.Clientset, namespace, prefix, l
 	for _, pod := range podList.Items {
 		if compFunc(pod.Name, prefix) {
 			if result == nil {
-				result = &pod
+				result = pod.DeepCopy()
 			} else {
 				fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: First pod name %s in namespace %s\n", result.Name, result.Namespace)
 				fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Second pod name %s in namespace %s\n", pod.Name, pod.Namespace)
