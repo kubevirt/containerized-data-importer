@@ -273,8 +273,8 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", fu
 		Eventually(func() bool {
 			cr, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			return reflect.DeepEqual(cr.Spec, oldSpec)
-		}, 30*time.Second, time.Second)
+			return reflect.DeepEqual(cr.Spec, *oldSpec)
+		}, 30*time.Second, time.Second).Should(BeTrue())
 	})
 
 	It("[test_id:4783] Should create import pod with node placement", func() {
@@ -286,7 +286,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", fu
 			realCR, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			return reflect.DeepEqual(cr.Spec, realCR.Spec)
-		}, 30*time.Second, time.Second)
+		}, 30*time.Second, time.Second).Should(BeTrue())
 
 		dv := utils.NewDataVolumeWithHTTPImport("node-placement-test", "100Mi", imageTooLargeSize())
 		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
@@ -329,10 +329,10 @@ var _ = Describe("Importer CDI config manipulation tests", func() {
 		})
 
 		Eventually(func() bool {
-			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			return reflect.DeepEqual(config.Spec, origSpec)
-		}, 30*time.Second, time.Second)
+			return reflect.DeepEqual(config.Spec, *origSpec)
+		}, 30*time.Second, time.Second).Should(BeTrue())
 	})
 
 	dvWithPvcSpec := func() *cdiv1.DataVolume {
@@ -1115,10 +1115,10 @@ var _ = Describe("Preallocation", func() {
 		})
 
 		Eventually(func() bool {
-			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			return reflect.DeepEqual(config.Spec, origSpec)
-		}, 30*time.Second, time.Second)
+			return reflect.DeepEqual(config.Spec, *origSpec)
+		}, 30*time.Second, time.Second).Should(BeTrue())
 	})
 
 	It("Importer should add preallocation when requested", func() {

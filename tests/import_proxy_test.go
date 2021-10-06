@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -71,6 +72,9 @@ var _ = Describe("Import Proxy tests", func() {
 			clusterWideProxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			clusterWideProxySpec = clusterWideProxy.Spec.DeepCopy()
+
+			By("Pausing MCPs - disabling the Machine Config Operator from automatically rebooting since we don't need that to ensure we proxy things")
+			manipulateMachineConfigPools(f, true)
 		}
 		By("Saving original CDIConfig")
 		config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -90,6 +94,18 @@ var _ = Describe("Import Proxy tests", func() {
 		if utils.IsOpenshift(f.K8sClient) {
 			By("Reverting the cluster wide proxy spec to the original configuration")
 			cleanClusterWideProxy(ocpClient, clusterWideProxySpec)
+
+			By("Resuming MCPs")
+			manipulateMachineConfigPools(f, false)
+
+			By("Finish node reboots")
+			// Wait a bit for the reboot to start so we don't succeed immediately
+			time.Sleep(2 * time.Minute)
+			Eventually(func() error {
+				output, err := RunOcCommand(f, "wait", "mcp", "--all", "--for", "condition=updated", "--timeout", "1s")
+				By(output)
+				return err
+			}, 50*time.Minute, time.Second).ShouldNot(HaveOccurred())
 		}
 
 		By("Restoring CDIConfig to original state")
@@ -98,108 +114,110 @@ var _ = Describe("Import Proxy tests", func() {
 		})
 
 		Eventually(func() bool {
-			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			return reflect.DeepEqual(config.Spec, origSpec)
-		}, 30*time.Second, time.Second)
+			return reflect.DeepEqual(config.Spec, *origSpec)
+		}, 30*time.Second, time.Second).Should(BeTrue())
 	})
 
-	DescribeTable("should", func(args importProxyTestArguments) {
-		var proxyHTTPURL string
-		var proxyHTTPSURL string
-		if args.isHTTPS {
-			proxyHTTPSURL = createProxyURL(args.isHTTPS, args.withBasicAuth, f.CdiInstallNs)
-		} else {
-			proxyHTTPURL = createProxyURL(args.isHTTPS, args.withBasicAuth, f.CdiInstallNs)
-		}
-		noProxy := args.noProxy
-		imgURL := createImgURL(args.isHTTPS, f.CdiInstallNs)
-		dvName = args.name
+	Context("[Destructive]", func() {
+		DescribeTable("should", func(args importProxyTestArguments) {
+			var proxyHTTPURL string
+			var proxyHTTPSURL string
+			if args.isHTTPS {
+				proxyHTTPSURL = createProxyURL(args.isHTTPS, args.withBasicAuth, f.CdiInstallNs)
+			} else {
+				proxyHTTPURL = createProxyURL(args.isHTTPS, args.withBasicAuth, f.CdiInstallNs)
+			}
+			noProxy := args.noProxy
+			imgURL := createImgURL(args.isHTTPS, f.CdiInstallNs)
+			dvName = args.name
 
-		By("Updating CDIConfig with ImportProxy configuration")
-		updateProxy(f, proxyHTTPURL, proxyHTTPSURL, noProxy, ocpClient)
+			By("Updating CDIConfig with ImportProxy configuration")
+			updateProxy(f, proxyHTTPURL, proxyHTTPSURL, noProxy, ocpClient)
 
-		By(fmt.Sprintf("Creating new datavolume %s", dvName))
-		dv := createHTTPDataVolume(f, dvName, args.size, imgURL, args.isHTTPS, args.withBasicAuth)
-		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
-		Expect(err).ToNot(HaveOccurred())
+			By(fmt.Sprintf("Creating new datavolume %s", dvName))
+			dv := createHTTPDataVolume(f, dvName, args.size, imgURL, args.isHTTPS, args.withBasicAuth)
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+			Expect(err).ToNot(HaveOccurred())
 
-		By("Verifying pvc was created")
-		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dvName)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+			By("Verifying pvc was created")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dvName)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
 
-		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
-		// We do not wait the datavolume to suceed in the end of the test because it is a very slow process due to the rate limit.
-		// Having the importer pod in the phase InProgress is enough to verify if the requests were proxied or not.
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dvName)
-		Expect(err).ToNot(HaveOccurred())
+			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
+			// We do not wait the datavolume to suceed in the end of the test because it is a very slow process due to the rate limit.
+			// Having the importer pod in the phase InProgress is enough to verify if the requests were proxied or not.
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dvName)
+			Expect(err).ToNot(HaveOccurred())
 
-		By("Checking the importer pod information in the proxy log to verify if the requests were proxied")
-		verifyImporterPodInfoInProxyLogs(f, dataVolume, imgURL, args.isHTTPS, args.expected)
-	},
-		Entry("succeed creating import dv with a proxied server (http)", importProxyTestArguments{
-			name:          "dv-import-http-proxy",
-			size:          "1Gi",
-			noProxy:       "",
-			isHTTPS:       false,
-			withBasicAuth: false,
-			expected:      BeTrue}),
-		Entry("succeed creating import dv with a proxied server (http) with basic autentication", importProxyTestArguments{
-			name:          "dv-import-http-proxy-auth",
-			size:          "1Gi",
-			noProxy:       "",
-			isHTTPS:       false,
-			withBasicAuth: true,
-			expected:      BeTrue}),
-		Entry("succeed creating import dv with a proxied server (https) with the target server with tls", importProxyTestArguments{
-			name:          "dv-import-https-proxy",
-			size:          "1Gi",
-			noProxy:       "",
-			isHTTPS:       true,
-			withBasicAuth: false,
-			expected:      BeTrue}),
-		Entry("succeed creating import dv with a proxied server (https) with basic autentication and the target server with tls", importProxyTestArguments{
-			name:          "dv-import-https-proxy-auth",
-			size:          "1Gi",
-			noProxy:       "",
-			isHTTPS:       true,
-			withBasicAuth: true,
-			expected:      BeTrue}),
-		Entry("succeed creating import dv with a proxied server (http) but bypassing the proxy", importProxyTestArguments{
-			name:          "dv-import-noproxy",
-			size:          "1Gi",
-			noProxy:       "*",
-			isHTTPS:       false,
-			withBasicAuth: false,
-			expected:      BeFalse}),
-	)
+			By("Checking the importer pod information in the proxy log to verify if the requests were proxied")
+			verifyImporterPodInfoInProxyLogs(f, dataVolume, imgURL, args.isHTTPS, args.expected)
+		},
+			Entry("succeed creating import dv with a proxied server (http)", importProxyTestArguments{
+				name:          "dv-import-http-proxy",
+				size:          "1Gi",
+				noProxy:       "",
+				isHTTPS:       false,
+				withBasicAuth: false,
+				expected:      BeTrue}),
+			Entry("succeed creating import dv with a proxied server (http) with basic autentication", importProxyTestArguments{
+				name:          "dv-import-http-proxy-auth",
+				size:          "1Gi",
+				noProxy:       "",
+				isHTTPS:       false,
+				withBasicAuth: true,
+				expected:      BeTrue}),
+			Entry("succeed creating import dv with a proxied server (https) with the target server with tls", importProxyTestArguments{
+				name:          "dv-import-https-proxy",
+				size:          "1Gi",
+				noProxy:       "",
+				isHTTPS:       true,
+				withBasicAuth: false,
+				expected:      BeTrue}),
+			Entry("succeed creating import dv with a proxied server (https) with basic autentication and the target server with tls", importProxyTestArguments{
+				name:          "dv-import-https-proxy-auth",
+				size:          "1Gi",
+				noProxy:       "",
+				isHTTPS:       true,
+				withBasicAuth: true,
+				expected:      BeTrue}),
+			Entry("succeed creating import dv with a proxied server (http) but bypassing the proxy", importProxyTestArguments{
+				name:          "dv-import-noproxy",
+				size:          "1Gi",
+				noProxy:       "*",
+				isHTTPS:       false,
+				withBasicAuth: false,
+				expected:      BeFalse}),
+		)
 
-	It("should proxy registry imports", func() {
-		By("Updating CDIConfig with ImportProxy configuration")
-		updateProxy(f, "", createProxyURL(true, false, f.CdiInstallNs), "", ocpClient)
+		It("should proxy registry imports", func() {
+			By("Updating CDIConfig with ImportProxy configuration")
+			updateProxy(f, "", createProxyURL(true, false, f.CdiInstallNs), "", ocpClient)
 
-		By("Creating new datavolume")
-		// Note this 'proxy URL' is a rate limit proxy in front of the registry
-		dv := utils.NewDataVolumeWithRegistryImport("import-dv", "1Gi", fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs))
-		cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-		Expect(err).To(BeNil())
-		dv.Spec.Source.Registry.CertConfigMap = &cm
-		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
-		Expect(err).To(BeNil())
-		dvName = dv.Name
+			By("Creating new datavolume")
+			// Note this 'proxy URL' is a rate limit proxy in front of the registry
+			dv := utils.NewDataVolumeWithRegistryImport("import-dv", "1Gi", fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs))
+			cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+			Expect(err).To(BeNil())
+			dv.Spec.Source.Registry.CertConfigMap = &cm
+			dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+			Expect(err).To(BeNil())
+			dvName = dv.Name
 
-		pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
-		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
-		// We do not wait the datavolume to suceed in the end of the test because it is a very slow process due to the rate limit.
-		// Having the importer pod in the phase InProgress is enough to verify if the requests were proxied or not.
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dv.Name)
-		Expect(err).ToNot(HaveOccurred())
+			pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
+			// We do not wait the datavolume to suceed in the end of the test because it is a very slow process due to the rate limit.
+			// Having the importer pod in the phase InProgress is enough to verify if the requests were proxied or not.
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dv.Name)
+			Expect(err).ToNot(HaveOccurred())
 
-		By("Checking the importer pod information in the proxy log to verify if the requests were proxied")
-		verifyImporterPodInfoInProxyLogs(f, dv, imgURL, true, BeTrue)
+			By("Checking the importer pod information in the proxy log to verify if the requests were proxied")
+			verifyImporterPodInfoInProxyLogs(f, dv, imgURL, true, BeTrue)
+		})
 	})
 })
 
@@ -358,4 +376,25 @@ func cleanClusterWideProxy(ocpClient *configclient.Clientset, clusterWideProxySp
 		}
 		return false
 	}, timeout, pollingInterval).Should(BeTrue())
+}
+
+func manipulateMachineConfigPools(f *framework.Framework, paused bool) {
+	pausedStr := strconv.FormatBool(paused)
+	mcpGetOutput, err := RunOcCommand(f, "get", "mcp", "--no-headers", "-o", "custom-columns=:metadata.name")
+	Expect(err).ToNot(HaveOccurred())
+	mcpNames := strings.Split(strings.TrimSuffix(mcpGetOutput, "\n"), "\n")
+	Expect(mcpNames).To(HaveLen(2))
+
+	for _, mcp := range mcpNames {
+		_, err = RunOcCommand(f, "patch", "mcp", mcp, "--type", "merge", "--patch", fmt.Sprintf("{\"spec\":{\"paused\":%s}}", pausedStr))
+		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() bool {
+			isPaused, err := RunOcCommand(f, "get", "mcp", mcp, "--template", "{{.spec.paused}}")
+			By(fmt.Sprintf("%s .paused = %s", mcp, isPaused))
+			if err != nil {
+				return false
+			}
+			return isPaused == pausedStr
+		}, 180*time.Second, time.Second).Should(BeTrue())
+	}
 }
