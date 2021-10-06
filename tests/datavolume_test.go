@@ -1137,20 +1137,19 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			var sourcePod *v1.Pod
 			var uploadPod *v1.Pod
 			Eventually(func() bool {
-				sourcePod, err = utils.FindPodBySuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
-				if err != nil {
-					return false
-				}
 				uploadPod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
-				if err != nil {
-					return false
-				}
-				return true
+				return err == nil
 			}, timeout, pollingInterval).Should(BeTrue())
-
-			By("Found pods! checking annotations")
-			verifyAnnotations(sourcePod)
 			verifyAnnotations(uploadPod)
+			// Remove non existent network so upload pod succeeds and clone can continue (some envs like OpenShift check network validity)
+			delete(uploadPod.Annotations, controller.AnnPodNetwork)
+			_, err = f.K8sClient.CoreV1().Pods(dataVolume.Namespace).Update(context.TODO(), uploadPod, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() bool {
+				sourcePod, err = utils.FindPodBySuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
+				return err == nil
+			}, timeout, pollingInterval).Should(BeTrue())
+			verifyAnnotations(sourcePod)
 		})
 	})
 
