@@ -144,28 +144,11 @@ container_pull(
     tag = "33-x86_64",
 )
 
-#No need to update this one until we re-enable the cinder lane, as only the lvm pod uses this.
 container_pull(
     name = "fedora-aarch64",
     registry = "quay.io",
     repository = "fedora/fedora",
     tag = "33-aarch64",
-)
-
-container_pull(
-    name = "fedora-docker",
-    digest = "sha256:fdf235fa167d2aa5d820fba274ec1d2edeb0534bd32d28d602a19b31bad79b80",
-    registry = "index.docker.io",
-    repository = "fedora",
-    tag = "33",
-)
-
-container_pull(
-    name = "fedora-docker-aarch64",
-    digest = "sha256:04fb86a6fd3c4533274931d29e72b8924fa5f578b3d6eabc7442144e89b0ed6d",
-    registry = "index.docker.io",
-    repository = "fedora",
-    tag = "33",
 )
 
 # Pull base image container registry
