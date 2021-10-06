@@ -12,11 +12,11 @@ require (
 	github.com/emicklei/go-restful v2.10.0+incompatible
 	github.com/emicklei/go-restful-openapi v1.2.0
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-logr/logr v0.3.0
+	github.com/go-logr/logr v0.4.0
 	github.com/go-openapi/spec v0.19.3
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/snappy v0.0.2
-	github.com/google/uuid v1.1.2
+	github.com/google/uuid v1.3.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
 	github.com/mrnold/go-libnbd v1.4.1-cdi
@@ -27,7 +27,9 @@ require (
 	github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca
 	github.com/openshift/library-go v0.0.0-20210205203934-9eb0d970f2f4
 	github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190725173916-b56e63a643cc
-	github.com/ovirt/go-ovirt v4.3.4+incompatible
+	github.com/ovirt/go-ovirt v0.0.0-20210809163552-d4276e35d3db
+	github.com/ovirt/go-ovirt-client v0.6.0
+	github.com/ovirt/go-ovirt-client-log-klog v1.0.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/client_model v0.2.0
@@ -44,7 +46,7 @@ require (
 	k8s.io/client-go v8.0.0+incompatible
 	k8s.io/cluster-bootstrap v0.0.0
 	k8s.io/code-generator v0.20.2
-	k8s.io/klog/v2 v2.4.0
+	k8s.io/klog/v2 v2.10.0
 	k8s.io/kube-aggregator v0.20.2
 	k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
 	kubevirt.io/controller-lifecycle-operator-sdk v0.2.1-0.20210723143736-64585ea1d1bd // TODO: update when release is made

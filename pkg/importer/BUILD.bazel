@@ -33,6 +33,8 @@ go_library(
         "//vendor/github.com/containers/image/v5/pkg/blobinfocache:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",
         "//vendor/github.com/ovirt/go-ovirt:go_default_library",
+        "//vendor/github.com/ovirt/go-ovirt-client:go_default_library",
+        "//vendor/github.com/ovirt/go-ovirt-client-log-klog:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/github.com/prometheus/client_golang/prometheus:go_default_library",
         "//vendor/github.com/ulikunitz/xz:go_default_library",
