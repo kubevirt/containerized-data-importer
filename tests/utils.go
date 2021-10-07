@@ -45,7 +45,7 @@ func CDIFailHandler(message string, callerSkip ...int) {
 	ginkgo.Fail(message, callerSkip...)
 }
 
-//RunKubectlCommand ...
+//RunKubectlCommand runs a kubectl Cmd and returns output and err
 func RunKubectlCommand(f *framework.Framework, args ...string) (string, error) {
 	var errb bytes.Buffer
 	cmd := CreateKubectlCommand(f, args...)
@@ -67,6 +67,36 @@ func RunKubectlCommand(f *framework.Framework, args ...string) (string, error) {
 func CreateKubectlCommand(f *framework.Framework, args ...string) *exec.Cmd {
 	kubeconfig := f.KubeConfig
 	path := f.KubectlPath
+
+	cmd := exec.Command(path, args...)
+	kubeconfEnv := fmt.Sprintf("KUBECONFIG=%s", kubeconfig)
+	cmd.Env = append(os.Environ(), kubeconfEnv)
+
+	return cmd
+}
+
+//RunOcCommand runs an oc Cmd and returns output and err
+func RunOcCommand(f *framework.Framework, args ...string) (string, error) {
+	var errb bytes.Buffer
+	cmd := CreateOcCommand(f, args...)
+
+	cmd.Stderr = &errb
+	stdOutBytes, err := cmd.Output()
+	if err != nil {
+		if len(errb.String()) > 0 {
+			return errb.String(), err
+		}
+		// err will not always be nil calling kubectl, this is expected on no results for instance.
+		// still return the value and let the called decide what to do.
+		return string(stdOutBytes), err
+	}
+	return string(stdOutBytes), nil
+}
+
+// CreateOcCommand returns the Cmd to execute oc
+func CreateOcCommand(f *framework.Framework, args ...string) *exec.Cmd {
+	kubeconfig := f.KubeConfig
+	path := f.OcPath
 
 	cmd := exec.Command(path, args...)
 	kubeconfEnv := fmt.Sprintf("KUBECONFIG=%s", kubeconfig)
