@@ -46,6 +46,7 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileCreateSCC)
 	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileSELinuxPerms)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCreateRoute)
+	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCreatePrometheusInfra)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileDeleteSecrets)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileInitializeCRD)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileSetConfigAuthority)
@@ -137,6 +138,34 @@ func reconcileCreateSCC(args *callbacks.ReconcileCallbackArgs) error {
 		return err
 	}
 	args.Recorder.Event(cr, corev1.EventTypeNormal, createResourceSuccess, "Successfully ensured SecurityContextConstraint exists")
+
+	return nil
+}
+
+func reconcileCreatePrometheusInfra(args *callbacks.ReconcileCallbackArgs) error {
+	if args.State != callbacks.ReconcileStatePostRead {
+		return nil
+	}
+
+	deployment := args.CurrentObject.(*appsv1.Deployment)
+	if !isControllerDeployment(deployment) || !sdk.CheckDeploymentReady(deployment) {
+		return nil
+	}
+
+	cr := args.Resource.(runtime.Object)
+	if err := ensurePrometheusRuleExists(args.Logger, args.Client, deployment); err != nil {
+		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure prometheus rule exists, %v", err))
+		return err
+	}
+	if err := ensurePrometheusRbacExists(args.Logger, args.Client, deployment); err != nil {
+		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure prometheus rbac exists, %v", err))
+		return err
+	}
+	if err := ensurePrometheusServiceMonitorExists(args.Logger, args.Client, deployment); err != nil {
+		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure prometheus service monitor exists, %v", err))
+		return err
+	}
+	args.Recorder.Event(cr, corev1.EventTypeNormal, createResourceSuccess, "Successfully ensured prometheus resources exist")
 
 	return nil
 }

@@ -220,6 +220,24 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 				"watch",
 			},
 		},
+		{
+			APIGroups: []string{
+				"monitoring.coreos.com",
+			},
+			Resources: []string{
+				"servicemonitors",
+				"prometheusrules",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+				"create",
+				"delete",
+				"update",
+				"patch",
+			},
+		},
 	}
 	return rules
 }
@@ -357,7 +375,7 @@ func createPrometheusPorts() []corev1.ContainerPort {
 	return []corev1.ContainerPort{
 		{
 			Name:          "metrics",
-			ContainerPort: 60000,
+			ContainerPort: 8080,
 			Protocol:      "TCP",
 		},
 	}

@@ -2,9 +2,13 @@ package tests_test
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"reflect"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -643,6 +647,68 @@ var _ = Describe("ALL Operator tests", func() {
 					}
 					return true
 				}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+			})
+		})
+
+		var _ = Describe("Alert tests", func() {
+			f := framework.NewFramework("alert-tests")
+
+			It("CdiOperatorDown alert firing when operator scaled down", func() {
+				if !utils.IsOpenshift(f.K8sClient) {
+					Skip("This test is OpenShift specific")
+				}
+
+				By("Scale down operator so alert will trigger")
+				deploymentName := "cdi-operator"
+				operatorDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				originalReplicas := operatorDeployment.Spec.Replicas
+				operatorDeployment.Spec.Replicas = &[]int32{0}[0]
+				_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Let's see that alert fires")
+				client := &http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+					},
+				}
+				var token, host string
+				Eventually(func() bool {
+					host, err = tests.RunOcCommand(f, "-n", "openshift-monitoring", "get", "route", "prometheus-k8s", "--template", "{{.spec.host}}")
+					if err != nil {
+						return false
+					}
+					token, err = tests.RunOcCommand(f, "-n", "openshift-monitoring", "sa", "get-token", "prometheus-k8s")
+					if err != nil {
+						return false
+					}
+					return true
+				}, 10*time.Second, time.Second).Should(BeTrue())
+				Eventually(func() bool {
+					req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/api/v1/alerts", host), nil)
+					req.Header.Add("Authorization", "Bearer "+token)
+					Expect(err).ToNot(HaveOccurred())
+					resp, err := client.Do(req)
+					if err != nil {
+						return false
+					}
+					defer resp.Body.Close()
+					if resp.StatusCode != http.StatusOK {
+						return false
+					}
+					bodyBytes, err := ioutil.ReadAll(resp.Body)
+					return strings.Contains(string(bodyBytes), "CdiOperatorDown")
+				}, 6*time.Minute, 1*time.Second).Should(BeTrue())
+
+				By("Ensuring original value of replicas restored")
+				operatorDeployment, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				operatorDeployment.Spec.Replicas = originalReplicas
+				_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				err = utils.WaitForDeploymentReplicasReady(f.K8sClient, f.CdiInstallNs, deploymentName)
+				Expect(err).ToNot(HaveOccurred())
 			})
 		})
 
