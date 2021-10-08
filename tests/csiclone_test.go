@@ -2,6 +2,7 @@ package tests
 
 import (
 	"fmt"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -75,6 +76,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 	It("[posneg:negative][test_id:6655] Support for CSI Clone strategy in storage profile with SC HPP - negative", func() {
 		if f.IsCSIVolumeCloneStorageClassAvailable() {
 			Skip("Test should only run on non-csi storage")
+		}
+		if utils.DefaultStorageClassCsiDriver != nil {
+			Skip("default storage class has CSI Driver, cannot run test")
 		}
 
 		By(fmt.Sprintf("configure storage profile %s", cloneStorageClassName))
