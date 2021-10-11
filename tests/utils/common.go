@@ -61,7 +61,7 @@ var (
 	// NfsService is the service in the cdi namespace that will be created if KUBEVIRT_STORAGE=nfs
 	NfsService *corev1.Service
 	nfsChecked bool
-	// DefaultStorageCSIRespectsFsGroup is true if the default storage class is CSI, false other wise.
+	// DefaultStorageCSIRespectsFsGroup is true if the default storage class is CSI and respects fsGroup, false other wise.
 	DefaultStorageCSIRespectsFsGroup bool
 )
 
