@@ -33,16 +33,14 @@ import (
 )
 
 const (
-	syncUploadPath    = "/v1beta1/upload"
-	asyncUploadPath   = "/v1beta1/upload-async"
-	archiveUploadPath = "/v1beta1/upload-archive"
+	syncUploadPath  = "/v1beta1/upload"
+	asyncUploadPath = "/v1beta1/upload-async"
 
 	syncFormPath  = "/v1beta1/upload-form"
 	asyncFormPath = "/v1beta1/upload-form-async"
 
-	alphaSyncUploadPath    = "/v1alpha1/upload"
-	alphaAsyncUploadPath   = "/v1alpha1/upload-async"
-	alphaArchiveUploadPath = "/v1alpha1/upload-archive"
+	alphaSyncUploadPath  = "/v1alpha1/upload"
+	alphaAsyncUploadPath = "/v1alpha1/upload-async"
 )
 
 type uploadFunc func(string, string, int) error
@@ -53,8 +51,9 @@ type uploadFileNameRequestCreator func(string, string) (*http.Request, error)
 var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component]Upload tests", func() {
 
 	var (
-		pvc *v1.PersistentVolumeClaim
-		err error
+		pvc        *v1.PersistentVolumeClaim
+		archivePVC *v1.PersistentVolumeClaim
+		err        error
 
 		uploadProxyURL string
 		portForwardCmd *exec.Cmd
@@ -99,6 +98,17 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(deleted).To(BeTrue())
+
+		if archivePVC != nil {
+			By("Delete upload archive PVC")
+			err = f.DeletePVC(pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Wait for upload archive pod to be deleted")
+			deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(deleted).To(BeTrue())
+		}
 	})
 
 	checkFailureNoValidToken := func() {
@@ -188,8 +198,12 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		archiveFilePath, err := utils.ArchiveFiles("archive", os.TempDir(), utils.UploadFile, utils.UploadCirrosFile)
 		Expect(err).ToNot(HaveOccurred())
 
+		By("Creating PVC with upload target annotation and archive context-type")
+		archivePVC, err = f.CreateBoundPVCFromDefinition(utils.UploadArchivePVCDefinition())
+		Expect(err).ToNot(HaveOccurred())
+
 		By("Verify PVC annotation says ready")
-		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
+		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, archivePVC)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(found).To(BeTrue())
 
@@ -197,7 +211,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		var expectedStatus = http.StatusOK
 		if validToken {
 			By("Get an upload token")
-			token, err = utils.RequestUploadToken(f.CdiClient, pvc)
+			token, err = utils.RequestUploadToken(f.CdiClient, archivePVC)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(token).ToNot(BeEmpty())
 		} else {
@@ -212,18 +226,18 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 		if validToken {
 			By("Verify PVC status annotation says succeeded")
-			found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
+			found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, archivePVC)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(found).To(BeTrue())
 
 			By("Verify content")
 			for file, expectedMd5 := range filesToUpload {
 				pathInPvc := utils.DefaultPvcMountPath + "/" + file
-				same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, pathInPvc, expectedMd5)
+				same, err := f.VerifyTargetPVCContentMD5(f.Namespace, archivePVC, pathInPvc, expectedMd5)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(same).To(BeTrue())
 				By("Verifying the image is sparse")
-				Expect(f.VerifySparse(f.Namespace, pvc, pathInPvc)).To(BeTrue())
+				Expect(f.VerifySparse(f.Namespace, archivePVC, pathInPvc)).To(BeTrue())
 			}
 		} else {
 			checkFailureNoValidToken()
@@ -442,11 +456,11 @@ func testBadRequestFunc(url, fileName string) (*http.Request, error) {
 }
 
 func uploadArchive(uploadFilePath, portForwardURL, token string, expectedStatus int) error {
-	return uploadFileNameToPath(binaryRequestFunc, uploadFilePath, portForwardURL, archiveUploadPath, token, expectedStatus)
+	return uploadFileNameToPath(binaryRequestFunc, uploadFilePath, portForwardURL, syncUploadPath, token, expectedStatus)
 }
 
 func uploadArchiveAlpha(uploadFilePath, portForwardURL, token string, expectedStatus int) error {
-	return uploadFileNameToPath(binaryRequestFunc, uploadFilePath, portForwardURL, alphaArchiveUploadPath, token, expectedStatus)
+	return uploadFileNameToPath(binaryRequestFunc, uploadFilePath, portForwardURL, alphaSyncUploadPath, token, expectedStatus)
 }
 
 func uploadImage(portForwardURL, token string, expectedStatus int) error {

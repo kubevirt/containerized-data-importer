@@ -6,6 +6,7 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/pkg/uploadproxy",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/controller:go_default_library",
         "//pkg/token:go_default_library",

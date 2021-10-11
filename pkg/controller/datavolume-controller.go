@@ -2322,6 +2322,7 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 		annotations[AnnCloneRequest] = sourceNamespace + "/" + dataVolume.Spec.Source.PVC.Name
 	} else if dataVolume.Spec.Source.Upload != nil {
 		annotations[AnnUploadRequest] = ""
+		annotations[AnnContentType] = string(dataVolume.Spec.ContentType)
 	} else if dataVolume.Spec.Source.Blank != nil {
 		annotations[AnnSource] = SourceNone
 		annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)

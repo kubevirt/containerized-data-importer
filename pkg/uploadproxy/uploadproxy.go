@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -22,6 +23,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/token"
@@ -204,7 +206,45 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	app.proxyUploadRequest(tokenData.Namespace, tokenData.Name, w, r)
+	uploadPath, err := app.resolveUploadPath(tokenData.Name, tokenData.Namespace, r.URL.Path)
+	if err != nil {
+		klog.Error(err)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		// Return the error to the caller in the body.
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	app.proxyUploadRequest(tokenData.Namespace, tokenData.Name, uploadPath, w, r)
+}
+
+func (app *uploadProxyApp) resolveUploadPath(pvcName, pvcNamespace, defaultPath string) (string, error) {
+	pvc, err := app.client.CoreV1().PersistentVolumeClaims(pvcNamespace).Get(context.TODO(), pvcName, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return "", fmt.Errorf("rejecting Upload Request for PVC %s that doesn't exist", pvcName)
+		}
+
+		return "", err
+	}
+
+	contentType, found := pvc.Annotations[controller.AnnContentType]
+	if !found {
+		return defaultPath, nil
+	}
+
+	switch contentType {
+	case string(cdiv1.DataVolumeKubeVirt), "":
+		return defaultPath, nil
+	case string(cdiv1.DataVolumeArchive):
+		if strings.Contains(defaultPath, "alpha") {
+			return common.UploadArchiveAlphaPath, nil
+		}
+
+		return common.UploadArchivePath, nil
+	default:
+		return "", fmt.Errorf("rejecting upload request for PVC %s - upload content-type %s is invalid", pvcName, contentType)
+	}
 }
 
 func (app *uploadProxyApp) uploadReady(pvcName, pvcNamespace string) error {
@@ -232,7 +272,7 @@ func (app *uploadProxyApp) uploadReady(pvcName, pvcNamespace string) error {
 	})
 }
 
-func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.ResponseWriter, r *http.Request) {
+func (app *uploadProxyApp) proxyUploadRequest(namespace, pvcName, uploadPath string, w http.ResponseWriter, r *http.Request) {
 	client, err := app.clientCreator.CreateClient()
 	if err != nil {
 		klog.Error("Error creating http client")
@@ -242,7 +282,7 @@ func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.Resp
 
 	p := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
-			req.URL, _ = url.Parse(app.urlResolver(namespace, pvc, r.URL.Path))
+			req.URL, _ = url.Parse(app.urlResolver(namespace, pvcName, uploadPath))
 			if _, ok := req.Header["User-Agent"]; !ok {
 				// explicitly disable User-Agent so it's not set to default value
 				req.Header.Set("User-Agent", "")

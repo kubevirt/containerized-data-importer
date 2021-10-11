@@ -40,9 +40,10 @@ const (
 	// UploadFileMD5100kbytes is the size of the image after being extended
 	UploadFileMD5100kbytes = "3710416a680523c7d07538cb1026c60c"
 
-	uploadTargetAnnotation = "cdi.kubevirt.io/storage.upload.target"
-	uploadStatusAnnotation = "cdi.kubevirt.io/storage.pod.phase"
-	uploadReadyAnnotation  = "cdi.kubevirt.io/storage.pod.ready"
+	uploadTargetAnnotation      = "cdi.kubevirt.io/storage.upload.target"
+	uploadStatusAnnotation      = "cdi.kubevirt.io/storage.pod.phase"
+	uploadReadyAnnotation       = "cdi.kubevirt.io/storage.pod.ready"
+	uploadContentTypeAnnotation = "cdi.kubevirt.io/storage.contentType"
 )
 
 // UploadPodName returns the name of the upload server pod associated with a PVC
@@ -54,6 +55,15 @@ func UploadPodName(pvc *k8sv1.PersistentVolumeClaim) string {
 func UploadPVCDefinition() *k8sv1.PersistentVolumeClaim {
 	annotations := map[string]string{uploadTargetAnnotation: ""}
 	return NewPVCDefinition("upload-test", "1Gi", annotations, nil)
+}
+
+// UploadArchivePVCDefinition creates a PVC with the upload target annotation and archive context-type
+func UploadArchivePVCDefinition() *k8sv1.PersistentVolumeClaim {
+	annotations := make(map[string]string)
+	annotations[uploadTargetAnnotation] = ""
+	annotations[uploadContentTypeAnnotation] = string(cdiv1.DataVolumeArchive)
+	pvc := NewPVCDefinition("upload-archive-test", "1Gi", annotations, nil)
+	return pvc
 }
 
 // UploadBlockPVCDefinition creates a PVC with the upload target annotation for block PV
