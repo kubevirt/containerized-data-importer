@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -52,13 +53,16 @@ const (
 )
 
 var (
-	// DefaultStorageClass the defauld storage class used in tests
+	// DefaultStorageClass the default storage class used in tests
 	DefaultStorageClass *storagev1.StorageClass
+	// DefaultStorageClassCsiDriver the default storage class CSI driver if it exists.
+	DefaultStorageClassCsiDriver *storagev1.CSIDriver
+
 	// NfsService is the service in the cdi namespace that will be created if KUBEVIRT_STORAGE=nfs
 	NfsService *corev1.Service
 	nfsChecked bool
-	// DefaultStorageCSI is true if the default storage class is CSI, false other wise.
-	DefaultStorageCSI bool
+	// DefaultStorageCSIRespectsFsGroup is true if the default storage class is CSI and respects fsGroup, false other wise.
+	DefaultStorageCSIRespectsFsGroup bool
 )
 
 func getDefaultStorageClass(client *kubernetes.Clientset) *storagev1.StorageClass {
@@ -76,15 +80,23 @@ func getDefaultStorageClass(client *kubernetes.Clientset) *storagev1.StorageClas
 	return nil
 }
 
-func isDefaultStorageClassCSI(client *kubernetes.Clientset) bool {
+func getDefaultStorageClassCsiDriver(client *kubernetes.Clientset) *storagev1.CSIDriver {
 	if DefaultStorageClass != nil {
-		_, err := client.StorageV1().CSIDrivers().Get(context.TODO(), DefaultStorageClass.Provisioner, metav1.GetOptions{})
+		csidrivers, err := client.StorageV1().CSIDrivers().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			return false
+			ginkgo.Fail(fmt.Sprintf("Unable to get csi driver: %v", err))
 		}
-		return true
+		for _, driver := range csidrivers.Items {
+			if driver.Name == DefaultStorageClass.Provisioner {
+				return &driver
+			}
+		}
 	}
-	return false
+	return nil
+}
+
+func isDefaultStorageClassCSIRespectsFsGroup() bool {
+	return DefaultStorageClassCsiDriver != nil && DefaultStorageClassCsiDriver.Spec.FSGroupPolicy != nil && *DefaultStorageClassCsiDriver.Spec.FSGroupPolicy != storagev1.NoneFSGroupPolicy
 }
 
 // IsHostpathProvisioner returns true if hostpath-provisioner is the default storage class
@@ -108,7 +120,9 @@ func CacheTestsData(client *kubernetes.Clientset, cdiNs string) {
 	if DefaultStorageClass == nil {
 		DefaultStorageClass = getDefaultStorageClass(client)
 	}
-	DefaultStorageCSI = isDefaultStorageClassCSI(client)
+	DefaultStorageClassCsiDriver = getDefaultStorageClassCsiDriver(client)
+	DefaultStorageCSIRespectsFsGroup = isDefaultStorageClassCSIRespectsFsGroup()
+
 	if !nfsChecked {
 		NfsService = getNfsService(client, cdiNs)
 		nfsChecked = true
