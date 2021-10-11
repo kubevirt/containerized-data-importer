@@ -4,24 +4,20 @@ load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
 rpm_image(
     name = "cdi-uploadserver-base-image",
     base = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
-        "//conditions:default": "@fedora//image",
+        "@io_bazel_rules_go//go/platform:linux_arm64": "@centos-aarch64//image",
+        "//conditions:default": "@centos//image",
     }),
     rpms = select({
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             "@libnbd-aarch64//file",
             "@qemu-img-aarch64//file",
-            "@xen-libs-aarch64//file",
             "@libaio-aarch64//file",
-            "@capstone-aarch64//file",
             "@liburing-aarch64//file",
         ],
         "//conditions:default": [
             "@libnbd//file",
             "@qemu-img//file",
-            "@xen-libs//file",
             "@libaio//file",
-            "@capstone//file",
             "@liburing//file",
         ],
     }),

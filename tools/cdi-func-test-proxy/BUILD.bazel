@@ -9,8 +9,8 @@ container_image(
         "//conditions:default": "amd64",
     }),
     base = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
-        "//conditions:default": "@fedora//image",
+        "@io_bazel_rules_go//go/platform:linux_arm64": "@centos-aarch64//image",
+        "//conditions:default": "@centos//image",
     }),
 )
 

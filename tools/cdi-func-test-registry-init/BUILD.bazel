@@ -10,23 +10,19 @@ rpm_image(
         "//conditions:default": "amd64",
     }),
     base = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
-        "//conditions:default": "@fedora//image",
+        "@io_bazel_rules_go//go/platform:linux_arm64": "@centos-aarch64//image",
+        "//conditions:default": "@centos//image",
     }),
     rpms = select({
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             "@qemu-img-aarch64//file",
-            "@xen-libs-aarch64//file",
             "@libaio-aarch64//file",
             "@liburing-aarch64//file",
-            "@capstone-aarch64//file",
         ],
         "//conditions:default": [
             "@qemu-img//file",
-            "@xen-libs//file",
             "@libaio//file",
             "@liburing//file",
-            "@capstone//file",
         ],
     }),
 )
@@ -104,21 +100,22 @@ rpm_image(
         "//conditions:default": "amd64",
     }),
     base = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
-        "//conditions:default": "@fedora//image",
+        "@io_bazel_rules_go//go/platform:linux_arm64": "@centos-aarch64//image",
+        "//conditions:default": "@centos//image",
     }),
     rpms = select({
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             "@buildah-aarch64//file",
+            "@containers-common//file",
             "@libseccomp-aarch64//file",
-            "@device-mapper-libs-aarch64//file",
-            "@containers-common-aarch64//file",
+            "@systemd-libs-aarch64//file",
         ],
         "//conditions:default": [
             "@buildah//file",
-            "@libseccomp//file",
-            "@device-mapper-libs//file",
             "@containers-common//file",
+            "@device-mapper-libs//file",
+            "@libseccomp//file",
+            "@systemd-libs//file",
         ],
     }),
 )

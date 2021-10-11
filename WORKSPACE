@@ -135,20 +135,22 @@ http_archive(
     ],
 )
 
-# Pull base image fedora33
+# Pull base image centos:stream9
 container_pull(
-    name = "fedora",
-    digest = "sha256:f5f3351d2a5d87d1e2b30d6b1ffb518bb6b2d7c21cecaba4ba7d419f2bc305d7",
+    name = "centos",
+    digest = "sha256:f0d6230902f2c527dbce4934abaca0e74264d68bae53c1f4a1adfa964ace62db",
     registry = "quay.io",
-    repository = "fedora/fedora",
-    tag = "33-x86_64",
+    repository = "centos/centos",
+    tag = "stream9",
 )
 
 container_pull(
-    name = "fedora-aarch64",
+    name = "centos-aarch64",
+    digest = "sha256:76a776d0fb95ea9bc3b9b788aa8748d0cc7b342505e71227a172c4001a948e8b",
     registry = "quay.io",
-    repository = "fedora/fedora",
-    tag = "33-aarch64",
+    repository = "centos/centos",
+    architecture = "arm64",
+    tag = "stream9",
 )
 
 # Pull base image container registry
@@ -171,470 +173,325 @@ container_pull(
 # RPMS
 http_file(
     name = "qemu-img",
-    sha256 = "7128a6513323264b21e1572764fa2d2ea11753a1c1c3933a4bc1c4843f165633",
-    urls = ["https://storage.googleapis.com/builddeps/7128a6513323264b21e1572764fa2d2ea11753a1c1c3933a4bc1c4843f165633"],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/qemu-img-6.2.0-11.el9.x86_64.rpm"],
+    sha256 = "0d4d841dc2adf971fbd296eb115559aa6460ccef3ead39e2d17773642d9a68a9",
 )
 
 http_file(
     name = "qemu-img-aarch64",
-    sha256 = "715523961ee6c0b1617b067ae3e0e0f5a9818626f69dd29d11b66d3cfd37cfad",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/q/qemu-img-5.1.0-9.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/715523961ee6c0b1617b067ae3e0e0f5a9818626f69dd29d11b66d3cfd37cfad",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/qemu-img-6.2.0-11.el9.aarch64.rpm"],
+    sha256 = "6c86acabac93e4b85d1ee7e8edf9bbb8deb941c46cb4a41d518434dbb7bef50c",
 )
 
 http_file(
     name = "nginx",
-    sha256 = "e98ab45cb7f616ac99d5dde14d318c0374c060816b02a0d6360a1ac6e6f0c5c4",
-    urls = ["https://storage.googleapis.com/builddeps/e98ab45cb7f616ac99d5dde14d318c0374c060816b02a0d6360a1ac6e6f0c5c4"],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nginx-1.20.1-8.el9.x86_64.rpm"],
+    sha256 = "c5d2144014193f5902a6b89a5f06f5bd51a235aad9c071d724ac13b533fbece1",
 )
 
 http_file(
     name = "nginx-aarch64",
-    sha256 = "83fc09de039811209969208f5024530f0d0125dc86d87e33fb1a08d80ef33b56",
-    urls = ["https://storage.googleapis.com/builddeps/83fc09de039811209969208f5024530f0d0125dc86d87e33fb1a08d80ef33b56"],
-)
-
-http_file(
-    name = "xen-libs",
-    sha256 = "b5a460dceb4f9feff4701088f6421bbf380f9eb285b56fac1409e236a9d6877b",
-    urls = ["https://storage.googleapis.com/builddeps/b5a460dceb4f9feff4701088f6421bbf380f9eb285b56fac1409e236a9d6877b"],
-)
-
-http_file(
-    name = "xen-libs-aarch64",
-    sha256 = "cda623f50ec363b1dc8a27ac969973198d6853ec373dc5d26dcdf14978c0415e",
-    urls = ["https://storage.googleapis.com/builddeps/cda623f50ec363b1dc8a27ac969973198d6853ec373dc5d26dcdf14978c0415e"],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nginx-1.20.1-8.el9.aarch64.rpm"],
+    sha256 = "6d7ff7ee127c4bd4f6b73f2620c34fdc89149a30a12de0ef26b7163986de42b1",
 )
 
 http_file(
     name = "libaio",
-    sha256 = "51ae3b86c7a6fd64ed187574b3a0a7e3a58f533a6db80e3bf44be99f5fd72f50",
-    urls = ["https://storage.googleapis.com/builddeps/51ae3b86c7a6fd64ed187574b3a0a7e3a58f533a6db80e3bf44be99f5fd72f50"],
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/libaio-0.3.111-13.el9.x86_64.rpm"],
+    sha256 = "7d9d4d37e86ba94bb941e2dad40c90a157aaa0602f02f3f90e76086515f439be",
 )
 
 http_file(
     name = "libaio-aarch64",
-    sha256 = "a2f2ee3465c4495e1b4f10c9dad5dacc9e9679cc8d1153cf8155066ae56303db",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/libaio-0.3.111-10.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/a2f2ee3465c4495e1b4f10c9dad5dacc9e9679cc8d1153cf8155066ae56303db",
-    ],
-)
-
-http_file(
-    name = "capstone",
-    sha256 = "1ee04e337c7ba1d8f3d17510b4b86d5a2090f31244a4d9cef3f6f5eb83ec93a9",
-    urls = ["https://storage.googleapis.com/builddeps/1ee04e337c7ba1d8f3d17510b4b86d5a2090f31244a4d9cef3f6f5eb83ec93a9"],
-)
-
-http_file(
-    name = "capstone-aarch64",
-    sha256 = "89b37a5cbc4bd0ae3b36ab3887edaa8b4ecb7db5f7f02d461f4ced10f17e311d",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/c/capstone-4.0.2-3.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/89b37a5cbc4bd0ae3b36ab3887edaa8b4ecb7db5f7f02d461f4ced10f17e311d",
-    ],
-)
-
-http_file(
-    name = "gperftools-lib",
-    sha256 = "4013a64942bbb4644f433e38ff3a2cb0db19978d5aff44461efb42b4edfd0993",
-    urls = ["https://storage.googleapis.com/builddeps/4013a64942bbb4644f433e38ff3a2cb0db19978d5aff44461efb42b4edfd0993"],
-)
-
-http_file(
-    name = "gperftools-lib-aarch64",
-    sha256 = "dc7b9de2314ba469cbce71ec2f690f163aab3b8de40fb684b5d156065eb039bd",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux//updates/33/Everything/aarch64/Packages/g/gperftools-libs-2.8.1-1.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/dc7b9de2314ba469cbce71ec2f690f163aab3b8de40fb684b5d156065eb039bd",
-    ],
-)
-
-http_file(
-    name = "libunwind",
-    sha256 = "01957e4ebfb63766b22fb9d865d8c8e13b945a4a49cc14af7261e9d1bc6279f2",
-    urls = ["https://storage.googleapis.com/builddeps/01957e4ebfb63766b22fb9d865d8c8e13b945a4a49cc14af7261e9d1bc6279f2"],
-)
-
-http_file(
-    name = "libunwind-aarch64",
-    sha256 = "fa1e6a6529c0de1dc7a1245546d630fc97639fe87533975a92e04e1ad5c5b7bd",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/libunwind-1.4.0-4.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/fa1e6a6529c0de1dc7a1245546d630fc97639fe87533975a92e04e1ad5c5b7bd",
-    ],
-)
-
-# nginx-mimetypes is a noarch rpm which support both x86_64 and aarch64
-http_file(
-    name = "nginx-mimetypes",
-    sha256 = "e860501275c9073f199354766d9ccd99afc0b97fff8acae8e8184d4f02799d38",
-    urls = ["https://storage.googleapis.com/builddeps/e860501275c9073f199354766d9ccd99afc0b97fff8acae8e8184d4f02799d38"],
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/libaio-0.3.111-13.el9.aarch64.rpm"],
+    sha256 = "1730d732818fa2471b5cd461175ceda18e909410db8a32185d8db2aa7461130c",
 )
 
 # nginx-filesystem is a noarch rpm which support both x86_64 and aarch64
 http_file(
     name = "nginx-filesystem",
-    sha256 = "ff48d81762bb83eb5ed5aed829a50515af3b706ec6c7b8645ac1f3ac034eefe0",
-    urls = ["https://storage.googleapis.com/builddeps/ff48d81762bb83eb5ed5aed829a50515af3b706ec6c7b8645ac1f3ac034eefe0"],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nginx-filesystem-1.20.1-8.el9.noarch.rpm"],
+    sha256 = "f2f2301df20ec63484f6a67799f29a3d34d77a19c418a27d5370c226a1b87cdd",
 )
 
 http_file(
     name = "buildah",
-    sha256 = "15d9cca0887f78d7c5530b2b65fc90b221b999962dfa6323b42571020ae434e9",
-    urls = ["https://storage.googleapis.com/builddeps/15d9cca0887f78d7c5530b2b65fc90b221b999962dfa6323b42571020ae434e9"],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/buildah-1.24.0-0.15.el9.x86_64.rpm"],
+    sha256 = "ea1b227d35d822d62f6d323bf201d626cea9c48096dc46fab0b1e2048ddfed78",
 )
 
 http_file(
     name = "buildah-aarch64",
-    sha256 = "d74512b6c17698627fbadd8bf10108a3dac43e428515c25a7a86296e1bf5e96c",
-    urls = ["https://storage.googleapis.com/builddeps/d74512b6c17698627fbadd8bf10108a3dac43e428515c25a7a86296e1bf5e96c"],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/buildah-1.24.0-0.15.el9.aarch64.rpm"],
+    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
 )
 
+# containers-common is a noarch rpm which support both x86_64 and aarch64
 http_file(
     name = "containers-common",
-    sha256 = "26f573cf377eff79893b17a7e3f2ade9984820bcd1776db5fc24bb8b70587349",
-    urls = ["https://storage.googleapis.com/builddeps/26f573cf377eff79893b17a7e3f2ade9984820bcd1776db5fc24bb8b70587349"],
-)
-
-http_file(
-    name = "containers-common-aarch64",
-    sha256 = "2a230e8c2059536ef3377f0094a53db609513187623a4b1d69b9265d4b044bb6",
-    urls = [
-        "https://storage.googleapis.com/builddeps/2a230e8c2059536ef3377f0094a53db609513187623a4b1d69b9265d4b044bb6",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/containers-common-1-13.el9.noarch.rpm"],
+    sha256 = "165c45d9885cb4ffc4830367a15e1cf1720cc923a6b2e686d72c11c09b904027",
 )
 
 http_file(
     name = "tar",
-    sha256 = "871dc18514b9b64bcff6c4c61fd4c1a9f4c1e46cddd6f6934b4ee93662541aca",
-    urls = ["https://storage.googleapis.com/builddeps/871dc18514b9b64bcff6c4c61fd4c1a9f4c1e46cddd6f6934b4ee93662541aca"],
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/tar-1.34-3.el9.x86_64.rpm"],
+    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
 )
 
 http_file(
     name = "ostree-libs",
-    sha256 = "2523f8915b724a14312cd4103faa0e6a213b6dab18a89c7bec6e3c70b0acc66d",
-    urls = ["https://storage.googleapis.com/builddeps/2523f8915b724a14312cd4103faa0e6a213b6dab18a89c7bec6e3c70b0acc66d"],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/ostree-libs-2021.6-1.el9.x86_64.rpm"],
+    sha256 = "51215b94203d89d3277871a951c5d49811e064d5685d3e336be818973a39dd67",
 )
 
 http_file(
     name = "ostree-libs-aarch64",
-    sha256 = "86fbe688a50d119d73af6cd1b70707aa35046e907485eb9020409293c426813a",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/o/ostree-libs-2021.2-2.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/86fbe688a50d119d73af6cd1b70707aa35046e907485eb9020409293c426813a",
-    ],
-)
-
-http_file(
-    name = "device-mapper",
-    sha256 = "3d0f1d848a92a8401ca6c8778f9a9a329af8a8420ae14a5c8c99ccbcbd97ebb7",
-    urls = ["https://storage.googleapis.com/builddeps/3d0f1d848a92a8401ca6c8778f9a9a329af8a8420ae14a5c8c99ccbcbd97ebb7"],
-)
-
-http_file(
-    name = "device-mapper-aarch64",
-    sha256 = "2cca39ca6e3c78698d28ece07dd4b9e1f6ac55f197583540a4b5df783bdb990c",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-1.02.173-1.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/2cca39ca6e3c78698d28ece07dd4b9e1f6ac55f197583540a4b5df783bdb990c",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/ostree-libs-2021.6-1.el9.aarch64.rpm"],
+    sha256 = "df85af8e9a88ae03ca3028a4bd95a72348214df6940ded7ef160e103e7547764",
 )
 
 http_file(
     name = "device-mapper-libs",
-    sha256 = "9539c6e7a76422600939d661382634d7912e0669aa7e273fdf14b1fcde5b0652",
-    urls = ["https://storage.googleapis.com/builddeps/9539c6e7a76422600939d661382634d7912e0669aa7e273fdf14b1fcde5b0652"],
-)
-
-http_file(
-    name = "device-mapper-libs-aarch64",
-    sha256 = "694ed46b1e411e7df03ed5cf6f8f47d3af3d9d38b5ca640bf022aa223dcdf0d8",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-libs-1.02.173-1.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/694ed46b1e411e7df03ed5cf6f8f47d3af3d9d38b5ca640bf022aa223dcdf0d8",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/device-mapper-libs-1.02.181-1.el9.x86_64.rpm"],
+    sha256 = "1a8b1af5dbf1e764a02e1fa5e43fe11e8ca97c161efa808c45c35abd5c91e1cf",
 )
 
 http_file(
     name = "device-mapper-event",
-    sha256 = "68242b0ea47075bd78ef4bbab44520d2061582ad8ebf57fd4027fdac77f256f0",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/d/device-mapper-event-1.02.173-1.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/68242b0ea47075bd78ef4bbab44520d2061582ad8ebf57fd4027fdac77f256f0",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/device-mapper-event-1.02.181-1.el9.x86_64.rpm"],
+    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
 )
 
 http_file(
     name = "device-mapper-event-aarch64",
-    sha256 = "455dc4c6ca5b891446cdfb1969224a50fbeedc04c9109f84d659836ad8d41f02",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-event-1.02.173-1.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/455dc4c6ca5b891446cdfb1969224a50fbeedc04c9109f84d659836ad8d41f02",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/device-mapper-event-1.02.181-1.el9.aarch64.rpm"],
+    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
 )
 
 http_file(
     name = "device-mapper-event-libs",
-    sha256 = "605a07738477a5a7d9c536f84e7df5b3f7c607125c08223151cab4dae1e8b9cb",
-    urls = ["https://storage.googleapis.com/builddeps/605a07738477a5a7d9c536f84e7df5b3f7c607125c08223151cab4dae1e8b9cb"],
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/device-mapper-event-libs-1.02.181-1.el9.x86_64.rpm"],
+    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
 )
 
 http_file(
     name = "device-mapper-event-libs-aarch64",
-    sha256 = "6115e4527ddf3b0b3a0fe5178da66511d4330f5d8f536920bf72f40ed7fc45d7",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-event-libs-1.02.173-1.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/6115e4527ddf3b0b3a0fe5178da66511d4330f5d8f536920bf72f40ed7fc45d7",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/device-mapper-event-libs-1.02.181-1.el9.aarch64.rpm"],
+    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
 )
 
 http_file(
     name = "device-mapper-persistent-data",
-    sha256 = "f7e8201cb8e3fb9269c47c1ca758aebcd529a7a1578bd520d74074943e96b3e9",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/d/device-mapper-persistent-data-0.8.5-4.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/f7e8201cb8e3fb9269c47c1ca758aebcd529a7a1578bd520d74074943e96b3e9",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/device-mapper-persistent-data-0.9.0-11.el9.x86_64.rpm"],
+    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
 )
 
 http_file(
     name = "device-mapper-persistent-data-aarch64",
-    sha256 = "27b51e601d2cd6d6deafa22e57b7a53f6edebdee6bf69ab27a6f39ad43209950",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/d/device-mapper-persistent-data-0.8.5-4.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/27b51e601d2cd6d6deafa22e57b7a53f6edebdee6bf69ab27a6f39ad43209950",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/device-mapper-persistent-data-0.9.0-11.el9.aarch64.rpm"],
+    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
 )
 
 http_file(
     name = "nbdkit-server",
-    sha256 = "b22c4949164901295cc84db1d3747fc05b0dc85a9cb0710143005a61919a53de",
-    urls = ["https://storage.googleapis.com/builddeps/b22c4949164901295cc84db1d3747fc05b0dc85a9cb0710143005a61919a53de"],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-server-1.28.2-2.el9.x86_64.rpm"],
+    sha256 = "d0ff18a0c80f078fe2be429d1a6dc57f4799f71202da171ae7a8de395d4a0e7e",
 )
 
 http_file(
     name = "nbdkit-server-aarch64",
-    sha256 = "7212e6353f7fb0c0d0d038434f80e29105db9aa63072eb43200f33dd04fe1487",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/n/nbdkit-server-1.22.3-2.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/7212e6353f7fb0c0d0d038434f80e29105db9aa63072eb43200f33dd04fe1487",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-server-1.28.2-2.el9.aarch64.rpm"],
+    sha256 = "cda386348687e7933ce497f789d142186d02b9aec215cb5da1139a572732336b",
 )
 
 http_file(
     name = "nbdkit-basic-filters",
-    sha256 = "51ba4e00f0180ea07b4ed46ca2ded198876bfe67cfe533421cafd0978ed2c7bf",
-    urls = ["https://storage.googleapis.com/builddeps/51ba4e00f0180ea07b4ed46ca2ded198876bfe67cfe533421cafd0978ed2c7bf"],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-basic-filters-1.28.2-2.el9.x86_64.rpm"],
+    sha256 = "bfc389aac53dcc7c3e2ff7fc55c311b957b53ee12977dbe214e2141350079251",
 )
 
 http_file(
     name = "nbdkit-basic-filters-aarch64",
-    sha256 = "2f11d9a742ffff30275ef8c0f81dde9da716d5df4ba1fb3ae92400ac474ebb5c",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/n/nbdkit-basic-filters-1.22.3-2.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/2f11d9a742ffff30275ef8c0f81dde9da716d5df4ba1fb3ae92400ac474ebb5c",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-basic-filters-1.28.2-2.el9.aarch64.rpm"],
+    sha256 = "c5d949608dfdfcb358d323c9727d2c527259412c10c6cbbac07dc4a06b183ff0",
 )
 
 http_file(
     name = "nbdkit-vddk-plugin",
-    sha256 = "cee8f05ab93a9e43aec0d97fcc47997e13d9c277b4c334e77ce5e0b68ac51efc",
-    urls = ["https://storage.googleapis.com/builddeps/cee8f05ab93a9e43aec0d97fcc47997e13d9c277b4c334e77ce5e0b68ac51efc"],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-vddk-plugin-1.28.2-2.el9.x86_64.rpm"],
+    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
 )
 
 http_file(
     name = "nbdkit-xz-filter",
-    sha256 = "a77043f110496658d87332b064f34fc10bbf0fdd429c4bbbe9542308ff087007",
-    urls = ["https://storage.googleapis.com/builddeps/a77043f110496658d87332b064f34fc10bbf0fdd429c4bbbe9542308ff087007"],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-xz-filter-1.28.2-2.el9.x86_64.rpm"],
+    sha256 = "a941c019a8d688d53daae067f10d3c7dd341ec948df1cc42fb04c3e2ef92981e",
 )
 
 http_file(
     name = "nbdkit-xz-filter-aarch64",
-    sha256 = "3092e7dac78612698549afa854b151a3abe3fb4ba68ed4c58a8ad90169096736",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/n/nbdkit-xz-filter-1.22.3-2.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/3092e7dac78612698549afa854b151a3abe3fb4ba68ed4c58a8ad90169096736",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-xz-filter-1.28.2-2.el9.aarch64.rpm"],
+    sha256 = "1876ca52e433107b65d1ebf4b471a7dcec9ecc3b19b4af28901b0469058dc32d",
 )
 
 http_file(
     name = "nbdkit-gzip-filter",
-    sha256 = "52787fd9aff69599837328b8b8dd76376999e7c5c96bd72669b0c77a1ac31d4f",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/n/nbdkit-gzip-filter-1.22.3-2.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/52787fd9aff69599837328b8b8dd76376999e7c5c96bd72669b0c77a1ac31d4f",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-gzip-filter-1.28.2-2.el9.x86_64.rpm"],
+    sha256 = "b7086c980f11da7ad01e8aec53a7d7c01d519d6920216ac95e040ba13f9d69c9",
 )
 
 http_file(
     name = "nbdkit-gzip-filter-aarch64",
-    sha256 = "879b4225b66df930d1af10af06bf8314f7d4f1f5458f72259b02b4480c8f42a0",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/n/nbdkit-gzip-filter-1.22.3-2.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/879b4225b66df930d1af10af06bf8314f7d4f1f5458f72259b02b4480c8f42a0",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-gzip-filter-1.28.2-2.el9.aarch64.rpm"],
+    sha256 = "5720fa674b52545c2ec9ea761546f240e7fc97602646be9dc119a35b81fd8bbb",
 )
 
 http_file(
     name = "nbdkit-curl-plugin",
-    sha256 = "53412db6df5e098d2439d456a309e567af75b721178a9f7a5c10fa192ecf5d43",
-    urls = ["https://storage.googleapis.com/builddeps/53412db6df5e098d2439d456a309e567af75b721178a9f7a5c10fa192ecf5d43"],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-curl-plugin-1.28.2-2.el9.x86_64.rpm"],
+    sha256 = "d31387b261a1e1d568349caeaea580932904462788439c4c087d96664c32818d",
 )
 
 http_file(
     name = "nbdkit-curl-plugin-aarch64",
-    sha256 = "72812138f5ce121312a9cf4d5e0ec5cf7af9942dd5c5c22b0763f341cc86520f",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/n/nbdkit-curl-plugin-1.22.3-2.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/72812138f5ce121312a9cf4d5e0ec5cf7af9942dd5c5c22b0763f341cc86520f",
-    ],
-)
-
-http_file(
-    name = "libxcrypt-compat",
-    sha256 = "51d74854365a393393b4457e3d92ba103c08671b4c881a8a1d9fcb8a54a4a737",
-    urls = ["https://storage.googleapis.com/builddeps/51d74854365a393393b4457e3d92ba103c08671b4c881a8a1d9fcb8a54a4a737"],
-)
-
-http_file(
-    name = "libxcrypt-compat-aarch64",
-    sha256 = "f36cfd27003bcfc6f5fba9b99414402397f4b57fd503e84514a06d794f313346",
-    urls = ["https://storage.googleapis.com/builddeps/f36cfd27003bcfc6f5fba9b99414402397f4b57fd503e84514a06d794f313346"],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-curl-plugin-1.28.2-2.el9.aarch64.rpm"],
+    sha256 = "cfcd93018797e4e0a89482e3032a14165cd25849282f10467f0ce328bafba120",
 )
 
 http_file(
     name = "libxcrypt",
-    sha256 = "a4b3e2d0a10721c22d86fe8517b057fb600addd2a6b9f77f64d5c8b57def627f",
-    urls = ["https://storage.googleapis.com/builddeps/a4b3e2d0a10721c22d86fe8517b057fb600addd2a6b9f77f64d5c8b57def627f"],
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/libxcrypt-4.4.18-3.el9.x86_64.rpm"],
+    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
 )
 
 http_file(
-    name = "golang-github-vmware-govmomi",
-    sha256 = "8c58134cdcec8a993c7da827abb4e9ab78d974038d984ff1fee39963d92736c5",
-    urls = ["https://storage.googleapis.com/builddeps/8c58134cdcec8a993c7da827abb4e9ab78d974038d984ff1fee39963d92736c5"],
+    name = "vcenter-govc-tar",
+    sha256 = "bfad9df590e061e28cfdd2c321583e96abd43e07687980f5897825ec13ff2cb5",
+    urls = ["https://github.com/vmware/govmomi/releases/download/v0.26.1/govc_Linux_x86_64.tar.gz"],
+    downloaded_file_path = "govc.tar.gz",
+)
+
+http_file(
+    name = "vcenter-vcsim-tar",
+    sha256 = "b844f6f7645c870a503aa1c5bd23d9a3cb4f5c850505073eef521f2f22a5f2b7",
+    urls = ["https://github.com/vmware/govmomi/releases/download/v0.26.1/vcsim_Linux_x86_64.tar.gz"],
+    downloaded_file_path = "vcsim.tar.gz",
 )
 
 http_file(
     name = "libnbd",
-    sha256 = "8376108ecef9e8e518cbd07ddc58d13e613553c4b4179720c99da8b786a5cd71",
-    urls = [
-        "https://ftp-stud.hs-esslingen.de/pub/fedora/linux/updates/33/Everything/x86_64/Packages/l/libnbd-1.6.5-1.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/8376108ecef9e8e518cbd07ddc58d13e613553c4b4179720c99da8b786a5cd71",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/libnbd-1.10.1-1.el9.x86_64.rpm"],
+    sha256 = "ff76851f63d3d5a54b482160af1424878e80f06c3de01fff6f3b2c3e8c6b1561",
 )
 
 http_file(
     name = "libnbd-aarch64",
-    sha256 = "0e24ffdcda4efc7445834c86d29d7416426bafa9073259cc31bcb1f03fb5eaeb",
-    urls = [
-        "https://ftp-stud.hs-esslingen.de/pub/fedora/linux/updates/33/Everything/aarch64/Packages/l/libnbd-1.6.5-1.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/0e24ffdcda4efc7445834c86d29d7416426bafa9073259cc31bcb1f03fb5eaeb",
-    ],
-)
-
-http_file(
-    name = "liburing",
-    sha256 = "049778a480dd02774934b37c127b345d8748bfbec1e584f9c412a41af34eaf89",
-    urls = ["https://storage.googleapis.com/builddeps/049778a480dd02774934b37c127b345d8748bfbec1e584f9c412a41af34eaf89"],
-)
-
-http_file(
-    name = "liburing-aarch64",
-    sha256 = "253d0c1dc3180f44766c298ae4cd3426ec7a60a41ea0dc50d0884928b031c1b7",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/l/liburing-0.7-3.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/253d0c1dc3180f44766c298ae4cd3426ec7a60a41ea0dc50d0884928b031c1b7",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/libnbd-1.10.1-1.el9.aarch64.rpm"],
+    sha256 = "eb2c09d93281804616d868db4c8cd822acba5d6ddf820d6d3651e6eadc5d91f1",
 )
 
 http_file(
     name = "libseccomp",
-    sha256 = "964e39835b59c76b7eb3f78c460bfc6e7acfb0c40b901775c7e8a7204537f8a7",
-    urls = ["https://storage.googleapis.com/builddeps/964e39835b59c76b7eb3f78c460bfc6e7acfb0c40b901775c7e8a7204537f8a7"],
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/libseccomp-2.5.0-6.el9.x86_64.rpm"],
+    sha256 = "fbb0ee2bca579e3c671a262e02cdcad0b7dee55bc8a73dbcef4c5c6bd5ef788e",
 )
 
 http_file(
     name = "libseccomp-aarch64",
-    sha256 = "ab5a824d402c717bfe8e01cfb216a70fd4a7e1d66d2d7baa80ac6ad6581081c9",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/libseccomp-2.5.0-3.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/ab5a824d402c717bfe8e01cfb216a70fd4a7e1d66d2d7baa80ac6ad6581081c9",
-    ],
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/libseccomp-2.5.0-6.el9.aarch64.rpm"],
+    sha256 = "d7dacf315d019b53dcb05a4b07337968c68ad9b6cb056ba89ead2d699cf13fea",
+)
+
+http_file(
+    name = "systemd-libs",
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/systemd-libs-249-9.el9.x86_64.rpm"],
+    sha256 = "708fbc3c7fd77a21e0b391e2a80d5c344962de9865e79514b2c89210ef06ba39",
+)
+
+http_file(
+    name = "systemd-libs-aarch64",
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/systemd-libs-249-9.el9.aarch64.rpm"],
+    sha256 = "683ca2ab7f0aa82baa63fdd248a2cdc13e1dd7ca55294f93e10971c7176ac85d",
+)
+
+http_file(
+    name = "liburing",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/liburing-0.7-7.el9.x86_64.rpm"],
+    sha256 = "a9d32f2a52149dfc94e14e0519ebec709b1607955e57f4b4604807164f0e3850",
+)
+
+http_file(
+    name = "liburing-aarch64",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/liburing-0.7-7.el9.aarch64.rpm"],
+    sha256 = "d42dd2af61c68f2eed3cb4f1cf5af11e2a3b09a1816709b063f5d2c6377a637d",
 )
 
 #imageio rpms and dependencies
 http_file(
     name = "ovirt-imageio-client",
-    sha256 = "a012d8204098d992099620de1d14b423bfd179b54a618deec98cdcb37027a0cd",
-    urls = ["https://storage.googleapis.com/builddeps/a012d8204098d992099620de1d14b423bfd179b54a618deec98cdcb37027a0cd"],
+    sha256 = "3b230c1b6809be7d19b2abfb37bc6b44114c149692d5c4f53ade50981243ef66",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03673832-ovirt-imageio/ovirt-imageio-client-2.4.1-0.202203111239.gitfb3003c.el9.x86_64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-client-aarch64",
-    sha256 = "a012d8204098d992099620de1d14b423bfd179b54a618deec98cdcb37027a0cd",
-    urls = ["https://storage.googleapis.com/builddeps/a012d8204098d992099620de1d14b423bfd179b54a618deec98cdcb37027a0cd"],
+    sha256 = "3b230c1b6809be7d19b2abfb37bc6b44114c149692d5c4f53ade50981243ef66",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03673832-ovirt-imageio/ovirt-imageio-client-2.4.1-0.202203111239.gitfb3003c.el9.aarch64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-common",
-    sha256 = "91b4e27378d7c66bc3fd9065e7390cdc969ad46de2ff9b669cbac3b02eb036ce",
-    urls = ["https://storage.googleapis.com/builddeps/91b4e27378d7c66bc3fd9065e7390cdc969ad46de2ff9b669cbac3b02eb036ce"],
+    sha256 = "b90e4ae7eced0d426cf0d3416f19977db2679482ea40e97fe0cace6a605c007f",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03673832-ovirt-imageio/ovirt-imageio-common-2.4.1-0.202203111239.gitfb3003c.el9.x86_64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-common-aarch64",
-    sha256 = "a6f78aff23fbc6b1f68cea041144da7a6a830b7a9922bf13a140db5c1376b55c",
-    urls = ["https://storage.googleapis.com/builddeps/a6f78aff23fbc6b1f68cea041144da7a6a830b7a9922bf13a140db5c1376b55c"],
+    sha256 = "460e433b73a6c31f3dda3d0cb0ba788f5863b6fe80b091b65a9bfe4606c21532",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03673832-ovirt-imageio/ovirt-imageio-common-2.4.1-0.202203111239.gitfb3003c.el9.aarch64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-daemon",
-    sha256 = "abbf056b5ef3a27e7485966959651d56e4c34c853782a8f4726cfc73e11bda77",
-    urls = ["https://storage.googleapis.com/builddeps/abbf056b5ef3a27e7485966959651d56e4c34c853782a8f4726cfc73e11bda77"],
+    sha256 = "74f85c8fed0207ddcfd57a7a4f3ab20a172be9692f90d12d8f4b1634c1f54ebe",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03673832-ovirt-imageio/ovirt-imageio-daemon-2.4.1-0.202203111239.gitfb3003c.el9.x86_64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-daemon-aarch64",
-    sha256 = "5cc941ed70952899802026a896e946736f6e3f18d3542cfc55699a06a3b42aa9",
-    urls = ["https://storage.googleapis.com/builddeps/5cc941ed70952899802026a896e946736f6e3f18d3542cfc55699a06a3b42aa9"],
+    sha256 = "5ff3732a8617ae8caa841d8aabe1815d7e30e5b5ffffaecba15f91f9357bf745",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03673832-ovirt-imageio/ovirt-imageio-daemon-2.4.1-0.202203111239.gitfb3003c.el9.aarch64.rpm"],
 )
 
 http_file(
     name = "python3-systemd",
-    sha256 = "883d4369f52801efacb50508b455a21667fe614f3856ef923d6b13cad45f3d93",
+    sha256 = "fafd41778cd2a1f26e3df7e9c395f9a66dc823d1c09a9f29fdf6e591977c318f",
     urls = [
-        "https://ftp-stud.hs-esslingen.de/pub/fedora/linux/updates/33/Everything/x86_64/Packages/p/python3-systemd-234-19.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/883d4369f52801efacb50508b455a21667fe614f3856ef923d6b13cad45f3d93",
+        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/python3-systemd-234-18.el9.x86_64.rpm",
     ],
 )
 
 http_file(
     name = "python3-systemd-aarch64",
-    sha256 = "fa45405ee30180ad84bf8f300b88bfe18b3529f2fd8d0feef9bc93ff49c42c0f",
+    sha256 = "1f8ab1b8f5fa235bb75245eab6f5685b4afdfc73aa35b1a9f7df25a4b88a7f69",
     urls = [
-        "https://ftp-stud.hs-esslingen.de/pub/fedora/linux/updates/33/Everything/aarch64/Packages/p/python3-systemd-234-19.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/fa45405ee30180ad84bf8f300b88bfe18b3529f2fd8d0feef9bc93ff49c42c0f",
+        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/python3-systemd-234-18.el9.aarch64.rpm",
     ],
 )
 
 http_file(
     name = "openssl",
-    sha256 = "e09142081d33d3977dfea2c0740c2c8f07810b7a598819ec69903b923f998a14",
+    sha256 = "cf0de322d7a4fce445eb66e72589380eecafad1276ceb514ff23a731fff5f9e6",
     urls = [
-        "https://ftp-stud.hs-esslingen.de/pub/fedora/linux/updates/33/Everything/x86_64/Packages/o/openssl-1.1.1l-2.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/e09142081d33d3977dfea2c0740c2c8f07810b7a598819ec69903b923f998a14",
+        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/openssl-3.0.1-14.el9.x86_64.rpm",
     ],
 )
 
 http_file(
     name = "openssl-aarch64",
-    sha256 = "2019d6cb2a2ec5207ebc412d8dc2246da68aa9b443cb89939ec1d1d2260c6771",
+    sha256 = "c06021e1a6efefb2c8460ec0bd853ab3a8510a18d51e1beade76aa952f5299f4",
     urls = [
-        "https://ftp-stud.hs-esslingen.de/pub/fedora/linux/updates/33/Everything/aarch64/Packages/o/openssl-1.1.1l-2.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/2019d6cb2a2ec5207ebc412d8dc2246da68aa9b443cb89939ec1d1d2260c6771",
+        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/openssl-3.0.1-14.el9.aarch64.rpm",
     ],
 )

@@ -9,8 +9,8 @@ rpm_image(
         "//conditions:default": "amd64",
     }),
     base = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
-        "//conditions:default": "@fedora//image",
+        "@io_bazel_rules_go//go/platform:linux_arm64": "@centos-aarch64//image",
+        "//conditions:default": "@centos//image",
     }),
     rpms = select({
         "@io_bazel_rules_go//go/platform:linux_arm64": [
@@ -18,6 +18,7 @@ rpm_image(
             "@ovirt-imageio-common-aarch64//file",
             "@ovirt-imageio-daemon-aarch64//file",
             "@python3-systemd-aarch64//file",
+            "@systemd-libs-aarch64//file",
             "@openssl-aarch64//file",
         ],
         "//conditions:default": [
@@ -25,6 +26,7 @@ rpm_image(
             "@ovirt-imageio-common//file",
             "@ovirt-imageio-daemon//file",
             "@python3-systemd//file",
+            "@systemd-libs//file",
             "@openssl//file",
         ],
     }),

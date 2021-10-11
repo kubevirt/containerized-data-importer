@@ -163,6 +163,7 @@ filegroup(
     name = "test-images",
     srcs = [
         "//tests:images/tinyCore.iso",
+        "//tests:images/tinyCore.vdi",
         "//tests:images/archive.tar",
         "//tests:images/cirros-qcow2.img",
         "//tests:images/cirros.raw",
