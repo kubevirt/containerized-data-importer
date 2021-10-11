@@ -86,10 +86,14 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpoint))
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	httpReader, contentLength, brokenForQemuImg, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir)
+	httpReader, contentLength, brokenForQemuImg, redirectedEp, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir)
 	if err != nil {
 		cancel()
 		return nil, err
+	}
+	if redirectedEp != nil {
+		klog.V(1).Infof("Switching URL to %v", redirectedEp)
+		ep = redirectedEp
 	}
 
 	if accessKey != "" && secKey != "" {
@@ -270,17 +274,19 @@ func createHTTPClient(certDir string) (*http.Client, error) {
 	return client, nil
 }
 
-func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string) (io.ReadCloser, uint64, bool, error) {
+func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string) (io.ReadCloser, uint64, bool, *url.URL, error) {
 	var brokenForQemuImg bool
 	client, err := createHTTPClient(certDir)
 	if err != nil {
-		return nil, uint64(0), false, errors.Wrap(err, "Error creating http client")
+		return nil, uint64(0), false, nil, errors.Wrap(err, "Error creating http client")
 	}
+	var redirectedURL *url.URL
 
 	client.CheckRedirect = func(r *http.Request, via []*http.Request) error {
 		if len(accessKey) > 0 && len(secKey) > 0 {
 			r.SetBasicAuth(accessKey, secKey) // Redirects will lose basic auth, so reset them manually
 		}
+		redirectedURL = r.URL
 		return nil
 	}
 
@@ -298,11 +304,11 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 	klog.V(2).Infof("Attempting to get object %q via http client\n", ep.String())
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, uint64(0), true, errors.Wrap(err, "HTTP request errored")
+		return nil, uint64(0), true, redirectedURL, errors.Wrap(err, "HTTP request errored")
 	}
 	if resp.StatusCode != 200 {
 		klog.Errorf("http: expected status code 200, got %d", resp.StatusCode)
-		return nil, uint64(0), true, errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
+		return nil, uint64(0), true, redirectedURL, errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
 	}
 
 	acceptRanges, ok := resp.Header["Accept-Ranges"]
@@ -319,7 +325,7 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 		Reader:  resp.Body,
 		Current: 0,
 	}
-	return countingReader, total, brokenForQemuImg, nil
+	return countingReader, total, brokenForQemuImg, redirectedURL, nil
 }
 
 func (hs *HTTPDataSource) pollProgress(reader *util.CountingReader, idleTime, pollInterval time.Duration) {
