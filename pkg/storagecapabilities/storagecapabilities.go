@@ -12,7 +12,8 @@ type StorageCapabilities struct {
 	VolumeMode v1.PersistentVolumeMode
 }
 
-var capabilitiesByProvisionerKey = map[string][]StorageCapabilities{
+// CapabilitiesByProvisionerKey defines default capabilities for different storage classes
+var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"kubevirt.io/hostpath-provisioner": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
 	// ceph-rbd
 	"kubernetes.io/rbd":                  {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
@@ -51,7 +52,7 @@ var capabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 // Get finds and returns a predefined StorageCapabilities for a given StorageClass
 func Get(sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
 	provisionerKey := storageProvisionerKey(sc)
-	capabilities, found := capabilitiesByProvisionerKey[provisionerKey]
+	capabilities, found := CapabilitiesByProvisionerKey[provisionerKey]
 	return capabilities, found
 }
 

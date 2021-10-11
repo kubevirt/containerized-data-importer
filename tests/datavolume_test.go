@@ -326,7 +326,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
-				By(fmt.Sprint("Verifying event occurred"))
+				By("Verifying event occurred")
 				Eventually(func() bool {
 					// Only find DV events, we know the PVC gets the same events
 					events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
@@ -353,10 +353,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Expect(err).ToNot(HaveOccurred())
 				Eventually(func() bool {
 					_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-					if k8serrors.IsNotFound(err) {
-						return true
-					}
-					return false
+					return k8serrors.IsNotFound(err)
 				}, timeout, pollingInterval).Should(BeTrue())
 			}
 		}
@@ -972,7 +969,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
-			By(fmt.Sprint("Verifying event occurred"))
+			By("Verifying event occurred")
 			Eventually(func() bool {
 				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
 				if err == nil {
@@ -1378,7 +1375,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			updateStorageProfileSpec(f.CrClient, defaultScName, *originalProfileSpec)
 		})
 
-		It("[test_id:5912]Import fails creating a PVC from DV without accessModes, no profile", func() {
+		It("[test_id:5912]Import fails creating a PVC from DV without accessModes and volume mode, no profile", func() {
 			// assumes local is available and has no volumeMode
 			defaultScName := findStorageProfileWithoutAccessModes(f.CrClient)
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
@@ -1399,13 +1396,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			_, err := utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 
-			By(fmt.Sprint("verifying event occurred"))
+			By("verifying event occurred")
 			Eventually(func() bool {
 				// Only find DV events, we know the PVC gets the same events
 				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
-					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume.storage spec is missing accessMode and cannot get access mode from StorageProfile")
+					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume.storage spec is missing accessMode and volumeMode, cannot get access mode from StorageProfile")
 				}
 				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
 				return false
@@ -1433,13 +1430,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			_, err := utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 
-			By(fmt.Sprint("verifying event occurred"))
+			By("verifying event occurred")
 			Eventually(func() bool {
 				// Only find DV events, we know the PVC gets the same events
 				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
-					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume.storage spec is missing accessMode and cannot get access mode from StorageProfile")
+					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume.storage spec is missing accessMode and volumeMode, cannot get access mode from StorageProfile")
 				}
 				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
 				return false
