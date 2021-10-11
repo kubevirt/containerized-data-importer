@@ -74,24 +74,12 @@ func main() {
 	}
 	defer os.RemoveAll(certsDirectory)
 	prometheusutil.StartPrometheusEndpoint(certsDirectory)
-
 	klog.V(1).Infoln("Starting importer")
-	ep, _ := util.ParseEnvVar(common.ImporterEndpoint, false)
-	acc, _ := util.ParseEnvVar(common.ImporterAccessKeyID, false)
-	sec, _ := util.ParseEnvVar(common.ImporterSecretKey, false)
+
 	source, _ := util.ParseEnvVar(common.ImporterSource, false)
 	contentType, _ := util.ParseEnvVar(common.ImporterContentType, false)
 	imageSize, _ := util.ParseEnvVar(common.ImporterImageSize, false)
-	certDir, _ := util.ParseEnvVar(common.ImporterCertDirVar, false)
 	filesystemOverhead, _ := strconv.ParseFloat(os.Getenv(common.FilesystemOverheadVar), 64)
-	insecureTLS, _ := strconv.ParseBool(os.Getenv(common.InsecureTLSVar))
-	diskID, _ := util.ParseEnvVar(common.ImporterDiskID, false)
-	uuid, _ := util.ParseEnvVar(common.ImporterUUID, false)
-	backingFile, _ := util.ParseEnvVar(common.ImporterBackingFile, false)
-	thumbprint, _ := util.ParseEnvVar(common.ImporterThumbprint, false)
-	currentCheckpoint, _ := util.ParseEnvVar(common.ImporterCurrentCheckpoint, false)
-	previousCheckpoint, _ := util.ParseEnvVar(common.ImporterPreviousCheckpoint, false)
-	finalCheckpoint, _ := util.ParseEnvVar(common.ImporterFinalCheckpoint, false)
 	preallocation, err := strconv.ParseBool(os.Getenv(common.Preallocation))
 	var preallocationApplied bool
 	var ds importer.DataSourceInterface
@@ -107,16 +95,6 @@ func main() {
 		volumeMode = v1.PersistentVolumeFilesystem
 	}
 
-	dest := common.ImporterWritePath
-	if contentType == string(cdiv1.DataVolumeArchive) {
-		dest = common.ImporterVolumePath
-	}
-
-	if volumeMode == v1.PersistentVolumeBlock {
-		dest = common.WriteBlockPath
-	}
-
-	dataDir := common.ImporterDataDir
 	availableDestSpace, err := util.GetAvailableSpaceByVolumeMode(volumeMode)
 	if err != nil {
 		klog.Errorf("%+v", err)
@@ -127,46 +105,18 @@ func main() {
 			createBlankImage(imageSize, availableDestSpace, preallocation, volumeMode, filesystemOverhead)
 			preallocationApplied = preallocation
 		} else {
-			errorEmptyDiskWithArchive(err)
+			errorEmptyDiskWithContentTypeArchive()
 		}
 	} else {
 		klog.V(1).Infoln("begin import process")
-		switch source {
-		case controller.SourceHTTP:
-			ds, err = importer.NewHTTPDataSource(ep, acc, sec, certDir, cdiv1.DataVolumeContentType(contentType))
-			if err != nil {
-				errorCannotConnectDataSource(err, "http")
-			}
-		case controller.SourceImageio:
-			ds, err = importer.NewImageioDataSource(ep, acc, sec, certDir, diskID, currentCheckpoint, previousCheckpoint)
-			if err != nil {
-				errorCannotConnectDataSource(err, "imageio")
-			}
-		case controller.SourceRegistry:
-			ds = importer.NewRegistryDataSource(ep, acc, sec, certDir, insecureTLS)
-		case controller.SourceS3:
-			ds, err = importer.NewS3DataSource(ep, acc, sec, certDir)
-			if err != nil {
-				errorCannotConnectDataSource(err, "s3")
-			}
-		case controller.SourceVDDK:
-			ds, err = importer.NewVDDKDataSource(ep, acc, sec, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, volumeMode)
-			if err != nil {
-				errorCannotConnectDataSource(err, "vddk")
-			}
-		default:
-			klog.Errorf("Unknown source type %s\n", source)
-			err = util.WriteTerminationMessage(fmt.Sprintf("Unknown data source: %s", source))
-			if err != nil {
-				klog.Errorf("%+v", err)
-			}
-			os.Exit(1)
-		}
+
+		ds = newDataSource(source, contentType, volumeMode)
 		defer ds.Close()
 
-		processor := importer.NewDataProcessor(ds, dest, dataDir, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
+		processor := newDataProcessor(contentType, volumeMode, ds, imageSize, filesystemOverhead, preallocation)
 		waitForReadyFile()
 		err = processor.ProcessData()
+
 		if err != nil {
 			klog.Errorf("%+v", err)
 			if err == importer.ErrRequiresScratchSpace {
@@ -196,6 +146,74 @@ func main() {
 		os.Exit(1)
 	}
 	klog.V(1).Infoln(message)
+}
+
+func newDataProcessor(contentType string, volumeMode v1.PersistentVolumeMode, ds importer.DataSourceInterface, imageSize string, filesystemOverhead float64, preallocation bool) *importer.DataProcessor {
+	dest := common.ImporterWritePath
+	if contentType == string(cdiv1.DataVolumeArchive) {
+		dest = common.ImporterVolumePath
+	}
+
+	if volumeMode == v1.PersistentVolumeBlock {
+		dest = common.WriteBlockPath
+	}
+	processor := importer.NewDataProcessor(ds, dest, common.ImporterDataDir, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
+	return processor
+}
+
+func newDataSource(source string, contentType string, volumeMode v1.PersistentVolumeMode) importer.DataSourceInterface {
+	ep, _ := util.ParseEnvVar(common.ImporterEndpoint, false)
+	acc, _ := util.ParseEnvVar(common.ImporterAccessKeyID, false)
+	sec, _ := util.ParseEnvVar(common.ImporterSecretKey, false)
+	diskID, _ := util.ParseEnvVar(common.ImporterDiskID, false)
+	uuid, _ := util.ParseEnvVar(common.ImporterUUID, false)
+	backingFile, _ := util.ParseEnvVar(common.ImporterBackingFile, false)
+	certDir, _ := util.ParseEnvVar(common.ImporterCertDirVar, false)
+	insecureTLS, _ := strconv.ParseBool(os.Getenv(common.InsecureTLSVar))
+	thumbprint, _ := util.ParseEnvVar(common.ImporterThumbprint, false)
+
+	currentCheckpoint, _ := util.ParseEnvVar(common.ImporterCurrentCheckpoint, false)
+	previousCheckpoint, _ := util.ParseEnvVar(common.ImporterPreviousCheckpoint, false)
+	finalCheckpoint, _ := util.ParseEnvVar(common.ImporterFinalCheckpoint, false)
+
+	switch source {
+	case controller.SourceHTTP:
+		ds, err := importer.NewHTTPDataSource(ep, acc, sec, certDir, cdiv1.DataVolumeContentType(contentType))
+		if err != nil {
+			errorCannotConnectDataSource(err, "http")
+		}
+		return ds
+	case controller.SourceImageio:
+		ds, err := importer.NewImageioDataSource(ep, acc, sec, certDir, diskID, currentCheckpoint, previousCheckpoint)
+		if err != nil {
+			errorCannotConnectDataSource(err, "imageio")
+		}
+		return ds
+	case controller.SourceRegistry:
+		ds := importer.NewRegistryDataSource(ep, acc, sec, certDir, insecureTLS)
+		return ds
+	case controller.SourceS3:
+		ds, err := importer.NewS3DataSource(ep, acc, sec, certDir)
+		if err != nil {
+			errorCannotConnectDataSource(err, "s3")
+		}
+		return ds
+	case controller.SourceVDDK:
+		ds, err := importer.NewVDDKDataSource(ep, acc, sec, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, volumeMode)
+		if err != nil {
+			errorCannotConnectDataSource(err, "vddk")
+		}
+		return ds
+	default:
+		klog.Errorf("Unknown source type %s\n", source)
+		err := util.WriteTerminationMessage(fmt.Sprintf("Unknown data source: %s", source))
+		if err != nil {
+			klog.Errorf("%+v", err)
+		}
+		os.Exit(1)
+	}
+
+	return nil
 }
 
 func createBlankImage(imageSize string, availableDestSpace int64, preallocation bool, volumeMode v1.PersistentVolumeMode, filesystemOverhead float64) {
@@ -237,9 +255,9 @@ func errorCannotConnectDataSource(err error, dsName string) {
 	os.Exit(1)
 }
 
-func errorEmptyDiskWithArchive(err error) {
+func errorEmptyDiskWithContentTypeArchive() {
 	klog.Errorf("%+v", errors.New("Cannot create empty disk with content type archive"))
-	err = util.WriteTerminationMessage("Cannot create empty disk with content type archive")
+	err := util.WriteTerminationMessage("Cannot create empty disk with content type archive")
 	if err != nil {
 		klog.Errorf("%+v", err)
 	}
