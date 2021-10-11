@@ -38,12 +38,13 @@ status:
 
 Current version supports the following parameters:
 - `cloneStrategy` - defines the preferred method for performing a CDI clone
-- `claimPropertySets` contains a list of `claimPropertySet` (currently only one supported) 
+- `claimPropertySets` contains a list of `claimPropertySet`
   - `accessMode` - contains the desired access modes the volume should have
   - `volumeMode` - defines what type of volume is required by the claim
 
 Values for accessModes and volumeMode are exactly the same as for PVC: `accessModes` is a list of `[ReadWriteMany|ReadWriteOnce|ReadOnlyMany]`
-and `volumeMode` is a single value `Filesystem` or `Block`. The value for `cloneStrategy` ca be one of: `copy`,`snapshot`,`csi-clone`. 
+and `volumeMode` is a single value `Filesystem` or `Block`.
+The value for `cloneStrategy` ca be one of: `copy`,`snapshot`,`csi-clone`.
 When the value is not specified the CDI will try to use the `snapshot` if possible otherwise it falls back to `copy`. 
 If the storage class (and its provider) is capable of doing CSI Volume Clone then the user may choose `csi-clone` as a preferred clone method.
 
@@ -202,6 +203,7 @@ Notice the event on the DV.
 ## User defined Storage Profile
 
 User with access rights to edit StorageProfile can configure recommended parameters. Edit spec section of StorageProfile by adding claimPropertySets with accessModes and volumeMode.
+When editting volumeMode you must also configure accessModes.
 Shortly, all provided parameters should be visible in the status section. User defined parameter has higher priority and overrides the one provided by CDI. 
 
 ## Priorities

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"github.com/go-logr/logr"
@@ -60,22 +61,22 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 	storageProfile.Status.Provisioner = &sc.Provisioner
 	storageProfile.Status.CloneStrategy = storageProfile.Spec.CloneStrategy
 
-	storageProfile.Status.ClaimPropertySets = storageProfile.Spec.ClaimPropertySets
+	var claimPropertySets []cdiv1.ClaimPropertySet
 
-	var claimPropertySet *cdiv1.ClaimPropertySet
-	// right now the CDI supports only a single property set
-	if len(storageProfile.Status.ClaimPropertySets) > 0 {
-		claimPropertySet = &storageProfile.Status.ClaimPropertySets[0]
+	if len(storageProfile.Spec.ClaimPropertySets) > 0 {
+		for _, cps := range storageProfile.Spec.ClaimPropertySets {
+			if len(cps.AccessModes) == 0 && cps.VolumeMode != nil {
+				err = fmt.Errorf("must provide access mode for volume mode: %s", *cps.VolumeMode)
+				log.Error(err, "Unable to update StorageProfile")
+				return reconcile.Result{}, err
+			}
+		}
+		claimPropertySets = storageProfile.Spec.ClaimPropertySets
 	} else {
-		claimPropertySet = &cdiv1.ClaimPropertySet{}
+		claimPropertySets = r.reconcilePropertySets(sc)
 	}
 
-	r.reconcileAccessModes(sc, claimPropertySet)
-	r.reconcileVolumeMode(sc, claimPropertySet)
-
-	if !isClaimPropertySetEmpty(claimPropertySet) {
-		storageProfile.Status.ClaimPropertySets = []cdiv1.ClaimPropertySet{*claimPropertySet}
-	}
+	storageProfile.Status.ClaimPropertySets = claimPropertySets
 
 	if err := r.updateStorageProfile(prevStorageProfile, storageProfile, log); err != nil {
 		return reconcile.Result{}, err
@@ -116,28 +117,19 @@ func (r *StorageProfileReconciler) getStorageProfile(sc *storagev1.StorageClass)
 	return storageProfile, prevStorageProfile, nil
 }
 
-func isClaimPropertySetEmpty(set *cdiv1.ClaimPropertySet) bool {
-	return set == nil ||
-		(len(set.AccessModes) == 0 && set.VolumeMode == nil)
-}
-
-func (r *StorageProfileReconciler) reconcileVolumeMode(sc *storagev1.StorageClass, claimPropertySet *cdiv1.ClaimPropertySet) {
-	if claimPropertySet.VolumeMode == nil {
-		capabilities, found := storagecapabilities.Get(sc)
-		if found {
-			claimPropertySet.VolumeMode = &capabilities.VolumeMode
+func (r *StorageProfileReconciler) reconcilePropertySets(sc *storagev1.StorageClass) []cdiv1.ClaimPropertySet {
+	claimPropertySets := []cdiv1.ClaimPropertySet{}
+	capabilities, found := storagecapabilities.Get(sc)
+	if found {
+		for i := range capabilities {
+			claimPropertySet := cdiv1.ClaimPropertySet{
+				AccessModes: []v1.PersistentVolumeAccessMode{capabilities[i].AccessMode},
+				VolumeMode:  &capabilities[i].VolumeMode,
+			}
+			claimPropertySets = append(claimPropertySets, claimPropertySet)
 		}
 	}
-}
-
-func (r *StorageProfileReconciler) reconcileAccessModes(sc *storagev1.StorageClass, claimPropertySet *cdiv1.ClaimPropertySet) {
-	// reconcile accessModes
-	if len(claimPropertySet.AccessModes) == 0 {
-		capabilities, found := storagecapabilities.Get(sc)
-		if found {
-			claimPropertySet.AccessModes = []v1.PersistentVolumeAccessMode{capabilities.AccessMode}
-		}
-	}
+	return claimPropertySets
 }
 
 func (r *StorageProfileReconciler) createEmptyStorageProfile(sc *storagev1.StorageClass) (*cdiv1.StorageProfile, error) {
