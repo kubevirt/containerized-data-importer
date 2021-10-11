@@ -94,7 +94,7 @@ func main() {
 	finalCheckpoint, _ := util.ParseEnvVar(common.ImporterFinalCheckpoint, false)
 	preallocation, err := strconv.ParseBool(os.Getenv(common.Preallocation))
 	var preallocationApplied bool
-	var dp importer.DataSourceInterface
+	var ds importer.DataSourceInterface
 
 	//Registry import currently support kubevirt content type only
 	if contentType != string(cdiv1.DataVolumeKubeVirt) && (source == controller.SourceRegistry || source == controller.SourceImageio) {
@@ -122,85 +122,37 @@ func main() {
 		klog.Errorf("%+v", err)
 		os.Exit(1)
 	}
-	if source == controller.SourceNone && contentType == string(cdiv1.DataVolumeKubeVirt) {
-		requestImageSizeQuantity := resource.MustParse(imageSize)
-		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(availableDestSpace, 0), &requestImageSizeQuantity)
-		preallocationApplied = preallocation
-		if minSizeQuantity.Cmp(requestImageSizeQuantity) != 0 {
-			// Available dest space is smaller than the size we want to create
-			klog.Warningf("Available space less than requested size, creating blank image sized to available space: %s.\n", minSizeQuantity.String())
+	if source == controller.SourceNone {
+		if contentType == string(cdiv1.DataVolumeKubeVirt) {
+			createBlankImage(imageSize, availableDestSpace, preallocation, volumeMode, filesystemOverhead)
+			preallocationApplied = preallocation
+		} else {
+			errorEmptyDiskWithArchive(err)
 		}
-
-		var err error
-		if volumeMode == v1.PersistentVolumeFilesystem {
-			quantityWithFSOverhead := importer.GetUsableSpace(filesystemOverhead, minSizeQuantity.Value())
-			klog.Infof("Space adjusted for filesystem overhead: %d.\n", quantityWithFSOverhead)
-			err = image.CreateBlankImage(common.ImporterWritePath, *resource.NewScaledQuantity(quantityWithFSOverhead, 0), preallocation)
-		} else if volumeMode == v1.PersistentVolumeBlock && preallocation {
-			klog.V(1).Info("Preallocating blank block volume")
-			err = image.PreallocateBlankBlock(common.WriteBlockPath, minSizeQuantity)
-		}
-
-		if err != nil {
-			klog.Errorf("%+v", err)
-			message := fmt.Sprintf("Unable to create blank image: %+v", err)
-			err = util.WriteTerminationMessage(message)
-			if err != nil {
-				klog.Errorf("%+v", err)
-			}
-			os.Exit(1)
-		}
-	} else if source == controller.SourceNone && contentType == string(cdiv1.DataVolumeArchive) {
-		klog.Errorf("%+v", errors.New("Cannot create empty disk with content type archive"))
-		err = util.WriteTerminationMessage("Cannot create empty disk with content type archive")
-		if err != nil {
-			klog.Errorf("%+v", err)
-		}
-		os.Exit(1)
 	} else {
 		klog.V(1).Infoln("begin import process")
 		switch source {
 		case controller.SourceHTTP:
-			dp, err = importer.NewHTTPDataSource(ep, acc, sec, certDir, cdiv1.DataVolumeContentType(contentType))
+			ds, err = importer.NewHTTPDataSource(ep, acc, sec, certDir, cdiv1.DataVolumeContentType(contentType))
 			if err != nil {
-				klog.Errorf("%+v", err)
-				err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to http data source: %+v", err))
-				if err != nil {
-					klog.Errorf("%+v", err)
-				}
-				os.Exit(1)
+				errorCannotConnectDataSource(err, "http")
 			}
 		case controller.SourceImageio:
-			dp, err = importer.NewImageioDataSource(ep, acc, sec, certDir, diskID, currentCheckpoint, previousCheckpoint)
+			ds, err = importer.NewImageioDataSource(ep, acc, sec, certDir, diskID, currentCheckpoint, previousCheckpoint)
 			if err != nil {
-				klog.Errorf("%+v", err)
-				err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to imageio data source: %+v", err))
-				if err != nil {
-					klog.Errorf("%+v", err)
-				}
-				os.Exit(1)
+				errorCannotConnectDataSource(err, "imageio")
 			}
 		case controller.SourceRegistry:
-			dp = importer.NewRegistryDataSource(ep, acc, sec, certDir, insecureTLS)
+			ds = importer.NewRegistryDataSource(ep, acc, sec, certDir, insecureTLS)
 		case controller.SourceS3:
-			dp, err = importer.NewS3DataSource(ep, acc, sec, certDir)
+			ds, err = importer.NewS3DataSource(ep, acc, sec, certDir)
 			if err != nil {
-				klog.Errorf("%+v", err)
-				err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to s3 data source: %+v", err))
-				if err != nil {
-					klog.Errorf("%+v", err)
-				}
-				os.Exit(1)
+				errorCannotConnectDataSource(err, "s3")
 			}
 		case controller.SourceVDDK:
-			dp, err = importer.NewVDDKDataSource(ep, acc, sec, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, volumeMode)
+			ds, err = importer.NewVDDKDataSource(ep, acc, sec, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, volumeMode)
 			if err != nil {
-				klog.Errorf("%+v", err)
-				err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to vddk data source: %+v", err))
-				if err != nil {
-					klog.Errorf("%+v", err)
-				}
-				os.Exit(1)
+				errorCannotConnectDataSource(err, "vddk")
 			}
 		default:
 			klog.Errorf("Unknown source type %s\n", source)
@@ -210,21 +162,22 @@ func main() {
 			}
 			os.Exit(1)
 		}
-		defer dp.Close()
-		processor := importer.NewDataProcessor(dp, dest, dataDir, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
+		defer ds.Close()
+
+		processor := importer.NewDataProcessor(ds, dest, dataDir, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
 		waitForReadyFile()
 		err = processor.ProcessData()
 		if err != nil {
 			klog.Errorf("%+v", err)
 			if err == importer.ErrRequiresScratchSpace {
-				dp.Close()
+				ds.Close()
 				os.Exit(common.ScratchSpaceNeededExitCode)
 			}
 			err = util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %+v", err))
 			if err != nil {
 				klog.Errorf("%+v", err)
 			}
-			dp.Close()
+			ds.Close()
 			os.Exit(1)
 		}
 		touchDoneFile()
@@ -237,10 +190,58 @@ func main() {
 	err = util.WriteTerminationMessage(message)
 	if err != nil {
 		klog.Errorf("%+v", err)
-		if dp != nil {
-			dp.Close()
+		if ds != nil {
+			ds.Close()
 		}
 		os.Exit(1)
 	}
 	klog.V(1).Infoln(message)
+}
+
+func createBlankImage(imageSize string, availableDestSpace int64, preallocation bool, volumeMode v1.PersistentVolumeMode, filesystemOverhead float64) {
+	requestImageSizeQuantity := resource.MustParse(imageSize)
+	minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(availableDestSpace, 0), &requestImageSizeQuantity)
+
+	if minSizeQuantity.Cmp(requestImageSizeQuantity) != 0 {
+		// Available dest space is smaller than the size we want to create
+		klog.Warningf("Available space less than requested size, creating blank image sized to available space: %s.\n", minSizeQuantity.String())
+	}
+
+	var err error
+	if volumeMode == v1.PersistentVolumeFilesystem {
+		quantityWithFSOverhead := importer.GetUsableSpace(filesystemOverhead, minSizeQuantity.Value())
+		klog.Infof("Space adjusted for filesystem overhead: %d.\n", quantityWithFSOverhead)
+		err = image.CreateBlankImage(common.ImporterWritePath, *resource.NewScaledQuantity(quantityWithFSOverhead, 0), preallocation)
+	} else if volumeMode == v1.PersistentVolumeBlock && preallocation {
+		klog.V(1).Info("Preallocating blank block volume")
+		err = image.PreallocateBlankBlock(common.WriteBlockPath, minSizeQuantity)
+	}
+
+	if err != nil {
+		klog.Errorf("%+v", err)
+		message := fmt.Sprintf("Unable to create blank image: %+v", err)
+		err = util.WriteTerminationMessage(message)
+		if err != nil {
+			klog.Errorf("%+v", err)
+		}
+		os.Exit(1)
+	}
+}
+
+func errorCannotConnectDataSource(err error, dsName string) {
+	klog.Errorf("%+v", err)
+	err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to %s data source: %+v", dsName, err))
+	if err != nil {
+		klog.Errorf("%+v", err)
+	}
+	os.Exit(1)
+}
+
+func errorEmptyDiskWithArchive(err error) {
+	klog.Errorf("%+v", errors.New("Cannot create empty disk with content type archive"))
+	err = util.WriteTerminationMessage("Cannot create empty disk with content type archive")
+	if err != nil {
+		klog.Errorf("%+v", err)
+	}
+	os.Exit(1)
 }
