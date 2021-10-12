@@ -6,6 +6,8 @@ metadata:
   labels:
     cdi.kubevirt.io/testing: ""
 spec:
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       name: cdi-docker-registry-host
