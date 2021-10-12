@@ -18,6 +18,8 @@ go_library(
         "level4.go",
         "level5.go",
         "level6.go",
+        "regmask_amd64.go",
+        "regmask_other.go",
         "stateless.go",
         "token.go",
     ],

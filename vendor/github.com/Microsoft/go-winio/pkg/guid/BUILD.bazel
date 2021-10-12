@@ -6,5 +6,10 @@ go_library(
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/Microsoft/go-winio/pkg/guid",
     importpath = "github.com/Microsoft/go-winio/pkg/guid",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/golang.org/x/sys/windows:go_default_library"],
+    deps = select({
+        "@io_bazel_rules_go//go/platform:windows": [
+            "//vendor/golang.org/x/sys/windows:go_default_library",
+        ],
+        "//conditions:default": [],
+    }),
 )

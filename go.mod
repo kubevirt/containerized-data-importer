@@ -6,6 +6,7 @@ require (
 	github.com/appscode/jsonpatch v0.0.0-20190108182946-7c0e3b262f30
 	github.com/aws/aws-sdk-go v1.15.77
 	github.com/containers/image/v5 v5.5.1
+	github.com/containers/storage v1.32.4 // indirect
 	github.com/coreos/go-semver v0.3.0
 	github.com/docker/spdystream v0.0.0-20181023171402-6480d4af844c // indirect
 	github.com/elazarl/goproxy v0.0.0-20190911111923-ecfe977594f1 // indirect
@@ -14,14 +15,13 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.4.0
 	github.com/go-openapi/spec v0.19.3
-	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/snappy v0.0.2
+	github.com/golang/snappy v0.0.3
 	github.com/google/uuid v1.3.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
 	github.com/mrnold/go-libnbd v1.4.1-cdi
 	github.com/onsi/ginkgo v1.14.1
-	github.com/onsi/gomega v1.10.2
+	github.com/onsi/gomega v1.10.3
 	github.com/openshift/api v0.0.0
 	github.com/openshift/client-go v0.0.0
 	github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca
@@ -36,13 +36,13 @@ require (
 	github.com/rs/cors v1.7.0
 	github.com/ulikunitz/xz v0.5.10
 	github.com/vmware/govmomi v0.23.1
-	golang.org/x/sys v0.0.0-20201112073958-5cba982894dd
+	golang.org/x/sys v0.0.0-20210426230700-d19ff857e887
 	gopkg.in/fsnotify.v1 v1.4.7
-	gopkg.in/square/go-jose.v2 v2.3.1
-	k8s.io/api v0.20.2
+	gopkg.in/square/go-jose.v2 v2.5.1
+	k8s.io/api v0.20.6
 	k8s.io/apiextensions-apiserver v0.20.2
-	k8s.io/apimachinery v0.20.2
-	k8s.io/apiserver v0.20.2
+	k8s.io/apimachinery v0.20.6
+	k8s.io/apiserver v0.20.6
 	k8s.io/client-go v8.0.0+incompatible
 	k8s.io/cluster-bootstrap v0.0.0
 	k8s.io/code-generator v0.20.2
