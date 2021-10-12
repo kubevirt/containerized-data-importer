@@ -77,8 +77,11 @@ func compress(in []byte, s *Scratch, compressor func(src []byte) ([]byte, error)
 		// Each symbol present maximum once or too well distributed.
 		return nil, false, ErrIncompressible
 	}
-
-	if s.Reuse == ReusePolicyPrefer && canReuse {
+	if s.Reuse == ReusePolicyMust && !canReuse {
+		// We must reuse, but we can't.
+		return nil, false, ErrIncompressible
+	}
+	if (s.Reuse == ReusePolicyPrefer || s.Reuse == ReusePolicyMust) && canReuse {
 		keepTable := s.cTable
 		keepTL := s.actualTableLog
 		s.cTable = s.prevTable
@@ -89,6 +92,9 @@ func compress(in []byte, s *Scratch, compressor func(src []byte) ([]byte, error)
 		if err == nil && len(s.Out) < wantSize {
 			s.OutData = s.Out
 			return s.Out, true, nil
+		}
+		if s.Reuse == ReusePolicyMust {
+			return nil, false, ErrIncompressible
 		}
 		// Do not attempt to re-use later.
 		s.prevTable = s.prevTable[:0]
@@ -397,7 +403,7 @@ func (s *Scratch) buildCTable() error {
 	var startNode = int16(s.symbolLen)
 	nonNullRank := s.symbolLen - 1
 
-	nodeNb := int16(startNode)
+	nodeNb := startNode
 	huffNode := s.nodes[1 : huffNodesLen+1]
 
 	// This overlays the slice above, but allows "-1" index lookups.
@@ -530,7 +536,6 @@ func (s *Scratch) huffSort() {
 		}
 		nodes[pos&huffNodesMask] = nodeElt{count: c, symbol: byte(n)}
 	}
-	return
 }
 
 func (s *Scratch) setMaxHeight(lastNonNull int) uint8 {
@@ -574,7 +579,7 @@ func (s *Scratch) setMaxHeight(lastNonNull int) uint8 {
 
 		// Get pos of last (smallest) symbol per rank
 		{
-			currentNbBits := uint8(maxNbBits)
+			currentNbBits := maxNbBits
 			for pos := int(n); pos >= 0; pos-- {
 				if huffNode[pos].nbBits >= currentNbBits {
 					continue

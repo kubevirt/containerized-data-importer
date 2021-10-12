@@ -11,9 +11,7 @@ go_library(
         "mounter_linux.go",
         "mounter_unsupported.go",
         "mountinfo.go",
-        "mountinfo_freebsd.go",
         "mountinfo_linux.go",
-        "mountinfo_unsupported.go",
         "sharedsubtree_linux.go",
         "unmount_unix.go",
         "unmount_unsupported.go",
@@ -23,13 +21,12 @@ go_library(
     importpath = "github.com/containers/storage/pkg/mount",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/containers/storage/pkg/fileutils:go_default_library",
+        "//vendor/github.com/moby/sys/mountinfo:go_default_library",
     ] + select({
         "@io_bazel_rules_go//go/platform:aix": [
             "//vendor/golang.org/x/sys/unix:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:android": [
-            "//vendor/github.com/pkg/errors:go_default_library",
             "//vendor/golang.org/x/sys/unix:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:darwin": [
@@ -51,7 +48,6 @@ go_library(
             "//vendor/golang.org/x/sys/unix:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:linux": [
-            "//vendor/github.com/pkg/errors:go_default_library",
             "//vendor/golang.org/x/sys/unix:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:netbsd": [

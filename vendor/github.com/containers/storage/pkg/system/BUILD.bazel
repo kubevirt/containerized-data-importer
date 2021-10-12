@@ -3,6 +3,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "go_default_library",
     srcs = [
+        "chmod.go",
         "chtimes.go",
         "chtimes_unix.go",
         "chtimes_windows.go",
@@ -10,6 +11,7 @@ go_library(
         "exitcode.go",
         "init.go",
         "init_windows.go",
+        "lchown.go",
         "lcow_unix.go",
         "lcow_windows.go",
         "lstat_unix.go",
@@ -20,6 +22,7 @@ go_library(
         "meminfo_unsupported.go",
         "meminfo_windows.go",
         "mknod.go",
+        "mknod_freebsd.go",
         "mknod_windows.go",
         "path.go",
         "path_unix.go",

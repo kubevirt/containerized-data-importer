@@ -6,7 +6,7 @@ go_library(
         "archive.go",
         "archive_110.go",
         "archive_19.go",
-        "archive_ffjson.go",
+        "archive_freebsd.go",
         "archive_linux.go",
         "archive_other.go",
         "archive_unix.go",
@@ -32,16 +32,16 @@ go_library(
     deps = [
         "//vendor/github.com/containers/storage/pkg/fileutils:go_default_library",
         "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
-        "//vendor/github.com/containers/storage/pkg/ioutils:go_default_library",
         "//vendor/github.com/containers/storage/pkg/pools:go_default_library",
         "//vendor/github.com/containers/storage/pkg/promise:go_default_library",
         "//vendor/github.com/containers/storage/pkg/system:go_default_library",
+        "//vendor/github.com/containers/storage/pkg/unshare:go_default_library",
         "//vendor/github.com/klauspost/compress/zstd:go_default_library",
         "//vendor/github.com/klauspost/pgzip:go_default_library",
-        "//vendor/github.com/opencontainers/runc/libcontainer/system:go_default_library",
+        "//vendor/github.com/opencontainers/runc/libcontainer/userns:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
-        "//vendor/github.com/pquerna/ffjson/fflib/v1:go_default_library",
         "//vendor/github.com/sirupsen/logrus:go_default_library",
+        "//vendor/github.com/ulikunitz/xz:go_default_library",
     ] + select({
         "@io_bazel_rules_go//go/platform:aix": [
             "//vendor/golang.org/x/sys/unix:go_default_library",
