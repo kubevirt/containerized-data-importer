@@ -361,7 +361,7 @@ func cleanupTransfer(conn ConnectionInterface, it *ovirtsdk4.ImageTransfer) erro
 
 		imageTransferResponse, err := transferService.Get().Send()
 		if err != nil {
-			if strings.Contains(err.Error(), "404 Not Found") {
+			if strings.Contains(err.Error(), "404 Not Found") || strings.Contains(err.Error(), "404 page not found") {
 				klog.Info("Transfer ticket cleaned up.")
 				return nil
 			}

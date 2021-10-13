@@ -72,8 +72,17 @@ func ResetImageIoInventory(f *framework.Framework, configurators ...string) {
 func CreateImageIoDefaultInventory(f *framework.Framework) {
 	ResetImageIoInventory(f)
 
-	// Final catch-all API response
 	responseSequences := []imageIoMockResponseSequence{
+		{
+			Path:   "/ovirt-engine/api/imagetransfers",
+			Method: "GET",
+			Responses: []imageIoMockResponse{
+				{
+					ResponseBody: "404 page not found",
+					ResponseCode: 404,
+				},
+			},
+		},
 		{
 			Path:   "/ovirt-engine/api",
 			Method: "GET",
