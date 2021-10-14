@@ -1005,6 +1005,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify content")
+		pvc, err := utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(utils.TinyCoreMD5))
 	},
 		table.Entry("when importing in the VMDK format", httpsTinyCoreVmdkURL),
 		table.Entry("When importing in the VDI format", httpsTinyCoreVdiURL),
