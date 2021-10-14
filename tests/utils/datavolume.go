@@ -78,6 +78,8 @@ const (
 	// TrustedRegistryIS provides the base path to trusted registry test fake imagestream for the tinycore.iso image wrapped in docker container
 	TrustedRegistryIS = "%s/cdi-func-test-tinycore:%s"
 
+	// MD5PrefixSize is the number of bytes used by the MD5 constants below
+	MD5PrefixSize = int64(100000)
 	// TinyCoreMD5 is the MD5 hash of first 100k bytes of tinyCore image
 	TinyCoreMD5 = "3710416a680523c7d07538cb1026c60c"
 	// TinyCoreTarMD5 is the MD5 hash of first 100k bytes of tinyCore tar image

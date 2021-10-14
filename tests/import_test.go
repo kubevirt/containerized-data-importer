@@ -1082,7 +1082,6 @@ var _ = Describe("Preallocation", func() {
 		tinyCoreRegistryURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
 		imageioURL          = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
 		vcenterURL          = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
-		md5PrefixSize       = int64(100000)
 		config              *cdiv1.CDIConfig
 		origSpec            *cdiv1.CDIConfigSpec
 		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix, f.DockerTag) }
@@ -1143,7 +1142,7 @@ var _ = Describe("Preallocation", func() {
 		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Equal("true"))
 
 		By("Verify content")
-		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, md5PrefixSize)
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.TinyCoreMD5))
 
@@ -1175,7 +1174,7 @@ var _ = Describe("Preallocation", func() {
 		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Equal("true"))
 
 		By("Verify content")
-		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, md5PrefixSize)
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.TinyCoreMD5))
 
@@ -1219,7 +1218,7 @@ var _ = Describe("Preallocation", func() {
 			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Equal("true"))
 
 			By("Verify content")
-			md5, err := f.GetMD5(f.Namespace, pvc, path, md5PrefixSize)
+			md5, err := f.GetMD5(f.Namespace, pvc, path, utils.MD5PrefixSize)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(md5).To(Equal(expectedMD5))
 
@@ -1375,7 +1374,7 @@ var _ = Describe("Preallocation", func() {
 		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Equal("true"))
 
 		By("Verify content")
-		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, md5PrefixSize)
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.BlankMD5))
 
