@@ -30,7 +30,7 @@ function configure_storage() {
     configure_ember_lvm
   else
     echo "Using local volume storage"
-    #Make sure local is not default
+    #Make sure local is default
     _kubectl patch storageclass local -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
   fi
 }
