@@ -79,6 +79,64 @@ spec:
       requests:
         storage: "64Mi"
 ```
+#### Extra Headers
+You can also specify custom headers directly as a list of strings, with `extraHeaders`:
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: "example-import-dv"
+spec:
+  source:
+      http:
+         url: "http://server/archive.tar"
+         extraHeaders:
+         - "X-First-Header: 12345"
+         - "X-Another-Header: abcde"
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: "64Mi"
+```
+If the headers contain information that should not be openly displayed, specify `secretExtraHeaders` as a list of references to secrets:
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: "example-import-dv"
+spec:
+  source:
+      http:
+         url: "http://server/archive.tar"
+         extraHeaders:
+           - "X-Auth-Token: 12345"
+           - "X-Another-Header: abcde"
+         secretExtraHeaders:
+           - "first-secret"
+           - "second-secret"
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: "64Mi"
+```
+Each secret should be of type `Opaque` and contain `data` or `stringData` with a key name of `secretHeader`:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: first-secret
+type: Opaque
+stringData:
+  secretHeader: "X-Secret-Auth-Token: 6789"
+```
+
 
 ### PVC source
 You can also use a PVC as an input source for a DV which will cause a clone to happen of the original PVC. You set the 'source' to be PVC, and specify the name and namespace of the PVC you want to have cloned. Be sure to specify the right amount of space to allocate for the new DV or the clone can't complete.
