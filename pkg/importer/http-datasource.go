@@ -80,7 +80,7 @@ type HTTPDataSource struct {
 var createNbdkitCurl = image.NewNbdkitCurl
 
 // NewHTTPDataSource creates a new instance of the http data provider.
-func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType cdiv1.DataVolumeContentType) (*HTTPDataSource, error) {
+func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType cdiv1.DataVolumeContentType, extraHeaders []string) (*HTTPDataSource, error) {
 	ep, err := ParseEndpoint(endpoint)
 	if err != nil {
 		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpoint))
@@ -105,7 +105,7 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		brokenForQemuImg: brokenForQemuImg,
 		contentLength:    contentLength,
 	}
-	httpSource.n = createNbdkitCurl(nbdkitPid, certDir, nbdkitSocket)
+	httpSource.n = createNbdkitCurl(nbdkitPid, certDir, nbdkitSocket, extraHeaders)
 	// We know this is a counting reader, so no need to check.
 	countingReader := httpReader.(*util.CountingReader)
 	go httpSource.pollProgress(countingReader, 10*time.Minute, time.Second)

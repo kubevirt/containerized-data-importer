@@ -84,11 +84,14 @@ func NewNbdkit(plugin NbdkitPlugin, nbdkitPidFile string) *Nbdkit {
 }
 
 // NewNbdkitCurl creates a new Nbdkit instance with the curl plugin
-func NewNbdkitCurl(nbdkitPidFile, certDir, socket string) NbdkitOperation {
+func NewNbdkitCurl(nbdkitPidFile, certDir, socket string, extraHeaders []string) NbdkitOperation {
 	var pluginArgs []string
 	args := []string{"-r"}
 	if certDir != "" {
 		pluginArgs = append(pluginArgs, fmt.Sprintf("cainfo=%s/%s", certDir, "tls.crt"))
+	}
+	for _, header := range extraHeaders {
+		pluginArgs = append(pluginArgs, fmt.Sprintf("header=%s", header))
 	}
 
 	return &Nbdkit{
