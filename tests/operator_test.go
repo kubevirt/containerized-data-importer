@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"reflect"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -708,9 +707,12 @@ var _ = Describe("ALL Operator tests", func() {
 					return true
 				}, 10*time.Second, time.Second).Should(BeTrue())
 				Eventually(func() bool {
+					var result map[string]interface{}
 					req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/api/v1/alerts", host), nil)
+					if err != nil {
+						return false
+					}
 					req.Header.Add("Authorization", "Bearer "+token)
-					Expect(err).ToNot(HaveOccurred())
 					resp, err := client.Do(req)
 					if err != nil {
 						return false
@@ -719,9 +721,23 @@ var _ = Describe("ALL Operator tests", func() {
 					if resp.StatusCode != http.StatusOK {
 						return false
 					}
+					// Make sure alert appears and is firing
 					bodyBytes, err := ioutil.ReadAll(resp.Body)
-					return strings.Contains(string(bodyBytes), "CdiOperatorDown")
-				}, 6*time.Minute, 1*time.Second).Should(BeTrue())
+					err = json.Unmarshal(bodyBytes, &result)
+					if err != nil {
+						return false
+					}
+					alerts := result["data"].(map[string]interface{})["alerts"].([]interface{})
+					for _, alert := range alerts {
+						name := alert.(map[string]interface{})["labels"].(map[string]interface{})["alertname"].(string)
+						if name == "CdiOperatorDown" {
+							if state := alert.(map[string]interface{})["state"].(string); state == "firing" {
+								return true
+							}
+						}
+					}
+					return false
+				}, 7*time.Minute, 1*time.Second).Should(BeTrue())
 
 				By("Ensuring original value of replicas restored")
 				operatorDeployment, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
