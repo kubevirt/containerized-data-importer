@@ -39,6 +39,7 @@ import (
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -321,7 +322,7 @@ var _ = Describe("Controller", func() {
 				validateEvents(args.reconciler, createReadyEventValidationMap())
 			})
 
-			It("should have CdiDown", func() {
+			It("should have CdiOperatorDown", func() {
 				args := createArgs()
 				doReconcile(args)
 				Expect(setDeploymentsReady(args)).To(BeTrue())
@@ -332,9 +333,8 @@ var _ = Describe("Controller", func() {
 						Namespace: cdiNamespace,
 					},
 				}
-
 				obj, err := getObject(args.client, rule)
-				Expect(err).To(BeNil())
+				Expect(err).ToNot(HaveOccurred())
 				rule = obj.(*promv1.PrometheusRule)
 				cdiDownAlert := promv1.Rule{
 					Alert: "CdiOperatorDown",
@@ -350,6 +350,57 @@ var _ = Describe("Controller", func() {
 
 				Expect(rule.Spec.Groups[0].Rules).To(ContainElement(cdiDownAlert))
 				Expect(rule.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+				validateEvents(args.reconciler, createReadyEventValidationMap())
+			})
+
+			It("should create prometheus service monitor", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				monitor := &promv1.ServiceMonitor{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "service-monitor-cdi",
+						Namespace: cdiNamespace,
+					},
+				}
+				obj, err := getObject(args.client, monitor)
+				Expect(err).ToNot(HaveOccurred())
+				monitor = obj.(*promv1.ServiceMonitor)
+
+				Expect(monitor.Spec.NamespaceSelector.MatchNames).To(ContainElement(cdiNamespace))
+				Expect(monitor.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+				validateEvents(args.reconciler, createReadyEventValidationMap())
+			})
+
+			It("should create prometheus rbac", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				role := &rbacv1.Role{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cdi-monitoring",
+						Namespace: cdiNamespace,
+					},
+				}
+				obj, err := getObject(args.client, role)
+				Expect(err).ToNot(HaveOccurred())
+				role = obj.(*rbacv1.Role)
+				roleBinding := &rbacv1.RoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cdi-monitoring",
+						Namespace: cdiNamespace,
+					},
+				}
+				obj, err = getObject(args.client, roleBinding)
+				Expect(err).ToNot(HaveOccurred())
+				roleBinding = obj.(*rbacv1.RoleBinding)
+
+				Expect(role.Rules[0].Resources).To(ContainElement("endpoints"))
+				Expect(roleBinding.Subjects[0].Name).To(Equal("prometheus-k8s"))
+				Expect(role.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+				Expect(roleBinding.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 				validateEvents(args.reconciler, createReadyEventValidationMap())
 			})
 

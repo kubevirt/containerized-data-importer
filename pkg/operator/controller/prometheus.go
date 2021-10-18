@@ -99,7 +99,7 @@ func ensurePrometheusRbacExists(logger logr.Logger, c client.Client, owner metav
 	desiredRole := newPrometheusRole(namespace)
 	util.SetRecommendedLabels(desiredRole, installerLabels, "cdi-operator")
 	desiredRoleBinding := newPrometheusRoleBinding(namespace)
-	util.SetRecommendedLabels(desiredRole, installerLabels, "cdi-operator")
+	util.SetRecommendedLabels(desiredRoleBinding, installerLabels, "cdi-operator")
 
 	promRule := &promv1.PrometheusRule{}
 	promRulekey := client.ObjectKey{Namespace: namespace, Name: ruleName}
@@ -324,7 +324,9 @@ func generateRecordRule(record, expr string) promv1.Rule {
 }
 
 func (r *ReconcileCDI) watchPrometheusResources() error {
-	err := r.controller.Watch(
+	var err error
+
+	err = r.controller.Watch(
 		&source.Kind{Type: &promv1.PrometheusRule{}},
 		enqueueCDI(r.client),
 	)
@@ -334,6 +336,35 @@ func (r *ReconcileCDI) watchPrometheusResources() error {
 			return nil
 		}
 
+		return err
+	}
+
+	err = r.controller.Watch(
+		&source.Kind{Type: &promv1.ServiceMonitor{}},
+		enqueueCDI(r.client),
+	)
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			log.Info("Not watching ServiceMonitors")
+			return nil
+		}
+
+		return err
+	}
+
+	err = r.controller.Watch(
+		&source.Kind{Type: &rbacv1.Role{}},
+		enqueueCDI(r.client),
+	)
+	if err != nil {
+		return err
+	}
+
+	err = r.controller.Watch(
+		&source.Kind{Type: &rbacv1.RoleBinding{}},
+		enqueueCDI(r.client),
+	)
+	if err != nil {
 		return err
 	}
 
