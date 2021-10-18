@@ -3858,7 +3858,7 @@
       }
      },
      "secretExtraHeaders": {
-      "description": "SecretExtraHeaders is a list of configmap references, each containing an extra HTTP header that may include sensitive information",
+      "description": "SecretExtraHeaders is a list of Secret references, each containing an extra HTTP header that may include sensitive information",
       "type": "array",
       "items": {
        "type": "string",

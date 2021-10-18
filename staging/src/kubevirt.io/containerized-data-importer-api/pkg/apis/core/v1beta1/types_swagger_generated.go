@@ -97,7 +97,7 @@ func (DataVolumeSourceHTTP) SwaggerDoc() map[string]string {
 		"secretRef":          "SecretRef A Secret reference, the secret should contain accessKeyId (user name) base64 encoded, and secretKey (password) also base64 encoded\n+optional",
 		"certConfigMap":      "CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate\n+optional",
 		"extraHeaders":       "ExtraHeaders is a list of strings containing extra headers to include with HTTP transfer requests\n+optional",
-		"secretExtraHeaders": "SecretExtraHeaders is a list of configmap references, each containing an extra HTTP header that may include sensitive information\n+optional",
+		"secretExtraHeaders": "SecretExtraHeaders is a list of Secret references, each containing an extra HTTP header that may include sensitive information\n+optional",
 	}
 }
 

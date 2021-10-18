@@ -4703,7 +4703,7 @@ spec:
                           type: string
                         type: array
                       secretExtraHeaders:
-                        description: SecretExtraHeaders is a list of configmap references,
+                        description: SecretExtraHeaders is a list of Secret references,
                           each containing an extra HTTP header that may include sensitive
                           information
                         items:
@@ -5216,7 +5216,7 @@ spec:
                           type: string
                         type: array
                       secretExtraHeaders:
-                        description: SecretExtraHeaders is a list of configmap references,
+                        description: SecretExtraHeaders is a list of Secret references,
                           each containing an extra HTTP header that may include sensitive
                           information
                         items:

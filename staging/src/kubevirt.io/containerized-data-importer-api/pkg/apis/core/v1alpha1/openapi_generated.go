@@ -15042,7 +15042,7 @@ func schema_pkg_apis_core_v1alpha1_DataVolumeSourceHTTP(ref common.ReferenceCall
 					},
 					"secretExtraHeaders": {
 						SchemaProps: spec.SchemaProps{
-							Description: "SecretExtraHeaders is a list of configmap references, each containing an extra HTTP header that may include sensitive information",
+							Description: "SecretExtraHeaders is a list of Secret references, each containing an extra HTTP header that may include sensitive information",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{

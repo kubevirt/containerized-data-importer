@@ -199,7 +199,7 @@ type DataVolumeSourceHTTP struct {
 	// ExtraHeaders is a list of strings containing extra headers to include with HTTP transfer requests
 	// +optional
 	ExtraHeaders []string `json:"extraHeaders,omitempty"`
-	// SecretExtraHeaders is a list of configmap references, each containing an extra HTTP header that may include sensitive information
+	// SecretExtraHeaders is a list of Secret references, each containing an extra HTTP header that may include sensitive information
 	// +optional
 	SecretExtraHeaders []string `json:"secretExtraHeaders,omitempty"`
 }
