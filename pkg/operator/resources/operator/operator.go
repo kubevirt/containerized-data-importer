@@ -354,6 +354,10 @@ func createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage
 			Name:  "PULL_POLICY",
 			Value: pullPolicy,
 		},
+		{
+			Name:  "MONITORING_NAMESPACE",
+			Value: "",
+		},
 	}
 }
 

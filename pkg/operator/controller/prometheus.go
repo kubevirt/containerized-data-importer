@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 
 	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
@@ -36,9 +37,10 @@ import (
 )
 
 const (
-	ruleName    = "prometheus-cdi-rules"
-	rbacName    = "cdi-monitoring"
-	monitorName = "service-monitor-cdi"
+	ruleName            = "prometheus-cdi-rules"
+	rbacName            = "cdi-monitoring"
+	monitorName         = "service-monitor-cdi"
+	defaultMonitoringNs = "monitoring"
 )
 
 func ensurePrometheusRuleExists(logger logr.Logger, c client.Client, owner metav1.Object) error {
@@ -247,6 +249,8 @@ func newPrometheusRole(namespace string) *rbacv1.Role {
 }
 
 func newPrometheusRoleBinding(namespace string) *rbacv1.RoleBinding {
+	monitoringNamespace := getMonitoringNamespace()
+
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      rbacName,
@@ -263,11 +267,19 @@ func newPrometheusRoleBinding(namespace string) *rbacv1.RoleBinding {
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Namespace: "openshift-monitoring",
+				Namespace: monitoringNamespace,
 				Name:      "prometheus-k8s",
 			},
 		},
 	}
+}
+
+func getMonitoringNamespace() string {
+	if ns := os.Getenv("MONITORING_NAMESPACE"); ns != "" {
+		return ns
+	}
+
+	return defaultMonitoringNs
 }
 
 func newPrometheusServiceMonitor(namespace string) *promv1.ServiceMonitor {
