@@ -1207,9 +1207,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, timeout, pollingInterval).Should(BeTrue())
 			verifyAnnotations(uploadPod)
 			// Remove non existent network so upload pod succeeds and clone can continue (some envs like OpenShift check network validity)
-			delete(uploadPod.Annotations, controller.AnnPodNetwork)
-			_, err = f.K8sClient.CoreV1().Pods(dataVolume.Namespace).Update(context.TODO(), uploadPod, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() bool {
+				uploadPod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
+				if err != nil {
+					return false
+				}
+				delete(uploadPod.Annotations, controller.AnnPodNetwork)
+				_, err = f.K8sClient.CoreV1().Pods(dataVolume.Namespace).Update(context.TODO(), uploadPod, metav1.UpdateOptions{})
+				return err == nil
+			}, 60*time.Second, 2*time.Second).Should(BeTrue())
 			Eventually(func() bool {
 				sourcePod, err = utils.FindPodBySuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
 				return err == nil
