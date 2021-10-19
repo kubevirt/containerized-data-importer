@@ -238,7 +238,6 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"get",
 				"list",
 				"watch",
-				"update",
 			},
 		},
 	}
