@@ -37,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -443,8 +444,15 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 	}); err != nil {
 		return err
 	}
-	isList := &imagev1.ImageStreamList{}
-	if err := mgr.GetClient().List(context.TODO(), isList); err == nil {
+
+	imageStreamList := &imagev1.ImageStreamList{}
+	err := mgr.GetClient().List(context.TODO(), imageStreamList)
+	doWatchImageStreams := err == nil
+	if err != nil {
+		_, ok := err.(*cache.ErrCacheNotStarted)
+		doWatchImageStreams = ok
+	}
+	if doWatchImageStreams {
 		if err := c.Watch(&source.Kind{Type: &imagev1.ImageStream{}}, &handler.EnqueueRequestForObject{}); err != nil {
 			return err
 		}
