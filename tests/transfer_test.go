@@ -24,10 +24,6 @@ import (
 )
 
 var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
-	const (
-		imagePath = "/pvc/disk.img"
-	)
-
 	f := framework.NewFramework("transfer-test")
 
 	deleteTransfer := func(name string) {
@@ -81,7 +77,7 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 		pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(ns.Name).Get(context.TODO(), pvcName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		sourceMD5, err := f.GetMD5(ns, pvc, imagePath, 0)
+		sourceMD5, err := f.GetMD5(ns, pvc, utils.DefaultImagePath, 0)
 		Expect(err).ToNot(HaveOccurred())
 
 		err = utils.DeleteVerifierPod(f.K8sClient, ns.Name)
