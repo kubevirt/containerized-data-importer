@@ -1085,7 +1085,7 @@ var _ = Describe("Preallocation", func() {
 		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Equal("true"))
 
 		By("Verify content")
-		md5, err := f.GetMD5(f.Namespace, pvc, "/pvc/disk.img", md5PrefixSize)
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, md5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.UploadFileMD5100kbytes))
 
@@ -1138,7 +1138,7 @@ var _ = Describe("Preallocation", func() {
 		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Equal("true"))
 
 		By("Verify content")
-		md5, err := f.GetMD5(f.Namespace, pvc, "/pvc/disk.img", md5PrefixSize)
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, md5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.UploadFileMD5100kbytes))
 
@@ -1190,7 +1190,7 @@ var _ = Describe("Preallocation", func() {
 		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Equal("true"))
 
 		By("Verify content")
-		md5, err := f.GetMD5(f.Namespace, pvc, "/pvc/disk.img", md5PrefixSize)
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, md5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.UploadFileMD5100kbytes))
 
