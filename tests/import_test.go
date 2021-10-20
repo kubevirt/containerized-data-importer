@@ -537,7 +537,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		}, CompletionTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
 
 		By("Verify content")
-		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", utils.UploadFileMD5, utils.UploadFileSize)
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultPvcMountPath, utils.UploadFileMD5, utils.UploadFileSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
 
@@ -1341,7 +1341,7 @@ var _ = Describe("Preallocation", func() {
 		Entry("Blank image", true, utils.BlankMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeForBlankRawImage("import-dv", "100Mi")
 		}),
-		Entry("Blank block DataVolume", true, utils.BlankMD5, "/pvc", func() *cdiv1.DataVolume {
+		Entry("Blank block DataVolume", true, utils.BlankMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
 			if !f.IsBlockVolumeStorageClassAvailable() {
 				Skip("Storage Class for block volume is not available")
 			}
