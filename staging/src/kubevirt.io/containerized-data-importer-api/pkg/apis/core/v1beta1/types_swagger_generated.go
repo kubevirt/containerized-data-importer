@@ -237,16 +237,10 @@ func (DataImportCron) SwaggerDoc() map[string]string {
 func (DataImportCronSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                  "DataImportCronSpec defines specification for DataImportCron",
-		"source":            "Source specifies where to poll disk images from",
+		"template":          "Template specifies template for the DVs to be created",
 		"schedule":          "Schedule specifies in cron format when and how often to look for new imports",
 		"garbageCollect":    "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported.\nOptions are currently \"Never\" and \"Outdated\", defaults to \"Never\".\n+optional",
 		"managedDataSource": "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage.\nDataSource has to be in the same namespace.",
-	}
-}
-
-func (DataImportCronSource) SwaggerDoc() map[string]string {
-	return map[string]string{
-		"": "DataImportCronSource defines where to poll and import disk images from",
 	}
 }
 

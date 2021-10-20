@@ -472,8 +472,8 @@ type DataImportCron struct {
 
 // DataImportCronSpec defines specification for DataImportCron
 type DataImportCronSpec struct {
-	// Source specifies where to poll disk images from
-	Source DataImportCronSource `json:"source"`
+	// Template specifies template for the DVs to be created
+	Template DataVolume `json:"template"`
 	// Schedule specifies in cron format when and how often to look for new imports
 	Schedule string `json:"schedule"`
 	// GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported.
@@ -494,11 +494,6 @@ const (
 	// DataImportCronGarbageCollectOutdated specifies that old PVCs should be cleaned up after a new PVC is imported
 	DataImportCronGarbageCollectOutdated DataImportCronGarbageCollect = "Outdated"
 )
-
-// DataImportCronSource defines where to poll and import disk images from
-type DataImportCronSource struct {
-	Registry *DataVolumeSourceRegistry `json:"registry"`
-}
 
 // DataImportCronStatus provides the most recently observed status of the DataImportCron
 type DataImportCronStatus struct {

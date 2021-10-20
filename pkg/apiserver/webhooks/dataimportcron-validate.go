@@ -29,16 +29,13 @@ import (
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
-	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
 
 type dataImportCronValidatingWebhook struct {
-	k8sClient kubernetes.Interface
-	cdiClient cdiclient.Interface
+	dataVolumeValidatingWebhook
 }
 
 func (wh *dataImportCronValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
@@ -90,16 +87,28 @@ func (wh *dataImportCronValidatingWebhook) Admit(ar admissionv1.AdmissionReview)
 func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *admissionv1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataImportCronSpec, namespace *string) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 
-	if spec.Source.Registry == nil {
+	if spec.Template.Spec.Source == nil || spec.Template.Spec.Source.Registry == nil {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: fmt.Sprintf("Missing registry source"),
-			Field:   field.Child("Source").String(),
+			Field:   field.Child("Template").String(),
 		})
 		return causes
 	}
 
-	causes = validateDataVolumeSourceRegistry(spec.Source.Registry, field)
+	if spec.Template.Spec.SourceRef != nil ||
+		spec.Template.Spec.ContentType != "" ||
+		len(spec.Template.Spec.Checkpoints) > 0 ||
+		spec.Template.Spec.FinalCheckpoint == true {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Unsettable fields: SourceRef, ContentType, Checkpoints, FinalCheckpoint"),
+			Field:   field.Child("Template").String(),
+		})
+		return causes
+	}
+
+	causes = wh.validateDataVolumeSpec(request, k8sfield.NewPath("Template"), &spec.Template.Spec, nil)
 	if len(causes) > 0 {
 		return causes
 	}

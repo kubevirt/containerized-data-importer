@@ -31,7 +31,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -45,7 +44,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -122,7 +121,12 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 		dataImportCron.Annotations = make(map[string]string)
 	}
 
-	if dataImportCron.Spec.Source.Registry.ImageStream != nil {
+	regSource, err := getCronRegistrySource(dataImportCron)
+	if err != nil {
+		return res, err
+	}
+
+	if regSource.ImageStream != nil {
 		digest, err := r.getImageStreamDigest(ctx, dataImportCron)
 		if err != nil {
 			return res, err
@@ -132,8 +136,11 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 		if err != nil {
 			return res, err
 		}
-	} else if dataImportCron.Spec.Source.Registry.URL != nil {
-		cronJob := r.newCronJob(dataImportCron)
+	} else if regSource.URL != nil {
+		cronJob, err := r.newCronJob(dataImportCron)
+		if err != nil {
+			return res, err
+		}
 		if err := r.client.Create(ctx, cronJob); err != nil {
 			r.log.Error(err, "Unable to create CronJob")
 			return res, err
@@ -150,10 +157,18 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 }
 
 func (r *DataImportCronReconciler) getImageStreamDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (string, error) {
+	regSource, err := getCronRegistrySource(dataImportCron)
+	if err != nil {
+		return "", err
+	}
+	if regSource.ImageStream == nil {
+		return "", errors.Errorf("No imagestream in cron %s", dataImportCron.Name)
+	}
+
 	imageStream := &imagev1.ImageStream{}
 	imageStreamName := types.NamespacedName{
 		Namespace: dataImportCron.Namespace,
-		Name:      *dataImportCron.Spec.Source.Registry.ImageStream,
+		Name:      *regSource.ImageStream,
 	}
 	if err := r.client.Get(ctx, imageStreamName, imageStream); err != nil {
 		return "", err
@@ -211,7 +226,11 @@ func (r *DataImportCronReconciler) reconcileImageStream(ctx context.Context, ima
 
 	// FIXME: verify it's actually updated
 	for _, cron := range cronList.Items {
-		istream := cron.Spec.Source.Registry.ImageStream
+		regSource, err := getCronRegistrySource(&cron)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		istream := regSource.ImageStream
 		if istream != nil && *istream == imageStream.Name {
 			r.log.Info("reconcileImageStream update", "DesiredDigest", digest, "cron", cron.Name)
 			cron.Annotations[AnnSourceDesiredDigest] = digest
@@ -222,6 +241,14 @@ func (r *DataImportCronReconciler) reconcileImageStream(ctx context.Context, ima
 		}
 	}
 	return reconcile.Result{}, nil
+}
+
+func getCronRegistrySource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourceRegistry, error) {
+	source := cron.Spec.Template.Spec.Source
+	if source == nil || source.Registry == nil {
+		return nil, errors.Errorf("Cron with no registry source %s", cron.Name)
+	}
+	return source.Registry, nil
 }
 
 // FIXME: update all conditions
@@ -464,7 +491,14 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 	return nil
 }
 
-func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) *v1beta1.CronJob {
+func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1beta1.CronJob, error) {
+	regSource, err := getCronRegistrySource(cron)
+	if err != nil {
+		return nil, err
+	}
+	if regSource.URL == nil {
+		return nil, errors.Errorf("No URL source in cron %s", cron.Name)
+	}
 	container := corev1.Container{
 		Name:  "cdi-source-update-poller",
 		Image: r.image,
@@ -472,7 +506,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) *v1bet
 			"/usr/bin/cdi-source-update-poller",
 			"-ns", cron.Namespace,
 			"-cron", cron.Name,
-			"-url", *cron.Spec.Source.Registry.URL,
+			"-url", *regSource.URL,
 		},
 		ImagePullPolicy: corev1.PullPolicy(r.pullPolicy),
 	}
@@ -497,40 +531,24 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) *v1bet
 			},
 		},
 	}
-	return job
+	return job, nil
 }
 
 func newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdiv1.DataVolume {
-	dataVolume := &cdiv1.DataVolume{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      dataVolumeName,
-			Namespace: cron.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(cron, schema.GroupVersionKind{
-					Group:   cdiv1.SchemeGroupVersion.Group,
-					Version: cdiv1.SchemeGroupVersion.Version,
-					Kind:    "DataImportCron",
-				}),
-			},
-			Labels: map[string]string{
-				labelDataImportCronName: cron.Name,
-			},
-		},
-		Spec: cdiv1.DataVolumeSpec{
-			Source: &cdiv1.DataVolumeSource{
-				Registry: cron.Spec.Source.Registry,
-			},
-			PVC: &corev1.PersistentVolumeClaimSpec{
-				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-				Resources: corev1.ResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: resource.MustParse("20Gi"), //FIXME
-					},
-				},
-			},
-		},
+	dv := cron.Spec.Template.DeepCopy()
+	dv.Name = dataVolumeName
+	dv.Namespace = cron.Namespace
+	dv.OwnerReferences = append(dv.OwnerReferences,
+		*metav1.NewControllerRef(cron, schema.GroupVersionKind{
+			Group:   cdiv1.SchemeGroupVersion.Group,
+			Version: cdiv1.SchemeGroupVersion.Version,
+			Kind:    "DataImportCron",
+		}))
+	if dv.Labels == nil {
+		dv.Labels = make(map[string]string)
 	}
-	return dataVolume
+	dv.Labels[labelDataImportCronName] = cron.Name
+	return dv
 }
 
 func newDataSource(cron *cdiv1.DataImportCron) *cdiv1.DataSource {
