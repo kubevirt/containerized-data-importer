@@ -73,7 +73,7 @@ func NewObjectTransferValidatingWebhook(k8sClient kubernetes.Interface, cdiClien
 
 // NewDataImportCronValidatingWebhook creates a new DataVolumeValidation webhook
 func NewDataImportCronValidatingWebhook(k8sClient kubernetes.Interface, cdiClient cdiclient.Interface) http.Handler {
-	return newAdmissionHandler(&dataImportCronValidatingWebhook{k8sClient: k8sClient, cdiClient: cdiClient})
+	return newAdmissionHandler(&dataImportCronValidatingWebhook{dataVolumeValidatingWebhook{k8sClient: k8sClient, cdiClient: cdiClient}})
 }
 
 func newCloneTokenGenerator(key *rsa.PrivateKey) token.Generator {

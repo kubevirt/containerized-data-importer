@@ -26,11 +26,13 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	admissionv1 "k8s.io/api/admission/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 )
 
@@ -67,6 +69,25 @@ var _ = Describe("Validating Webhook", func() {
 		})
 		It("should reject DataImportCron with no Registry source URL or ImageStream on create", func() {
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{})
+			resp := validateDataImportCronCreate(cron)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+		It("should reject DataImportCron with no Registry source on create", func() {
+			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{})
+			cron.Spec.Template.Spec.Source.Registry = nil
+			resp := validateDataImportCronCreate(cron)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+		It("should reject DataImportCron with no source on create", func() {
+			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{})
+			cron.Spec.Template.Spec.Source = nil
+			resp := validateDataImportCronCreate(cron)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+		It("should reject DataImportCron with unsettable template field on create", func() {
+			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
+			ref := cdiv1.DataVolumeSourceRef{Kind: cdiv1.DataVolumeDataSource, Name: "noname"}
+			cron.Spec.Template.Spec.SourceRef = &ref
 			resp := validateDataImportCronCreate(cron)
 			Expect(resp.Allowed).To(Equal(false))
 		})
@@ -118,7 +139,7 @@ var _ = Describe("Validating Webhook", func() {
 
 			otherURL := "docker://registry:5000/other"
 			oldCron := newCron.DeepCopy()
-			oldCron.Spec.Source.Registry.URL = &otherURL
+			oldCron.Spec.Template.Spec.Source.Registry.URL = &otherURL
 			oldBytes, _ := json.Marshal(oldCron)
 
 			ar := &admissionv1.AdmissionReview{
@@ -187,8 +208,22 @@ func newDataImportCron(source cdiv1.DataVolumeSourceRegistry) *cdiv1.DataImportC
 		},
 		Status: cdiv1.DataImportCronStatus{},
 		Spec: cdiv1.DataImportCronSpec{
-			Source:            cdiv1.DataImportCronSource{Registry: &source},
-			Schedule:          "* * * * *",
+			Template: cdiv1.DataVolume{
+				Spec: cdiv1.DataVolumeSpec{
+					Source: &cdiv1.DataVolumeSource{
+						Registry: &source,
+					},
+					PVC: &corev1.PersistentVolumeClaimSpec{
+						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceStorage: resource.MustParse("1Mi"),
+							},
+						},
+					},
+				},
+			},
+			Schedule:          "30 1 * * 1",
 			ManagedDataSource: "someDataSource",
 		},
 	}

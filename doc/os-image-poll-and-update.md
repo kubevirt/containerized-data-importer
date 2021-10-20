@@ -11,10 +11,18 @@ metadata:
   name: fedora-image-import-cron
   namespace: golden-images
 spec:
-  source:
-    registry:
-      url: "docker://quay.io/kubevirt/fedora-cloud-registry-disk-demo:latest"
-      #url: "docker://cdi-docker-registry-host.cdi/tinycoreqcow2"
+  template:
+    spec:
+      source:
+        registry:
+          url: "docker://quay.io/kubevirt/fedora-cloud-registry-disk-demo:latest"
+          pullMethod: node
+      pvc:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
   schedule: "30 1 * * 1"
   garbageCollect: Outdated
   managedDataSource: fedora
@@ -29,10 +37,18 @@ metadata:
   name: rhel8-image-import-cron
   namespace: openshift-virtualization-os-images
 spec:
-  source:
-    registry:
-      imageStream: rhel8-is
-      pullMethod: node
+  template:
+    spec:
+      source:
+        registry:
+          imageStream: rhel8-is
+          pullMethod: node
+      pvc:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
   schedule: "30 1 * * 1"
   garbageCollect: Outdated
   managedDataSource: rhel8

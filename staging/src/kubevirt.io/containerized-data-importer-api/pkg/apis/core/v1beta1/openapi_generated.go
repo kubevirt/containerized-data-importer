@@ -306,7 +306,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCron":           schema_pkg_apis_core_v1beta1_DataImportCron(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronCondition":  schema_pkg_apis_core_v1beta1_DataImportCronCondition(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronList":       schema_pkg_apis_core_v1beta1_DataImportCronList(ref),
-		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronSource":     schema_pkg_apis_core_v1beta1_DataImportCronSource(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronSpec":       schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronStatus":     schema_pkg_apis_core_v1beta1_DataImportCronStatus(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSource":               schema_pkg_apis_core_v1beta1_DataSource(ref),
@@ -14967,27 +14966,6 @@ func schema_pkg_apis_core_v1beta1_DataImportCronList(ref common.ReferenceCallbac
 	}
 }
 
-func schema_pkg_apis_core_v1beta1_DataImportCronSource(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "DataImportCronSource defines where to poll and import disk images from",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"registry": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceRegistry"),
-						},
-					},
-				},
-				Required: []string{"registry"},
-			},
-		},
-		Dependencies: []string{
-			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSourceRegistry"},
-	}
-}
-
 func schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -14995,11 +14973,11 @@ func schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref common.ReferenceCallbac
 				Description: "DataImportCronSpec defines specification for DataImportCron",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"source": {
+					"template": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Source specifies where to poll disk images from",
+							Description: "Template specifies template for the DVs to be created",
 							Default:     map[string]interface{}{},
-							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronSource"),
+							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolume"),
 						},
 					},
 					"schedule": {
@@ -15026,11 +15004,11 @@ func schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref common.ReferenceCallbac
 						},
 					},
 				},
-				Required: []string{"source", "schedule", "managedDataSource"},
+				Required: []string{"template", "schedule", "managedDataSource"},
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronSource"},
+			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolume"},
 	}
 }
 
