@@ -1695,7 +1695,6 @@ func createErrorCDIEventValidationMap() map[string]bool {
 func createReadyEventValidationMap() map[string]bool {
 	match := createNotReadyEventValidationMap()
 	match[normalCreateEnsured+" upload proxy route exists"] = false
-	match[normalCreateEnsured+" prometheus resources exist"] = false
 	match["Normal DeployCompleted Deployment Completed"] = false
 	return match
 }
