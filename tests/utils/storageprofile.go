@@ -2,12 +2,13 @@ package utils
 
 import (
 	"context"
+	"time"
+
 	"github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/types"
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

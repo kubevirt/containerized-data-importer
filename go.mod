@@ -50,6 +50,7 @@ require (
 	k8s.io/klog/v2 v2.10.0
 	k8s.io/kube-aggregator v0.20.2
 	k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
+	kubevirt.io/containerized-data-importer-api v0.0.0
 	kubevirt.io/controller-lifecycle-operator-sdk v0.2.1
 	kubevirt.io/qe-tools v0.1.6
 	sigs.k8s.io/controller-runtime v0.8.3
@@ -87,6 +88,8 @@ replace (
 	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.20.2
 	k8s.io/sample-controller => k8s.io/sample-controller v0.20.2
 	k8s.io/schedule => k8s.io/schedule v0.20.2
+
+	kubevirt.io/containerized-data-importer-api => ./staging/src/kubevirt.io/containerized-data-importer-api
 
 	sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v1.0.0
 	vbom.ml/util => github.com/fvbommel/util v0.0.0-20180919145318-efcd4e0f9787

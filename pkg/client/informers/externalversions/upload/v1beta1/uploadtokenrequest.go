@@ -26,7 +26,7 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
-	uploadv1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
+	uploadv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 	versioned "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	internalinterfaces "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/internalinterfaces"
 	v1beta1 "kubevirt.io/containerized-data-importer/pkg/client/listers/upload/v1beta1"

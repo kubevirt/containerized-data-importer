@@ -28,9 +28,9 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	cdicorev1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
-	cdiuploadv1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
+	cdicorev1alpha1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1"
+	cdicorev1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdiuploadv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 

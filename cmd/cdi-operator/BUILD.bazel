@@ -6,9 +6,9 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/cmd/cdi-operator",
     visibility = ["//visibility:private"],
     deps = [
-        "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/operator/controller:go_default_library",
         "//pkg/util:go_default_library",
+        "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1:go_default_library",
         "//vendor/github.com/openshift/api/config/v1:go_default_library",
         "//vendor/github.com/openshift/api/route/v1:go_default_library",
