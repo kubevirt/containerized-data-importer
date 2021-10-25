@@ -63,24 +63,33 @@ func ensurePrometheusRuleExists(logger logr.Logger, c client.Client, owner metav
 
 	currentRule := &promv1.PrometheusRule{}
 	key := client.ObjectKey{Namespace: namespace, Name: ruleName}
-	err = c.Get(context.TODO(), key, currentRule)
-	if err == nil {
-		if !reflect.DeepEqual(currentRule.Spec, desiredRule.Spec) {
-			currentRule.Spec = desiredRule.Spec
-			return c.Update(context.TODO(), currentRule)
+	if err := c.Get(context.TODO(), key, currentRule); err != nil {
+		if meta.IsNoMatchError(err) {
+			logger.V(3).Info("No match error for PrometheusRule, must not have prometheus deployed")
+			return nil
+		} else if !errors.IsNotFound(err) {
+			return err
 		}
-
-		return nil
-	}
-	if meta.IsNoMatchError(err) {
-		logger.V(3).Info("No match error for PrometheusRule, must not have prometheus deployed")
-		return nil
-	}
-	if !errors.IsNotFound(err) {
-		return err
 	}
 
-	return c.Create(context.TODO(), desiredRule)
+	if err := c.Create(context.TODO(), desiredRule); err != nil {
+		if errors.IsAlreadyExists(err) {
+			currentRule = &promv1.PrometheusRule{}
+			if err := c.Get(context.TODO(), key, currentRule); err != nil {
+				return err
+			}
+			if !reflect.DeepEqual(currentRule.Spec, desiredRule.Spec) {
+				currentRule.Spec = desiredRule.Spec
+				if err := c.Update(context.TODO(), currentRule); err != nil {
+					return err
+				}
+			}
+		} else {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func ensurePrometheusRbacExists(logger logr.Logger, c client.Client, owner metav1.Object) error {
@@ -105,34 +114,46 @@ func ensurePrometheusRbacExists(logger logr.Logger, c client.Client, owner metav
 
 	promRule := &promv1.PrometheusRule{}
 	promRulekey := client.ObjectKey{Namespace: namespace, Name: ruleName}
-	if err := c.Get(context.TODO(), promRulekey, promRule); err != nil && meta.IsNoMatchError(err) {
-		logger.V(3).Info("No match error for PrometheusRule, must not have prometheus deployed")
-		return nil
+	if err := c.Get(context.TODO(), promRulekey, promRule); err != nil {
+		if meta.IsNoMatchError(err) {
+			logger.V(3).Info("No match error for PrometheusRule, must not have prometheus deployed")
+			return nil
+		} else if !errors.IsNotFound(err) {
+			return err
+		}
 	}
 
 	key := client.ObjectKey{Namespace: namespace, Name: rbacName}
-	if err := c.Create(context.TODO(), desiredRole); err != nil && errors.IsAlreadyExists(err) {
-		currentRole := &rbacv1.Role{}
-		if err := c.Get(context.TODO(), key, currentRole); err != nil {
-			return err
-		}
-		if !reflect.DeepEqual(currentRole.Rules, desiredRole.Rules) {
-			currentRole.Rules = desiredRole.Rules
-			if err := c.Update(context.TODO(), currentRole); err != nil {
+	if err := c.Create(context.TODO(), desiredRole); err != nil {
+		if errors.IsAlreadyExists(err) {
+			currentRole := &rbacv1.Role{}
+			if err := c.Get(context.TODO(), key, currentRole); err != nil {
 				return err
 			}
+			if !reflect.DeepEqual(currentRole.Rules, desiredRole.Rules) {
+				currentRole.Rules = desiredRole.Rules
+				if err := c.Update(context.TODO(), currentRole); err != nil {
+					return err
+				}
+			}
+		} else {
+			return err
 		}
 	}
-	if err := c.Create(context.TODO(), desiredRoleBinding); err != nil && errors.IsAlreadyExists(err) {
-		currentRoleBinding := &rbacv1.RoleBinding{}
-		if err := c.Get(context.TODO(), key, currentRoleBinding); err != nil {
-			return err
-		}
-		if !reflect.DeepEqual(currentRoleBinding.Subjects, desiredRoleBinding.Subjects) {
-			currentRoleBinding.Subjects = desiredRoleBinding.Subjects
-			if err := c.Update(context.TODO(), currentRoleBinding); err != nil {
+	if err := c.Create(context.TODO(), desiredRoleBinding); err != nil {
+		if errors.IsAlreadyExists(err) {
+			currentRoleBinding := &rbacv1.RoleBinding{}
+			if err := c.Get(context.TODO(), key, currentRoleBinding); err != nil {
 				return err
 			}
+			if !reflect.DeepEqual(currentRoleBinding.Subjects, desiredRoleBinding.Subjects) {
+				currentRoleBinding.Subjects = desiredRoleBinding.Subjects
+				if err := c.Update(context.TODO(), currentRoleBinding); err != nil {
+					return err
+				}
+			}
+		} else {
+			return err
 		}
 	}
 
@@ -159,22 +180,30 @@ func ensurePrometheusServiceMonitorExists(logger logr.Logger, c client.Client, o
 
 	promRule := &promv1.PrometheusRule{}
 	promRulekey := client.ObjectKey{Namespace: namespace, Name: ruleName}
-	if err := c.Get(context.TODO(), promRulekey, promRule); err != nil && meta.IsNoMatchError(err) {
-		logger.V(3).Info("No match error for PrometheusRule, must not have prometheus deployed")
-		return nil
+	if err := c.Get(context.TODO(), promRulekey, promRule); err != nil {
+		if meta.IsNoMatchError(err) {
+			logger.V(3).Info("No match error for PrometheusRule, must not have prometheus deployed")
+			return nil
+		} else if !errors.IsNotFound(err) {
+			return err
+		}
 	}
 
 	key := client.ObjectKey{Namespace: namespace, Name: monitorName}
-	if err := c.Create(context.TODO(), desiredMonitor); err != nil && errors.IsAlreadyExists(err) {
-		currentMonitor := &promv1.ServiceMonitor{}
-		if err := c.Get(context.TODO(), key, currentMonitor); err != nil {
-			return err
-		}
-		if !reflect.DeepEqual(currentMonitor.Spec, desiredMonitor.Spec) {
-			currentMonitor.Spec = desiredMonitor.Spec
-			if err := c.Update(context.TODO(), currentMonitor); err != nil {
+	if err := c.Create(context.TODO(), desiredMonitor); err != nil {
+		if errors.IsAlreadyExists(err) {
+			currentMonitor := &promv1.ServiceMonitor{}
+			if err := c.Get(context.TODO(), key, currentMonitor); err != nil {
 				return err
 			}
+			if !reflect.DeepEqual(currentMonitor.Spec, desiredMonitor.Spec) {
+				currentMonitor.Spec = desiredMonitor.Spec
+				if err := c.Update(context.TODO(), currentMonitor); err != nil {
+					return err
+				}
+			}
+		} else {
+			return err
 		}
 	}
 
