@@ -61,20 +61,16 @@ func ensurePrometheusRuleExists(logger logr.Logger, c client.Client, owner metav
 	desiredRule := newPrometheusRule(namespace)
 	util.SetRecommendedLabels(desiredRule, installerLabels, "cdi-operator")
 
-	currentRule := &promv1.PrometheusRule{}
-	key := client.ObjectKey{Namespace: namespace, Name: ruleName}
-	if err := c.Get(context.TODO(), key, currentRule); err != nil {
-		if meta.IsNoMatchError(err) {
-			logger.V(3).Info("No match error for PrometheusRule, must not have prometheus deployed")
-			return nil
-		} else if !errors.IsNotFound(err) {
-			return err
-		}
+	if deployed, err := isPrometheusDeployed(logger, c, namespace); err != nil {
+		return err
+	} else if !deployed {
+		return nil
 	}
 
 	if err := c.Create(context.TODO(), desiredRule); err != nil {
 		if errors.IsAlreadyExists(err) {
-			currentRule = &promv1.PrometheusRule{}
+			currentRule := &promv1.PrometheusRule{}
+			key := client.ObjectKey{Namespace: namespace, Name: ruleName}
 			if err := c.Get(context.TODO(), key, currentRule); err != nil {
 				return err
 			}
@@ -112,15 +108,10 @@ func ensurePrometheusRbacExists(logger logr.Logger, c client.Client, owner metav
 	desiredRoleBinding := newPrometheusRoleBinding(namespace)
 	util.SetRecommendedLabels(desiredRoleBinding, installerLabels, "cdi-operator")
 
-	promRule := &promv1.PrometheusRule{}
-	promRulekey := client.ObjectKey{Namespace: namespace, Name: ruleName}
-	if err := c.Get(context.TODO(), promRulekey, promRule); err != nil {
-		if meta.IsNoMatchError(err) {
-			logger.V(3).Info("No match error for PrometheusRule, must not have prometheus deployed")
-			return nil
-		} else if !errors.IsNotFound(err) {
-			return err
-		}
+	if deployed, err := isPrometheusDeployed(logger, c, namespace); err != nil {
+		return err
+	} else if !deployed {
+		return nil
 	}
 
 	key := client.ObjectKey{Namespace: namespace, Name: rbacName}
@@ -178,15 +169,10 @@ func ensurePrometheusServiceMonitorExists(logger logr.Logger, c client.Client, o
 	desiredMonitor := newPrometheusServiceMonitor(namespace)
 	util.SetRecommendedLabels(desiredMonitor, installerLabels, "cdi-operator")
 
-	promRule := &promv1.PrometheusRule{}
-	promRulekey := client.ObjectKey{Namespace: namespace, Name: ruleName}
-	if err := c.Get(context.TODO(), promRulekey, promRule); err != nil {
-		if meta.IsNoMatchError(err) {
-			logger.V(3).Info("No match error for PrometheusRule, must not have prometheus deployed")
-			return nil
-		} else if !errors.IsNotFound(err) {
-			return err
-		}
+	if deployed, err := isPrometheusDeployed(logger, c, namespace); err != nil {
+		return err
+	} else if !deployed {
+		return nil
 	}
 
 	key := client.ObjectKey{Namespace: namespace, Name: monitorName}
@@ -208,6 +194,21 @@ func ensurePrometheusServiceMonitorExists(logger logr.Logger, c client.Client, o
 	}
 
 	return nil
+}
+
+func isPrometheusDeployed(logger logr.Logger, c client.Client, namespace string) (bool, error) {
+	rule := &promv1.PrometheusRule{}
+	key := client.ObjectKey{Namespace: namespace, Name: ruleName}
+	if err := c.Get(context.TODO(), key, rule); err != nil {
+		if meta.IsNoMatchError(err) {
+			logger.V(3).Info("No match error for PrometheusRule, must not have prometheus deployed")
+			return false, nil
+		} else if !errors.IsNotFound(err) {
+			return false, err
+		}
+	}
+
+	return true, nil
 }
 
 func newPrometheusRule(namespace string) *promv1.PrometheusRule {
