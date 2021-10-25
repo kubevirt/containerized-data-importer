@@ -181,9 +181,10 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err.Error()).To(ContainSubstring("missing storage size"))
 		})
 
-		It("Should set params on a PVC from storageProfile when import DV has no accessMode and no volume mode", func() {
+		DescribeTable("Should set params on a PVC from storageProfile when import DV has no accessMode and no volume mode", func(contentType cdiv1.DataVolumeContentType) {
 			scName := "testStorageClass"
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
+			importDataVolume.Spec.ContentType = contentType
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 				StorageClassName: &scName,
 				Resources: corev1.ResourceRequirements{
@@ -209,8 +210,47 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.Name).To(Equal("test-dv"))
 
 			Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
-			Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadOnlyMany))
-			Expect(*pvc.Spec.VolumeMode).To(Equal(blockMode))
+			if contentType == cdiv1.DataVolumeKubeVirt {
+				Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadOnlyMany))
+				Expect(*pvc.Spec.VolumeMode).To(Equal(blockMode))
+			} else {
+				Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadWriteOnce))
+				Expect(*pvc.Spec.VolumeMode).To(Equal(filesystemMode))
+			}
+		},
+
+			Entry("Kubevirt contentType", cdiv1.DataVolumeKubeVirt),
+			Entry("Archive contentType", cdiv1.DataVolumeArchive),
+		)
+
+		It("Should fail if DV with archive content type has volume mode block", func() {
+			scName := "testStorageClass"
+			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
+			importDataVolume.Spec.ContentType = cdiv1.DataVolumeArchive
+			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
+				StorageClassName: &scName,
+				VolumeMode:       &blockMode,
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("1G"),
+					},
+				},
+			}
+			storageClass := createStorageClass(scName, nil)
+			claimPropertySets := []cdiv1.ClaimPropertySet{
+				{AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, VolumeMode: &blockMode},
+				{AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, VolumeMode: &filesystemMode},
+			}
+			storageProfile := createStorageProfileWithClaimPropertySets(scName, claimPropertySets)
+
+			reconciler = createDatavolumeReconciler(storageClass, storageProfile, importDataVolume)
+
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("DataVolume with ContentType Archive cannot have block volumeMode"))
+			By("Checking error event recorded")
+			event := <-reconciler.recorder.(*record.FakeRecorder).Events
+			Expect(event).To(ContainSubstring("DataVolume with ContentType Archive cannot have block volumeMode"))
 		})
 
 		It("Should set on a PVC matching access mode from storageProfile to the DV given volume mode", func() {

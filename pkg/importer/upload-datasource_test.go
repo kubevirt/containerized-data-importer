@@ -9,6 +9,12 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+)
+
+const (
+	dvKubevirt = cdiv1.DataVolumeKubeVirt
+	dvArchive  = cdiv1.DataVolumeArchive
 )
 
 var _ = Describe("Upload data source", func() {
@@ -37,7 +43,7 @@ var _ = Describe("Upload data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		err = file.Close()
 		Expect(err).NotTo(HaveOccurred())
-		ud = NewUploadDataSource(file)
+		ud = NewUploadDataSource(file, dvKubevirt)
 		result, err := ud.Info()
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
@@ -47,37 +53,48 @@ var _ = Describe("Upload data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(cirrosFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		ud = NewUploadDataSource(file)
+		ud = NewUploadDataSource(file, dvKubevirt)
 		result, err := ud.Info()
+
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
+	})
+
+	It("Info should return TransferDataDir with archive content type", func() {
+		// Don't need to defer close, since ud.Close will close the reader
+		file, err := os.Open(tinyCoreTarFilePath)
+		Expect(err).NotTo(HaveOccurred())
+		ud = NewUploadDataSource(file, dvArchive)
+		result, err := ud.Info()
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(ProcessingPhaseTransferDataDir).To(Equal(result))
 	})
 
 	It("Info should return TransferData, when passed in a valid raw image", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		ud = NewUploadDataSource(file)
+		ud = NewUploadDataSource(file, dvKubevirt)
 		result, err := ud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
 	})
 
-	table.DescribeTable("calling transfer should", func(fileName, scratchPath string, want []byte, wantErr bool) {
+	table.DescribeTable("calling transfer should", func(fileName string, dvContentType cdiv1.DataVolumeContentType, expectedPhase ProcessingPhase, scratchPath string, want []byte, wantErr bool) {
 		if scratchPath == "" {
 			scratchPath = tmpDir
 		}
 		sourceFile, err := os.Open(fileName)
 		Expect(err).NotTo(HaveOccurred())
 
-		ud = NewUploadDataSource(sourceFile)
-		nextPhase, err := ud.Info()
+		ud = NewUploadDataSource(sourceFile, dvContentType)
+		_, err = ud.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferScratch).To(Equal(nextPhase))
-		result, err := ud.Transfer(scratchPath)
-		if !wantErr {
+		nextPhase, err := ud.Transfer(scratchPath)
+		Expect(nextPhase).To(Equal(expectedPhase))
+		if nextPhase == ProcessingPhaseConvert {
 			Expect(err).NotTo(HaveOccurred())
-			Expect(ProcessingPhaseConvert).To(Equal(result))
 			file, err := os.Open(filepath.Join(scratchPath, tempFile))
 			Expect(err).NotTo(HaveOccurred())
 			defer file.Close()
@@ -88,19 +105,20 @@ var _ = Describe("Upload data source", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(reflect.DeepEqual(resultBuffer, want)).To(BeTrue())
 			Expect(file.Name()).To(Equal(ud.GetURL().String()))
-		} else {
+		} else if wantErr {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		table.Entry("return Error with missing scratch space", cirrosFilePath, "/imaninvalidpath", nil, true),
-		table.Entry("return Convert with scratch space and valid qcow file", cirrosFilePath, "", cirrosData, false),
+		table.Entry("return Error with missing scratch space", cirrosFilePath, dvKubevirt, ProcessingPhaseError, "/imaninvalidpath", nil, true),
+		table.Entry("return Convert with scratch space and valid qcow file", cirrosFilePath, dvKubevirt, ProcessingPhaseConvert, "", cirrosData, false),
+		table.Entry("return Complete with archive content type and archive file ", archiveFilePath, dvArchive, ProcessingPhaseComplete, "", []byte{}, false),
 	)
 
 	It("Transfer should fail on reader error", func() {
 		sourceFile, err := os.Open(cirrosFilePath)
 		Expect(err).NotTo(HaveOccurred())
 
-		ud = NewUploadDataSource(sourceFile)
+		ud = NewUploadDataSource(sourceFile, dvKubevirt)
 		nextPhase, err := ud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferScratch).To(Equal(nextPhase))
@@ -115,7 +133,7 @@ var _ = Describe("Upload data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		sourceFile, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		ud = NewUploadDataSource(sourceFile)
+		ud = NewUploadDataSource(sourceFile, dvKubevirt)
 		result, err := ud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
@@ -128,7 +146,7 @@ var _ = Describe("Upload data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		sourceFile, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		ud = NewUploadDataSource(sourceFile)
+		ud = NewUploadDataSource(sourceFile, dvKubevirt)
 		result, err := ud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
@@ -138,7 +156,7 @@ var _ = Describe("Upload data source", func() {
 	})
 
 	It("Close with nil stream should not fail", func() {
-		ud = NewUploadDataSource(nil)
+		ud = NewUploadDataSource(nil, dvKubevirt)
 		err := ud.Close()
 		Expect(err).NotTo(HaveOccurred())
 	})

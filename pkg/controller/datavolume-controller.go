@@ -2422,6 +2422,16 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 	storage := dv.Spec.Storage
 	pvcSpec := copyStorageAsPvc(log, storage)
 
+	if dv.Spec.ContentType == cdiv1.DataVolumeArchive {
+		if pvcSpec.VolumeMode != nil && *pvcSpec.VolumeMode == corev1.PersistentVolumeBlock {
+			log.V(1).Info("DataVolume with ContentType Archive cannot have block volumeMode", "namespace", dv.Namespace, "name", dv.Name)
+			recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid, "DataVolume with ContentType Archive cannot have block volumeMode")
+			return nil, errors.Errorf("DataVolume with ContentType Archive cannot have block volumeMode")
+		}
+		volumeMode := corev1.PersistentVolumeFilesystem
+		pvcSpec.VolumeMode = &volumeMode
+	}
+
 	storageClass, err := GetStorageClassByName(client, storage.StorageClassName)
 	if err != nil {
 		return nil, err

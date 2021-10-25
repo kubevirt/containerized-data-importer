@@ -5,8 +5,10 @@ import (
 	"net/url"
 	"path/filepath"
 
+	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -23,12 +25,15 @@ type UploadDataSource struct {
 	readers *FormatReaders
 	// url to a file in scratch space.
 	url *url.URL
+	// contentType expected from the upload content
+	contentType cdiv1.DataVolumeContentType
 }
 
 // NewUploadDataSource creates a new instance of an UploadDataSource
-func NewUploadDataSource(stream io.ReadCloser) *UploadDataSource {
+func NewUploadDataSource(stream io.ReadCloser, contentType cdiv1.DataVolumeContentType) *UploadDataSource {
 	return &UploadDataSource{
-		stream: stream,
+		stream:      stream,
+		contentType: contentType,
 	}
 }
 
@@ -41,6 +46,9 @@ func (ud *UploadDataSource) Info() (ProcessingPhase, error) {
 		klog.Errorf("Error creating readers: %v", err)
 		return ProcessingPhaseError, err
 	}
+	if ud.contentType == cdiv1.DataVolumeArchive {
+		return ProcessingPhaseTransferDataDir, nil
+	}
 	if !ud.readers.Convert {
 		// Uploading a raw file, we can write that directly to the target.
 		return ProcessingPhaseTransferDataFile, nil
@@ -50,22 +58,31 @@ func (ud *UploadDataSource) Info() (ProcessingPhase, error) {
 
 // Transfer is called to transfer the data from the source to the passed in path.
 func (ud *UploadDataSource) Transfer(path string) (ProcessingPhase, error) {
-	size, err := util.GetAvailableSpace(path)
-	if err != nil {
-		return ProcessingPhaseError, err
+	if ud.contentType == cdiv1.DataVolumeKubeVirt {
+		size, err := util.GetAvailableSpace(path)
+		if err != nil {
+			return ProcessingPhaseError, err
+		}
+		if size <= int64(0) {
+			//Path provided is invalid.
+			return ProcessingPhaseError, ErrInvalidPath
+		}
+		file := filepath.Join(path, tempFile)
+		err = util.StreamDataToFile(ud.readers.TopReader(), file)
+		if err != nil {
+			return ProcessingPhaseError, err
+		}
+		// If we successfully wrote to the file, then the parse will succeed.
+		ud.url, _ = url.Parse(file)
+		return ProcessingPhaseConvert, nil
+	} else if ud.contentType == cdiv1.DataVolumeArchive {
+		if err := util.UnArchiveTar(ud.readers.TopReader(), path); err != nil {
+			return ProcessingPhaseError, errors.Wrap(err, "unable to untar files from endpoint")
+		}
+		ud.url = nil
+		return ProcessingPhaseComplete, nil
 	}
-	if size <= int64(0) {
-		//Path provided is invalid.
-		return ProcessingPhaseError, ErrInvalidPath
-	}
-	file := filepath.Join(path, tempFile)
-	err = util.StreamDataToFile(ud.readers.TopReader(), file)
-	if err != nil {
-		return ProcessingPhaseError, err
-	}
-	// If we successfully wrote to the file, then the parse will succeed.
-	ud.url, _ = url.Parse(file)
-	return ProcessingPhaseConvert, nil
+	return ProcessingPhaseError, errors.Errorf("Unknown content type: %s", ud.contentType)
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.

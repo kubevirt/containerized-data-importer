@@ -36,6 +36,7 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
@@ -88,11 +89,11 @@ func newHTTPClient(clientKeyPair *triple.KeyPair, serverCACert *x509.Certificate
 	return client
 }
 
-func saveProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (bool, error) {
+func saveProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string, dvContentType cdiv1.DataVolumeContentType) (bool, error) {
 	return false, nil
 }
 
-func saveProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (bool, error) {
+func saveProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string, dvContentType cdiv1.DataVolumeContentType) (bool, error) {
 	return false, fmt.Errorf("Error using datastream")
 }
 
@@ -104,7 +105,7 @@ func withProcessorFailure(f func()) {
 	replaceProcessorFunc(saveProcessorFailure, f)
 }
 
-func replaceProcessorFunc(replacement func(io.ReadCloser, string, string, float64, bool, string) (bool, error), f func()) {
+func replaceProcessorFunc(replacement func(io.ReadCloser, string, string, float64, bool, string, cdiv1.DataVolumeContentType) (bool, error), f func()) {
 	origProcessorFunc := uploadProcessorFunc
 	uploadProcessorFunc = replacement
 	defer func() {

@@ -66,8 +66,6 @@ func main() {
 		preallocation,
 	)
 
-	klog.Infof("Upload destination: %s", destination)
-
 	klog.Infof("Running server on %s:%d", listenAddress, listenPort)
 
 	err := server.Run()

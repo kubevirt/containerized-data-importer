@@ -26,7 +26,8 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
-	util "kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/image"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -188,7 +189,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Entry("[posneg:negative][test_id:1369]fail given an invalid token", uploadImage, false, http.StatusUnauthorized),
 	)
 
-	DescribeTable("Archive upload should", func(uploader uploadArchiveFunc, validToken bool) {
+	DescribeTable("Archive upload should", func(uploader uploadArchiveFunc, validToken bool, format string) {
 		By("Create archive file to upload")
 		cirrosFileMd5, err := util.Md5sum(utils.UploadCirrosFile)
 		Expect(err).ToNot(HaveOccurred())
@@ -197,6 +198,10 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		filesToUpload := map[string]string{utils.TinyCoreFile: tinyCoreFileMd5, utils.CirrosQCow2File: cirrosFileMd5}
 		archiveFilePath, err := utils.ArchiveFiles("archive", os.TempDir(), utils.UploadFile, utils.UploadCirrosFile)
 		Expect(err).ToNot(HaveOccurred())
+		if format != "" {
+			archiveFilePath, err = utils.FormatTestData(archiveFilePath, os.TempDir(), format)
+			Expect(err).ToNot(HaveOccurred())
+		}
 
 		By("Creating PVC with upload target annotation and archive context-type")
 		archivePVC, err = f.CreateBoundPVCFromDefinition(utils.UploadArchivePVCDefinition())
@@ -243,9 +248,11 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			checkFailureNoValidToken()
 		}
 	},
-		Entry("succeed given a valid token", uploadArchive, true),
-		Entry("succeed given a valid token (alpha)", uploadArchiveAlpha, true),
-		Entry("fail given an invalid token", uploadArchive, false),
+		Entry("succeed given a valid token", uploadArchive, true, ""),
+		Entry("succeed given a valid token (alpha)", uploadArchiveAlpha, true, ""),
+		Entry("fail given an invalid token", uploadArchive, false, ""),
+		Entry("succeed upload of tar.gz", uploadArchive, true, image.ExtGz),
+		Entry("succeed upload of tar.xz", uploadArchive, true, image.ExtXz),
 	)
 
 	It("[test_id:4988]Verify upload to the same pvc fails", func() {

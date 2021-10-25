@@ -16,9 +16,9 @@ type StorageCapabilities struct {
 var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"kubevirt.io/hostpath-provisioner": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
 	// ceph-rbd
-	"kubernetes.io/rbd":                  {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
-	"rbd.csi.ceph.com":                   {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
-	"rook-ceph.rbd.csi.ceph.com":         {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
+	"kubernetes.io/rbd":                  {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
+	"rbd.csi.ceph.com":                   {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
+	"rook-ceph.rbd.csi.ceph.com":         {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"openshift-storage.rbd.csi.ceph.com": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock}},
 	// ceph-fs
 	"cephfs.csi.ceph.com":                   {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
