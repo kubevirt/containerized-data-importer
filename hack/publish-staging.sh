@@ -14,7 +14,7 @@ fi
 
 # if we are not on default branch and there is no tag, do nothing
 if [ -z "${TARGET_TAG}" ] && [ "${TARGET_BRANCH}" != "main" ]; then
-    echo "not on a tag and not on master branch, nothing to do."
+    echo "not on a tag and not on main branch, nothing to do."
     exit 0
 fi
 
@@ -49,7 +49,7 @@ git add -A
 if [ -n "$(git status --porcelain)" ]; then
     git commit --message "containerized-data-importer-api update by KubeVirt Prow build ${BUILD_ID}"
 
-    # we only push branch changes on master
+    # we only push branch changes on main
     if [ "${TARGET_BRANCH}" == "main" ]; then
         git push origin ${TARGET_BRANCH}-local:${TARGET_BRANCH}
         echo "containerized-data-importer-api updated for ${TARGET_BRANCH}."
