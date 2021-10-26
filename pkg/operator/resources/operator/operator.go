@@ -31,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources"
 	cluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
@@ -41,7 +40,6 @@ const (
 	serviceAccountName = "cdi-operator"
 	roleName           = "cdi-operator"
 	clusterRoleName    = roleName + "-cluster"
-	prometheusLabel    = common.PrometheusLabel
 )
 
 func getClusterPolicyRules() []rbacv1.PolicyRule {

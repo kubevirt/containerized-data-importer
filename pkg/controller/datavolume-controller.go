@@ -2142,7 +2142,7 @@ func (r *DatavolumeReconciler) emitEvent(dataVolume *cdiv1.DataVolume, dataVolum
 
 // getPodFromPvc determines the pod associated with the pvc UID passed in.
 func (r *DatavolumeReconciler) getPodFromPvc(namespace string, pvcUID types.UID) (*corev1.Pod, error) {
-	l, _ := labels.Parse(common.PrometheusLabel)
+	l, _ := labels.Parse(common.PrometheusLabelKey)
 	pods := &corev1.PodList{}
 	listOptions := client.ListOptions{
 		LabelSelector: l,

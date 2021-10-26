@@ -58,7 +58,7 @@ var _ = Describe("ALL Operator tests", func() {
 				promService, err := f.K8sClient.CoreV1().Services(f.CdiInstallNs).Get(context.TODO(), common.PrometheusServiceName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(promService.Spec.Ports[0].Name).To(Equal("metrics"))
-				Expect(promService.Spec.Selector[common.PrometheusLabel]).To(Equal(""))
+				Expect(promService.Spec.Selector[common.PrometheusLabelKey]).To(Equal(common.PrometheusLabelValue))
 				originalTimeStamp := promService.ObjectMeta.CreationTimestamp
 
 				By("Deleting the service")
@@ -73,7 +73,7 @@ var _ = Describe("ALL Operator tests", func() {
 					return false
 				}, 1*time.Minute, 2*time.Second).Should(BeTrue())
 				Expect(promService.Spec.Ports[0].Name).To(Equal("metrics"))
-				Expect(promService.Spec.Selector[common.PrometheusLabel]).To(Equal(""))
+				Expect(promService.Spec.Selector[common.PrometheusLabelKey]).To(Equal(common.PrometheusLabelValue))
 			})
 
 			It("[test_id:3952]add cdi-sa to containerized-data-importer scc", func() {

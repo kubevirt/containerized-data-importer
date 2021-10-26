@@ -538,8 +538,8 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 				common.CDILabelKey:       common.CDILabelValue, //filtered by the podInformer
 				common.CDIComponentLabel: common.ClonerSourcePodName,
 				// this label is used when searching for a pvc's cloner source pod.
-				CloneUniqueID:          cloneSourcePodName,
-				common.PrometheusLabel: "",
+				CloneUniqueID:             cloneSourcePodName,
+				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 		},
 		Spec: corev1.PodSpec{

@@ -292,7 +292,7 @@ func createInsecureRegConfigMap() *corev1.ConfigMap {
 }
 
 func createPrometheusService() *corev1.Service {
-	service := utils.ResourceBuilder.CreateService(common.PrometheusServiceName, common.PrometheusLabel, "", nil)
+	service := utils.ResourceBuilder.CreateService(common.PrometheusServiceName, common.PrometheusLabelKey, common.PrometheusLabelValue, nil)
 	service.Spec.Ports = []corev1.ServicePort{
 		{
 			Name: "metrics",

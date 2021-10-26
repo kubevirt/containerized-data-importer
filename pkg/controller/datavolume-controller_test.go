@@ -1381,7 +1381,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		It("Should return pod if pods can be found based on owner ref", func() {
 			pod := createImporterTestPod(pvc, "test-dv", nil)
 			pod.SetLabels(make(map[string]string))
-			pod.GetLabels()[common.PrometheusLabel] = ""
+			pod.GetLabels()[common.PrometheusLabelKey] = common.PrometheusLabelValue
 			err := reconciler.client.Create(context.TODO(), pod)
 			Expect(err).ToNot(HaveOccurred())
 			foundPod, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc.GetUID())
@@ -1392,7 +1392,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		It("Should return pod if pods can be found based on cloneid", func() {
 			pod := createImporterTestPod(pvc, "test-dv", nil)
 			pod.SetLabels(make(map[string]string))
-			pod.GetLabels()[common.PrometheusLabel] = ""
+			pod.GetLabels()[common.PrometheusLabelKey] = common.PrometheusLabelValue
 			pod.GetLabels()[CloneUniqueID] = string(pvc.GetUID()) + "-source-pod"
 			pod.OwnerReferences = nil
 			err := reconciler.client.Create(context.TODO(), pod)
@@ -1405,7 +1405,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		It("Should return error if pods can be found but cloneid doesn't match", func() {
 			pod := createImporterTestPod(pvc, "test-dv", nil)
 			pod.SetLabels(make(map[string]string))
-			pod.GetLabels()[common.PrometheusLabel] = ""
+			pod.GetLabels()[common.PrometheusLabelKey] = common.PrometheusLabelValue
 			pod.GetLabels()[CloneUniqueID] = string(pvc.GetUID()) + "-source-p"
 			pod.OwnerReferences = nil
 			err := reconciler.client.Create(context.TODO(), pod)

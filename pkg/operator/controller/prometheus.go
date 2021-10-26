@@ -221,7 +221,7 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 			Name:      ruleName,
 			Namespace: namespace,
 			Labels: map[string]string{
-				common.PrometheusLabel: "",
+				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 		},
 		Spec: promv1.PrometheusRuleSpec{
@@ -257,7 +257,7 @@ func newPrometheusRole(namespace string) *rbacv1.Role {
 			Name:      rbacName,
 			Namespace: namespace,
 			Labels: map[string]string{
-				common.PrometheusLabel: "",
+				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 		},
 		Rules: []rbacv1.PolicyRule{
@@ -286,7 +286,7 @@ func newPrometheusRoleBinding(namespace string) *rbacv1.RoleBinding {
 			Name:      rbacName,
 			Namespace: namespace,
 			Labels: map[string]string{
-				common.PrometheusLabel: "",
+				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 		},
 		RoleRef: rbacv1.RoleRef{
@@ -323,13 +323,13 @@ func newPrometheusServiceMonitor(namespace string) *promv1.ServiceMonitor {
 			Name:      monitorName,
 			Labels: map[string]string{
 				"openshift.io/cluster-monitoring": "",
-				common.PrometheusLabel:            "",
+				common.PrometheusLabelKey:         common.PrometheusLabelValue,
 			},
 		},
 		Spec: promv1.ServiceMonitorSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					common.PrometheusLabel: "",
+					common.PrometheusLabelKey: common.PrometheusLabelValue,
 				},
 			},
 			NamespaceSelector: promv1.NamespaceSelector{
