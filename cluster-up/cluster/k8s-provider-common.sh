@@ -50,6 +50,9 @@ function up() {
             $kubectl create -f /opt/cnao/network-addons-config-example.cr.yaml
             $kubectl wait networkaddonsconfig cluster --for condition=Available --timeout=200s
         fi
+
+        # Install whereabouts on CNAO lanes
+        $kubectl create -f /opt/whereabouts
     fi
 
     if [ "$KUBEVIRT_DEPLOY_ISTIO" == "true" ] && [[ $KUBEVIRT_PROVIDER =~ k8s-1\.1.* ]]; then
@@ -62,7 +65,7 @@ function up() {
         else
             $kubectl create -f /opt/istio/istio-operator.cr.yaml
         fi
-        
+
         istio_operator_ns=istio-system
         retries=0
         max_retries=20
@@ -79,5 +82,15 @@ function up() {
             echo "waiting istio-operator to be healthy failed"
             exit 1
         fi
+    fi
+
+    if [ "$KUBEVIRT_DEPLOY_CDI" == "true" ]; then
+        $kubectl create -f /opt/cdi-*-operator.yaml
+        $kubectl create -f /opt/cdi-*-cr.yaml
+        while [ $($kubectl get pods --namespace cdi | grep 'cdi-' | wc -l) -lt 4 ]; do
+            $kubectl get pods --namespace cdi
+            sleep 10
+        done
+        $kubectl wait --for=condition=Ready pod --timeout=60s --all --namespace cdi
     fi
 }

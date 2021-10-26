@@ -55,7 +55,7 @@ func (f *Framework) FindPVC(pvcName string) (*k8sv1.PersistentVolumeClaim, error
 	return utils.FindPVC(f.K8sClient, f.Namespace.Name, pvcName)
 }
 
-// ForceBindPvcIfDvIsWaitForFirstConsumer creates a Pod with the PVC for passed in DV mounted under /pvc, which forces the PVC to be scheduled and bound.
+// ForceBindPvcIfDvIsWaitForFirstConsumer creates a Pod with the PVC for passed in DV mounted under /dev/pvc, which forces the PVC to be scheduled and bound.
 func (f *Framework) ForceBindPvcIfDvIsWaitForFirstConsumer(dv *cdiv1.DataVolume) {
 	fmt.Fprintf(ginkgo.GinkgoWriter, "verifying pvc was created for dv %s\n", dv.Name)
 	// FIXME: #1210, brybacki, tomob this code assumes dvname = pvcname needs to be fixed,
@@ -73,7 +73,7 @@ func (f *Framework) WaitPVCDeletedByUID(pvcSpec *k8sv1.PersistentVolumeClaim, ti
 	return utils.WaitPVCDeletedByUID(f.K8sClient, pvcSpec, timeout)
 }
 
-// ForceBindIfWaitForFirstConsumer creates a Pod with the passed in PVC mounted under /pvc, which forces the PVC to be scheduled and bound.
+// ForceBindIfWaitForFirstConsumer creates a Pod with the passed in PVC mounted under /dev/pvc, which forces the PVC to be scheduled and bound.
 func (f *Framework) ForceBindIfWaitForFirstConsumer(targetPvc *k8sv1.PersistentVolumeClaim) {
 	if f.IsBindingModeWaitForFirstConsumer(targetPvc.Spec.StorageClassName) {
 		createConsumerPod(targetPvc, f)
@@ -111,7 +111,7 @@ func VerifyPVCIsEmpty(f *Framework, pvc *k8sv1.PersistentVolumeClaim, node strin
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = f.WaitTimeoutForPodReady(executorPod.Name, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	output, stderr, err := f.ExecShellInPod(executorPod.Name, f.Namespace.Name, "ls -1 /pvc | wc -l")
+	output, stderr, err := f.ExecShellInPod(executorPod.Name, f.Namespace.Name, "ls -1 /dev/pvc | wc -l")
 	if err != nil {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return false, err
@@ -119,7 +119,7 @@ func VerifyPVCIsEmpty(f *Framework, pvc *k8sv1.PersistentVolumeClaim, node strin
 	found := strings.Compare("0", output) == 0
 	if !found {
 		// Could be that a file system was created and it has 'lost+found' directory in it, check again.
-		output, stderr, err := f.ExecShellInPod(executorPod.Name, f.Namespace.Name, "ls -1 /pvc")
+		output, stderr, err := f.ExecShellInPod(executorPod.Name, f.Namespace.Name, "ls -1 /dev/pvc")
 		if err != nil {
 			fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 			return false, err
@@ -389,13 +389,13 @@ func (f *Framework) newExecutorPodWithPVC(podName string, pvc *k8sv1.PersistentV
 	return f.NewPodWithPVC(podName, "while true; do echo hello; sleep 2;done", pvc)
 }
 
-// CreateExecutorPodWithPVC creates a Pod with the passed in PVC mounted under /pvc. You can then use the executor utilities to
+// CreateExecutorPodWithPVC creates a Pod with the passed in PVC mounted under /dev/pvc. You can then use the executor utilities to
 // run commands against the PVC through this Pod.
 func (f *Framework) CreateExecutorPodWithPVC(podName, namespace string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
 	return utils.CreatePod(f.K8sClient, namespace, f.newExecutorPodWithPVC(podName, pvc))
 }
 
-// CreateExecutorPodWithPVCSpecificNode creates a Pod on a specific node with the passed in PVC mounted under /pvc. You can then use the executor utilities to
+// CreateExecutorPodWithPVCSpecificNode creates a Pod on a specific node with the passed in PVC mounted under /dev/pvc. You can then use the executor utilities to
 // run commands against the PVC through this Pod.
 func (f *Framework) CreateExecutorPodWithPVCSpecificNode(podName, namespace string, pvc *k8sv1.PersistentVolumeClaim, node string) (*k8sv1.Pod, error) {
 	var pod = f.newExecutorPodWithPVC(podName, pvc)
@@ -410,7 +410,7 @@ func (f *Framework) CreateNoopPodWithPVC(podName, namespace string, pvc *k8sv1.P
 	return utils.CreatePod(f.K8sClient, namespace, f.NewPodWithPVC(podName, "echo I am vm doppleganger pod;", pvc))
 }
 
-// CreateVerifierPodWithPVC creates a Pod called verifier, with the passed in PVC mounted under /pvc. You can then use the executor utilities to
+// CreateVerifierPodWithPVC creates a Pod called verifier, with the passed in PVC mounted under /dev/pvc. You can then use the executor utilities to
 // run commands against the PVC through this Pod.
 func (f *Framework) CreateVerifierPodWithPVC(namespace string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
 	return f.CreateExecutorPodWithPVC(utils.VerifierPodName, namespace, pvc)
