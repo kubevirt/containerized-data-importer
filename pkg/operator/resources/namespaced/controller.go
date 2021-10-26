@@ -85,6 +85,22 @@ func createControllerRole() *rbacv1.Role {
 				"watch",
 			},
 		},
+		{
+			APIGroups: []string{
+				"batch",
+			},
+			Resources: []string{
+				"cronjobs",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"delete",
+			},
+		},
 	}
 	return utils.ResourceBuilder.CreateRole(controllerResourceName, rules)
 }

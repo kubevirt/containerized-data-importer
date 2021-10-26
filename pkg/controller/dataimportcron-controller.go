@@ -36,7 +36,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -45,6 +44,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -65,7 +65,7 @@ const (
 	// AnnSourceUpdatePending indicates the source image digest was updated, and the image is pending for import based on the cron schedule
 	AnnSourceUpdatePending = AnnAPIGroup + "/storage.import.sourceUpdatePending"
 	// AnnCronInitialized indicates the cron was initialized
-	AnnCronInitialized = AnnAPIGroup + "/storage.import.cronInitialzed"
+	AnnCronInitialized = AnnAPIGroup + "/storage.import.cronInitialized"
 	// AnnNextCronTime is the next time stamp which satisfies the cron expression
 	AnnNextCronTime = AnnAPIGroup + "/storage.import.nextCronTime"
 
@@ -75,6 +75,8 @@ const (
 	dataImportControllerName      = "dataimportcron-controller"
 	labelDataImportCronName       = "dataimportcron-name"
 	recentImportsToKeepPerCronJob = 3
+	digestPrefix                  = "sha256:"
+	digestDvNameSuffixLength      = 12
 )
 
 // Reconcile loop for DataImportCronReconciler
@@ -127,7 +129,11 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 	}
 
 	if regSource.ImageStream != nil {
-		digest, err := r.getImageStreamDigest(ctx, dataImportCron)
+		imageStream, err := r.getImageStream(ctx, *regSource.ImageStream, dataImportCron.Namespace)
+		if err != nil {
+			return res, err
+		}
+		digest, err := getImageStreamDigest(imageStream)
 		if err != nil {
 			return res, err
 		}
@@ -156,26 +162,28 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 	return res, nil
 }
 
-func (r *DataImportCronReconciler) getImageStreamDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (string, error) {
-	regSource, err := getCronRegistrySource(dataImportCron)
-	if err != nil {
-		return "", err
+func (r *DataImportCronReconciler) getImageStream(ctx context.Context, imageStreamName, imageStreamNamespace string) (*imagev1.ImageStream, error) {
+	if imageStreamName == "" || imageStreamNamespace == "" {
+		return nil, errors.Errorf("Missing imagestream name or namespace")
 	}
-	if regSource.ImageStream == nil {
-		return "", errors.Errorf("No imagestream in cron %s", dataImportCron.Name)
-	}
-
 	imageStream := &imagev1.ImageStream{}
-	imageStreamName := types.NamespacedName{
-		Namespace: dataImportCron.Namespace,
-		Name:      *regSource.ImageStream,
+	imageStreamNamespacedName := types.NamespacedName{
+		Namespace: imageStreamNamespace,
+		Name:      imageStreamName,
 	}
-	if err := r.client.Get(ctx, imageStreamName, imageStream); err != nil {
-		return "", err
+	if err := r.client.Get(ctx, imageStreamNamespacedName, imageStream); err != nil {
+		return nil, err
+	}
+	return imageStream, nil
+}
+
+func getImageStreamDigest(imageStream *imagev1.ImageStream) (string, error) {
+	if imageStream == nil {
+		return "", errors.Errorf("No imagestream")
 	}
 	tags := imageStream.Status.Tags
 	if len(tags) == 0 || len(tags[0].Items) == 0 {
-		return "", errors.Errorf("No imagestream tag items %v", imageStreamName)
+		return "", errors.Errorf("No imagestream tag items %s", imageStream.Name)
 	}
 	return tags[0].Items[0].Image, nil
 }
@@ -211,11 +219,10 @@ func (r *DataImportCronReconciler) setNextCronTime(dataImportCron *cdiv1.DataImp
 
 // Reconcile ImageStream
 func (r *DataImportCronReconciler) reconcileImageStream(ctx context.Context, imageStream *imagev1.ImageStream) (reconcile.Result, error) {
-	tags := imageStream.Status.Tags
-	if len(tags) == 0 || len(tags[0].Items) == 0 {
-		return reconcile.Result{}, errors.Errorf("No imageStream tag items %s", imageStream.Name)
+	digest, err := getImageStreamDigest(imageStream)
+	if err != nil {
+		return reconcile.Result{}, err
 	}
-	digest := tags[0].Items[0].Image
 
 	// Find DataImportCron and update its DesiredDigest
 	cronList := &cdiv1.DataImportCronList{}
@@ -357,7 +364,7 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 	log := r.log.WithName("createImportDataVolume")
 	dataSourceName := dataImportCron.Spec.ManagedDataSource
 	digest := dataImportCron.Annotations[AnnSourceDesiredDigest]
-	dvName := getDvName(dataSourceName, digest)
+	dvName := createDvName(dataSourceName, digest)
 	log.Info("Creating new source DataVolume", "name", dvName)
 	dv := newSourceDataVolume(dataImportCron, dvName)
 	if err := r.client.Create(ctx, dv); err != nil {
@@ -386,28 +393,22 @@ func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context,
 		log.Error(err, "error listing dvs")
 		return err
 	}
-	recentImports := len(dvList.Items)
-	log.Info("recentImports", "count", recentImports)
-	if recentImports <= recentImportsToKeepPerCronJob {
+	if len(dvList.Items) <= recentImportsToKeepPerCronJob {
 		return nil
 	}
 	sort.Slice(dvList.Items, func(i, j int) bool {
-		return dvList.Items[i].CreationTimestamp.Time.Before(dvList.Items[j].CreationTimestamp.Time)
+		return dvList.Items[i].CreationTimestamp.Time.After(dvList.Items[j].CreationTimestamp.Time)
 	})
-	for _, dv := range dvList.Items {
-		if recentImports <= recentImportsToKeepPerCronJob {
-			break
-		}
+	for _, dv := range dvList.Items[recentImportsToKeepPerCronJob:] {
 		if err := r.client.Delete(ctx, &dv); err != nil {
 			if k8serrors.IsNotFound(err) {
 				log.Info("DataVolume not found for deletion", "name", dv.Name)
-				continue
+			} else {
+				log.Error(err, "Unable to delete DataVolume", "name", dv.Name)
 			}
-			log.Error(err, "Unable to delete DataVolume", "name", dv.Name)
-			return err
+		} else {
+			log.Info("DataVolume deleted", "name", dv.Name)
 		}
-		log.Info("DataVolume deleted", "name", dv.Name)
-		recentImports--
 	}
 	return nil
 }
@@ -416,18 +417,12 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 	if !HasFinalizer(dataImportCron, dataImportCronFinalizer) {
 		return nil
 	}
-	cronJob := &v1beta1.CronJob{}
-	err := r.client.Get(ctx, types.NamespacedName{Namespace: r.cdiNamespace, Name: dataImportCron.Name}, cronJob)
-	if IgnoreNotFound(err) != nil {
+	cronJob := &v1beta1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: dataImportCron.Name}}
+	if err := r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
 		return err
 	}
-	if err == nil {
-		if err = r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
-			return err
-		}
-	}
 	RemoveFinalizer(dataImportCron, dataImportCronFinalizer)
-	if err = r.client.Update(ctx, dataImportCron); err != nil {
+	if err := r.client.Update(ctx, dataImportCron); err != nil {
 		return err
 	}
 	return nil
@@ -474,12 +469,7 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 
 	imageStreamList := &imagev1.ImageStreamList{}
 	err := mgr.GetClient().List(context.TODO(), imageStreamList)
-	doWatchImageStreams := err == nil
-	if err != nil {
-		_, ok := err.(*cache.ErrCacheNotStarted)
-		doWatchImageStreams = ok
-	}
-	if doWatchImageStreams {
+	if err == nil || isErrCacheNotStarted(err) {
 		if err := c.Watch(&source.Kind{Type: &imagev1.ImageStream{}}, &handler.EnqueueRequestForObject{}); err != nil {
 			return err
 		}
@@ -510,6 +500,44 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 		},
 		ImagePullPolicy: corev1.PullPolicy(r.pullPolicy),
 	}
+
+	hasCertConfigMap := regSource.CertConfigMap != nil && *regSource.CertConfigMap != ""
+	if hasCertConfigMap {
+		vm := corev1.VolumeMount{
+			Name:      CertVolName,
+			MountPath: common.ImporterCertDir,
+		}
+		container.VolumeMounts = []corev1.VolumeMount{vm}
+		container.Command = append(container.Command, "-certdir", common.ImporterCertDir)
+	}
+
+	if regSource.SecretRef != nil && *regSource.SecretRef != "" {
+		container.Env = []corev1.EnvVar{
+			{
+				Name: common.ImporterAccessKeyID,
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: *regSource.SecretRef,
+						},
+						Key: common.KeyAccess,
+					},
+				},
+			},
+			{
+				Name: common.ImporterSecretKey,
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: *regSource.SecretRef,
+						},
+						Key: common.KeySecret,
+					},
+				},
+			},
+		}
+	}
+
 	job := &v1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cron.Name,
@@ -531,6 +559,21 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 			},
 		},
 	}
+
+	if hasCertConfigMap {
+		vol := corev1.Volume{
+			Name: CertVolName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: *regSource.CertConfigMap,
+					},
+				},
+			},
+		}
+		job.Spec.JobTemplate.Spec.Template.Spec.Volumes = []corev1.Volume{vol}
+	}
+
 	return job, nil
 }
 
@@ -578,8 +621,9 @@ func isOwner(obj, owner metav1.Object) bool {
 	return false
 }
 
-func getDvName(prefix, digest string) string {
-	fromIdx := len("sha256:")
-	toIdx := fromIdx + 12
+// Create DataVolume name based on the DataSource name + prefix of the digest sha256
+func createDvName(prefix, digest string) string {
+	fromIdx := len(digestPrefix)
+	toIdx := fromIdx + digestDvNameSuffixLength
 	return prefix + "-" + digest[fromIdx:toIdx]
 }

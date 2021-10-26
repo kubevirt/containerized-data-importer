@@ -190,6 +190,33 @@ var _ = Describe("Validating Webhook", func() {
 			resp := validateDataImportCron(ar)
 			Expect(resp.Allowed).To(Equal(true))
 		})
+		It("should accept status update", func() {
+			oldCron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
+			oldBytes, _ := json.Marshal(oldCron)
+			newCron := oldCron.DeepCopy()
+			newCron.Status.CurrentImportDataVolumeName = "dv"
+			newBytes, _ := json.Marshal(&newCron)
+
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdiv1.SchemeGroupVersion.Group,
+						Version:  cdiv1.SchemeGroupVersion.Version,
+						Resource: "dataimportcrons",
+					},
+					Object: runtime.RawExtension{
+						Raw: newBytes,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: oldBytes,
+					},
+				},
+			}
+
+			resp := validateDataImportCron(ar)
+			Expect(resp.Allowed).To(Equal(true))
+		})
 	})
 })
 
