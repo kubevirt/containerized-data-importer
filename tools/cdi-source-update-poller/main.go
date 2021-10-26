@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -12,7 +13,9 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 var (
@@ -21,6 +24,9 @@ var (
 	cronNamespace string
 	cronName      string
 	url           string
+	certDir       string
+	accessKey     string
+	secretKey     string
 )
 
 func init() {
@@ -29,19 +35,44 @@ func init() {
 	flag.StringVar(&cronNamespace, "ns", "", "DataImportCron namespace.")
 	flag.StringVar(&cronName, "cron", "", "DataImportCron name.")
 	flag.StringVar(&url, "url", "", "registry source url.")
+	flag.StringVar(&certDir, "certdir", "", "registry certificates path.")
 	flag.Parse()
 	if url == "" || cronNamespace == "" || cronName == "" {
 		log.Fatalf("One or more mandatory parameters are missing")
 	}
+	accessKey, _ = util.ParseEnvVar(common.ImporterAccessKeyID, false)
+	secretKey, _ = util.ParseEnvVar(common.ImporterSecretKey, false)
+}
+
+func cmdRun(cmd string) (outStr string, err error) {
+	var out, stderr bytes.Buffer
+	command := exec.Command("sh", "-c", cmd)
+	command.Stdout = &out
+	command.Stderr = &stderr
+	err = command.Run()
+	if err != nil {
+		log.Printf("Failed to exec command \"%s\": %v: %s", cmd, err, stderr.String())
+	}
+	outStr = out.String()
+	return
 }
 
 func main() {
-	cmd := "skopeo inspect " + url + " | awk -F'\"' '/Digest/{print $4}'"
-	out, err := exec.Command("sh", "-c", cmd).Output()
-	if err != nil {
-		log.Fatalf("Failed to exec command \"%s\": %v", cmd, err)
+	cmd := "skopeo inspect"
+	if certDir != "" {
+		cmd += " --cert-dir " + certDir
 	}
-	digest := string(out)
+	if accessKey != "" {
+		cmd += " --creds " + accessKey
+		if secretKey != "" {
+			cmd += ":" + secretKey
+		}
+	}
+	cmd += " " + url + " | awk -F'\"' '/Digest/{print $4}'"
+	digest, err := cmdRun(cmd)
+	if err != nil {
+		os.Exit(1)
+	}
 	fmt.Println("Digest is", digest)
 
 	cfg, err := clientcmd.BuildConfigFromFlags(kubeURL, configPath)

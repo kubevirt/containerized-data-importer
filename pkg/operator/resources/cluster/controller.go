@@ -213,22 +213,6 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 		},
 		{
 			APIGroups: []string{
-				"batch",
-			},
-			Resources: []string{
-				"cronjobs",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-				"create",
-				"update",
-				"delete",
-			},
-		},
-		{
-			APIGroups: []string{
 				"image.openshift.io",
 			},
 			Resources: []string{
