@@ -2,8 +2,11 @@ package tests_test
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"reflect"
 	"time"
 
@@ -49,6 +52,28 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(r.Spec.TLS.Termination).To(Equal(routev1.TLSTerminationReencrypt))
+			})
+
+			It("[test_id:4351]should create a prometheus service in cdi namespace", func() {
+				promService, err := f.K8sClient.CoreV1().Services(f.CdiInstallNs).Get(context.TODO(), common.PrometheusServiceName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(promService.Spec.Ports[0].Name).To(Equal("metrics"))
+				Expect(promService.Spec.Selector[common.PrometheusLabelKey]).To(Equal(common.PrometheusLabelValue))
+				originalTimeStamp := promService.ObjectMeta.CreationTimestamp
+
+				By("Deleting the service")
+				err = f.K8sClient.CoreV1().Services(f.CdiInstallNs).Delete(context.TODO(), common.PrometheusServiceName, metav1.DeleteOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				By("Verifying the operator has re-created the service")
+				Eventually(func() bool {
+					promService, err = f.K8sClient.CoreV1().Services(f.CdiInstallNs).Get(context.TODO(), common.PrometheusServiceName, metav1.GetOptions{})
+					if err == nil {
+						return originalTimeStamp.Before(&promService.ObjectMeta.CreationTimestamp)
+					}
+					return false
+				}, 1*time.Minute, 2*time.Second).Should(BeTrue())
+				Expect(promService.Spec.Ports[0].Name).To(Equal("metrics"))
+				Expect(promService.Spec.Selector[common.PrometheusLabelKey]).To(Equal(common.PrometheusLabelValue))
 			})
 
 			It("[test_id:3952]add cdi-sa to containerized-data-importer scc", func() {
@@ -643,6 +668,85 @@ var _ = Describe("ALL Operator tests", func() {
 					}
 					return true
 				}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+			})
+		})
+
+		var _ = Describe("Alert tests", func() {
+			f := framework.NewFramework("alert-tests")
+
+			It("CdiOperatorDown alert firing when operator scaled down", func() {
+				if !utils.IsOpenshift(f.K8sClient) {
+					Skip("This test is OpenShift specific")
+				}
+
+				By("Scale down operator so alert will trigger")
+				deploymentName := "cdi-operator"
+				operatorDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				originalReplicas := operatorDeployment.Spec.Replicas
+				operatorDeployment.Spec.Replicas = &[]int32{0}[0]
+				_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Let's see that alert fires")
+				client := &http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+					},
+				}
+				var token, host string
+				Eventually(func() bool {
+					host, err = tests.RunOcCommand(f, "-n", "openshift-monitoring", "get", "route", "prometheus-k8s", "--template", "{{.spec.host}}")
+					if err != nil {
+						return false
+					}
+					token, err = tests.RunOcCommand(f, "-n", "openshift-monitoring", "sa", "get-token", "prometheus-k8s")
+					if err != nil {
+						return false
+					}
+					return true
+				}, 10*time.Second, time.Second).Should(BeTrue())
+				Eventually(func() bool {
+					var result map[string]interface{}
+					req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/api/v1/alerts", host), nil)
+					if err != nil {
+						return false
+					}
+					req.Header.Add("Authorization", "Bearer "+token)
+					resp, err := client.Do(req)
+					if err != nil {
+						return false
+					}
+					defer resp.Body.Close()
+					if resp.StatusCode != http.StatusOK {
+						return false
+					}
+					// Make sure alert appears and is firing
+					bodyBytes, err := ioutil.ReadAll(resp.Body)
+					err = json.Unmarshal(bodyBytes, &result)
+					if err != nil {
+						return false
+					}
+					alerts := result["data"].(map[string]interface{})["alerts"].([]interface{})
+					for _, alert := range alerts {
+						name := alert.(map[string]interface{})["labels"].(map[string]interface{})["alertname"].(string)
+						if name == "CdiOperatorDown" {
+							if state := alert.(map[string]interface{})["state"].(string); state == "firing" {
+								return true
+							}
+						}
+					}
+					return false
+				}, 7*time.Minute, 1*time.Second).Should(BeTrue())
+
+				By("Ensuring original value of replicas restored")
+				operatorDeployment, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				operatorDeployment.Spec.Replicas = originalReplicas
+				_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				err = utils.WaitForDeploymentReplicasReady(f.K8sClient, f.CdiInstallNs, deploymentName)
+				Expect(err).ToNot(HaveOccurred())
 			})
 		})
 

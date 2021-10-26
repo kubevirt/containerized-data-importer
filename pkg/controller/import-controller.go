@@ -917,9 +917,9 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 				AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				common.CDILabelKey:       common.CDILabelValue,
-				common.CDIComponentLabel: common.ImporterPodName,
-				common.PrometheusLabel:   "",
+				common.CDILabelKey:        common.CDILabelValue,
+				common.CDIComponentLabel:  common.ImporterPodName,
+				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -1045,9 +1045,9 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 				AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				common.CDILabelKey:       common.CDILabelValue,
-				common.CDIComponentLabel: common.ImporterPodName,
-				common.PrometheusLabel:   "",
+				common.CDILabelKey:        common.CDILabelValue,
+				common.CDIComponentLabel:  common.ImporterPodName,
+				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{

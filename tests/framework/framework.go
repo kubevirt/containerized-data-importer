@@ -390,8 +390,8 @@ func (f *Framework) CreatePrometheusServiceInNs(namespace string) (*v1.Service, 
 			Name:      "kubevirt-prometheus-metrics",
 			Namespace: namespace,
 			Labels: map[string]string{
-				common.PrometheusLabel: "",
-				"kubevirt.io":          "",
+				common.PrometheusLabelKey: common.PrometheusLabelValue,
+				"kubevirt.io":             "",
 			},
 		},
 		Spec: v1.ServiceSpec{
@@ -406,7 +406,7 @@ func (f *Framework) CreatePrometheusServiceInNs(namespace string) (*v1.Service, 
 				},
 			},
 			Selector: map[string]string{
-				common.PrometheusLabel: "",
+				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 		},
 	}

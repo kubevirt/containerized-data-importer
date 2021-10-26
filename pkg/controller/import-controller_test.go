@@ -1119,10 +1119,10 @@ func createImporterTestPod(pvc *corev1.PersistentVolumeClaim, dvname string, scr
 				AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				common.CDILabelKey:       common.CDILabelValue,
-				common.CDIComponentLabel: common.ImporterPodName,
-				LabelImportPvc:           pvc.Name,
-				common.PrometheusLabel:   "",
+				common.CDILabelKey:        common.CDILabelValue,
+				common.CDIComponentLabel:  common.ImporterPodName,
+				LabelImportPvc:            pvc.Name,
+				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{

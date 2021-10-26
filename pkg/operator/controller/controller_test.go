@@ -33,16 +33,19 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
@@ -96,6 +99,7 @@ func init() {
 	cdiv1.AddToScheme(scheme.Scheme)
 	extv1.AddToScheme(scheme.Scheme)
 	apiregistrationv1.AddToScheme(scheme.Scheme)
+	promv1.AddToScheme(scheme.Scheme)
 	secv1.Install(scheme.Scheme)
 	routev1.Install(scheme.Scheme)
 }
@@ -152,6 +156,7 @@ var _ = Describe("Controller", func() {
 		Entry("CDR type", &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "crd"}}),
 		Entry("SSC type", &secv1.SecurityContextConstraints{ObjectMeta: metav1.ObjectMeta{Name: "scc"}}),
 		Entry("Route type", &routev1.Route{ObjectMeta: metav1.ObjectMeta{Name: "route"}}),
+		Entry("PromRule type", &promv1.PrometheusRule{ObjectMeta: metav1.ObjectMeta{Name: "rule"}}),
 	)
 
 	Describe("Deploying CDI", func() {
@@ -186,6 +191,18 @@ var _ = Describe("Controller", func() {
 				cm = obj.(*corev1.ConfigMap)
 				Expect(cm.OwnerReferences[0].UID).Should(Equal(args.cdi.UID))
 				validateEvents(args.reconciler, createNotReadyEventValidationMap())
+			})
+
+			It("should create prometheus service", func() {
+				args := createArgs()
+				doReconcile(args)
+
+				svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: common.PrometheusServiceName}}
+				obj, err := getObject(args.client, svc)
+				Expect(err).ToNot(HaveOccurred())
+
+				svc = obj.(*corev1.Service)
+				Expect(svc.OwnerReferences[0].UID).Should(Equal(args.cdi.UID))
 			})
 
 			It("should create requeue when configmap exists with another owner", func() {
@@ -302,6 +319,88 @@ var _ = Describe("Controller", func() {
 				Expect(route.Spec.To.Name).Should(Equal(uploadProxyServiceName))
 				Expect(route.Spec.TLS.DestinationCACertificate).Should(Equal(testCertData))
 				Expect(route.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+				validateEvents(args.reconciler, createReadyEventValidationMap())
+			})
+
+			It("should have CdiOperatorDown", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				rule := &promv1.PrometheusRule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "prometheus-cdi-rules",
+						Namespace: cdiNamespace,
+					},
+				}
+				obj, err := getObject(args.client, rule)
+				Expect(err).ToNot(HaveOccurred())
+				rule = obj.(*promv1.PrometheusRule)
+				cdiDownAlert := promv1.Rule{
+					Alert: "CdiOperatorDown",
+					Expr:  intstr.FromString("cdi_num_up_operators == 0"),
+					For:   "5m",
+					Annotations: map[string]string{
+						"summary": "CDI operator is down",
+					},
+					Labels: map[string]string{
+						"severity": "warning",
+					},
+				}
+
+				Expect(rule.Spec.Groups[0].Rules).To(ContainElement(cdiDownAlert))
+				Expect(rule.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+				validateEvents(args.reconciler, createReadyEventValidationMap())
+			})
+
+			It("should create prometheus service monitor", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				monitor := &promv1.ServiceMonitor{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "service-monitor-cdi",
+						Namespace: cdiNamespace,
+					},
+				}
+				obj, err := getObject(args.client, monitor)
+				Expect(err).ToNot(HaveOccurred())
+				monitor = obj.(*promv1.ServiceMonitor)
+
+				Expect(monitor.Spec.NamespaceSelector.MatchNames).To(ContainElement(cdiNamespace))
+				Expect(monitor.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+				validateEvents(args.reconciler, createReadyEventValidationMap())
+			})
+
+			It("should create prometheus rbac", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				role := &rbacv1.Role{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cdi-monitoring",
+						Namespace: cdiNamespace,
+					},
+				}
+				obj, err := getObject(args.client, role)
+				Expect(err).ToNot(HaveOccurred())
+				role = obj.(*rbacv1.Role)
+				roleBinding := &rbacv1.RoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cdi-monitoring",
+						Namespace: cdiNamespace,
+					},
+				}
+				obj, err = getObject(args.client, roleBinding)
+				Expect(err).ToNot(HaveOccurred())
+				roleBinding = obj.(*rbacv1.RoleBinding)
+
+				Expect(role.Rules[0].Resources).To(ContainElement("endpoints"))
+				Expect(roleBinding.Subjects[0].Name).To(Equal("prometheus-k8s"))
+				Expect(role.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+				Expect(roleBinding.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 				validateEvents(args.reconciler, createReadyEventValidationMap())
 			})
 
@@ -1654,6 +1753,7 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.Secret cdi-uploadserver-client-signer"] = false
 	match[normalCreateSuccess+" *v1.ConfigMap cdi-uploadserver-client-signer-bundle"] = false
 	match[normalCreateSuccess+" *v1.Secret cdi-uploadserver-client-cert"] = false
+	match[normalCreateSuccess+" *v1.Service cdi-prometheus-metrics"] = false
 	match[normalCreateEnsured+" SecurityContextConstraint exists"] = false
 	return match
 }

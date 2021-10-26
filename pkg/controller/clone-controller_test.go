@@ -813,8 +813,8 @@ func createSourcePod(pvc *corev1.PersistentVolumeClaim, pvcUID string) *corev1.P
 				common.CDILabelKey:       common.CDILabelValue, //filtered by the podInformer
 				common.CDIComponentLabel: common.ClonerSourcePodName,
 				// this label is used when searching for a pvc's cloner source pod.
-				CloneUniqueID:          pvcUID + "-source-pod",
-				common.PrometheusLabel: "",
+				CloneUniqueID:             pvcUID + "-source-pod",
+				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 		},
 		Spec: corev1.PodSpec{

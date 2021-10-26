@@ -433,7 +433,7 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
 
-		l, err := labels.Parse(common.PrometheusLabel)
+		l, err := labels.Parse(common.PrometheusLabelKey)
 		Expect(err).ToNot(HaveOccurred())
 		Eventually(func() int {
 			endpoint, err = c.CoreV1().Endpoints(ns).Get(context.TODO(), "kubevirt-prometheus-metrics", metav1.GetOptions{})
