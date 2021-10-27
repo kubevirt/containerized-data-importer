@@ -210,10 +210,7 @@ http_file(
 http_file(
     name = "nginx-aarch64",
     sha256 = "83fc09de039811209969208f5024530f0d0125dc86d87e33fb1a08d80ef33b56",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux//updates/33/Everything/aarch64/Packages/n/nginx-1.20.1-6.fc33.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/83fc09de039811209969208f5024530f0d0125dc86d87e33fb1a08d80ef33b56",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/83fc09de039811209969208f5024530f0d0125dc86d87e33fb1a08d80ef33b56"],
 )
 
 http_file(
