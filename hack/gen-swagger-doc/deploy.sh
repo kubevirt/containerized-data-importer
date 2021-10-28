@@ -43,7 +43,7 @@ if git status --porcelain | grep -v "index[.]html" | grep --quiet "^ [AM]"; then
     git add -A README.md "${TARGET_DIR}"/*.html
     git commit --message "API Reference update by KubeVirt Prow build ${BUILD_ID}"
 
-    git push origin main >/dev/null 2>&1
+    git push origin main
     echo "API Reference updated for ${TARGET_DIR}."
 else
     echo "API Reference hasn't changed."

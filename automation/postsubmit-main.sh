@@ -10,7 +10,7 @@ export DOCKER_TAG=""
 
 make apidocs
 make manifests
-make build-functests
+make build-functest
 
 bash hack/gen-swagger-doc/deploy.sh
 bash hack/publish-staging.sh
