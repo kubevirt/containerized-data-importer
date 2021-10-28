@@ -122,6 +122,8 @@ const (
 	InstallerVersionLabel = "INSTALLER_VERSION_LABEL"
 	// ImporterExtraHeader provides a constant to include extra HTTP headers, as the prefix to a format string
 	ImporterExtraHeader = "IMPORTER_EXTRA_HEADER_"
+	// ImporterSecretExtraHeadersDir is where the secrets containing extra HTTP headers will be mounted
+	ImporterSecretExtraHeadersDir = "/extraheaders"
 
 	// CloningLabelValue provides a constant to use as a label value for pod affinity (controller pkg only)
 	CloningLabelValue = "host-assisted-cloning"

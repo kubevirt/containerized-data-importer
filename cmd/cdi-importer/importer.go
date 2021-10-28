@@ -18,7 +18,6 @@ import (
 	"io/ioutil"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -179,20 +178,9 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 	previousCheckpoint, _ := util.ParseEnvVar(common.ImporterPreviousCheckpoint, false)
 	finalCheckpoint, _ := util.ParseEnvVar(common.ImporterFinalCheckpoint, false)
 
-	var extraHeaders []string
-
-	for _, value := range os.Environ() {
-		if strings.HasPrefix(value, common.ImporterExtraHeader) {
-			env := strings.SplitN(value, "=", 2)
-			if len(env) > 1 {
-				extraHeaders = append(extraHeaders, env[1])
-			}
-		}
-	}
-
 	switch source {
 	case controller.SourceHTTP:
-		ds, err := importer.NewHTTPDataSource(ep, acc, sec, certDir, cdiv1.DataVolumeContentType(contentType), extraHeaders)
+		ds, err := importer.NewHTTPDataSource(ep, acc, sec, certDir, cdiv1.DataVolumeContentType(contentType))
 		if err != nil {
 			errorCannotConnectDataSource(err, "http")
 		}

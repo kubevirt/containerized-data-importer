@@ -25,9 +25,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -80,13 +82,20 @@ type HTTPDataSource struct {
 var createNbdkitCurl = image.NewNbdkitCurl
 
 // NewHTTPDataSource creates a new instance of the http data provider.
-func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType cdiv1.DataVolumeContentType, extraHeaders []string) (*HTTPDataSource, error) {
+func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType cdiv1.DataVolumeContentType) (*HTTPDataSource, error) {
 	ep, err := ParseEndpoint(endpoint)
 	if err != nil {
 		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpoint))
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	httpReader, contentLength, brokenForQemuImg, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir)
+
+	extraHeaders, err := getExtraHeaders()
+	if err != nil {
+		cancel()
+		return nil, errors.Wrap(err, "Error getting extra headers for HTTP client")
+	}
+
+	httpReader, contentLength, brokenForQemuImg, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir, extraHeaders)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -270,7 +279,7 @@ func createHTTPClient(certDir string) (*http.Client, error) {
 	return client, nil
 }
 
-func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string) (io.ReadCloser, uint64, bool, error) {
+func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string, extraHeaders []string) (io.ReadCloser, uint64, bool, error) {
 	var brokenForQemuImg bool
 	client, err := createHTTPClient(certDir)
 	if err != nil {
@@ -290,6 +299,13 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 	}
 	// http.NewRequest can only return error on invalid METHOD, or invalid url. Here the METHOD is always GET, and the url is always valid, thus error cannot happen.
 	req, _ := http.NewRequest("GET", ep.String(), nil)
+
+	for _, header := range extraHeaders {
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) > 1 {
+			req.Header.Add(parts[0], parts[1])
+		}
+	}
 
 	req = req.WithContext(ctx)
 	if len(accessKey) > 0 && len(secKey) > 0 {
@@ -394,4 +410,50 @@ func parseHTTPHeader(resp *http.Response) uint64 {
 	}
 
 	return total
+}
+
+func getExtraHeaders() ([]string, error) {
+	var extraHeaders []string
+	var err error
+
+	for _, value := range os.Environ() {
+		if strings.HasPrefix(value, common.ImporterExtraHeader) {
+			env := strings.SplitN(value, "=", 2)
+			if len(env) > 1 {
+				extraHeaders = append(extraHeaders, env[1])
+			}
+		}
+	}
+
+	secretDir := common.ImporterSecretExtraHeadersDir
+	directories, err := ioutil.ReadDir(secretDir)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Error listing directories under %s", secretDir)
+	}
+
+	for _, directory := range directories {
+		if !directory.IsDir() || directory.Name()[0] == '.' {
+			continue
+		}
+
+		subDir := path.Join(secretDir, directory.Name())
+		files, err := ioutil.ReadDir(subDir)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Error listing files under %s", subDir)
+		}
+
+		for _, file := range files {
+			if file.IsDir() || file.Name()[0] == '.' {
+				continue
+			}
+			filePath := path.Join(secretDir, directory.Name(), file.Name())
+			header, err := ioutil.ReadFile(filePath)
+			if err != nil {
+				return nil, errors.Wrapf(err, "Error reading headers from %s", filePath)
+			}
+			extraHeaders = append(extraHeaders, string(header))
+		}
+	}
+
+	return extraHeaders, err
 }

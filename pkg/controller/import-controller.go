@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"path"
 	"reflect"
 	"strconv"
 	"strings"
@@ -1155,6 +1156,25 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 		pod.Spec.Volumes = append(pod.Spec.Volumes, createProxyConfigMapVolume(CertVolName, args.podEnvVar.certConfigMapProxy))
 	}
 
+	for index, header := range args.podEnvVar.secretExtraHeaders {
+		vm := corev1.VolumeMount{
+			Name:      fmt.Sprintf(SecretExtraHeadersVolumeName, index),
+			MountPath: path.Join(common.ImporterSecretExtraHeadersDir, fmt.Sprint(index)),
+		}
+
+		vol := corev1.Volume{
+			Name: fmt.Sprintf(SecretExtraHeadersVolumeName, index),
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: header,
+				},
+			},
+		}
+
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
+		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
+	}
+
 	return pod
 }
 
@@ -1356,19 +1376,6 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		env = append(env, corev1.EnvVar{
 			Name:  fmt.Sprintf("%s%d", common.ImporterExtraHeader, index),
 			Value: header,
-		})
-	}
-	for index, header := range podEnvVar.secretExtraHeaders {
-		env = append(env, corev1.EnvVar{
-			Name: fmt.Sprintf("%s%d", common.ImporterExtraHeader, index+len(podEnvVar.extraHeaders)),
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: header,
-					},
-					Key: common.SecretHeader,
-				},
-			},
 		})
 	}
 	return env
