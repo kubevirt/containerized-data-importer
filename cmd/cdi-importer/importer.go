@@ -93,6 +93,8 @@ func main() {
 	volumeMode := v1.PersistentVolumeBlock
 	if _, err := os.Stat(common.WriteBlockPath); os.IsNotExist(err) {
 		volumeMode = v1.PersistentVolumeFilesystem
+	} else {
+		preallocation = true
 	}
 
 	availableDestSpace, err := util.GetAvailableSpaceByVolumeMode(volumeMode)
