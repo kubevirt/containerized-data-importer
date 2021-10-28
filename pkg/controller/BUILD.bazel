@@ -17,8 +17,6 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/pkg/controller",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/apis/core/v1beta1:go_default_library",
-        "//pkg/apis/core/v1beta1/utils:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/feature-gates:go_default_library",
         "//pkg/operator:go_default_library",
@@ -29,6 +27,8 @@ go_library(
         "//pkg/util/cert/fetcher:go_default_library",
         "//pkg/util/cert/generator:go_default_library",
         "//pkg/util/naming:go_default_library",
+        "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
+        "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1/utils:go_default_library",
         "//vendor/github.com/go-logr/logr:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1:go_default_library",
         "//vendor/github.com/openshift/api/config/v1:go_default_library",
@@ -80,7 +80,6 @@ go_test(
     ],
     embed = [":go_default_library"],
     deps = [
-        "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/feature-gates:go_default_library",
         "//pkg/operator:go_default_library",
@@ -89,6 +88,7 @@ go_test(
         "//pkg/util/cert/fetcher:go_default_library",
         "//pkg/util/cert/triple:go_default_library",
         "//pkg/util/naming:go_default_library",
+        "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//tests/reporters:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",

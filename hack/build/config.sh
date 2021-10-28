@@ -61,7 +61,7 @@ QUAY_NAMESPACE=${QUAY_NAMESPACE:-kubevirt}
 CDI_LOGO_PATH=${CDI_LOGO_PATH:-"assets/cdi_logo.png"}
 
 function allPkgs() {
-    ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./... | grep -v "pkg/client" | sort -u))
+    ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./pkg/... ./tools/... ./tests/... ./cmd/... | grep -v "pkg/client" | sort -u))
     echo "$ret"
 }
 

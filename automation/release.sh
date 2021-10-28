@@ -72,7 +72,7 @@ function main() {
     update_github_release
 
     bash hack/gen-swagger-doc/deploy.sh
+    bash hack/publish-staging.sh
 }
 
 main "$@"
-

@@ -27,7 +27,7 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
-	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	v1alpha1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1"
 )
 
 // FakeCDIs implements CDIInterface

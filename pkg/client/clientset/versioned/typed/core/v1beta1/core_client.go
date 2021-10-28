@@ -20,7 +20,7 @@ package v1beta1
 
 import (
 	rest "k8s.io/client-go/rest"
-	v1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	v1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
 )
 

@@ -26,7 +26,7 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
-	v1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
+	v1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 	scheme "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
 )
 

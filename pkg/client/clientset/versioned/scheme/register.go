@@ -24,10 +24,10 @@ import (
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	cdiv1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
-	uploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
-	uploadv1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
+	cdiv1alpha1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1"
+	cdiv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	uploadv1alpha1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1alpha1"
+	uploadv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 )
 
 var Scheme = runtime.NewScheme()

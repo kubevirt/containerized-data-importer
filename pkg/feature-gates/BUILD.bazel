@@ -6,8 +6,8 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/pkg/feature-gates",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/common:go_default_library",
+        "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/types:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client:go_default_library",
@@ -22,8 +22,8 @@ go_test(
     ],
     embed = [":go_default_library"],
     deps = [
-        "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/common:go_default_library",
+        "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//tests/reporters:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",

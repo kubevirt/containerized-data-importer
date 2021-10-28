@@ -20,7 +20,7 @@
 source hack/build/config.sh
 source hack/build/common.sh
 
-LINTABLE=(pkg cmd tests tools)
+LINTABLE=(staging/src/kubevirt.io/containerized-data-importer-api pkg cmd tests tools)
 ec=0
 out="$(gofmt -l -s ${SOURCE_DIRS} | grep ".*\.go")"
 if [[ ${out} ]]; then

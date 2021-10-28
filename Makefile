@@ -122,10 +122,10 @@ cluster-sync-test-infra: cluster-clean-test-infra
 cluster-sync: cluster-sync-cdi cluster-sync-test-infra
 
 bazel-generate:
-	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-generate.sh -- pkg/ tools/ tests/ cmd/ vendor/"
+	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-generate.sh -- staging/src pkg/ tools/ tests/ cmd/ vendor/"
 
 bazel-cdi-generate:
-	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-generate.sh -- pkg/ tools/ tests/ cmd/"
+	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-generate.sh -- staging/src pkg/ tools/ tests/ cmd/"
 
 bazel-build:
 	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-build.sh"
