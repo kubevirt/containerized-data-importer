@@ -496,11 +496,8 @@ func startPrometheusPortForward(f *framework.Framework) (string, *exec.Cmd, erro
 
 var _ = Describe("Importer Test Suite-Block_device", func() {
 	f := framework.NewFramework(namespacePrefix)
-	var (
-		pvc            *v1.PersistentVolumeClaim
-		err            error
-		tinyCoreIsoURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
-	)
+	var pvc *v1.PersistentVolumeClaim
+	var err error
 
 	AfterEach(func() {
 		if pvc != nil {
@@ -566,56 +563,6 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 			Expect(err).NotTo(HaveOccurred())
 			return strings.Contains(log, "attempting to create blank disk for block mode")
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
-		Expect(err).ToNot(HaveOccurred())
-	})
-
-	It("Should perform fsync syscall after qemu-img convert to raw", func() {
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
-		dataVolume := utils.NewDataVolumeWithHTTPImportToBlockPV("qemu-img-convert-fsync-test", "4Gi", tinyCoreIsoURL(), f.BlockSCName)
-		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
-		dataVolume.SetAnnotations(map[string]string{})
-		dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
-		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-		Expect(err).ToNot(HaveOccurred())
-
-		var importer *v1.Pod
-		By("Find importer pod")
-		Eventually(func() bool {
-			importer, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
-			return err == nil
-		}, timeout, pollingInterval).Should(BeTrue())
-
-		By("Verify fsync() syscall was made")
-		Eventually(func() bool {
-			log, err := tests.RunKubectlCommand(f, "logs", importer.Name, "-n", importer.Namespace)
-			if err != nil {
-				return false
-			}
-			for _, line := range strings.Split(strings.TrimSuffix(log, "\n"), "\n") {
-				if strings.Contains(line, fmt.Sprintf("Successfully completed fsync(%s) syscall", common.WriteBlockPath)) {
-					return true
-				}
-			}
-			return false
-		}, 3*time.Minute, pollingInterval).Should(BeTrue())
-
-		phase := cdiv1.Succeeded
-		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
-		zero := int64(0)
-		err = utils.DeletePodByName(f.K8sClient, fmt.Sprintf("%s-%s", common.ImporterPodName, dataVolume.Name), f.Namespace.Name, &zero)
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Verify content")
-		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dataVolume), utils.DefaultPvcMountPath, utils.UploadFileMD5, utils.UploadFileSize)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(same).To(BeTrue())
-
-		By("Delete DV")
-		err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
 	})
 })
