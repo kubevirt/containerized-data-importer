@@ -428,6 +428,9 @@ func getExtraHeaders() ([]string, error) {
 	secretDir := common.ImporterSecretExtraHeadersDir
 	directories, err := ioutil.ReadDir(secretDir)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return extraHeaders, nil
+		}
 		return nil, errors.Wrapf(err, "Error listing directories under %s", secretDir)
 	}
 
