@@ -111,15 +111,13 @@ func NewQEMUOperations() QEMUOperations {
 }
 
 func convertToRaw(src, dest string, preallocate bool) error {
-	args := []string{"convert", "-t", "writeback", "-p", "-O", "raw", src, dest}
+	args := []string{"convert", "-t", "none", "-p", "-O", "raw", src, dest}
 	var err error
-
 	if preallocate {
 		err = addPreallocation(args, convertPreallocationMethods, func(args []string) ([]byte, error) {
 			return qemuExecFunction(nil, reportProgress, "qemu-img", args...)
 		})
 	} else {
-		klog.V(3).Infof("Running qemu-img convert with args: %v", args)
 		_, err = qemuExecFunction(nil, reportProgress, "qemu-img", args...)
 	}
 	if err != nil {
@@ -130,18 +128,6 @@ func convertToRaw(src, dest string, preallocate bool) error {
 		}
 		return errors.Wrap(err, errorMsg)
 	}
-
-	// With writeback cache mode it's possible that the process will exit before all writes have been commited to storage.
-	// To guarantee that our write was commited to storage, we make a fsync syscall and ensure success.
-	file, err := os.Open(dest)
-	if err != nil {
-		return errors.Wrap(err, "could not get file descriptor for fsync call following qemu-img writing")
-	}
-	if err := file.Sync(); err != nil {
-		return errors.Wrap(err, "could not fsync following qemu-img writing")
-	}
-	klog.V(3).Infof("Successfully completed fsync(%s) syscall, qemu-img convert write is commited to disk", dest)
-	file.Close()
 
 	return nil
 }
@@ -323,7 +309,6 @@ func addPreallocation(args []string, preallocationMethods [][]string, qemuFn fun
 		// For some subcommands (e.g. resize), preallocation optinos must come before other options
 		argsToTry := append([]string{args[0]}, preallocationMethod...)
 		argsToTry = append(argsToTry, args[1:]...)
-		klog.V(3).Infof("Attempting preallocation method, qemu-img convert args: %v", argsToTry)
 
 		output, err = qemuFn(argsToTry)
 		if err != nil && strings.Contains(string(output), "Unsupported preallocation mode") {
