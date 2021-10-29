@@ -89,13 +89,13 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 
-	extraHeaders, err := getExtraHeaders()
+	extraHeaders, secretExtraHeaders, err := getExtraHeaders()
 	if err != nil {
 		cancel()
 		return nil, errors.Wrap(err, "Error getting extra headers for HTTP client")
 	}
 
-	httpReader, contentLength, brokenForQemuImg, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir, extraHeaders)
+	httpReader, contentLength, brokenForQemuImg, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir, extraHeaders, secretExtraHeaders)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -114,7 +114,7 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		brokenForQemuImg: brokenForQemuImg,
 		contentLength:    contentLength,
 	}
-	httpSource.n = createNbdkitCurl(nbdkitPid, certDir, nbdkitSocket, extraHeaders)
+	httpSource.n = createNbdkitCurl(nbdkitPid, certDir, nbdkitSocket, extraHeaders, secretExtraHeaders)
 	// We know this is a counting reader, so no need to check.
 	countingReader := httpReader.(*util.CountingReader)
 	go httpSource.pollProgress(countingReader, 10*time.Minute, time.Second)
@@ -279,7 +279,7 @@ func createHTTPClient(certDir string) (*http.Client, error) {
 	return client, nil
 }
 
-func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string, extraHeaders []string) (io.ReadCloser, uint64, bool, error) {
+func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string, extraHeaders, secretExtraHeaders []string) (io.ReadCloser, uint64, bool, error) {
 	var brokenForQemuImg bool
 	client, err := createHTTPClient(certDir)
 	if err != nil {
@@ -300,7 +300,7 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 	// http.NewRequest can only return error on invalid METHOD, or invalid url. Here the METHOD is always GET, and the url is always valid, thus error cannot happen.
 	req, _ := http.NewRequest("GET", ep.String(), nil)
 
-	for _, header := range extraHeaders {
+	for _, header := range append(extraHeaders, secretExtraHeaders...) {
 		parts := strings.SplitN(header, ":", 2)
 		if len(parts) > 1 {
 			req.Header.Add(parts[0], parts[1])
@@ -412,9 +412,16 @@ func parseHTTPHeader(resp *http.Response) uint64 {
 	return total
 }
 
-func getExtraHeaders() ([]string, error) {
+// Check for any extra headers to pass along. Return secret headers separately so callers can suppress logging them.
+func getExtraHeaders() ([]string, []string, error) {
+	extraHeaders := getExtraHeadersFromEnvironment()
+	secretExtraHeaders, err := getExtraHeadersFromSecrets()
+	return extraHeaders, secretExtraHeaders, err
+}
+
+// Check for extra headers from environment variables.
+func getExtraHeadersFromEnvironment() []string {
 	var extraHeaders []string
-	var err error
 
 	for _, value := range os.Environ() {
 		if strings.HasPrefix(value, common.ImporterExtraHeader) {
@@ -425,11 +432,19 @@ func getExtraHeaders() ([]string, error) {
 		}
 	}
 
+	return extraHeaders
+}
+
+// Check for extra headers from mounted secrets.
+func getExtraHeadersFromSecrets() ([]string, error) {
+	var secretExtraHeaders []string
+	var err error
+
 	secretDir := common.ImporterSecretExtraHeadersDir
 	directories, err := ioutil.ReadDir(secretDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return extraHeaders, nil
+			return secretExtraHeaders, nil
 		}
 		return nil, errors.Wrapf(err, "Error listing directories under %s", secretDir)
 	}
@@ -454,9 +469,9 @@ func getExtraHeaders() ([]string, error) {
 			if err != nil {
 				return nil, errors.Wrapf(err, "Error reading headers from %s", filePath)
 			}
-			extraHeaders = append(extraHeaders, string(header))
+			secretExtraHeaders = append(secretExtraHeaders, string(header))
 		}
 	}
 
-	return extraHeaders, err
+	return secretExtraHeaders, err
 }

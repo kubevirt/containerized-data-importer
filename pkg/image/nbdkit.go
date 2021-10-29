@@ -61,6 +61,7 @@ type Nbdkit struct {
 	nbdkitArgs []string
 	plugin     NbdkitPlugin
 	pluginArgs []string
+	redactArgs []string
 	filters    []NbdkitFilter
 	Socket     string
 	Env        []string
@@ -84,8 +85,9 @@ func NewNbdkit(plugin NbdkitPlugin, nbdkitPidFile string) *Nbdkit {
 }
 
 // NewNbdkitCurl creates a new Nbdkit instance with the curl plugin
-func NewNbdkitCurl(nbdkitPidFile, certDir, socket string, extraHeaders []string) NbdkitOperation {
+func NewNbdkitCurl(nbdkitPidFile, certDir, socket string, extraHeaders, secretExtraHeaders []string) NbdkitOperation {
 	var pluginArgs []string
+	var redactArgs []string
 	args := []string{"-r"}
 	if certDir != "" {
 		pluginArgs = append(pluginArgs, fmt.Sprintf("cainfo=%s/%s", certDir, "tls.crt"))
@@ -93,12 +95,16 @@ func NewNbdkitCurl(nbdkitPidFile, certDir, socket string, extraHeaders []string)
 	for _, header := range extraHeaders {
 		pluginArgs = append(pluginArgs, fmt.Sprintf("header='%s'", header))
 	}
+	for _, header := range secretExtraHeaders {
+		redactArgs = append(redactArgs, fmt.Sprintf("header='%s'", header))
+	}
 
 	return &Nbdkit{
 		NbdPidFile: nbdkitPidFile,
 		plugin:     NbdkitCurlPlugin,
 		nbdkitArgs: args,
 		pluginArgs: pluginArgs,
+		redactArgs: redactArgs,
 		Socket:     socket,
 	}
 }
@@ -202,12 +208,28 @@ func (n *Nbdkit) StartNbdkit(source string) error {
 	// append nbdkit plugin arguments
 	argsNbdkit = append(argsNbdkit, string(n.plugin))
 	argsNbdkit = append(argsNbdkit, n.pluginArgs...)
+	argsNbdkit = append(argsNbdkit, n.redactArgs...)
 	argsNbdkit = append(argsNbdkit, n.getSourceArg(source))
+
+	isRedacted := func(arg string) bool {
+		for _, value := range n.redactArgs {
+			if value == arg {
+				return true
+			}
+		}
+		return false
+	}
 
 	quotedArgs := make([]string, len(argsNbdkit))
 	for index, value := range argsNbdkit {
 		if strings.HasPrefix(value, "password=") {
 			quotedArgs[index] = "'password=*****'"
+		} else if isRedacted(value) {
+			if strings.HasPrefix(value, "header=") {
+				quotedArgs[index] = "'header=/secret redacted/'"
+			} else {
+				quotedArgs[index] = "'/secret redacted/'"
+			}
 		} else {
 			quotedArgs[index] = "'" + value + "'"
 		}
@@ -362,7 +384,7 @@ func (n *Nbdkit) validatePlugin() error {
 type mockNbdkit struct{}
 
 // NewMockNbdkitCurl creates a mock nbdkit curl plugin for testing
-func NewMockNbdkitCurl(nbdkitPidFile, certDir, socket string) NbdkitOperation {
+func NewMockNbdkitCurl(nbdkitPidFile, certDir, socket string, extraHeaders, secretExtraHeaders []string) NbdkitOperation {
 	return &mockNbdkit{}
 }
 
