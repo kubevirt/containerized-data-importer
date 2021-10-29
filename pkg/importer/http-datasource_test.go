@@ -20,6 +20,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
@@ -180,6 +181,29 @@ var _ = Describe("Http data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseConvert).To(Equal(result))
 	})
+
+	It("should get extra headers on creation of new HTTP data source", func() {
+		os.Setenv(common.ImporterExtraHeader+"0", "Extra-Header: 321")
+		os.Setenv(common.ImporterExtraHeader+"1", "Second-Extra-Header: 321")
+		ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer GinkgoRecover()
+			_, firstExists := r.Header["Extra-Header"]
+			_, secondExists := r.Header["Second-Extra-Header"]
+			if firstExists && secondExists {
+				response, err := ts.Client().Get(ts.URL + "/" + r.RequestURI)
+				Expect(err).NotTo(HaveOccurred())
+				body, err := ioutil.ReadAll(response.Body)
+				Expect(err).NotTo(HaveOccurred())
+				w.Write(body)
+			} else {
+				w.WriteHeader(500)
+			}
+		}))
+		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
+		Expect(err).NotTo(HaveOccurred())
+		_, err := dp.Info()
+		Expect(err).NotTo(HaveOccurred())
+	})
 })
 
 var _ = Describe("Http client", func() {
@@ -226,7 +250,7 @@ var _ = Describe("Http client", func() {
 
 var _ = Describe("Http reader", func() {
 	It("should fail when passed an invalid cert directory", func() {
-		_, total, _, err := createHTTPReader(context.Background(), nil, "", "", "/invalid")
+		_, total, _, err := createHTTPReader(context.Background(), nil, "", "", "/invalid", nil, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(uint64(0)).To(Equal(total))
 	})
@@ -243,7 +267,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, _, err := createHTTPReader(context.Background(), ep, "user", "password", "")
+		r, total, _, err := createHTTPReader(context.Background(), ep, "user", "password", "", nil, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
 		err = r.Close()
@@ -266,7 +290,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, _, err := createHTTPReader(context.Background(), ep, "user", "password", "")
+		r, total, _, err := createHTTPReader(context.Background(), ep, "user", "password", "", nil, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
 		err = r.Close()
@@ -288,7 +312,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "")
+		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil)
 		Expect(brokenForQemuImg).To(BeFalse())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
@@ -309,7 +333,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, _, err := createHTTPReader(context.Background(), ep, "", "", "")
+		r, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(0)).To(Equal(total))
 		err = r.Close()
@@ -333,7 +357,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "")
+		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil)
 		Expect(brokenForQemuImg).To(BeTrue())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
@@ -353,7 +377,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "")
+		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil)
 		Expect(brokenForQemuImg).To(BeTrue())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
@@ -368,10 +392,28 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		_, total, _, err := createHTTPReader(context.Background(), ep, "", "", "")
+		_, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(uint64(0)).To(Equal(total))
 		Expect("expected status code 200, got 500. Status: 500 Internal Server Error").To(Equal(err.Error()))
+	})
+
+	It("should pass through extra headers", func() {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, exists := r.Header["Extra-Header"]; exists {
+				w.WriteHeader(200)
+			} else {
+				w.WriteHeader(500)
+			}
+		}))
+		defer ts.Close()
+		ep, err := url.Parse(ts.URL)
+		Expect(err).ToNot(HaveOccurred())
+		r, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", []string{"Extra-Header: 123"}, nil)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uint64(0)).To(Equal(total))
+		err = r.Close()
+		Expect(err).ToNot(HaveOccurred())
 	})
 })
 
