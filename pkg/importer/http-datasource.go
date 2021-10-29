@@ -279,6 +279,15 @@ func createHTTPClient(certDir string) (*http.Client, error) {
 	return client, nil
 }
 
+func addExtraheaders(req *http.Request, extraHeaders []string) {
+	for _, header := range extraHeaders {
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) > 1 {
+			req.Header.Add(parts[0], parts[1])
+		}
+	}
+}
+
 func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string, extraHeaders, secretExtraHeaders []string) (io.ReadCloser, uint64, bool, error) {
 	var brokenForQemuImg bool
 	client, err := createHTTPClient(certDir)
@@ -286,26 +295,24 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 		return nil, uint64(0), false, errors.Wrap(err, "Error creating http client")
 	}
 
+	allExtraHeaders := append(extraHeaders, secretExtraHeaders...)
+
 	client.CheckRedirect = func(r *http.Request, via []*http.Request) error {
 		if len(accessKey) > 0 && len(secKey) > 0 {
 			r.SetBasicAuth(accessKey, secKey) // Redirects will lose basic auth, so reset them manually
 		}
+		addExtraheaders(r, allExtraHeaders)
 		return nil
 	}
 
-	total, err := getContentLength(client, ep, accessKey, secKey)
+	total, err := getContentLength(client, ep, accessKey, secKey, allExtraHeaders)
 	if err != nil {
 		brokenForQemuImg = true
 	}
 	// http.NewRequest can only return error on invalid METHOD, or invalid url. Here the METHOD is always GET, and the url is always valid, thus error cannot happen.
 	req, _ := http.NewRequest("GET", ep.String(), nil)
 
-	for _, header := range append(extraHeaders, secretExtraHeaders...) {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) > 1 {
-			req.Header.Add(parts[0], parts[1])
-		}
-	}
+	addExtraheaders(req, allExtraHeaders)
 
 	req = req.WithContext(ctx)
 	if len(accessKey) > 0 && len(secKey) > 0 {
@@ -365,7 +372,7 @@ func (hs *HTTPDataSource) pollProgress(reader *util.CountingReader, idleTime, po
 	}
 }
 
-func getContentLength(client *http.Client, ep *url.URL, accessKey, secKey string) (uint64, error) {
+func getContentLength(client *http.Client, ep *url.URL, accessKey, secKey string, extraHeaders []string) (uint64, error) {
 	req, err := http.NewRequest("HEAD", ep.String(), nil)
 	if err != nil {
 		return uint64(0), errors.Wrap(err, "could not create HTTP request")
@@ -373,6 +380,8 @@ func getContentLength(client *http.Client, ep *url.URL, accessKey, secKey string
 	if len(accessKey) > 0 && len(secKey) > 0 {
 		req.SetBasicAuth(accessKey, secKey)
 	}
+
+	addExtraheaders(req, extraHeaders)
 
 	klog.V(2).Infof("Attempting to HEAD %q via http client\n", ep.String())
 	resp, err := client.Do(req)
