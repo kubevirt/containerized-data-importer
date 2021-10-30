@@ -278,7 +278,13 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		dataImportCron.Status.LastExecutionTimestamp = &now
 
 		if dataVolume.Status.Phase == cdiv1.Succeeded {
-			if err := r.updateSucceeded(ctx, dataImportCron, dataVolume); err != nil {
+			if err := r.updateDataSourceOnSuccess(ctx, dataImportCron); err != nil {
+				return res, err
+			}
+			if err := r.updateDataImportCronOnSuccess(ctx, dataImportCron); err != nil {
+				return res, err
+			}
+			if err := r.garbageCollectOldImports(ctx, dataImportCron); err != nil {
 				return res, err
 			}
 		}
@@ -306,13 +312,11 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	return res, nil
 }
 
-// Update DataSource and DataImportCron PVC on successful completion
-func (r *DataImportCronReconciler) updateSucceeded(ctx context.Context, dataImportCron *cdiv1.DataImportCron, dataVolume *cdiv1.DataVolume) error {
+func (r *DataImportCronReconciler) updateDataSourceOnSuccess(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
 	log := r.log.WithName("update")
 	dataSourceName := dataImportCron.Spec.ManagedDataSource
 	dataSource := &cdiv1.DataSource{}
-	if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataVolume.Namespace, Name: dataSourceName}, dataSource); err != nil {
-		// DataSource was not found, so create it
+	if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: dataSourceName}, dataSource); err != nil {
 		if k8serrors.IsNotFound(err) {
 			log.Info("Create DataSource", "name", dataSourceName)
 			dataSource = newDataSource(dataImportCron)
@@ -333,30 +337,32 @@ func (r *DataImportCronReconciler) updateSucceeded(ctx context.Context, dataImpo
 			UID:        dataImportCron.UID,
 		})
 	}
-
-	// Update DataSource and DataImportCron status if needed
-	sourcePVC := &cdiv1.DataVolumeSourcePVC{Namespace: dataVolume.Namespace, Name: dataVolume.Name}
+	sourcePVC := &cdiv1.DataVolumeSourcePVC{
+		Namespace: dataImportCron.Namespace,
+		Name:      dataImportCron.Status.CurrentImportDataVolumeName,
+	}
 	if dataSource.Spec.Source.PVC == nil || *dataSource.Spec.Source.PVC != *sourcePVC {
 		dataSource.Spec.Source.PVC = sourcePVC
 		if err := r.client.Update(ctx, dataSource); err != nil {
 			log.Error(err, "Unable to update DataSource with source PVC", "Name", dataSourceName, "PVC", sourcePVC)
 			return err
 		}
+	}
+	return nil
+}
+
+func (r *DataImportCronReconciler) updateDataImportCronOnSuccess(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+	sourcePVC := &cdiv1.DataVolumeSourcePVC{
+		Namespace: dataImportCron.Namespace,
+		Name:      dataImportCron.Status.CurrentImportDataVolumeName,
+	}
+	if dataImportCron.Status.LastImportedPVC == nil || *dataImportCron.Status.LastImportedPVC != *sourcePVC {
 		dataImportCron.Status.LastImportedPVC = sourcePVC
 		now := metav1.Now()
 		dataImportCron.Status.LastImportTimestamp = &now
 	}
-
 	// Mark no current import
 	dataImportCron.Status.CurrentImportDataVolumeName = ""
-
-	// Garbage collection
-	if dataImportCron.Spec.GarbageCollect != nil &&
-		*dataImportCron.Spec.GarbageCollect == cdiv1.DataImportCronGarbageCollectOutdated {
-		if err := r.garbageCollectOldImports(ctx, dataImportCron); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -380,6 +386,9 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 
 func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
 	log := r.log.WithName("garbageCollectOldImports")
+	if dataImportCron.Spec.GarbageCollect == nil || *dataImportCron.Spec.GarbageCollect != cdiv1.DataImportCronGarbageCollectOutdated {
+		return nil
+	}
 	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			labelDataImportCronName: dataImportCron.Name,
