@@ -59,7 +59,7 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 
 	storageProfile.Status.StorageClass = &sc.Name
 	storageProfile.Status.Provisioner = &sc.Provisioner
-	storageProfile.Status.CloneStrategy = storageProfile.Spec.CloneStrategy
+	storageProfile.Status.CloneStrategy = r.reconcileCloneStrategy(sc, storageProfile.Spec.CloneStrategy)
 
 	var claimPropertySets []cdiv1.ClaimPropertySet
 
@@ -130,6 +130,25 @@ func (r *StorageProfileReconciler) reconcilePropertySets(sc *storagev1.StorageCl
 		}
 	}
 	return claimPropertySets
+}
+
+func (r *StorageProfileReconciler) reconcileCloneStrategy(sc *storagev1.StorageClass, clonestrategy *cdiv1.CDICloneStrategy) *cdiv1.CDICloneStrategy {
+
+	if clonestrategy == nil {
+		if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "copy" {
+			strategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)
+			return &strategy
+		} else if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "snapshot" {
+			strategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)
+			return &strategy
+		} else if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "csi-clone" {
+			strategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)
+			return &strategy
+		} else {
+			return clonestrategy
+		}
+	}
+	return clonestrategy
 }
 
 func (r *StorageProfileReconciler) createEmptyStorageProfile(sc *storagev1.StorageClass) (*cdiv1.StorageProfile, error) {
