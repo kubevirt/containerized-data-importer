@@ -56,6 +56,7 @@ go_test(
         "//pkg/common:go_default_library",
         "//pkg/controller:go_default_library",
         "//pkg/feature-gates:go_default_library",
+        "//pkg/image:go_default_library",
         "//pkg/token:go_default_library",
         "//pkg/util:go_default_library",
         "//pkg/util/cert:go_default_library",
