@@ -26,6 +26,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/generate/install"
 
 	"github.com/kelseyhightower/envconfig"
+	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,9 +37,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdicontroller "kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	cdicerts "kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
@@ -65,7 +68,18 @@ const (
 	dumpInstallStrategyKey = "DUMP_INSTALL_STRATEGY"
 )
 
-var log = logf.Log.WithName("cdi-operator")
+var (
+	log        = logf.Log.WithName("cdi-operator")
+	readyGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "kubevirt_cdi_cr_ready",
+			Help: "CDI CR Ready",
+		})
+)
+
+func init() {
+	metrics.Registry.MustRegister(readyGauge)
+}
 
 // Add creates a new CDI Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
@@ -174,15 +188,20 @@ func (r *ReconcileCDI) Reconcile(_ context.Context, request reconcile.Request) (
 	operatorVersion := r.namespacedArgs.OperatorVersion
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling CDI")
+	cr := &cdiv1.CDI{}
+	crKey := client.ObjectKey{Namespace: "", Name: request.NamespacedName.Name}
+	err := r.client.Get(context.TODO(), crKey, cr)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			reqLogger.Info("CDI CR does not exist")
+			return reconcile.Result{}, nil
+		}
+		reqLogger.Error(err, "Failed to get CDI object")
+		return reconcile.Result{}, err
+	}
+
 	if r.dumpInstallStrategy {
 		reqLogger.Info("Dumping Install Strategy")
-		cr := &cdiv1.CDI{}
-		crKey := client.ObjectKey{Namespace: "", Name: request.NamespacedName.Name}
-		err := r.client.Get(context.TODO(), crKey, cr)
-		if err != nil {
-			reqLogger.Error(err, "Failed to get CDI object")
-			return reconcile.Result{}, err
-		}
 		objects, err := r.GetAllResources(cr)
 		if err != nil {
 			reqLogger.Error(err, "Failed to get all CDI object")
@@ -198,6 +217,14 @@ func (r *ReconcileCDI) Reconcile(_ context.Context, request reconcile.Request) (
 			reqLogger.Error(err, "Failed to dump CDI object in configmap")
 			return reconcile.Result{}, err
 		}
+	}
+
+	// Ready metric so we can alert whenever we are not ready for a while
+	if cdicontroller.IsCdiAvailable(cr) {
+		readyGauge.Set(1)
+	} else if !cdicontroller.IsCdiProgressing(cr) {
+		// Not an issue if progress is still ongoing
+		readyGauge.Set(0)
 	}
 	return r.reconciler.Reconcile(request, operatorVersion, reqLogger)
 }

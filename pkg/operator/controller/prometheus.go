@@ -28,11 +28,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
@@ -43,7 +45,7 @@ const (
 	defaultMonitoringNs = "monitoring"
 )
 
-func ensurePrometheusRuleExists(logger logr.Logger, c client.Client, owner metav1.Object) error {
+func ensurePrometheusRuleExists(logger logr.Logger, c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
 	namespace := owner.GetNamespace()
 	if namespace == "" {
 		return fmt.Errorf("cluster scoped owner not supported")
@@ -67,6 +69,10 @@ func ensurePrometheusRuleExists(logger logr.Logger, c client.Client, owner metav
 		return nil
 	}
 
+	if err := controllerutil.SetControllerReference(owner, desiredRule, scheme); err != nil {
+		return err
+	}
+
 	if err := c.Create(context.TODO(), desiredRule); err != nil {
 		if errors.IsAlreadyExists(err) {
 			currentRule := &promv1.PrometheusRule{}
@@ -88,7 +94,7 @@ func ensurePrometheusRuleExists(logger logr.Logger, c client.Client, owner metav
 	return nil
 }
 
-func ensurePrometheusRbacExists(logger logr.Logger, c client.Client, owner metav1.Object) error {
+func ensurePrometheusRbacExists(logger logr.Logger, c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
 	namespace := owner.GetNamespace()
 	if namespace == "" {
 		return fmt.Errorf("cluster scoped owner not supported")
@@ -112,6 +118,13 @@ func ensurePrometheusRbacExists(logger logr.Logger, c client.Client, owner metav
 		return err
 	} else if !deployed {
 		return nil
+	}
+
+	if err := controllerutil.SetControllerReference(owner, desiredRole, scheme); err != nil {
+		return err
+	}
+	if err := controllerutil.SetControllerReference(owner, desiredRoleBinding, scheme); err != nil {
+		return err
 	}
 
 	key := client.ObjectKey{Namespace: namespace, Name: rbacName}
@@ -151,7 +164,7 @@ func ensurePrometheusRbacExists(logger logr.Logger, c client.Client, owner metav
 	return nil
 }
 
-func ensurePrometheusServiceMonitorExists(logger logr.Logger, c client.Client, owner metav1.Object) error {
+func ensurePrometheusServiceMonitorExists(logger logr.Logger, c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
 	namespace := owner.GetNamespace()
 	if namespace == "" {
 		return fmt.Errorf("cluster scoped owner not supported")
@@ -173,6 +186,10 @@ func ensurePrometheusServiceMonitorExists(logger logr.Logger, c client.Client, o
 		return err
 	} else if !deployed {
 		return nil
+	}
+
+	if err := controllerutil.SetControllerReference(owner, desiredMonitor, scheme); err != nil {
+		return err
 	}
 
 	key := client.ObjectKey{Namespace: namespace, Name: monitorName}
@@ -221,6 +238,7 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 			Name:      ruleName,
 			Namespace: namespace,
 			Labels: map[string]string{
+				common.CDIComponentLabel:  "",
 				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 		},
@@ -257,6 +275,7 @@ func newPrometheusRole(namespace string) *rbacv1.Role {
 			Name:      rbacName,
 			Namespace: namespace,
 			Labels: map[string]string{
+				common.CDIComponentLabel:  "",
 				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 		},
@@ -286,6 +305,7 @@ func newPrometheusRoleBinding(namespace string) *rbacv1.RoleBinding {
 			Name:      rbacName,
 			Namespace: namespace,
 			Labels: map[string]string{
+				common.CDIComponentLabel:  "",
 				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 		},
@@ -322,6 +342,7 @@ func newPrometheusServiceMonitor(namespace string) *promv1.ServiceMonitor {
 			Namespace: namespace,
 			Name:      monitorName,
 			Labels: map[string]string{
+				common.CDIComponentLabel:          "",
 				"openshift.io/cluster-monitoring": "",
 				common.PrometheusLabelKey:         common.PrometheusLabelValue,
 			},

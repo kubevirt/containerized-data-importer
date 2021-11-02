@@ -153,15 +153,15 @@ func reconcileCreatePrometheusInfra(args *callbacks.ReconcileCallbackArgs) error
 	}
 
 	cr := args.Resource.(runtime.Object)
-	if err := ensurePrometheusRuleExists(args.Logger, args.Client, deployment); err != nil {
+	if err := ensurePrometheusRuleExists(args.Logger, args.Client, args.Scheme, deployment); err != nil {
 		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure prometheus rule exists, %v", err))
 		return err
 	}
-	if err := ensurePrometheusRbacExists(args.Logger, args.Client, deployment); err != nil {
+	if err := ensurePrometheusRbacExists(args.Logger, args.Client, args.Scheme, deployment); err != nil {
 		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure prometheus rbac exists, %v", err))
 		return err
 	}
-	if err := ensurePrometheusServiceMonitorExists(args.Logger, args.Client, deployment); err != nil {
+	if err := ensurePrometheusServiceMonitorExists(args.Logger, args.Client, args.Scheme, deployment); err != nil {
 		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure prometheus service monitor exists, %v", err))
 		return err
 	}
