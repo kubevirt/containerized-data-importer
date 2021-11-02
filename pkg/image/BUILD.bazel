@@ -14,6 +14,7 @@ go_library(
         "//pkg/common:go_default_library",
         "//pkg/system:go_default_library",
         "//pkg/util:go_default_library",
+        "//vendor/github.com/docker/go-units:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/github.com/prometheus/client_golang/prometheus:go_default_library",
         "//vendor/github.com/prometheus/client_model/go:go_default_library",

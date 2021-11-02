@@ -321,6 +321,40 @@ var _ = Describe("Create blank image", func() {
 	})
 })
 
+var _ = Describe("Create preallocated blank block", func() {
+	It("Should complete successfully if preallocation succeeds", func() {
+		quantity, err := resource.ParseQuantity("10Gi")
+		Expect(err).NotTo(HaveOccurred())
+		dest := "cdi-block-volume"
+		replaceExecFunction(mockExecFunction("", "", nil, "if=/dev/zero", "of="+dest, "bs=1048576", "count=10240", "seek=0", "oflag=seek_bytes"), func() {
+			err = PreallocateBlankBlock(dest, quantity)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	It("Should complete successfully with value not aligned to 1MiB", func() {
+		quantity, err := resource.ParseQuantity("5243392Ki")
+		Expect(err).NotTo(HaveOccurred())
+		dest := "cdi-block-volume"
+		firstCallArgs := []string{"if=/dev/zero", "of=" + dest, "bs=1048576", "count=5120", "seek=0", "oflag=seek_bytes"}
+		secondCallArgs := []string{"if=/dev/zero", "of=" + dest, "bs=524288", "count=1", "seek=5368709120", "oflag=seek_bytes"}
+		replaceExecFunction(mockExecFunctionTwoCalls("", "", nil, firstCallArgs, secondCallArgs), func() {
+			err = PreallocateBlankBlock(dest, quantity)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	It("Should fail if preallocation fails", func() {
+		quantity, err := resource.ParseQuantity("10Gi")
+		Expect(err).NotTo(HaveOccurred())
+		dest := "cdi-block-volume"
+		replaceExecFunction(mockExecFunction("", "exit 1", nil, "if=/dev/zero", "of="+dest, "bs=1048576", "count=10240", "seek=0", "oflag=seek_bytes"), func() {
+			err = PreallocateBlankBlock(dest, quantity)
+			Expect(strings.Contains(err.Error(), "Could not preallocate blank block volume at")).To(BeTrue())
+		})
+	})
+})
+
 var _ = Describe("Try different preallocation modes", func() {
 	It("Should try falloc first", func() {
 		calledCount := 0
@@ -390,7 +424,10 @@ func mockExecFunction(output, errString string, expectedLimits *system.ProcessLi
 					break
 				}
 			}
-			Expect(found).To(BeTrue())
+			// if not found will fail and show the diff in the args
+			if found != true {
+				Expect(checkArgs).To(Equal(args))
+			}
 		}
 
 		if output != "" {
@@ -409,6 +446,29 @@ func mockExecFunctionStrict(output, errString string, expectedLimits *system.Pro
 		Expect(reflect.DeepEqual(expectedLimits, limits)).To(BeTrue())
 
 		Expect(checkArgs).To(Equal(args))
+
+		if output != "" {
+			bytes = []byte(output)
+		}
+		if errString != "" {
+			err = errors.New(errString)
+		}
+
+		return
+	}
+}
+
+func mockExecFunctionTwoCalls(output, errString string, expectedLimits *system.ProcessLimitValues, firstCallArgs []string, secondCallArgs []string) execFunctionType {
+	firstCall := true
+	return func(limits *system.ProcessLimitValues, f func(string), cmd string, args ...string) (bytes []byte, err error) {
+		Expect(reflect.DeepEqual(expectedLimits, limits)).To(BeTrue())
+
+		if firstCall {
+			Expect(firstCallArgs).To(Equal(args))
+			firstCall = false
+		} else {
+			Expect(secondCallArgs).To(Equal(args))
+		}
 
 		if output != "" {
 			bytes = []byte(output)
