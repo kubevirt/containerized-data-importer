@@ -93,10 +93,10 @@ func NewNbdkitCurl(nbdkitPidFile, certDir, socket string, extraHeaders, secretEx
 		pluginArgs = append(pluginArgs, fmt.Sprintf("cainfo=%s/%s", certDir, "tls.crt"))
 	}
 	for _, header := range extraHeaders {
-		pluginArgs = append(pluginArgs, fmt.Sprintf("header='%s'", header))
+		pluginArgs = append(pluginArgs, fmt.Sprintf("header=%s", header))
 	}
 	for _, header := range secretExtraHeaders {
-		redactArgs = append(redactArgs, fmt.Sprintf("header='%s'", header))
+		redactArgs = append(redactArgs, fmt.Sprintf("header=%s", header))
 	}
 
 	return &Nbdkit{
