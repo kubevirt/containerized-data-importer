@@ -30,7 +30,6 @@ import (
 	v1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -444,45 +443,7 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 	}); err != nil {
 		return err
 	}
-	if err := watchImageStreams(mgr, c, log); err != nil {
-		return err
-	}
 	return nil
-}
-
-//FIXME: can be removed, as DataImportCron is requeued to be in accordance with cron schedule, using ImageStream digest only there anyway
-func watchImageStreams(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
-	imageStreamList := &imagev1.ImageStreamList{}
-	err := mgr.GetClient().List(context.TODO(), imageStreamList)
-	if err != nil && !isErrCacheNotStarted(err) {
-		if meta.IsNoMatchError(err) {
-			log.Info("ImageStreams are supported only on OpenShift")
-			return nil
-		} else {
-			return err
-		}
-	}
-	err = c.Watch(&source.Kind{Type: &imagev1.ImageStream{}},
-		handler.EnqueueRequestsFromMapFunc(
-			func(obj client.Object) []reconcile.Request {
-				var reqs []reconcile.Request
-				cronList := &cdiv1.DataImportCronList{}
-				if err := mgr.GetClient().List(context.TODO(), cronList); err != nil {
-					return reqs
-				}
-				for _, cron := range cronList.Items {
-					regSource, err := getCronRegistrySource(&cron)
-					if err != nil {
-						return reqs
-					}
-					if regSource.ImageStream != nil && *regSource.ImageStream == obj.GetName() {
-						reqs = append(reqs, reconcile.Request{
-							NamespacedName: types.NamespacedName{Name: cron.Name, Namespace: cron.Namespace}})
-					}
-				}
-				return reqs
-			}))
-	return err
 }
 
 func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1beta1.CronJob, error) {
