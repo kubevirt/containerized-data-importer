@@ -12,7 +12,6 @@ import (
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -702,28 +701,6 @@ func GetActiveCDI(c client.Client) (*cdiv1.CDI, error) {
 	}
 
 	return &activeResources[0], nil
-}
-
-// IsCdiAvailable returns whether the CDI installation is available for use
-func IsCdiAvailable(cr *cdiv1.CDI) bool {
-	for _, condition := range cr.Status.Conditions {
-		if condition.Type == conditionsv1.ConditionAvailable && condition.Status == v1.ConditionTrue {
-			return true
-		}
-	}
-
-	return false
-}
-
-// IsCdiProgressing returns whether the CDI installation is still doing progress of some sort
-func IsCdiProgressing(cr *cdiv1.CDI) bool {
-	for _, condition := range cr.Status.Conditions {
-		if condition.Type == conditionsv1.ConditionProgressing && condition.Status == v1.ConditionTrue {
-			return true
-		}
-	}
-
-	return false
 }
 
 // IsPopulated returns if the passed in PVC has been populated according to the rules outlined in pkg/apis/core/<version>/utils.go

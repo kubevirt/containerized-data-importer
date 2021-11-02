@@ -144,6 +144,8 @@ const (
 	// SmartClonerCDILabel is the label applied to resources created by the smart-clone controller
 	SmartClonerCDILabel = "cdi-smart-clone"
 
+	// UploaderPodName (controller pkg only)
+	UploadPodName = "cdi-upload"
 	// UploadServerCDILabel is the label applied to upload server resources
 	UploadServerCDILabel = "cdi-upload-server"
 	// UploadServerPodname is name of the upload server pod container
@@ -236,6 +238,9 @@ const (
 
 	// SecretHeader is the key in a secret containing a sensitive extra header for HTTP data sources
 	SecretHeader = "secretHeader"
+
+	// UnusualRestartCountThreshold is the number of pod restarts that we consider unusual and would like to alert about
+	UnusualRestartCountThreshold = 3
 )
 
 // ProxyPaths are all supported paths

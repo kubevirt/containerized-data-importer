@@ -1232,7 +1232,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("find uploader pod")
 			var sourcePod *v1.Pod
 			Eventually(func() bool {
-				sourcePod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
+				sourcePod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.UploadPodName, common.CDILabelSelector)
 				return err == nil
 			}, timeout, pollingInterval).Should(BeTrue())
 			verifyAnnotations(sourcePod)
@@ -1277,7 +1277,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			var sourcePod *v1.Pod
 			var uploadPod *v1.Pod
 			Eventually(func() bool {
-				uploadPod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
+				uploadPod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.UploadPodName, common.CDILabelSelector)
 				return err == nil
 			}, timeout, pollingInterval).Should(BeTrue())
 			verifyAnnotations(uploadPod)
@@ -2339,7 +2339,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				By("find uploader pod")
 				var sourcePod *v1.Pod
 				Eventually(func() bool {
-					sourcePod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
+					sourcePod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.UploadPodName, common.CDILabelSelector)
 					return err == nil
 				}, timeout, pollingInterval).Should(BeTrue())
 				verifyPodAnnotations(sourcePod)
@@ -2393,7 +2393,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 						sourcePod, _ = utils.FindPodBySuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
 					}
 					if uploadPod == nil {
-						uploadPod, _ = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
+						uploadPod, _ = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.UploadPodName, common.CDILabelSelector)
 					}
 					return sourcePod != nil && uploadPod != nil
 				}, timeout, pollingInterval).Should(BeTrue())

@@ -41,7 +41,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	cdicontroller "kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	cdicerts "kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
@@ -72,13 +71,16 @@ var (
 	log        = logf.Log.WithName("cdi-operator")
 	readyGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "kubevirt_cdi_cr_ready",
+			Name: "cdi_cr_ready",
 			Help: "CDI CR Ready",
 		})
 )
 
 func init() {
+	metrics.Registry = prometheus.NewRegistry()
 	metrics.Registry.MustRegister(readyGauge)
+	// 0 is our 'something bad is going on' value for alert to start firing, so can't default to that
+	readyGauge.Set(-1)
 }
 
 // Add creates a new CDI Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -220,9 +222,9 @@ func (r *ReconcileCDI) Reconcile(_ context.Context, request reconcile.Request) (
 	}
 
 	// Ready metric so we can alert whenever we are not ready for a while
-	if cdicontroller.IsCdiAvailable(cr) {
+	if util.IsCdiAvailable(cr) {
 		readyGauge.Set(1)
-	} else if !cdicontroller.IsCdiProgressing(cr) {
+	} else if !util.IsCdiProgressing(cr) {
 		// Not an issue if progress is still ongoing
 		readyGauge.Set(0)
 	}

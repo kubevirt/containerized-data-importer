@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -357,4 +358,26 @@ func Md5sum(filePath string) (string, error) {
 
 	hashInBytes := hash.Sum(nil)[:16]
 	return hex.EncodeToString(hashInBytes), nil
+}
+
+// IsCdiAvailable returns whether the CDI installation is available for use
+func IsCdiAvailable(cr *cdiv1.CDI) bool {
+	for _, condition := range cr.Status.Conditions {
+		if condition.Type == conditionsv1.ConditionAvailable && condition.Status == v1.ConditionTrue {
+			return true
+		}
+	}
+
+	return false
+}
+
+// IsCdiProgressing returns whether the CDI installation is still doing progress of some sort
+func IsCdiProgressing(cr *cdiv1.CDI) bool {
+	for _, condition := range cr.Status.Conditions {
+		if condition.Type == conditionsv1.ConditionProgressing && condition.Status == v1.ConditionTrue {
+			return true
+		}
+	}
+
+	return false
 }
