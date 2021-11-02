@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/docker/go-units"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -150,7 +151,7 @@ func convertToRaw(src, dest string, preallocate bool) error {
 
 func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string, preallocate bool) error {
 	if len(url.Scheme) > 0 && url.Scheme != "nbd+unix" {
-		return fmt.Errorf("Not valid schema %s", url.Scheme)
+		return fmt.Errorf("not valid schema %s", url.Scheme)
 	}
 	return convertToRaw(url.String(), dest, preallocate)
 }
@@ -204,7 +205,7 @@ func Info(url *url.URL) (*ImgInfo, error) {
 
 func (o *qemuOperations) Info(url *url.URL) (*ImgInfo, error) {
 	if len(url.Scheme) > 0 && url.Scheme != "nbd+unix" {
-		return nil, fmt.Errorf("Not valid schema %s", url.Scheme)
+		return nil, fmt.Errorf("not valid schema %s", url.Scheme)
 	}
 	output, err := qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", url.String())
 	if err != nil {
@@ -304,17 +305,32 @@ func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity, p
 	return nil
 }
 
+func execPreallocation(dest string, bs, count, offset int64) error {
+	args := []string{"if=/dev/zero", "of=" + dest, fmt.Sprintf("bs=%d", bs), fmt.Sprintf("count=%d", count), fmt.Sprintf("seek=%d", offset), "oflag=seek_bytes"}
+	_, err := qemuExecFunction(nil, nil, "dd", args...)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("Could not preallocate blank block volume at %s, running dd for size %d, offset %d", dest, bs*count, offset))
+	}
+
+	return nil
+}
+
 // PreallocateBlankBlock writes requested amount of zeros to block device mounted at dest
 func PreallocateBlankBlock(dest string, size resource.Quantity) error {
 	klog.V(3).Infof("block volume size is %s", size.String())
 
-	args := []string{"if=/dev/zero", "of=" + dest, "bs=" + convertQuantityToQemuSize(size), "count=1"}
-	_, err := qemuExecFunction(nil, nil, "dd", args...)
-
+	qemuSize, err := strconv.ParseInt(convertQuantityToQemuSize(size), 10, 64)
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("Could not preallocate blank block volume at %s with size %s", dest, size.String()))
+		return errors.Wrap(err, fmt.Sprintf("Could not parse size for preallocating blank block volume at %s with size %s", dest, size.String()))
 	}
-
+	countBlocks, remainder := qemuSize/units.MiB, qemuSize%units.MiB
+	err = execPreallocation(dest, units.MiB, countBlocks, 0)
+	if err != nil {
+		return err
+	}
+	if remainder != 0 {
+		return execPreallocation(dest, remainder, 1, countBlocks*units.MiB)
+	}
 	return nil
 }
 
