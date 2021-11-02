@@ -210,7 +210,6 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		dataImportCron.Status.LastExecutionTimestamp = &now
 
 		if dataVolume.Status.Phase == cdiv1.Succeeded {
-			log.Info("XXXXXX")
 			importSucceeded = true
 			if err := r.updateDataSourceOnSuccess(ctx, dataImportCron); err != nil {
 				return res, err
@@ -394,7 +393,7 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 	if !HasFinalizer(dataImportCron, dataImportCronFinalizer) {
 		return nil
 	}
-	cronJob := &v1beta1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: getCronJobName(dataImportCron)}}
+	cronJob := &v1beta1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: GetCronJobName(dataImportCron)}}
 	if err := r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
 		return err
 	}
@@ -456,7 +455,7 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 
 func (r *DataImportCronReconciler) cronJobExists(ctx context.Context, cron *cdiv1.DataImportCron) bool {
 	var cronJob v1beta1.CronJob
-	cronJobNamespacedName := types.NamespacedName{Namespace: r.cdiNamespace, Name: getCronJobName(cron)}
+	cronJobNamespacedName := types.NamespacedName{Namespace: r.cdiNamespace, Name: GetCronJobName(cron)}
 	return r.uncachedClient.Get(ctx, cronJobNamespacedName, &cronJob) == nil
 }
 
@@ -517,14 +516,19 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 		}
 	}
 
+	var successfulJobsHistoryLimit int32 = 0
+	var failedJobsHistoryLimit int32 = 0
+
 	job := &v1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      getCronJobName(cron),
+			Name:      GetCronJobName(cron),
 			Namespace: r.cdiNamespace,
 		},
 		Spec: v1beta1.CronJobSpec{
-			Schedule:          cron.Spec.Schedule,
-			ConcurrencyPolicy: v1beta1.ForbidConcurrent,
+			Schedule:                   cron.Spec.Schedule,
+			ConcurrencyPolicy:          v1beta1.ForbidConcurrent,
+			SuccessfulJobsHistoryLimit: &successfulJobsHistoryLimit,
+			FailedJobsHistoryLimit:     &failedJobsHistoryLimit,
 			JobTemplate: v1beta1.JobTemplateSpec{
 				Spec: batchv1.JobSpec{
 					Template: corev1.PodTemplateSpec{
@@ -570,7 +574,18 @@ func newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdi
 		dv.Labels = make(map[string]string)
 	}
 	dv.Labels[labelDataImportCronName] = cron.Name
+	passCronAnnotationToDv(cron, dv, AnnImmediateBinding)
+	passCronAnnotationToDv(cron, dv, AnnPodRetainAfterCompletion)
 	return dv
+}
+
+func passCronAnnotationToDv(cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume, ann string) {
+	if val := cron.Annotations[ann]; val != "" {
+		if dv.Annotations == nil {
+			dv.Annotations = make(map[string]string)
+		}
+		dv.Annotations[ann] = val
+	}
 }
 
 func newDataSource(cron *cdiv1.DataImportCron) *cdiv1.DataSource {
@@ -607,6 +622,7 @@ func createDvName(prefix, digest string) string {
 	return prefix + "-" + digest[fromIdx:toIdx]
 }
 
-func getCronJobName(cron *cdiv1.DataImportCron) string {
+// GetCronJobName get CronJob name based on cron name and UID
+func GetCronJobName(cron *cdiv1.DataImportCron) string {
 	return cron.Name + "-" + string(cron.UID)[:cronJobUIDSuffixLength]
 }
