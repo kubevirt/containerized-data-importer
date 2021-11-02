@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -68,10 +69,20 @@ func main() {
 			cmd += ":" + secretKey
 		}
 	}
-	cmd += " " + url + " | awk -F'\"' '/Digest/{print $4}'"
-	digest, err := cmdRun(cmd)
+	cmd += " " + url
+	out, err := cmdRun(cmd)
 	if err != nil {
 		os.Exit(1)
+	}
+	fmt.Println("out:", out)
+
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		log.Fatalf("Failed Unmarshal: %v", err)
+	}
+	digest, ok := result["Digest"].(string)
+	if !ok {
+		log.Fatalf("Failed reading digest")
 	}
 	fmt.Println("Digest is", digest)
 
