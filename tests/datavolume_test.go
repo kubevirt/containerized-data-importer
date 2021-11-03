@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -75,6 +76,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	}
 	tinyCoreIsoRegistryProxyURL := func() string {
 		return fmt.Sprintf(utils.TinyCoreIsoRegistryProxyURL, f.CdiInstallNs)
+	}
+	tinyCoreIsoAuthURL := func() string {
+		return fmt.Sprintf(utils.TinyCoreIsoAuthURL, f.CdiInstallNs)
 	}
 	tarArchiveURL := func() string {
 		return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs)
@@ -266,6 +270,32 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			cm, err := utils.CreateCertConfigMapWeirdFilename(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 			Expect(err).To(BeNil())
 			dataVolume.Spec.Source.HTTP.CertConfigMap = cm
+			return dataVolume
+		}
+
+		createHTTPExtraHeaders := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			credentials := fmt.Sprintf("%s:%s", utils.AccessKeyValue, utils.SecretKeyValue)
+			credentials = base64.StdEncoding.EncodeToString([]byte(credentials))
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, url)
+			dataVolume.Spec.Source.HTTP.ExtraHeaders = []string{
+				fmt.Sprintf("Authorization: Basic %s", credentials),
+			}
+			return dataVolume
+		}
+
+		createHTTPSecretExtraHeaders := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			credentials := fmt.Sprintf("%s:%s", utils.AccessKeyValue, utils.SecretKeyValue)
+			credentials = base64.StdEncoding.EncodeToString([]byte(credentials))
+			secretRef := "secretheaders"
+			stringData := map[string]string{
+				"secret": fmt.Sprintf("Authorization: Basic %s", credentials),
+			}
+
+			secret, err := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, secretRef))
+			Expect(err).ToNot(HaveOccurred())
+
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, url)
+			dataVolume.Spec.Source.HTTP.SecretExtraHeaders = []string{secret.Name}
 			return dataVolume
 		}
 
@@ -543,6 +573,54 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:    cdiv1.DataVolumeBound,
 					Status:  v1.ConditionTrue,
 					Message: "PVC dv-https-import-qcow2 Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("succeed creating import dv with custom https headers", dataVolumeTestArguments{
+				name:             "dv-http-import-headers",
+				size:             "1Gi",
+				url:              tinyCoreIsoAuthURL,
+				dvFunc:           createHTTPExtraHeaders,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-http-import-headers Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("succeed creating import dv with custom https headers from a secret", dataVolumeTestArguments{
+				name:             "dv-http-import-headers",
+				size:             "1Gi",
+				url:              tinyCoreIsoAuthURL,
+				dvFunc:           createHTTPSecretExtraHeaders,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-http-import-headers Bound",
 					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
