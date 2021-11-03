@@ -49,20 +49,19 @@ import (
 
 // DataImportCronReconciler members
 type DataImportCronReconciler struct {
-	client       client.Client
-	recorder     record.EventRecorder
-	scheme       *runtime.Scheme
-	log          logr.Logger
-	image        string
-	pullPolicy   string
-	cdiNamespace string
+	client         client.Client
+	uncachedClient client.Client
+	recorder       record.EventRecorder
+	scheme         *runtime.Scheme
+	log            logr.Logger
+	image          string
+	pullPolicy     string
+	cdiNamespace   string
 }
 
 const (
 	// AnnSourceDesiredDigest is the digest of the pending updated image
 	AnnSourceDesiredDigest = AnnAPIGroup + "/storage.import.sourceDesiredDigest"
-	// AnnCronInitialized indicates the cron was initialized
-	AnnCronInitialized = AnnAPIGroup + "/storage.import.cronInitialized"
 	// AnnNextCronTime is the next time stamp which satisfies the cron expression
 	AnnNextCronTime = AnnAPIGroup + "/storage.import.nextCronTime"
 
@@ -90,49 +89,28 @@ func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.
 		err := r.cleanup(ctx, dataImportCron)
 		return reconcile.Result{}, err
 	}
-	if dataImportCron.Annotations[AnnCronInitialized] != "true" {
-		return r.initCron(ctx, dataImportCron)
+	if err := r.initCron(ctx, dataImportCron); err != nil {
+		return reconcile.Result{}, err
 	}
 	return r.update(ctx, dataImportCron)
 }
 
-func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
-	res := reconcile.Result{}
+func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
 	if dataImportCron.Annotations == nil {
 		dataImportCron.Annotations = make(map[string]string)
 	}
-
-	regSource, err := getCronRegistrySource(dataImportCron)
-	if err != nil {
-		return res, err
-	}
-
-	if regSource.ImageStream != nil {
-		if err := r.updateImageStreamDesiredDigest(ctx, dataImportCron); err != nil {
-			return res, err
-		}
-		res, err = r.setNextCronTime(dataImportCron)
-		if err != nil {
-			return res, err
-		}
-	} else if regSource.URL != nil {
+	if isUrlSource(dataImportCron) && !r.cronJobExists(ctx, dataImportCron) {
 		cronJob, err := r.newCronJob(dataImportCron)
 		if err != nil {
-			return res, err
+			return err
 		}
 		AddFinalizer(dataImportCron, dataImportCronFinalizer)
 		if err := r.client.Create(ctx, cronJob); err != nil {
 			r.log.Error(err, "Unable to create CronJob")
-			return res, err
+			return err
 		}
 	}
-
-	dataImportCron.Annotations[AnnCronInitialized] = "true"
-	if err := r.client.Update(ctx, dataImportCron); err != nil {
-		r.log.Error(err, "Unable to update DataImportCron", "Name", dataImportCron.Name)
-		return res, err
-	}
-	return res, nil
+	return nil
 }
 
 func (r *DataImportCronReconciler) getImageStream(ctx context.Context, imageStreamName, imageStreamNamespace string) (*imagev1.ImageStream, error) {
@@ -162,13 +140,15 @@ func getImageStreamDigest(imageStream *imagev1.ImageStream) (string, error) {
 }
 
 func (r *DataImportCronReconciler) pollImageStreamDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
-	nextTime, err := time.Parse(time.RFC3339, dataImportCron.Annotations[AnnNextCronTime])
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-	if nextTime.Before(time.Now()) {
-		if err := r.updateImageStreamDesiredDigest(ctx, dataImportCron); err != nil {
+	if nextTimeStr := dataImportCron.Annotations[AnnNextCronTime]; nextTimeStr != "" {
+		nextTime, err := time.Parse(time.RFC3339, nextTimeStr)
+		if err != nil {
 			return reconcile.Result{}, err
+		}
+		if nextTime.Before(time.Now()) {
+			if err := r.updateImageStreamDesiredDigest(ctx, dataImportCron); err != nil {
+				return reconcile.Result{}, err
+			}
 		}
 	}
 	return r.setNextCronTime(dataImportCron)
@@ -188,6 +168,16 @@ func (r *DataImportCronReconciler) setNextCronTime(dataImportCron *cdiv1.DataImp
 	return res, err
 }
 
+func isImageStreamSource(dataImportCron *cdiv1.DataImportCron) bool {
+	regSource, err := getCronRegistrySource(dataImportCron)
+	return err == nil && regSource.ImageStream != nil
+}
+
+func isUrlSource(dataImportCron *cdiv1.DataImportCron) bool {
+	regSource, err := getCronRegistrySource(dataImportCron)
+	return err == nil && regSource.URL != nil
+}
+
 func getCronRegistrySource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourceRegistry, error) {
 	source := cron.Spec.Template.Spec.Source
 	if source == nil || source.Registry == nil {
@@ -200,7 +190,6 @@ func getCronRegistrySource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourceR
 func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
 	log := r.log.WithName("update")
 	res := reconcile.Result{}
-
 	dvName := dataImportCron.Status.CurrentImportDataVolumeName
 	if dvName != "" {
 		// Get the currently imported DataVolume
@@ -230,7 +219,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 
 	// We use the poller returned reconcile.Result for RequeueAfter if needed
 	var err error
-	if dataImportCron.Annotations[AnnNextCronTime] != "" {
+	if isImageStreamSource(dataImportCron) {
 		res, err = r.pollImageStreamDigest(ctx, dataImportCron)
 		if err != nil {
 			return res, err
@@ -403,14 +392,22 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 
 // NewDataImportCronController creates a new instance of the DataImportCron controller
 func NewDataImportCronController(mgr manager.Manager, log logr.Logger, importerImage, pullPolicy string) (controller.Controller, error) {
+	uncachedClient, err := client.New(mgr.GetConfig(), client.Options{
+		Scheme: mgr.GetScheme(),
+		Mapper: mgr.GetRESTMapper(),
+	})
+	if err != nil {
+		return nil, err
+	}
 	reconciler := &DataImportCronReconciler{
-		client:       mgr.GetClient(),
-		recorder:     mgr.GetEventRecorderFor(dataImportControllerName),
-		scheme:       mgr.GetScheme(),
-		log:          log.WithName(dataImportControllerName),
-		image:        importerImage,
-		pullPolicy:   pullPolicy,
-		cdiNamespace: util.GetNamespace(),
+		client:         mgr.GetClient(),
+		uncachedClient: uncachedClient,
+		recorder:       mgr.GetEventRecorderFor(dataImportControllerName),
+		scheme:         mgr.GetScheme(),
+		log:            log.WithName(dataImportControllerName),
+		image:          importerImage,
+		pullPolicy:     pullPolicy,
+		cdiNamespace:   util.GetNamespace(),
 	}
 	dataImportCronController, err := controller.New(dataImportControllerName, mgr, controller.Options{Reconciler: reconciler})
 	if err != nil {
@@ -440,6 +437,12 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 	return nil
+}
+
+func (r *DataImportCronReconciler) cronJobExists(ctx context.Context, cron *cdiv1.DataImportCron) bool {
+	var cronJob v1beta1.CronJob
+	cronJobNamespacedName := types.NamespacedName{Namespace: r.cdiNamespace, Name: getCronJobName(cron)}
+	return r.uncachedClient.Get(ctx, cronJobNamespacedName, &cronJob) == nil
 }
 
 func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1beta1.CronJob, error) {
