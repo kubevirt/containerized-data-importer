@@ -104,7 +104,6 @@ func main() {
 			dataImportCron.Annotations = make(map[string]string)
 		}
 		dataImportCron.Annotations[controller.AnnSourceDesiredDigest] = digest
-		dataImportCron.Annotations[controller.AnnSourceUpdatePending] = "true"
 		dataImportCron, err = cdiClient.CdiV1beta1().DataImportCrons(cronNamespace).Update(context.TODO(), dataImportCron, metav1.UpdateOptions{})
 		if err != nil {
 			log.Fatalf("Failed updating DataImportCron, cronNamespace %s cronName %s: %v", cronNamespace, cronName, err)
