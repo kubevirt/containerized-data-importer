@@ -1266,7 +1266,7 @@ var _ = Describe("Preallocation", func() {
 				Skip("Storage Class for block volume is not available")
 			}
 
-			return utils.NewDataVolumeForBlankRawImageBlock("import-dv", "100Mi", f.BlockSCName)
+			return utils.NewDataVolumeForBlankRawImageBlock("import-dv", "1Gi", f.BlockSCName)
 		}),
 	)
 
