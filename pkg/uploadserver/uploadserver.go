@@ -39,6 +39,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -137,6 +138,9 @@ func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsC
 	}
 	for _, path := range common.AsyncUploadPaths {
 		server.mux.HandleFunc(path, server.uploadHandlerAsync(bodyReadCloser))
+	}
+	for _, path := range common.ArchiveUploadPaths {
+		server.mux.HandleFunc(path, server.uploadArchiveHandler(bodyReadCloser))
 	}
 	for _, path := range common.SyncUploadFormPaths {
 		server.mux.HandleFunc(path, server.uploadHandler(formReadCloser))
@@ -360,39 +364,53 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 	}
 }
 
+func (app *uploadServerApp) processUpload(irc imageReadCloser, w http.ResponseWriter, r *http.Request, dvContentType cdiv1.DataVolumeContentType) {
+	if !app.validateShouldHandleRequest(w, r) {
+		return
+	}
+
+	cdiContentType := r.Header.Get(common.UploadContentTypeHeader)
+
+	klog.Infof("Content type header is %q\n", cdiContentType)
+
+	readCloser, err := irc(r)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	app.preallocationApplied, err = uploadProcessorFunc(readCloser, app.destination, app.imageSize, app.filesystemOverhead, app.preallocation, cdiContentType, dvContentType)
+
+	app.mutex.Lock()
+	defer app.mutex.Unlock()
+
+	if err != nil {
+		klog.Errorf("Saving stream failed: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		app.uploading = false
+		return
+	}
+
+	app.uploading = false
+	app.done = true
+
+	close(app.doneChan)
+
+	if dvContentType == cdiv1.DataVolumeArchive {
+		klog.Infof("Wrote archive data")
+	} else {
+		klog.Infof("Wrote data to %s", app.destination)
+	}
+}
+
 func (app *uploadServerApp) uploadHandler(irc imageReadCloser) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !app.validateShouldHandleRequest(w, r) {
-			return
-		}
+		app.processUpload(irc, w, r, cdiv1.DataVolumeKubeVirt)
+	}
+}
 
-		cdiContentType := r.Header.Get(common.UploadContentTypeHeader)
-
-		klog.Infof("Content type header is %q\n", cdiContentType)
-
-		readCloser, err := irc(r)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-		}
-
-		app.preallocationApplied, err = uploadProcessorFunc(readCloser, app.destination, app.imageSize, app.filesystemOverhead, app.preallocation, cdiContentType)
-
-		app.mutex.Lock()
-		defer app.mutex.Unlock()
-
-		if err != nil {
-			klog.Errorf("Saving stream failed: %s", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			app.uploading = false
-			return
-		}
-
-		app.uploading = false
-		app.done = true
-
-		close(app.doneChan)
-
-		klog.Infof("Wrote data to %s", app.destination)
+func (app *uploadServerApp) uploadArchiveHandler(irc imageReadCloser) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		app.processUpload(irc, w, r, cdiv1.DataVolumeArchive)
 	}
 }
 
@@ -410,13 +428,13 @@ func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string,
 	return processor, processor.ProcessDataWithPause()
 }
 
-func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string) (bool, error) {
+func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string, dvContentType cdiv1.DataVolumeContentType) (bool, error) {
 	if sourceContentType == common.FilesystemCloneContentType {
 		return false, filesystemCloneProcessor(stream, dest)
 	}
 
 	// Clone block device to block device or file system
-	uds := importer.NewUploadDataSource(newContentReader(stream, sourceContentType))
+	uds := importer.NewUploadDataSource(newContentReader(stream, sourceContentType), dvContentType)
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
 	err := processor.ProcessData()
 	return processor.PreallocationApplied(), err

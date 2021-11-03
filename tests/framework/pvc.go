@@ -209,9 +209,9 @@ func (f *Framework) VerifyBlankDisk(namespace *k8sv1.Namespace, pvc *k8sv1.Persi
 }
 
 // VerifySparse checks a disk image being sparse after creation/resize.
-func (f *Framework) VerifySparse(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
+func (f *Framework) VerifySparse(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, imagePath string) (bool, error) {
 	var info image.ImgInfo
-	err := f.GetImageInfo(namespace, pvc, &info)
+	err := f.GetImageInfo(namespace, pvc, imagePath, &info)
 	if err != nil {
 		return false, err
 	}
@@ -226,7 +226,7 @@ func (f *Framework) VerifyFSOverhead(namespace *k8sv1.Namespace, pvc *k8sv1.Pers
 	}
 
 	var info image.ImgInfo
-	err := f.GetImageInfo(namespace, pvc, &info)
+	err := f.GetImageInfo(namespace, pvc, utils.DefaultImagePath, &info)
 	if err != nil {
 		return false, err
 	}
@@ -238,7 +238,7 @@ func (f *Framework) VerifyFSOverhead(namespace *k8sv1.Namespace, pvc *k8sv1.Pers
 // VerifyImagePreallocated checks that image's virtual size is roughly equal to actual size
 func (f *Framework) VerifyImagePreallocated(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
 	var info image.ImgInfo
-	err := f.GetImageInfo(namespace, pvc, &info)
+	err := f.GetImageInfo(namespace, pvc, utils.DefaultImagePath, &info)
 	if err != nil {
 		return false, err
 	}
@@ -438,8 +438,8 @@ func addVolumeMounts(pvc *k8sv1.PersistentVolumeClaim, volumeName string) []k8sv
 }
 
 // GetImageInfo returns qemu-img information about given image
-func (f *Framework) GetImageInfo(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, info *image.ImgInfo) error {
-	cmd := fmt.Sprintf("qemu-img info %s/disk.img --output=json", utils.DefaultPvcMountPath)
+func (f *Framework) GetImageInfo(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, imagePath string, info *image.ImgInfo) error {
+	cmd := fmt.Sprintf("qemu-img info %s --output=json", imagePath)
 
 	_, err := f.verifyInPod(namespace, pvc, cmd, func(output, stderr string) (bool, error) {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: qemu-img info output %s\n", output)

@@ -87,6 +87,11 @@ spec:
 ```bash
 kubectl apply -f manifests/example/upload-datavolume.yaml
 ```
+### Create a Data Volume for archive upload
+
+You can also upload an archive. Specifying in the data volume spec: `contentType: archive`
+will mark the datavolume as archive upload and will handle the content as needed (supports also compressed tar)
+
 
 ## Request an Upload Token
 Before sending data to the Upload Proxy, an Upload Token must be requested.
@@ -158,3 +163,7 @@ As soon as the data has been transmitted, the connection will be closed. The cal
 
 
 Assuming you did not get an error, the Datavolume `upload-datavolume` should now contain a bootable VM image.
+
+### Using Kubevirt image upload
+
+If you have also [Kubevirt](https://github.com/kubevirt/kubevirt) extension you can use `virtctl image-upload`. For examples check out image-upload help.

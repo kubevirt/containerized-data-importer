@@ -215,6 +215,12 @@ const (
 	// UploadPathAsync is the path to POST CDI uploads in async mode
 	UploadPathAsync = "/v1beta1/upload-async"
 
+	// UploadArchivePath is the path to POST CDI archive uploads
+	UploadArchivePath = "/v1beta1/upload-archive"
+
+	// UploadArchiveAlphaPath is the path to POST CDI alpha archive uploads
+	UploadArchiveAlphaPath = "/v1alpha1/upload-archive"
+
 	// UploadFormSync is the path to POST CDI uploads as form data
 	UploadFormSync = "/v1beta1/upload-form"
 
@@ -241,6 +247,12 @@ var SyncUploadPaths = []string{
 var AsyncUploadPaths = []string{
 	UploadPathAsync,
 	"/v1alpha1/upload-async",
+}
+
+// ArchiveUploadPaths are paths to POST CDI uploads of archive
+var ArchiveUploadPaths = []string{
+	UploadArchivePath,
+	UploadArchiveAlphaPath,
 }
 
 // SyncUploadFormPaths are paths to POST CDI uploads as form data

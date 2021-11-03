@@ -12,7 +12,6 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -159,7 +158,7 @@ func setupProxyTests(handler http.HandlerFunc) *uploadProxyApp {
 		return server.URL
 	}
 
-	pvc := &corev1.PersistentVolumeClaim{
+	pvc := &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testpvc",
 			Namespace: "default",

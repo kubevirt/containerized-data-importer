@@ -36,6 +36,7 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
@@ -88,11 +89,11 @@ func newHTTPClient(clientKeyPair *triple.KeyPair, serverCACert *x509.Certificate
 	return client
 }
 
-func saveProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (bool, error) {
+func saveProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string, dvContentType cdiv1.DataVolumeContentType) (bool, error) {
 	return false, nil
 }
 
-func saveProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (bool, error) {
+func saveProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string, dvContentType cdiv1.DataVolumeContentType) (bool, error) {
 	return false, fmt.Errorf("Error using datastream")
 }
 
@@ -104,7 +105,7 @@ func withProcessorFailure(f func()) {
 	replaceProcessorFunc(saveProcessorFailure, f)
 }
 
-func replaceProcessorFunc(replacement func(io.ReadCloser, string, string, float64, bool, string) (bool, error), f func()) {
+func replaceProcessorFunc(replacement func(io.ReadCloser, string, string, float64, bool, string, cdiv1.DataVolumeContentType) (bool, error), f func()) {
 	origProcessorFunc := uploadProcessorFunc
 	uploadProcessorFunc = replacement
 	defer func() {
@@ -209,7 +210,7 @@ var _ = Describe("Upload server tests", func() {
 
 	table.DescribeTable("Process unavailable", func(uploadPath string) {
 		withProcessorSuccess(func() {
-			req, err := http.NewRequest("POST", common.UploadPathAsync, strings.NewReader("data"))
+			req, err := http.NewRequest("POST", uploadPath, strings.NewReader("data"))
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -224,6 +225,7 @@ var _ = Describe("Upload server tests", func() {
 	},
 		table.Entry("async", common.UploadPathAsync),
 		table.Entry("sync", common.UploadPathSync),
+		table.Entry("archive", common.UploadArchivePath),
 		table.Entry("form async", common.UploadFormAsync),
 		table.Entry("form sync", common.UploadFormSync),
 	)
@@ -245,6 +247,7 @@ var _ = Describe("Upload server tests", func() {
 	},
 		table.Entry("async", common.UploadPathAsync),
 		table.Entry("sync", common.UploadPathSync),
+		table.Entry("archive", common.UploadArchivePath),
 		table.Entry("form async", common.UploadFormAsync),
 		table.Entry("form sync", common.UploadFormSync),
 	)
@@ -314,6 +317,7 @@ var _ = Describe("Upload server tests", func() {
 	},
 		table.Entry("async", withAsyncProcessorFailure, common.UploadPathAsync),
 		table.Entry("sync", withProcessorFailure, common.UploadPathSync),
+		table.Entry("archive", withProcessorFailure, common.UploadArchivePath),
 	)
 
 	table.DescribeTable("Stream fail form", func(processorFunc func(func()), uploadPath string) {

@@ -775,7 +775,7 @@ var _ = Describe("all clone tests", func() {
 			matchFile := filepath.Join(testBaseDir, "disk.img")
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv), matchFile, md5sum[:32])).To(BeTrue())
 			By("Verifying the image is sparse")
-			Expect(f.VerifySparse(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv))).To(BeTrue())
+			Expect(f.VerifySparse(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv), utils.DefaultImagePath)).To(BeTrue())
 			By("Deleting verifier pod")
 			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 			Expect(err).ToNot(HaveOccurred())

@@ -655,12 +655,20 @@ func createStorageClass(name string, annotations map[string]string) *storagev1.S
 func createStorageProfile(name string,
 	accessModes []v1.PersistentVolumeAccessMode,
 	volumeMode v1.PersistentVolumeMode) *cdiv1.StorageProfile {
-	return createStorageProfileWithCloneStrategy(name, accessModes, volumeMode, nil)
+	claimPropertySets := []cdiv1.ClaimPropertySet{{
+		AccessModes: accessModes,
+		VolumeMode:  &volumeMode,
+	}}
+	return createStorageProfileWithClaimPropertySets(name, claimPropertySets)
+}
+
+func createStorageProfileWithClaimPropertySets(name string,
+	claimPropertySets []cdiv1.ClaimPropertySet) *cdiv1.StorageProfile {
+	return createStorageProfileWithCloneStrategy(name, claimPropertySets, nil)
 }
 
 func createStorageProfileWithCloneStrategy(name string,
-	accessModes []v1.PersistentVolumeAccessMode,
-	volumeMode v1.PersistentVolumeMode,
+	claimPropertySets []cdiv1.ClaimPropertySet,
 	cloneStrategy *cdiv1.CDICloneStrategy) *cdiv1.StorageProfile {
 
 	return &cdiv1.StorageProfile{
@@ -668,12 +676,9 @@ func createStorageProfileWithCloneStrategy(name string,
 			Name: name,
 		},
 		Status: cdiv1.StorageProfileStatus{
-			StorageClass: &name,
-			ClaimPropertySets: []cdiv1.ClaimPropertySet{{
-				AccessModes: accessModes,
-				VolumeMode:  &volumeMode,
-			}},
-			CloneStrategy: cloneStrategy,
+			StorageClass:      &name,
+			ClaimPropertySets: claimPropertySets,
+			CloneStrategy:     cloneStrategy,
 		},
 	}
 }

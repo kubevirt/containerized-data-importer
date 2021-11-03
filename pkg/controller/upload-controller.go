@@ -348,8 +348,6 @@ func (r *UploadReconciler) findUploadPodForPvc(pvc *v1.PersistentVolumeClaim, lo
 }
 
 func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, podName, scratchPVCName, clientName string) (*v1.Pod, error) {
-	pod := &corev1.Pod{}
-
 	serverCert, serverKey, err := r.serverCertGenerator.MakeServerCert(pvc.Namespace, naming.GetServiceNameFromResourceName(podName), uploadServerCertDuration)
 	if err != nil {
 		return nil, err
@@ -383,7 +381,7 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 	}
 
 	r.log.V(3).Info("Creating upload pod")
-	pod, err = r.createUploadPod(args)
+	pod, err := r.createUploadPod(args)
 	if err != nil {
 		return nil, err
 	}
