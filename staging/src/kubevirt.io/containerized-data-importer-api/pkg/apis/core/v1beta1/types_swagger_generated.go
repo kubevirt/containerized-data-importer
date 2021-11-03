@@ -240,18 +240,26 @@ func (DataImportCronSpec) SwaggerDoc() map[string]string {
 		"template":          "Template specifies template for the DVs to be created",
 		"schedule":          "Schedule specifies in cron format when and how often to look for new imports",
 		"garbageCollect":    "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported.\nOptions are currently \"Never\" and \"Outdated\", defaults to \"Never\".\n+optional",
+		"importsToKeep":     "Number of import PVCs to keep when garbage collecting. Default is 3.\n+optional",
 		"managedDataSource": "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage.\nDataSource has to be in the same namespace.",
 	}
 }
 
 func (DataImportCronStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                            "DataImportCronStatus provides the most recently observed status of the DataImportCron",
-		"currentImportDataVolumeName": "CurrentImportDataVolumeName is the current import DataVolume",
-		"currentImportDigest":         "CurrentImportDigest is the digest of the currently imported image",
-		"lastImportedPVC":             "LastImportedPVC is the last imported PVC",
-		"lastExecutionTimestamp":      "LastExecutionTimestamp is the time of the last polling",
-		"lastImportTimestamp":         "LastImportTimestamp is the time of the last import",
+		"":                       "DataImportCronStatus provides the most recently observed status of the DataImportCron",
+		"currentImports":         "CurrentImports are the imports in progress. Currently only a single import is supported.",
+		"lastImportedPVC":        "LastImportedPVC is the last imported PVC",
+		"lastExecutionTimestamp": "LastExecutionTimestamp is the time of the last polling",
+		"lastImportTimestamp":    "LastImportTimestamp is the time of the last import",
+	}
+}
+
+func (ImportStatus) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":               "ImportStatus of a currently in progress import",
+		"DataVolumeName": "DataVolumeName is the currently in progress import DataVolume",
+		"Digest":         "Digest of the currently imported image",
 	}
 }
 

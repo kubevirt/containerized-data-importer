@@ -122,13 +122,22 @@ func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *a
 		return causes
 	}
 
+	if spec.ImportsToKeep != nil && *spec.ImportsToKeep < 0 {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Illegal ImportsToKeep value"),
+			Field:   field.Child("ImportsToKeep").String(),
+		})
+		return causes
+	}
+
 	if spec.GarbageCollect != nil &&
 		*spec.GarbageCollect != cdiv1.DataImportCronGarbageCollectNever &&
 		*spec.GarbageCollect != cdiv1.DataImportCronGarbageCollectOutdated {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: fmt.Sprintf("Illegal GarbageCollect value"),
-			Field:   field.Child("Schedule").String(),
+			Field:   field.Child("GarbageCollect").String(),
 		})
 		return causes
 	}

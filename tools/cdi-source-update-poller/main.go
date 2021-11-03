@@ -99,7 +99,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed getting DataImportCron, cronNamespace %s cronName %s: %v", cronNamespace, cronName, err)
 	}
-	if digest != "" && digest != dataImportCron.Status.CurrentImportDigest && digest != dataImportCron.Annotations[controller.AnnSourceDesiredDigest] {
+	imports := dataImportCron.Status.CurrentImports
+	if digest != "" && (imports == nil || digest != imports[0].Digest) &&
+		digest != dataImportCron.Annotations[controller.AnnSourceDesiredDigest] {
 		if dataImportCron.Annotations == nil {
 			dataImportCron.Annotations = make(map[string]string)
 		}

@@ -3746,6 +3746,11 @@ spec:
                   up after a new PVC is imported. Options are currently "Never" and
                   "Outdated", defaults to "Never".
                 type: string
+              importsToKeep:
+                description: Number of import PVCs to keep when garbage collecting.
+                  Default is 3.
+                format: int32
+                type: integer
               managedDataSource:
                 description: ManagedDataSource specifies the name of the corresponding
                   DataSource this cron will manage. DataSource has to be in the same
@@ -4306,13 +4311,24 @@ spec:
                   - type
                   type: object
                 type: array
-              currentImportDataVolumeName:
-                description: CurrentImportDataVolumeName is the current import DataVolume
-                type: string
-              currentImportDigest:
-                description: CurrentImportDigest is the digest of the currently imported
-                  image
-                type: string
+              currentImports:
+                description: CurrentImports are the imports in progress. Currently
+                  only a single import is supported.
+                items:
+                  description: ImportStatus of a currently in progress import
+                  properties:
+                    DataVolumeName:
+                      description: DataVolumeName is the currently in progress import
+                        DataVolume
+                      type: string
+                    Digest:
+                      description: Digest of the currently imported image
+                      type: string
+                  required:
+                  - DataVolumeName
+                  - Digest
+                  type: object
+                type: array
               lastExecutionTimestamp:
                 description: LastExecutionTimestamp is the time of the last polling
                 format: date-time
