@@ -480,6 +480,9 @@ type DataImportCronSpec struct {
 	// Options are currently "Never" and "Outdated", defaults to "Never".
 	// +optional
 	GarbageCollect *DataImportCronGarbageCollect `json:"garbageCollect,omitempty"`
+	// Number of import PVCs to keep when garbage collecting. Default is 3.
+	// +optional
+	ImportsToKeep *int32 `json:"importsToKeep,omitempty"`
 	// ManagedDataSource specifies the name of the corresponding DataSource this cron will manage.
 	// DataSource has to be in the same namespace.
 	ManagedDataSource string `json:"managedDataSource"`
@@ -497,10 +500,8 @@ const (
 
 // DataImportCronStatus provides the most recently observed status of the DataImportCron
 type DataImportCronStatus struct {
-	// CurrentImportDataVolumeName is the current import DataVolume
-	CurrentImportDataVolumeName string `json:"currentImportDataVolumeName,omitempty"`
-	// CurrentImportDigest is the digest of the currently imported image
-	CurrentImportDigest string `json:"currentImportDigest,omitempty"`
+	// CurrentImports are the imports in progress. Currently only a single import is supported.
+	CurrentImports []ImportStatus `json:"currentImports,omitempty"`
 	// LastImportedPVC is the last imported PVC
 	LastImportedPVC *DataVolumeSourcePVC `json:"lastImportedPVC,omitempty"`
 	// LastExecutionTimestamp is the time of the last polling
@@ -508,6 +509,14 @@ type DataImportCronStatus struct {
 	// LastImportTimestamp is the time of the last import
 	LastImportTimestamp *metav1.Time              `json:"lastImportTimestamp,omitempty"`
 	Conditions          []DataImportCronCondition `json:"conditions,omitempty" optional:"true"`
+}
+
+// ImportStatus of a currently in progress import
+type ImportStatus struct {
+	// DataVolumeName is the currently in progress import DataVolume
+	DataVolumeName string `json:"DataVolumeName"`
+	// Digest of the currently imported image
+	Digest string `json:"Digest"`
 }
 
 // DataImportCronCondition represents the state of a data import cron condition

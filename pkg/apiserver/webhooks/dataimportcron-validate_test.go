@@ -126,6 +126,13 @@ var _ = Describe("Validating Webhook", func() {
 			resp := validateDataImportCronCreate(cron)
 			Expect(resp.Allowed).To(Equal(false))
 		})
+		It("should reject DataImportCron with illegal ImportsToKeep on create", func() {
+			var importsToKeep int32 = -1
+			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
+			cron.Spec.ImportsToKeep = &importsToKeep
+			resp := validateDataImportCronCreate(cron)
+			Expect(resp.Allowed).To(Equal(false))
+		})
 		It("should reject DataImportCron with illegal GarbageCollect on create", func() {
 			garbageCollect := cdiv1.DataImportCronGarbageCollect("nosuch")
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
@@ -194,7 +201,7 @@ var _ = Describe("Validating Webhook", func() {
 			oldCron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
 			oldBytes, _ := json.Marshal(oldCron)
 			newCron := oldCron.DeepCopy()
-			newCron.Status.CurrentImportDataVolumeName = "dv"
+			newCron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: "dv", Digest: "abc123"}}
 			newBytes, _ := json.Marshal(&newCron)
 
 			ar := &admissionv1.AdmissionReview{
