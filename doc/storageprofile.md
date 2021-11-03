@@ -44,7 +44,7 @@ Current version supports the following parameters:
 
 Values for accessModes and volumeMode are exactly the same as for PVC: `accessModes` is a list of `[ReadWriteMany|ReadWriteOnce|ReadOnlyMany]`
 and `volumeMode` is a single value `Filesystem` or `Block`.
-The value for `cloneStrategy` ca be one of: `copy`,`snapshot`,`csi-clone`.
+The value for `cloneStrategy` can be one of: `copy`,`snapshot`,`csi-clone`.
 When the value is not specified the CDI will try to use the `snapshot` if possible otherwise it falls back to `copy`. 
 If the storage class (and its provider) is capable of doing CSI Volume Clone then the user may choose `csi-clone` as a preferred clone method.
 

@@ -84,7 +84,6 @@ type imageReadCloser func(*http.Request) (io.ReadCloser, error)
 // may be overridden in tests
 var uploadProcessorFunc = newUploadStreamProcessor
 var uploadProcessorFuncAsync = newAsyncUploadStreamProcessor
-var uploadArchiveProcessorFunc = newUploadArchiveStreamProcessor
 
 func bodyReadCloser(r *http.Request) (io.ReadCloser, error) {
 	return r.Body, nil
@@ -439,17 +438,6 @@ func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, file
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
 	err := processor.ProcessData()
 	return processor.PreallocationApplied(), err
-}
-
-func newUploadArchiveStreamProcessor(stream io.ReadCloser) error {
-	destDir := common.ImporterVolumePath
-	if err := importer.CleanDir(destDir); err != nil {
-		return errors.Wrapf(err, "error removing contents of %s", destDir)
-	}
-	if err := util.UnArchiveTar(stream, destDir); err != nil {
-		return errors.Wrapf(err, "error unarchiving to %s", destDir)
-	}
-	return nil
 }
 
 // Clone file system to block device or file system

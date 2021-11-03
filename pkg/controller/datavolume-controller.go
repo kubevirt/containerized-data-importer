@@ -2617,7 +2617,7 @@ func getDefaultAccessModes(c client.Client, storageClass *storagev1.StorageClass
 		// check for access modes matching with given pvc volume mode
 		defaultAccessModes := []corev1.PersistentVolumeAccessMode{}
 		for _, cps := range storageProfile.Status.ClaimPropertySets {
-			if cps.VolumeMode != nil && *cps.VolumeMode == *pvcVolumeMode {
+			if cps.VolumeMode != nil && pvcVolumeMode != nil && *cps.VolumeMode == *pvcVolumeMode {
 				if len(cps.AccessModes) > 0 {
 					return cps.AccessModes, nil
 				}

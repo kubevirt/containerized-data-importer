@@ -90,7 +90,7 @@ kubectl apply -f manifests/example/upload-datavolume.yaml
 ### Create a Data Volume for archive upload
 
 You can also upload an archive. Specifying in the data volume spec: `contentType: archive`
-will mark the datavolume as archive upload and will untar the received content.
+will mark the datavolume as archive upload and will handle the content as needed (supports also compressed tar)
 
 
 ## Request an Upload Token
