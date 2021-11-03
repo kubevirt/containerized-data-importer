@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
 
 	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/go-logr/logr"
@@ -257,6 +258,40 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 							"5m",
 							map[string]string{
 								"summary": "CDI operator is down",
+							},
+							map[string]string{
+								"severity": "warning",
+							},
+						),
+						generateAlertRule(
+							"CdiNotReady",
+							"cdi_cr_ready == 0",
+							"5m",
+							map[string]string{
+								"summary": "CDI is not available to use",
+							},
+							map[string]string{
+								"severity": "warning",
+							},
+						),
+						generateRecordRule(
+							"cdi_import_dv_unusual_restartcount_total",
+							fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+						),
+						generateRecordRule(
+							"cdi_upload_dv_unusual_restartcount_total",
+							fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
+						),
+						generateRecordRule(
+							"cdi_clone_dv_unusual_restartcount_total",
+							fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+						),
+						generateAlertRule(
+							"CdiDvUnusualRestartCount",
+							"cdi_import_dv_unusual_restartcount_total > 0 or cdi_upload_dv_unusual_restartcount_total > 0 or cdi_clone_dv_unusual_restartcount_total > 0",
+							"5m",
+							map[string]string{
+								"summary": "Cluster has DVs with an unusual restart count, meaning they are probably failing and need to be investigated",
 							},
 							map[string]string{
 								"severity": "warning",

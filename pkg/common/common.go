@@ -144,7 +144,7 @@ const (
 	// SmartClonerCDILabel is the label applied to resources created by the smart-clone controller
 	SmartClonerCDILabel = "cdi-smart-clone"
 
-	// UploaderPodName (controller pkg only)
+	// UploadPodName (controller pkg only)
 	UploadPodName = "cdi-upload"
 	// UploadServerCDILabel is the label applied to upload server resources
 	UploadServerCDILabel = "cdi-upload-server"

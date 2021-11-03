@@ -31,7 +31,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -117,16 +116,6 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 		deployment.Spec.Template.Spec.PriorityClassName = priorityClassName
 	}
 	container := utils.CreateContainer("cdi-controller", controllerImage, verbosity, pullPolicy)
-	container.Ports = []corev1.ContainerPort{
-		{
-			Name:          "metrics",
-			ContainerPort: 8080,
-			Protocol:      "TCP",
-		},
-	}
-	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{common.PrometheusLabelKey: common.PrometheusLabelValue})
-	deployment.SetLabels(labels)
-	deployment.Spec.Template.SetLabels(labels)
 	container.Env = []corev1.EnvVar{
 		{
 			Name:  "IMPORTER_IMAGE",
