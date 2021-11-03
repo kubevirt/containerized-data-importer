@@ -195,10 +195,13 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		// Get the currently imported DataVolume
 		dataVolume := &cdiv1.DataVolume{}
 		if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: dvName}, dataVolume); err != nil {
-			if k8serrors.IsNotFound(err) {
-				log.Info("DataVolume not found", "name", dvName)
+			if !k8serrors.IsNotFound(err) {
+				return res, err
 			}
-			return res, err
+			log.Info("DataVolume not found for some reason, so let's recreate it", "name", dvName)
+			if err := r.createImportDataVolume(ctx, dataImportCron); err != nil {
+				return res, err
+			}
 		}
 
 		now := metav1.Now()
