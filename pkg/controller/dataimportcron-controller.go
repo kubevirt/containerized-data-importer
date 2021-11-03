@@ -61,8 +61,6 @@ type DataImportCronReconciler struct {
 const (
 	// AnnSourceDesiredDigest is the digest of the pending updated image
 	AnnSourceDesiredDigest = AnnAPIGroup + "/storage.import.sourceDesiredDigest"
-	// AnnSourceUpdatePending indicates the source image digest was updated, and the image is pending for import based on the cron schedule
-	AnnSourceUpdatePending = AnnAPIGroup + "/storage.import.sourceUpdatePending"
 	// AnnCronInitialized indicates the cron was initialized
 	AnnCronInitialized = AnnAPIGroup + "/storage.import.cronInitialized"
 	// AnnNextCronTime is the next time stamp which satisfies the cron expression
@@ -168,9 +166,8 @@ func (r *DataImportCronReconciler) pollImageStreamDigest(ctx context.Context, da
 		return reconcile.Result{}, err
 	}
 	if nextTime.Before(time.Now()) {
-		desiredDigest := dataImportCron.Annotations[AnnSourceDesiredDigest]
-		if desiredDigest != "" && desiredDigest != dataImportCron.Status.CurrentImportDigest {
-			dataImportCron.Annotations[AnnSourceUpdatePending] = "true"
+		if err := r.updateImageStreamDesiredDigest(ctx, dataImportCron); err != nil {
+			return reconcile.Result{}, err
 		}
 		return r.setNextCronTime(dataImportCron)
 	}
@@ -231,10 +228,6 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		}
 	}
 
-	if err := r.updateImageStreamDesiredDigest(ctx, dataImportCron); err != nil {
-		return res, err
-	}
-
 	// We use the poller returned reconcile.Result for RequeueAfter if needed
 	var err error
 	if dataImportCron.Annotations[AnnNextCronTime] != "" {
@@ -244,7 +237,8 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		}
 	}
 
-	if dataImportCron.Annotations[AnnSourceUpdatePending] == "true" {
+	desiredDigest := dataImportCron.Annotations[AnnSourceDesiredDigest]
+	if dvName == "" && desiredDigest != "" && desiredDigest != dataImportCron.Status.CurrentImportDigest {
 		if err := r.createImportDataVolume(ctx, dataImportCron); err != nil {
 			return res, err
 		}
@@ -348,7 +342,6 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 	// Update references to current import
 	dataImportCron.Status.CurrentImportDataVolumeName = dvName
 	dataImportCron.Status.CurrentImportDigest = digest
-	dataImportCron.Annotations[AnnSourceUpdatePending] = "false"
 	return nil
 }
 
