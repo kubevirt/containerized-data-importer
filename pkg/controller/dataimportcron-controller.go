@@ -74,6 +74,7 @@ const (
 	recentImportsToKeepPerCronJob = 3
 	digestPrefix                  = "sha256:"
 	digestDvNameSuffixLength      = 12
+	cronJobUidSuffixLength        = 8
 )
 
 // Reconcile loop for DataImportCronReconciler
@@ -119,11 +120,11 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 		if err != nil {
 			return res, err
 		}
+		AddFinalizer(dataImportCron, dataImportCronFinalizer)
 		if err := r.client.Create(ctx, cronJob); err != nil {
 			r.log.Error(err, "Unable to create CronJob")
 			return res, err
 		}
-		AddFinalizer(dataImportCron, dataImportCronFinalizer)
 	}
 
 	dataImportCron.Annotations[AnnCronInitialized] = "true"
@@ -169,9 +170,8 @@ func (r *DataImportCronReconciler) pollImageStreamDigest(ctx context.Context, da
 		if err := r.updateImageStreamDesiredDigest(ctx, dataImportCron); err != nil {
 			return reconcile.Result{}, err
 		}
-		return r.setNextCronTime(dataImportCron)
 	}
-	return reconcile.Result{}, nil
+	return r.setNextCronTime(dataImportCron)
 }
 
 func (r *DataImportCronReconciler) setNextCronTime(dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
@@ -261,6 +261,9 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 	}
 	imageStream, err := r.getImageStream(ctx, *regSource.ImageStream, dataImportCron.Namespace)
 	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil
+		}
 		return err
 	}
 	digest, err := getImageStreamDigest(imageStream)
@@ -387,7 +390,7 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 	if !HasFinalizer(dataImportCron, dataImportCronFinalizer) {
 		return nil
 	}
-	cronJob := &v1beta1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: dataImportCron.Name}}
+	cronJob := &v1beta1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: getCronJobName(dataImportCron)}}
 	if err := r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
 		return err
 	}
@@ -498,7 +501,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 
 	job := &v1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cron.Name,
+			Name:      getCronJobName(cron),
 			Namespace: r.cdiNamespace,
 		},
 		Spec: v1beta1.CronJobSpec{
@@ -584,4 +587,8 @@ func createDvName(prefix, digest string) string {
 	fromIdx := len(digestPrefix)
 	toIdx := fromIdx + digestDvNameSuffixLength
 	return prefix + "-" + digest[fromIdx:toIdx]
+}
+
+func getCronJobName(cron *cdiv1.DataImportCron) string {
+	return cron.Name + "-" + string(cron.UID)[:cronJobUidSuffixLength]
 }
