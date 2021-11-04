@@ -71,7 +71,7 @@ var (
 	log        = logf.Log.WithName("cdi-operator")
 	readyGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "cdi_cr_ready",
+			Name: "kubevirt_cdi_cr_ready",
 			Help: "CDI CR Ready",
 		})
 )

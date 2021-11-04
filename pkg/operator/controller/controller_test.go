@@ -322,7 +322,7 @@ var _ = Describe("Controller", func() {
 				validateEvents(args.reconciler, createReadyEventValidationMap())
 			})
 
-			It("should have CdiOperatorDown", func() {
+			It("should have CDIOperatorDown", func() {
 				args := createArgs()
 				doReconcile(args)
 				Expect(setDeploymentsReady(args)).To(BeTrue())
@@ -337,11 +337,12 @@ var _ = Describe("Controller", func() {
 				Expect(err).ToNot(HaveOccurred())
 				rule = obj.(*promv1.PrometheusRule)
 				cdiDownAlert := promv1.Rule{
-					Alert: "CdiOperatorDown",
-					Expr:  intstr.FromString("cdi_num_up_operators == 0"),
+					Alert: "CDIOperatorDown",
+					Expr:  intstr.FromString("kubevirt_cdi_num_up_operators == 0"),
 					For:   "5m",
 					Annotations: map[string]string{
-						"summary": "CDI operator is down",
+						"summary":     "CDI operator is down",
+						"runbook_url": runbookURLBasePath + "CDIOperatorDown",
 					},
 					Labels: map[string]string{
 						"severity": "warning",

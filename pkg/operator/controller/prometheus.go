@@ -44,6 +44,7 @@ const (
 	rbacName            = "cdi-monitoring"
 	monitorName         = "service-monitor-cdi"
 	defaultMonitoringNs = "monitoring"
+	runbookURLBasePath  = "https://kubevirt.io/monitoring/runbooks/"
 )
 
 func ensurePrometheusRuleExists(logger logr.Logger, c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
@@ -249,49 +250,52 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 					Name: "cdi.rules",
 					Rules: []promv1.Rule{
 						generateRecordRule(
-							"cdi_num_up_operators",
+							"kubevirt_cdi_num_up_operators",
 							fmt.Sprintf("sum(up{namespace='%s', pod=~'cdi-operator-.*'} or vector(0))", namespace),
 						),
 						generateAlertRule(
-							"CdiOperatorDown",
-							"cdi_num_up_operators == 0",
+							"CDIOperatorDown",
+							"kubevirt_cdi_num_up_operators == 0",
 							"5m",
 							map[string]string{
-								"summary": "CDI operator is down",
+								"summary":     "CDI operator is down",
+								"runbook_url": runbookURLBasePath + "CDIOperatorDown",
 							},
 							map[string]string{
 								"severity": "warning",
 							},
 						),
 						generateAlertRule(
-							"CdiNotReady",
-							"cdi_cr_ready == 0",
+							"CDINotReady",
+							"kubevirt_cdi_cr_ready == 0",
 							"5m",
 							map[string]string{
-								"summary": "CDI is not available to use",
+								"summary":     "CDI is not available to use",
+								"runbook_url": runbookURLBasePath + "CDINotReady",
 							},
 							map[string]string{
 								"severity": "warning",
 							},
 						),
 						generateRecordRule(
-							"cdi_import_dv_unusual_restartcount_total",
+							"kubevirt_cdi_import_dv_unusual_restartcount_total",
 							fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
 						),
 						generateRecordRule(
-							"cdi_upload_dv_unusual_restartcount_total",
+							"kubevirt_cdi_upload_dv_unusual_restartcount_total",
 							fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
 						),
 						generateRecordRule(
-							"cdi_clone_dv_unusual_restartcount_total",
+							"kubevirt_cdi_clone_dv_unusual_restartcount_total",
 							fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
 						),
 						generateAlertRule(
-							"CdiDvUnusualRestartCount",
-							"cdi_import_dv_unusual_restartcount_total > 0 or cdi_upload_dv_unusual_restartcount_total > 0 or cdi_clone_dv_unusual_restartcount_total > 0",
+							"CDIDataVolumeUnusualRestartCount",
+							"kubevirt_cdi_import_dv_unusual_restartcount_total > 0 or kubevirt_cdi_upload_dv_unusual_restartcount_total > 0 or kubevirt_cdi_clone_dv_unusual_restartcount_total > 0",
 							"5m",
 							map[string]string{
-								"summary": "Cluster has DVs with an unusual restart count, meaning they are probably failing and need to be investigated",
+								"summary":     "Cluster has DVs with an unusual restart count, meaning they are probably failing and need to be investigated",
+								"runbook_url": runbookURLBasePath + "CDIDataVolumeUnusualRestartCount",
 							},
 							map[string]string{
 								"severity": "warning",

@@ -3,7 +3,9 @@ package tests
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"reflect"
@@ -15,6 +17,7 @@ import (
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
 	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -233,4 +236,46 @@ func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions
 		}
 	}
 	return nil
+}
+
+// MakePrometheusHTTPRequest makes a request to the prometheus api and returns the response
+func MakePrometheusHTTPRequest(f *framework.Framework, endpoint string) *http.Response {
+	var token, host string
+	var err error
+	var resp *http.Response
+
+	gomega.Eventually(func() bool {
+		host, err = RunOcCommand(f, "-n", "openshift-monitoring", "get", "route", "prometheus-k8s", "--template", "{{.spec.host}}")
+		if err != nil {
+			return false
+		}
+		token, err = RunOcCommand(f, "-n", "openshift-monitoring", "sa", "get-token", "prometheus-k8s")
+		if err != nil {
+			return false
+		}
+		return true
+	}, 10*time.Second, time.Second).Should(gomega.BeTrue())
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+	gomega.Eventually(func() bool {
+		req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/api/v1/%s", host, endpoint), nil)
+		if err != nil {
+			return false
+		}
+		req.Header.Add("Authorization", "Bearer "+token)
+		resp, err = client.Do(req)
+		if err != nil {
+			return false
+		}
+		if resp.StatusCode != http.StatusOK {
+			return false
+		}
+		return true
+	}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue())
+
+	return resp
 }
