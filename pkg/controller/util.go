@@ -201,31 +201,6 @@ func isBound(pvc *v1.PersistentVolumeClaim, log logr.Logger) bool {
 	return true
 }
 
-func isPvcUsedByAnyPod(c client.Client, pvc *v1.PersistentVolumeClaim, log logr.Logger) (bool, error) {
-	pods := &v1.PodList{}
-	if err := c.List(context.TODO(), pods, &client.ListOptions{Namespace: pvc.Namespace}); err != nil {
-		return false, errors.Wrap(err, "error listing pods")
-	}
-
-	for _, pod := range pods.Items {
-		if isPvcUsedByPod(pod, pvc.Name) {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-func isPvcUsedByPod(pod v1.Pod, pvcName string) bool {
-	for _, volume := range pod.Spec.Volumes {
-		if volume.VolumeSource.PersistentVolumeClaim != nil &&
-			volume.PersistentVolumeClaim.ClaimName == pvcName {
-			return true
-		}
-	}
-	return false
-}
-
 func getRequestedImageSize(pvc *v1.PersistentVolumeClaim) (string, error) {
 	pvcSize, found := pvc.Spec.Resources.Requests[v1.ResourceStorage]
 	if !found {
@@ -265,7 +240,7 @@ func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.
 		"app": "containerized-data-importer",
 	}
 
-	annotations := make(map[string]string, 0)
+	annotations := make(map[string]string)
 	// Copy kubevirt.io annotations, but NOT the CDI annotations as those will trigger another import/upload/clone on the scratchspace
 	// pvc.
 	if len(pvc.GetAnnotations()) > 0 {
@@ -719,7 +694,7 @@ func GetActiveCDI(c client.Client) (*cdiv1.CDI, error) {
 	}
 
 	if len(activeResources) > 1 {
-		return nil, fmt.Errorf("Number of active CDI CRs > 1")
+		return nil, fmt.Errorf("number of active CDI CRs > 1")
 	}
 
 	return &activeResources[0], nil
