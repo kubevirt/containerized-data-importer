@@ -28,6 +28,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -892,7 +893,7 @@ var _ = Describe("ALL Operator tests", func() {
 				systemClusterCritical = cdiv1.CDIPriorityClass("system-cluster-critical")
 				osUserCrit            = &schedulev1.PriorityClass{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "openshift-user-critical",
+						Name: resourcesutils.CDIPriorityClass,
 					},
 					Value: 10000,
 				}
