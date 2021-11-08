@@ -220,6 +220,32 @@ spec:
          requests:
            storage: "32Gi"
 ```
+
+#### Change IDs
+For multi-stage VDDK imports, the `previous` field in the list of checkpoints can be specified as a snapshot ID or a change ID. A change ID persists after its associated snapshot has been deleted, so it can be used to implement a warm migration workflow that does not leave chains of snapshots that need to be cleaned (see [this VMware KB article](https://kb.vmware.com/s/article/76082)).
+
+Example: initiate a multi-stage VDDK import, specifying the initial snapshot as the first checkpoint.
+
+```yaml
+finalCheckpoint: false
+checkpoints:
+  - current: "snapshot-1"
+    previous: ""
+```
+
+After the snapshot has been copied and the Data Volume is `Paused`, save the snapshot's change ID, delete the snapshot, and let the VM run for some time so that the data on the disk changes somewhat. Take a new snapshot, and append the new checkpoint to the list using the new snapshot ID as `current` and the deleted snapshot's change ID as `previous`:
+
+```yaml
+finalCheckpoint: false
+checkpoints:
+  - current: "snapshot-1"
+    previous: ""
+  - current: "snapshot-2"
+    previous: "53 d0 ac 95 4f 09 f7 93-b1 21 e2 39 97 8a fa 63/4"
+```
+
+This process can be repeated until the VM can be shut down for a final snapshot copy with `finalCheckpoint` set to `true`.
+
 ## Target Storage/PVC
 
 There are two ways to request a storage - by using either the `pvc` or the `storage` section in the DataVolume resource yaml.
