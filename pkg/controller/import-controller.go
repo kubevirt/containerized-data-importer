@@ -605,12 +605,16 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 }
 
 func (r *ImportReconciler) isInsecureTLS(pvc *corev1.PersistentVolumeClaim, cdiConfig *cdiv1.CDIConfig) (bool, error) {
-	value, ok := pvc.Annotations[AnnEndpoint]
-	if !ok || value == "" {
+	ep, ok := pvc.Annotations[AnnEndpoint]
+	if !ok || ep == "" {
 		return false, nil
 	}
+	return IsInsecureTLS(ep, cdiConfig, r.uncachedClient, r.log)
+}
 
-	url, err := url.Parse(value)
+// IsInsecureTLS checks if TLS security is disabled for the given endpoint
+func IsInsecureTLS(ep string, cdiConfig *cdiv1.CDIConfig, client client.Client, log logr.Logger) (bool, error) {
+	url, err := url.Parse(ep)
 	if err != nil {
 		return false, err
 	}
@@ -620,7 +624,7 @@ func (r *ImportReconciler) isInsecureTLS(pvc *corev1.PersistentVolumeClaim, cdiC
 	}
 
 	for _, value := range cdiConfig.Spec.InsecureRegistries {
-		r.log.V(1).Info("Checking host against value", "host", url.Host, "value", value)
+		log.V(1).Info("Checking host against value", "host", url.Host, "value", value)
 		if value == url.Host {
 			return true, nil
 		}
@@ -628,19 +632,19 @@ func (r *ImportReconciler) isInsecureTLS(pvc *corev1.PersistentVolumeClaim, cdiC
 
 	// ConfigMap is obsoleted and supported only for upgrade. It won't be refered anymore by future releases.
 	configMapName := common.InsecureRegistryConfigMap
-	r.log.V(1).Info("Checking configmap for host", "configMapName", configMapName, "host URL", url.Host)
+	log.V(1).Info("Checking configmap for host", "configMapName", configMapName, "host URL", url.Host)
 
 	cm := &corev1.ConfigMap{}
-	if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: configMapName, Namespace: util.GetNamespace()}, cm); err != nil {
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: configMapName, Namespace: util.GetNamespace()}, cm); err != nil {
 		if k8serrors.IsNotFound(err) {
-			r.log.V(1).Info("Configmap does not exist", "configMapName", configMapName)
+			log.V(1).Info("Configmap does not exist", "configMapName", configMapName)
 			return false, nil
 		}
 		return false, err
 	}
 
 	for _, value := range cm.Data {
-		r.log.V(1).Info("Checking host against value", "host", url.Host, "value", value)
+		log.V(1).Info("Checking host against value", "host", url.Host, "value", value)
 		if value == url.Host {
 			return true, nil
 		}

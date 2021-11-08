@@ -33,11 +33,12 @@ var _ = Describe("DataImportCron", func() {
 		scheduleOnceAYear   = "0 0 1 1 *"
 	)
 	var (
-		f                = framework.NewFramework(namespacePrefix)
-		registryPullNode = cdiv1.RegistryPullNode
-		//trustedRegistryURL = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix, f.DockerTag) }
-		cron *cdiv1.DataImportCron
-		err  error
+		f                   = framework.NewFramework(namespacePrefix)
+		registryPullNode    = cdiv1.RegistryPullNode
+		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix, f.DockerTag) }
+		externalRegistryURL = "docker://quay.io/kubevirt/fedora-cloud-registry-disk-demo:latest"
+		cron                *cdiv1.DataImportCron
+		err                 error
 	)
 
 	AfterEach(func() {
@@ -49,11 +50,20 @@ var _ = Describe("DataImportCron", func() {
 	})
 
 	table.DescribeTable("should", func(schedule string, repeat int) {
-		//FIXME: skopeo inspect docker://registry:5000/cdi-func-test-tinycore:latest": exit status 1:
-		//       time="2021-11-07T11:51:22Z" level=fatal msg="Error parsing image name \"docker://registry:5000/cdi-func-test-tinycore:latest\":
-		//       error pinging docker registry registry:5000: Get \"https://registry:5000/v2/\": http: server gave HTTP response to HTTPS client
-		//url := trustedRegistryURL()
-		url := "docker://quay.io/kubevirt/fedora-cloud-registry-disk-demo:latest"
+		var url string
+
+		if utils.IsOpenshift(f.K8sClient) {
+			url = externalRegistryURL
+		} else {
+			url = trustedRegistryURL()
+			err = utils.AddInsecureRegistry(f.CrClient, url)
+			Expect(err).To(BeNil())
+
+			hasInsecReg, err := utils.HasInsecureRegistry(f.CrClient, url)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(hasInsecReg).To(BeTrue())
+			defer utils.RemoveInsecureRegistry(f.CrClient, url)
+		}
 
 		cron = NewDataImportCron("cron-test", "5Gi", schedule, "datasource-test", cdiv1.DataVolumeSourceRegistry{URL: &url, PullMethod: &registryPullNode})
 		By(fmt.Sprintf("Create new DataImportCron %s", url))
@@ -80,7 +90,7 @@ var _ = Describe("DataImportCron", func() {
 		for i := 0; i < repeat; i++ {
 			if repeat > 1 {
 				// Emulate source update
-				digest := []string{"sha256:0001112223334444", "sha256:0123456789abcdef", "sha256:aaabbbcccdddeeee"}[i%3]
+				digest := []string{"sha256:0001112223334444", "sha256:0123456789abcdef", "sha256:aaabbbcccdddeeee"}[i]
 				By(fmt.Sprintf("Update source desired digest to %s", digest))
 
 				Eventually(func() bool {
@@ -140,7 +150,7 @@ var _ = Describe("DataImportCron", func() {
 	},
 		table.Entry("[test_id:7403] Should successfully import PVC from registry URL as scheduled", scheduleEveryMinute, 1),
 		table.Entry("[test_id:7414] Should successfully import PVC from registry URL on source digest update", scheduleOnceAYear, 2),
-		table.Entry("[test_id:7406] Should successfully grabage collect old PVCs when importing new ones", scheduleOnceAYear, 3),
+		table.Entry("[test_id:7406] Should successfully garbage collect old PVCs when importing new ones", scheduleOnceAYear, 3),
 	)
 })
 
@@ -154,7 +164,6 @@ func NewDataImportCron(name, size, schedule, dataSource string, source cdiv1.Dat
 			Name: name,
 			Annotations: map[string]string{
 				controller.AnnImmediateBinding: "true",
-				//controller.AnnPodRetainAfterCompletion: "true",
 			},
 		},
 		Spec: cdiv1.DataImportCronSpec{

@@ -467,6 +467,14 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 	if regSource.URL == nil {
 		return nil, errors.Errorf("No URL source in cron %s", cron.Name)
 	}
+	cdiConfig := &cdiv1.CDIConfig{}
+	if err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
+		return nil, err
+	}
+	insecureTLS, err := IsInsecureTLS(*regSource.URL, cdiConfig, r.uncachedClient, r.log)
+	if err != nil {
+		return nil, err
+	}
 	container := corev1.Container{
 		Name:  "cdi-source-update-poller",
 		Image: r.image,
@@ -490,8 +498,8 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 	}
 
 	if regSource.SecretRef != nil && *regSource.SecretRef != "" {
-		container.Env = []corev1.EnvVar{
-			{
+		container.Env = append(container.Env,
+			corev1.EnvVar{
 				Name: common.ImporterAccessKeyID,
 				ValueFrom: &corev1.EnvVarSource{
 					SecretKeyRef: &corev1.SecretKeySelector{
@@ -502,7 +510,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 					},
 				},
 			},
-			{
+			corev1.EnvVar{
 				Name: common.ImporterSecretKey,
 				ValueFrom: &corev1.EnvVarSource{
 					SecretKeyRef: &corev1.SecretKeySelector{
@@ -513,7 +521,16 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 					},
 				},
 			},
-		}
+		)
+	}
+
+	if insecureTLS {
+		container.Env = append(container.Env,
+			corev1.EnvVar{
+				Name:  common.InsecureTLSVar,
+				Value: "true",
+			},
+		)
 	}
 
 	var successfulJobsHistoryLimit int32 = 0

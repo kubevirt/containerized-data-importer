@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
@@ -28,6 +29,7 @@ var (
 	certDir       string
 	accessKey     string
 	secretKey     string
+	insecureTLS   bool
 )
 
 func init() {
@@ -43,6 +45,7 @@ func init() {
 	}
 	accessKey, _ = util.ParseEnvVar(common.ImporterAccessKeyID, false)
 	secretKey, _ = util.ParseEnvVar(common.ImporterSecretKey, false)
+	insecureTLS, _ = strconv.ParseBool(os.Getenv(common.InsecureTLSVar))
 }
 
 func cmdRun(cmd string) (outStr string, err error) {
@@ -60,6 +63,9 @@ func cmdRun(cmd string) (outStr string, err error) {
 
 func main() {
 	cmd := "skopeo inspect"
+	if insecureTLS {
+		cmd += " --tls-verify=false"
+	}
 	if certDir != "" {
 		cmd += " --cert-dir " + certDir
 	}
