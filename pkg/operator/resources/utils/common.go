@@ -28,6 +28,8 @@ import (
 const (
 	// CDILabel is the labe applied to all non operator resources
 	CDILabel = "cdi.kubevirt.io"
+	// CDIPriorityClass is the priority class for all CDI pods.
+	CDIPriorityClass = "kubevirt-cluster-critical"
 )
 
 var commonLabels = map[string]string{
