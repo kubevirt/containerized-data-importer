@@ -420,7 +420,7 @@ _The CDI Operator does not support updates yet._
 		data.Verbosity,
 		data.ImagePullPolicy)
 
-	deployment.Spec.Template.Spec.PriorityClassName = "openshift-user-critical"
+	deployment.Spec.Template.Spec.PriorityClassName = utils.CDIPriorityClass
 
 	strategySpec := csvStrategySpec{
 		Permissions: []csvPermissions{
