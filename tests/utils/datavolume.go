@@ -74,9 +74,9 @@ const (
 	// VcenterURL provides URL of vCenter/ESX simulator
 	VcenterURL = "https://vcenter.%s:8989/sdk"
 	// TrustedRegistryURL provides the base path to trusted registry test url for the tinycore.iso image wrapped in docker container
-	TrustedRegistryURL = "docker://%s/cdi-func-test-tinycore:%s"
+	TrustedRegistryURL = "docker://%s/cdi-func-test-tinycore"
 	// TrustedRegistryIS provides the base path to trusted registry test fake imagestream for the tinycore.iso image wrapped in docker container
-	TrustedRegistryIS = "%s/cdi-func-test-tinycore:%s"
+	TrustedRegistryIS = "%s/cdi-func-test-tinycore"
 
 	// MD5PrefixSize is the number of bytes used by the MD5 constants below
 	MD5PrefixSize = int64(100000)
