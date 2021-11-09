@@ -22,11 +22,13 @@ import (
 )
 
 const (
-	cdiDeploymentName      = "cdi-deployment"
-	cdiDeploymentPodPrefix = "cdi-deployment-"
-	cdiOperatorName        = "cdi-operator"
-	cdiOperatorPodPrefix   = "cdi-operator-"
-	newDeploymentName      = "cdi-new-deployment"
+	cdiDeploymentName       = "cdi-deployment"
+	cdiDeploymentPodPrefix  = "cdi-deployment-"
+	cdiApiServerPodPrefix   = "cdi-apiserver-"
+	cdiUploadProxyPodPrefix = "cdi-uploadproxy-"
+	cdiOperatorName         = "cdi-operator"
+	cdiOperatorPodPrefix    = "cdi-operator-"
+	newDeploymentName       = "cdi-new-deployment"
 
 	pollingInterval = 2 * time.Second
 	timeout         = 360 * time.Second
@@ -248,7 +250,7 @@ func cleanupTest(f *framework.Framework, newDeployment *appsv1.Deployment) {
 }
 
 func getDeployments(f *framework.Framework) *appsv1.DeploymentList {
-	deployments, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{LabelSelector: "app=containerized-data-importer"})
+	deployments, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{LabelSelector: common.CDILabelSelector})
 	Expect(err).ToNot(HaveOccurred())
 	return deployments
 }
@@ -260,7 +262,7 @@ func getOperatorDeployment(f *framework.Framework) *appsv1.Deployment {
 }
 
 func getPods(f *framework.Framework) *v1.PodList {
-	pods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{LabelSelector: "app=containerized-data-importer"})
+	pods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{LabelSelector: common.CDILabelSelector})
 	Expect(err).ToNot(HaveOccurred())
 	return pods
 }
