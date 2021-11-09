@@ -62,6 +62,8 @@ type DataImportCronReconciler struct {
 const (
 	// AnnSourceDesiredDigest is the digest of the pending updated image
 	AnnSourceDesiredDigest = AnnAPIGroup + "/storage.import.sourceDesiredDigest"
+	// AnnImageStreamDockerRef is the ImageStream Docker reference
+	AnnImageStreamDockerRef = AnnAPIGroup + "/storage.import.imageStreamDockerRef"
 	// AnnNextCronTime is the next time stamp which satisfies the cron expression
 	AnnNextCronTime = AnnAPIGroup + "/storage.import.nextCronTime"
 
@@ -128,15 +130,15 @@ func (r *DataImportCronReconciler) getImageStream(ctx context.Context, imageStre
 	return imageStream, nil
 }
 
-func getImageStreamDigest(imageStream *imagev1.ImageStream) (string, error) {
+func getImageStreamDigest(imageStream *imagev1.ImageStream) (string, string, error) {
 	if imageStream == nil {
-		return "", errors.Errorf("No imagestream")
+		return "", "", errors.Errorf("No imagestream")
 	}
 	tags := imageStream.Status.Tags
 	if len(tags) == 0 || len(tags[0].Items) == 0 {
-		return "", errors.Errorf("No imagestream tag items %s", imageStream.Name)
+		return "", "", errors.Errorf("No imagestream tag items %s", imageStream.Name)
 	}
-	return tags[0].Items[0].Image, nil
+	return tags[0].Items[0].Image, tags[0].Items[0].DockerImageReference, nil
 }
 
 func (r *DataImportCronReconciler) pollImageStreamDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
@@ -261,13 +263,14 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 		}
 		return err
 	}
-	digest, err := getImageStreamDigest(imageStream)
+	digest, dockerRef, err := getImageStreamDigest(imageStream)
 	if err != nil {
 		return err
 	}
 	if digest != "" && dataImportCron.Annotations[AnnSourceDesiredDigest] != digest {
 		r.log.Info("updated", "digest", digest, "cron", dataImportCron.Name)
 		dataImportCron.Annotations[AnnSourceDesiredDigest] = digest
+		dataImportCron.Annotations[AnnImageStreamDockerRef] = dockerRef
 	}
 	return nil
 }
@@ -578,7 +581,16 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 }
 
 func newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdiv1.DataVolume {
+	var digestedURL string
 	dv := cron.Spec.Template.DeepCopy()
+	if isURLSource(cron) {
+		digestedURL = *dv.Spec.Source.Registry.URL + "@" + cron.Annotations[AnnSourceDesiredDigest]
+	} else if isImageStreamSource(cron) {
+		// No way to import image stream by name when we want speciific digest, so we use its docker reference
+		digestedURL = "docker://" + cron.Annotations[AnnImageStreamDockerRef]
+		dv.Spec.Source.Registry.ImageStream = nil
+	}
+	dv.Spec.Source.Registry.URL = &digestedURL
 	dv.Name = dataVolumeName
 	dv.Namespace = cron.Namespace
 	dv.OwnerReferences = append(dv.OwnerReferences,

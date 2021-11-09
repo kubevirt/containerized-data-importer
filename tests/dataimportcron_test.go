@@ -27,6 +27,10 @@ const (
 	dataImportCronTimeout = 90 * time.Second
 )
 
+var (
+	importsToKeep int32 = 1
+)
+
 var _ = Describe("DataImportCron", func() {
 	const (
 		scheduleEveryMinute = "* * * * *"
@@ -35,8 +39,8 @@ var _ = Describe("DataImportCron", func() {
 	var (
 		f                   = framework.NewFramework(namespacePrefix)
 		registryPullNode    = cdiv1.RegistryPullNode
-		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix, f.DockerTag) }
-		externalRegistryURL = "docker://quay.io/kubevirt/fedora-cloud-registry-disk-demo:latest"
+		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
+		externalRegistryURL = "docker://quay.io/kubevirt/cirros-container-disk-demo"
 		cron                *cdiv1.DataImportCron
 		err                 error
 	)
@@ -49,10 +53,10 @@ var _ = Describe("DataImportCron", func() {
 		}
 	})
 
-	table.DescribeTable("should", func(schedule string, repeat int) {
+	table.DescribeTable("should", func(schedule string, repeat int, checkGarbageCollection bool) {
 		var url string
 
-		if utils.IsOpenshift(f.K8sClient) {
+		if repeat > 1 || utils.IsOpenshift(f.K8sClient) {
 			url = externalRegistryURL
 		} else {
 			url = trustedRegistryURL()
@@ -89,10 +93,13 @@ var _ = Describe("DataImportCron", func() {
 		var lastImportDv, currentImportDv string
 		for i := 0; i < repeat; i++ {
 			if repeat > 1 {
-				// Emulate source update
-				digest := []string{"sha256:0001112223334444", "sha256:0123456789abcdef", "sha256:aaabbbcccdddeeee"}[i]
-				By(fmt.Sprintf("Update source desired digest to %s", digest))
+				// Emulate source update using digests from https://quay.io/repository/kubevirt/cirros-container-disk-demo?tab=tags
+				digest := []string{
+					"sha256:68b44fc891f3fae6703d4b74bcc9b5f24df8d23f12e642805d1420cbe7a4be70",
+					"sha256:90e064fca2f47eabce210d218a45ba48cc7105b027d3f39761f242506cad15d6",
+				}[i%2]
 
+				By(fmt.Sprintf("Update source desired digest to %s", digest))
 				Eventually(func() bool {
 					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
@@ -140,24 +147,23 @@ var _ = Describe("DataImportCron", func() {
 				return cron.Status.LastImportedPVC.Name == currentImportDv
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 		}
-		if repeat > 2 {
+		if checkGarbageCollection {
 			Eventually(func() bool {
 				dvList, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
 				Expect(err).ToNot(HaveOccurred())
-				return len(dvList.Items) == 2
+				return len(dvList.Items) == int(importsToKeep)
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 		}
 	},
-		table.Entry("[test_id:7403] Should successfully import PVC from registry URL as scheduled", scheduleEveryMinute, 1),
-		table.Entry("[test_id:7414] Should successfully import PVC from registry URL on source digest update", scheduleOnceAYear, 2),
-		table.Entry("[test_id:7406] Should successfully garbage collect old PVCs when importing new ones", scheduleOnceAYear, 3),
+		table.Entry("[test_id:7403] Should successfully import PVC from registry URL as scheduled", scheduleEveryMinute, 1, false),
+		table.Entry("[test_id:7414] Should successfully import PVC from registry URL on source digest update", scheduleOnceAYear, 2, false),
+		table.Entry("[test_id:7406] Should successfully garbage collect old PVCs when importing new ones", scheduleOnceAYear, 2, true),
 	)
 })
 
 // NewDataImportCron initializes a DataImportCron struct
 func NewDataImportCron(name, size, schedule, dataSource string, source cdiv1.DataVolumeSourceRegistry) *cdiv1.DataImportCron {
 	garbageCollect := cdiv1.DataImportCronGarbageCollectOutdated
-	var importsToKeep int32 = 2
 
 	return &cdiv1.DataImportCron{
 		ObjectMeta: metav1.ObjectMeta{
