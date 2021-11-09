@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -450,37 +451,32 @@ func getExtraHeadersFromSecrets() ([]string, error) {
 	var err error
 
 	secretDir := common.ImporterSecretExtraHeadersDir
-	directories, err := ioutil.ReadDir(secretDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return secretExtraHeaders, nil
-		}
-		return nil, errors.Wrapf(err, "Error listing directories under %s", secretDir)
-	}
-
-	for _, directory := range directories {
-		if !directory.IsDir() || directory.Name()[0] == '.' {
-			continue
-		}
-
-		subDir := path.Join(secretDir, directory.Name())
-		files, err := ioutil.ReadDir(subDir)
+	err = filepath.Walk(secretDir, func(filePath string, info fs.FileInfo, err error) error {
 		if err != nil {
-			return nil, errors.Wrapf(err, "Error listing files under %s", subDir)
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return errors.Wrapf(err, "Error listing directories under %s", secretDir)
 		}
 
-		for _, file := range files {
-			if file.IsDir() || file.Name()[0] == '.' {
-				continue
-			}
-			filePath := path.Join(secretDir, directory.Name(), file.Name())
-			header, err := ioutil.ReadFile(filePath)
-			if err != nil {
-				return nil, errors.Wrapf(err, "Error reading headers from %s", filePath)
-			}
-			secretExtraHeaders = append(secretExtraHeaders, string(header))
+		// Skip directories like ..data and ..2021_11_09_17_20_16.253260263
+		if info.IsDir() && info.Name()[0] == '.' {
+			return fs.SkipDir
 		}
-	}
+
+		// Don't try to read directories, or files that start with dots
+		if info.IsDir() || info.Name()[0] == '.' {
+			return nil
+		}
+
+		header, err := ioutil.ReadFile(filePath)
+		if err != nil {
+			return errors.Wrapf(err, "Error reading headers from %s", filePath)
+		}
+		secretExtraHeaders = append(secretExtraHeaders, string(header))
+
+		return err
+	})
 
 	return secretExtraHeaders, err
 }
