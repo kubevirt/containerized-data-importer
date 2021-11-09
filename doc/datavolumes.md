@@ -125,7 +125,7 @@ spec:
       requests:
         storage: "64Mi"
 ```
-Each secret should be of type `Opaque` and contain `data` or `stringData` with a key name of `secretHeader`:
+Each secret should be of type `Opaque`, containing the header within each value under `data` or `stringData`:
 
 ```yaml
 apiVersion: v1
@@ -134,7 +134,8 @@ metadata:
   name: first-secret
 type: Opaque
 stringData:
-  secretHeader: "X-Secret-Auth-Token: 6789"
+  secretHeaderOne: "X-Secret-Auth-Token: 6789"
+  secretHeaderTwo: "X-Second-Secret-Auth-Token: 5432"
 ```
 
 
