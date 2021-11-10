@@ -9,9 +9,8 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -75,17 +74,12 @@ var _ = Describe("DataImportCron", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		if schedule == scheduleEveryMinute {
-			var cronjob *v1beta1.CronJob
 			By("Verify cronjob was created")
 			Eventually(func() bool {
-				cronjob, err = f.K8sClient.BatchV1beta1().CronJobs(f.CdiInstallNs).Get(context.TODO(), controller.GetCronJobName(cron), metav1.GetOptions{})
-				return err == nil && len(cronjob.Status.Active) > 0
-			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
-			Expect(err).ToNot(HaveOccurred())
-
-			By(fmt.Sprintf("Find pod of job %s", cronjob.Status.Active[0].Name))
-			Eventually(func() bool {
-				_, err = utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cronjob.Status.Active[0].Name, "")
+				_, err = f.K8sClient.BatchV1beta1().CronJobs(f.CdiInstallNs).Get(context.TODO(), controller.GetCronJobName(cron), metav1.GetOptions{})
+				if errors.IsNotFound(err) {
+					return false
+				}
 				return err == nil
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 		}
@@ -135,6 +129,9 @@ var _ = Describe("DataImportCron", func() {
 			By("Verify datasource was updated")
 			Eventually(func() bool {
 				datasource, err := f.CdiClient.CdiV1beta1().DataSources(f.Namespace.Name).Get(context.TODO(), cron.Spec.ManagedDataSource, metav1.GetOptions{})
+				if errors.IsNotFound(err) {
+					return false
+				}
 				Expect(err).ToNot(HaveOccurred())
 				return datasource.Spec.Source.PVC.Name == currentImportDv
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
@@ -202,7 +199,7 @@ func CreateDataImportCronFromDefinition(clientSet *cdiclientset.Clientset, names
 	err := wait.PollImmediate(pollingInterval, dataImportCronTimeout, func() (bool, error) {
 		var err error
 		dataImportCron, err = clientSet.CdiV1beta1().DataImportCrons(namespace).Create(context.TODO(), def, metav1.CreateOptions{})
-		if err == nil || apierrs.IsAlreadyExists(err) {
+		if err == nil || errors.IsAlreadyExists(err) {
 			return true, nil
 		}
 		return false, err
@@ -217,7 +214,7 @@ func CreateDataImportCronFromDefinition(clientSet *cdiclientset.Clientset, names
 func DeleteDataImportCron(clientSet *cdiclientset.Clientset, namespace, name string) error {
 	return wait.PollImmediate(pollingInterval, dataImportCronTimeout, func() (bool, error) {
 		err := clientSet.CdiV1beta1().DataImportCrons(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
-		if err == nil || apierrs.IsNotFound(err) {
+		if err == nil || errors.IsNotFound(err) {
 			return true, nil
 		}
 		return false, err
