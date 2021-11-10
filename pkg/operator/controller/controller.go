@@ -26,6 +26,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/generate/install"
 
 	"github.com/kelseyhightower/envconfig"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -222,9 +223,9 @@ func (r *ReconcileCDI) Reconcile(_ context.Context, request reconcile.Request) (
 	}
 
 	// Ready metric so we can alert whenever we are not ready for a while
-	if util.IsCdiAvailable(cr) {
+	if conditionsv1.IsStatusConditionTrue(cr.Status.Conditions, conditionsv1.ConditionAvailable) {
 		readyGauge.Set(1)
-	} else if !util.IsCdiProgressing(cr) {
+	} else if !conditionsv1.IsStatusConditionTrue(cr.Status.Conditions, conditionsv1.ConditionProgressing) {
 		// Not an issue if progress is still ongoing
 		readyGauge.Set(0)
 	}

@@ -21,9 +21,11 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/tests/framework"
+	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
 const (
@@ -236,6 +238,13 @@ func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions
 		}
 	}
 	return nil
+}
+
+// IsPrometheusAvailable decides whether or not we will run prometheus alert/metric tests
+// Currently only running on OpenShift as it comes preconfigured out of the box
+// Later extend this to use the prometheus CRD detection, similar to how the operator decides this
+func IsPrometheusAvailable(client kubernetes.Interface) bool {
+	return utils.IsOpenshift(client)
 }
 
 // MakePrometheusHTTPRequest makes a request to the prometheus api and returns the response

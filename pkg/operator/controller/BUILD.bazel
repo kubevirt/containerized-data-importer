@@ -32,6 +32,7 @@ go_library(
         "//vendor/github.com/kelseyhightower/envconfig:go_default_library",
         "//vendor/github.com/openshift/api/route/v1:go_default_library",
         "//vendor/github.com/openshift/api/security/v1:go_default_library",
+        "//vendor/github.com/openshift/custom-resource-status/conditions/v1:go_default_library",
         "//vendor/github.com/openshift/library-go/pkg/crypto:go_default_library",
         "//vendor/github.com/openshift/library-go/pkg/operator/certrotation:go_default_library",
         "//vendor/github.com/openshift/library-go/pkg/operator/events:go_default_library",

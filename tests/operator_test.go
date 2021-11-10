@@ -674,8 +674,8 @@ var _ = Describe("ALL Operator tests", func() {
 			f := framework.NewFramework("alert-tests")
 
 			It("CDIOperatorDown alert firing when operator scaled down", func() {
-				if !utils.IsOpenshift(f.K8sClient) {
-					Skip("This test is OpenShift specific")
+				if !tests.IsPrometheusAvailable(f.K8sClient) {
+					Skip("This test is depends on prometheus infra being available")
 				}
 
 				By("Scale down operator so alert will trigger")
@@ -724,8 +724,8 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("CDI ready metric value as expected when ready to use", func() {
-				if !utils.IsOpenshift(f.K8sClient) {
-					Skip("This test is OpenShift specific")
+				if !tests.IsPrometheusAvailable(f.K8sClient) {
+					Skip("This test is depends on prometheus infra being available")
 				}
 
 				Eventually(func() bool {

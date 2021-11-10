@@ -250,12 +250,12 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 					Name: "cdi.rules",
 					Rules: []promv1.Rule{
 						generateRecordRule(
-							"kubevirt_cdi_num_up_operators",
+							"kubevirt_cdi_operator_up_total",
 							fmt.Sprintf("sum(up{namespace='%s', pod=~'cdi-operator-.*'} or vector(0))", namespace),
 						),
 						generateAlertRule(
 							"CDIOperatorDown",
-							"kubevirt_cdi_num_up_operators == 0",
+							"kubevirt_cdi_operator_up_total == 0",
 							"5m",
 							map[string]string{
 								"summary":     "CDI operator is down",
