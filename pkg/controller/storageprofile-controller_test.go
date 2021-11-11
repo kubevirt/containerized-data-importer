@@ -123,6 +123,35 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(updatedSp.Status.ClaimPropertySets).To(Equal(claimPropertySets))
 	})
 
+	It("Should update storage profile with labels when the value changes", func() {
+		reconciler := createStorageProfileReconciler(createStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+		storageProfileList := &cdiv1.StorageProfileList{}
+		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(storageProfileList.Items)).To(Equal(1))
+		sp := storageProfileList.Items[0]
+		Expect(sp.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+
+		claimPropertySets := []cdiv1.ClaimPropertySet{
+			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany}, VolumeMode: &blockMode},
+			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: &filesystemMode},
+		}
+		sp.Spec.ClaimPropertySets = claimPropertySets
+		reconciler.installerLabels[common.AppKubernetesPartOfLabel] = "newtesting"
+		err = reconciler.client.Update(context.TODO(), sp.DeepCopy())
+		Expect(err).ToNot(HaveOccurred())
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+		storageProfileList = &cdiv1.StorageProfileList{}
+		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(storageProfileList.Items)).To(Equal(1))
+		updatedSp := storageProfileList.Items[0]
+		Expect(updatedSp.Labels[common.AppKubernetesPartOfLabel]).To(Equal("newtesting"))
+	})
+
 	It("Should error when updating storage profile with missing access modes", func() {
 		reconciler := createStorageProfileReconciler(createStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
