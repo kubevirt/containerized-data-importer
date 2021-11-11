@@ -404,7 +404,7 @@ func (r *UploadReconciler) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, 
 		anno[AnnBoundConditionMessage] = "Creating scratch space"
 		anno[AnnBoundConditionReason] = creatingScratch
 		// Scratch PVC doesn't exist yet, create it.
-		scratchPvc, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, name, storageClassName, map[string]string{})
+		scratchPvc, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, name, storageClassName, map[string]string{}, r.recorder)
 		if err != nil {
 			return nil, err
 		}

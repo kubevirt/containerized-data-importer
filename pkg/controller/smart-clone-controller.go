@@ -244,6 +244,15 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 
 	log.V(3).Info("Creating PVC from snapshot", "pvc.Namespace", newPvc.Namespace, "pvc.Name", newPvc.Name)
 	if err := r.client.Create(context.TODO(), newPvc); err != nil {
+		if errQuotaExceeded(err) {
+			event := &DataVolumeEvent{
+				eventType: corev1.EventTypeWarning,
+				reason:    ErrExceededQuota,
+				message:   err.Error(),
+			}
+
+			r.emitEvent(snapshot, event)
+		}
 		log.Error(err, "error creating pvc from snapshot")
 		return reconcile.Result{}, err
 	}

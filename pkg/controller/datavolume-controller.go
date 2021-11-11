@@ -73,6 +73,8 @@ const (
 	ErrClaimLost = "ErrClaimLost"
 	// ErrClaimNotValid provides a const to indicate a claim is not valid
 	ErrClaimNotValid = "ErrClaimNotValid"
+	// ErrExceededQuota provides a const to indicate the claim has exceeded the quota
+	ErrExceededQuota = "ErrExceededQuota"
 	// ErrUnableToClone provides a const to indicate some errors are blocking the clone
 	ErrUnableToClone = "ErrUnableToClone"
 	// DataVolumeFailed provides a const to represent DataVolume failed status
@@ -435,6 +437,14 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 
 		newPvc, err := r.createPvcForDatavolume(log, datavolume, pvcSpec)
 		if err != nil {
+			if errQuotaExceeded(err) {
+				r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, datavolume, nil, selectedCloneStrategy,
+					DataVolumeEvent{
+						eventType: corev1.EventTypeWarning,
+						reason:    ErrExceededQuota,
+						message:   err.Error(),
+					})
+			}
 			return reconcile.Result{}, err
 		}
 		pvc = newPvc
@@ -652,6 +662,14 @@ func (r *DatavolumeReconciler) reconcileCsiClonePvc(log logr.Logger,
 			return reconcile.Result{}, err
 		}
 		if err := r.client.Create(context.TODO(), cloneTargetPvc); err != nil && !k8serrors.IsAlreadyExists(err) {
+			if errQuotaExceeded(err) {
+				r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, datavolume, nil, CsiClone,
+					DataVolumeEvent{
+						eventType: corev1.EventTypeWarning,
+						reason:    ErrExceededQuota,
+						message:   err.Error(),
+					})
+			}
 			return reconcile.Result{}, err
 		}
 	} else {
@@ -1852,7 +1870,11 @@ func (r *DatavolumeReconciler) updateDataVolumeStatusPhaseWithEvent(
 
 	dataVolumeCopy.Status.Phase = phase
 
-	r.updateConditions(dataVolumeCopy, pvc)
+	reason := ""
+	if pvc == nil {
+		reason = event.reason
+	}
+	r.updateConditions(dataVolumeCopy, pvc, reason)
 	addAnnotation(dataVolumeCopy, annCloneType, cloneStrategyToCloneType(selectedCloneStrategy))
 
 	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, &event)
@@ -2061,11 +2083,11 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 
 	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))
 	copy(currentCond, dataVolumeCopy.Status.Conditions)
-	r.updateConditions(dataVolumeCopy, pvc)
+	r.updateConditions(dataVolumeCopy, pvc, "")
 	return result, r.emitEvent(dataVolume, dataVolumeCopy, curPhase, currentCond, &event)
 }
 
-func (r *DatavolumeReconciler) updateConditions(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) {
+func (r *DatavolumeReconciler) updateConditions(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, reason string) {
 	var anno map[string]string
 
 	if dataVolume.Status.Conditions == nil {
@@ -2088,8 +2110,8 @@ func (r *DatavolumeReconciler) updateConditions(dataVolume *cdiv1.DataVolume, pv
 		readyStatus = corev1.ConditionFalse
 	}
 
-	dataVolume.Status.Conditions = updateBoundCondition(dataVolume.Status.Conditions, pvc)
-	dataVolume.Status.Conditions = updateReadyCondition(dataVolume.Status.Conditions, readyStatus, "", "")
+	dataVolume.Status.Conditions = updateBoundCondition(dataVolume.Status.Conditions, pvc, reason)
+	dataVolume.Status.Conditions = updateReadyCondition(dataVolume.Status.Conditions, readyStatus, "", reason)
 	dataVolume.Status.Conditions = updateRunningCondition(dataVolume.Status.Conditions, anno)
 }
 
@@ -2209,6 +2231,10 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 
 func errConnectionRefused(err error) bool {
 	return strings.Contains(err.Error(), "connection refused")
+}
+
+func errQuotaExceeded(err error) bool {
+	return strings.Contains(err.Error(), "exceeded quota:")
 }
 
 func getPodMetricsPort(pod *corev1.Pod) (int, error) {
