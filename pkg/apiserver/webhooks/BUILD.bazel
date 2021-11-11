@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "cdi-validate.go",
+        "dataimportcron-validate.go",
         "datavolume-mutate.go",
         "datavolume-validate.go",
         "handler.go",
@@ -21,6 +22,7 @@ go_library(
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/appscode/jsonpatch:go_default_library",
+        "//vendor/github.com/gorhill/cronexpr:go_default_library",
         "//vendor/k8s.io/api/admission/v1:go_default_library",
         "//vendor/k8s.io/api/admissionregistration/v1:go_default_library",
         "//vendor/k8s.io/api/authorization/v1:go_default_library",
@@ -43,6 +45,7 @@ go_test(
     name = "go_default_test",
     srcs = [
         "cdi-validate_test.go",
+        "dataimportcron-validate_test.go",
         "datavolume-mutate_test.go",
         "datavolume-validate_test.go",
         "transfer-validate_test.go",

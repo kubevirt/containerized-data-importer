@@ -54,6 +54,7 @@ func createDynamicAPIServerResources(args *FactoryArgs) []client.Object {
 		createDataVolumeMutatingWebhook(args.Namespace, args.Client, args.Logger),
 		createCDIValidatingWebhook(args.Namespace, args.Client, args.Logger),
 		createObjectTransferValidatingWebhook(args.Namespace, args.Client, args.Logger),
+		createDataImportCronValidatingWebhook(args.Namespace, args.Client, args.Logger),
 	}
 }
 
@@ -177,6 +178,75 @@ func createAPIService(version, namespace string, c client.Client, l logr.Logger)
 	}
 
 	return apiService
+}
+func createDataImportCronValidatingWebhook(namespace string, c client.Client, l logr.Logger) *admissionregistrationv1.ValidatingWebhookConfiguration {
+	path := "/dataimportcron-validate"
+	defaultServicePort := int32(443)
+	allScopes := admissionregistrationv1.AllScopes
+	exactPolicy := admissionregistrationv1.Exact
+	failurePolicy := admissionregistrationv1.Fail
+	defaultTimeoutSeconds := int32(30)
+	sideEffect := admissionregistrationv1.SideEffectClassNone
+	whc := &admissionregistrationv1.ValidatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "admissionregistration.k8s.io/v1",
+			Kind:       "ValidatingWebhookConfiguration",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cdi-api-dataimportcron-validate",
+			Labels: map[string]string{
+				utils.CDILabel: apiServerServiceName,
+			},
+		},
+		Webhooks: []admissionregistrationv1.ValidatingWebhook{
+			{
+				Name: "dataimportcron-validate.cdi.kubevirt.io",
+				Rules: []admissionregistrationv1.RuleWithOperations{{
+					Operations: []admissionregistrationv1.OperationType{
+						admissionregistrationv1.Create,
+						admissionregistrationv1.Update, //FIXME: Update and Delete needed?
+					},
+					Rule: admissionregistrationv1.Rule{
+						APIGroups: []string{cdicorev1.SchemeGroupVersion.Group},
+						APIVersions: []string{
+							cdicorev1.SchemeGroupVersion.Version,
+							cdicorev1alpha1.SchemeGroupVersion.Version,
+						},
+						Resources: []string{"dataimportcrons"},
+						Scope:     &allScopes,
+					},
+				}},
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					Service: &admissionregistrationv1.ServiceReference{
+						Namespace: namespace,
+						Name:      apiServerServiceName,
+						Path:      &path,
+						Port:      &defaultServicePort,
+					},
+				},
+				FailurePolicy:     &failurePolicy,
+				SideEffects:       &sideEffect,
+				MatchPolicy:       &exactPolicy,
+				NamespaceSelector: &metav1.LabelSelector{},
+				TimeoutSeconds:    &defaultTimeoutSeconds,
+				AdmissionReviewVersions: []string{
+					"v1", "v1beta1",
+				},
+				ObjectSelector: &metav1.LabelSelector{},
+			},
+		},
+	}
+
+	if c == nil {
+		return whc
+	}
+
+	bundle := getAPIServerCABundle(namespace, c, l)
+	if bundle != nil {
+		whc.Webhooks[0].ClientConfig.CABundle = bundle
+	}
+
+	return whc
 }
 
 func createDataVolumeValidatingWebhook(namespace string, c client.Client, l logr.Logger) *admissionregistrationv1.ValidatingWebhookConfiguration {

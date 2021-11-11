@@ -43,6 +43,7 @@ var staticFactoryFunctions = factoryFuncMap{
 	"controller-rbac":  createControllerResources,
 	"crd-resources":    createCRDResources,
 	"uploadproxy-rbac": createUploadProxyResources,
+	"cronjob-rbac":     createCronJobResources,
 	"aggregate-roles":  createAggregateClusterRoles,
 }
 
@@ -110,5 +111,6 @@ func GetClusterRolePolicyRules() []rbacv1.PolicyRule {
 	result := getAPIServerClusterPolicyRules()
 	result = append(result, getControllerClusterPolicyRules()...)
 	result = append(result, getUploadProxyClusterPolicyRules()...)
+	result = append(result, getCronJobClusterPolicyRules()...)
 	return result
 }
