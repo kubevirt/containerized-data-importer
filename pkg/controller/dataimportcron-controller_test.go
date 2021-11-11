@@ -44,6 +44,7 @@ var (
 	cronLog         = logf.Log.WithName("data-import-cron-controller-test")
 	cronName        = "test-cron"
 	imageStreamName = "test-imagestream"
+	testRegistryURL = "docker://quay.io/kubevirt/junk"
 )
 
 const (
@@ -125,16 +126,19 @@ var _ = Describe("All DataImportCron Tests", func() {
 
 			err = reconciler.client.Get(context.TODO(), cronKey, cron)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cron.Status.CurrentImports).ToNot(BeNil())
 
-			dvName := cron.Status.CurrentImports[0].DataVolumeName
+			imports := cron.Status.CurrentImports
+			Expect(imports).ToNot(BeNil())
+			Expect(len(imports)).ToNot(BeZero())
+			dvName := imports[0].DataVolumeName
 			Expect(dvName).ToNot(BeEmpty())
-			digest := cron.Status.CurrentImports[0].Digest
-			Expect(digest).ToNot(BeEmpty())
+			digest := imports[0].Digest
+			Expect(digest).To(Equal(testDigest))
 
 			dv := &cdiv1.DataVolume{}
 			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(*dv.Spec.Source.Registry.URL).To(Equal(testRegistryURL + "@" + testDigest))
 
 			_, err = reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
@@ -196,15 +200,18 @@ var _ = Describe("All DataImportCron Tests", func() {
 			dockerRef := cron.Annotations[AnnImageStreamDockerRef]
 			Expect(dockerRef).To(Equal(testDockerRef))
 
-			Expect(cron.Status.CurrentImports).ToNot(BeNil())
-			dvName := cron.Status.CurrentImports[0].DataVolumeName
+			imports := cron.Status.CurrentImports
+			Expect(imports).ToNot(BeNil())
+			Expect(len(imports)).ToNot(BeZero())
+			dvName := imports[0].DataVolumeName
 			Expect(dvName).ToNot(BeEmpty())
-			digest = cron.Status.CurrentImports[0].Digest
+			digest = imports[0].Digest
 			Expect(digest).To(Equal(testDigest))
 
 			dv := &cdiv1.DataVolume{}
 			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(*dv.Spec.Source.Registry.URL).To(Equal("docker://" + testDockerRef))
 		})
 	})
 })
@@ -264,7 +271,6 @@ func newImageStream(name string) *imagev1.ImageStream {
 func newDataImportCron(name string) *cdiv1.DataImportCron {
 	garbageCollect := cdiv1.DataImportCronGarbageCollectOutdated
 	registryPullNodesource := cdiv1.RegistryPullNode
-	URL := "docker://quay.io/kubevirt/junk"
 	importsToKeep := int32(2)
 
 	return &cdiv1.DataImportCron{
@@ -280,7 +286,7 @@ func newDataImportCron(name string) *cdiv1.DataImportCron {
 				Spec: cdiv1.DataVolumeSpec{
 					Source: &cdiv1.DataVolumeSource{
 						Registry: &cdiv1.DataVolumeSourceRegistry{
-							URL:        &URL,
+							URL:        &testRegistryURL,
 							PullMethod: &registryPullNodesource,
 						},
 					},
