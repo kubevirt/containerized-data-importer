@@ -143,6 +143,7 @@ func createDataVolumeDontWait(dataVolumeName, testPath string, volumeMode v1.Per
 	Expect(err).ToNot(HaveOccurred())
 	zero := int64(0)
 	err = utils.DeletePodByName(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, &zero)
+	Expect(err).ToNot(HaveOccurred())
 
 	By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
 	dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)

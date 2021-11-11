@@ -24,11 +24,6 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/framework"
 )
 
-const (
-	defaultTimeout      = 270 * time.Second
-	testNamespacePrefix = "cdi-test-"
-)
-
 var (
 	versionRegex           = regexp.MustCompile(`ubernetes .*v(\d+\.\d+\.\d+)`)
 	versionRegexServer     = regexp.MustCompile(`Server Version: .*({.*})`)
@@ -196,7 +191,7 @@ func PodSpecHasTestNodePlacementValues(f *framework.Framework, podSpec v1.PodSpe
 			foundMatchingTolerations = true
 		}
 	}
-	if foundMatchingTolerations != true {
+	if !foundMatchingTolerations {
 		fmt.Printf("no matching tolerations found. podSpec:\n%v\nExpected:\n%v\n", podSpec.Tolerations, tolerationsTestValue)
 		return false
 	}

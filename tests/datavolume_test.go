@@ -289,7 +289,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		testDataVolume := func(args dataVolumeTestArguments) {
 			// Have to call the function in here, to make sure the BeforeEach in the Framework has run.
 			dataVolume := args.dvFunc(args.name, args.size, args.url())
-			startTime := time.Now()
 			repeat := 1
 			if utils.IsHostpathProvisioner() && args.repeat > 0 {
 				// Repeat rapidly to make sure we don't get regular and scratch space on different nodes.
@@ -302,24 +301,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
-				By(fmt.Sprintf("waiting for datavolume to match phase %s", string(args.phase)))
-				err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, args.phase, dataVolume.Name)
-				if err != nil {
-					dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-					if dverr != nil {
-						Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
-					}
-				}
-				Expect(err).ToNot(HaveOccurred())
+				waitForDvPhase(args.phase, dataVolume, f)
 
 				By("Verifying the DV has the correct conditions and messages for those conditions")
-				Eventually(func() bool {
-					// Doing this as eventually because in failure scenarios, we could still be in a retry and the running condition
-					// will not match if the pod hasn't failed and the backoff is not long enough yet
-					resultDv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-					Expect(dverr).ToNot(HaveOccurred())
-					return VerifyConditions(resultDv.Status.Conditions, startTime, args.readyCondition, args.runningCondition, args.boundCondition)
-				}, timeout, pollingInterval).Should(BeTrue())
+				WaitForConditions(f, dataVolume.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
 
 				// verify PVC was created
 				By("verifying pvc was created")
@@ -1926,21 +1911,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	})
 
 	Describe("[rfe_id:4223][crit:high] DataVolume - WaitForFirstConsumer", func() {
-		type dataVolumeTestArguments struct {
-			name             string
-			size             string
-			url              string
-			dvFunc           func(string, string, string) *cdiv1.DataVolume
-			errorMessage     string
-			eventReason      string
-			phase            cdiv1.DataVolumePhase
-			repeat           int
-			checkPermissions bool
-			readyCondition   *cdiv1.DataVolumeCondition
-			boundCondition   *cdiv1.DataVolumeCondition
-			runningCondition *cdiv1.DataVolumeCondition
-		}
-
 		createBlankRawDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 			return utils.NewDataVolumeForBlankRawImage(dataVolumeName, size)
 		}
@@ -2022,10 +1992,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(func() bool {
 				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				if k8serrors.IsNotFound(err) {
-					return true
-				}
-				return false
+				return k8serrors.IsNotFound(err)
 			}, timeout, pollingInterval).Should(BeTrue())
 		},
 			table.Entry("[test_id:4459] Import Positive flow",
@@ -2062,21 +2029,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	})
 
 	Describe("[crit:high] DataVolume - WaitForFirstConsumer", func() {
-		type dataVolumeTestArguments struct {
-			name             string
-			size             string
-			url              string
-			dvFunc           func(string, string, string) *cdiv1.DataVolume
-			errorMessage     string
-			eventReason      string
-			phase            cdiv1.DataVolumePhase
-			repeat           int
-			checkPermissions bool
-			readyCondition   *cdiv1.DataVolumeCondition
-			boundCondition   *cdiv1.DataVolumeCondition
-			runningCondition *cdiv1.DataVolumeCondition
-		}
-
 		createBlankRawDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 			return utils.NewDataVolumeForBlankRawImage(dataVolumeName, size)
 		}
@@ -2139,10 +2091,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(func() bool {
 				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				if k8serrors.IsNotFound(err) {
-					return true
-				}
-				return false
+				return k8serrors.IsNotFound(err)
 			}, timeout, pollingInterval).Should(BeTrue())
 		},
 			table.Entry("Import qcow2 scratch space",
@@ -2182,6 +2131,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		BeforeEach(func() {
 			By("Prepare the file")
 			fileHostPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, utils.FileHostName, "name="+utils.FileHostName)
+			Expect(err).ToNot(HaveOccurred())
 			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
 				"/bin/sh",
 				"-c",
@@ -2196,6 +2146,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Cleanup the file")
 			fileHostPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, utils.FileHostName, "name="+utils.FileHostName)
+			Expect(err).ToNot(HaveOccurred())
 			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
 				"/bin/sh",
 				"-c",
@@ -2233,6 +2184,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Remove source image file & kill http container to force restart")
 			fileHostPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, utils.FileHostName, "name="+utils.FileHostName)
+			Expect(err).ToNot(HaveOccurred())
 			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
 				"/bin/sh",
 				"-c",
