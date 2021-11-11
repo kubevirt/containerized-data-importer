@@ -470,6 +470,74 @@ func (f *Framework) UpdateQuotaInNs(requestCPU, requestMemory, limitsCPU, limits
 	return err
 }
 
+// CreateStorageQuota creates a quota to limit pvc count and cumulative storage capacity
+func (f *Framework) CreateStorageQuota(numPVCs, requestStorage int64) error {
+	ns := f.Namespace.GetName()
+	resourceQuota := &v1.ResourceQuota{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-storage-quota",
+			Namespace: ns,
+		},
+		Spec: v1.ResourceQuotaSpec{
+			Hard: v1.ResourceList{
+				v1.ResourcePersistentVolumeClaims: *resource.NewQuantity(numPVCs, resource.DecimalSI),
+				v1.ResourceRequestsStorage:        *resource.NewQuantity(requestStorage, resource.DecimalSI),
+			},
+		},
+	}
+	_, err := f.K8sClient.CoreV1().ResourceQuotas(ns).Create(context.TODO(), resourceQuota, metav1.CreateOptions{})
+	if err != nil {
+		ginkgo.Fail("Unable to set resource quota " + err.Error())
+	}
+	return wait.PollImmediate(2*time.Second, nsDeleteTime, func() (bool, error) {
+		quota, err := f.K8sClient.CoreV1().ResourceQuotas(ns).Get(context.TODO(), "test-storage-quota", metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		return len(quota.Status.Hard) == 2, nil
+	})
+}
+
+// UpdateStorageQuota updates an existing storage quota in the current test namespace.
+func (f *Framework) UpdateStorageQuota(numPVCs, requestStorage int64) error {
+	resourceQuota := &v1.ResourceQuota{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-storage-quota",
+			Namespace: f.Namespace.GetName(),
+		},
+		Spec: v1.ResourceQuotaSpec{
+			Hard: v1.ResourceList{
+				v1.ResourcePersistentVolumeClaims: *resource.NewQuantity(numPVCs, resource.DecimalSI),
+				v1.ResourceRequestsStorage:        *resource.NewQuantity(requestStorage, resource.DecimalSI),
+			},
+		},
+	}
+	_, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Update(context.TODO(), resourceQuota, metav1.UpdateOptions{})
+	if err != nil {
+		ginkgo.Fail("Unable to set resource quota " + err.Error())
+	}
+	return wait.PollImmediate(5*time.Second, nsDeleteTime, func() (bool, error) {
+		quota, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Get(context.TODO(), "test-storage-quota", metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		requestStorageUpdated := resource.NewQuantity(requestStorage, resource.DecimalSI).Cmp(quota.Status.Hard[v1.ResourceRequestsStorage])
+		numPVCsUpdated := resource.NewQuantity(numPVCs, resource.DecimalSI).Cmp(quota.Status.Hard[v1.ResourcePersistentVolumeClaims])
+		return requestStorageUpdated+numPVCsUpdated == 0, nil
+	})
+}
+
+// DeleteStorageQuota an existing storage quota in the current test namespace.
+func (f *Framework) DeleteStorageQuota() error {
+	return wait.PollImmediate(3*time.Second, time.Minute, func() (bool, error) {
+		err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Delete(context.TODO(), "test-storage-quota", metav1.DeleteOptions{})
+		if err == nil || apierrs.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	})
+}
+
 // UpdateCdiConfigResourceLimits sets the limits in the CDIConfig object
 func (f *Framework) UpdateCdiConfigResourceLimits(resourceCPU, resourceMemory, limitsCPU, limitsMemory int64) error {
 	err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {

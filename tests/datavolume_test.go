@@ -358,6 +358,81 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 		}
 
+		testDataVolumeWithQuota := func(args dataVolumeTestArguments) {
+			By("Configure namespace quota")
+			err := f.CreateStorageQuota(int64(2), int64(512*1024*1024))
+			Expect(err).ToNot(HaveOccurred())
+
+			// Have to call the function in here, to make sure the BeforeEach in the Framework has run.
+			dataVolume := args.dvFunc(args.name, args.size, args.url())
+
+			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verify Quota was exceeded in events and dv conditions")
+			expectedPhase := cdiv1.Pending
+			boundCondition := &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeBound,
+				Status:  v1.ConditionUnknown,
+				Message: "No PVC found",
+				Reason:  controller.ErrExceededQuota,
+			}
+			readyCondition := &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeReady,
+				Status:  v1.ConditionFalse,
+				Message: "",
+				Reason:  controller.ErrExceededQuota,
+			}
+			// for smart clone dv the dv can't be updated, only events will show the quota reason
+			if args.name == "dv-clone-test" && f.IsSnapshotStorageClassAvailable() {
+				expectedPhase = cdiv1.SnapshotForSmartCloneInProgress
+				boundCondition.Reason = controller.SnapshotForSmartCloneInProgress
+				readyCondition.Reason = controller.SnapshotForSmartCloneInProgress
+			}
+			waitForDvPhase(expectedPhase, dataVolume, f)
+			verifyEvent(controller.ErrExceededQuota, dataVolume.Namespace, f)
+			WaitForConditions(f, dataVolume.Name, timeout, pollingInterval, boundCondition, readyCondition)
+
+			By("Increase quota")
+			err = f.UpdateStorageQuota(int64(2), int64(2*1024*1024*1024))
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+			waitForDvPhase(args.phase, dataVolume, f)
+
+			By("Verifying the DV has the correct conditions and messages for those conditions")
+			WaitForConditions(f, dataVolume.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
+
+			// verify PVC was created
+			By("verifying pvc was created")
+			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verifying event occurred")
+			Eventually(func() bool {
+				// Only find DV events, we know the PVC gets the same events
+				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+				if err == nil {
+					fmt.Fprintf(GinkgoWriter, "%s", events)
+					return strings.Contains(events, args.eventReason) && strings.Contains(events, args.errorMessage)
+				}
+				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+				return false
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			By("Cleaning up")
+			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() bool {
+				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				return k8serrors.IsNotFound(err)
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			err = f.DeleteStorageQuota()
+			Expect(err).ToNot(HaveOccurred())
+		}
+
 		table.DescribeTable("should", testDataVolume,
 			table.Entry("[rfe_id:1115][crit:high][test_id:1357]succeed creating import dv with given valid url", dataVolumeTestArguments{
 				name:             "dv-http-import",
@@ -853,6 +928,79 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeRunning,
 					Status: v1.ConditionFalse,
+				}}),
+		)
+
+		// similar to other tables but with check of quota
+		table.DescribeTable("should fail create pvc in namespace with storge quota, then succeed once the quota is large enough", testDataVolumeWithQuota,
+			table.Entry("when creating import dv with given valid url", dataVolumeTestArguments{
+				name:        "dv-http-import",
+				size:        "1Gi",
+				url:         tinyCoreIsoURL,
+				dvFunc:      utils.NewDataVolumeWithHTTPImport,
+				eventReason: controller.ImportSucceeded,
+				phase:       cdiv1.Succeeded,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-http-import Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("when creating upload dv", dataVolumeTestArguments{
+				name:        "upload-dv",
+				size:        "1Gi",
+				url:         func() string { return "" },
+				dvFunc:      createUploadDataVolume,
+				eventReason: controller.UploadReady,
+				phase:       cdiv1.UploadReady,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+					Reason: "TransferRunning",
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC upload-dv Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeRunning,
+					Status: v1.ConditionTrue,
+					Reason: "Pod is running",
+				}}),
+			table.Entry("when creating clone dv", dataVolumeTestArguments{
+				name:        "dv-clone-test",
+				size:        "500Mi",
+				url:         func() string { return fillCommand }, // its not URL, but command, but the parameter lines up.
+				dvFunc:      createCloneDataVolume,
+				eventReason: controller.CloneSucceeded,
+				phase:       cdiv1.Succeeded,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-clone-test Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Clone Complete",
+					Reason:  "Completed",
 				}}),
 		)
 
