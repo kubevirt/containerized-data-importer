@@ -669,7 +669,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[test_id:3937]succeed creating warm import dv from imageio source", dataVolumeTestArguments{
+			table.PEntry("[test_id:3937]succeed creating warm import dv from imageio source", dataVolumeTestArguments{
 				name:             "dv-imageio-test",
 				size:             "1Gi",
 				url:              imageioURL,
