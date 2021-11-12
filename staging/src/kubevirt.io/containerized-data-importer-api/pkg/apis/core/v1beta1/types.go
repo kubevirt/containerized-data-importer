@@ -196,6 +196,12 @@ type DataVolumeSourceHTTP struct {
 	// CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate
 	// +optional
 	CertConfigMap string `json:"certConfigMap,omitempty"`
+	// ExtraHeaders is a list of strings containing extra headers to include with HTTP transfer requests
+	// +optional
+	ExtraHeaders []string `json:"extraHeaders,omitempty"`
+	// SecretExtraHeaders is a list of Secret references, each containing an extra HTTP header that may include sensitive information
+	// +optional
+	SecretExtraHeaders []string `json:"secretExtraHeaders,omitempty"`
 }
 
 // DataVolumeSourceImageIO provides the parameters to create a Data Volume from an imageio source

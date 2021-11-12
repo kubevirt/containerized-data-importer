@@ -24,6 +24,7 @@ go_library(
         "//pkg/operator/resources/cluster:go_default_library",
         "//pkg/operator/resources/generate/install:go_default_library",
         "//pkg/operator/resources/namespaced:go_default_library",
+        "//pkg/operator/resources/utils:go_default_library",
         "//pkg/util:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1:go_default_library",

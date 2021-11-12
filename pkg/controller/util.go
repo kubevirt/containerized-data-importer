@@ -137,6 +137,9 @@ const (
 	ClusterWideProxyConfigMapNameSpace = "openshift-config"
 	// ClusterWideProxyConfigMapKey is the OpenShift Cluster Wide Proxy ConfigMap key name for CA certificates.
 	ClusterWideProxyConfigMapKey = "ca-bundle.crt"
+
+	// SecretExtraHeadersVolumeName is the format string that specifies where extra HTTP header secrets will be mounted
+	SecretExtraHeadersVolumeName = "cdi-secret-extra-headers-vol-%d"
 )
 
 const (

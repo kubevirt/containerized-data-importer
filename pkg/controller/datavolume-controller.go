@@ -2274,6 +2274,12 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 		if dataVolume.Spec.Source.HTTP.CertConfigMap != "" {
 			annotations[AnnCertConfigMap] = dataVolume.Spec.Source.HTTP.CertConfigMap
 		}
+		for index, header := range dataVolume.Spec.Source.HTTP.ExtraHeaders {
+			annotations[fmt.Sprintf("%s.%d", AnnExtraHeaders, index)] = header
+		}
+		for index, header := range dataVolume.Spec.Source.HTTP.SecretExtraHeaders {
+			annotations[fmt.Sprintf("%s.%d", AnnSecretExtraHeaders, index)] = header
+		}
 	} else if dataVolume.Spec.Source.S3 != nil {
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.S3.URL
 		annotations[AnnSource] = SourceS3

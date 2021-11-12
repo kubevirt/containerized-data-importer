@@ -3962,6 +3962,19 @@ spec:
                                   containing a Certificate Authority(CA) public key,
                                   and a base64 encoded pem certificate
                                 type: string
+                              extraHeaders:
+                                description: ExtraHeaders is a list of strings containing
+                                  extra headers to include with HTTP transfer requests
+                                items:
+                                  type: string
+                                type: array
+                              secretExtraHeaders:
+                                description: SecretExtraHeaders is a list of Secret
+                                  references, each containing an extra HTTP header
+                                  that may include sensitive information
+                                items:
+                                  type: string
+                                type: array
                               secretRef:
                                 description: SecretRef A Secret reference, the secret
                                   should contain accessKeyId (user name) base64 encoded,
@@ -4696,6 +4709,19 @@ spec:
                           a Certificate Authority(CA) public key, and a base64 encoded
                           pem certificate
                         type: string
+                      extraHeaders:
+                        description: ExtraHeaders is a list of strings containing
+                          extra headers to include with HTTP transfer requests
+                        items:
+                          type: string
+                        type: array
+                      secretExtraHeaders:
+                        description: SecretExtraHeaders is a list of Secret references,
+                          each containing an extra HTTP header that may include sensitive
+                          information
+                        items:
+                          type: string
+                        type: array
                       secretRef:
                         description: SecretRef A Secret reference, the secret should
                           contain accessKeyId (user name) base64 encoded, and secretKey
@@ -5196,6 +5222,19 @@ spec:
                           a Certificate Authority(CA) public key, and a base64 encoded
                           pem certificate
                         type: string
+                      extraHeaders:
+                        description: ExtraHeaders is a list of strings containing
+                          extra headers to include with HTTP transfer requests
+                        items:
+                          type: string
+                        type: array
+                      secretExtraHeaders:
+                        description: SecretExtraHeaders is a list of Secret references,
+                          each containing an extra HTTP header that may include sensitive
+                          information
+                        items:
+                          type: string
+                        type: array
                       secretRef:
                         description: SecretRef A Secret reference, the secret should
                           contain accessKeyId (user name) base64 encoded, and secretKey

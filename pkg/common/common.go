@@ -120,6 +120,10 @@ const (
 	InstallerPartOfLabel = "INSTALLER_PART_OF_LABEL"
 	// InstallerVersionLabel provides a constant to capture our env variable "INSTALLER_VERSION_LABEL"
 	InstallerVersionLabel = "INSTALLER_VERSION_LABEL"
+	// ImporterExtraHeader provides a constant to include extra HTTP headers, as the prefix to a format string
+	ImporterExtraHeader = "IMPORTER_EXTRA_HEADER_"
+	// ImporterSecretExtraHeadersDir is where the secrets containing extra HTTP headers will be mounted
+	ImporterSecretExtraHeadersDir = "/extraheaders"
 
 	// CloningLabelValue provides a constant to use as a label value for pod affinity (controller pkg only)
 	CloningLabelValue = "host-assisted-cloning"
@@ -229,6 +233,9 @@ const (
 
 	// PreallocationApplied is a string inserted into importer's/uploader's exit message
 	PreallocationApplied = "Preallocation applied"
+
+	// SecretHeader is the key in a secret containing a sensitive extra header for HTTP data sources
+	SecretHeader = "secretHeader"
 )
 
 // ProxyPaths are all supported paths

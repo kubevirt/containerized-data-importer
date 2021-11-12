@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"path"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -78,6 +80,10 @@ const (
 	AnnThumbprint = AnnAPIGroup + "/storage.import.vddk.thumbprint"
 	// AnnPreallocationApplied provides a const for PVC preallocation annotation
 	AnnPreallocationApplied = AnnAPIGroup + "/storage.preallocation"
+	// AnnExtraHeaders provides a const for our PVC extraHeaders annotation
+	AnnExtraHeaders = AnnAPIGroup + "/storage.import.extraHeaders"
+	// AnnSecretExtraHeaders provides a const for our PVC secretExtraHeaders annotation
+	AnnSecretExtraHeaders = AnnAPIGroup + "/storage.import.secretExtraHeaders"
 
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
 	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"
@@ -141,6 +147,8 @@ type importPodEnvVar struct {
 	httpsProxy         string
 	noProxy            string
 	certConfigMapProxy string
+	extraHeaders       []string
+	secretExtraHeaders []string
 }
 
 type importerPodArgs struct {
@@ -566,6 +574,15 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.previousCheckpoint = getValueFromAnnotation(pvc, AnnPreviousCheckpoint)
 		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, AnnCurrentCheckpoint)
 		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, AnnFinalCheckpoint)
+
+		for annotation, value := range pvc.Annotations {
+			if strings.HasPrefix(annotation, AnnExtraHeaders) {
+				podEnvVar.extraHeaders = append(podEnvVar.extraHeaders, value)
+			}
+			if strings.HasPrefix(annotation, AnnSecretExtraHeaders) {
+				podEnvVar.secretExtraHeaders = append(podEnvVar.secretExtraHeaders, value)
+			}
+		}
 
 		var field string
 		if field, err = GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP); err != nil {
@@ -1139,6 +1156,25 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 		pod.Spec.Volumes = append(pod.Spec.Volumes, createProxyConfigMapVolume(CertVolName, args.podEnvVar.certConfigMapProxy))
 	}
 
+	for index, header := range args.podEnvVar.secretExtraHeaders {
+		vm := corev1.VolumeMount{
+			Name:      fmt.Sprintf(SecretExtraHeadersVolumeName, index),
+			MountPath: path.Join(common.ImporterSecretExtraHeadersDir, fmt.Sprint(index)),
+		}
+
+		vol := corev1.Volume{
+			Name: fmt.Sprintf(SecretExtraHeadersVolumeName, index),
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: header,
+				},
+			},
+		}
+
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
+		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
+	}
+
 	return pod
 }
 
@@ -1334,6 +1370,12 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		env = append(env, corev1.EnvVar{
 			Name:  common.ImporterProxyCertDirVar,
 			Value: common.ImporterProxyCertDir,
+		})
+	}
+	for index, header := range podEnvVar.extraHeaders {
+		env = append(env, corev1.EnvVar{
+			Name:  fmt.Sprintf("%s%d", common.ImporterExtraHeader, index),
+			Value: header,
 		})
 	}
 	return env
