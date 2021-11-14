@@ -405,6 +405,31 @@ var _ = Describe("Controller", func() {
 				validateEvents(args.reconciler, createReadyEventValidationMap())
 			})
 
+			It("should reconcile configmap labels on update", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: configMapName}}
+				obj, err := getObject(args.client, cm)
+				cm = obj.(*corev1.ConfigMap)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(cm.OwnerReferences[0].UID).Should(Equal(args.cdi.UID))
+				Expect(cm.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+
+				args.cdi.Labels[common.AppKubernetesPartOfLabel] = "newtesting"
+				err = args.client.Update(context.TODO(), args.cdi)
+				Expect(err).ToNot(HaveOccurred())
+
+				doReconcile(args)
+
+				cm = &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: configMapName}}
+				obj, err = getObject(args.client, cm)
+				cm = obj.(*corev1.ConfigMap)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(cm.Labels[common.AppKubernetesPartOfLabel]).To(Equal("newtesting"))
+			})
+
 			It("should set config authority", func() {
 				args := createArgs()
 				doReconcile(args)

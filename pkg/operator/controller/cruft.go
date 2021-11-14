@@ -22,11 +22,17 @@ import (
 	"fmt"
 	"reflect"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/apiserver"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
 
+	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -219,6 +225,66 @@ func reconcileSELinuxPerms(args *callbacks.ReconcileCallbackArgs) error {
 
 		if err = args.Client.Update(context.TODO(), scc); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func reconcileRemainingRelationshipLabels(args *callbacks.ReconcileCallbackArgs) error {
+	if args.State != callbacks.ReconcileStatePostRead {
+		return nil
+	}
+
+	deployment := args.CurrentObject.(*appsv1.Deployment)
+	if !isControllerDeployment(deployment) || !sdk.CheckDeploymentReady(deployment) {
+		return nil
+	}
+	namespace := deployment.GetNamespace()
+	cr := args.Resource.(*cdiv1.CDI)
+	installerLabels := util.GetRecommendedInstallerLabelsFromCr(cr)
+	remainingResources := []client.Object{
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      operator.ConfigMapName,
+				Namespace: namespace,
+			},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      apiserver.APISigningKeySecretName,
+				Namespace: namespace,
+			},
+		},
+		&routev1.Route{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      uploadProxyRouteName,
+				Namespace: namespace,
+			},
+		},
+		&secv1.SecurityContextConstraints{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: sccName,
+			},
+		},
+	}
+
+	for _, k := range remainingResources {
+		nn := client.ObjectKeyFromObject(k)
+		if err := args.Client.Get(context.TODO(), nn, k); err != nil {
+			if errors.IsNotFound(err) || meta.IsNoMatchError(err) {
+				// Doesn't exist or CRD not installed, we're fine
+				continue
+			}
+			return err
+		}
+		// Exists, lets update labels if needed
+		labelsCopy := util.MergeLabels(k.GetLabels(), map[string]string{})
+		util.SetRecommendedLabels(k, installerLabels, "cdi-operator")
+		if !reflect.DeepEqual(labelsCopy, k.GetLabels()) {
+			if err := args.Client.Update(context.TODO(), k); err != nil {
+				return err
+			}
 		}
 	}
 
