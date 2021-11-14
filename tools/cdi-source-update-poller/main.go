@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -17,6 +16,7 @@ import (
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -62,33 +62,9 @@ func cmdRun(cmd string) (outStr string, err error) {
 }
 
 func main() {
-	cmd := "skopeo inspect"
-	if insecureTLS {
-		cmd += " --tls-verify=false"
-	}
-	if certDir != "" {
-		cmd += " --cert-dir " + certDir
-	}
-	if accessKey != "" {
-		cmd += " --creds " + accessKey
-		if secretKey != "" {
-			cmd += ":" + secretKey
-		}
-	}
-	cmd += " " + url
-	out, err := cmdRun(cmd)
+	digest, err := importer.GetImageDigest(url, accessKey, secretKey, certDir, insecureTLS)
 	if err != nil {
 		os.Exit(1)
-	}
-	fmt.Println("out:", out)
-
-	var result map[string]interface{}
-	if err := json.Unmarshal([]byte(out), &result); err != nil {
-		log.Fatalf("Failed Unmarshal: %v", err)
-	}
-	digest, ok := result["Digest"].(string)
-	if !ok {
-		log.Fatalf("Failed reading digest")
 	}
 	fmt.Println("Digest is", digest)
 
