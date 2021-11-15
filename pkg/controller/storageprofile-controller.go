@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -23,6 +24,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+)
+
+var (
+	// IncompleteProfileGauge is the metric we use to alert about incomplete storage profiles
+	IncompleteProfileGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "kubevirt_cdi_incomplete_storageprofiles_total",
+			Help: "Total number of incomplete and hence unusable StorageProfiles",
+		})
 )
 
 // StorageProfileReconciler members
@@ -44,8 +54,24 @@ func (r *StorageProfileReconciler) Reconcile(_ context.Context, req reconcile.Re
 	if err := r.client.Get(context.TODO(), req.NamespacedName, storageClass); err != nil {
 		return reconcile.Result{}, err
 	}
+	if _, err := r.reconcileStorageProfile(storageClass); err != nil {
+		return reconcile.Result{}, err
+	}
 
-	return r.reconcileStorageProfile(storageClass)
+	// Alert for incomplete profiles
+	numIncomplete := 0
+	storageProfileList := &cdiv1.StorageProfileList{}
+	if err := r.client.List(context.TODO(), storageProfileList); err != nil {
+		return reconcile.Result{}, err
+	}
+	for _, profile := range storageProfileList.Items {
+		if isIncomplete(profile.Status.ClaimPropertySets) {
+			numIncomplete++
+		}
+	}
+	IncompleteProfileGauge.Set(float64(numIncomplete))
+
+	return reconcile.Result{}, nil
 }
 
 func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.StorageClass) (reconcile.Result, error) {
@@ -209,4 +235,18 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 	return nil
+}
+
+func isIncomplete(sets []cdiv1.ClaimPropertySet) bool {
+	if len(sets) > 0 {
+		for _, cps := range sets {
+			if len(cps.AccessModes) == 0 || cps.VolumeMode == nil {
+				return true
+			}
+		}
+	} else {
+		return true
+	}
+
+	return false
 }
