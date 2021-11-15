@@ -297,16 +297,9 @@ func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity, p
 		return errors.Wrap(err, fmt.Sprintf("could not create raw image with size %s in %s", size.String(), dest))
 	}
 	// Change permissions to 0660
-	file, err := os.Open(dest)
+	err = os.Chmod(dest, 0660)
 	if err != nil {
-		return errors.Wrap(err, "could not get file descriptor for chmod call")
-	}
-	err = file.Chmod(0660)
-	if err != nil {
-		return errors.Wrap(err, "Unable to change permissions of target file")
-	}
-	if err := file.Sync(); err != nil {
-		return errors.Wrap(err, "could not fsync following chmod call")
+		err = errors.Wrap(err, "Unable to change permissions of target file")
 	}
 
 	return nil

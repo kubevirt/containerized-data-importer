@@ -13,7 +13,6 @@ import (
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -161,7 +160,6 @@ func (f *Framework) VerifyTargetPVCContentMD5(namespace *k8sv1.Namespace, pvc *k
 
 // GetMD5 returns the MD5 of a file on a PVC
 func (f *Framework) GetMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, fileName string, numBytes int64) (string, error) {
-	var err error
 	executorPod, err := f.startVerifierPod(namespace, pvc)
 	if err != nil {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: could not start verifier pod: [%s]\n", err)
@@ -173,16 +171,9 @@ func (f *Framework) GetMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolu
 		cmd = fmt.Sprintf("head -c %d %s 1> null && head -c %d %s | md5sum", numBytes, fileName, numBytes, fileName)
 	}
 
-	var output, stderr string
-	err = wait.PollImmediate(2*time.Second, 10*time.Second, func() (bool, error) {
-		output, stderr, err = f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
-		if err != nil {
-			fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: pod command execution failed, retrying: stderr: [%s]\n", stderr)
-			return false, nil
-		}
-		return true, nil
-	})
+	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
 	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return "", err
 	}
 

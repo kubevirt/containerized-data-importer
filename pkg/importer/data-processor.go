@@ -295,16 +295,9 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 	}
 	if dp.dataFile != "" {
 		// Change permissions to 0660
-		file, err := os.Open(dp.dataFile)
-		if err != nil {
-			return ProcessingPhaseError, errors.Wrap(err, "could not get file descriptor for chmod call")
-		}
-		err = file.Chmod(0660)
+		err := os.Chmod(dp.dataFile, 0660)
 		if err != nil {
 			return ProcessingPhaseError, errors.Wrap(err, "Unable to change permissions of target file")
-		}
-		if err := file.Sync(); err != nil {
-			return ProcessingPhaseError, errors.Wrap(err, "could not fsync following chmod call")
 		}
 	}
 

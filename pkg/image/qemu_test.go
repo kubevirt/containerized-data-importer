@@ -297,27 +297,12 @@ var _ = Describe("quantity to qemu", func() {
 })
 
 var _ = Describe("Create blank image", func() {
-	var tmpDir, destPath string
-
-	BeforeEach(func() {
-		tmpDir, err := ioutil.TempDir(os.TempDir(), "qemutestdest")
-		Expect(err).NotTo(HaveOccurred())
-		By("tmpDir: " + tmpDir)
-		destPath = filepath.Join(tmpDir, "dest")
-		_, err = os.Create(destPath)
-		Expect(err).NotTo(HaveOccurred())
-	})
-
-	AfterEach(func() {
-		os.RemoveAll(tmpDir)
-	})
-
 	It("Should complete successfully if qemu-img resize succeeds", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
 		size := convertQuantityToQemuSize(quantity)
-		replaceExecFunction(mockExecFunction("", "", nil, "create", "-f", "raw", destPath, size), func() {
-			err = CreateBlankImage(destPath, quantity, false)
+		replaceExecFunction(mockExecFunction("", "", nil, "create", "-f", "raw", "image", size), func() {
+			err = CreateBlankImage("image", quantity, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -326,8 +311,8 @@ var _ = Describe("Create blank image", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
 		size := convertQuantityToQemuSize(quantity)
-		replaceExecFunction(mockExecFunction("", "exit 1", nil, "create", "-f", "raw", destPath, size), func() {
-			err = CreateBlankImage(destPath, quantity, false)
+		replaceExecFunction(mockExecFunction("", "exit 1", nil, "create", "-f", "raw", "image", size), func() {
+			err = CreateBlankImage("image", quantity, false)
 			Expect(err).To(HaveOccurred())
 			Expect(strings.Contains(err.Error(), "could not create raw image with size ")).To(BeTrue())
 		})
@@ -337,8 +322,8 @@ var _ = Describe("Create blank image", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
 		size := convertQuantityToQemuSize(quantity)
-		replaceExecFunction(mockExecFunctionStrict("", "", nil, "create", "-f", "raw", destPath, size, "-o", "preallocation=falloc"), func() {
-			err = CreateBlankImage(destPath, quantity, true)
+		replaceExecFunction(mockExecFunctionStrict("", "", nil, "create", "-f", "raw", "image", size, "-o", "preallocation=falloc"), func() {
+			err = CreateBlankImage("image", quantity, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -347,8 +332,8 @@ var _ = Describe("Create blank image", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
 		size := convertQuantityToQemuSize(quantity)
-		replaceExecFunction(mockExecFunctionStrict("", "", nil, "create", "-f", "raw", destPath, size), func() {
-			err = CreateBlankImage(destPath, quantity, false)
+		replaceExecFunction(mockExecFunctionStrict("", "", nil, "create", "-f", "raw", "image", size), func() {
+			err = CreateBlankImage("image", quantity, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
