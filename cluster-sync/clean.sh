@@ -34,6 +34,20 @@ _kubectl get dv --all-namespaces -o=custom-columns=NAME:.metadata.name,NAMESPACE
     _kubectl patch dv $name -n $namespace --type=json -p '[{ "op": "remove", "path": "/metadata/finalizers" }]'
 done
 
+_kubectl get pvc --all-namespaces -o=custom-columns=NAME:.metadata.name,NAMESPACE:.metadata.namespace,FINALIZERS:.metadata.finalizers --no-headers | grep importImageStream | while read p; do
+    arr=($p)
+    name="${arr[0]}"
+    namespace="${arr[1]}"
+    _kubectl patch pvc $name -n $namespace --type=json -p '[{ "op": "remove", "path": "/metadata/finalizers" }]'
+done
+
+_kubectl get dataimportcron --all-namespaces -o=custom-columns=NAME:.metadata.name,NAMESPACE:.metadata.namespace,FINALIZERS:.metadata.finalizers --no-headers | grep dataImportCronFinalizer | while read p; do
+    arr=($p)
+    name="${arr[0]}"
+    namespace="${arr[1]}"
+    _kubectl patch dataimportcron $name -n $namespace --type=json -p '[{ "op": "remove", "path": "/metadata/finalizers" }]'
+done
+
 if [ -f "${OPERATOR_CR_MANIFEST}" ]; then
 	echo "Cleaning CR object ..."
     if _kubectl get crd cdis.cdi.kubevirt.io ; then

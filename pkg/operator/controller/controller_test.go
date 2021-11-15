@@ -1716,6 +1716,8 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.CustomResourceDefinition objecttransfers.cdi.kubevirt.io"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.ClusterRoleBinding cdi-uploadproxy"] = false
+	match[normalCreateSuccess+" *v1.ClusterRole cdi-cronjob"] = false
+	match[normalCreateSuccess+" *v1.ClusterRoleBinding cdi-cronjob"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi.kubevirt.io:admin"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi.kubevirt.io:edit"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi.kubevirt.io:view"] = false
@@ -1736,12 +1738,16 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.RoleBinding cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.Role cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.Deployment cdi-uploadproxy"] = false
+	match[normalCreateSuccess+" *v1.ServiceAccount cdi-cronjob"] = false
+	match[normalCreateSuccess+" *v1.RoleBinding cdi-cronjob"] = false
+	match[normalCreateSuccess+" *v1.Role cdi-cronjob"] = false
 	match[normalCreateSuccess+" *v1.APIService v1beta1.upload.cdi.kubevirt.io"] = false
 	match[normalCreateSuccess+" *v1.APIService v1alpha1.upload.cdi.kubevirt.io"] = false
 	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration cdi-api-datavolume-validate"] = false
 	match[normalCreateSuccess+" *v1.MutatingWebhookConfiguration cdi-api-datavolume-mutate"] = false
 	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration cdi-api-validate"] = false
 	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration objecttransfer-api-validate"] = false
+	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration cdi-api-dataimportcron-validate"] = false
 	match[normalCreateSuccess+" *v1.Secret cdi-apiserver-signer"] = false
 	match[normalCreateSuccess+" *v1.ConfigMap cdi-apiserver-signer-bundle"] = false
 	match[normalCreateSuccess+" *v1.Secret cdi-apiserver-server-cert"] = false

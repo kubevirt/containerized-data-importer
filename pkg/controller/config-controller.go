@@ -59,7 +59,8 @@ func isErrCacheNotStarted(err error) bool {
 	if err == nil {
 		return false
 	}
-	return err.(*cache.ErrCacheNotStarted) != nil
+	_, ok := err.(*cache.ErrCacheNotStarted)
+	return ok
 }
 
 // Reconcile the reconcile loop for the CDIConfig object.
