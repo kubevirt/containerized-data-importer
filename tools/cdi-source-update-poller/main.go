@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"strconv"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,19 +44,6 @@ func init() {
 	accessKey, _ = util.ParseEnvVar(common.ImporterAccessKeyID, false)
 	secretKey, _ = util.ParseEnvVar(common.ImporterSecretKey, false)
 	insecureTLS, _ = strconv.ParseBool(os.Getenv(common.InsecureTLSVar))
-}
-
-func cmdRun(cmd string) (outStr string, err error) {
-	var out, stderr bytes.Buffer
-	command := exec.Command("sh", "-c", cmd)
-	command.Stdout = &out
-	command.Stderr = &stderr
-	err = command.Run()
-	if err != nil {
-		log.Printf("Failed to exec command \"%s\": %v: %s", cmd, err, stderr.String())
-	}
-	outStr = out.String()
-	return
 }
 
 func main() {
