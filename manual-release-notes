@@ -1,0 +1,2 @@
+BugFix: Replace priorityClass with kubevirt-cluster-critical
+Enhancement: DataImportCron controller
