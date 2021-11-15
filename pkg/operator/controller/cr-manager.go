@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
@@ -84,7 +85,7 @@ func (r *ReconcileCDI) getNamespacedArgs(cr *cdiv1.CDI) *cdinamespaced.FactoryAr
 		if cr.Spec.PriorityClass != nil && string(*cr.Spec.PriorityClass) != "" {
 			result.PriorityClassName = string(*cr.Spec.PriorityClass)
 		} else {
-			result.PriorityClassName = "openshift-user-critical"
+			result.PriorityClassName = utils.CDIPriorityClass
 		}
 		// Verify the priority class name exists.
 		priorityClass := &schedulingv1.PriorityClass{}
