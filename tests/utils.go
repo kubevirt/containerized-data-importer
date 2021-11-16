@@ -15,17 +15,13 @@ import (
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
 	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/tests/framework"
-)
-
-const (
-	defaultTimeout      = 270 * time.Second
-	testNamespacePrefix = "cdi-test-"
 )
 
 var (
@@ -195,21 +191,30 @@ func PodSpecHasTestNodePlacementValues(f *framework.Framework, podSpec v1.PodSpe
 			foundMatchingTolerations = true
 		}
 	}
-	if foundMatchingTolerations != true {
+	if !foundMatchingTolerations {
 		fmt.Printf("no matching tolerations found. podSpec:\n%v\nExpected:\n%v\n", podSpec.Tolerations, tolerationsTestValue)
 		return false
 	}
 	return true
 }
 
+// WaitForConditions waits until the data volume conditions match the expected conditions
+func WaitForConditions(f *framework.Framework, dataVolumeName string, timeout, pollingInterval time.Duration, expectedConditions ...*cdiv1.DataVolumeCondition) {
+	gomega.Eventually(func() bool {
+		resultDv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
+		gomega.Expect(dverr).ToNot(gomega.HaveOccurred())
+		return VerifyConditions(resultDv.Status.Conditions, expectedConditions)
+	}, timeout, pollingInterval).Should(gomega.BeTrue())
+}
+
 // VerifyConditions checks if the conditions match testConditions
-func VerifyConditions(actualConditions []cdiv1.DataVolumeCondition, startTime time.Time, testConditions ...*cdiv1.DataVolumeCondition) bool {
+func VerifyConditions(actualConditions []cdiv1.DataVolumeCondition, testConditions []*cdiv1.DataVolumeCondition) bool {
 	for _, condition := range testConditions {
 		if condition != nil {
 			actualCondition := findConditionByType(condition.Type, actualConditions)
 			if actualCondition != nil {
 				if actualCondition.Status != condition.Status {
-					fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Status does not match for type: %s\n", condition.Type)
+					fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Status does not match for type: %s, status expected: [%s], status found: [%s]\n", condition.Type, condition.Status, actualCondition.Status)
 					return false
 				}
 				if strings.Compare(actualCondition.Reason, condition.Reason) != 0 {

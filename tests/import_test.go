@@ -55,7 +55,6 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	})
 
 	DescribeTable("[test_id:2329] Should fail to import images that require too much space", func(uploadURL string) {
-		startTime := time.Now()
 		imageURL := fmt.Sprintf(uploadURL, f.CdiInstallNs)
 
 		By(imageURL)
@@ -68,21 +67,17 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		importer, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod"))
+		Expect(err).NotTo(HaveOccurred(), "Unable to get importer pod")
 
 		By(fmt.Sprintf("logs for pod -n %s %s", importer.Name, importer.Namespace))
 		By("Verify datavolume too small condition")
-		Eventually(func() bool {
-			dv, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dv.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-
-			return tests.VerifyConditions(dv.Status.Conditions, startTime, &cdiv1.DataVolumeCondition{
-				Type:    cdiv1.DataVolumeRunning,
-				Status:  v1.ConditionFalse,
-				Message: "DataVolume too small to contain image",
-				Reason:  "Error",
-			})
-		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
+		runningCondition := &cdiv1.DataVolumeCondition{
+			Type:    cdiv1.DataVolumeRunning,
+			Status:  v1.ConditionFalse,
+			Message: "DataVolume too small to contain image",
+			Reason:  "Error",
+		}
+		tests.WaitForConditions(f, dv.Name, controllerSkipPVCCompleteTimeout, assertionPollInterval, runningCondition)
 	},
 		Entry("fail given a large virtual size RAW XZ file", utils.LargeVirtualDiskXz),
 		Entry("fail given a large virtual size QCOW2 file", utils.LargeVirtualDiskQcow),
@@ -280,6 +275,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", fu
 	It("[test_id:4783] Should create import pod with node placement", func() {
 		cr.Spec.Workloads = tests.TestNodePlacementValues(f)
 		_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
 
 		By("Waiting for CDI CR update to take effect")
 		Eventually(func() bool {
@@ -297,7 +293,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", fu
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		importer, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod"))
+		Expect(err).NotTo(HaveOccurred(), "Unable to get importer pod")
 
 		By("Verify the import pod has nodeSelector")
 		match := tests.PodSpecHasTestNodePlacementValues(f, importer.Spec)
@@ -358,7 +354,7 @@ var _ = Describe("Importer CDI config manipulation tests", func() {
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		importer, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod"))
+		Expect(err).NotTo(HaveOccurred(), "Unable to get importer pod")
 
 		if expectedSuccess {
 			By("Waiting for import to be completed")
@@ -878,10 +874,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		Eventually(func() bool {
 			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			if k8serrors.IsNotFound(err) {
-				return true
-			}
-			return false
+			return k8serrors.IsNotFound(err)
 		}, timeout, pollingInterval).Should(BeTrue())
 	})
 
@@ -981,10 +974,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		Eventually(func() bool {
 			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			if k8serrors.IsNotFound(err) {
-				return true
-			}
-			return false
+			return k8serrors.IsNotFound(err)
 		}, timeout, pollingInterval).Should(BeTrue())
 	})
 
@@ -1102,10 +1092,7 @@ var _ = Describe("Preallocation", func() {
 
 		Eventually(func() bool {
 			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			if k8serrors.IsNotFound(err) {
-				return true
-			}
-			return false
+			return k8serrors.IsNotFound(err)
 		}, timeout, pollingInterval).Should(BeTrue())
 
 		By("Restoring CDIConfig to original state")
@@ -1195,11 +1182,6 @@ var _ = Describe("Preallocation", func() {
 		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindIfWaitForFirstConsumer(pvc)
-
-		should := ContainSubstring("New phase: Preallocate")
-		if !shouldPreallocate {
-			should = Not(should)
-		}
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))

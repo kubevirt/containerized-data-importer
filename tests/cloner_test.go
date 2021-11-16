@@ -1292,6 +1292,7 @@ var _ = Describe("all clone tests", func() {
 
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDV)
 			sourcePvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourceDV.Namespace).Get(context.TODO(), sourceDV.Name, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
 
 			By("Create clone DV")
 			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
@@ -1525,6 +1526,7 @@ var _ = Describe("all clone tests", func() {
 
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 			sourcePvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
 
 			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", sourcePvc)
 			preallocation := true
@@ -1770,6 +1772,7 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 
 		if sourcePVC.Spec.StorageClassName != nil {
 			spec, err := utils.GetStorageProfileSpec(f.CdiClient, *sourcePVC.Spec.StorageClassName)
+			Expect(err).NotTo(HaveOccurred())
 
 			defaultCloneStrategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)
 			cloneStrategy := &defaultCloneStrategy
@@ -1801,12 +1804,5 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 		}
 	}
 
-	Expect(utils.GetCloneType(f.CdiClient, dv)).To(Equal(cloneType))
-}
-
-func validateCloneTypeEquals(f *framework.Framework, dv *cdiv1.DataVolume, cloneType string) {
-	if dv.Spec.Source.PVC == nil {
-		return
-	}
 	Expect(utils.GetCloneType(f.CdiClient, dv)).To(Equal(cloneType))
 }

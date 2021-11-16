@@ -746,7 +746,7 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 
 		storageClassName := GetScratchPvcStorageClass(r.client, pvc)
 		// Scratch PVC doesn't exist yet, create it. Determine which storage class to use.
-		_, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, scratchPVCName, storageClassName, r.installerLabels)
+		_, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, scratchPVCName, storageClassName, r.installerLabels, r.recorder)
 		if err != nil {
 			return err
 		}

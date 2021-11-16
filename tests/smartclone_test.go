@@ -171,7 +171,7 @@ func verifyPVC(dataVolume *cdiv1.DataVolume, f *framework.Framework, testPath st
 	targetPvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
-	By(fmt.Sprint("Verifying target PVC content"))
+	By("Verifying target PVC content")
 	Expect(f.VerifyTargetPVCContentMD5(f.Namespace, targetPvc, testPath, md5sum, utils.UploadFileSize)).To(BeTrue())
 }
 
@@ -185,6 +185,7 @@ func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f
 			Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 		}
 	}
+	Expect(err).ToNot(HaveOccurred())
 }
 
 func createAndPopulateSourcePVC(dataVolumeName string, volumeMode v1.PersistentVolumeMode, scName string, f *framework.Framework) *v1.PersistentVolumeClaim {
@@ -216,6 +217,7 @@ func createDataVolume(dataVolumeName, testPath string, volumeMode v1.PersistentV
 	Expect(err).ToNot(HaveOccurred())
 	zero := int64(0)
 	err = utils.DeletePodByName(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, &zero)
+	Expect(err).ToNot(HaveOccurred())
 
 	By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
 	dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)

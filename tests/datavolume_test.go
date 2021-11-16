@@ -319,7 +319,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		testDataVolume := func(args dataVolumeTestArguments) {
 			// Have to call the function in here, to make sure the BeforeEach in the Framework has run.
 			dataVolume := args.dvFunc(args.name, args.size, args.url())
-			startTime := time.Now()
 			repeat := 1
 			if utils.IsHostpathProvisioner() && args.repeat > 0 {
 				// Repeat rapidly to make sure we don't get regular and scratch space on different nodes.
@@ -332,24 +331,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
-				By(fmt.Sprintf("waiting for datavolume to match phase %s", string(args.phase)))
-				err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, args.phase, dataVolume.Name)
-				if err != nil {
-					dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-					if dverr != nil {
-						Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
-					}
-				}
-				Expect(err).ToNot(HaveOccurred())
+				waitForDvPhase(args.phase, dataVolume, f)
 
 				By("Verifying the DV has the correct conditions and messages for those conditions")
-				Eventually(func() bool {
-					// Doing this as eventually because in failure scenarios, we could still be in a retry and the running condition
-					// will not match if the pod hasn't failed and the backoff is not long enough yet
-					resultDv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-					Expect(dverr).ToNot(HaveOccurred())
-					return VerifyConditions(resultDv.Status.Conditions, startTime, args.readyCondition, args.runningCondition, args.boundCondition)
-				}, timeout, pollingInterval).Should(BeTrue())
+				WaitForConditions(f, dataVolume.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
 
 				// verify PVC was created
 				By("verifying pvc was created")
@@ -386,6 +371,81 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					return k8serrors.IsNotFound(err)
 				}, timeout, pollingInterval).Should(BeTrue())
 			}
+		}
+
+		testDataVolumeWithQuota := func(args dataVolumeTestArguments) {
+			By("Configure namespace quota")
+			err := f.CreateStorageQuota(int64(2), int64(512*1024*1024))
+			Expect(err).ToNot(HaveOccurred())
+
+			// Have to call the function in here, to make sure the BeforeEach in the Framework has run.
+			dataVolume := args.dvFunc(args.name, args.size, args.url())
+
+			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verify Quota was exceeded in events and dv conditions")
+			expectedPhase := cdiv1.Pending
+			boundCondition := &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeBound,
+				Status:  v1.ConditionUnknown,
+				Message: "No PVC found",
+				Reason:  controller.ErrExceededQuota,
+			}
+			readyCondition := &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeReady,
+				Status:  v1.ConditionFalse,
+				Message: "",
+				Reason:  controller.ErrExceededQuota,
+			}
+			// for smart clone dv the dv can't be updated, only events will show the quota reason
+			if args.name == "dv-clone-test" && f.IsSnapshotStorageClassAvailable() {
+				expectedPhase = cdiv1.SnapshotForSmartCloneInProgress
+				boundCondition.Reason = controller.SnapshotForSmartCloneInProgress
+				readyCondition.Reason = controller.SnapshotForSmartCloneInProgress
+			}
+			waitForDvPhase(expectedPhase, dataVolume, f)
+			verifyEvent(controller.ErrExceededQuota, dataVolume.Namespace, f)
+			WaitForConditions(f, dataVolume.Name, timeout, pollingInterval, boundCondition, readyCondition)
+
+			By("Increase quota")
+			err = f.UpdateStorageQuota(int64(2), int64(2*1024*1024*1024))
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+			waitForDvPhase(args.phase, dataVolume, f)
+
+			By("Verifying the DV has the correct conditions and messages for those conditions")
+			WaitForConditions(f, dataVolume.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
+
+			// verify PVC was created
+			By("verifying pvc was created")
+			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verifying event occurred")
+			Eventually(func() bool {
+				// Only find DV events, we know the PVC gets the same events
+				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+				if err == nil {
+					fmt.Fprintf(GinkgoWriter, "%s", events)
+					return strings.Contains(events, args.eventReason) && strings.Contains(events, args.errorMessage)
+				}
+				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+				return false
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			By("Cleaning up")
+			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() bool {
+				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				return k8serrors.IsNotFound(err)
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			err = f.DeleteStorageQuota()
+			Expect(err).ToNot(HaveOccurred())
 		}
 
 		table.DescribeTable("should", testDataVolume,
@@ -931,6 +991,79 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeRunning,
 					Status: v1.ConditionFalse,
+				}}),
+		)
+
+		// similar to other tables but with check of quota
+		table.DescribeTable("should fail create pvc in namespace with storge quota, then succeed once the quota is large enough", testDataVolumeWithQuota,
+			table.Entry("when creating import dv with given valid url", dataVolumeTestArguments{
+				name:        "dv-http-import",
+				size:        "1Gi",
+				url:         tinyCoreIsoURL,
+				dvFunc:      utils.NewDataVolumeWithHTTPImport,
+				eventReason: controller.ImportSucceeded,
+				phase:       cdiv1.Succeeded,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-http-import Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("when creating upload dv", dataVolumeTestArguments{
+				name:        "upload-dv",
+				size:        "1Gi",
+				url:         func() string { return "" },
+				dvFunc:      createUploadDataVolume,
+				eventReason: controller.UploadReady,
+				phase:       cdiv1.UploadReady,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+					Reason: "TransferRunning",
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC upload-dv Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeRunning,
+					Status: v1.ConditionTrue,
+					Reason: "Pod is running",
+				}}),
+			table.Entry("when creating clone dv", dataVolumeTestArguments{
+				name:        "dv-clone-test",
+				size:        "500Mi",
+				url:         func() string { return fillCommand }, // its not URL, but command, but the parameter lines up.
+				dvFunc:      createCloneDataVolume,
+				eventReason: controller.CloneSucceeded,
+				phase:       cdiv1.Succeeded,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-clone-test Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Clone Complete",
+					Reason:  "Completed",
 				}}),
 		)
 
@@ -1856,21 +1989,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	})
 
 	Describe("[rfe_id:4223][crit:high] DataVolume - WaitForFirstConsumer", func() {
-		type dataVolumeTestArguments struct {
-			name             string
-			size             string
-			url              string
-			dvFunc           func(string, string, string) *cdiv1.DataVolume
-			errorMessage     string
-			eventReason      string
-			phase            cdiv1.DataVolumePhase
-			repeat           int
-			checkPermissions bool
-			readyCondition   *cdiv1.DataVolumeCondition
-			boundCondition   *cdiv1.DataVolumeCondition
-			runningCondition *cdiv1.DataVolumeCondition
-		}
-
 		createBlankRawDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 			return utils.NewDataVolumeForBlankRawImage(dataVolumeName, size)
 		}
@@ -1952,10 +2070,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(func() bool {
 				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				if k8serrors.IsNotFound(err) {
-					return true
-				}
-				return false
+				return k8serrors.IsNotFound(err)
 			}, timeout, pollingInterval).Should(BeTrue())
 		},
 			table.Entry("[test_id:4459] Import Positive flow",
@@ -1992,21 +2107,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	})
 
 	Describe("[crit:high] DataVolume - WaitForFirstConsumer", func() {
-		type dataVolumeTestArguments struct {
-			name             string
-			size             string
-			url              string
-			dvFunc           func(string, string, string) *cdiv1.DataVolume
-			errorMessage     string
-			eventReason      string
-			phase            cdiv1.DataVolumePhase
-			repeat           int
-			checkPermissions bool
-			readyCondition   *cdiv1.DataVolumeCondition
-			boundCondition   *cdiv1.DataVolumeCondition
-			runningCondition *cdiv1.DataVolumeCondition
-		}
-
 		createBlankRawDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 			return utils.NewDataVolumeForBlankRawImage(dataVolumeName, size)
 		}
@@ -2069,10 +2169,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(func() bool {
 				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				if k8serrors.IsNotFound(err) {
-					return true
-				}
-				return false
+				return k8serrors.IsNotFound(err)
 			}, timeout, pollingInterval).Should(BeTrue())
 		},
 			table.Entry("Import qcow2 scratch space",
@@ -2112,6 +2209,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		BeforeEach(func() {
 			By("Prepare the file")
 			fileHostPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, utils.FileHostName, "name="+utils.FileHostName)
+			Expect(err).ToNot(HaveOccurred())
 			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
 				"/bin/sh",
 				"-c",
@@ -2126,6 +2224,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Cleanup the file")
 			fileHostPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, utils.FileHostName, "name="+utils.FileHostName)
+			Expect(err).ToNot(HaveOccurred())
 			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
 				"/bin/sh",
 				"-c",
@@ -2163,6 +2262,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Remove source image file & kill http container to force restart")
 			fileHostPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, utils.FileHostName, "name="+utils.FileHostName)
+			Expect(err).ToNot(HaveOccurred())
 			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
 				"/bin/sh",
 				"-c",
