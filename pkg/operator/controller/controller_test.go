@@ -896,7 +896,7 @@ var _ = Describe("Controller", func() {
 						return false
 					}
 
-					delete(desiredDep.Annotations, lastAppliedConfigAnnotation)
+					delete(desiredDep.Annotations, LastAppliedConfigAnnotation)
 
 					for key, ann := range desiredDep.Annotations {
 						if postDep.Annotations[key] != ann {
@@ -1644,7 +1644,7 @@ func createReconciler(client client.Client) *ReconcileCDI {
 		certManager:    newFakeCertManager(client, namespace),
 	}
 	callbackDispatcher := callbacks.NewCallbackDispatcher(log, client, client, scheme.Scheme, namespace)
-	r.reconciler = sdkr.NewReconciler(r, log, client, callbackDispatcher, scheme.Scheme, createVersionLabel, updateVersionLabel, lastAppliedConfigAnnotation, certPollInterval, finalizerName, recorder).
+	r.reconciler = sdkr.NewReconciler(r, log, client, callbackDispatcher, scheme.Scheme, createVersionLabel, updateVersionLabel, LastAppliedConfigAnnotation, certPollInterval, finalizerName, recorder).
 		WithWatching(true)
 
 	r.registerHooks()

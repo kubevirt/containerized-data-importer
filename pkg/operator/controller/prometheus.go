@@ -34,6 +34,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -47,11 +48,8 @@ const (
 	runbookURLBasePath  = "https://kubevirt.io/monitoring/runbooks/"
 )
 
-func ensurePrometheusRuleExists(logger logr.Logger, c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
+func ensurePrometheusResourcesExist(c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
 	namespace := owner.GetNamespace()
-	if namespace == "" {
-		return fmt.Errorf("cluster scoped owner not supported")
-	}
 
 	cr, err := controller.GetActiveCDI(c)
 	if err != nil {
@@ -62,153 +60,47 @@ func ensurePrometheusRuleExists(logger logr.Logger, c client.Client, scheme *run
 	}
 	installerLabels := util.GetRecommendedInstallerLabelsFromCr(cr)
 
-	desiredRule := newPrometheusRule(namespace)
-	util.SetRecommendedLabels(desiredRule, installerLabels, "cdi-operator")
-
-	if deployed, err := isPrometheusDeployed(logger, c, namespace); err != nil {
-		return err
-	} else if !deployed {
-		return nil
+	prometheusResources := []client.Object{
+		newPrometheusRule(namespace),
+		newPrometheusServiceMonitor(namespace),
+		newPrometheusRole(namespace),
+		newPrometheusRoleBinding(namespace),
 	}
 
-	if err := controllerutil.SetControllerReference(owner, desiredRule, scheme); err != nil {
-		return err
-	}
-
-	if err := c.Create(context.TODO(), desiredRule); err != nil {
-		if errors.IsAlreadyExists(err) {
-			currentRule := &promv1.PrometheusRule{}
-			key := client.ObjectKey{Namespace: namespace, Name: ruleName}
-			if err := c.Get(context.TODO(), key, currentRule); err != nil {
-				return err
-			}
-			if !reflect.DeepEqual(currentRule.Spec, desiredRule.Spec) {
-				currentRule.Spec = desiredRule.Spec
-				if err := c.Update(context.TODO(), currentRule); err != nil {
-					return err
-				}
-			}
-		} else {
+	for _, desired := range prometheusResources {
+		if err := sdk.SetLastAppliedConfiguration(desired, LastAppliedConfigAnnotation); err != nil {
 			return err
 		}
-	}
-
-	return nil
-}
-
-func ensurePrometheusRbacExists(logger logr.Logger, c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
-	namespace := owner.GetNamespace()
-	if namespace == "" {
-		return fmt.Errorf("cluster scoped owner not supported")
-	}
-
-	cr, err := controller.GetActiveCDI(c)
-	if err != nil {
-		return err
-	}
-	if cr == nil {
-		return fmt.Errorf("no active CDI")
-	}
-	installerLabels := util.GetRecommendedInstallerLabelsFromCr(cr)
-
-	desiredRole := newPrometheusRole(namespace)
-	util.SetRecommendedLabels(desiredRole, installerLabels, "cdi-operator")
-	desiredRoleBinding := newPrometheusRoleBinding(namespace)
-	util.SetRecommendedLabels(desiredRoleBinding, installerLabels, "cdi-operator")
-
-	if deployed, err := isPrometheusDeployed(logger, c, namespace); err != nil {
-		return err
-	} else if !deployed {
-		return nil
-	}
-
-	if err := controllerutil.SetControllerReference(owner, desiredRole, scheme); err != nil {
-		return err
-	}
-	if err := controllerutil.SetControllerReference(owner, desiredRoleBinding, scheme); err != nil {
-		return err
-	}
-
-	key := client.ObjectKey{Namespace: namespace, Name: rbacName}
-	if err := c.Create(context.TODO(), desiredRole); err != nil {
-		if errors.IsAlreadyExists(err) {
-			currentRole := &rbacv1.Role{}
-			if err := c.Get(context.TODO(), key, currentRole); err != nil {
-				return err
-			}
-			if !reflect.DeepEqual(currentRole.Rules, desiredRole.Rules) {
-				currentRole.Rules = desiredRole.Rules
-				if err := c.Update(context.TODO(), currentRole); err != nil {
-					return err
-				}
-			}
-		} else {
+		util.SetRecommendedLabels(desired, installerLabels, "cdi-operator")
+		if err := controllerutil.SetControllerReference(owner, desired, scheme); err != nil {
 			return err
 		}
-	}
-	if err := c.Create(context.TODO(), desiredRoleBinding); err != nil {
-		if errors.IsAlreadyExists(err) {
-			currentRoleBinding := &rbacv1.RoleBinding{}
-			if err := c.Get(context.TODO(), key, currentRoleBinding); err != nil {
-				return err
-			}
-			if !reflect.DeepEqual(currentRoleBinding.Subjects, desiredRoleBinding.Subjects) {
-				currentRoleBinding.Subjects = desiredRoleBinding.Subjects
-				if err := c.Update(context.TODO(), currentRoleBinding); err != nil {
+
+		if err := c.Create(context.TODO(), desired); err != nil {
+			if errors.IsAlreadyExists(err) {
+				current := sdk.NewDefaultInstance(desired)
+				nn := client.ObjectKeyFromObject(desired)
+				if err := c.Get(context.TODO(), nn, current); err != nil {
 					return err
 				}
-			}
-		} else {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func ensurePrometheusServiceMonitorExists(logger logr.Logger, c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
-	namespace := owner.GetNamespace()
-	if namespace == "" {
-		return fmt.Errorf("cluster scoped owner not supported")
-	}
-
-	cr, err := controller.GetActiveCDI(c)
-	if err != nil {
-		return err
-	}
-	if cr == nil {
-		return fmt.Errorf("no active CDI")
-	}
-	installerLabels := util.GetRecommendedInstallerLabelsFromCr(cr)
-
-	desiredMonitor := newPrometheusServiceMonitor(namespace)
-	util.SetRecommendedLabels(desiredMonitor, installerLabels, "cdi-operator")
-
-	if deployed, err := isPrometheusDeployed(logger, c, namespace); err != nil {
-		return err
-	} else if !deployed {
-		return nil
-	}
-
-	if err := controllerutil.SetControllerReference(owner, desiredMonitor, scheme); err != nil {
-		return err
-	}
-
-	key := client.ObjectKey{Namespace: namespace, Name: monitorName}
-	if err := c.Create(context.TODO(), desiredMonitor); err != nil {
-		if errors.IsAlreadyExists(err) {
-			currentMonitor := &promv1.ServiceMonitor{}
-			if err := c.Get(context.TODO(), key, currentMonitor); err != nil {
-				return err
-			}
-			if !reflect.DeepEqual(currentMonitor.Spec, desiredMonitor.Spec) {
-				currentMonitor.Spec = desiredMonitor.Spec
-				if err := c.Update(context.TODO(), currentMonitor); err != nil {
+				current, err = sdk.StripStatusFromObject(current)
+				if err != nil {
 					return err
 				}
+				currentObjCopy := current.DeepCopyObject()
+				sdk.MergeLabelsAndAnnotations(desired, current)
+				merged, err := sdk.MergeObject(desired, current, LastAppliedConfigAnnotation)
+				if err != nil {
+					return err
+				}
+				if !reflect.DeepEqual(currentObjCopy, merged) {
+					if err := c.Update(context.TODO(), merged); err != nil {
+						return err
+					}
+				}
+			} else {
+				return err
 			}
-		} else {
-			return err
 		}
 	}
 
@@ -232,10 +124,6 @@ func isPrometheusDeployed(logger logr.Logger, c client.Client, namespace string)
 
 func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 	return &promv1.PrometheusRule{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: promv1.SchemeGroupVersion.String(),
-			Kind:       "PrometheusRule",
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ruleName,
 			Namespace: namespace,
@@ -373,10 +261,6 @@ func getMonitoringNamespace() string {
 
 func newPrometheusServiceMonitor(namespace string) *promv1.ServiceMonitor {
 	return &promv1.ServiceMonitor{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: promv1.SchemeGroupVersion.String(),
-			Kind:       "ServiceMonitor",
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      monitorName,

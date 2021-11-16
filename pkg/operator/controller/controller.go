@@ -54,9 +54,10 @@ import (
 const (
 	finalizerName = "operator.cdi.kubevirt.io"
 
-	createVersionLabel          = "operator.cdi.kubevirt.io/createVersion"
-	updateVersionLabel          = "operator.cdi.kubevirt.io/updateVersion"
-	lastAppliedConfigAnnotation = "operator.cdi.kubevirt.io/lastAppliedConfiguration"
+	createVersionLabel = "operator.cdi.kubevirt.io/createVersion"
+	updateVersionLabel = "operator.cdi.kubevirt.io/updateVersion"
+	// LastAppliedConfigAnnotation is the annotation that holds the last resource state which we put on resources under our governance
+	LastAppliedConfigAnnotation = "operator.cdi.kubevirt.io/lastAppliedConfiguration"
 
 	certPollInterval = 1 * time.Minute
 
@@ -145,7 +146,7 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 		dumpInstallStrategy: dumpInstallStrategy,
 	}
 	callbackDispatcher := callbacks.NewCallbackDispatcher(log, restClient, uncachedClient, scheme, namespace)
-	r.reconciler = sdkr.NewReconciler(r, log, restClient, callbackDispatcher, scheme, createVersionLabel, updateVersionLabel, lastAppliedConfigAnnotation, certPollInterval, finalizerName, recorder)
+	r.reconciler = sdkr.NewReconciler(r, log, restClient, callbackDispatcher, scheme, createVersionLabel, updateVersionLabel, LastAppliedConfigAnnotation, certPollInterval, finalizerName, recorder)
 
 	r.registerHooks()
 	addReconcileCallbacks(r)
