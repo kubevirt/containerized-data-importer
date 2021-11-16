@@ -24,7 +24,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
-func createAggregateClusterRoles(args *FactoryArgs) []client.Object {
+func createAggregateClusterRoles(_ *FactoryArgs) []client.Object {
 	return []client.Object{
 		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.kubevirt.io:admin", "admin", getAdminPolicyRules()),
 		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.kubevirt.io:edit", "edit", getEditPolicyRules()),
@@ -143,6 +143,7 @@ func createConfigReaderClusterRole(name string) *rbacv1.ClusterRole {
 			},
 			Resources: []string{
 				"cdiconfigs",
+				"storageprofiles",
 			},
 			Verbs: []string{
 				"get",

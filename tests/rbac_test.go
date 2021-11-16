@@ -130,6 +130,20 @@ var _ = Describe("Aggregated role in-action tests", func() {
 			config.ScratchSpaceStorageClass = &[]string{"foobar"}[0]
 		})
 		Expect(err).To(HaveOccurred())
+
+		profiles, err := cdiClient.CdiV1beta1().StorageProfiles().List(context.TODO(), metav1.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(profiles.Items).ToNot(BeEmpty())
+
+		profileName := profiles.Items[0].Name
+		storageProfile, err := cdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), profileName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		spec := &storageProfile.Spec
+		cs := cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)
+		spec.CloneStrategy = &cs
+		err = utils.UpdateStorageProfile(crClient, profileName, *spec)
+		Expect(err).To(HaveOccurred())
 	},
 		Entry("[test_id:3948]can do everything with admin", "admin"),
 		Entry("[test_id:3949]can do everything with edit", "edit"),
@@ -177,6 +191,20 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		err = utils.UpdateCDIConfig(crClient, func(config *cdiv1.CDIConfigSpec) {
 			config.ScratchSpaceStorageClass = &[]string{"foobar"}[0]
 		})
+		Expect(err).To(HaveOccurred())
+
+		profiles, err := cdiClient.CdiV1beta1().StorageProfiles().List(context.TODO(), metav1.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(profiles.Items).ToNot(BeEmpty())
+
+		profileName := profiles.Items[0].Name
+		storageProfile, err := cdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), profileName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		spec := &storageProfile.Spec
+		cs := cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)
+		spec.CloneStrategy = &cs
+		err = utils.UpdateStorageProfile(crClient, profileName, *spec)
 		Expect(err).To(HaveOccurred())
 	})
 })
@@ -231,6 +259,21 @@ var _ = Describe("Aggregated role definition tests", func() {
 				"*",
 			},
 		},
+		{
+			APIGroups: []string{
+				"cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"storageprofiles",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+				"patch",
+				"update",
+			},
+		},
 	}
 
 	var editRules = adminRules
@@ -266,6 +309,19 @@ var _ = Describe("Aggregated role definition tests", func() {
 			},
 			Resources: []string{
 				"cdiconfigs",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
+				"cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"storageprofiles",
 			},
 			Verbs: []string{
 				"get",
