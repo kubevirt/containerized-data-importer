@@ -109,7 +109,7 @@ var _ = Describe("DataImportCron", func() {
 			Eventually(func() bool {
 				cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
-				if cron.Status.CurrentImports == nil {
+				if len(cron.Status.CurrentImports) == 0 {
 					return false
 				}
 				currentImportDv = cron.Status.CurrentImports[0].DataVolumeName
@@ -133,15 +133,14 @@ var _ = Describe("DataImportCron", func() {
 					return false
 				}
 				Expect(err).ToNot(HaveOccurred())
-				return datasource.Spec.Source.PVC.Name == currentImportDv
+				return datasource.Spec.Source.PVC != nil && datasource.Spec.Source.PVC.Name == currentImportDv
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 
 			By("Verify cron LastImportedPVC updated")
 			Eventually(func() bool {
 				cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
-				Expect(cron.Status.LastImportedPVC).ToNot(Equal(nil))
-				return cron.Status.LastImportedPVC.Name == currentImportDv
+				return cron.Status.LastImportedPVC != nil && cron.Status.LastImportedPVC.Name == currentImportDv
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 		}
 		if checkGarbageCollection {
