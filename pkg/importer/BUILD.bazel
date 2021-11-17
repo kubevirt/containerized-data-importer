@@ -29,6 +29,7 @@ go_library(
         "//vendor/github.com/aws/aws-sdk-go/service/s3:go_default_library",
         "//vendor/github.com/containers/image/v5/docker:go_default_library",
         "//vendor/github.com/containers/image/v5/image:go_default_library",
+        "//vendor/github.com/containers/image/v5/manifest:go_default_library",
         "//vendor/github.com/containers/image/v5/oci/archive:go_default_library",
         "//vendor/github.com/containers/image/v5/pkg/blobinfocache:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",

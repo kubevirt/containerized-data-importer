@@ -26,6 +26,7 @@ import (
 
 	"github.com/containers/image/v5/docker"
 	"github.com/containers/image/v5/image"
+	"github.com/containers/image/v5/manifest"
 	"github.com/containers/image/v5/oci/archive"
 	"github.com/containers/image/v5/pkg/blobinfocache"
 	"github.com/containers/image/v5/types"
@@ -214,6 +215,38 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir stri
 	}
 
 	return nil
+}
+
+// GetImageDigest returns the digest of the container image at url.
+// url: source registry url.
+// accessKey: accessKey for the registry described in url.
+// secKey: secretKey for the registry described in url.
+// certDir: directory public CA keys are stored for registry identity verification
+// insecureRegistry: boolean if true will allow insecure registries.
+func GetImageDigest(url, accessKey, secKey, certDir string, insecureRegistry bool) (string, error) {
+	klog.Infof("Inspecting image from '%v'", url)
+
+	ctx, cancel := commandTimeoutContext()
+	defer cancel()
+	srcCtx := buildSourceContext(accessKey, secKey, certDir, insecureRegistry)
+
+	src, err := readImageSource(ctx, srcCtx, url)
+	if err != nil {
+		return "", err
+	}
+	defer closeImage(src)
+
+	imageManifest, _, err := src.GetManifest(context.Background(), nil)
+	if err != nil {
+		return "", err
+	}
+
+	digest, err := manifest.Digest(imageManifest)
+	if err != nil {
+		return "", err
+	}
+
+	return digest.String(), nil
 }
 
 // CopyRegistryImage download image from registry with docker image API. It will extract first file under the pathPrefix
