@@ -262,6 +262,16 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uploadService.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 		Expect(uploadService.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+
+		secret := &corev1.Secret{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, secret)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(secret.Name).To(Equal(createUploadResourceName(testPvc.Name)))
+		Expect(secret.OwnerReferences).To(HaveLen(1))
+		or := secret.OwnerReferences[0]
+		Expect(or.Kind).To(Equal("Pod"))
+		Expect(or.Name).To(Equal(uploadPod.Name))
+		Expect(or.UID).To(Equal(uploadPod.UID))
 	})
 })
 
@@ -332,6 +342,10 @@ var _ = Describe("reconcilePVC loop", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(resultPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(uploadPod.Status.Phase))
 			Expect(resultPvc.GetAnnotations()[AnnPodReady]).To(Equal("false"))
+
+			secret := &corev1.Secret{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadPod.Name, Namespace: "default"}, secret)
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("Should error if a POD with the same name exists, but is not owned by the PVC, if a PVC with all needed annotations is passed", func() {
@@ -355,6 +369,10 @@ var _ = Describe("reconcilePVC loop", func() {
 
 			uploadService := &corev1.Service{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(uploadResourceName), Namespace: "default"}, uploadService)
+			Expect(err).To(HaveOccurred())
+
+			secret := &corev1.Secret{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, secret)
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -418,6 +436,10 @@ var _ = Describe("reconcilePVC loop", func() {
 
 			scratchPvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1-scratch", Namespace: "default"}, scratchPvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			secret := &corev1.Secret{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, secret)
 			Expect(err).ToNot(HaveOccurred())
 		})
 	})
@@ -704,4 +726,38 @@ func createUploadService(pvc *corev1.PersistentVolumeClaim) *corev1.Service {
 		},
 	}
 	return service
+}
+
+func createUploadServerCertSecret(pvc *corev1.PersistentVolumeClaim) *corev1.Secret {
+	name := "cdi-upload-" + pvc.Name
+	pod := createUploadPod(pvc)
+	blockOwnerDeletion := true
+	isController := true
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: pvc.Namespace,
+			Annotations: map[string]string{
+				annCreatedByUpload: "yes",
+			},
+			Labels: map[string]string{
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: common.UploadServerCDILabel,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "v1",
+					Kind:               "Pod",
+					Name:               pod.Name,
+					UID:                pod.GetUID(),
+					BlockOwnerDeletion: &blockOwnerDeletion,
+					Controller:         &isController,
+				},
+			},
+		},
+		Data: map[string][]byte{
+			"tls.key": []byte("key"),
+			"tls.crt": []byte("cert"),
+		},
+	}
 }
