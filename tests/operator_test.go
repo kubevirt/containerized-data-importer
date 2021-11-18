@@ -674,7 +674,7 @@ var _ = Describe("ALL Operator tests", func() {
 			f := framework.NewFramework("alert-tests")
 
 			It("CDIOperatorDown alert firing when operator scaled down", func() {
-				if !tests.IsPrometheusAvailable(f.K8sClient) {
+				if !tests.IsPrometheusAvailable(f.ExtClient) {
 					Skip("This test is depends on prometheus infra being available")
 				}
 
@@ -711,7 +711,7 @@ var _ = Describe("ALL Operator tests", func() {
 						}
 					}
 					return false
-				}, 7*time.Minute, 1*time.Second).Should(BeTrue())
+				}, 10*time.Minute, 1*time.Second).Should(BeTrue())
 
 				By("Ensuring original value of replicas restored")
 				operatorDeployment, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
@@ -724,7 +724,7 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("CDI ready metric value as expected when ready to use", func() {
-				if !tests.IsPrometheusAvailable(f.K8sClient) {
+				if !tests.IsPrometheusAvailable(f.ExtClient) {
 					Skip("This test is depends on prometheus infra being available")
 				}
 

@@ -86,6 +86,12 @@ function configure_uploadproxy_override {
   _kubectl patch cdi ${CR_NAME} --type=merge -p '{"spec": {"config": {"uploadProxyURLOverride": "'"$override"'"}}}'
 }
 
+function configure_prometheus {
+  if _kubectl get crd prometheuses.monitoring.coreos.com; then
+    _kubectl patch prometheus k8s -n monitoring --type=json -p '[{"op": "replace", "path": "/spec/ruleSelector", "value":{}}, {"op": "replace", "path": "/spec/ruleNamespaceSelector", "value":{"matchLabels": {"cdi.kubevirt.io": ""}}}]'
+  fi
+}
+
 OLD_CDI_VER_PODS="./_out/tests/old_cdi_ver_pods"
 NEW_CDI_VER_PODS="./_out/tests/new_cdi_ver_pods"
 
@@ -212,8 +218,13 @@ else
   wait_cdi_available
 fi
 
-# Configure CDI upload proxy URL override
-configure_uploadproxy_override
+# Non external provider extra setup
+if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
+  # Configure CDI upload proxy URL override
+  configure_uploadproxy_override
+  # Tell prometheus to watch our namespace
+  configure_prometheus
+fi
 
 # Grab all the CDI crds so we can check if they are structural schemas
 cdi_crds=$(_kubectl get crd -l cdi.kubevirt.io -o jsonpath={.items[*].metadata.name})
