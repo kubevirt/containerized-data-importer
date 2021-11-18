@@ -153,16 +153,18 @@ func reconcileCreatePrometheusInfra(args *callbacks.ReconcileCallbackArgs) error
 	}
 
 	cr := args.Resource.(runtime.Object)
-	if err := ensurePrometheusRuleExists(args.Logger, args.Client, deployment); err != nil {
-		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure prometheus rule exists, %v", err))
-		return err
+	namespace := deployment.GetNamespace()
+	if namespace == "" {
+		return fmt.Errorf("cluster scoped owner not supported")
 	}
-	if err := ensurePrometheusRbacExists(args.Logger, args.Client, deployment); err != nil {
-		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure prometheus rbac exists, %v", err))
+
+	if deployed, err := isPrometheusDeployed(args.Logger, args.Client, namespace); err != nil {
 		return err
+	} else if !deployed {
+		return nil
 	}
-	if err := ensurePrometheusServiceMonitorExists(args.Logger, args.Client, deployment); err != nil {
-		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure prometheus service monitor exists, %v", err))
+	if err := ensurePrometheusResourcesExist(args.Client, args.Scheme, deployment); err != nil {
+		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure prometheus resources exists, %v", err))
 		return err
 	}
 

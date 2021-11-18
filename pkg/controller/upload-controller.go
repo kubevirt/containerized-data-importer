@@ -620,12 +620,12 @@ func getUploadResourceNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 
 	// fallback to legacy naming, in fact the following function is fully compatible with legacy
 	// name concatenation "cdi-upload-{pvc.Name}" if the name length is under the size limits,
-	return naming.GetResourceName("cdi-upload", pvc.Name)
+	return naming.GetResourceName(common.UploadPodName, pvc.Name)
 }
 
 // createUploadResourceName returns the name given to upload resources
 func createUploadResourceName(name string) string {
-	return naming.GetResourceName("cdi-upload", name)
+	return naming.GetResourceName(common.UploadPodName, name)
 }
 
 // UploadPossibleForPVC is called by the api server to see whether to return an upload token

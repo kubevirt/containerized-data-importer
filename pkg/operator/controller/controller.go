@@ -26,6 +26,8 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/generate/install"
 
 	"github.com/kelseyhightower/envconfig"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -51,9 +54,10 @@ import (
 const (
 	finalizerName = "operator.cdi.kubevirt.io"
 
-	createVersionLabel          = "operator.cdi.kubevirt.io/createVersion"
-	updateVersionLabel          = "operator.cdi.kubevirt.io/updateVersion"
-	lastAppliedConfigAnnotation = "operator.cdi.kubevirt.io/lastAppliedConfiguration"
+	createVersionLabel = "operator.cdi.kubevirt.io/createVersion"
+	updateVersionLabel = "operator.cdi.kubevirt.io/updateVersion"
+	// LastAppliedConfigAnnotation is the annotation that holds the last resource state which we put on resources under our governance
+	LastAppliedConfigAnnotation = "operator.cdi.kubevirt.io/lastAppliedConfiguration"
 
 	certPollInterval = 1 * time.Minute
 
@@ -65,7 +69,21 @@ const (
 	dumpInstallStrategyKey = "DUMP_INSTALL_STRATEGY"
 )
 
-var log = logf.Log.WithName("cdi-operator")
+var (
+	log        = logf.Log.WithName("cdi-operator")
+	readyGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "kubevirt_cdi_cr_ready",
+			Help: "CDI CR Ready",
+		})
+)
+
+func init() {
+	metrics.Registry = prometheus.NewRegistry()
+	metrics.Registry.MustRegister(readyGauge)
+	// 0 is our 'something bad is going on' value for alert to start firing, so can't default to that
+	readyGauge.Set(-1)
+}
 
 // Add creates a new CDI Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
@@ -128,7 +146,7 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 		dumpInstallStrategy: dumpInstallStrategy,
 	}
 	callbackDispatcher := callbacks.NewCallbackDispatcher(log, restClient, uncachedClient, scheme, namespace)
-	r.reconciler = sdkr.NewReconciler(r, log, restClient, callbackDispatcher, scheme, createVersionLabel, updateVersionLabel, lastAppliedConfigAnnotation, certPollInterval, finalizerName, recorder)
+	r.reconciler = sdkr.NewReconciler(r, log, restClient, callbackDispatcher, scheme, createVersionLabel, updateVersionLabel, LastAppliedConfigAnnotation, certPollInterval, finalizerName, recorder)
 
 	r.registerHooks()
 	addReconcileCallbacks(r)
@@ -174,15 +192,20 @@ func (r *ReconcileCDI) Reconcile(_ context.Context, request reconcile.Request) (
 	operatorVersion := r.namespacedArgs.OperatorVersion
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling CDI")
+	cr := &cdiv1.CDI{}
+	crKey := client.ObjectKey{Namespace: "", Name: request.NamespacedName.Name}
+	err := r.client.Get(context.TODO(), crKey, cr)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			reqLogger.Info("CDI CR does not exist")
+			return reconcile.Result{}, nil
+		}
+		reqLogger.Error(err, "Failed to get CDI object")
+		return reconcile.Result{}, err
+	}
+
 	if r.dumpInstallStrategy {
 		reqLogger.Info("Dumping Install Strategy")
-		cr := &cdiv1.CDI{}
-		crKey := client.ObjectKey{Namespace: "", Name: request.NamespacedName.Name}
-		err := r.client.Get(context.TODO(), crKey, cr)
-		if err != nil {
-			reqLogger.Error(err, "Failed to get CDI object")
-			return reconcile.Result{}, err
-		}
 		objects, err := r.GetAllResources(cr)
 		if err != nil {
 			reqLogger.Error(err, "Failed to get all CDI object")
@@ -198,6 +221,14 @@ func (r *ReconcileCDI) Reconcile(_ context.Context, request reconcile.Request) (
 			reqLogger.Error(err, "Failed to dump CDI object in configmap")
 			return reconcile.Result{}, err
 		}
+	}
+
+	// Ready metric so we can alert whenever we are not ready for a while
+	if conditionsv1.IsStatusConditionTrue(cr.Status.Conditions, conditionsv1.ConditionAvailable) {
+		readyGauge.Set(1)
+	} else if !conditionsv1.IsStatusConditionTrue(cr.Status.Conditions, conditionsv1.ConditionProgressing) {
+		// Not an issue if progress is still ongoing
+		readyGauge.Set(0)
 	}
 	return r.reconciler.Reconcile(request, operatorVersion, reqLogger)
 }

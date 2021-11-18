@@ -322,7 +322,7 @@ var _ = Describe("Controller", func() {
 				validateEvents(args.reconciler, createReadyEventValidationMap())
 			})
 
-			It("should have CdiOperatorDown", func() {
+			It("should have CDIOperatorDown", func() {
 				args := createArgs()
 				doReconcile(args)
 				Expect(setDeploymentsReady(args)).To(BeTrue())
@@ -337,11 +337,12 @@ var _ = Describe("Controller", func() {
 				Expect(err).ToNot(HaveOccurred())
 				rule = obj.(*promv1.PrometheusRule)
 				cdiDownAlert := promv1.Rule{
-					Alert: "CdiOperatorDown",
-					Expr:  intstr.FromString("cdi_num_up_operators == 0"),
+					Alert: "CDIOperatorDown",
+					Expr:  intstr.FromString("kubevirt_cdi_operator_up_total == 0"),
 					For:   "5m",
 					Annotations: map[string]string{
-						"summary": "CDI operator is down",
+						"summary":     "CDI operator is down",
+						"runbook_url": runbookURLBasePath + "CDIOperatorDown",
 					},
 					Labels: map[string]string{
 						"severity": "warning",
@@ -895,7 +896,7 @@ var _ = Describe("Controller", func() {
 						return false
 					}
 
-					delete(desiredDep.Annotations, lastAppliedConfigAnnotation)
+					delete(desiredDep.Annotations, LastAppliedConfigAnnotation)
 
 					for key, ann := range desiredDep.Annotations {
 						if postDep.Annotations[key] != ann {
@@ -1643,7 +1644,7 @@ func createReconciler(client client.Client) *ReconcileCDI {
 		certManager:    newFakeCertManager(client, namespace),
 	}
 	callbackDispatcher := callbacks.NewCallbackDispatcher(log, client, client, scheme.Scheme, namespace)
-	r.reconciler = sdkr.NewReconciler(r, log, client, callbackDispatcher, scheme.Scheme, createVersionLabel, updateVersionLabel, lastAppliedConfigAnnotation, certPollInterval, finalizerName, recorder).
+	r.reconciler = sdkr.NewReconciler(r, log, client, callbackDispatcher, scheme.Scheme, createVersionLabel, updateVersionLabel, LastAppliedConfigAnnotation, certPollInterval, finalizerName, recorder).
 		WithWatching(true)
 
 	r.registerHooks()

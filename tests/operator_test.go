@@ -2,11 +2,9 @@ package tests_test
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"reflect"
 	"time"
 
@@ -675,9 +673,9 @@ var _ = Describe("ALL Operator tests", func() {
 		var _ = Describe("Alert tests", func() {
 			f := framework.NewFramework("alert-tests")
 
-			It("CdiOperatorDown alert firing when operator scaled down", func() {
-				if !utils.IsOpenshift(f.K8sClient) {
-					Skip("This test is OpenShift specific")
+			It("CDIOperatorDown alert firing when operator scaled down", func() {
+				if !tests.IsPrometheusAvailable(f.K8sClient) {
+					Skip("This test is depends on prometheus infra being available")
 				}
 
 				By("Scale down operator so alert will trigger")
@@ -690,40 +688,15 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				By("Let's see that alert fires")
-				client := &http.Client{
-					Transport: &http.Transport{
-						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-					},
-				}
-				var token, host string
-				Eventually(func() bool {
-					host, err = tests.RunOcCommand(f, "-n", "openshift-monitoring", "get", "route", "prometheus-k8s", "--template", "{{.spec.host}}")
-					if err != nil {
-						return false
-					}
-					token, err = tests.RunOcCommand(f, "-n", "openshift-monitoring", "sa", "get-token", "prometheus-k8s")
-					if err != nil {
-						return false
-					}
-					return true
-				}, 10*time.Second, time.Second).Should(BeTrue())
 				Eventually(func() bool {
 					var result map[string]interface{}
-					req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/api/v1/alerts", host), nil)
-					if err != nil {
-						return false
-					}
-					req.Header.Add("Authorization", "Bearer "+token)
-					resp, err := client.Do(req)
-					if err != nil {
-						return false
-					}
+					resp := tests.MakePrometheusHTTPRequest(f, "alerts")
 					defer resp.Body.Close()
-					if resp.StatusCode != http.StatusOK {
-						return false
-					}
 					// Make sure alert appears and is firing
 					bodyBytes, err := ioutil.ReadAll(resp.Body)
+					if err != nil {
+						return false
+					}
 					err = json.Unmarshal(bodyBytes, &result)
 					if err != nil {
 						return false
@@ -731,7 +704,7 @@ var _ = Describe("ALL Operator tests", func() {
 					alerts := result["data"].(map[string]interface{})["alerts"].([]interface{})
 					for _, alert := range alerts {
 						name := alert.(map[string]interface{})["labels"].(map[string]interface{})["alertname"].(string)
-						if name == "CdiOperatorDown" {
+						if name == "CDIOperatorDown" {
 							if state := alert.(map[string]interface{})["state"].(string); state == "firing" {
 								return true
 							}
@@ -748,6 +721,38 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				err = utils.WaitForDeploymentReplicasReady(f.K8sClient, f.CdiInstallNs, deploymentName)
 				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("CDI ready metric value as expected when ready to use", func() {
+				if !tests.IsPrometheusAvailable(f.K8sClient) {
+					Skip("This test is depends on prometheus infra being available")
+				}
+
+				Eventually(func() bool {
+					var result map[string]interface{}
+					resp := tests.MakePrometheusHTTPRequest(f, "query?query=kubevirt_cdi_cr_ready")
+					defer resp.Body.Close()
+					bodyBytes, err := ioutil.ReadAll(resp.Body)
+					if err != nil {
+						return false
+					}
+					err = json.Unmarshal(bodyBytes, &result)
+					if err != nil {
+						return false
+					}
+					if len(result["data"].(map[string]interface{})["result"].([]interface{})) == 0 {
+						return false
+					}
+					values := result["data"].(map[string]interface{})["result"].([]interface{})[0].(map[string]interface{})["value"].([]interface{})
+					for _, v := range values {
+						if s, ok := v.(string); ok {
+							if s == "1" {
+								return true
+							}
+						}
+					}
+					return false
+				}, 1*time.Minute, 1*time.Second).Should(BeTrue())
 			})
 		})
 

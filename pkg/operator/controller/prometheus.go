@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
 
 	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/go-logr/logr"
@@ -28,11 +29,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
@@ -41,13 +45,11 @@ const (
 	rbacName            = "cdi-monitoring"
 	monitorName         = "service-monitor-cdi"
 	defaultMonitoringNs = "monitoring"
+	runbookURLBasePath  = "https://kubevirt.io/monitoring/runbooks/"
 )
 
-func ensurePrometheusRuleExists(logger logr.Logger, c client.Client, owner metav1.Object) error {
+func ensurePrometheusResourcesExist(c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
 	namespace := owner.GetNamespace()
-	if namespace == "" {
-		return fmt.Errorf("cluster scoped owner not supported")
-	}
 
 	cr, err := controller.GetActiveCDI(c)
 	if err != nil {
@@ -58,138 +60,47 @@ func ensurePrometheusRuleExists(logger logr.Logger, c client.Client, owner metav
 	}
 	installerLabels := util.GetRecommendedInstallerLabelsFromCr(cr)
 
-	desiredRule := newPrometheusRule(namespace)
-	util.SetRecommendedLabels(desiredRule, installerLabels, "cdi-operator")
-
-	if deployed, err := isPrometheusDeployed(logger, c, namespace); err != nil {
-		return err
-	} else if !deployed {
-		return nil
+	prometheusResources := []client.Object{
+		newPrometheusRule(namespace),
+		newPrometheusServiceMonitor(namespace),
+		newPrometheusRole(namespace),
+		newPrometheusRoleBinding(namespace),
 	}
 
-	if err := c.Create(context.TODO(), desiredRule); err != nil {
-		if errors.IsAlreadyExists(err) {
-			currentRule := &promv1.PrometheusRule{}
-			key := client.ObjectKey{Namespace: namespace, Name: ruleName}
-			if err := c.Get(context.TODO(), key, currentRule); err != nil {
-				return err
-			}
-			if !reflect.DeepEqual(currentRule.Spec, desiredRule.Spec) {
-				currentRule.Spec = desiredRule.Spec
-				if err := c.Update(context.TODO(), currentRule); err != nil {
-					return err
-				}
-			}
-		} else {
+	for _, desired := range prometheusResources {
+		if err := sdk.SetLastAppliedConfiguration(desired, LastAppliedConfigAnnotation); err != nil {
 			return err
 		}
-	}
-
-	return nil
-}
-
-func ensurePrometheusRbacExists(logger logr.Logger, c client.Client, owner metav1.Object) error {
-	namespace := owner.GetNamespace()
-	if namespace == "" {
-		return fmt.Errorf("cluster scoped owner not supported")
-	}
-
-	cr, err := controller.GetActiveCDI(c)
-	if err != nil {
-		return err
-	}
-	if cr == nil {
-		return fmt.Errorf("no active CDI")
-	}
-	installerLabels := util.GetRecommendedInstallerLabelsFromCr(cr)
-
-	desiredRole := newPrometheusRole(namespace)
-	util.SetRecommendedLabels(desiredRole, installerLabels, "cdi-operator")
-	desiredRoleBinding := newPrometheusRoleBinding(namespace)
-	util.SetRecommendedLabels(desiredRoleBinding, installerLabels, "cdi-operator")
-
-	if deployed, err := isPrometheusDeployed(logger, c, namespace); err != nil {
-		return err
-	} else if !deployed {
-		return nil
-	}
-
-	key := client.ObjectKey{Namespace: namespace, Name: rbacName}
-	if err := c.Create(context.TODO(), desiredRole); err != nil {
-		if errors.IsAlreadyExists(err) {
-			currentRole := &rbacv1.Role{}
-			if err := c.Get(context.TODO(), key, currentRole); err != nil {
-				return err
-			}
-			if !reflect.DeepEqual(currentRole.Rules, desiredRole.Rules) {
-				currentRole.Rules = desiredRole.Rules
-				if err := c.Update(context.TODO(), currentRole); err != nil {
-					return err
-				}
-			}
-		} else {
+		util.SetRecommendedLabels(desired, installerLabels, "cdi-operator")
+		if err := controllerutil.SetControllerReference(owner, desired, scheme); err != nil {
 			return err
 		}
-	}
-	if err := c.Create(context.TODO(), desiredRoleBinding); err != nil {
-		if errors.IsAlreadyExists(err) {
-			currentRoleBinding := &rbacv1.RoleBinding{}
-			if err := c.Get(context.TODO(), key, currentRoleBinding); err != nil {
-				return err
-			}
-			if !reflect.DeepEqual(currentRoleBinding.Subjects, desiredRoleBinding.Subjects) {
-				currentRoleBinding.Subjects = desiredRoleBinding.Subjects
-				if err := c.Update(context.TODO(), currentRoleBinding); err != nil {
+
+		if err := c.Create(context.TODO(), desired); err != nil {
+			if errors.IsAlreadyExists(err) {
+				current := sdk.NewDefaultInstance(desired)
+				nn := client.ObjectKeyFromObject(desired)
+				if err := c.Get(context.TODO(), nn, current); err != nil {
 					return err
 				}
-			}
-		} else {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func ensurePrometheusServiceMonitorExists(logger logr.Logger, c client.Client, owner metav1.Object) error {
-	namespace := owner.GetNamespace()
-	if namespace == "" {
-		return fmt.Errorf("cluster scoped owner not supported")
-	}
-
-	cr, err := controller.GetActiveCDI(c)
-	if err != nil {
-		return err
-	}
-	if cr == nil {
-		return fmt.Errorf("no active CDI")
-	}
-	installerLabels := util.GetRecommendedInstallerLabelsFromCr(cr)
-
-	desiredMonitor := newPrometheusServiceMonitor(namespace)
-	util.SetRecommendedLabels(desiredMonitor, installerLabels, "cdi-operator")
-
-	if deployed, err := isPrometheusDeployed(logger, c, namespace); err != nil {
-		return err
-	} else if !deployed {
-		return nil
-	}
-
-	key := client.ObjectKey{Namespace: namespace, Name: monitorName}
-	if err := c.Create(context.TODO(), desiredMonitor); err != nil {
-		if errors.IsAlreadyExists(err) {
-			currentMonitor := &promv1.ServiceMonitor{}
-			if err := c.Get(context.TODO(), key, currentMonitor); err != nil {
-				return err
-			}
-			if !reflect.DeepEqual(currentMonitor.Spec, desiredMonitor.Spec) {
-				currentMonitor.Spec = desiredMonitor.Spec
-				if err := c.Update(context.TODO(), currentMonitor); err != nil {
+				current, err = sdk.StripStatusFromObject(current)
+				if err != nil {
 					return err
 				}
+				currentObjCopy := current.DeepCopyObject()
+				sdk.MergeLabelsAndAnnotations(desired, current)
+				merged, err := sdk.MergeObject(desired, current, LastAppliedConfigAnnotation)
+				if err != nil {
+					return err
+				}
+				if !reflect.DeepEqual(currentObjCopy, merged) {
+					if err := c.Update(context.TODO(), merged); err != nil {
+						return err
+					}
+				}
+			} else {
+				return err
 			}
-		} else {
-			return err
 		}
 	}
 
@@ -213,14 +124,11 @@ func isPrometheusDeployed(logger logr.Logger, c client.Client, namespace string)
 
 func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 	return &promv1.PrometheusRule{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: promv1.SchemeGroupVersion.String(),
-			Kind:       "PrometheusRule",
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ruleName,
 			Namespace: namespace,
 			Labels: map[string]string{
+				common.CDIComponentLabel:  "",
 				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 		},
@@ -230,15 +138,52 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 					Name: "cdi.rules",
 					Rules: []promv1.Rule{
 						generateRecordRule(
-							"cdi_num_up_operators",
+							"kubevirt_cdi_operator_up_total",
 							fmt.Sprintf("sum(up{namespace='%s', pod=~'cdi-operator-.*'} or vector(0))", namespace),
 						),
 						generateAlertRule(
-							"CdiOperatorDown",
-							"cdi_num_up_operators == 0",
+							"CDIOperatorDown",
+							"kubevirt_cdi_operator_up_total == 0",
 							"5m",
 							map[string]string{
-								"summary": "CDI operator is down",
+								"summary":     "CDI operator is down",
+								"runbook_url": runbookURLBasePath + "CDIOperatorDown",
+							},
+							map[string]string{
+								"severity": "warning",
+							},
+						),
+						generateAlertRule(
+							"CDINotReady",
+							"kubevirt_cdi_cr_ready == 0",
+							"5m",
+							map[string]string{
+								"summary":     "CDI is not available to use",
+								"runbook_url": runbookURLBasePath + "CDINotReady",
+							},
+							map[string]string{
+								"severity": "warning",
+							},
+						),
+						generateRecordRule(
+							"kubevirt_cdi_import_dv_unusual_restartcount_total",
+							fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+						),
+						generateRecordRule(
+							"kubevirt_cdi_upload_dv_unusual_restartcount_total",
+							fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
+						),
+						generateRecordRule(
+							"kubevirt_cdi_clone_dv_unusual_restartcount_total",
+							fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+						),
+						generateAlertRule(
+							"CDIDataVolumeUnusualRestartCount",
+							"kubevirt_cdi_import_dv_unusual_restartcount_total > 0 or kubevirt_cdi_upload_dv_unusual_restartcount_total > 0 or kubevirt_cdi_clone_dv_unusual_restartcount_total > 0",
+							"5m",
+							map[string]string{
+								"summary":     "Cluster has DVs with an unusual restart count, meaning they are probably failing and need to be investigated",
+								"runbook_url": runbookURLBasePath + "CDIDataVolumeUnusualRestartCount",
 							},
 							map[string]string{
 								"severity": "warning",
@@ -257,6 +202,7 @@ func newPrometheusRole(namespace string) *rbacv1.Role {
 			Name:      rbacName,
 			Namespace: namespace,
 			Labels: map[string]string{
+				common.CDIComponentLabel:  "",
 				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 		},
@@ -286,6 +232,7 @@ func newPrometheusRoleBinding(namespace string) *rbacv1.RoleBinding {
 			Name:      rbacName,
 			Namespace: namespace,
 			Labels: map[string]string{
+				common.CDIComponentLabel:  "",
 				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 		},
@@ -314,14 +261,11 @@ func getMonitoringNamespace() string {
 
 func newPrometheusServiceMonitor(namespace string) *promv1.ServiceMonitor {
 	return &promv1.ServiceMonitor{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: promv1.SchemeGroupVersion.String(),
-			Kind:       "ServiceMonitor",
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      monitorName,
 			Labels: map[string]string{
+				common.CDIComponentLabel:          "",
 				"openshift.io/cluster-monitoring": "",
 				common.PrometheusLabelKey:         common.PrometheusLabelValue,
 			},

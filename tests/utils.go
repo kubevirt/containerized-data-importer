@@ -3,7 +3,9 @@ package tests
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"reflect"
@@ -19,9 +21,11 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/tests/framework"
+	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
 var (
@@ -238,4 +242,53 @@ func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions
 		}
 	}
 	return nil
+}
+
+// IsPrometheusAvailable decides whether or not we will run prometheus alert/metric tests
+// Currently only running on OpenShift as it comes preconfigured out of the box
+// Later extend this to use the prometheus CRD detection, similar to how the operator decides this
+func IsPrometheusAvailable(client kubernetes.Interface) bool {
+	return utils.IsOpenshift(client)
+}
+
+// MakePrometheusHTTPRequest makes a request to the prometheus api and returns the response
+func MakePrometheusHTTPRequest(f *framework.Framework, endpoint string) *http.Response {
+	var token, host string
+	var err error
+	var resp *http.Response
+
+	gomega.Eventually(func() bool {
+		host, err = RunOcCommand(f, "-n", "openshift-monitoring", "get", "route", "prometheus-k8s", "--template", "{{.spec.host}}")
+		if err != nil {
+			return false
+		}
+		token, err = RunOcCommand(f, "-n", "openshift-monitoring", "sa", "get-token", "prometheus-k8s")
+		if err != nil {
+			return false
+		}
+		return true
+	}, 10*time.Second, time.Second).Should(gomega.BeTrue())
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+	gomega.Eventually(func() bool {
+		req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/api/v1/%s", host, endpoint), nil)
+		if err != nil {
+			return false
+		}
+		req.Header.Add("Authorization", "Bearer "+token)
+		resp, err = client.Do(req)
+		if err != nil {
+			return false
+		}
+		if resp.StatusCode != http.StatusOK {
+			return false
+		}
+		return true
+	}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue())
+
+	return resp
 }
