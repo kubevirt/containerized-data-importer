@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -259,21 +260,6 @@ var _ = Describe("Aggregated role definition tests", func() {
 				"*",
 			},
 		},
-		{
-			APIGroups: []string{
-				"cdi.kubevirt.io",
-			},
-			Resources: []string{
-				"storageprofiles",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-				"patch",
-				"update",
-			},
-		},
 	}
 
 	var editRules = adminRules
@@ -316,19 +302,6 @@ var _ = Describe("Aggregated role definition tests", func() {
 				"watch",
 			},
 		},
-		{
-			APIGroups: []string{
-				"cdi.kubevirt.io",
-			},
-			Resources: []string{
-				"storageprofiles",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-			},
-		},
 	}
 
 	f := framework.NewFramework("aggregated-role-definition-tests")
@@ -337,16 +310,16 @@ var _ = Describe("Aggregated role definition tests", func() {
 		clusterRole, err := f.K8sClient.RbacV1().ClusterRoles().Get(context.TODO(), role, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		found := false
 		for _, expectedRule := range rules {
+			found := false
 			for _, r := range clusterRole.Rules {
 				if reflect.DeepEqual(expectedRule, r) {
 					found = true
 					break
 				}
 			}
+			Expect(found).To(BeTrue(), fmt.Sprintf("Rule for resources %v should exist", expectedRule.Resources))
 		}
-		Expect(found).To(BeTrue())
 	},
 		Entry("[test_id:3945]for admin", "admin", adminRules),
 		Entry("[test_id:3946]for edit", "edit", editRules),
