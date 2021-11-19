@@ -84,17 +84,35 @@ func main() {
 	var preallocationApplied bool
 	var ds importer.DataSourceInterface
 
-	//Registry import currently support kubevirt content type only
-	if contentType != string(cdiv1.DataVolumeKubeVirt) && (source == controller.SourceRegistry || source == controller.SourceImageio) {
-		klog.Errorf("Unsupported content type %s when importing from %s", contentType, source)
-		os.Exit(1)
-	}
-
 	volumeMode := v1.PersistentVolumeBlock
 	if _, err := os.Stat(common.WriteBlockPath); os.IsNotExist(err) {
 		volumeMode = v1.PersistentVolumeFilesystem
 	} else {
 		preallocation = true
+	}
+
+	// With writeback cache mode it's possible that the process will exit before all writes have been commited to storage.
+	// To guarantee that our write was commited to storage, we make a fsync syscall and ensure success.
+	// Also might be a good idea to sync any chmod's we might have done.
+	defer func() {
+		dataFile := getImporterDestPath(contentType, volumeMode)
+		file, err := os.Open(dataFile)
+		if err != nil {
+			klog.Errorf("could not get file descriptor for fsync call: %+v", err)
+			os.Exit(1)
+		}
+		if err := file.Sync(); err != nil {
+			klog.Errorf("could not fsync following qemu-img writing: %+v", err)
+			os.Exit(1)
+		}
+		klog.V(3).Infof("Successfully completed fsync(%s) syscall, commited to disk\n", dataFile)
+		file.Close()
+	}()
+
+	//Registry import currently support kubevirt content type only
+	if contentType != string(cdiv1.DataVolumeKubeVirt) && (source == controller.SourceRegistry || source == controller.SourceImageio) {
+		klog.Errorf("Unsupported content type %s when importing from %s", contentType, source)
+		os.Exit(1)
 	}
 
 	availableDestSpace, err := util.GetAvailableSpaceByVolumeMode(volumeMode)
@@ -151,16 +169,22 @@ func main() {
 }
 
 func newDataProcessor(contentType string, volumeMode v1.PersistentVolumeMode, ds importer.DataSourceInterface, imageSize string, filesystemOverhead float64, preallocation bool) *importer.DataProcessor {
+	dest := getImporterDestPath(contentType, volumeMode)
+	processor := importer.NewDataProcessor(ds, dest, common.ImporterDataDir, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
+	return processor
+}
+
+func getImporterDestPath(contentType string, volumeMode v1.PersistentVolumeMode) string {
 	dest := common.ImporterWritePath
+
 	if contentType == string(cdiv1.DataVolumeArchive) {
 		dest = common.ImporterVolumePath
 	}
-
 	if volumeMode == v1.PersistentVolumeBlock {
 		dest = common.WriteBlockPath
 	}
-	processor := importer.NewDataProcessor(ds, dest, common.ImporterDataDir, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
-	return processor
+
+	return dest
 }
 
 func newDataSource(source string, contentType string, volumeMode v1.PersistentVolumeMode) importer.DataSourceInterface {

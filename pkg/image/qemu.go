@@ -134,18 +134,6 @@ func convertToRaw(src, dest string, preallocate bool) error {
 		return errors.Wrap(err, errorMsg)
 	}
 
-	// With writeback cache mode it's possible that the process will exit before all writes have been commited to storage.
-	// To guarantee that our write was commited to storage, we make a fsync syscall and ensure success.
-	file, err := os.Open(dest)
-	if err != nil {
-		return errors.Wrap(err, "could not get file descriptor for fsync call following qemu-img writing")
-	}
-	if err := file.Sync(); err != nil {
-		return errors.Wrap(err, "could not fsync following qemu-img writing")
-	}
-	klog.V(3).Infof("Successfully completed fsync(%s) syscall, qemu-img convert write is commited to disk", dest)
-	file.Close()
-
 	return nil
 }
 
