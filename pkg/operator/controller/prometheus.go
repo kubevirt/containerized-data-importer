@@ -189,6 +189,18 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 								"severity": "warning",
 							},
 						),
+						generateAlertRule(
+							"CDIStorageProfilesIncomplete",
+							"kubevirt_cdi_incomplete_storageprofiles_total > 0",
+							"5m",
+							map[string]string{
+								"summary":     "StorageProfiles are incomplete, accessMode/volumeMode cannot be inferred by CDI",
+								"runbook_url": runbookURLBasePath + "CDIStorageProfilesIncomplete",
+							},
+							map[string]string{
+								"severity": "info",
+							},
+						),
 					},
 				},
 			},

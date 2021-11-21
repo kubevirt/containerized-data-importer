@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"reflect"
+	"strconv"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	secclient "github.com/openshift/client-go/security/clientset/versioned"
@@ -22,6 +24,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
@@ -673,6 +677,39 @@ var _ = Describe("ALL Operator tests", func() {
 		var _ = Describe("Alert tests", func() {
 			f := framework.NewFramework("alert-tests")
 
+			getMetricValue := func(endpoint string) int {
+				var returnVal string
+
+				Eventually(func() bool {
+					var result map[string]interface{}
+					resp := tests.MakePrometheusHTTPRequest(f, "query?query="+endpoint)
+					defer resp.Body.Close()
+					bodyBytes, err := ioutil.ReadAll(resp.Body)
+					if err != nil {
+						return false
+					}
+					err = json.Unmarshal(bodyBytes, &result)
+					if err != nil {
+						return false
+					}
+					if len(result["data"].(map[string]interface{})["result"].([]interface{})) == 0 {
+						return false
+					}
+					values := result["data"].(map[string]interface{})["result"].([]interface{})[0].(map[string]interface{})["value"].([]interface{})
+					for _, v := range values {
+						if s, ok := v.(string); ok {
+							returnVal = s
+							return true
+						}
+					}
+					return false
+				}, 1*time.Minute, 1*time.Second).Should(BeTrue())
+
+				i, err := strconv.Atoi(returnVal)
+				Expect(err).ToNot(HaveOccurred())
+				return i
+			}
+
 			It("CDIOperatorDown alert firing when operator scaled down", func() {
 				if !tests.IsPrometheusAvailable(f.ExtClient) {
 					Skip("This test is depends on prometheus infra being available")
@@ -685,6 +722,34 @@ var _ = Describe("ALL Operator tests", func() {
 				originalReplicas := operatorDeployment.Spec.Replicas
 				operatorDeployment.Spec.Replicas = &[]int32{0}[0]
 				_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(func() bool {
+					dep, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					return dep.Status.Replicas == 0
+				}, 20*time.Second, 1*time.Second).Should(BeTrue())
+				By("Patch our rule so alert fires a little faster")
+				promRule := &promv1.PrometheusRule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "prometheus-cdi-rules",
+						Namespace: f.CdiInstallNs,
+					},
+				}
+				err = f.CrClient.Get(context.TODO(), crclient.ObjectKeyFromObject(promRule), promRule)
+				Expect(err).ToNot(HaveOccurred())
+				for i, group := range promRule.Spec.Groups {
+					if group.Name == "cdi.rules" {
+						for j, rule := range group.Rules {
+							if rule.Alert == "CDIOperatorDown" {
+								rule.For = "1m"
+								promRule.Spec.Groups[i].Rules[j] = rule
+								break
+							}
+						}
+						break
+					}
+				}
+				err = f.CrClient.Update(context.TODO(), promRule)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("Let's see that alert fires")
@@ -728,31 +793,38 @@ var _ = Describe("ALL Operator tests", func() {
 					Skip("This test is depends on prometheus infra being available")
 				}
 
-				Eventually(func() bool {
-					var result map[string]interface{}
-					resp := tests.MakePrometheusHTTPRequest(f, "query?query=kubevirt_cdi_cr_ready")
-					defer resp.Body.Close()
-					bodyBytes, err := ioutil.ReadAll(resp.Body)
-					if err != nil {
-						return false
-					}
-					err = json.Unmarshal(bodyBytes, &result)
-					if err != nil {
-						return false
-					}
-					if len(result["data"].(map[string]interface{})["result"].([]interface{})) == 0 {
-						return false
-					}
-					values := result["data"].(map[string]interface{})["result"].([]interface{})[0].(map[string]interface{})["value"].([]interface{})
-					for _, v := range values {
-						if s, ok := v.(string); ok {
-							if s == "1" {
-								return true
-							}
-						}
-					}
-					return false
-				}, 1*time.Minute, 1*time.Second).Should(BeTrue())
+				Eventually(func() int {
+					return getMetricValue("kubevirt_cdi_cr_ready")
+				}, 1*time.Minute, 1*time.Second).Should(BeNumerically("==", 1))
+			})
+
+			It("StorageProfile incomplete metric expected value when creating an incomplete profile", func() {
+				if !tests.IsPrometheusAvailable(f.ExtClient) {
+					Skip("This test is depends on prometheus infra being available")
+				}
+
+				defaultStorageClass := utils.GetDefaultStorageClass(f.K8sClient)
+				storageProfile := &cdiv1.StorageProfile{}
+				err := f.CrClient.Get(context.TODO(), types.NamespacedName{Name: defaultStorageClass.Name}, storageProfile)
+				Expect(err).ToNot(HaveOccurred())
+				originalProfileSpec := storageProfile.Spec.DeepCopy()
+				originalMetricVal := getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
+				By("Modify storage profile to be incomplete")
+				storageProfile.Spec.ClaimPropertySets = storageProfile.Status.ClaimPropertySets
+				storageProfile.Spec.ClaimPropertySets[0].VolumeMode = nil
+				err = f.CrClient.Update(context.TODO(), storageProfile)
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(func() int {
+					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
+				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", originalMetricVal+1))
+
+				By("Restore storage profile and test metric value equals original")
+				storageProfile.Spec = *originalProfileSpec
+				err = f.CrClient.Update(context.TODO(), storageProfile)
+				Eventually(func() int {
+					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
+				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", originalMetricVal))
 			})
 		})
 
