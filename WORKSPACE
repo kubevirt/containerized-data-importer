@@ -129,7 +129,7 @@ http_archive(
 # Pull base image fedora33
 container_pull(
     name = "fedora",
-    digest = "sha256:bfcc10d2d2a3a52fe997daba311c3a5298b426b524ab2b012fa24730dd0eb763",
+    digest = "sha256:bfcc10d2d2a3a52fe997daba311c3a5298b426b524ab2b012fa24730dd0eb763"
     registry = "quay.io",
     repository = "fedora/fedora",
     tag = "33-x86_64",
