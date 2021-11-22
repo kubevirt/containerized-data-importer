@@ -4,7 +4,6 @@ go_library(
     name = "go_default_library",
     srcs = [
         "doc.go",
-        "openapi_generated.go",
         "register.go",
         "types.go",
         "types_swagger_generated.go",
@@ -14,10 +13,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/upload:go_default_library",
-        "//vendor/github.com/go-openapi/spec:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime/schema:go_default_library",
-        "//vendor/k8s.io/kube-openapi/pkg/common:go_default_library",
     ],
 )

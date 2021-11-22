@@ -23,8 +23,8 @@ import (
 	"github.com/emicklei/go-restful"
 	"k8s.io/kube-openapi/pkg/common"
 
-	cdicorev1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	cdiuploadv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
+	cdicorev1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	cdiuploadv1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
 	"kubevirt.io/containerized-data-importer/pkg/util/openapi"
 )
