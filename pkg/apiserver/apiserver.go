@@ -44,6 +44,7 @@ import (
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 
 	cdiuploadv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
+	pkgcdiuploadv1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -472,7 +473,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 		To(func(request *restful.Request, response *restful.Response) {
 			once.Do(func() {
 				var err error
-				openapispec, err = openapi.LoadOpenAPISpec(allWebServices, cdiuploadv1.GetOpenAPIDefinitions)
+				openapispec, err = openapi.LoadOpenAPISpec(allWebServices, pkgcdiuploadv1.GetOpenAPIDefinitions)
 				if err != nil {
 					panic(fmt.Errorf("failed to build swagger: %s", err))
 				}
