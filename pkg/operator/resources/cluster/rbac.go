@@ -60,21 +60,6 @@ func getAdminPolicyRules() []rbacv1.PolicyRule {
 		},
 		{
 			APIGroups: []string{
-				"cdi.kubevirt.io",
-			},
-			Resources: []string{
-				"cdiconfigs",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-				"patch",
-				"update",
-			},
-		},
-		{
-			APIGroups: []string{
 				"upload.cdi.kubevirt.io",
 			},
 			Resources: []string{
@@ -117,19 +102,6 @@ func getViewPolicyRules() []rbacv1.PolicyRule {
 			},
 			Verbs: []string{
 				"create",
-			},
-		},
-		{
-			APIGroups: []string{
-				"cdi.kubevirt.io",
-			},
-			Resources: []string{
-				"cdiconfigs",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
 			},
 		},
 	}
