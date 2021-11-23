@@ -386,6 +386,10 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 		return nil, err
 	}
 
+	if err := r.ensureCertSecret(args, pod); err != nil {
+		return nil, err
+	}
+
 	return pod, nil
 }
 
@@ -553,6 +557,42 @@ func (r *UploadReconciler) createUploadPod(args UploadPodArgs) (*v1.Pod, error) 
 	return pod, nil
 }
 
+func (r *UploadReconciler) ensureCertSecret(args UploadPodArgs, pod *v1.Pod) error {
+	if pod.Status.Phase == v1.PodRunning {
+		return nil
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      args.Name,
+			Namespace: pod.Namespace,
+			Annotations: map[string]string{
+				annCreatedByUpload: "yes",
+			},
+			Labels: map[string]string{
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: common.UploadServerCDILabel,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				MakePodOwnerReference(pod),
+			},
+		},
+		Data: map[string][]byte{
+			"tls.key": args.ServerKey,
+			"tls.crt": args.ServerCert,
+		},
+	}
+
+	util.SetRecommendedLabels(secret, r.installerLabels, "cdi-controller")
+
+	err := r.client.Create(context.TODO(), secret)
+	if err != nil && !k8serrors.IsAlreadyExists(err) {
+		return errors.Wrap(err, "error creating cert secret")
+	}
+
+	return nil
+}
+
 // NewUploadController creates a new instance of the upload controller.
 func NewUploadController(mgr manager.Manager, log logr.Logger, uploadImage, pullPolicy, verbose string, serverCertGenerator generator.CertGenerator, clientCAFetcher fetcher.CertBundleFetcher, installerLabels map[string]string) (controller.Controller, error) {
 	client := mgr.GetClient()
@@ -679,12 +719,26 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 					ImagePullPolicy: v1.PullPolicy(r.pullPolicy),
 					Env: []v1.EnvVar{
 						{
-							Name:  "TLS_KEY",
-							Value: string(args.ServerKey),
+							Name: "TLS_KEY",
+							ValueFrom: &v1.EnvVarSource{
+								SecretKeyRef: &v1.SecretKeySelector{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: args.Name,
+									},
+									Key: "tls.key",
+								},
+							},
 						},
 						{
-							Name:  "TLS_CERT",
-							Value: string(args.ServerCert),
+							Name: "TLS_CERT",
+							ValueFrom: &v1.EnvVarSource{
+								SecretKeyRef: &v1.SecretKeySelector{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: args.Name,
+									},
+									Key: "tls.crt",
+								},
+							},
 						},
 						{
 							Name:  "CLIENT_CERT",
