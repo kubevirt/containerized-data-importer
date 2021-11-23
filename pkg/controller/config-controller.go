@@ -115,6 +115,8 @@ func (r *CDIConfigReconciler) Reconcile(_ context.Context, req reconcile.Request
 }
 
 func (r *CDIConfigReconciler) setOperatorParams(config *cdiv1.CDIConfig) error {
+	util.SetRecommendedLabels(config, r.installerLabels, "cdi-controller")
+
 	cdiCR, err := GetActiveCDI(r.client)
 	if err != nil {
 		return err
@@ -405,6 +407,7 @@ func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(config *cdiv1.CDIC
 			}
 			if configMap != nil {
 				configMap.Data[common.ImportProxyConfigMapKey] = certBytes
+				util.SetRecommendedLabels(configMap, r.installerLabels, "cdi-controller")
 				if err := r.client.Update(context.TODO(), configMap); err != nil {
 					return err
 				}

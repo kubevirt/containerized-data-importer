@@ -53,7 +53,7 @@ require (
 	k8s.io/kube-aggregator v0.20.2
 	k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
 	kubevirt.io/containerized-data-importer-api v0.0.0
-	kubevirt.io/controller-lifecycle-operator-sdk v0.2.1
+	kubevirt.io/controller-lifecycle-operator-sdk v0.2.2
 	kubevirt.io/qe-tools v0.1.6
 	sigs.k8s.io/controller-runtime v0.8.3
 )
