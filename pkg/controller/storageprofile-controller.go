@@ -77,6 +77,7 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 		storageProfile.Status.ClaimPropertySets = []cdiv1.ClaimPropertySet{*claimPropertySet}
 	}
 
+	util.SetRecommendedLabels(storageProfile, r.installerLabels, "cdi-controller")
 	if err := r.updateStorageProfile(prevStorageProfile, storageProfile, log); err != nil {
 		return reconcile.Result{}, err
 	}

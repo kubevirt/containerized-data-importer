@@ -782,4 +782,15 @@ func (r *Reconciler) setRecommendedLabels(cr client.Object, obj metav1.Object) {
 	for k, v := range labels {
 		sdk.SetLabel(k, v, obj)
 	}
+
+	// Actual workload templates need special care, otherwise we just update the top level labels
+	switch typedObj := obj.(type) {
+	case *appsv1.Deployment:
+		if typedObj.Spec.Template.GetLabels() == nil {
+			typedObj.Spec.Template.SetLabels(make(map[string]string))
+		}
+		for k, v := range labels {
+			typedObj.Spec.Template.GetLabels()[k] = v
+		}
+	}
 }

@@ -57,6 +57,7 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 	It("Should not update if no changes happened", func() {
 		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace))
 		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
 		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
@@ -64,6 +65,24 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 		// CDIConfig generated, now reconcile again without changes.
 		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("Should update labels on CDIConfig when the ones on CR change", func() {
+		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace))
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{})
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		// CDIConfig generated
+		reconciler.installerLabels[common.AppKubernetesPartOfLabel] = "new"
+		Expect(err).ToNot(HaveOccurred())
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{})
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Labels[common.AppKubernetesPartOfLabel]).To(Equal("new"))
 	})
 
 	DescribeTable("Should set proxyURL to override if no ingress or route exists", func(authority bool) {
