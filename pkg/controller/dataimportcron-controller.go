@@ -351,7 +351,7 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 
 func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
 	log := r.log.WithName("garbageCollectOldImports")
-	if dataImportCron.Spec.GarbageCollect == nil || *dataImportCron.Spec.GarbageCollect != cdiv1.DataImportCronGarbageCollectOutdated {
+	if dataImportCron.Spec.GarbageCollect != nil && *dataImportCron.Spec.GarbageCollect != cdiv1.DataImportCronGarbageCollectOutdated {
 		return nil
 	}
 	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
