@@ -41,7 +41,12 @@ func (r *StorageProfileReconciler) Reconcile(_ context.Context, req reconcile.Re
 
 	storageClass := &storagev1.StorageClass{}
 	if err := r.client.Get(context.TODO(), req.NamespacedName, storageClass); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return reconcile.Result{}, r.deleteStorageProfile(req.NamespacedName.Name, log)
+		}
 		return reconcile.Result{}, err
+	} else if storageClass.GetDeletionTimestamp() != nil {
+		return reconcile.Result{}, r.deleteStorageProfile(req.NamespacedName.Name, log)
 	}
 
 	return r.reconcileStorageProfile(storageClass)
@@ -150,6 +155,21 @@ func (r *StorageProfileReconciler) createEmptyStorageProfile(sc *storagev1.Stora
 		return nil, err
 	}
 	return storageProfile, nil
+}
+
+func (r *StorageProfileReconciler) deleteStorageProfile(name string, log logr.Logger) error {
+	log.Info("Cleaning up StorageProfile that corresponds to deleted StorageClass", "StorageClass.Name", name)
+	storageProfileObj := &cdiv1.StorageProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+
+	if err := r.client.Delete(context.TODO(), storageProfileObj); IgnoreNotFound(err) != nil {
+		return err
+	}
+
+	return nil
 }
 
 // MakeEmptyStorageProfileSpec creates StorageProfile manifest
