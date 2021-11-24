@@ -16,6 +16,7 @@ import (
 	"flag"
 	"os"
 
+	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	cdioperator "kubevirt.io/containerized-data-importer/pkg/operator/resources/operator"
 	"kubevirt.io/containerized-data-importer/tools/util"
 )
@@ -72,5 +73,7 @@ func main() {
 	if *dumpCRDs {
 		cidCrd := cdioperator.NewCdiCrd()
 		util.MarshallObject(cidCrd, os.Stdout)
+		dataImportCronCrd := cdicluster.NewDataImportCronCrd()
+		util.MarshallObject(dataImportCronCrd, os.Stdout)
 	}
 }
