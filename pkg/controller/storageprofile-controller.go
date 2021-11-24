@@ -52,8 +52,21 @@ func (r *StorageProfileReconciler) Reconcile(_ context.Context, req reconcile.Re
 
 	storageClass := &storagev1.StorageClass{}
 	if err := r.client.Get(context.TODO(), req.NamespacedName, storageClass); err != nil {
+		if k8serrors.IsNotFound(err) || storageClass.GetDeletionTimestamp() != nil {
+			log.Info("Cleaning up StorageProfile that corresponds to deleted StorageClass", "StorageClass.Name", req.NamespacedName.Name)
+			storageProfileObj := &cdiv1.StorageProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: req.NamespacedName.Name,
+				},
+			}
+			if err := r.client.Delete(context.TODO(), storageProfileObj); IgnoreNotFound(err) != nil {
+				return reconcile.Result{}, err
+			}
+			return reconcile.Result{}, nil
+		}
 		return reconcile.Result{}, err
 	}
+
 	if _, err := r.reconcileStorageProfile(storageClass); err != nil {
 		return reconcile.Result{}, err
 	}
