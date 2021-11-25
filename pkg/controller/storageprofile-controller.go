@@ -62,6 +62,10 @@ func (r *StorageProfileReconciler) Reconcile(_ context.Context, req reconcile.Re
 			if err := r.client.Delete(context.TODO(), storageProfileObj); IgnoreNotFound(err) != nil {
 				return reconcile.Result{}, err
 			}
+			// This branch requires its own check since it won't reach the storageprofile status reconcile
+			if err := r.checkIncompleteProfiles(); err != nil {
+				return reconcile.Result{}, err
+			}
 			return reconcile.Result{}, nil
 		}
 		return reconcile.Result{}, err
@@ -71,18 +75,9 @@ func (r *StorageProfileReconciler) Reconcile(_ context.Context, req reconcile.Re
 		return reconcile.Result{}, err
 	}
 
-	// Alert for incomplete profiles
-	numIncomplete := 0
-	storageProfileList := &cdiv1.StorageProfileList{}
-	if err := r.client.List(context.TODO(), storageProfileList); err != nil {
+	if err := r.checkIncompleteProfiles(); err != nil {
 		return reconcile.Result{}, err
 	}
-	for _, profile := range storageProfileList.Items {
-		if isIncomplete(profile.Status.ClaimPropertySets) {
-			numIncomplete++
-		}
-	}
-	IncompleteProfileGauge.Set(float64(numIncomplete))
 
 	return reconcile.Result{}, nil
 }
@@ -181,6 +176,22 @@ func (r *StorageProfileReconciler) createEmptyStorageProfile(sc *storagev1.Stora
 		return nil, err
 	}
 	return storageProfile, nil
+}
+
+func (r *StorageProfileReconciler) checkIncompleteProfiles() error {
+	numIncomplete := 0
+	storageProfileList := &cdiv1.StorageProfileList{}
+	if err := r.client.List(context.TODO(), storageProfileList); err != nil {
+		return err
+	}
+	for _, profile := range storageProfileList.Items {
+		if isIncomplete(profile.Status.ClaimPropertySets) {
+			numIncomplete++
+		}
+	}
+	IncompleteProfileGauge.Set(float64(numIncomplete))
+
+	return nil
 }
 
 // MakeEmptyStorageProfileSpec creates StorageProfile manifest

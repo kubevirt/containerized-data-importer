@@ -21,6 +21,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	schedulev1 "k8s.io/api/scheduling/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -710,9 +711,24 @@ var _ = Describe("ALL Operator tests", func() {
 				return i
 			}
 
+			createUnknownStorageClass := func(name string) *storagev1.StorageClass {
+				immediateBinding := storagev1.VolumeBindingImmediate
+
+				return &storagev1.StorageClass{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: name,
+						Labels: map[string]string{
+							"cdi.kubevirt.io/testing": "",
+						},
+					},
+					Provisioner:       "kubernetes.io/non-existent-provisioner",
+					VolumeBindingMode: &immediateBinding,
+				}
+			}
+
 			It("CDIOperatorDown alert firing when operator scaled down", func() {
 				if !tests.IsPrometheusAvailable(f.ExtClient) {
-					Skip("This test is depends on prometheus infra being available")
+					Skip("This test depends on prometheus infra being available")
 				}
 
 				By("Scale down operator so alert will trigger")
@@ -790,7 +806,7 @@ var _ = Describe("ALL Operator tests", func() {
 
 			It("CDI ready metric value as expected when ready to use", func() {
 				if !tests.IsPrometheusAvailable(f.ExtClient) {
-					Skip("This test is depends on prometheus infra being available")
+					Skip("This test depends on prometheus infra being available")
 				}
 
 				Eventually(func() int {
@@ -800,31 +816,42 @@ var _ = Describe("ALL Operator tests", func() {
 
 			It("StorageProfile incomplete metric expected value when creating an incomplete profile", func() {
 				if !tests.IsPrometheusAvailable(f.ExtClient) {
-					Skip("This test is depends on prometheus infra being available")
+					Skip("This test depends on prometheus infra being available")
 				}
 
+				numAddedStorageClasses := 2
 				defaultStorageClass := utils.GetDefaultStorageClass(f.K8sClient)
-				storageProfile := &cdiv1.StorageProfile{}
-				err := f.CrClient.Get(context.TODO(), types.NamespacedName{Name: defaultStorageClass.Name}, storageProfile)
+				defaultStorageClassProfile := &cdiv1.StorageProfile{}
+				err := f.CrClient.Get(context.TODO(), types.NamespacedName{Name: defaultStorageClass.Name}, defaultStorageClassProfile)
 				Expect(err).ToNot(HaveOccurred())
-				originalProfileSpec := storageProfile.Spec.DeepCopy()
+				for i := 0; i < numAddedStorageClasses; i++ {
+					_, err = f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), createUnknownStorageClass(fmt.Sprintf("unknown-sc-%d", i)), metav1.CreateOptions{})
+					Expect(err).ToNot(HaveOccurred())
+				}
 				originalMetricVal := getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
-				By("Modify storage profile to be incomplete")
-				storageProfile.Spec.ClaimPropertySets = storageProfile.Status.ClaimPropertySets
-				storageProfile.Spec.ClaimPropertySets[0].VolumeMode = nil
-				err = f.CrClient.Update(context.TODO(), storageProfile)
-				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(func() int {
 					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
-				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", originalMetricVal+1))
+				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", originalMetricVal+numAddedStorageClasses))
 
-				By("Restore storage profile and test metric value equals original")
-				storageProfile.Spec = *originalProfileSpec
-				err = f.CrClient.Update(context.TODO(), storageProfile)
+				By("Fix profiles to be complete and test metric value equals original")
+				for i := 0; i < numAddedStorageClasses; i++ {
+					profile := &cdiv1.StorageProfile{}
+					err = f.CrClient.Get(context.TODO(), types.NamespacedName{Name: fmt.Sprintf("unknown-sc-%d", i)}, profile)
+					Expect(err).ToNot(HaveOccurred())
+					// These might be wrong values, but at least the profile is no longer incomplete
+					profile.Spec.ClaimPropertySets = defaultStorageClassProfile.Status.ClaimPropertySets
+					err = f.CrClient.Update(context.TODO(), profile)
+					Expect(err).ToNot(HaveOccurred())
+				}
 				Eventually(func() int {
 					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
 				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", originalMetricVal))
+				By("Delete unknown storage classes")
+				for i := 0; i < numAddedStorageClasses; i++ {
+					err = f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), fmt.Sprintf("unknown-sc-%d", i), metav1.DeleteOptions{})
+					Expect(err).ToNot(HaveOccurred())
+				}
 			})
 		})
 
