@@ -101,6 +101,18 @@ func createControllerRole() *rbacv1.Role {
 				"delete",
 			},
 		},
+
+		{
+			APIGroups: []string{
+				"batch",
+			},
+			Resources: []string{
+				"jobs",
+			},
+			Verbs: []string{
+				"create",
+			},
+		},
 	}
 	return utils.ResourceBuilder.CreateRole(controllerResourceName, rules)
 }

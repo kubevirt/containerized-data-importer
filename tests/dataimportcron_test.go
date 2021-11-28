@@ -86,7 +86,7 @@ var _ = Describe("DataImportCron", func() {
 
 		var lastImportDv, currentImportDv string
 		for i := 0; i < repeat; i++ {
-			if repeat > 1 {
+			if i > 0 {
 				// Emulate source update using digests from https://quay.io/repository/kubevirt/cirros-container-disk-demo?tab=tags
 				digest := []string{
 					"sha256:68b44fc891f3fae6703d4b74bcc9b5f24df8d23f12e642805d1420cbe7a4be70",
