@@ -345,7 +345,9 @@ var _ = Describe("Controller", func() {
 						"runbook_url": runbookURLBasePath + "CDIOperatorDown",
 					},
 					Labels: map[string]string{
-						"severity": "warning",
+						"severity":                      "warning",
+						"kubernetes_operator_part_of":   "kubevirt",
+						"kubernetes_operator_component": "containerized-data-importer",
 					},
 				}
 
