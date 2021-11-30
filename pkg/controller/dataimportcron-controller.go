@@ -111,7 +111,14 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 			r.log.Error(err, "Unable to create CronJob")
 			return err
 		}
+		if err := r.client.Create(ctx, newInitialJob(cronJob)); err != nil {
+			r.log.Error(err, "Unable to create Job")
+			return err
+		}
+	} else if isImageStreamSource(dataImportCron) && dataImportCron.Annotations[AnnNextCronTime] == "" {
+		dataImportCron.Annotations[AnnNextCronTime] = time.Now().Format(time.RFC3339)
 	}
+
 	return nil
 }
 
@@ -538,6 +545,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 
 	var successfulJobsHistoryLimit int32 = 0
 	var failedJobsHistoryLimit int32 = 0
+	var ttlSecondsAfterFinished int32 = 0
 
 	job := &v1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
@@ -558,6 +566,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 							ServiceAccountName: "cdi-cronjob",
 						},
 					},
+					TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
 				},
 			},
 		},
@@ -578,6 +587,16 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 	}
 
 	return job, nil
+}
+
+func newInitialJob(cronJob *v1beta1.CronJob) *batchv1.Job {
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "job-" + cronJob.Name,
+			Namespace: cronJob.Namespace,
+		},
+		Spec: cronJob.Spec.JobTemplate.Spec,
+	}
 }
 
 func newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdiv1.DataVolume {
