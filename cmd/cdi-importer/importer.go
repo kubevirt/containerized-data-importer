@@ -128,13 +128,13 @@ func main() {
 			errorEmptyDiskWithContentTypeArchive()
 		}
 	} else {
+		waitForReadyFile()
 		klog.V(1).Infoln("begin import process")
 
 		ds = newDataSource(source, contentType, volumeMode)
 		defer ds.Close()
 
 		processor := newDataProcessor(contentType, volumeMode, ds, imageSize, filesystemOverhead, preallocation)
-		waitForReadyFile()
 		err = processor.ProcessData()
 
 		if err != nil {
