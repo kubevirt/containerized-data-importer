@@ -63,10 +63,7 @@ func (r *StorageProfileReconciler) Reconcile(_ context.Context, req reconcile.Re
 				return reconcile.Result{}, err
 			}
 			// This branch requires its own check since it won't reach the storageprofile status reconcile
-			if err := r.checkIncompleteProfiles(); err != nil {
-				return reconcile.Result{}, err
-			}
-			return reconcile.Result{}, nil
+			return reconcile.Result{}, r.checkIncompleteProfiles()
 		}
 		return reconcile.Result{}, err
 	}
@@ -75,11 +72,7 @@ func (r *StorageProfileReconciler) Reconcile(_ context.Context, req reconcile.Re
 		return reconcile.Result{}, err
 	}
 
-	if err := r.checkIncompleteProfiles(); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	return reconcile.Result{}, nil
+	return reconcile.Result{}, r.checkIncompleteProfiles()
 }
 
 func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.StorageClass) (reconcile.Result, error) {

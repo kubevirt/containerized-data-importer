@@ -829,10 +829,11 @@ var _ = Describe("ALL Operator tests", func() {
 					Expect(err).ToNot(HaveOccurred())
 				}
 				originalMetricVal := getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
+				expectedIncomplete := originalMetricVal + numAddedStorageClasses
 
 				Eventually(func() int {
 					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
-				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", originalMetricVal+numAddedStorageClasses))
+				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", expectedIncomplete))
 
 				By("Fix profiles to be complete and test metric value equals original")
 				for i := 0; i < numAddedStorageClasses; i++ {
@@ -843,10 +844,11 @@ var _ = Describe("ALL Operator tests", func() {
 					profile.Spec.ClaimPropertySets = defaultStorageClassProfile.Status.ClaimPropertySets
 					err = f.CrClient.Update(context.TODO(), profile)
 					Expect(err).ToNot(HaveOccurred())
+					expectedIncomplete--
+					Eventually(func() int {
+						return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
+					}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", expectedIncomplete))
 				}
-				Eventually(func() int {
-					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
-				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", originalMetricVal))
 				By("Delete unknown storage classes")
 				for i := 0; i < numAddedStorageClasses; i++ {
 					err = f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), fmt.Sprintf("unknown-sc-%d", i), metav1.DeleteOptions{})
