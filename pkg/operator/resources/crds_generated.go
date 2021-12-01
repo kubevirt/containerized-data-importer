@@ -3743,8 +3743,8 @@ spec:
             properties:
               garbageCollect:
                 description: GarbageCollect specifies whether old PVCs should be cleaned
-                  up after a new PVC is imported. Options are currently "Never" and
-                  "Outdated", defaults to "Never".
+                  up after a new PVC is imported. Options are currently "Outdated"
+                  and "Never", defaults to "Outdated".
                 type: string
               importsToKeep:
                 description: Number of import PVCs to keep when garbage collecting.

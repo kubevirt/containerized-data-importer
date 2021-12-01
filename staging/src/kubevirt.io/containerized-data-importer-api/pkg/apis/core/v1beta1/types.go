@@ -483,7 +483,7 @@ type DataImportCronSpec struct {
 	// Schedule specifies in cron format when and how often to look for new imports
 	Schedule string `json:"schedule"`
 	// GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported.
-	// Options are currently "Never" and "Outdated", defaults to "Never".
+	// Options are currently "Outdated" and "Never", defaults to "Outdated".
 	// +optional
 	GarbageCollect *DataImportCronGarbageCollect `json:"garbageCollect,omitempty"`
 	// Number of import PVCs to keep when garbage collecting. Default is 3.

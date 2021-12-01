@@ -14991,7 +14991,7 @@ func schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref common.ReferenceCallbac
 					},
 					"garbageCollect": {
 						SchemaProps: spec.SchemaProps{
-							Description: "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported. Options are currently \"Never\" and \"Outdated\", defaults to \"Never\".",
+							Description: "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported. Options are currently \"Outdated\" and \"Never\", defaults to \"Outdated\".",
 							Type:        []string{"string"},
 							Format:      "",
 						},

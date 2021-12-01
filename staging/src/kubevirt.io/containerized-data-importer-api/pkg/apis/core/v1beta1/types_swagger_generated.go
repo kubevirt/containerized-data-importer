@@ -241,7 +241,7 @@ func (DataImportCronSpec) SwaggerDoc() map[string]string {
 		"":                  "DataImportCronSpec defines specification for DataImportCron",
 		"template":          "Template specifies template for the DVs to be created",
 		"schedule":          "Schedule specifies in cron format when and how often to look for new imports",
-		"garbageCollect":    "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported.\nOptions are currently \"Never\" and \"Outdated\", defaults to \"Never\".\n+optional",
+		"garbageCollect":    "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported.\nOptions are currently \"Outdated\" and \"Never\", defaults to \"Outdated\".\n+optional",
 		"importsToKeep":     "Number of import PVCs to keep when garbage collecting. Default is 3.\n+optional",
 		"managedDataSource": "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage.\nDataSource has to be in the same namespace.",
 	}

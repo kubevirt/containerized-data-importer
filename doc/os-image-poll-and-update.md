@@ -1,6 +1,6 @@
 # Automated OS image import, poll and update
 
-CDI supports automating OS image import, poll and update, keeping OS images up-to-date. On the first time a `DataImportCron` is scheduled, the controller will import the source image. On any following scheduled poll, if the source image digest (sha256) has updated, the controller will import it to a new `PVC` in the `DataImportCron` namespace, and update the managed `DataSource` to point that `PVC`. A garbage collector is responsible to keep the last 3 imported `PVCs` per `DataImportCron`, and delete older ones. 
+CDI supports automating OS image import, poll and update, keeping OS images up-to-date according to the given `schedule`. On the first time a `DataImportCron` is scheduled, the controller will import the source image. On any following scheduled poll, if the source image digest (sha256) has updated, the controller will import it to a new `PVC` in the `DataImportCron` namespace, and update the managed `DataSource` to point that `PVC`. A garbage collector (`garbageCollect: Outdated` enabled by default) is responsible to keep the last `importsToKeep` (3 by default) imported `PVCs` per `DataImportCron`, and delete older ones.
 
 See design doc [here](https://github.com/kubevirt/community/blob/main/design-proposals/golden-image-delivery-and-update-pipeline.md)
 
@@ -25,6 +25,7 @@ spec:
         storageClassName: hostpath-provisioner
   schedule: "30 1 * * 1"
   garbageCollect: Outdated
+  importsToKeep: 2
   managedDataSource: fedora
 ```
 
@@ -68,8 +69,8 @@ spec:
           requests:
             storage: 5Gi
         storageClassName: hostpath-provisioner
-  schedule: "30 1 * * 1"
-  garbageCollect: Outdated
+  schedule: "0 0 * * 5"
+  importsToKeep: 4
   managedDataSource: rhel8
 ```
 
