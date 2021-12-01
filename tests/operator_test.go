@@ -676,7 +676,21 @@ var _ = Describe("ALL Operator tests", func() {
 		})
 
 		var _ = Describe("Alert tests", func() {
+			var numAddedStorageClasses int
 			f := framework.NewFramework("alert-tests")
+
+			AfterEach(func() {
+				By("Delete unknown storage classes")
+				for i := 0; i < numAddedStorageClasses; i++ {
+					name := fmt.Sprintf("unknown-sc-%d", i)
+					_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), name, metav1.GetOptions{})
+					if err != nil && errors.IsNotFound(err) {
+						continue
+					}
+					err = f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), name, metav1.DeleteOptions{})
+					Expect(err).ToNot(HaveOccurred())
+				}
+			})
 
 			getMetricValue := func(endpoint string) int {
 				var returnVal string
@@ -819,7 +833,7 @@ var _ = Describe("ALL Operator tests", func() {
 					Skip("This test depends on prometheus infra being available")
 				}
 
-				numAddedStorageClasses := 2
+				numAddedStorageClasses = 2
 				defaultStorageClass := utils.GetDefaultStorageClass(f.K8sClient)
 				defaultStorageClassProfile := &cdiv1.StorageProfile{}
 				err := f.CrClient.Get(context.TODO(), types.NamespacedName{Name: defaultStorageClass.Name}, defaultStorageClassProfile)
@@ -848,11 +862,6 @@ var _ = Describe("ALL Operator tests", func() {
 					Eventually(func() int {
 						return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
 					}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", expectedIncomplete))
-				}
-				By("Delete unknown storage classes")
-				for i := 0; i < numAddedStorageClasses; i++ {
-					err = f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), fmt.Sprintf("unknown-sc-%d", i), metav1.DeleteOptions{})
-					Expect(err).ToNot(HaveOccurred())
 				}
 			})
 		})
