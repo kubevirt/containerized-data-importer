@@ -14,6 +14,8 @@ type StorageCapabilities struct {
 
 // CapabilitiesByProvisionerKey defines default capabilities for different storage classes
 var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
+	// hostpath-provisioner
+	"kubevirt.io.hostpath-provisioner": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"kubevirt.io/hostpath-provisioner": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
 	// ceph-rbd
 	"kubernetes.io/rbd":                  {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},

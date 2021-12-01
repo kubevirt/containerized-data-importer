@@ -956,7 +956,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			return restarts
 		}, timeout, pollingInterval).Should(BeNumerically(">", common.UnusualRestartCountThreshold))
 
-		if tests.IsPrometheusAvailable(f.K8sClient) {
+		if tests.IsPrometheusAvailable(f.ExtClient) {
 			By("Test metric for unusual restart count")
 			Eventually(func() bool {
 				var result map[string]interface{}

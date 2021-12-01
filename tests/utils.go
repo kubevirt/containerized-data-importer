@@ -20,8 +20,9 @@ import (
 	"github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
+	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -73,6 +74,22 @@ func CreateKubectlCommand(f *framework.Framework, args ...string) *exec.Cmd {
 	cmd.Env = append(os.Environ(), kubeconfEnv)
 
 	return cmd
+}
+
+//RunGoCLICommand runs a gocli Cmd and returns output and err
+func RunGoCLICommand(f *framework.Framework, args ...string) (string, error) {
+	var errb bytes.Buffer
+	path := f.GoCLIPath
+	cmd := exec.Command(path, args...)
+
+	cmd.Stderr = &errb
+	stdOutBytes, err := cmd.Output()
+	if err != nil {
+		if len(errb.String()) > 0 {
+			return errb.String(), err
+		}
+	}
+	return string(stdOutBytes), nil
 }
 
 //RunOcCommand runs an oc Cmd and returns output and err
@@ -245,27 +262,40 @@ func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions
 }
 
 // IsPrometheusAvailable decides whether or not we will run prometheus alert/metric tests
-// Currently only running on OpenShift as it comes preconfigured out of the box
-// Later extend this to use the prometheus CRD detection, similar to how the operator decides this
-func IsPrometheusAvailable(client kubernetes.Interface) bool {
-	return utils.IsOpenshift(client)
+func IsPrometheusAvailable(client *extclientset.Clientset) bool {
+	_, err := client.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), "prometheuses.monitoring.coreos.com", metav1.GetOptions{})
+	if k8serrors.IsNotFound(err) {
+		return false
+	}
+	return true
 }
 
 // MakePrometheusHTTPRequest makes a request to the prometheus api and returns the response
 func MakePrometheusHTTPRequest(f *framework.Framework, endpoint string) *http.Response {
-	var token, host string
-	var err error
+	var token, url, monitoringNs string
 	var resp *http.Response
 
+	url = getPrometheusURL(f)
+	monitoringNs = getMonitoringNs(f)
 	gomega.Eventually(func() bool {
-		host, err = RunOcCommand(f, "-n", "openshift-monitoring", "get", "route", "prometheus-k8s", "--template", "{{.spec.host}}")
+		var secretName string
+		sa, err := f.K8sClient.CoreV1().ServiceAccounts(monitoringNs).Get(context.TODO(), "prometheus-k8s", metav1.GetOptions{})
 		if err != nil {
 			return false
 		}
-		token, err = RunOcCommand(f, "-n", "openshift-monitoring", "sa", "get-token", "prometheus-k8s")
+		for _, secret := range sa.Secrets {
+			if strings.HasPrefix(secret.Name, "prometheus-k8s-token") {
+				secretName = secret.Name
+			}
+		}
+		secret, err := f.K8sClient.CoreV1().Secrets(monitoringNs).Get(context.TODO(), secretName, metav1.GetOptions{})
 		if err != nil {
 			return false
 		}
+		if _, ok := secret.Data["token"]; !ok {
+			return false
+		}
+		token = string(secret.Data["token"])
 		return true
 	}, 10*time.Second, time.Second).Should(gomega.BeTrue())
 
@@ -275,7 +305,7 @@ func MakePrometheusHTTPRequest(f *framework.Framework, endpoint string) *http.Re
 		},
 	}
 	gomega.Eventually(func() bool {
-		req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/api/v1/%s", host, endpoint), nil)
+		req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/%s", url, endpoint), nil)
 		if err != nil {
 			return false
 		}
@@ -291,4 +321,41 @@ func MakePrometheusHTTPRequest(f *framework.Framework, endpoint string) *http.Re
 	}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue())
 
 	return resp
+}
+
+func getPrometheusURL(f *framework.Framework) string {
+	var host, port, url string
+	var err error
+
+	if utils.IsOpenshift(f.K8sClient) {
+		gomega.Eventually(func() bool {
+			host, err = RunOcCommand(f, "-n", "openshift-monitoring", "get", "route", "prometheus-k8s", "--template", "{{.spec.host}}")
+			if err != nil {
+				return false
+			}
+			return true
+		}, 10*time.Second, time.Second).Should(gomega.BeTrue())
+		url = fmt.Sprintf("https://%s", host)
+	} else {
+		gomega.Eventually(func() bool {
+			port, err = RunGoCLICommand(f, "ports", "prometheus")
+			if err != nil {
+				return false
+			}
+			return true
+		}, 10*time.Second, time.Second).Should(gomega.BeTrue())
+		port = strings.TrimSpace(port)
+		gomega.Expect(port).ToNot(gomega.BeEmpty())
+		url = fmt.Sprintf("http://localhost:%s", port)
+	}
+
+	return url
+}
+
+func getMonitoringNs(f *framework.Framework) string {
+	if utils.IsOpenshift(f.K8sClient) {
+		return "openshift-monitoring"
+	}
+
+	return "monitoring"
 }

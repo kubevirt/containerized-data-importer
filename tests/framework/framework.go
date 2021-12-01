@@ -17,6 +17,7 @@ import (
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 
+	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -296,6 +297,10 @@ func (c *Clients) GetCrClient() (crclient.Client, error) {
 	}
 
 	if err := cdiv1.AddToScheme(scheme.Scheme); err != nil {
+		return nil, err
+	}
+
+	if err := promv1.AddToScheme(scheme.Scheme); err != nil {
 		return nil, err
 	}
 

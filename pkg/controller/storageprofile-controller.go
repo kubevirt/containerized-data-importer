@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -25,6 +26,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
+var (
+	// IncompleteProfileGauge is the metric we use to alert about incomplete storage profiles
+	IncompleteProfileGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "kubevirt_cdi_incomplete_storageprofiles_total",
+			Help: "Total number of incomplete and hence unusable StorageProfiles",
+		})
+)
+
 // StorageProfileReconciler members
 type StorageProfileReconciler struct {
 	client client.Client
@@ -42,10 +52,19 @@ func (r *StorageProfileReconciler) Reconcile(_ context.Context, req reconcile.Re
 
 	storageClass := &storagev1.StorageClass{}
 	if err := r.client.Get(context.TODO(), req.NamespacedName, storageClass); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return reconcile.Result{}, r.deleteStorageProfile(req.NamespacedName.Name, log)
+		}
+		return reconcile.Result{}, err
+	} else if storageClass.GetDeletionTimestamp() != nil {
+		return reconcile.Result{}, r.deleteStorageProfile(req.NamespacedName.Name, log)
+	}
+
+	if _, err := r.reconcileStorageProfile(storageClass); err != nil {
 		return reconcile.Result{}, err
 	}
 
-	return r.reconcileStorageProfile(storageClass)
+	return reconcile.Result{}, r.checkIncompleteProfiles()
 }
 
 func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.StorageClass) (reconcile.Result, error) {
@@ -144,6 +163,37 @@ func (r *StorageProfileReconciler) createEmptyStorageProfile(sc *storagev1.Stora
 	return storageProfile, nil
 }
 
+func (r *StorageProfileReconciler) deleteStorageProfile(name string, log logr.Logger) error {
+	log.Info("Cleaning up StorageProfile that corresponds to deleted StorageClass", "StorageClass.Name", name)
+	storageProfileObj := &cdiv1.StorageProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+
+	if err := r.client.Delete(context.TODO(), storageProfileObj); IgnoreNotFound(err) != nil {
+		return err
+	}
+
+	return r.checkIncompleteProfiles()
+}
+
+func (r *StorageProfileReconciler) checkIncompleteProfiles() error {
+	numIncomplete := 0
+	storageProfileList := &cdiv1.StorageProfileList{}
+	if err := r.client.List(context.TODO(), storageProfileList); err != nil {
+		return err
+	}
+	for _, profile := range storageProfileList.Items {
+		if isIncomplete(profile.Status.ClaimPropertySets) {
+			numIncomplete++
+		}
+	}
+	IncompleteProfileGauge.Set(float64(numIncomplete))
+
+	return nil
+}
+
 // MakeEmptyStorageProfileSpec creates StorageProfile manifest
 func MakeEmptyStorageProfileSpec(name string) *cdiv1.StorageProfile {
 	return &cdiv1.StorageProfile{
@@ -209,4 +259,18 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 	return nil
+}
+
+func isIncomplete(sets []cdiv1.ClaimPropertySet) bool {
+	if len(sets) > 0 {
+		for _, cps := range sets {
+			if len(cps.AccessModes) == 0 || cps.VolumeMode == nil {
+				return true
+			}
+		}
+	} else {
+		return true
+	}
+
+	return false
 }

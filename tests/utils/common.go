@@ -65,7 +65,8 @@ var (
 	DefaultStorageCSIRespectsFsGroup bool
 )
 
-func getDefaultStorageClass(client *kubernetes.Clientset) *storagev1.StorageClass {
+// GetDefaultStorageClass return the storage class which is marked as default in the cluster
+func GetDefaultStorageClass(client *kubernetes.Clientset) *storagev1.StorageClass {
 	storageclasses, err := client.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		ginkgo.Fail("Unable to list storage classes")
@@ -118,7 +119,7 @@ func GetTestNamespaceList(client *kubernetes.Clientset, nsPrefix string) (*corev
 // CacheTestsData fetch and cache data required for tests
 func CacheTestsData(client *kubernetes.Clientset, cdiNs string) {
 	if DefaultStorageClass == nil {
-		DefaultStorageClass = getDefaultStorageClass(client)
+		DefaultStorageClass = GetDefaultStorageClass(client)
 	}
 	DefaultStorageClassCsiDriver = getDefaultStorageClassCsiDriver(client)
 	DefaultStorageCSIRespectsFsGroup = isDefaultStorageClassCSIRespectsFsGroup()

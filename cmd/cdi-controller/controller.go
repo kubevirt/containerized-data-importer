@@ -13,6 +13,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	crdinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
@@ -26,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -112,6 +114,10 @@ func init() {
 	if verbose == defVerbose {
 		klog.V(1).Infof("Note: increase the -v level in the controller deployment for more detailed logging, eg. -v=%d or -v=%d\n", 2, 3)
 	}
+
+	// Register metrics for our various controllers
+	metrics.Registry = prometheus.NewRegistry()
+	registerMetrics()
 
 	klog.V(3).Infof("init: complete: cdi controller will create importer using image %q\n", importerImage)
 }
@@ -326,4 +332,8 @@ func getTokenPrivateKey() *rsa.PrivateKey {
 	}
 
 	return key
+}
+
+func registerMetrics() {
+	metrics.Registry.MustRegister(controller.IncompleteProfileGauge)
 }

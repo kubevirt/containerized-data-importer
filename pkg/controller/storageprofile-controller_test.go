@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -44,12 +45,75 @@ var (
 
 var _ = Describe("Storage profile controller reconcile loop", func() {
 
-	It("Should return error if storage profile can not be found", func() {
+	It("Should not requeue if storage class can not be found", func() {
 		reconciler := createStorageProfileReconciler()
-		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("storageclasses.storage.k8s.io \"%s\" not found", storageClassName)))
+		res, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(res.Requeue).ToNot(BeTrue())
+		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
+		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(storageProfileList.Items)).To(Equal(0))
+	})
+
+	It("Should give correct results and not panic with isIncomplete", func() {
+		storageProfile := cdiv1.StorageProfile{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: storageClassName,
+			},
+			Spec: cdiv1.StorageProfileSpec{
+				ClaimPropertySets: []cdiv1.ClaimPropertySet{
+					{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}},
+				},
+			},
+		}
+		incomplete := isIncomplete(storageProfile.Status.ClaimPropertySets)
+		Expect(incomplete).To(BeTrue())
+		storageProfile = cdiv1.StorageProfile{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: storageClassName,
+			},
+			Spec: cdiv1.StorageProfileSpec{
+				ClaimPropertySets: []cdiv1.ClaimPropertySet{
+					{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}},
+				},
+			},
+			Status: cdiv1.StorageProfileStatus{},
+		}
+		incomplete = isIncomplete(storageProfile.Status.ClaimPropertySets)
+		Expect(incomplete).To(BeTrue())
+		storageProfile = cdiv1.StorageProfile{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: storageClassName,
+			},
+			Spec: cdiv1.StorageProfileSpec{
+				ClaimPropertySets: []cdiv1.ClaimPropertySet{
+					{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: &blockMode},
+				},
+			},
+			Status: cdiv1.StorageProfileStatus{
+				ClaimPropertySets: []cdiv1.ClaimPropertySet{
+					{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: &blockMode},
+				},
+			},
+		}
+		incomplete = isIncomplete(storageProfile.Status.ClaimPropertySets)
+		Expect(incomplete).To(BeFalse())
+	})
+
+	It("Should delete storage profile when corresponding storage class gets deleted", func() {
+		storageClass := createStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"})
+		reconciler := createStorageProfileReconciler(storageClass)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+		storageProfileList := &cdiv1.StorageProfileList{}
+		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(storageProfileList.Items)).To(Equal(1))
+		err = reconciler.client.Delete(context.TODO(), storageClass)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(storageProfileList.Items)).To(Equal(0))
