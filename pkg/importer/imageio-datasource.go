@@ -372,25 +372,70 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 		return nil, uint64(0), it, conn, errors.New("Error transfer url not available")
 	}
 
-	req, err := http.NewRequest("GET", transferURL, nil)
-	req = req.WithContext(ctx)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, uint64(0), it, conn, errors.Wrap(err, "Sending request failed")
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, uint64(0), it, conn, errors.Errorf("bad status: %s", resp.Status)
+	// For raw images, see if the transfer can be sped up with the extents API
+	extentsFeature := false
+	if formatType == ovirtsdk4.DISKFORMAT_RAW {
+		extentsFeature, err = checkExtentsFeature(ctx, client, transferURL)
+		if err != nil {
+			return nil, uint64(0), it, conn, err
+		}
 	}
 
-	if total == 0 {
-		// The total seems bogus. Let's try the GET Content-Length header
-		total = parseHTTPHeader(resp)
+	var reader io.ReadCloser
+	if extentsFeature {
+		req, err := http.NewRequest("GET", transferURL+"/extents", nil)
+		req = req.WithContext(ctx)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, uint64(0), it, conn, errors.Wrap(err, "failed to query extents")
+		}
+
+		var extents []imageioExtent
+		err = json.NewDecoder(resp.Body).Decode(&extents)
+		if err != nil {
+			return nil, uint64(0), it, conn, errors.Wrap(err, "unable to decode extents")
+		}
+
+		// Add up all extents to calculate true total data size
+		total = 0
+		for _, extent := range extents {
+			if !extent.Zero {
+				total += uint64(extent.Length)
+			}
+		}
+		klog.Infof("Total size of non-zero extents: %d", total)
+
+		reader = &extentReader{
+			client:      client,
+			extents:     extents,
+			transferURL: transferURL,
+		}
+	} else {
+		req, err := http.NewRequest("GET", transferURL, nil)
+		req = req.WithContext(ctx)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, uint64(0), it, conn, errors.Wrap(err, "Sending request failed")
+		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, uint64(0), it, conn, errors.Errorf("bad status: %s", resp.Status)
+		}
+
+		if total == 0 {
+			// The total seems bogus. Let's try the GET Content-Length header
+			total = parseHTTPHeader(resp)
+		}
+
+		reader = resp.Body
 	}
+
 	countingReader := &util.CountingReader{
-		Reader:  resp.Body,
+		Reader:  reader,
 		Current: 0,
 	}
+
 	return countingReader, total, it, conn, nil
 }
 
@@ -692,6 +737,41 @@ func loadCA(certDir string) (*x509.CertPool, error) {
 		}
 	}
 	return caCertPool, nil
+}
+
+// checkExtentsFeature sends OPTIONS to check for ImageIO extents API feature
+func checkExtentsFeature(ctx context.Context, httpClient *http.Client, transferURL string) (bool, error) {
+	request, err := http.NewRequest(http.MethodOptions, transferURL, nil)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to create options request")
+	}
+	request = request.WithContext(ctx)
+
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return false, errors.Wrap(err, "error sending options request")
+	}
+
+	type imageOptions struct {
+		UnixSocket string   `json:"unix_socket"`
+		Features   []string `json:"features"`
+		MaxReaders int      `json:"max_readers"`
+		MaxWriters int      `json:"max_writers"`
+	}
+	options := &imageOptions{}
+	err = json.NewDecoder(response.Body).Decode(options)
+	if err != nil {
+		return false, errors.Wrap(err, "unable to decode options response")
+	}
+
+	extentsEnabled := false
+	for _, feature := range options.Features {
+		if feature == "extents" {
+			extentsEnabled = true
+		}
+	}
+
+	return extentsEnabled, nil
 }
 
 // may be overridden in tests
