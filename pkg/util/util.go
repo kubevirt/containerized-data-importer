@@ -153,12 +153,12 @@ func MinQuantity(availableSpace, imageSize *resource.Quantity) resource.Quantity
 	return *imageSize
 }
 
-// StreamDataToFile provides a function to stream the specified io.Reader to the specified local file
-func StreamDataToFile(r io.Reader, fileName string) error {
+// OpenFileOrBlockDevice opens the destination data file, whether it is a block device or regular file
+func OpenFileOrBlockDevice(fileName string) (*os.File, error) {
 	var outFile *os.File
 	blockSize, err := GetAvailableSpaceBlock(fileName)
 	if err != nil {
-		return errors.Wrapf(err, "error determining if block device exists")
+		return nil, errors.Wrapf(err, "error determining if block device exists")
 	}
 	if blockSize >= 0 {
 		// Block device found and size determined.
@@ -168,7 +168,16 @@ func StreamDataToFile(r io.Reader, fileName string) error {
 		outFile, err = os.OpenFile(fileName, os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.ModePerm)
 	}
 	if err != nil {
-		return errors.Wrapf(err, "could not open file %q", fileName)
+		return nil, errors.Wrapf(err, "could not open file %q", fileName)
+	}
+	return outFile, nil
+}
+
+// StreamDataToFile provides a function to stream the specified io.Reader to the specified local file
+func StreamDataToFile(r io.Reader, fileName string) error {
+	outFile, err := OpenFileOrBlockDevice(fileName)
+	if err != nil {
+		return err
 	}
 	defer outFile.Close()
 	klog.V(1).Infof("Writing data...\n")

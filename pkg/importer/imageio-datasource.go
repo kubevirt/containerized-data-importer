@@ -163,9 +163,17 @@ func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 func (is *ImageioDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
 	defer is.cleanupTransfer()
 	is.readers.StartProgressUpdate()
-	err := util.StreamDataToFile(is.readers.TopReader(), fileName)
-	if err != nil {
-		return ProcessingPhaseError, err
+
+	if extentsReader, err := is.getExtentsReader(); err == nil {
+		err := is.StreamExtents(extentsReader, fileName)
+		if err != nil {
+			return ProcessingPhaseError, err
+		}
+	} else {
+		err := util.StreamDataToFile(is.readers.TopReader(), fileName)
+		if err != nil {
+			return ProcessingPhaseError, err
+		}
 	}
 	return ProcessingPhaseResize, nil
 }
@@ -226,6 +234,72 @@ func (is *ImageioDataSource) pollProgress(reader *util.CountingReader, idleTime,
 func (is *ImageioDataSource) IsDeltaCopy() bool {
 	result := is.previousSnapshot != "" && is.currentSnapshot != ""
 	return result
+}
+
+// getExtentsReader retrieves an extents reader from ImageioDataSource.imageioReader, if it has one.
+func (is *ImageioDataSource) getExtentsReader() (*extentReader, error) {
+	countingReader, ok := is.imageioReader.(*util.CountingReader)
+	if !ok {
+		return nil, errors.New("not a counting reader")
+	}
+	extentsReader, ok := countingReader.Reader.(*extentReader)
+	if !ok {
+		return nil, errors.New("not an extents reader")
+	}
+	return extentsReader, nil
+}
+
+// StreamExtents requests individual extents from the ImageIO API and copies them to the destination.
+// It skips downloading ranges of all zero bytes.
+func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName string) error {
+	outFile, err := util.OpenFileOrBlockDevice(fileName)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	for _, extent := range extentsReader.extents {
+		if extent.Zero { // TODO: punch/ftruncate/etc. based on block device/file
+			_, err = outFile.Seek(extent.Length, io.SeekCurrent)
+			if err != nil {
+				return errors.Wrap(err, "failed to seek")
+			}
+		} else {
+			responseBody, err := extentsReader.GetRange(extent.Start, extent.Start+extent.Length-1)
+			if err != nil { // Ignore special EOF case, extents should give the exact right size to read
+				return errors.Wrap(err, "failed to get range")
+			}
+			err = is.transferExtent(responseBody, outFile, extent)
+			if err != nil {
+				return errors.Wrap(err, "failed to transfer extent")
+			}
+		}
+	}
+
+	return nil
+}
+
+// transferExtent copies one extent from the source to the destination, updates the progress
+// counter, and closes the source. Each source reader is expected to contain one extent.
+func (is *ImageioDataSource) transferExtent(source io.ReadCloser, dest io.Writer, extent imageioExtent) error {
+	defer source.Close()
+
+	responseReader := util.CountingReader{
+		Reader:  source,
+		Current: is.readers.progressReader.CountingReader.Current,
+		Done:    false,
+	}
+	is.readers.progressReader.CountingReader = responseReader
+
+	written, err := io.Copy(dest, is.readers.progressReader)
+	if err != nil {
+		return errors.Wrap(err, "failed to write to file")
+	}
+	if written != extent.Length {
+		return errors.New("failed to copy total extent length")
+	}
+
+	return nil
 }
 
 // imageioExtent holds information about a particular sequence of bytes, decodable from the ImageIO API.
