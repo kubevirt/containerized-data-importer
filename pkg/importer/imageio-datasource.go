@@ -19,12 +19,15 @@ package importer
 import (
 	"context"
 	"crypto/x509"
+	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -223,6 +226,92 @@ func (is *ImageioDataSource) pollProgress(reader *util.CountingReader, idleTime,
 func (is *ImageioDataSource) IsDeltaCopy() bool {
 	result := is.previousSnapshot != "" && is.currentSnapshot != ""
 	return result
+}
+
+// imageioExtent holds information about a particular sequence of bytes, decodable from the ImageIO API.
+type imageioExtent struct {
+	Start  int64 `json:"start"`
+	Length int64 `json:"length"`
+	Zero   bool  `json:"zero"`
+	Hole   bool  `json:"hole"`
+}
+
+// extentReader wraps the ImageIO extents API with the ReadCloser interface so that it can be used
+// as the imageioReader in the ImageioDataSource.
+type extentReader struct {
+	client      *http.Client
+	extents     []imageioExtent
+	transferURL string
+	offset      int64
+}
+
+// Read downloads a range of bytes from the ImageIO source. Having this attached
+// to extentReader provides compatibility with the FormatReader header parsing.
+func (reader *extentReader) Read(p []byte) (int, error) {
+	start := reader.offset
+	end := start + int64(len(p)) - 1
+	responseBody, err := reader.GetRange(start, end)
+	if err != nil && err != io.EOF {
+		return 0, errors.Wrap(err, "failed to read from range")
+	}
+	defer responseBody.Close()
+
+	var written int
+	if err != io.EOF { // Most of the time, dump range response directly into p
+		written, err = io.ReadFull(responseBody, p)
+	} else { // Only allocate and copy a smaller buffer for the last available range
+		last, err := io.ReadAll(responseBody)
+		if err != nil {
+			return 0, errors.Wrap(err, "failed to read final block")
+		}
+		written = copy(p, last)
+	}
+
+	reader.offset += int64(written)
+	return written, err
+}
+
+// Close closes the extentReader, which currently does not require any work.
+func (reader *extentReader) Close() error {
+	return nil
+}
+
+// GetRange requests a range of bytes from the ImageIO server, and returns the
+// response body so the caller can copy the data wherever it needs to go.
+func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
+	request, err := http.NewRequest("GET", reader.transferURL, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create range request")
+	}
+	request.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", start, end))
+
+	response, err := reader.client.Do(request)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to do range request")
+	}
+
+	contentLength := response.Header.Get("Content-Length")
+	length, err := strconv.ParseInt(contentLength, 10, 64)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("bad content-length in range request: %s", contentLength))
+	}
+
+	// Validate the returned length, and return EOF if the requested range extends past the end of the source.
+	expectedLength := end - start + 1
+	if length != expectedLength {
+		contentRange := response.Header.Get("Content-Range")
+		parts := strings.Split(contentRange, "*/")
+		if len(parts) > 1 {
+			if _, err := strconv.ParseInt(parts[1], 10, 64); err != nil {
+				return nil, errors.Wrap(err, "failed to parse total length of image from range response")
+			}
+			return response.Body, io.EOF
+		} else {
+			return nil, errors.New(fmt.Sprintf("wrong length returned: %d vs expected %d", length, expectedLength))
+		}
+	}
+
+	return response.Body, nil
 }
 
 func createImageioReader(ctx context.Context, ep string, accessKey string, secKey string, certDir string, diskID string, currentCheckpoint string, previousCheckpoint string) (io.ReadCloser, uint64, *ovirtsdk4.ImageTransfer, ConnectionInterface, error) {
