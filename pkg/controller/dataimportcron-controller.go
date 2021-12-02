@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"reflect"
 	"sort"
 	"time"
 
@@ -37,8 +38,10 @@ import (
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -195,11 +198,9 @@ func getCronRegistrySource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourceR
 	return source.Registry, nil
 }
 
-// FIXME: update all conditions
 func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
 	log := r.log.WithName("update")
 	res := reconcile.Result{}
-	//FIXME: add ImportStatus DataVolumePhase so we'll handle only on transition (to Succeeded etc.)
 	importSucceeded := false
 	imports := dataImportCron.Status.CurrentImports
 	if imports != nil {
@@ -218,18 +219,25 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		now := metav1.Now()
 		dataImportCron.Status.LastExecutionTimestamp = &now
 
-		if dataVolume.Status.Phase == cdiv1.Succeeded {
+		switch dataVolume.Status.Phase {
+		case cdiv1.Succeeded:
 			importSucceeded = true
-			if err := r.updateDataSourceOnSuccess(ctx, dataImportCron); err != nil {
-				return res, err
-			}
 			if err := r.updateDataImportCronOnSuccess(ctx, dataImportCron); err != nil {
 				return res, err
 			}
+			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "No current import", noImport)
 			if err := r.garbageCollectOldImports(ctx, dataImportCron); err != nil {
 				return res, err
 			}
+		case cdiv1.ImportScheduled:
+			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "Import is scheduled", scheduled)
+		case cdiv1.ImportInProgress:
+			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionTrue, "Import is progressing", inProgress)
 		}
+	}
+
+	if err := r.updateDataSource(ctx, dataImportCron); err != nil {
+		return res, err
 	}
 
 	// We use the poller returned reconcile.Result for RequeueAfter if needed
@@ -242,10 +250,16 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	}
 
 	desiredDigest := dataImportCron.Annotations[AnnSourceDesiredDigest]
-	if desiredDigest != "" && (imports == nil || (importSucceeded && desiredDigest != imports[0].Digest)) {
-		if err := r.createImportDataVolume(ctx, dataImportCron); err != nil {
-			return res, err
+	digestUpdated := desiredDigest != "" && (len(imports) == 0 || desiredDigest != imports[0].Digest)
+	if digestUpdated {
+		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Source digest updated since last import", outdated)
+		if importSucceeded || len(imports) == 0 {
+			if err := r.createImportDataVolume(ctx, dataImportCron); err != nil {
+				return res, err
+			}
 		}
+	} else if importSucceeded {
+		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionTrue, "Latest import is up to date", upToDate)
 	}
 
 	if err := r.client.Update(ctx, dataImportCron); err != nil {
@@ -282,11 +296,8 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 	return nil
 }
 
-func (r *DataImportCronReconciler) updateDataSourceOnSuccess(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
 	log := r.log.WithName("update")
-	if dataImportCron.Status.CurrentImports == nil {
-		return errors.Errorf("No CurrentImports in cron %s", dataImportCron.Name)
-	}
 	dataSourceName := dataImportCron.Spec.ManagedDataSource
 	dataSource := &cdiv1.DataSource{}
 	if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: dataSourceName}, dataSource); err != nil {
@@ -302,6 +313,7 @@ func (r *DataImportCronReconciler) updateDataSourceOnSuccess(ctx context.Context
 			return err
 		}
 	}
+	dataSourceCopy := dataSource.DeepCopy()
 	if !isOwner(dataSource, dataImportCron) {
 		dataSource.OwnerReferences = append(dataSource.OwnerReferences, metav1.OwnerReference{
 			APIVersion: dataImportCron.APIVersion,
@@ -310,14 +322,26 @@ func (r *DataImportCronReconciler) updateDataSourceOnSuccess(ctx context.Context
 			UID:        dataImportCron.UID,
 		})
 	}
-	sourcePVC := &cdiv1.DataVolumeSourcePVC{
-		Namespace: dataImportCron.Namespace,
-		Name:      dataImportCron.Status.CurrentImports[0].DataVolumeName,
-	}
-	if dataSource.Spec.Source.PVC == nil || *dataSource.Spec.Source.PVC != *sourcePVC {
+
+	sourcePVC := dataImportCron.Status.LastImportedPVC
+	if sourcePVC != nil {
+		dv := &cdiv1.DataVolume{}
+		if err := r.client.Get(ctx, types.NamespacedName{Namespace: sourcePVC.Namespace, Name: sourcePVC.Name}, dv); err != nil {
+			if k8serrors.IsNotFound(err) {
+				log.Info("DV not found", "name", sourcePVC.Name)
+				updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "DV not found", notFound)
+			} else {
+				log.Error(err, "Unable to get DV", "name", sourcePVC.Name)
+				return err
+			}
+		} else if cond := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions); cond != nil {
+			updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, cond.Status, cond.Message, cond.Reason)
+		}
 		dataSource.Spec.Source.PVC = sourcePVC
+	}
+	if !reflect.DeepEqual(dataSource, dataSourceCopy) {
 		if err := r.client.Update(ctx, dataSource); err != nil {
-			log.Error(err, "Unable to update DataSource with source PVC", "Name", dataSourceName, "PVC", sourcePVC)
+			log.Error(err, "Unable to update DataSource", "Name", dataSourceName)
 			return err
 		}
 	}
@@ -458,6 +482,16 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		OwnerType:    &cdiv1.DataImportCron{},
 		IsController: true,
 	}); err != nil {
+		return err
+	}
+	// Watch only for DataSource deletion
+	if err := c.Watch(&source.Kind{Type: &cdiv1.DataSource{}},
+		&handler.EnqueueRequestForOwner{OwnerType: &cdiv1.DataImportCron{}},
+		predicate.Funcs{
+			CreateFunc: func(event.CreateEvent) bool { return false },
+			UpdateFunc: func(event.UpdateEvent) bool { return false },
+		},
+	); err != nil {
 		return err
 	}
 	return nil

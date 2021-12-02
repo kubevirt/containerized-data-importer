@@ -133,14 +133,20 @@ var _ = Describe("DataImportCron", func() {
 					return false
 				}
 				Expect(err).ToNot(HaveOccurred())
-				return datasource.Spec.Source.PVC != nil && datasource.Spec.Source.PVC.Name == currentImportDv
+				readyCond := controller.FindDataSourceConditionByType(datasource, cdiv1.DataSourceReady)
+				return readyCond != nil && readyCond.Status == corev1.ConditionTrue &&
+					datasource.Spec.Source.PVC != nil && datasource.Spec.Source.PVC.Name == currentImportDv
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 
-			By("Verify cron LastImportedPVC updated")
+			By("Verify cron was updated")
 			Eventually(func() bool {
 				cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
-				return cron.Status.LastImportedPVC != nil && cron.Status.LastImportedPVC.Name == currentImportDv
+				progressCond := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronProgressing)
+				upToDateCond := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
+				return progressCond != nil && progressCond.Status == corev1.ConditionFalse &&
+					upToDateCond != nil && upToDateCond.Status == corev1.ConditionTrue &&
+					cron.Status.LastImportedPVC != nil && cron.Status.LastImportedPVC.Name == currentImportDv
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 		}
 		if checkGarbageCollection {

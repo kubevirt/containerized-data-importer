@@ -223,6 +223,12 @@ func (DataSourceCondition) SwaggerDoc() map[string]string {
 	}
 }
 
+func (ConditionState) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "ConditionState represents the state of a condition",
+	}
+}
+
 func (DataSourceList) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":      "DataSourceList provides the needed parameters to do request a list of Data Sources from the system\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",

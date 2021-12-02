@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "clone-controller.go",
         "config-controller.go",
+        "dataimportcron-conditions.go",
         "dataimportcron-controller.go",
         "datavolume-conditions.go",
         "datavolume-controller.go",

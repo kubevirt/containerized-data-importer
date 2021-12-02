@@ -442,16 +442,26 @@ type DataSourceStatus struct {
 
 // DataSourceCondition represents the state of a data source condition
 type DataSourceCondition struct {
-	Type               DataSourceConditionType `json:"type" description:"type of condition ie. Ready"`
-	Status             corev1.ConditionStatus  `json:"status" description:"status of the condition, one of True, False, Unknown"`
-	LastTransitionTime metav1.Time             `json:"lastTransitionTime,omitempty"`
-	LastHeartbeatTime  metav1.Time             `json:"lastHeartbeatTime,omitempty"`
-	Reason             string                  `json:"reason,omitempty" description:"reason for the condition's last transition"`
-	Message            string                  `json:"message,omitempty" description:"human-readable message indicating details about last transition"`
+	Type           DataSourceConditionType `json:"type" description:"type of condition ie. Ready"`
+	ConditionState `json:",inline"`
 }
 
 // DataSourceConditionType is the string representation of known condition types
 type DataSourceConditionType string
+
+const (
+	// DataSourceReady is the condition that indicates if the data source is ready to be consumed
+	DataSourceReady DataSourceConditionType = "Ready"
+)
+
+// ConditionState represents the state of a condition
+type ConditionState struct {
+	Status             corev1.ConditionStatus `json:"status" description:"status of the condition, one of True, False, Unknown"`
+	LastTransitionTime metav1.Time            `json:"lastTransitionTime,omitempty"`
+	LastHeartbeatTime  metav1.Time            `json:"lastHeartbeatTime,omitempty"`
+	Reason             string                 `json:"reason,omitempty" description:"reason for the condition's last transition"`
+	Message            string                 `json:"message,omitempty" description:"human-readable message indicating details about last transition"`
+}
 
 // DataSourceList provides the needed parameters to do request a list of Data Sources from the system
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -527,16 +537,20 @@ type ImportStatus struct {
 
 // DataImportCronCondition represents the state of a data import cron condition
 type DataImportCronCondition struct {
-	Type               DataImportCronConditionType `json:"type" description:"type of condition ie. Progressing, UpToDate"`
-	Status             corev1.ConditionStatus      `json:"status" description:"status of the condition, one of True, False, Unknown"`
-	LastTransitionTime metav1.Time                 `json:"lastTransitionTime,omitempty"`
-	LastHeartbeatTime  metav1.Time                 `json:"lastHeartbeatTime,omitempty"`
-	Reason             string                      `json:"reason,omitempty" description:"reason for the condition's last transition"`
-	Message            string                      `json:"message,omitempty" description:"human-readable message indicating details about last transition"`
+	Type           DataImportCronConditionType `json:"type" description:"type of condition ie. Progressing, UpToDate"`
+	ConditionState `json:",inline"`
 }
 
 // DataImportCronConditionType is the string representation of known condition types
 type DataImportCronConditionType string
+
+const (
+	// DataImportCronProgressing is the condition that indicates import is progressing
+	DataImportCronProgressing DataImportCronConditionType = "Progressing"
+
+	// DataImportCronUpToDate is the condition that indicates latest import is up to date
+	DataImportCronUpToDate DataImportCronConditionType = "UpToDate"
+)
 
 // DataImportCronList provides the needed parameters to do request a list of DataImportCrons from the system
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

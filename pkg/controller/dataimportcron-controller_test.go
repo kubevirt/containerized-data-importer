@@ -148,6 +148,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(cron.Status.LastExecutionTimestamp).ToNot(BeNil())
 
 			dv.Status.Phase = cdiv1.Succeeded
+			dv.Status.Conditions = updateCondition(dv.Status.Conditions, cdiv1.DataVolumeReady, corev1.ConditionTrue, "", "")
 			err = reconciler.client.Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -170,6 +171,16 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(cron.Status.LastImportedPVC).ToNot(BeNil())
 			Expect(*cron.Status.LastImportedPVC).To(Equal(sourcePVC))
 			Expect(cron.Status.LastImportTimestamp).ToNot(BeNil())
+
+			cronCond := FindDataImportCronConditionByType(cron, cdiv1.DataImportCronProgressing)
+			Expect(cronCond).ToNot(BeNil())
+			Expect(cronCond.Status).To(Equal(corev1.ConditionFalse))
+			cronCond = FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
+			Expect(cronCond).ToNot(BeNil())
+			Expect(cronCond.Status).To(Equal(corev1.ConditionTrue))
+			dsCond := FindDataSourceConditionByType(dataSource, cdiv1.DataSourceReady)
+			Expect(dsCond).ToNot(BeNil())
+			Expect(dsCond.Status).To(Equal(corev1.ConditionTrue))
 		})
 
 		It("Should update AnnNextCronTime annotation on a valid DataImportCron with ImageStream, and start an import and update DataImportCron when AnnNextCronTime annotation is updated to now", func() {
