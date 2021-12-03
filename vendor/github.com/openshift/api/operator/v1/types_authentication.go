@@ -9,6 +9,9 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Authentication provides information to configure an operator to manage authentication.
+//
+// Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
+// +openshift:compatibility-gen:level=1
 type Authentication struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -25,11 +28,6 @@ type AuthenticationSpec struct {
 }
 
 type AuthenticationStatus struct {
-	// ManagingOAuthAPIServer indicates whether this operator is managing OAuth related APIs. Setting this field to true will cause OAS-O to step down.
-	// Note that this field will be removed in the future releases, once https://github.com/openshift/enhancements/blob/master/enhancements/authentication/separate-oauth-resources.md is fully implemented
-	// +optional
-	ManagingOAuthAPIServer bool `json:"managingOAuthAPIServer,omitempty"`
-
 	// OAuthAPIServer holds status specific only to oauth-apiserver
 	// +optional
 	OAuthAPIServer OAuthAPIServerStatus `json:"oauthAPIServer,omitempty"`
@@ -48,6 +46,9 @@ type OAuthAPIServerStatus struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // AuthenticationList is a collection of items
+//
+// Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
+// +openshift:compatibility-gen:level=1
 type AuthenticationList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`

@@ -456,6 +456,11 @@ func (in *OpenShiftControllerManagerConfig) DeepCopyInto(out *OpenShiftControlle
 	out.Ingress = in.Ingress
 	out.ImageImport = in.ImageImport
 	out.SecurityAllocator = in.SecurityAllocator
+	if in.FeatureGates != nil {
+		in, out := &in.FeatureGates, &out.FeatureGates
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

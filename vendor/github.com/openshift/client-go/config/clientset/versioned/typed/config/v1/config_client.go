@@ -19,6 +19,7 @@ type ConfigV1Interface interface {
 	DNSesGetter
 	FeatureGatesGetter
 	ImagesGetter
+	ImageContentPoliciesGetter
 	InfrastructuresGetter
 	IngressesGetter
 	NetworksGetter
@@ -68,6 +69,10 @@ func (c *ConfigV1Client) FeatureGates() FeatureGateInterface {
 
 func (c *ConfigV1Client) Images() ImageInterface {
 	return newImages(c)
+}
+
+func (c *ConfigV1Client) ImageContentPolicies() ImageContentPolicyInterface {
+	return newImageContentPolicies(c)
 }
 
 func (c *ConfigV1Client) Infrastructures() InfrastructureInterface {
