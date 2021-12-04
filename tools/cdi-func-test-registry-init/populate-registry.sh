@@ -4,7 +4,7 @@
 # Disk images are taken from /tmp/shared/images directory populated by cdi-func-test-registry-init
 # Container images are built with buildah 
 
-CONTAINER_DISK_IMAGE=${CONTAINER_DISK_IMAGE:-kubevirt/container-disk-v1alpha}
+CONTAINER_DISK_IMAGE=${CONTAINER_DISK_IMAGE:-docker.io/kubevirt/container-disk-v1alpha}
 
 #images args
 IMAGES_SRC=$1        #path to files to be encapsulated in docker image
