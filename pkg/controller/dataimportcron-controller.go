@@ -201,6 +201,10 @@ func getCronRegistrySource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourceR
 func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
 	log := r.log.WithName("update")
 	res := reconcile.Result{}
+
+	now := metav1.Now()
+	dataImportCron.Status.LastExecutionTimestamp = &now
+
 	importSucceeded := false
 	imports := dataImportCron.Status.CurrentImports
 	if imports != nil {
@@ -215,10 +219,6 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 				return res, err
 			}
 		}
-
-		now := metav1.Now()
-		dataImportCron.Status.LastExecutionTimestamp = &now
-
 		switch dataVolume.Status.Phase {
 		case cdiv1.Succeeded:
 			importSucceeded = true
@@ -233,7 +233,11 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "Import is scheduled", scheduled)
 		case cdiv1.ImportInProgress:
 			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionTrue, "Import is progressing", inProgress)
+		case cdiv1.Failed:
+			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "Import failed", failed)
 		}
+	} else {
+		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "No current import", noImport)
 	}
 
 	if err := r.updateDataSource(ctx, dataImportCron); err != nil {
@@ -260,6 +264,10 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		}
 	} else if importSucceeded {
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionTrue, "Latest import is up to date", upToDate)
+	} else if len(imports) > 0 {
+		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Import is progressing", inProgress)
+	} else {
+		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "No source digest", noDigest)
 	}
 
 	if err := r.client.Update(ctx, dataImportCron); err != nil {

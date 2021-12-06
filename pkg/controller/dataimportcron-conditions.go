@@ -26,8 +26,10 @@ const (
 	noImport   = "NoImport"
 	scheduled  = "ImportScheduled"
 	inProgress = "ImportProgressing"
+	failed     = "ImportFailed"
 	upToDate   = "UpToDate"
 	outdated   = "Outdated"
+	noDigest   = "NoDigest"
 )
 
 func updateDataImportCronCondition(cron *cdiv1.DataImportCron, conditionType cdiv1.DataImportCronConditionType, status corev1.ConditionStatus, message, reason string) {
