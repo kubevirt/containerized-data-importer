@@ -1,20 +1,14 @@
-FROM registry.fedoraproject.org/fedora-minimal:33
+FROM quay.io/centos/centos:stream9
 MAINTAINER "The KubeVirt Project" <kubevirt-dev@googlegroups.com>
 
-COPY fedora.repo /tmp/fedora_ci.dnf.repo
-
-RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
-    cat /tmp/fedora_ci.dnf.repo && \
-    mkdir /etc/yum.repos.d/old && \
-	mv /etc/yum.repos.d/*.repo /etc/yum.repos.d/old  && \
-	mv /tmp/fedora_ci.dnf.repo /etc/yum.repos.d/fedora.repo && \
-	microdnf update -y && microdnf install -y \
+RUN 	dnf -y install dnf-plugins-core && \
+	dnf config-manager --set-enable crb && dnf update -y && \
+	dnf install -y \
 	cpio \
 	diffutils \
 	git \
 	python3-pip \
 	python3-devel \
-	mercurial \
 	gcc \
 	gcc-c++ \
 	glibc-devel \
@@ -30,11 +24,14 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
 	nbdkit-devel \
 	unzip \
 	java-11-openjdk-devel \
-	btrfs-progs-devel \
-	device-mapper-devel \
-	&& microdnf clean all && \
-	mv /etc/yum.repos.d/old/* /etc/yum.repos.d/ && \
-	rmdir /etc/yum.repos.d/old
+	&& dnf clean all
+
+
+# Necessary for Bazel to find Python inside the container
+#
+# https://github.com/bazelbuild/bazel/issues/8665
+# https://github.com/bazelbuild/bazel/issues/11554
+RUN ln -s /usr/bin/python3 /usr/bin/python
 
 RUN pip3 install --upgrade j2cli operator-courier==2.1.11 && \
     curl -sL https://services.gradle.org/distributions/gradle-6.6-bin.zip -o gradle-6.6-bin.zip && \
