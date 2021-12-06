@@ -30,12 +30,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	ovirtsdk4 "github.com/ovirt/go-ovirt"
 	ovirtclient "github.com/ovirt/go-ovirt-client"
 	ovirtclientlog "github.com/ovirt/go-ovirt-client-log-klog"
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -258,13 +260,27 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 	}
 	defer outFile.Close()
 
+	info, err := outFile.Stat()
+	if err != nil {
+		return err
+	}
+	isBlock := !info.Mode().IsRegular()
+
 	for _, extent := range extentsReader.extents {
-		if extent.Zero { // TODO: punch/ftruncate/etc. based on block device/file
-			_, err = outFile.Seek(extent.Length, io.SeekCurrent)
+		if extent.Zero {
+			if isBlock {
+				klog.Infof("Punching %d-byte hole at offset %d", extent.Length, extent.Start)
+				flags := uint32(unix.FALLOC_FL_PUNCH_HOLE | unix.FALLOC_FL_KEEP_SIZE)
+				err = syscall.Fallocate(int(outFile.Fd()), flags, extent.Start, extent.Length)
+			} else {
+				klog.Infof("Seeking %d-bytes from offset %d", extent.Length, extent.Start)
+				_, err = outFile.Seek(extent.Length, io.SeekCurrent)
+			}
 			if err != nil {
-				return errors.Wrap(err, "failed to seek")
+				return errors.Wrap(err, "failed to zero range on destination")
 			}
 		} else {
+			klog.Infof("Downloading %d-byte extent at offset %d", extent.Length, extent.Start)
 			responseBody, err := extentsReader.GetRange(extent.Start, extent.Start+extent.Length-1)
 			if err != nil { // Ignore special EOF case, extents should give the exact right size to read
 				return errors.Wrap(err, "failed to get range")
