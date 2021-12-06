@@ -130,7 +130,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(f.VerifySparse(f.Namespace, pvc)).To(BeTrue())
 		By("Verifying permissions are 660")
 		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
-		if utils.DefaultStorageCSI {
+		if utils.DefaultStorageCSIRespectsFsGroup {
 			// CSI storage class, it should respect fsGroup
 			By("Checking that disk image group is qemu")
 			Expect(f.GetDiskGroup(f.Namespace, pvc, false)).To(Equal("107"))

@@ -2,6 +2,7 @@ package tests
 
 import (
 	"fmt"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -71,5 +72,4 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high] CSI Vol
 		// Verify PVC's content
 		verifyPVC(dataVolume, f, utils.DefaultPvcMountPath, expectedMd5)
 	})
-
 })
