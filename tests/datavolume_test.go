@@ -1199,7 +1199,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		)
 	})
 
-	table.DescribeTable("Succeed HTTPS import in various formats", func(url func() string) {
+	table.DescribeTable("Succeed HTTPS import in various formats", func(url func() string, skipOnOpenshift bool) {
+		if skipOnOpenshift && utils.IsOpenshift(f.K8sClient) {
+			Skip("This test doesn't work when building using centos, see: https://bugzilla.redhat.com/show_bug.cgi?id=2013331")
+		}
 		By(fmt.Sprintf("Importing from %s", url()))
 		dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url())
 		cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
@@ -1222,10 +1225,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.TinyCoreMD5))
 	},
-		table.Entry("when importing in the VMDK format", httpsTinyCoreVmdkURL),
-		table.Entry("When importing in the VDI format", httpsTinyCoreVdiURL),
-		table.Entry("when importing in the VHD format", httpsTinyCoreVhdURL),
-		table.Entry("when importing in the VHDX format", httpsTinyCoreVhdxURL),
+		table.Entry("when importing in the VMDK format", httpsTinyCoreVmdkURL, false),
+		table.Entry("When importing in the VDI format", httpsTinyCoreVdiURL, true),
+		table.Entry("when importing in the VHD format", httpsTinyCoreVhdURL, false),
+		table.Entry("when importing in the VHDX format", httpsTinyCoreVhdxURL, false),
 	)
 
 	Describe("[rfe_id:1115][crit:high][posneg:negative]Delete resources of DataVolume with an invalid URL (POD in retry loop)", func() {
