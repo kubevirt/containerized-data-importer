@@ -1570,9 +1570,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			requestedSize := resource.MustParse("100Mi")
 
 			spec := cdiv1.StorageSpec{
-				AccessModes:      nil,
-				VolumeMode:       nil,
-				StorageClassName: &defaultScName,
+				AccessModes: nil,
+				VolumeMode:  nil,
 				Resources: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
@@ -1583,10 +1582,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
 			dataVolume := createDataVolumeForImport(f, spec)
 
-			By("verifying pvc created with correct accessModes")
+			By("verifying pvc created with correct accessModes and storageclass name")
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
+			Expect(*pvc.Spec.StorageClassName).To(And(Not(BeNil())), Equal(defaultScName))
 
 			By("Restore the profile")
 			updateStorageProfileSpec(f.CrClient, defaultScName, *originalProfileSpec)
