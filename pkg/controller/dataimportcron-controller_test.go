@@ -32,6 +32,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -110,6 +111,8 @@ var _ = Describe("All DataImportCron Tests", func() {
 
 		It("Should create DataVolume on AnnSourceDesiredDigest annotation update, and update DataImportCron and DataSource on DataVolume Succeeded", func() {
 			cron := newDataImportCron(cronName)
+			retentionPolicy := cdiv1.DataImportCronRetainNone
+			cron.Spec.RetentionPolicy = &retentionPolicy
 			reconciler = createDataImportCronReconciler(cron)
 			_, err := reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
@@ -181,6 +184,21 @@ var _ = Describe("All DataImportCron Tests", func() {
 			dsCond := FindDataSourceConditionByType(dataSource, cdiv1.DataSourceReady)
 			Expect(dsCond).ToNot(BeNil())
 			Expect(dsCond.Status).To(Equal(corev1.ConditionTrue))
+
+			now := metav1.Now()
+			cron.DeletionTimestamp = &now
+			err = reconciler.client.Update(context.TODO(), cron)
+			Expect(err).ToNot(HaveOccurred())
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Should delete DataSource and DataVolume on DataImportCron deletion as RetentionPolicy is RetainNone
+			err = reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)
+			Expect(err).To(HaveOccurred())
+			dvList := &cdiv1.DataVolumeList{}
+			err = reconciler.client.List(context.TODO(), dvList, &client.ListOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(len(dvList.Items)).To(Equal(0))
 		})
 
 		It("Should update AnnNextCronTime annotation on a valid DataImportCron with ImageStream, and start an import and update DataImportCron when AnnNextCronTime annotation is updated to now", func() {
@@ -223,6 +241,22 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(*dv.Spec.Source.Registry.URL).To(Equal("docker://" + testDockerRef))
+
+			now := metav1.Now()
+			cron.DeletionTimestamp = &now
+			err = reconciler.client.Update(context.TODO(), cron)
+			Expect(err).ToNot(HaveOccurred())
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Should retain DataSource and DataVolume on DataImportCron deletion as default RetentionPolicy is RetainAll
+			dataSource := &cdiv1.DataSource{}
+			err = reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)
+			Expect(err).ToNot(HaveOccurred())
+			dvList := &cdiv1.DataVolumeList{}
+			err = reconciler.client.List(context.TODO(), dvList, &client.ListOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(len(dvList.Items)).ToNot(Equal(0))
 		})
 	})
 })

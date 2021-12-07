@@ -33,7 +33,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -104,12 +103,14 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 	if dataImportCron.Annotations == nil {
 		dataImportCron.Annotations = make(map[string]string)
 	}
+	if !HasFinalizer(dataImportCron, dataImportCronFinalizer) {
+		AddFinalizer(dataImportCron, dataImportCronFinalizer)
+	}
 	if isURLSource(dataImportCron) && !r.cronJobExists(ctx, dataImportCron) {
 		cronJob, err := r.newCronJob(dataImportCron)
 		if err != nil {
 			return err
 		}
-		AddFinalizer(dataImportCron, dataImportCronFinalizer)
 		if err := r.client.Create(ctx, cronJob); err != nil {
 			r.log.Error(err, "Unable to create CronJob")
 			return err
@@ -322,14 +323,11 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 		}
 	}
 	dataSourceCopy := dataSource.DeepCopy()
-	if !isOwner(dataSource, dataImportCron) {
-		dataSource.OwnerReferences = append(dataSource.OwnerReferences, metav1.OwnerReference{
-			APIVersion: dataImportCron.APIVersion,
-			Kind:       dataImportCron.Kind,
-			Name:       dataImportCron.Name,
-			UID:        dataImportCron.UID,
-		})
+
+	if dataSource.Labels == nil {
+		dataSource.Labels = make(map[string]string)
 	}
+	dataSource.Labels[labelDataImportCronName] = dataImportCron.Name
 
 	sourcePVC := dataImportCron.Status.LastImportedPVC
 	if sourcePVC != nil {
@@ -389,10 +387,19 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 }
 
 func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	log := r.log.WithName("garbageCollectOldImports")
 	if dataImportCron.Spec.GarbageCollect != nil && *dataImportCron.Spec.GarbageCollect != cdiv1.DataImportCronGarbageCollectOutdated {
 		return nil
 	}
+	maxDvs := defaultImportsToKeepPerCron
+	importsToKeep := dataImportCron.Spec.ImportsToKeep
+	if importsToKeep != nil && *importsToKeep >= 0 {
+		maxDvs = int(*importsToKeep)
+	}
+	return r.deleteOldImports(ctx, dataImportCron, maxDvs)
+}
+
+func (r *DataImportCronReconciler) deleteOldImports(ctx context.Context, dataImportCron *cdiv1.DataImportCron, maxDvs int) error {
+	log := r.log.WithName("deleteOldImports")
 	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			labelDataImportCronName: dataImportCron.Name,
@@ -405,11 +412,6 @@ func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context,
 	if err := r.client.List(ctx, dvList, &client.ListOptions{Namespace: dataImportCron.Namespace, LabelSelector: selector}); err != nil {
 		log.Error(err, "error listing dvs")
 		return err
-	}
-	maxDvs := defaultImportsToKeepPerCron
-	importsToKeep := dataImportCron.Spec.ImportsToKeep
-	if importsToKeep != nil && *importsToKeep >= 0 {
-		maxDvs = int(*importsToKeep)
 	}
 	if len(dvList.Items) <= maxDvs {
 		return nil
@@ -439,6 +441,17 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 	if err := r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
 		return err
 	}
+
+	if dataImportCron.Spec.RetentionPolicy != nil && *dataImportCron.Spec.RetentionPolicy == cdiv1.DataImportCronRetainNone {
+		dataSource := &cdiv1.DataSource{ObjectMeta: metav1.ObjectMeta{Namespace: dataImportCron.Namespace, Name: dataImportCron.Spec.ManagedDataSource}}
+		if err := r.client.Delete(ctx, dataSource); IgnoreNotFound(err) != nil {
+			return err
+		}
+		if err := r.deleteOldImports(ctx, dataImportCron, 0); err != nil {
+			return err
+		}
+	}
+
 	RemoveFinalizer(dataImportCron, dataImportCronFinalizer)
 	if err := r.client.Update(ctx, dataImportCron); err != nil {
 		return err
@@ -486,18 +499,30 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 	if err := c.Watch(&source.Kind{Type: &cdiv1.DataImportCron{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
-	if err := c.Watch(&source.Kind{Type: &cdiv1.DataVolume{}}, &handler.EnqueueRequestForOwner{
-		OwnerType:    &cdiv1.DataImportCron{},
-		IsController: true,
-	}); err != nil {
+
+	getCronName := func(obj client.Object) string {
+		return obj.GetLabels()[labelDataImportCronName]
+	}
+	mapToCron := func(obj client.Object) []reconcile.Request {
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: getCronName(obj), Namespace: obj.GetNamespace()}}}
+	}
+	if err := c.Watch(&source.Kind{Type: &cdiv1.DataVolume{}},
+		handler.EnqueueRequestsFromMapFunc(mapToCron),
+		predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool { return false },
+			UpdateFunc: func(e event.UpdateEvent) bool { return getCronName(e.ObjectNew) != "" },
+			DeleteFunc: func(e event.DeleteEvent) bool { return getCronName(e.Object) != "" },
+		},
+	); err != nil {
 		return err
 	}
 	// Watch only for DataSource deletion
 	if err := c.Watch(&source.Kind{Type: &cdiv1.DataSource{}},
-		&handler.EnqueueRequestForOwner{OwnerType: &cdiv1.DataImportCron{}},
+		handler.EnqueueRequestsFromMapFunc(mapToCron),
 		predicate.Funcs{
 			CreateFunc: func(event.CreateEvent) bool { return false },
 			UpdateFunc: func(event.UpdateEvent) bool { return false },
+			DeleteFunc: func(e event.DeleteEvent) bool { return getCronName(e.Object) != "" },
 		},
 	); err != nil {
 		return err
@@ -588,6 +613,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 	var successfulJobsHistoryLimit int32 = 0
 	var failedJobsHistoryLimit int32 = 0
 	var ttlSecondsAfterFinished int32 = 0
+	var backoffLimit int32 = 2
 
 	job := &v1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
@@ -609,6 +635,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 						},
 					},
 					TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
+					BackoffLimit:            &backoffLimit,
 				},
 			},
 		},
@@ -654,12 +681,6 @@ func newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdi
 	dv.Spec.Source.Registry.URL = &digestedURL
 	dv.Name = dataVolumeName
 	dv.Namespace = cron.Namespace
-	dv.OwnerReferences = append(dv.OwnerReferences,
-		*metav1.NewControllerRef(cron, schema.GroupVersionKind{
-			Group:   cdiv1.SchemeGroupVersion.Group,
-			Version: cdiv1.SchemeGroupVersion.Version,
-			Kind:    "DataImportCron",
-		}))
 	if dv.Labels == nil {
 		dv.Labels = make(map[string]string)
 	}
@@ -683,26 +704,9 @@ func newDataSource(cron *cdiv1.DataImportCron) *cdiv1.DataSource {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cron.Spec.ManagedDataSource,
 			Namespace: cron.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(cron, schema.GroupVersionKind{
-					Group:   cdiv1.SchemeGroupVersion.Group,
-					Version: cdiv1.SchemeGroupVersion.Version,
-					Kind:    "DataImportCron",
-				}),
-			},
 		},
 	}
 	return dataSource
-}
-
-func isOwner(obj, owner metav1.Object) bool {
-	refs := obj.GetOwnerReferences()
-	for i := range refs {
-		if refs[i].UID == owner.GetUID() {
-			return true
-		}
-	}
-	return false
 }
 
 // Create DataVolume name based on the DataSource name + prefix of the digest sha256

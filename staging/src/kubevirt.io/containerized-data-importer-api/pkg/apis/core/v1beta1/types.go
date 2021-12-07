@@ -502,6 +502,9 @@ type DataImportCronSpec struct {
 	// ManagedDataSource specifies the name of the corresponding DataSource this cron will manage.
 	// DataSource has to be in the same namespace.
 	ManagedDataSource string `json:"managedDataSource"`
+	// RetentionPolicy specifies whether the created DataVolumes and DataSources are retained when their DataImportCron is deleted. Default is RatainAll.
+	// +optional
+	RetentionPolicy *DataImportCronRetentionPolicy `json:"retentionPolicy,omitempty"`
 }
 
 // DataImportCronGarbageCollect represents the DataImportCron garbage collection mode
@@ -512,6 +515,16 @@ const (
 	DataImportCronGarbageCollectNever DataImportCronGarbageCollect = "Never"
 	// DataImportCronGarbageCollectOutdated specifies that old PVCs should be cleaned up after a new PVC is imported
 	DataImportCronGarbageCollectOutdated DataImportCronGarbageCollect = "Outdated"
+)
+
+// DataImportCronRetentionPolicy represents the DataImportCron retention policy
+type DataImportCronRetentionPolicy string
+
+const (
+	// DataImportCronRetainNone specifies that the created DataVolumes and DataSources are deleted when their DataImportCron is deleted
+	DataImportCronRetainNone DataImportCronRetentionPolicy = "None"
+	// DataImportCronRetainAll specifies that the created DataVolumes and DataSources are retained when their DataImportCron is deleted
+	DataImportCronRetainAll DataImportCronRetentionPolicy = "All"
 )
 
 // DataImportCronStatus provides the most recently observed status of the DataImportCron

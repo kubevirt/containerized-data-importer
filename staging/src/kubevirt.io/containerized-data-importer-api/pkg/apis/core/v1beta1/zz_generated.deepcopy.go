@@ -488,6 +488,11 @@ func (in *DataImportCronSpec) DeepCopyInto(out *DataImportCronSpec) {
 		*out = new(int32)
 		**out = **in
 	}
+	if in.RetentionPolicy != nil {
+		in, out := &in.RetentionPolicy, &out.RetentionPolicy
+		*out = new(DataImportCronRetentionPolicy)
+		**out = **in
+	}
 	return
 }
 

@@ -3756,6 +3756,11 @@ spec:
                   DataSource this cron will manage. DataSource has to be in the same
                   namespace.
                 type: string
+              retentionPolicy:
+                description: RetentionPolicy specifies whether the created DataVolumes
+                  and DataSources are retained when their DataImportCron is deleted.
+                  Default is RatainAll.
+                type: string
               schedule:
                 description: Schedule specifies in cron format when and how often
                   to look for new imports
