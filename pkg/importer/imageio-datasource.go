@@ -266,7 +266,7 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 	}
 	isBlock := !info.Mode().IsRegular()
 
-	for _, extent := range extentsReader.extents {
+	for index, extent := range extentsReader.extents {
 		if extent.Zero {
 			if isBlock {
 				klog.Infof("Punching %d-byte hole at offset %d", extent.Length, extent.Start)
@@ -285,7 +285,8 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 			if err != nil { // Ignore special EOF case, extents should give the exact right size to read
 				return errors.Wrap(err, "failed to get range")
 			}
-			err = is.transferExtent(responseBody, outFile, extent)
+			final := (index == (len(extentsReader.extents) - 1))
+			err = is.transferExtent(responseBody, outFile, extent, final)
 			if err != nil {
 				return errors.Wrap(err, "failed to transfer extent")
 			}
@@ -297,15 +298,9 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 
 // transferExtent copies one extent from the source to the destination, updates the progress
 // counter, and closes the source. Each source reader is expected to contain one extent.
-func (is *ImageioDataSource) transferExtent(source io.ReadCloser, dest io.Writer, extent imageioExtent) error {
+func (is *ImageioDataSource) transferExtent(source io.ReadCloser, dest io.Writer, extent imageioExtent, final bool) error {
 	defer source.Close()
-
-	responseReader := util.CountingReader{
-		Reader:  source,
-		Current: is.readers.progressReader.CountingReader.Current,
-		Done:    false,
-	}
-	is.readers.progressReader.CountingReader = responseReader
+	is.readers.progressReader.SetNextReader(source, final)
 
 	written, err := io.Copy(dest, is.readers.progressReader)
 	if err != nil {
