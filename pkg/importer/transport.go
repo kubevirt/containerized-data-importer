@@ -110,8 +110,8 @@ func isWhiteout(path string) bool {
 	return strings.HasPrefix(filepath.Base(path), whFilePrefix)
 }
 
-func isDir(path string) bool {
-	return strings.HasSuffix(path, "/")
+func isDir(hdr *tar.Header) bool {
+	return hdr.Typeflag == tar.TypeDir
 }
 
 func processLayer(ctx context.Context,
@@ -147,7 +147,7 @@ func processLayer(ctx context.Context,
 			return false, errors.Wrap(err, "Error reading layer")
 		}
 
-		if hasPrefix(hdr.Name, pathPrefix) && !isWhiteout(hdr.Name) && !isDir(hdr.Name) {
+		if hasPrefix(hdr.Name, pathPrefix) && !isWhiteout(hdr.Name) && !isDir(hdr) {
 			klog.Infof("File '%v' found in the layer", hdr.Name)
 			destFile := filepath.Join(destDir, hdr.Name)
 
