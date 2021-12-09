@@ -258,7 +258,11 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 	if err != nil {
 		return err
 	}
-	defer outFile.Close()
+	defer func() {
+		if err := outFile.Close(); err != nil {
+			klog.Infof("Error closing destination file: %v", err)
+		}
+	}()
 
 	info, err := outFile.Stat()
 	if err != nil {
@@ -293,6 +297,12 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 				return errors.Wrap(err, "failed to transfer extent")
 			}
 		}
+	}
+
+	// A sync here seems to make it more likely that the next sync will work.
+	err = outFile.Sync()
+	if err != nil {
+		klog.Infof("Error from first attempt syncing %s: %v", fileName, err)
 	}
 
 	return nil
