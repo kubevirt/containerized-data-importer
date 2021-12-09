@@ -266,6 +266,7 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 	}
 	isBlock := !info.Mode().IsRegular()
 
+	// Transfer all the non-zero extents, and try to quickly write out blocks of all zero bytes for extents that only contain zero
 	for index, extent := range extentsReader.extents {
 		if extent.Zero {
 			if isBlock {
@@ -279,6 +280,7 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 			if err != nil {
 				return errors.Wrap(err, "failed to zero range on destination")
 			}
+			is.readers.progressReader.Current += uint64(extent.Length)
 		} else {
 			klog.Infof("Downloading %d-byte extent at offset %d", extent.Length, extent.Start)
 			responseBody, err := extentsReader.GetRange(extent.Start, extent.Start+extent.Length-1)
@@ -391,9 +393,8 @@ func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
 				return nil, errors.Wrap(err, "failed to parse total length of image from range response")
 			}
 			return response.Body, io.EOF
-		} else {
-			return nil, errors.New(fmt.Sprintf("wrong length returned: %d vs expected %d", length, expectedLength))
 		}
+		return nil, errors.New(fmt.Sprintf("wrong length returned: %d vs expected %d", length, expectedLength))
 	}
 
 	return response.Body, nil
@@ -484,12 +485,14 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 
 		// Add up all extents to calculate true total data size
 		total = 0
+		nonzero := int64(0)
 		for _, extent := range extents {
+			total += uint64(extent.Length)
 			if !extent.Zero {
-				total += uint64(extent.Length)
+				nonzero += extent.Length
 			}
 		}
-		klog.Infof("Total size of non-zero extents: %d", total)
+		klog.Infof("Total size of non-zero extents: %d, total size of all extents: %d", nonzero, total)
 
 		reader = &extentReader{
 			client:      client,
