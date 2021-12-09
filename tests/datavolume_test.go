@@ -996,7 +996,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		// similar to other tables but with check of quota
 		table.DescribeTable("should fail create pvc in namespace with storge quota, then succeed once the quota is large enough", testDataVolumeWithQuota,
-			table.Entry("when creating import dv with given valid url", dataVolumeTestArguments{
+			table.Entry("[test_id:7737]when creating import dv with given valid url", dataVolumeTestArguments{
 				name:        "dv-http-import",
 				size:        "1Gi",
 				url:         tinyCoreIsoURL,
@@ -1019,7 +1019,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("when creating upload dv", dataVolumeTestArguments{
+			table.Entry("[test_id:7738]when creating upload dv", dataVolumeTestArguments{
 				name:        "upload-dv",
 				size:        "1Gi",
 				url:         func() string { return "" },
@@ -1042,7 +1042,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Status: v1.ConditionTrue,
 					Reason: "Pod is running",
 				}}),
-			table.Entry("when creating clone dv", dataVolumeTestArguments{
+			table.Entry("[test_id:7739]when creating clone dv", dataVolumeTestArguments{
 				name:        "dv-clone-test",
 				size:        "500Mi",
 				url:         func() string { return fillCommand }, // its not URL, but command, but the parameter lines up.
