@@ -270,6 +270,15 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 	}
 	isBlock := !info.Mode().IsRegular()
 
+	// Monitor for progress in the background and make sure the transfer ticket does not expire
+	transferID, success := is.imageTransfer.Id()
+	if !success {
+		return errors.New("unable to retrieve image transfer ID for ticket renewal")
+	}
+	doneChannel := make(chan struct{}, 1)
+	defer func() { doneChannel <- struct{}{} }()
+	go is.monitorExtentsProgress(transferID, extentsReader, doneChannel)
+
 	// Transfer all the non-zero extents, and try to quickly write out blocks of all zero bytes for extents that only contain zero
 	for index, extent := range extentsReader.extents {
 		if extent.Zero {
@@ -322,6 +331,45 @@ func (is *ImageioDataSource) transferExtent(source io.ReadCloser, dest io.Writer
 		return errors.New("failed to copy total extent length")
 	}
 
+	return nil
+}
+
+// monitorExtentsProgress sends a ticket renewal if there has been no download progress in the last
+// 30 seconds. This can happen if the destination storage does not have a fast way to punch holes.
+func (is *ImageioDataSource) monitorExtentsProgress(transferID string, extentsReader *extentReader, doneChannel chan struct{}) {
+	current := is.readers.progressReader.Current
+	for {
+		select {
+		case <-time.After(30 * time.Second):
+			if is.readers.progressReader.Current <= current {
+				klog.Info("No progress in the last 30 seconds, attempting ticket renewal to avoid timeout")
+				if err := is.renewExtentsTicket(transferID, extentsReader); err != nil {
+					klog.Infof("Error renewing ticket: %v", err)
+				}
+			} else {
+				current = is.readers.progressReader.Current
+			}
+		case <-doneChannel:
+			klog.Info("Closing ticket expiration monitor")
+			return
+		}
+	}
+}
+
+// renewExtentsTicket ensures the ImageIO transfer ticket stays active by issuing a renewal and
+// by doing a small amount of I/O to prevent the oVirt engine from canceling the download.
+func (is *ImageioDataSource) renewExtentsTicket(transferID string, extentsReader *extentReader) error {
+	buf := make([]byte, 512)
+	transfersService := is.connection.SystemService().ImageTransfersService()
+	transferService := transfersService.ImageTransferService(transferID)
+	_, err := transferService.Extend().Send()
+	if err != nil {
+		return errors.Wrap(err, "failed to renew transfer ticket")
+	}
+	_, err = extentsReader.Read(buf)
+	if err != nil {
+		return errors.Wrap(err, "failed sending small read to prevent download timeout")
+	}
 	return nil
 }
 
@@ -949,6 +997,7 @@ type ImageTransfersServiceInterface interface {
 // ImageTransferServiceInterface defines service methods
 type ImageTransferServiceInterface interface {
 	Cancel() ImageTransferServiceCancelRequestInterface
+	Extend() ImageTransferServiceExtendRequestInterface
 	Finalize() ImageTransferServiceFinalizeRequestInterface
 	Get() ImageTransferServiceGetRequestInterface
 }
@@ -960,6 +1009,15 @@ type ImageTransferServiceCancelRequestInterface interface {
 
 // ImageTransferServiceCancelResponseInterface defines service methods
 type ImageTransferServiceCancelResponseInterface interface {
+}
+
+// ImageTransferServiceExtendRequestInterface defines service methods
+type ImageTransferServiceExtendRequestInterface interface {
+	Send() (ImageTransferServiceExtendResponseInterface, error)
+}
+
+// ImageTransferServiceExtendResponseInterface defines service methods
+type ImageTransferServiceExtendResponseInterface interface {
 }
 
 // ImageTransferServiceFinalizeRequestInterface defines service methods
@@ -1062,6 +1120,16 @@ type ImageTransferServiceCancelResponse struct {
 	srv *ovirtsdk4.ImageTransferServiceCancelResponse
 }
 
+// ImageTransferServiceExtendRequest wraps cancel request
+type ImageTransferServiceExtendRequest struct {
+	srv *ovirtsdk4.ImageTransferServiceExtendRequest
+}
+
+// ImageTransferServiceExtendResponse wraps cancel response
+type ImageTransferServiceExtendResponse struct {
+	srv *ovirtsdk4.ImageTransferServiceExtendResponse
+}
+
 // ImageTransferServiceFinalizeRequest warps finalize request
 type ImageTransferServiceFinalizeRequest struct {
 	srv *ovirtsdk4.ImageTransferServiceFinalizeRequest
@@ -1121,6 +1189,14 @@ func (service *ImageTransfersServiceResponse) Send() (ImageTransfersServiceAddRe
 func (service *ImageTransferServiceCancelRequest) Send() (ImageTransferServiceCancelResponseInterface, error) {
 	resp, err := service.srv.Send()
 	return &ImageTransferServiceCancelResponse{
+		srv: resp,
+	}, err
+}
+
+// Send returns transfer extend response
+func (service *ImageTransferServiceExtendRequest) Send() (ImageTransferServiceExtendResponseInterface, error) {
+	resp, err := service.srv.Send()
+	return &ImageTransferServiceExtendResponse{
 		srv: resp,
 	}, err
 }
@@ -1193,6 +1269,13 @@ func (service *ImageTransfersService) ImageTransferService(id string) ImageTrans
 func (service *ImageTransferService) Cancel() ImageTransferServiceCancelRequestInterface {
 	return &ImageTransferServiceCancelRequest{
 		srv: service.srv.Cancel(),
+	}
+}
+
+// Extend returns image service
+func (service *ImageTransferService) Extend() ImageTransferServiceExtendRequestInterface {
+	return &ImageTransferServiceExtendRequest{
+		srv: service.srv.Extend(),
 	}
 }
 
