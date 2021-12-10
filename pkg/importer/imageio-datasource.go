@@ -885,6 +885,13 @@ func loadCA(certDir string) (*x509.CertPool, error) {
 	return caCertPool, nil
 }
 
+type ImageioImageOptions struct {
+	UnixSocket string   `json:"unix_socket"`
+	Features   []string `json:"features"`
+	MaxReaders int      `json:"max_readers"`
+	MaxWriters int      `json:"max_writers"`
+}
+
 // checkExtentsFeature sends OPTIONS to check for ImageIO extents API feature
 func checkExtentsFeature(ctx context.Context, httpClient *http.Client, transferURL string) (bool, error) {
 	request, err := http.NewRequest(http.MethodOptions, transferURL, nil)
@@ -898,13 +905,7 @@ func checkExtentsFeature(ctx context.Context, httpClient *http.Client, transferU
 		return false, errors.Wrap(err, "error sending options request")
 	}
 
-	type imageOptions struct {
-		UnixSocket string   `json:"unix_socket"`
-		Features   []string `json:"features"`
-		MaxReaders int      `json:"max_readers"`
-		MaxWriters int      `json:"max_writers"`
-	}
-	options := &imageOptions{}
+	options := &ImageioImageOptions{}
 	err = json.NewDecoder(response.Body).Decode(options)
 	if err != nil {
 		return false, errors.Wrap(err, "unable to decode options response")
