@@ -3,8 +3,10 @@ package importer
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"encoding/pem"
 	"io/ioutil"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
@@ -446,6 +448,120 @@ var _ = Describe("imageio snapshots", func() {
 	})
 })
 
+type TransferTicketTester struct{}
+type ExtentsTester struct{}
+
+var createTestImageOptions = createDefaultImageOptions
+var createTestExtents = createDefaultTestExtents
+
+func createDefaultImageOptions() *ImageioImageOptions {
+	return &ImageioImageOptions{
+		Features: []string{"extents"},
+	}
+}
+
+func createDefaultTestExtents() []imageioExtent {
+	return []imageioExtent{
+		{
+			Start:  0,
+			Length: 1024,
+			Zero:   false,
+			Hole:   false,
+		},
+		{
+			Start:  1024,
+			Length: 1024,
+			Zero:   true,
+			Hole:   false,
+		},
+		{
+			Start:  2048,
+			Length: 1024,
+			Zero:   false,
+			Hole:   false,
+		},
+	}
+}
+
+func (t *TransferTicketTester) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Method == http.MethodOptions {
+		options := createTestImageOptions()
+		err := json.NewEncoder(w).Encode(options)
+		Expect(err).ToNot(HaveOccurred())
+	}
+}
+
+func (t *ExtentsTester) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	extents := createTestExtents()
+	err := json.NewEncoder(w).Encode(extents)
+	Expect(err).ToNot(HaveOccurred())
+}
+
+var _ = Describe("Imageio extents", func() {
+	var (
+		ts      *httptest.Server
+		tempDir string
+	)
+	BeforeEach(func() {
+		newOvirtClientFunc = createMockOvirtClient
+		newTerminationChannel = createMockTerminationChannel
+		createTestImageOptions = createDefaultImageOptions
+		createTestExtents = createDefaultTestExtents
+		tempDir = createCert()
+
+		disk.SetTotalSize(3072)
+		disk.SetId(diskID)
+
+		mux := http.NewServeMux()
+		ticketTester := &TransferTicketTester{}
+		extentTester := &ExtentsTester{}
+		mux.Handle("/", http.FileServer(http.Dir(imageDir)))
+		mux.Handle("/ovirt-engine/api/tickets/"+diskID, ticketTester)
+		mux.Handle("/ovirt-engine/api/tickets/"+diskID+"/extents", extentTester)
+		ts = httptest.NewServer(mux)
+
+		it.SetId(diskID)
+		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
+		it.SetTransferUrl(ts.URL + "/ovirt-engine/api/tickets/" + diskID)
+		diskCreateError = nil
+		diskAvailable = true
+	})
+
+	AfterEach(func() {
+		newOvirtClientFunc = getOvirtClient
+		if tempDir != "" {
+			os.RemoveAll(tempDir)
+		}
+		ts.Close()
+	})
+
+	It("should create an extents reader when the feature is enabled", func() {
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		countingReader, ok := source.imageioReader.(*util.CountingReader)
+		Expect(ok).To(Equal(true))
+		extentsReader, ok := countingReader.Reader.(*extentReader)
+		Expect(ok).To(Equal(true))
+		secondReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(secondReader).To(BeAssignableToTypeOf(extentsReader))
+	})
+
+	It("should not create an extents reader when the feature is disabled", func() {
+		createTestImageOptions = func() *ImageioImageOptions {
+			return &ImageioImageOptions{}
+		}
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		countingReader, ok := source.imageioReader.(*util.CountingReader)
+		Expect(ok).To(Equal(true))
+		_, ok = countingReader.Reader.(*extentReader)
+		Expect(ok).To(Equal(false))
+		secondReader, _ := source.getExtentsReader()
+		Expect(secondReader).To(BeNil())
+	})
+})
+
 // MockOvirtClient is a mock minio client
 type MockOvirtClient struct {
 	ep     string
@@ -459,6 +575,10 @@ type MockAddService struct {
 }
 
 type MockCancelService struct {
+	client *MockOvirtClient
+}
+
+type MockExtendService struct {
 	client *MockOvirtClient
 }
 
@@ -500,6 +620,10 @@ type MockImageTransferServiceCancelResponse struct {
 	srv *ovirtsdk4.ImageTransferServiceCancelResponse
 }
 
+type MockImageTransferServiceExtendResponse struct {
+	srv *ovirtsdk4.ImageTransferServiceExtendResponse
+}
+
 type MockImageTransferServiceFinalizeResponse struct {
 	srv *ovirtsdk4.ImageTransferServiceFinalizeResponse
 }
@@ -538,6 +662,10 @@ func (conn *MockOvirtClient) ImageTransferService(string) ImageTransferServiceIn
 
 func (service *MockImageTransferService) Cancel() ImageTransferServiceCancelRequestInterface {
 	return &MockCancelService{}
+}
+
+func (service *MockImageTransferService) Extend() ImageTransferServiceExtendRequestInterface {
+	return &MockExtendService{}
 }
 
 func (service *MockImageTransferService) Finalize() ImageTransferServiceFinalizeRequestInterface {
@@ -617,6 +745,10 @@ func (conn *MockCancelService) Send() (ImageTransferServiceCancelResponseInterfa
 		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_CANCELLED) // default to cancelled
 	}
 	return &MockImageTransferServiceCancelResponse{srv: nil}, err
+}
+
+func (conn *MockExtendService) Send() (ImageTransferServiceExtendResponseInterface, error) {
+	return &MockImageTransferServiceExtendResponse{}, nil
 }
 
 func (conn *MockFinalizeService) Send() (ImageTransferServiceFinalizeResponseInterface, error) {
