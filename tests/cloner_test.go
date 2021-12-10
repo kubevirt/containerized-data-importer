@@ -531,6 +531,70 @@ var _ = Describe("all clone tests", func() {
 			})
 			ClonerBehavior(cloneStorageClassName, "csivolumeclone")
 		})
+
+		Context("CloneStrategy on storageclass annotation", func() {
+			cloneType := cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)
+
+			BeforeEach(func() {
+				if !f.IsCSIVolumeCloneStorageClassAvailable() {
+					Skip("CSI Volume Clone is not applicable")
+				}
+				cloneStorageClassName = f.CsiCloneSCName
+				By(fmt.Sprintf("Get original storage profile: %s", cloneStorageClassName))
+				storageProfile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(storageProfile.Spec.CloneStrategy).To(BeNil())
+				Expect(storageProfile.Status.CloneStrategy).To(BeNil())
+
+				storageclass, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				if storageclass.GetAnnotations() == nil {
+					storageclass.SetAnnotations(make(map[string]string))
+				}
+
+				storageclass.Annotations["cdi.kubevirt.io/clone-strategy"] = string(cloneType)
+				_, err = f.K8sClient.StorageV1().StorageClasses().Update(context.TODO(), storageclass, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(func() cdiv1.CDICloneStrategy {
+					storageProfile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					if storageProfile.Status.CloneStrategy == nil {
+						return ""
+					}
+					return *storageProfile.Status.CloneStrategy
+				}, time.Minute, time.Second).Should(Equal(cloneType))
+
+			})
+			AfterEach(func() {
+				By("[AfterEach] Restore the storage class - remove annotation ")
+				storageclass, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				if storageclass.GetAnnotations() != nil {
+					delete(storageclass.Annotations, "cdi.kubevirt.io/clone-strategy")
+				}
+				_, err = f.K8sClient.StorageV1().StorageClasses().Update(context.TODO(), storageclass, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(func() *cdiv1.CDICloneStrategy {
+					storageProfile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					return storageProfile.Status.CloneStrategy
+				}, time.Minute, time.Second).Should(BeNil())
+			})
+			It("Should clone  with correct strategy from storageclass annotation ", func() {
+
+				pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
+				pvcDef.Spec.StorageClassName = &cloneStorageClassName
+				pvcDef.Namespace = f.Namespace.Name
+
+				sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
+
+				targetDV := utils.NewCloningDataVolume("target-pvc", "1Gi", sourcePvc)
+
+				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(utils.GetCloneType(f.CdiClient, dataVolume)).To(Equal("csivolumeclone"))
+			})
+		})
 	})
 
 	var _ = Describe("Validate creating multiple clones of same source Data Volume", func() {

@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -246,6 +247,30 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(len(updatedSp.Status.ClaimPropertySets)).To(Equal(0))
 		Expect(updatedSp.Spec.ClaimPropertySets).To(Equal(claimPropertySets))
 	})
+
+	table.DescribeTable("should create clone strategy", func(cloneStrategy cdiv1.CDICloneStrategy) {
+		storageClass := createStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"})
+
+		storageClass.Annotations["cdi.kubevirt.io/clone-strategy"] = string(cloneStrategy)
+		reconciler := createStorageProfileReconciler(storageClass)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+
+		storageProfileList := &cdiv1.StorageProfileList{}
+		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(storageProfileList.Items)).To(Equal(1))
+
+		sp := storageProfileList.Items[0]
+		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
+		Expect(*sp.Status.CloneStrategy).To(Equal(cloneStrategy))
+	},
+		table.Entry("None", cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
+		table.Entry("Snapshot", cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
+		table.Entry("Clone", cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)),
+	)
+
 })
 
 func createStorageProfileReconciler(objects ...runtime.Object) *StorageProfileReconciler {
