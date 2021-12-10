@@ -1,6 +1,6 @@
 module kubevirt.io/containerized-data-importer
 
-go 1.14
+go 1.16
 
 require (
 	github.com/appscode/jsonpatch v0.0.0-20190108182946-7c0e3b262f30
@@ -25,6 +25,7 @@ require (
 	github.com/mrnold/go-libnbd v1.4.1-cdi
 	github.com/onsi/ginkgo v1.14.1
 	github.com/onsi/gomega v1.10.3
+	github.com/opencontainers/runc v1.0.3 // indirect
 	github.com/openshift/api v0.0.0
 	github.com/openshift/client-go v0.0.0
 	github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca
