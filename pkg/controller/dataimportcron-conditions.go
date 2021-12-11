@@ -23,13 +23,14 @@ import (
 )
 
 const (
+	noDigest   = "NoDigest"
 	noImport   = "NoImport"
+	outdated   = "Outdated"
 	scheduled  = "ImportScheduled"
 	inProgress = "ImportProgressing"
 	failed     = "ImportFailed"
 	upToDate   = "UpToDate"
-	outdated   = "Outdated"
-	noDigest   = "NoDigest"
+	ready      = "Ready"
 )
 
 func updateDataImportCronCondition(cron *cdiv1.DataImportCron, conditionType cdiv1.DataImportCronConditionType, status corev1.ConditionStatus, message, reason string) {
