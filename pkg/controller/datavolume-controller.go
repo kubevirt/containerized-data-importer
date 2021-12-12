@@ -1955,6 +1955,7 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		if err != nil {
 			return reconcile.Result{}, err
 		}
+		dataVolumeCopy.Status.ClaimName = pvc.Name
 
 		// the following check is for a case where the request is to create a blank disk for a block device.
 		// in that case, we do not create a pod as there is no need to create a blank image.

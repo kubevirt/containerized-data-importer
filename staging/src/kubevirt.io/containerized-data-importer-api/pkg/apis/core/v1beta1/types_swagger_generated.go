@@ -134,6 +134,7 @@ func (DataVolumeSourceRef) SwaggerDoc() map[string]string {
 func (DataVolumeStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":             "DataVolumeStatus contains the current status of the DataVolume",
+		"claimName":    "ClaimName is the name of the underlying PVC used by the DataVolume.",
 		"phase":        "Phase is the current phase of the data volume",
 		"restartCount": "RestartCount is the number of times the pod populating the DataVolume has restarted",
 	}

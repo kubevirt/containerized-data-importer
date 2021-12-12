@@ -4076,6 +4076,10 @@
     "description": "DataVolumeStatus contains the current status of the DataVolume",
     "type": "object",
     "properties": {
+     "claimName": {
+      "description": "ClaimName is the name of the underlying PVC used by the DataVolume.",
+      "type": "string"
+     },
      "conditions": {
       "type": "array",
       "items": {
