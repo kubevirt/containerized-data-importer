@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -448,55 +450,6 @@ var _ = Describe("imageio snapshots", func() {
 	})
 })
 
-type TransferTicketTester struct{}
-type ExtentsTester struct{}
-
-var createTestImageOptions = createDefaultImageOptions
-var createTestExtents = createDefaultTestExtents
-
-func createDefaultImageOptions() *ImageioImageOptions {
-	return &ImageioImageOptions{
-		Features: []string{"extents"},
-	}
-}
-
-func createDefaultTestExtents() []imageioExtent {
-	return []imageioExtent{
-		{
-			Start:  0,
-			Length: 1024,
-			Zero:   false,
-			Hole:   false,
-		},
-		{
-			Start:  1024,
-			Length: 1024,
-			Zero:   true,
-			Hole:   false,
-		},
-		{
-			Start:  2048,
-			Length: 1024,
-			Zero:   false,
-			Hole:   false,
-		},
-	}
-}
-
-func (t *TransferTicketTester) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if req.Method == http.MethodOptions {
-		options := createTestImageOptions()
-		err := json.NewEncoder(w).Encode(options)
-		Expect(err).ToNot(HaveOccurred())
-	}
-}
-
-func (t *ExtentsTester) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	extents := createTestExtents()
-	err := json.NewEncoder(w).Encode(extents)
-	Expect(err).ToNot(HaveOccurred())
-}
-
 var _ = Describe("Imageio extents", func() {
 	var (
 		ts      *httptest.Server
@@ -507,6 +460,7 @@ var _ = Describe("Imageio extents", func() {
 		newTerminationChannel = createMockTerminationChannel
 		createTestImageOptions = createDefaultImageOptions
 		createTestExtents = createDefaultTestExtents
+		createTestExtentData = createDefaultTestExtentData
 		tempDir = createCert()
 
 		disk.SetTotalSize(3072)
@@ -822,4 +776,84 @@ func createMockOvirtClient(ep string, accessKey string, secKey string) (Connecti
 		secKey: secKey,
 		doErr:  false,
 	}, nil
+}
+
+type TransferTicketTester struct{}
+type ExtentsTester struct{}
+
+var createTestImageOptions = createDefaultImageOptions
+var createTestExtents = createDefaultTestExtents
+var createTestExtentData = createDefaultTestExtentData
+
+func createDefaultImageOptions() *ImageioImageOptions {
+	return &ImageioImageOptions{
+		Features: []string{"extents"},
+	}
+}
+
+func createDefaultTestExtents() []imageioExtent {
+	return []imageioExtent{
+		{
+			Start:  0,
+			Length: 1024,
+			Zero:   false,
+			Hole:   false,
+		},
+		{
+			Start:  1024,
+			Length: 1024,
+			Zero:   true,
+			Hole:   false,
+		},
+		{
+			Start:  2048,
+			Length: 1024,
+			Zero:   false,
+			Hole:   false,
+		},
+	}
+}
+
+func createDefaultTestExtentData() []byte {
+	extents := createTestExtents()
+	size := int64(0)
+	for _, extent := range extents {
+		size += extent.Length
+	}
+	data := make([]byte, size)
+	for _, extent := range extents {
+		value := byte(0x55)
+		if extent.Zero {
+			value = 0
+		}
+		block := bytes.Repeat([]byte{value}, int(extent.Length))
+		copy(data[extent.Start:], block)
+	}
+	return data
+}
+
+func (t *TransferTicketTester) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Method == http.MethodOptions {
+		options := createTestImageOptions()
+		err := json.NewEncoder(w).Encode(options)
+		Expect(err).ToNot(HaveOccurred())
+	} else if req.Method == http.MethodGet {
+		data := createTestExtentData()
+		byteRange, present := req.Header["Range"]
+		if present {
+			byteRange := byteRange[0]
+			byteRange = strings.Replace(byteRange, "bytes=", "", 1)
+			start, _ := strconv.ParseInt(strings.Split(byteRange, "-")[0], 10, 0)
+			end, _ := strconv.ParseInt(strings.Split(byteRange, "-")[1], 10, 0)
+			w.Header().Add("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, end-start+1))
+			w.Header().Add("Content-Length", fmt.Sprintf("%d", end-start+1))
+			w.Write(data[start : end+1])
+		}
+	}
+}
+
+func (t *ExtentsTester) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	extents := createTestExtents()
+	err := json.NewEncoder(w).Encode(extents)
+	Expect(err).ToNot(HaveOccurred())
 }
