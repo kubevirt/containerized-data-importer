@@ -2,11 +2,14 @@ package prometheus
 
 import (
 	"bytes"
+	"io"
 	"io/ioutil"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	. "github.com/onsi/ginkgo/extensions/table"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
@@ -65,6 +68,7 @@ var _ = Describe("Update Progress", func() {
 			total:    uint64(100),
 			progress: progress,
 			ownerUID: ownerUID,
+			final:    true,
 		}
 		result := promReader.updateProgress()
 		Expect(true).To(Equal(result))
@@ -82,6 +86,7 @@ var _ = Describe("Update Progress", func() {
 			total:    uint64(0),
 			progress: progress,
 			ownerUID: ownerUID,
+			final:    true,
 		}
 		result := promReader.updateProgress()
 		Expect(false).To(Equal(result))
@@ -100,6 +105,7 @@ var _ = Describe("Update Progress", func() {
 			total:    uint64(1000),
 			progress: progress,
 			ownerUID: ownerUID,
+			final:    true,
 		}
 		result := promReader.updateProgress()
 		Expect(false).To(Equal(result))
@@ -107,4 +113,71 @@ var _ = Describe("Update Progress", func() {
 		Expect(*metric.Counter.Value).To(Equal(float64(100)))
 	})
 
+	DescribeTable("update progress on non-final readers", func(readerDone, isFinal, expectedResult bool) {
+		promReader := &ProgressReader{
+			CountingReader: util.CountingReader{
+				Current: uint64(1000),
+				Done:    readerDone,
+			},
+			total:    uint64(1000),
+			progress: progress,
+			ownerUID: ownerUID,
+			final:    isFinal,
+		}
+		result := promReader.updateProgress()
+		Expect(expectedResult).To(Equal(result))
+	},
+		Entry("should return true when reader is not done", false, false, true),
+		Entry("should return true when reader is done", true, false, true),
+		Entry("should return true when final reader is not done", false, true, true),
+		Entry("should return false when final reader is done", true, true, false),
+	)
+
+	It("should continue to update progress after next reader is set", func() {
+		firstReader := util.CountingReader{
+			Reader: io.NopCloser(strings.NewReader("first")),
+		}
+		secondReader := util.CountingReader{
+			Reader: io.NopCloser(strings.NewReader("second")),
+		}
+		thirdReader := util.CountingReader{
+			Reader: io.NopCloser(strings.NewReader("third")),
+		}
+		promReader := &ProgressReader{
+			CountingReader: firstReader,
+			total:          uint64(16),
+			progress:       progress,
+			ownerUID:       ownerUID,
+			final:          false,
+		}
+
+		data := make([]byte, 10)
+		read, _ := promReader.Read(data)
+		Expect(read).To(Equal(5))
+		_, err := promReader.Read(data)
+		Expect(err).To(Equal(io.EOF))
+		result := promReader.updateProgress()
+		Expect(true).To(Equal(result))
+		Expect(promReader.CountingReader.Current).To(Equal(uint64(5)))
+
+		promReader.SetNextReader(secondReader.Reader, false)
+		read, _ = promReader.Read(data)
+		Expect(read).To(Equal(6))
+		_, err = promReader.Read(data)
+		Expect(err).To(Equal(io.EOF))
+		result = promReader.updateProgress()
+		Expect(promReader.CountingReader.Reader).To(Equal(secondReader.Reader))
+		Expect(promReader.CountingReader.Current).To(Equal(uint64(11)))
+		Expect(true).To(Equal(result))
+
+		promReader.SetNextReader(thirdReader.Reader, true)
+		read, _ = promReader.Read(data)
+		Expect(read).To(Equal(5))
+		_, err = promReader.Read(data)
+		Expect(err).To(Equal(io.EOF))
+		result = promReader.updateProgress()
+		Expect(promReader.CountingReader.Reader).To(Equal(thirdReader.Reader))
+		Expect(promReader.CountingReader.Current).To(Equal(uint64(16)))
+		Expect(false).To(Equal(result))
+	})
 })
