@@ -34,6 +34,7 @@ var diskCreateError error
 var diskSnapshots = &ovirtsdk4.DiskSnapshotSlice{}
 var storageDomain = &ovirtsdk4.StorageDomain{}
 var storageDomains = &ovirtsdk4.StorageDomainSlice{}
+var renewalTime time.Time
 
 var _ = Describe("Imageio reader", func() {
 	var (
@@ -514,6 +515,104 @@ var _ = Describe("Imageio extents", func() {
 		secondReader, _ := source.getExtentsReader()
 		Expect(secondReader).To(BeNil())
 	})
+
+	It("should be able to get a range", func() {
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		reader, err := extentsReader.GetRange(1020, 1030)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(reader).ToNot(BeNil())
+	})
+
+	It("should be able to read from an extents reader", func() {
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		data := make([]byte, source.contentLength)
+		written, err := extentsReader.Read(data)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(written).To(Equal(len(data)))
+		extentData := createTestExtentData()
+		comparison := bytes.Compare(data, extentData)
+		Expect(comparison).To(Equal(0))
+	})
+
+	It("should send a small read along with a ticket renewal", func() {
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		offset := extentsReader.offset
+		ticketTime := time.Now()
+		time.Sleep(1 * time.Millisecond)
+		err = source.renewExtentsTicket(it.MustId(), extentsReader)
+		Expect(extentsReader.offset > offset).To(BeTrue())
+		Expect(renewalTime.Equal(ticketTime)).To(BeFalse())
+	})
+
+	It("should send a ticket renewal if there has been no progress", func() {
+		pollCount := 10
+		createTestExtentData = func() []byte {
+			// Each poll read consumes 512 bytes, make sure there will always be more
+			return bytes.Repeat([]byte{0x55}, pollCount*1024)
+		}
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		offset := extentsReader.offset
+		ticketTime := time.Now()
+		renewalTime = ticketTime
+		doneChannel := make(chan struct{}, 1)
+		defer func() { doneChannel <- struct{}{} }()
+		phase, err := source.Info() // Get progressReader filled out
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
+		go source.monitorExtentsProgress(it.MustId(), extentsReader, 1*time.Millisecond, doneChannel)
+		time.Sleep(time.Duration(pollCount) * time.Millisecond)
+		Expect(extentsReader.offset > offset).To(BeTrue())
+		Expect(renewalTime.Equal(ticketTime)).To(BeFalse())
+	})
+
+	It("should not send a ticket renewal if there has been progress", func() {
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		offset := extentsReader.offset
+		ticketTime := time.Now()
+		renewalTime = ticketTime
+		doneChannel := make(chan struct{}, 1)
+		defer func() { doneChannel <- struct{}{} }()
+		phase, err := source.Info() // Get progressReader filled out
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
+		go source.monitorExtentsProgress(it.MustId(), extentsReader, 10*time.Millisecond, doneChannel)
+		source.readers.progressReader.Current++
+		Expect(extentsReader.offset > offset).To(BeTrue())
+		Expect(renewalTime.Equal(ticketTime)).To(BeTrue())
+	})
+
+	It("should stream extents to a local file", func() {
+		destination := path.Join(tempDir, "outfile")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		phase, err := source.Info()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
+		err = source.StreamExtents(extentsReader, destination)
+		Expect(err).ToNot(HaveOccurred())
+		data, err := ioutil.ReadFile(destination)
+		Expect(err).ToNot(HaveOccurred())
+		extentData := createTestExtentData()
+		comparison := bytes.Compare(data, extentData)
+		Expect(comparison).To(Equal(0))
+	})
 })
 
 // MockOvirtClient is a mock minio client
@@ -702,6 +801,7 @@ func (conn *MockCancelService) Send() (ImageTransferServiceCancelResponseInterfa
 }
 
 func (conn *MockExtendService) Send() (ImageTransferServiceExtendResponseInterface, error) {
+	renewalTime = time.Now()
 	return &MockImageTransferServiceExtendResponse{}, nil
 }
 
