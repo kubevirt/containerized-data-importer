@@ -277,7 +277,7 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 	}
 	doneChannel := make(chan struct{}, 1)
 	defer func() { doneChannel <- struct{}{} }()
-	go is.monitorExtentsProgress(transferID, extentsReader, doneChannel)
+	go is.monitorExtentsProgress(transferID, extentsReader, 30*time.Second, doneChannel)
 
 	// Transfer all the non-zero extents, and try to quickly write out blocks of all zero bytes for extents that only contain zero
 	for index, extent := range extentsReader.extents {
@@ -334,15 +334,15 @@ func (is *ImageioDataSource) transferExtent(source io.ReadCloser, dest io.Writer
 	return nil
 }
 
-// monitorExtentsProgress sends a ticket renewal if there has been no download progress in the last
-// 30 seconds. This can happen if the destination storage does not have a fast way to punch holes.
-func (is *ImageioDataSource) monitorExtentsProgress(transferID string, extentsReader *extentReader, doneChannel chan struct{}) {
+// monitorExtentsProgress sends a ticket renewal if there has been no download progress during the
+// polling time. This can happen if the destination storage does not have a fast way to punch holes.
+func (is *ImageioDataSource) monitorExtentsProgress(transferID string, extentsReader *extentReader, pollTime time.Duration, doneChannel chan struct{}) {
 	current := is.readers.progressReader.Current
 	for {
 		select {
-		case <-time.After(30 * time.Second):
+		case <-time.After(pollTime):
 			if is.readers.progressReader.Current <= current {
-				klog.Info("No progress in the last 30 seconds, attempting ticket renewal to avoid timeout")
+				klog.Infof("No progress in the last %s, attempting ticket renewal to avoid timeout", pollTime)
 				if err := is.renewExtentsTicket(transferID, extentsReader); err != nil {
 					klog.Infof("Error renewing ticket: %v", err)
 				}
@@ -438,6 +438,7 @@ func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
 	contentLength := response.Header.Get("Content-Length")
 	length, err := strconv.ParseInt(contentLength, 10, 64)
 	if err != nil {
+		response.Body.Close()
 		return nil, errors.Wrap(err, fmt.Sprintf("bad content-length in range request: %s", contentLength))
 	}
 
@@ -448,10 +449,12 @@ func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
 		parts := strings.Split(contentRange, "*/")
 		if len(parts) > 1 {
 			if _, err := strconv.ParseInt(parts[1], 10, 64); err != nil {
+				response.Body.Close()
 				return nil, errors.Wrap(err, "failed to parse total length of image from range response")
 			}
 			return response.Body, io.EOF
 		}
+		response.Body.Close()
 		return nil, errors.New(fmt.Sprintf("wrong length returned: %d vs expected %d", length, expectedLength))
 	}
 
@@ -521,7 +524,7 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 	if formatType == ovirtsdk4.DISKFORMAT_RAW {
 		extentsFeature, err = checkExtentsFeature(ctx, client, transferURL)
 		if err != nil {
-			return nil, uint64(0), it, conn, err
+			klog.Infof("Unable to check extents feature on this endpoint: %v", err)
 		}
 	}
 
@@ -534,6 +537,7 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 		if err != nil {
 			return nil, uint64(0), it, conn, errors.Wrap(err, "failed to query extents")
 		}
+		defer resp.Body.Close()
 
 		var extents []imageioExtent
 		err = json.NewDecoder(resp.Body).Decode(&extents)
@@ -885,6 +889,7 @@ func loadCA(certDir string) (*x509.CertPool, error) {
 	return caCertPool, nil
 }
 
+// ImageioImageOptions is the ImageIO API's response to an OPTIONS request
 type ImageioImageOptions struct {
 	UnixSocket string   `json:"unix_socket"`
 	Features   []string `json:"features"`
@@ -904,6 +909,7 @@ func checkExtentsFeature(ctx context.Context, httpClient *http.Client, transferU
 	if err != nil {
 		return false, errors.Wrap(err, "error sending options request")
 	}
+	defer response.Body.Close()
 
 	options := &ImageioImageOptions{}
 	err = json.NewDecoder(response.Body).Decode(options)
