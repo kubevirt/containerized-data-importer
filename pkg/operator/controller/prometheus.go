@@ -41,11 +41,16 @@ import (
 )
 
 const (
-	ruleName            = "prometheus-cdi-rules"
-	rbacName            = "cdi-monitoring"
-	monitorName         = "service-monitor-cdi"
-	defaultMonitoringNs = "monitoring"
-	runbookURLBasePath  = "https://kubevirt.io/monitoring/runbooks/"
+	ruleName                 = "prometheus-cdi-rules"
+	rbacName                 = "cdi-monitoring"
+	monitorName              = "service-monitor-cdi"
+	defaultMonitoringNs      = "monitoring"
+	runbookURLBasePath       = "https://kubevirt.io/monitoring/runbooks/"
+	severityAlertLabelKey    = "severity"
+	partOfAlertLabelKey      = "kubernetes_operator_part_of"
+	partOfAlertLabelValue    = "kubevirt"
+	componentAlertLabelKey   = "kubernetes_operator_component"
+	componentAlertLabelValue = common.CDILabelValue
 )
 
 func ensurePrometheusResourcesExist(c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
@@ -150,7 +155,9 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 								"runbook_url": runbookURLBasePath + "CDIOperatorDown",
 							},
 							map[string]string{
-								"severity": "warning",
+								severityAlertLabelKey:  "warning",
+								partOfAlertLabelKey:    partOfAlertLabelValue,
+								componentAlertLabelKey: componentAlertLabelValue,
 							},
 						),
 						generateAlertRule(
@@ -162,7 +169,9 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 								"runbook_url": runbookURLBasePath + "CDINotReady",
 							},
 							map[string]string{
-								"severity": "warning",
+								severityAlertLabelKey:  "warning",
+								partOfAlertLabelKey:    partOfAlertLabelValue,
+								componentAlertLabelKey: componentAlertLabelValue,
 							},
 						),
 						generateRecordRule(
@@ -186,7 +195,9 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 								"runbook_url": runbookURLBasePath + "CDIDataVolumeUnusualRestartCount",
 							},
 							map[string]string{
-								"severity": "warning",
+								severityAlertLabelKey:  "warning",
+								partOfAlertLabelKey:    partOfAlertLabelValue,
+								componentAlertLabelKey: componentAlertLabelValue,
 							},
 						),
 						generateAlertRule(
@@ -198,7 +209,9 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 								"runbook_url": runbookURLBasePath + "CDIStorageProfilesIncomplete",
 							},
 							map[string]string{
-								"severity": "info",
+								severityAlertLabelKey:  "info",
+								partOfAlertLabelKey:    partOfAlertLabelValue,
+								componentAlertLabelKey: componentAlertLabelValue,
 							},
 						),
 					},
