@@ -26,7 +26,6 @@ RUN 	dnf -y install dnf-plugins-core && \
 	java-11-openjdk-devel \
 	&& dnf clean all
 
-
 # Necessary for Bazel to find Python inside the container
 #
 # https://github.com/bazelbuild/bazel/issues/8665
