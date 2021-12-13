@@ -625,10 +625,7 @@ var _ = Describe("Controller", func() {
 				err = args.client.Update(context.TODO(), args.cdi)
 				Expect(err).ToNot(HaveOccurred())
 
-				doReconcile(args)
-
-				Expect(args.cdi.Finalizers).Should(BeEmpty())
-				Expect(args.cdi.Status.Phase).Should(Equal(sdkapi.PhaseDeleted))
+				doReconcileExpectDelete(args)
 
 				_, err = getObject(args.client, pod)
 				Expect(errors.IsNotFound(err)).To(BeTrue())
@@ -787,6 +784,7 @@ var _ = Describe("Controller", func() {
 					crSetVersion(args.reconciler.reconciler, args.cdi, prevVersion)
 					//marc CDI CR for deltetion
 					args.cdi.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
+					args.cdi.Finalizers = append(args.cdi.Finalizers, "keepmearound")
 					err := args.client.Update(context.TODO(), args.cdi)
 					Expect(err).ToNot(HaveOccurred())
 
@@ -824,9 +822,7 @@ var _ = Describe("Controller", func() {
 					err = args.client.Update(context.TODO(), args.cdi)
 					Expect(err).ToNot(HaveOccurred())
 
-					doReconcile(args)
-					//verify the version cr is marked as deleted
-					Expect(args.cdi.Status.Phase).Should(Equal(sdkapi.PhaseDeleted))
+					doReconcileExpectDelete(args)
 
 					//verify events, this should include an upgrade event
 					match := createDeleteCDIAfterReadyEventValidationMap()
@@ -1603,6 +1599,16 @@ func doReconcileRequeue(args *args) {
 	Expect(err).ToNot(HaveOccurred())
 }
 
+func doReconcileExpectDelete(args *args) {
+	result, err := args.reconciler.Reconcile(context.TODO(), reconcileRequest(args.cdi.Name))
+	Expect(err).ToNot(HaveOccurred())
+	Expect(result.Requeue).To(BeFalse())
+
+	_, err = getCDI(args.client, args.cdi)
+	Expect(err).To(HaveOccurred())
+	Expect(errors.IsNotFound(err)).To(BeTrue())
+}
+
 func createClient(objs ...client.Object) client.Client {
 	var runtimeObjs []runtime.Object
 	for _, obj := range objs {
@@ -1669,7 +1675,7 @@ func createReconciler(client client.Client) *ReconcileCDI {
 		certManager:    newFakeCertManager(client, namespace),
 	}
 	callbackDispatcher := callbacks.NewCallbackDispatcher(log, client, client, scheme.Scheme, namespace)
-	r.reconciler = sdkr.NewReconciler(r, log, client, callbackDispatcher, scheme.Scheme, createVersionLabel, updateVersionLabel, LastAppliedConfigAnnotation, certPollInterval, finalizerName, recorder).
+	r.reconciler = sdkr.NewReconciler(r, log, client, callbackDispatcher, scheme.Scheme, createVersionLabel, updateVersionLabel, LastAppliedConfigAnnotation, certPollInterval, finalizerName, false, recorder).
 		WithWatching(true)
 
 	r.registerHooks()

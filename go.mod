@@ -55,7 +55,7 @@ require (
 	kubevirt.io/containerized-data-importer-api v0.0.0
 	kubevirt.io/controller-lifecycle-operator-sdk v0.2.2
 	kubevirt.io/qe-tools v0.1.6
-	sigs.k8s.io/controller-runtime v0.9.7
+	sigs.k8s.io/controller-runtime v0.10.0
 )
 
 replace (
@@ -92,6 +92,8 @@ replace (
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.22.1
 
 	kubevirt.io/containerized-data-importer-api => ./staging/src/kubevirt.io/containerized-data-importer-api
+
+	kubevirt.io/controller-lifecycle-operator-sdk => github.com/mhenriks/controller-lifecycle-operator-sdk v0.0.7-0.20211214234125-af42ee2cecdc
 
 	sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v1.0.0
 	vbom.ml/util => github.com/fvbommel/util v0.0.0-20180919145318-efcd4e0f9787

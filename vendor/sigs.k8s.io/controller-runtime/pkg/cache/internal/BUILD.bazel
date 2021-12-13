@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "cache_reader.go",
         "deleg_map.go",
+        "disabledeepcopy.go",
         "informers_map.go",
         "metadata_infomer_wrapper.go",
         "selector.go",

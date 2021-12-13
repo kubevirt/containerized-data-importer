@@ -157,9 +157,8 @@ var _ = Describe("PVC Transfer Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(xfer.Finalizers).To(HaveLen(0))
+			Expect(err).To(HaveOccurred())
+			Expect(errors.IsNotFound(err)).To(BeTrue())
 		})
 
 		It("Should become running", func() {
