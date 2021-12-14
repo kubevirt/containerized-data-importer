@@ -153,9 +153,14 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		}
 
 		By("Do upload")
-		Eventually(func() error {
-			return uploader(uploadProxyURL, token, expectedStatus)
-		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+		Eventually(func() bool {
+			err = uploader(uploadProxyURL, token, expectedStatus)
+			if err != nil {
+				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+				return false
+			}
+			return true
+		}, timeout, 5*time.Second).Should(BeTrue(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		if validToken {
 			By("Verify PVC status annotation says succeeded")
@@ -1265,9 +1270,14 @@ var _ = Describe("Preallocation", func() {
 		Expect(token).ToNot(BeEmpty())
 
 		By("Do upload")
-		Eventually(func() error {
-			return uploader(uploadProxyURL, token, http.StatusOK)
-		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+		Eventually(func() bool {
+			err = uploader(uploadProxyURL, token, http.StatusOK)
+			if err != nil {
+				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+				return false
+			}
+			return true
+		}, timeout, 5*time.Second).Should(BeTrue(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		phase = cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
