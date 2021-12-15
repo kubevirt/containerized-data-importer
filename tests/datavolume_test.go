@@ -207,6 +207,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		return utils.NewDataVolumeWithImageioImport(dataVolumeName, size, url, s.Name, cm, "123")
 	}
 
+	createImageIoDataVolumeNoExtents := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+		dataVolume := createImageIoDataVolume(dataVolumeName, size, url)
+		CreateImageIoInventoryNoExtents(f)
+		return dataVolume
+	}
+
 	createImageIoWarmImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 		cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 		Expect(err).To(BeNil())
@@ -812,6 +818,30 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              imageioURL,
 				dvFunc:           createImageIoWarmImportDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-imageio-test Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("[test_id:3945]succeed creating dv from imageio source that does not support extents query", dataVolumeTestArguments{
+				name:             "dv-imageio-test",
+				size:             "1Gi",
+				url:              imageioURL,
+				dvFunc:           createImageIoDataVolumeNoExtents,
 				eventReason:      controller.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
