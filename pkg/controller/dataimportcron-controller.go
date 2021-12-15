@@ -52,14 +52,15 @@ import (
 
 // DataImportCronReconciler members
 type DataImportCronReconciler struct {
-	client         client.Client
-	uncachedClient client.Client
-	recorder       record.EventRecorder
-	scheme         *runtime.Scheme
-	log            logr.Logger
-	image          string
-	pullPolicy     string
-	cdiNamespace   string
+	client          client.Client
+	uncachedClient  client.Client
+	recorder        record.EventRecorder
+	scheme          *runtime.Scheme
+	log             logr.Logger
+	image           string
+	pullPolicy      string
+	cdiNamespace    string
+	installerLabels map[string]string
 }
 
 const (
@@ -103,6 +104,7 @@ func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.
 func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
 	AddFinalizer(dataImportCron, dataImportCronFinalizer)
 	if isURLSource(dataImportCron) && !r.cronJobExists(ctx, dataImportCron) {
+		util.SetRecommendedLabels(dataImportCron, r.installerLabels, common.CDIControllerName)
 		cronJob, err := r.newCronJob(dataImportCron)
 		if err != nil {
 			return err
@@ -110,13 +112,13 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 		if err := r.client.Create(ctx, cronJob); err != nil {
 			return err
 		}
-		if err := r.client.Create(ctx, newInitialJob(cronJob)); err != nil {
+		if err := r.client.Create(ctx, r.newInitialJob(cronJob)); err != nil {
 			return err
 		}
 	} else if isImageStreamSource(dataImportCron) && dataImportCron.Annotations[AnnNextCronTime] == "" {
+		util.SetRecommendedLabels(dataImportCron, r.installerLabels, common.CDIControllerName)
 		addAnnotation(dataImportCron, AnnNextCronTime, time.Now().Format(time.RFC3339))
 	}
-
 	return nil
 }
 
@@ -315,10 +317,7 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 		}
 	}
 	dataSourceCopy := dataSource.DeepCopy()
-
-	if dataSource.Labels == nil {
-		dataSource.Labels = make(map[string]string)
-	}
+	util.SetRecommendedLabels(dataSource, r.installerLabels, common.CDIControllerName)
 	dataSource.Labels[labelDataImportCronName] = dataImportCron.Name
 
 	sourcePVC := dataImportCron.Status.LastImportedPVC
@@ -370,7 +369,7 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 	digest := dataImportCron.Annotations[AnnSourceDesiredDigest]
 	dvName := createDvName(dataSourceName, digest)
 	log.Info("Creating new source DataVolume", "name", dvName)
-	dv := newSourceDataVolume(dataImportCron, dvName)
+	dv := r.newSourceDataVolume(dataImportCron, dvName)
 	if err := r.client.Create(ctx, dv); err != nil {
 		return err
 	}
@@ -452,7 +451,7 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 }
 
 // NewDataImportCronController creates a new instance of the DataImportCron controller
-func NewDataImportCronController(mgr manager.Manager, log logr.Logger, importerImage, pullPolicy string) (controller.Controller, error) {
+func NewDataImportCronController(mgr manager.Manager, log logr.Logger, importerImage, pullPolicy string, installerLabels map[string]string) (controller.Controller, error) {
 	uncachedClient, err := client.New(mgr.GetConfig(), client.Options{
 		Scheme: mgr.GetScheme(),
 		Mapper: mgr.GetRESTMapper(),
@@ -461,14 +460,15 @@ func NewDataImportCronController(mgr manager.Manager, log logr.Logger, importerI
 		return nil, err
 	}
 	reconciler := &DataImportCronReconciler{
-		client:         mgr.GetClient(),
-		uncachedClient: uncachedClient,
-		recorder:       mgr.GetEventRecorderFor(dataImportControllerName),
-		scheme:         mgr.GetScheme(),
-		log:            log.WithName(dataImportControllerName),
-		image:          importerImage,
-		pullPolicy:     pullPolicy,
-		cdiNamespace:   util.GetNamespace(),
+		client:          mgr.GetClient(),
+		uncachedClient:  uncachedClient,
+		recorder:        mgr.GetEventRecorderFor(dataImportControllerName),
+		scheme:          mgr.GetScheme(),
+		log:             log.WithName(dataImportControllerName),
+		image:           importerImage,
+		pullPolicy:      pullPolicy,
+		cdiNamespace:    util.GetNamespace(),
+		installerLabels: installerLabels,
 	}
 	dataImportCronController, err := controller.New(dataImportControllerName, mgr, controller.Options{Reconciler: reconciler})
 	if err != nil {
@@ -607,7 +607,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 	var ttlSecondsAfterFinished int32 = 0
 	var backoffLimit int32 = 2
 
-	job := &v1beta1.CronJob{
+	cronJob := &v1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      GetCronJobName(cron),
 			Namespace: r.cdiNamespace,
@@ -644,23 +644,26 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 				},
 			},
 		}
-		job.Spec.JobTemplate.Spec.Template.Spec.Volumes = []corev1.Volume{vol}
+		cronJob.Spec.JobTemplate.Spec.Template.Spec.Volumes = []corev1.Volume{vol}
 	}
 
-	return job, nil
+	util.SetRecommendedLabels(cronJob, r.installerLabels, common.CDIControllerName)
+	return cronJob, nil
 }
 
-func newInitialJob(cronJob *v1beta1.CronJob) *batchv1.Job {
-	return &batchv1.Job{
+func (r *DataImportCronReconciler) newInitialJob(cronJob *v1beta1.CronJob) *batchv1.Job {
+	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "job-" + cronJob.Name,
 			Namespace: cronJob.Namespace,
 		},
 		Spec: cronJob.Spec.JobTemplate.Spec,
 	}
+	util.SetRecommendedLabels(job, r.installerLabels, common.CDIControllerName)
+	return job
 }
 
-func newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdiv1.DataVolume {
+func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdiv1.DataVolume {
 	var digestedURL string
 	dv := cron.Spec.Template.DeepCopy()
 	if isURLSource(cron) {
@@ -673,9 +676,7 @@ func newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdi
 	dv.Spec.Source.Registry.URL = &digestedURL
 	dv.Name = dataVolumeName
 	dv.Namespace = cron.Namespace
-	if dv.Labels == nil {
-		dv.Labels = make(map[string]string)
-	}
+	util.SetRecommendedLabels(dv, r.installerLabels, common.CDIControllerName)
 	dv.Labels[labelDataImportCronName] = cron.Name
 	passCronAnnotationToDv(cron, dv, AnnImmediateBinding)
 	passCronAnnotationToDv(cron, dv, AnnPodRetainAfterCompletion)
