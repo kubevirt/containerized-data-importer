@@ -359,18 +359,23 @@ func (is *ImageioDataSource) monitorExtentsProgress(transferID string, extentsRe
 // renewExtentsTicket ensures the ImageIO transfer ticket stays active by issuing a renewal and
 // by doing a small amount of I/O to prevent the oVirt engine from canceling the download.
 func (is *ImageioDataSource) renewExtentsTicket(transferID string, extentsReader *extentReader) error {
-	buf := make([]byte, 512)
 	transfersService := is.connection.SystemService().ImageTransfersService()
 	transferService := transfersService.ImageTransferService(transferID)
 	_, err := transferService.Extend().Send()
 	if err != nil {
 		return errors.Wrap(err, "failed to renew transfer ticket")
 	}
-	_, err = extentsReader.Read(buf)
+
+	readSize := 512
+	buf := make([]byte, readSize)
+	responseBody, err := extentsReader.GetRange(0, int64(readSize-1))
 	if err != nil {
 		return errors.Wrap(err, "failed sending small read to prevent download timeout")
 	}
-	return nil
+	defer responseBody.Close()
+
+	_, err = io.ReadFull(responseBody, buf)
+	return err
 }
 
 // imageioExtent holds information about a particular sequence of bytes, decodable from the ImageIO API.

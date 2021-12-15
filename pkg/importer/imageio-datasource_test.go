@@ -545,11 +545,9 @@ var _ = Describe("Imageio extents", func() {
 		Expect(err).ToNot(HaveOccurred())
 		extentsReader, err := source.getExtentsReader()
 		Expect(err).ToNot(HaveOccurred())
-		offset := extentsReader.offset
 		ticketTime := time.Now()
 		time.Sleep(1 * time.Millisecond)
 		err = source.renewExtentsTicket(it.MustId(), extentsReader)
-		Expect(extentsReader.offset > offset).To(BeTrue())
 		Expect(renewalTime.Equal(ticketTime)).To(BeFalse())
 	})
 
@@ -563,7 +561,6 @@ var _ = Describe("Imageio extents", func() {
 		Expect(err).ToNot(HaveOccurred())
 		extentsReader, err := source.getExtentsReader()
 		Expect(err).ToNot(HaveOccurred())
-		offset := extentsReader.offset
 		ticketTime := time.Now()
 		renewalTime = ticketTime
 		doneChannel := make(chan struct{}, 1)
@@ -573,7 +570,6 @@ var _ = Describe("Imageio extents", func() {
 		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
 		go source.monitorExtentsProgress(it.MustId(), extentsReader, 1*time.Millisecond, doneChannel)
 		time.Sleep(time.Duration(pollCount) * time.Millisecond)
-		Expect(extentsReader.offset > offset).To(BeTrue())
 		Expect(renewalTime.Equal(ticketTime)).To(BeFalse())
 	})
 
@@ -582,7 +578,6 @@ var _ = Describe("Imageio extents", func() {
 		Expect(err).ToNot(HaveOccurred())
 		extentsReader, err := source.getExtentsReader()
 		Expect(err).ToNot(HaveOccurred())
-		offset := extentsReader.offset
 		ticketTime := time.Now()
 		renewalTime = ticketTime
 		doneChannel := make(chan struct{}, 1)
@@ -592,7 +587,6 @@ var _ = Describe("Imageio extents", func() {
 		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
 		go source.monitorExtentsProgress(it.MustId(), extentsReader, 10*time.Millisecond, doneChannel)
 		source.readers.progressReader.Current++
-		Expect(extentsReader.offset > offset).To(BeTrue())
 		Expect(renewalTime.Equal(ticketTime)).To(BeTrue())
 	})
 
