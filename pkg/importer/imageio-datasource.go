@@ -388,28 +388,31 @@ type extentReader struct {
 	extents     []imageioExtent
 	transferURL string
 	offset      int64
+	size        int64
 }
 
 // Read downloads a range of bytes from the ImageIO source. Having this attached
 // to extentReader provides compatibility with the FormatReader header parsing.
 func (reader *extentReader) Read(p []byte) (int, error) {
 	start := reader.offset
+	last := reader.size - 1
 	end := start + int64(len(p)) - 1
+	if end > last {
+		end = last
+	}
+	length := end - start + 1
+
 	responseBody, err := reader.GetRange(start, end)
 	if err != nil && err != io.EOF {
 		return 0, errors.Wrap(err, "failed to read from range")
 	}
-	defer responseBody.Close()
+	if responseBody != nil {
+		defer responseBody.Close()
+	}
 
 	var written int
-	if err != io.EOF { // Most of the time, dump range response directly into p
-		written, err = io.ReadFull(responseBody, p)
-	} else { // Only allocate and copy a smaller buffer for the last available range
-		last, err := io.ReadAll(responseBody)
-		if err != nil {
-			return 0, errors.Wrap(err, "failed to read final block")
-		}
-		written = copy(p, last)
+	if err != io.EOF {
+		written, err = io.ReadFull(responseBody, p[:length])
 	}
 
 	reader.offset += int64(written)
@@ -424,6 +427,18 @@ func (reader *extentReader) Close() error {
 // GetRange requests a range of bytes from the ImageIO server, and returns the
 // response body so the caller can copy the data wherever it needs to go.
 func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
+	// Return EOF if there are no more bytes to read
+	if start >= reader.size {
+		return nil, io.EOF
+	}
+
+	// Don't try to read past end of available data
+	last := reader.size - 1
+	if end > last {
+		end = last
+		klog.Infof("Range request extends past end of image, trimming to %d", end)
+	}
+
 	request, err := http.NewRequest("GET", reader.transferURL, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create range request")
@@ -442,20 +457,23 @@ func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
 		return nil, errors.Wrap(err, fmt.Sprintf("bad content-length in range request: %s", contentLength))
 	}
 
-	// Validate the returned length, and return EOF if the requested range extends past the end of the source.
+	// Validate the returned length, and return an error if it does not match the expected range size
 	expectedLength := end - start + 1
 	if length != expectedLength {
 		contentRange := response.Header.Get("Content-Range")
 		parts := strings.Split(contentRange, "*/")
 		if len(parts) > 1 {
-			if _, err := strconv.ParseInt(parts[1], 10, 64); err != nil {
+			if rangeLength, err := strconv.ParseInt(parts[1], 10, 64); err != nil {
 				response.Body.Close()
 				return nil, errors.Wrap(err, "failed to parse total length of image from range response")
+			} else if rangeLength != expectedLength {
+				response.Body.Close()
+				return nil, errors.Wrap(err, "parse incorrect total length of image from range response")
 			}
-			return response.Body, io.EOF
+		} else {
+			response.Body.Close()
+			return nil, errors.New(fmt.Sprintf("wrong length returned: %d vs expected %d", length, expectedLength))
 		}
-		response.Body.Close()
-		return nil, errors.New(fmt.Sprintf("wrong length returned: %d vs expected %d", length, expectedLength))
 	}
 
 	return response.Body, nil
@@ -560,6 +578,7 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 			client:      client,
 			extents:     extents,
 			transferURL: transferURL,
+			size:        int64(total),
 		}
 	} else {
 		req, err := http.NewRequest("GET", transferURL, nil)
