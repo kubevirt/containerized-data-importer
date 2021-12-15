@@ -1602,7 +1602,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 	Expect(err).To(BeNil())
 	Expect(md5Match).To(BeTrue())
 
-	if utils.DefaultStorageCSIRespectsFsGroup && sourcePvcDiskGroup != "" {
+	if utils.DefaultStorageCSI && sourcePvcDiskGroup != "" {
 		// CSI storage class, it should respect fsGroup
 		By("Checking that disk image group is qemu")
 		Expect(f.GetDiskGroup(targetNs, targetPvc, false)).To(Equal(sourcePvcDiskGroup))

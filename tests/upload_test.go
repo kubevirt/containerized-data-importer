@@ -130,7 +130,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(same).To(BeTrue())
 			By("Verifying the image is sparse")
 			Expect(f.VerifySparse(f.Namespace, pvc)).To(BeTrue())
-			if utils.DefaultStorageCSIRespectsFsGroup {
+			if utils.DefaultStorageCSI {
 				// CSI storage class, it should respect fsGroup
 				By("Checking that disk image group is qemu")
 				Expect(f.GetDiskGroup(f.Namespace, pvc, false)).To(Equal("107"))
