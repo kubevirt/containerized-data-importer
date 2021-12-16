@@ -54,8 +54,8 @@ import (
 )
 
 const (
-	// selfsigned cert secret name
-	apiSigningKeySecretName = "cdi-api-signing-key"
+	// APISigningKeySecretName is the selfsigned cert secret name
+	APISigningKeySecretName = "cdi-api-signing-key"
 
 	uploadTokenGroup = "upload.cdi.kubevirt.io"
 
@@ -196,7 +196,7 @@ func (app *cdiAPIApp) Start(ch <-chan struct{}) error {
 func (app *cdiAPIApp) getKeysAndCerts() error {
 	namespace := util.GetNamespace()
 
-	privateKey, err := keys.GetOrCreatePrivateKey(app.client, namespace, apiSigningKeySecretName, app.installerLabels)
+	privateKey, err := keys.GetOrCreatePrivateKey(app.client, namespace, APISigningKeySecretName, app.installerLabels)
 	if err != nil {
 		return errors.Wrap(err, "Error getting/creating signing key")
 	}

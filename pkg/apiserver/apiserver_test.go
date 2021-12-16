@@ -61,11 +61,11 @@ func signingKeySecretGetAction() core.Action {
 			Version:  "v1",
 		},
 		"cdi",
-		apiSigningKeySecretName)
+		APISigningKeySecretName)
 }
 
 func signingKeySecretCreateAction(privateKey *rsa.PrivateKey) core.Action {
-	secret, _ := keystest.NewPrivateKeySecret("cdi", apiSigningKeySecretName, privateKey)
+	secret, _ := keystest.NewPrivateKeySecret("cdi", APISigningKeySecretName, privateKey)
 	return core.NewCreateAction(
 		schema.GroupVersionResource{
 			Resource: "secrets",
@@ -177,7 +177,7 @@ var _ = Describe("API server tests", func() {
 		signingKey, err := generateTestKey()
 		Expect(err).ToNot(HaveOccurred())
 
-		signingKeySecret, err := keystest.NewPrivateKeySecret("cdi", apiSigningKeySecretName, signingKey)
+		signingKeySecret, err := keystest.NewPrivateKeySecret("cdi", APISigningKeySecretName, signingKey)
 		Expect(err).ToNot(HaveOccurred())
 
 		kubeobjects := []runtime.Object{}
