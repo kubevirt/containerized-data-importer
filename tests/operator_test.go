@@ -31,6 +31,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -871,6 +872,67 @@ var _ = Describe("ALL Operator tests", func() {
 						return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
 					}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", expectedIncomplete))
 				}
+			})
+
+			It("DataImportCron failing metric expected value when patching DesiredDigest annotation with junk sha256 value", func() {
+				if !tests.IsPrometheusAvailable(f.ExtClient) {
+					Skip("This test depends on prometheus infra being available")
+				}
+				var url string
+				var err error
+				numCrons := 2
+				retentionPolicy := cdiv1.DataImportCronRetainAll
+				trustedRegistryURL := fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix)
+				originalMetricVal := getMetricValue("kubevirt_cdi_dataimportcron_not_up_to_date_total")
+				expectedFailingCrons := originalMetricVal + numCrons
+				if utils.IsOpenshift(f.K8sClient) {
+					url = externalRegistryURL
+				} else {
+					url = trustedRegistryURL
+					err = utils.AddInsecureRegistry(f.CrClient, url)
+					Expect(err).To(BeNil())
+
+					hasInsecReg, err := utils.HasInsecureRegistry(f.CrClient, url)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(hasInsecReg).To(BeTrue())
+					defer utils.RemoveInsecureRegistry(f.CrClient, url)
+				}
+
+				for i := 0; i < numCrons; i++ {
+					cron := NewDataImportCron(fmt.Sprintf("cron-test-%d", i), "5Gi", scheduleOnceAYear, fmt.Sprintf("datasource-test-%d", i), cdiv1.DataVolumeSourceRegistry{URL: &url, PullMethod: &registryPullNode}, retentionPolicy)
+					By(fmt.Sprintf("Create new DataImportCron %s", url))
+					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					var currentImportDv string
+					By("Wait for CurrentImports DataVolumeName update")
+					Eventually(func() bool {
+						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						if len(cron.Status.CurrentImports) == 0 {
+							return false
+						}
+						currentImportDv = cron.Status.CurrentImports[0].DataVolumeName
+						return currentImportDv != ""
+					}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+					By("Wait for import completion")
+					err = utils.WaitForDataVolumePhase(f.CdiClient, cron.Namespace, cdiv1.Succeeded, currentImportDv)
+					Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+					Eventually(func() error {
+						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						if cron.Annotations == nil {
+							cron.Annotations = make(map[string]string)
+						}
+						// notarealsha
+						cron.Annotations[controller.AnnSourceDesiredDigest] = "sha256:c616e1c85568b1f1d528da2b3dbc257fd2035ada441e286a8c42606491442a5d"
+						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Update(context.TODO(), cron, metav1.UpdateOptions{})
+						return err
+					}, dataImportCronTimeout, pollingInterval).Should(BeNil())
+				}
+
+				Eventually(func() int {
+					return getMetricValue("kubevirt_cdi_dataimportcron_not_up_to_date_total")
+				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", expectedFailingCrons))
 			})
 		})
 

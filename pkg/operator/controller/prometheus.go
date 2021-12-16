@@ -214,6 +214,20 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 								componentAlertLabelKey: componentAlertLabelValue,
 							},
 						),
+						generateAlertRule(
+							"CDIDataImportCronNotUpToDate",
+							"kubevirt_cdi_dataimportcron_not_up_to_date_total > 0",
+							"15m",
+							map[string]string{
+								"summary":     "DataImportCron PVCs do not hold the latest OS image, disk might not contain latest OS version",
+								"runbook_url": runbookURLBasePath + "CDIDataImportCronNotUpToDate",
+							},
+							map[string]string{
+								severityAlertLabelKey:  "info",
+								partOfAlertLabelKey:    partOfAlertLabelValue,
+								componentAlertLabelKey: componentAlertLabelValue,
+							},
+						),
 					},
 				},
 			},
