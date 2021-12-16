@@ -386,20 +386,21 @@ func (r *CDIConfigReconciler) reconcileImportProxy(config *cdiv1.CDIConfig) erro
 
 // Create/Update a configmap with the CA certificates in the controllor context with the cluster-wide proxy CA certificates to be used by the importer pod
 func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(config *cdiv1.CDIConfig, proxy *ocpconfigv1.Proxy) error {
+	client := r.uncachedClient
 	cmName := proxy.Spec.TrustedCA.Name
 	if cmName == "" {
 		// Using the default cluster-wide proxy CA certificates configmap name
 		cmName = ClusterWideProxyConfigMapName
 	}
 	clusterWideProxyConfigMap := &v1.ConfigMap{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: cmName, Namespace: ClusterWideProxyConfigMapNameSpace}, clusterWideProxyConfigMap); err == nil {
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: cmName, Namespace: ClusterWideProxyConfigMapNameSpace}, clusterWideProxyConfigMap); err == nil {
 		// Copy the cluster-wide proxy CA certificates to the importer pod proxy CA certificates configMap
 		if certBytes, ok := clusterWideProxyConfigMap.Data[ClusterWideProxyConfigMapKey]; ok {
 			configMap := &v1.ConfigMap{}
-			if err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.ImportProxyConfigMapName, Namespace: r.cdiNamespace}, configMap); errors.IsNotFound(err) {
+			if err := client.Get(context.TODO(), types.NamespacedName{Name: common.ImportProxyConfigMapName, Namespace: r.cdiNamespace}, configMap); errors.IsNotFound(err) {
 				proxyConfigMap := r.createProxyConfigMap(certBytes)
 				util.SetRecommendedLabels(proxyConfigMap, r.installerLabels, "cdi-controller")
-				if err := r.client.Create(context.TODO(), proxyConfigMap); err != nil {
+				if err := client.Create(context.TODO(), proxyConfigMap); err != nil {
 					return err
 				}
 				return nil
@@ -407,7 +408,7 @@ func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(config *cdiv1.CDIC
 			if configMap != nil {
 				configMap.Data[common.ImportProxyConfigMapKey] = certBytes
 				util.SetRecommendedLabels(configMap, r.installerLabels, "cdi-controller")
-				if err := r.client.Update(context.TODO(), configMap); err != nil {
+				if err := client.Update(context.TODO(), configMap); err != nil {
 					return err
 				}
 			}
