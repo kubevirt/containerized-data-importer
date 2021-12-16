@@ -13,10 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -40,19 +38,12 @@ var _ = Describe("DataImportCron", func() {
 		registryPullNode    = cdiv1.RegistryPullNode
 		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
 		externalRegistryURL = "docker://quay.io/kubevirt/cirros-container-disk-demo"
+		dataSourceName      = "datasource-test"
 		cron                *cdiv1.DataImportCron
 		err                 error
 	)
 
-	AfterEach(func() {
-		if cron != nil {
-			By("Delete cron")
-			err = DeleteDataImportCron(f.CdiClient, cron.Namespace, cron.Name)
-			Expect(err).ToNot(HaveOccurred())
-		}
-	})
-
-	table.DescribeTable("should", func(schedule string, repeat int, checkGarbageCollection bool) {
+	table.DescribeTable("should", func(schedule string, retentionPolicy cdiv1.DataImportCronRetentionPolicy, repeat int, checkGarbageCollection bool) {
 		var url string
 
 		if repeat > 1 || utils.IsOpenshift(f.K8sClient) {
@@ -68,9 +59,9 @@ var _ = Describe("DataImportCron", func() {
 			defer utils.RemoveInsecureRegistry(f.CrClient, url)
 		}
 
-		cron = NewDataImportCron("cron-test", "5Gi", schedule, "datasource-test", cdiv1.DataVolumeSourceRegistry{URL: &url, PullMethod: &registryPullNode})
+		cron = NewDataImportCron("cron-test", "5Gi", schedule, dataSourceName, cdiv1.DataVolumeSourceRegistry{URL: &url, PullMethod: &registryPullNode}, retentionPolicy)
 		By(fmt.Sprintf("Create new DataImportCron %s", url))
-		cron, err = CreateDataImportCronFromDefinition(f.CdiClient, f.Namespace.Name, cron)
+		cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		if schedule == scheduleEveryMinute {
@@ -119,7 +110,7 @@ var _ = Describe("DataImportCron", func() {
 			lastImportDv = currentImportDv
 
 			By(fmt.Sprintf("Verify pvc was created %s", currentImportDv))
-			_, err = utils.WaitForPVC(f.K8sClient, cron.Namespace, currentImportDv)
+			currentPvc, err := utils.WaitForPVC(f.K8sClient, cron.Namespace, currentImportDv)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Wait for import completion")
@@ -127,20 +118,45 @@ var _ = Describe("DataImportCron", func() {
 			Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 
 			By("Verify datasource was updated")
+			var dataSource *cdiv1.DataSource
 			Eventually(func() bool {
-				datasource, err := f.CdiClient.CdiV1beta1().DataSources(f.Namespace.Name).Get(context.TODO(), cron.Spec.ManagedDataSource, metav1.GetOptions{})
+				dataSource, err = f.CdiClient.CdiV1beta1().DataSources(f.Namespace.Name).Get(context.TODO(), cron.Spec.ManagedDataSource, metav1.GetOptions{})
 				if errors.IsNotFound(err) {
 					return false
 				}
 				Expect(err).ToNot(HaveOccurred())
-				return datasource.Spec.Source.PVC != nil && datasource.Spec.Source.PVC.Name == currentImportDv
+				readyCond := controller.FindDataSourceConditionByType(dataSource, cdiv1.DataSourceReady)
+				return readyCond != nil && readyCond.Status == corev1.ConditionTrue &&
+					dataSource.Spec.Source.PVC != nil && dataSource.Spec.Source.PVC.Name == currentImportDv
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 
-			By("Verify cron LastImportedPVC updated")
+			By("Verify cron was updated")
 			Eventually(func() bool {
 				cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
-				return cron.Status.LastImportedPVC != nil && cron.Status.LastImportedPVC.Name == currentImportDv
+				progressCond := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronProgressing)
+				upToDateCond := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
+				return progressCond != nil && progressCond.Status == corev1.ConditionFalse &&
+					upToDateCond != nil && upToDateCond.Status == corev1.ConditionTrue &&
+					cron.Status.LastImportedPVC != nil && cron.Status.LastImportedPVC.Name == currentImportDv
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
+			By("Delete DataSource")
+			err = f.CdiClient.CdiV1beta1().DataSources(dataSource.Namespace).Delete(context.TODO(), dataSource.Name, metav1.DeleteOptions{})
+			Expect(err).To(BeNil())
+			By("Verify DataSource was re-created")
+			Eventually(func() bool {
+				ds, err := f.CdiClient.CdiV1beta1().DataSources(dataSource.Namespace).Get(context.TODO(), dataSource.Name, metav1.GetOptions{})
+				return err == nil && ds.UID != dataSource.UID
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
+			By("Delete last imported PVC")
+			err = f.DeletePVC(currentPvc)
+			Expect(err).To(BeNil())
+			By("Verify last imported PVC was re-created")
+			Eventually(func() bool {
+				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(currentPvc.Namespace).Get(context.TODO(), currentPvc.Name, metav1.GetOptions{})
+				return err == nil && pvc.UID != currentPvc.UID
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 		}
 		if checkGarbageCollection {
@@ -150,15 +166,45 @@ var _ = Describe("DataImportCron", func() {
 				return len(dvList.Items) == int(importsToKeep)
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 		}
+
+		lastImportedPVC := cron.Status.LastImportedPVC
+		retention := cron.Spec.RetentionPolicy
+
+		By("Delete cron")
+		err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Delete(context.TODO(), cron.Name, metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		if retention != nil && *retention == cdiv1.DataImportCronRetainNone {
+			By("Verify DataSource deletion")
+			Eventually(func() bool {
+				_, err := f.CdiClient.CdiV1beta1().DataSources(f.Namespace.Name).Get(context.TODO(), dataSourceName, metav1.GetOptions{})
+				return errors.IsNotFound(err)
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
+			By("Verify PVCs deletion")
+			Eventually(func() bool {
+				pvcs, err := f.K8sClient.CoreV1().PersistentVolumeClaims(lastImportedPVC.Namespace).List(context.TODO(), metav1.ListOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				return len(pvcs.Items) == 0
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+		} else {
+			By("Verify DataSource retention")
+			_, err := f.CdiClient.CdiV1beta1().DataSources(f.Namespace.Name).Get(context.TODO(), dataSourceName, metav1.GetOptions{})
+			Expect(err).To(BeNil())
+
+			By("Verify last PVC retention")
+			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(lastImportedPVC.Namespace).Get(context.TODO(), lastImportedPVC.Name, metav1.GetOptions{})
+			Expect(err).To(BeNil())
+		}
 	},
-		table.Entry("[test_id:7403] Should successfully import PVC from registry URL as scheduled", scheduleEveryMinute, 1, false),
-		table.Entry("[test_id:7414] Should successfully import PVC from registry URL on source digest update", scheduleOnceAYear, 2, false),
-		table.Entry("[test_id:7406] Should successfully garbage collect old PVCs when importing new ones", scheduleOnceAYear, 2, true),
+		table.Entry("[test_id:7403] Should successfully import PVC from registry URL as scheduled", scheduleEveryMinute, cdiv1.DataImportCronRetainAll, 1, false),
+		table.Entry("[test_id:7414] Should successfully import PVC from registry URL on source digest update", scheduleOnceAYear, cdiv1.DataImportCronRetainAll, 2, false),
+		table.Entry("[test_id:7406] Should successfully garbage collect old PVCs when importing new ones", scheduleOnceAYear, cdiv1.DataImportCronRetainNone, 2, true),
 	)
 })
 
 // NewDataImportCron initializes a DataImportCron struct
-func NewDataImportCron(name, size, schedule, dataSource string, source cdiv1.DataVolumeSourceRegistry) *cdiv1.DataImportCron {
+func NewDataImportCron(name, size, schedule, dataSource string, source cdiv1.DataVolumeSourceRegistry, retentionPolicy cdiv1.DataImportCronRetentionPolicy) *cdiv1.DataImportCron {
 	garbageCollect := cdiv1.DataImportCronGarbageCollectOutdated
 
 	return &cdiv1.DataImportCron{
@@ -188,34 +234,7 @@ func NewDataImportCron(name, size, schedule, dataSource string, source cdiv1.Dat
 			ManagedDataSource: dataSource,
 			GarbageCollect:    &garbageCollect,
 			ImportsToKeep:     &importsToKeep,
+			RetentionPolicy:   &retentionPolicy,
 		},
 	}
-}
-
-// CreateDataImportCronFromDefinition is used by tests to create a testable DataImportCron
-func CreateDataImportCronFromDefinition(clientSet *cdiclientset.Clientset, namespace string, def *cdiv1.DataImportCron) (*cdiv1.DataImportCron, error) {
-	var dataImportCron *cdiv1.DataImportCron
-	err := wait.PollImmediate(pollingInterval, dataImportCronTimeout, func() (bool, error) {
-		var err error
-		dataImportCron, err = clientSet.CdiV1beta1().DataImportCrons(namespace).Create(context.TODO(), def, metav1.CreateOptions{})
-		if err == nil || errors.IsAlreadyExists(err) {
-			return true, nil
-		}
-		return false, err
-	})
-	if err != nil {
-		return nil, err
-	}
-	return dataImportCron, nil
-}
-
-// DeleteDataImportCron deletes the DataImportCron with the given name
-func DeleteDataImportCron(clientSet *cdiclientset.Clientset, namespace, name string) error {
-	return wait.PollImmediate(pollingInterval, dataImportCronTimeout, func() (bool, error) {
-		err := clientSet.CdiV1beta1().DataImportCrons(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
-		if err == nil || errors.IsNotFound(err) {
-			return true, nil
-		}
-		return false, err
-	})
 }

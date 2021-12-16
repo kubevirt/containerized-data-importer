@@ -19,6 +19,8 @@ const (
 
 	// CDIComponentLabel can be added to all CDI resources
 	CDIComponentLabel = "cdi.kubevirt.io"
+	// CDIControllerName is the CDI controller name
+	CDIControllerName = "cdi-controller"
 
 	// AppKubernetesPartOfLabel is the Kubernetes recommended part-of label
 	AppKubernetesPartOfLabel = "app.kubernetes.io/part-of"

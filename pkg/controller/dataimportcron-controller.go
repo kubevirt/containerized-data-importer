@@ -18,6 +18,8 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 	"sort"
 	"time"
 
@@ -32,13 +34,14 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -49,14 +52,15 @@ import (
 
 // DataImportCronReconciler members
 type DataImportCronReconciler struct {
-	client         client.Client
-	uncachedClient client.Client
-	recorder       record.EventRecorder
-	scheme         *runtime.Scheme
-	log            logr.Logger
-	image          string
-	pullPolicy     string
-	cdiNamespace   string
+	client          client.Client
+	uncachedClient  client.Client
+	recorder        record.EventRecorder
+	scheme          *runtime.Scheme
+	log             logr.Logger
+	image           string
+	pullPolicy      string
+	cdiNamespace    string
+	installerLabels map[string]string
 }
 
 const (
@@ -98,27 +102,23 @@ func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.
 }
 
 func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	if dataImportCron.Annotations == nil {
-		dataImportCron.Annotations = make(map[string]string)
-	}
+	AddFinalizer(dataImportCron, dataImportCronFinalizer)
 	if isURLSource(dataImportCron) && !r.cronJobExists(ctx, dataImportCron) {
+		util.SetRecommendedLabels(dataImportCron, r.installerLabels, common.CDIControllerName)
 		cronJob, err := r.newCronJob(dataImportCron)
 		if err != nil {
 			return err
 		}
-		AddFinalizer(dataImportCron, dataImportCronFinalizer)
 		if err := r.client.Create(ctx, cronJob); err != nil {
-			r.log.Error(err, "Unable to create CronJob")
 			return err
 		}
-		if err := r.client.Create(ctx, newInitialJob(cronJob)); err != nil {
-			r.log.Error(err, "Unable to create Job")
+		if err := r.client.Create(ctx, r.newInitialJob(cronJob)); err != nil {
 			return err
 		}
 	} else if isImageStreamSource(dataImportCron) && dataImportCron.Annotations[AnnNextCronTime] == "" {
-		dataImportCron.Annotations[AnnNextCronTime] = time.Now().Format(time.RFC3339)
+		util.SetRecommendedLabels(dataImportCron, r.installerLabels, common.CDIControllerName)
+		addAnnotation(dataImportCron, AnnNextCronTime, time.Now().Format(time.RFC3339))
 	}
-
 	return nil
 }
 
@@ -172,7 +172,7 @@ func (r *DataImportCronReconciler) setNextCronTime(dataImportCron *cdiv1.DataImp
 	nextTime := expr.Next(now)
 	diffSec := time.Duration(nextTime.Sub(now).Seconds()) + 1
 	res := reconcile.Result{Requeue: true, RequeueAfter: diffSec * time.Second}
-	dataImportCron.Annotations[AnnNextCronTime] = nextTime.Format(time.RFC3339)
+	addAnnotation(dataImportCron, AnnNextCronTime, nextTime.Format(time.RFC3339))
 	r.log.Info("setNextCronTime", "nextTime", nextTime)
 	return res, err
 }
@@ -195,11 +195,13 @@ func getCronRegistrySource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourceR
 	return source.Registry, nil
 }
 
-// FIXME: update all conditions
 func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
 	log := r.log.WithName("update")
 	res := reconcile.Result{}
-	//FIXME: add ImportStatus DataVolumePhase so we'll handle only on transition (to Succeeded etc.)
+
+	now := metav1.Now()
+	dataImportCron.Status.LastExecutionTimestamp = &now
+
 	importSucceeded := false
 	imports := dataImportCron.Status.CurrentImports
 	if imports != nil {
@@ -214,22 +216,30 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 				return res, err
 			}
 		}
-
-		now := metav1.Now()
-		dataImportCron.Status.LastExecutionTimestamp = &now
-
-		if dataVolume.Status.Phase == cdiv1.Succeeded {
+		switch dataVolume.Status.Phase {
+		case cdiv1.Succeeded:
 			importSucceeded = true
-			if err := r.updateDataSourceOnSuccess(ctx, dataImportCron); err != nil {
-				return res, err
-			}
 			if err := r.updateDataImportCronOnSuccess(ctx, dataImportCron); err != nil {
 				return res, err
 			}
+			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "No current import", noImport)
 			if err := r.garbageCollectOldImports(ctx, dataImportCron); err != nil {
 				return res, err
 			}
+		case cdiv1.ImportScheduled:
+			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "Import is scheduled", scheduled)
+		case cdiv1.ImportInProgress:
+			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionTrue, "Import is progressing", inProgress)
+		default:
+			dvPhase := string(dataVolume.Status.Phase)
+			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, fmt.Sprintf("Import DataVolume phase %s", dvPhase), dvPhase)
 		}
+	} else {
+		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "No current import", noImport)
+	}
+
+	if err := r.updateDataSource(ctx, dataImportCron); err != nil {
+		return res, err
 	}
 
 	// We use the poller returned reconcile.Result for RequeueAfter if needed
@@ -242,14 +252,23 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	}
 
 	desiredDigest := dataImportCron.Annotations[AnnSourceDesiredDigest]
-	if desiredDigest != "" && (imports == nil || (importSucceeded && desiredDigest != imports[0].Digest)) {
-		if err := r.createImportDataVolume(ctx, dataImportCron); err != nil {
-			return res, err
+	digestUpdated := desiredDigest != "" && (len(imports) == 0 || desiredDigest != imports[0].Digest)
+	if digestUpdated {
+		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Source digest updated since last import", outdated)
+		if importSucceeded || len(imports) == 0 {
+			if err := r.createImportDataVolume(ctx, dataImportCron); err != nil {
+				return res, err
+			}
 		}
+	} else if importSucceeded {
+		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionTrue, "Latest import is up to date", upToDate)
+	} else if len(imports) > 0 {
+		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Import is progressing", inProgress)
+	} else {
+		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "No source digest", noDigest)
 	}
 
 	if err := r.client.Update(ctx, dataImportCron); err != nil {
-		log.Error(err, "Unable to update DataImportCron", "Name", dataImportCron.Name)
 		return res, err
 	}
 	return res, nil
@@ -276,17 +295,14 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 	}
 	if digest != "" && dataImportCron.Annotations[AnnSourceDesiredDigest] != digest {
 		r.log.Info("updated", "digest", digest, "cron", dataImportCron.Name)
-		dataImportCron.Annotations[AnnSourceDesiredDigest] = digest
-		dataImportCron.Annotations[AnnImageStreamDockerRef] = dockerRef
+		addAnnotation(dataImportCron, AnnSourceDesiredDigest, digest)
+		addAnnotation(dataImportCron, AnnImageStreamDockerRef, dockerRef)
 	}
 	return nil
 }
 
-func (r *DataImportCronReconciler) updateDataSourceOnSuccess(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
 	log := r.log.WithName("update")
-	if dataImportCron.Status.CurrentImports == nil {
-		return errors.Errorf("No CurrentImports in cron %s", dataImportCron.Name)
-	}
 	dataSourceName := dataImportCron.Spec.ManagedDataSource
 	dataSource := &cdiv1.DataSource{}
 	if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: dataSourceName}, dataSource); err != nil {
@@ -294,30 +310,37 @@ func (r *DataImportCronReconciler) updateDataSourceOnSuccess(ctx context.Context
 			log.Info("Create DataSource", "name", dataSourceName)
 			dataSource = newDataSource(dataImportCron)
 			if err := r.client.Create(ctx, dataSource); err != nil {
-				log.Error(err, "Unable to create DataSource", "name", dataSourceName)
 				return err
 			}
 		} else {
-			log.Error(err, "Unable to get DataSource", "name", dataSourceName)
 			return err
 		}
 	}
-	if !isOwner(dataSource, dataImportCron) {
-		dataSource.OwnerReferences = append(dataSource.OwnerReferences, metav1.OwnerReference{
-			APIVersion: dataImportCron.APIVersion,
-			Kind:       dataImportCron.Kind,
-			Name:       dataImportCron.Name,
-			UID:        dataImportCron.UID,
-		})
-	}
-	sourcePVC := &cdiv1.DataVolumeSourcePVC{
-		Namespace: dataImportCron.Namespace,
-		Name:      dataImportCron.Status.CurrentImports[0].DataVolumeName,
-	}
-	if dataSource.Spec.Source.PVC == nil || *dataSource.Spec.Source.PVC != *sourcePVC {
+	dataSourceCopy := dataSource.DeepCopy()
+	util.SetRecommendedLabels(dataSource, r.installerLabels, common.CDIControllerName)
+	dataSource.Labels[labelDataImportCronName] = dataImportCron.Name
+
+	sourcePVC := dataImportCron.Status.LastImportedPVC
+	if sourcePVC != nil {
+		dv := &cdiv1.DataVolume{}
+		if err := r.client.Get(ctx, types.NamespacedName{Namespace: sourcePVC.Namespace, Name: sourcePVC.Name}, dv); err != nil {
+			if k8serrors.IsNotFound(err) {
+				log.Info("DataVolume not found", "name", sourcePVC.Name)
+				updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "DataVolume not found", notFound)
+			} else {
+				return err
+			}
+		} else if dv.Status.Phase == cdiv1.Succeeded {
+			updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionTrue, "DataSource is ready to be consumed", ready)
+		} else {
+			updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, fmt.Sprintf("Import DataVolume phase %s", dv.Status.Phase), string(dv.Status.Phase))
+		}
 		dataSource.Spec.Source.PVC = sourcePVC
+	} else {
+		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "No imports yet", noImport)
+	}
+	if !reflect.DeepEqual(dataSource, dataSourceCopy) {
 		if err := r.client.Update(ctx, dataSource); err != nil {
-			log.Error(err, "Unable to update DataSource with source PVC", "Name", dataSourceName, "PVC", sourcePVC)
 			return err
 		}
 	}
@@ -346,9 +369,8 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 	digest := dataImportCron.Annotations[AnnSourceDesiredDigest]
 	dvName := createDvName(dataSourceName, digest)
 	log.Info("Creating new source DataVolume", "name", dvName)
-	dv := newSourceDataVolume(dataImportCron, dvName)
+	dv := r.newSourceDataVolume(dataImportCron, dvName)
 	if err := r.client.Create(ctx, dv); err != nil {
-		log.Error(err, "Unable to create DataVolume", "name", dvName)
 		return err
 	}
 	// Update references to current import
@@ -357,10 +379,19 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 }
 
 func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	log := r.log.WithName("garbageCollectOldImports")
 	if dataImportCron.Spec.GarbageCollect != nil && *dataImportCron.Spec.GarbageCollect != cdiv1.DataImportCronGarbageCollectOutdated {
 		return nil
 	}
+	maxDvs := defaultImportsToKeepPerCron
+	importsToKeep := dataImportCron.Spec.ImportsToKeep
+	if importsToKeep != nil && *importsToKeep >= 0 {
+		maxDvs = int(*importsToKeep)
+	}
+	return r.deleteOldImports(ctx, dataImportCron, maxDvs)
+}
+
+func (r *DataImportCronReconciler) deleteOldImports(ctx context.Context, dataImportCron *cdiv1.DataImportCron, maxDvs int) error {
+	log := r.log.WithName("deleteOldImports")
 	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			labelDataImportCronName: dataImportCron.Name,
@@ -371,13 +402,7 @@ func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context,
 	}
 	dvList := &cdiv1.DataVolumeList{}
 	if err := r.client.List(ctx, dvList, &client.ListOptions{Namespace: dataImportCron.Namespace, LabelSelector: selector}); err != nil {
-		log.Error(err, "error listing dvs")
 		return err
-	}
-	maxDvs := defaultImportsToKeepPerCron
-	importsToKeep := dataImportCron.Spec.ImportsToKeep
-	if importsToKeep != nil && *importsToKeep >= 0 {
-		maxDvs = int(*importsToKeep)
 	}
 	if len(dvList.Items) <= maxDvs {
 		return nil
@@ -407,6 +432,17 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 	if err := r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
 		return err
 	}
+
+	if dataImportCron.Spec.RetentionPolicy != nil && *dataImportCron.Spec.RetentionPolicy == cdiv1.DataImportCronRetainNone {
+		dataSource := &cdiv1.DataSource{ObjectMeta: metav1.ObjectMeta{Namespace: dataImportCron.Namespace, Name: dataImportCron.Spec.ManagedDataSource}}
+		if err := r.client.Delete(ctx, dataSource); IgnoreNotFound(err) != nil {
+			return err
+		}
+		if err := r.deleteOldImports(ctx, dataImportCron, 0); err != nil {
+			return err
+		}
+	}
+
 	RemoveFinalizer(dataImportCron, dataImportCronFinalizer)
 	if err := r.client.Update(ctx, dataImportCron); err != nil {
 		return err
@@ -415,7 +451,7 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 }
 
 // NewDataImportCronController creates a new instance of the DataImportCron controller
-func NewDataImportCronController(mgr manager.Manager, log logr.Logger, importerImage, pullPolicy string) (controller.Controller, error) {
+func NewDataImportCronController(mgr manager.Manager, log logr.Logger, importerImage, pullPolicy string, installerLabels map[string]string) (controller.Controller, error) {
 	uncachedClient, err := client.New(mgr.GetConfig(), client.Options{
 		Scheme: mgr.GetScheme(),
 		Mapper: mgr.GetRESTMapper(),
@@ -424,14 +460,15 @@ func NewDataImportCronController(mgr manager.Manager, log logr.Logger, importerI
 		return nil, err
 	}
 	reconciler := &DataImportCronReconciler{
-		client:         mgr.GetClient(),
-		uncachedClient: uncachedClient,
-		recorder:       mgr.GetEventRecorderFor(dataImportControllerName),
-		scheme:         mgr.GetScheme(),
-		log:            log.WithName(dataImportControllerName),
-		image:          importerImage,
-		pullPolicy:     pullPolicy,
-		cdiNamespace:   util.GetNamespace(),
+		client:          mgr.GetClient(),
+		uncachedClient:  uncachedClient,
+		recorder:        mgr.GetEventRecorderFor(dataImportControllerName),
+		scheme:          mgr.GetScheme(),
+		log:             log.WithName(dataImportControllerName),
+		image:           importerImage,
+		pullPolicy:      pullPolicy,
+		cdiNamespace:    util.GetNamespace(),
+		installerLabels: installerLabels,
 	}
 	dataImportCronController, err := controller.New(dataImportControllerName, mgr, controller.Options{Reconciler: reconciler})
 	if err != nil {
@@ -454,10 +491,32 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 	if err := c.Watch(&source.Kind{Type: &cdiv1.DataImportCron{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
-	if err := c.Watch(&source.Kind{Type: &cdiv1.DataVolume{}}, &handler.EnqueueRequestForOwner{
-		OwnerType:    &cdiv1.DataImportCron{},
-		IsController: true,
-	}); err != nil {
+
+	getCronName := func(obj client.Object) string {
+		return obj.GetLabels()[labelDataImportCronName]
+	}
+	mapToCron := func(obj client.Object) []reconcile.Request {
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: getCronName(obj), Namespace: obj.GetNamespace()}}}
+	}
+	if err := c.Watch(&source.Kind{Type: &cdiv1.DataVolume{}},
+		handler.EnqueueRequestsFromMapFunc(mapToCron),
+		predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool { return false },
+			UpdateFunc: func(e event.UpdateEvent) bool { return getCronName(e.ObjectNew) != "" },
+			DeleteFunc: func(e event.DeleteEvent) bool { return getCronName(e.Object) != "" },
+		},
+	); err != nil {
+		return err
+	}
+	// Watch only for DataSource deletion
+	if err := c.Watch(&source.Kind{Type: &cdiv1.DataSource{}},
+		handler.EnqueueRequestsFromMapFunc(mapToCron),
+		predicate.Funcs{
+			CreateFunc: func(event.CreateEvent) bool { return false },
+			UpdateFunc: func(event.UpdateEvent) bool { return false },
+			DeleteFunc: func(e event.DeleteEvent) bool { return getCronName(e.Object) != "" },
+		},
+	); err != nil {
 		return err
 	}
 	return nil
@@ -546,8 +605,9 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 	var successfulJobsHistoryLimit int32 = 0
 	var failedJobsHistoryLimit int32 = 0
 	var ttlSecondsAfterFinished int32 = 0
+	var backoffLimit int32 = 2
 
-	job := &v1beta1.CronJob{
+	cronJob := &v1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      GetCronJobName(cron),
 			Namespace: r.cdiNamespace,
@@ -567,6 +627,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 						},
 					},
 					TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
+					BackoffLimit:            &backoffLimit,
 				},
 			},
 		},
@@ -583,23 +644,26 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 				},
 			},
 		}
-		job.Spec.JobTemplate.Spec.Template.Spec.Volumes = []corev1.Volume{vol}
+		cronJob.Spec.JobTemplate.Spec.Template.Spec.Volumes = []corev1.Volume{vol}
 	}
 
-	return job, nil
+	util.SetRecommendedLabels(cronJob, r.installerLabels, common.CDIControllerName)
+	return cronJob, nil
 }
 
-func newInitialJob(cronJob *v1beta1.CronJob) *batchv1.Job {
-	return &batchv1.Job{
+func (r *DataImportCronReconciler) newInitialJob(cronJob *v1beta1.CronJob) *batchv1.Job {
+	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "job-" + cronJob.Name,
 			Namespace: cronJob.Namespace,
 		},
 		Spec: cronJob.Spec.JobTemplate.Spec,
 	}
+	util.SetRecommendedLabels(job, r.installerLabels, common.CDIControllerName)
+	return job
 }
 
-func newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdiv1.DataVolume {
+func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdiv1.DataVolume {
 	var digestedURL string
 	dv := cron.Spec.Template.DeepCopy()
 	if isURLSource(cron) {
@@ -612,15 +676,7 @@ func newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdi
 	dv.Spec.Source.Registry.URL = &digestedURL
 	dv.Name = dataVolumeName
 	dv.Namespace = cron.Namespace
-	dv.OwnerReferences = append(dv.OwnerReferences,
-		*metav1.NewControllerRef(cron, schema.GroupVersionKind{
-			Group:   cdiv1.SchemeGroupVersion.Group,
-			Version: cdiv1.SchemeGroupVersion.Version,
-			Kind:    "DataImportCron",
-		}))
-	if dv.Labels == nil {
-		dv.Labels = make(map[string]string)
-	}
+	util.SetRecommendedLabels(dv, r.installerLabels, common.CDIControllerName)
 	dv.Labels[labelDataImportCronName] = cron.Name
 	passCronAnnotationToDv(cron, dv, AnnImmediateBinding)
 	passCronAnnotationToDv(cron, dv, AnnPodRetainAfterCompletion)
@@ -629,10 +685,7 @@ func newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdi
 
 func passCronAnnotationToDv(cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume, ann string) {
 	if val := cron.Annotations[ann]; val != "" {
-		if dv.Annotations == nil {
-			dv.Annotations = make(map[string]string)
-		}
-		dv.Annotations[ann] = val
+		addAnnotation(dv, ann, val)
 	}
 }
 
@@ -641,26 +694,9 @@ func newDataSource(cron *cdiv1.DataImportCron) *cdiv1.DataSource {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cron.Spec.ManagedDataSource,
 			Namespace: cron.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(cron, schema.GroupVersionKind{
-					Group:   cdiv1.SchemeGroupVersion.Group,
-					Version: cdiv1.SchemeGroupVersion.Version,
-					Kind:    "DataImportCron",
-				}),
-			},
 		},
 	}
 	return dataSource
-}
-
-func isOwner(obj, owner metav1.Object) bool {
-	refs := obj.GetOwnerReferences()
-	for i := range refs {
-		if refs[i].UID == owner.GetUID() {
-			return true
-		}
-	}
-	return false
 }
 
 // Create DataVolume name based on the DataSource name + prefix of the digest sha256
