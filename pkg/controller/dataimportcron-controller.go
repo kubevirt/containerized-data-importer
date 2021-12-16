@@ -27,6 +27,7 @@ import (
 	"github.com/gorhill/cronexpr"
 	imagev1 "github.com/openshift/api/image/v1"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 
 	batchv1 "k8s.io/api/batch/v1"
 	v1beta1 "k8s.io/api/batch/v1beta1"
@@ -48,6 +49,15 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+)
+
+var (
+	// DataImportCronNotUpToDateGauge is the metric we use to alert about DataImportCrons failing
+	DataImportCronNotUpToDateGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "kubevirt_cdi_dataimportcron_not_up_to_date_total",
+			Help: "Total number of DataImportCrons that are failing and as a result not keeping OS images up to date",
+		})
 )
 
 // DataImportCronReconciler members
@@ -86,7 +96,7 @@ func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.
 	dataImportCron := &cdiv1.DataImportCron{}
 	if err := r.client.Get(ctx, req.NamespacedName, dataImportCron); err != nil {
 		if k8serrors.IsNotFound(err) {
-			return reconcile.Result{}, nil
+			return reconcile.Result{}, r.checkFailingDataImportCrons()
 		}
 		return reconcile.Result{}, err
 	}
@@ -270,7 +280,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	if err := r.client.Update(ctx, dataImportCron); err != nil {
 		return res, err
 	}
-	return res, nil
+	return res, r.checkFailingDataImportCrons()
 }
 
 func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
@@ -446,7 +456,7 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 	if err := r.client.Update(ctx, dataImportCron); err != nil {
 		return err
 	}
-	return nil
+	return r.checkFailingDataImportCrons()
 }
 
 // NewDataImportCronController creates a new instance of the DataImportCron controller
@@ -648,6 +658,24 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 
 	util.SetRecommendedLabels(cronJob, r.installerLabels, common.CDIControllerName)
 	return cronJob, nil
+}
+
+func (r *DataImportCronReconciler) checkFailingDataImportCrons() error {
+	numNotUpToDate := 0
+	dataImportCronList := &cdiv1.DataImportCronList{}
+	if err := r.client.List(context.TODO(), dataImportCronList); err != nil {
+		return err
+	}
+	r.log.Info("checkFailingDataImportCrons", "CronListLen", fmt.Sprintf("%d", len(dataImportCronList.Items)))
+	for _, cron := range dataImportCronList.Items {
+		upToDateCondition := FindDataImportCronConditionByType(&cron, cdiv1.DataImportCronUpToDate)
+		if upToDateCondition != nil && upToDateCondition.ConditionState.Status == corev1.ConditionFalse {
+			numNotUpToDate++
+		}
+	}
+	DataImportCronNotUpToDateGauge.Set(float64(numNotUpToDate))
+
+	return nil
 }
 
 func (r *DataImportCronReconciler) newInitialJob(cronJob *v1beta1.CronJob) *batchv1.Job {
