@@ -237,6 +237,10 @@ func (r *CloneReconciler) Reconcile(_ context.Context, req reconcile.Request) (r
 		return reconcile.Result{RequeueAfter: requeueAfter}, err
 	}
 
+	if err := r.ensureCertSecret(sourcePod, pvc, log); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	if err := r.updatePvcFromPod(sourcePod, pvc, log); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -262,11 +266,6 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 			return 0, err
 		}
 
-		clientName, ok := targetPvc.Annotations[AnnUploadClientName]
-		if !ok {
-			return 0, errors.Errorf("PVC %s/%s missing required %s annotation", targetPvc.Namespace, targetPvc.Name, AnnUploadClientName)
-		}
-
 		pods, err := GetPodsUsingPVCs(r.client, sourcePvc.Namespace, sets.NewString(sourcePvc.Name), true)
 		if err != nil {
 			return 0, err
@@ -282,13 +281,63 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 			return 2 * time.Second, nil
 		}
 
-		sourcePod, err := r.CreateCloneSourcePod(r.image, r.pullPolicy, clientName, targetPvc, log)
+		sourcePod, err := r.CreateCloneSourcePod(r.image, r.pullPolicy, targetPvc, log)
 		if err != nil {
 			return 0, err
 		}
 		log.V(3).Info("Created source pod ", "sourcePod.Namespace", sourcePod.Namespace, "sourcePod.Name", sourcePod.Name)
 	}
 	return 0, nil
+}
+
+func (r *CloneReconciler) ensureCertSecret(sourcePod *corev1.Pod, targetPvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
+	if sourcePod == nil {
+		return nil
+	}
+
+	if sourcePod.Status.Phase == corev1.PodRunning {
+		return nil
+	}
+
+	clientName, ok := targetPvc.Annotations[AnnUploadClientName]
+	if !ok {
+		return errors.Errorf("PVC %s/%s missing required %s annotation", targetPvc.Namespace, targetPvc.Name, AnnUploadClientName)
+	}
+
+	cert, key, err := r.clientCertGenerator.MakeClientCert(clientName, nil, uploadClientCertDuration)
+	if err != nil {
+		return err
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      sourcePod.Name,
+			Namespace: sourcePod.Namespace,
+			Annotations: map[string]string{
+				AnnCreatedBy: "yes",
+			},
+			Labels: map[string]string{
+				common.CDILabelKey:       common.CDILabelValue, //filtered by the podInformer
+				common.CDIComponentLabel: common.ClonerSourcePodName,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				MakePodOwnerReference(sourcePod),
+			},
+		},
+		Data: map[string][]byte{
+			"tls.key": key,
+			"tls.crt": cert,
+		},
+	}
+
+	util.SetRecommendedLabels(secret, r.installerLabels, "cdi-controller")
+
+	err = r.client.Create(context.TODO(), secret)
+	if err != nil && !k8serrors.IsAlreadyExists(err) {
+		return errors.Wrap(err, "error creating cert secret")
+	}
+
+	return nil
 }
 
 func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
@@ -447,7 +496,7 @@ func (r *CloneReconciler) cleanup(pvc *corev1.PersistentVolumeClaim, log logr.Lo
 }
 
 // CreateCloneSourcePod creates our cloning src pod which will be used for out of band cloning to read the contents of the src PVC
-func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy, clientName string, pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*corev1.Pod, error) {
+func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*corev1.Pod, error) {
 	exists, sourcePvcNamespace, sourcePvcName := ParseCloneRequestAnnotation(pvc)
 	if !exists {
 		return nil, errors.Errorf("bad CloneRequest Annotation")
@@ -456,11 +505,6 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy, clientName str
 	ownerKey, err := cache.MetaNamespaceKeyFunc(pvc)
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting cache key")
-	}
-
-	clientCert, clientKey, err := r.clientCertGenerator.MakeClientCert(clientName, nil, uploadClientCertDuration)
-	if err != nil {
-		return nil, err
 	}
 
 	serverCABundle, err := r.serverCAFetcher.BundleBytes()
@@ -490,7 +534,7 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy, clientName str
 		sourceVolumeMode = corev1.PersistentVolumeFilesystem
 	}
 
-	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerKey, clientKey, clientCert, serverCABundle, pvc, podResourceRequirements, workloadNodePlacement)
+	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerKey, serverCABundle, pvc, podResourceRequirements, workloadNodePlacement)
 	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 
 	if err := r.client.Create(context.TODO(), pod); err != nil {
@@ -508,7 +552,7 @@ func createCloneSourcePodName(targetPvc *corev1.PersistentVolumeClaim) string {
 
 // MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
 func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerRefAnno string,
-	clientKey, clientCert, serverCACert []byte, targetPvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements,
+	serverCACert []byte, targetPvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements,
 	workloadNodePlacement *sdkapi.NodePlacement) *corev1.Pod {
 
 	var ownerID string
@@ -558,17 +602,27 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 					Image:           image,
 					ImagePullPolicy: corev1.PullPolicy(pullPolicy),
 					Env: []corev1.EnvVar{
-						/*
-						 Easier to just stick key/certs in env vars directly no.
-						 Maybe revisit when we fix the "naming things" problem.
-						*/
 						{
-							Name:  "CLIENT_KEY",
-							Value: string(clientKey),
+							Name: "CLIENT_KEY",
+							ValueFrom: &corev1.EnvVarSource{
+								SecretKeyRef: &corev1.SecretKeySelector{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: cloneSourcePodName,
+									},
+									Key: "tls.key",
+								},
+							},
 						},
 						{
-							Name:  "CLIENT_CERT",
-							Value: string(clientCert),
+							Name: "CLIENT_CERT",
+							ValueFrom: &corev1.EnvVarSource{
+								SecretKeyRef: &corev1.SecretKeySelector{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: cloneSourcePodName,
+									},
+									Key: "tls.crt",
+								},
+							},
 						},
 						{
 							Name:  "SERVER_CA_CERT",
