@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -366,4 +367,55 @@ func Md5sum(filePath string) (string, error) {
 
 	hashInBytes := hash.Sum(nil)[:16]
 	return hex.EncodeToString(hashInBytes), nil
+}
+
+// Three functions for zeroing a range in the destination file:
+
+// PunchHole attempts to zero a range in a file with fallocate, for block devices and pre-allocated files.
+func PunchHole(outFile *os.File, start, length int64) error {
+	klog.Infof("Punching %d-byte hole at offset %d", length, start)
+	flags := uint32(unix.FALLOC_FL_PUNCH_HOLE | unix.FALLOC_FL_KEEP_SIZE)
+	err := syscall.Fallocate(int(outFile.Fd()), flags, start, length)
+	if err == nil {
+		_, err = outFile.Seek(length, io.SeekCurrent) // Just to move current file position
+	}
+	return err
+}
+
+// SeekOffset seeks past the end of the file to append zeroes, only for newly-created (empty and zero-length) regular files.
+func SeekOffset(outFile *os.File, start, length int64) error {
+	klog.Infof("Seeking %d-bytes from offset %d", length, start)
+	end, err := outFile.Seek(0, io.SeekEnd)
+	if err != nil {
+		return err
+	}
+	if start != end {
+		return errors.Errorf("starting offset %d does not match previous ending offset %d, cannot safely append zeroes to this file using seek", start, end)
+	}
+	_, err = outFile.Seek(length, io.SeekCurrent)
+	return err
+}
+
+var zeroBuffer []byte
+
+// WriteZeroBlock just does normal file writes to the destination, a slow but reliable fallback option.
+func WriteZeroBlock(outFile *os.File, start, length int64) error {
+	klog.Infof("Writing %d zero bytes at offset %d", length, start)
+	if zeroBuffer == nil { // No need to re-allocate this on every write
+		zeroBuffer = bytes.Repeat([]byte{0}, 32<<20)
+	}
+	count := int64(0)
+	for count < length {
+		blockSize := int64(len(zeroBuffer))
+		remaining := length - count
+		if remaining < blockSize {
+			blockSize = remaining
+		}
+		written, err := outFile.Write(zeroBuffer[:blockSize])
+		if err != nil {
+			return errors.Wrapf(err, "unable to write %d zeroes at offset %d: %v", length, start+count, err)
+		}
+		count += int64(written)
+	}
+	return nil
 }
