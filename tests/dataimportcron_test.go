@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	dataImportCronTimeout = 90 * time.Second
+	dataImportCronTimeout = 4 * time.Minute
 )
 
 var (
