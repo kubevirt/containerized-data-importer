@@ -30,14 +30,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	ovirtsdk4 "github.com/ovirt/go-ovirt"
 	ovirtclient "github.com/ovirt/go-ovirt-client"
 	ovirtclientlog "github.com/ovirt/go-ovirt-client-log-klog"
 	"github.com/pkg/errors"
-	"golang.org/x/sys/unix"
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -264,12 +262,6 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 		}
 	}()
 
-	info, err := outFile.Stat()
-	if err != nil {
-		return err
-	}
-	isBlock := !info.Mode().IsRegular()
-
 	// Monitor for progress in the background and make sure the transfer ticket does not expire
 	transferID, success := is.imageTransfer.Id()
 	if !success {
@@ -279,19 +271,31 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 	defer func() { doneChannel <- struct{}{} }()
 	go is.monitorExtentsProgress(transferID, extentsReader, 30*time.Second, doneChannel)
 
+	// Gather some information about the destination to choose which zero method to use
+	info, err := outFile.Stat()
+	if err != nil {
+		return err
+	}
+	isBlock := !info.Mode().IsRegular()
+	preallocated := info.Size() >= int64(is.contentLength)
+
+	// Choose seek for regular files, and hole punching for block devices and pre-allocated files
+	zeroRange := util.SeekOffset
+	if isBlock || preallocated {
+		zeroRange = util.PunchHole
+	}
+
 	// Transfer all the non-zero extents, and try to quickly write out blocks of all zero bytes for extents that only contain zero
 	for index, extent := range extentsReader.extents {
 		if extent.Zero {
-			if isBlock {
-				klog.Infof("Punching %d-byte hole at offset %d", extent.Length, extent.Start)
-				flags := uint32(unix.FALLOC_FL_PUNCH_HOLE | unix.FALLOC_FL_KEEP_SIZE)
-				err = syscall.Fallocate(int(outFile.Fd()), flags, extent.Start, extent.Length)
-			} else {
-				klog.Infof("Seeking %d-bytes from offset %d", extent.Length, extent.Start)
-				_, err = outFile.Seek(extent.Length, io.SeekCurrent)
-			}
+			err = zeroRange(outFile, extent.Start, extent.Length)
 			if err != nil {
-				return errors.Wrap(err, "failed to zero range on destination")
+				klog.Infof("Initial zero method failed, trying WriteZeroBlock instead. Error was: %v", err)
+				zeroRange = util.WriteZeroBlock // If the initial choice fails, fall back to regular file writing
+				err = zeroRange(outFile, extent.Start, extent.Length)
+				if err != nil {
+					return errors.Wrap(err, "failed to zero range on destination")
+				}
 			}
 			is.readers.progressReader.Current += uint64(extent.Length)
 		} else {
