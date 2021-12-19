@@ -56,7 +56,7 @@ var (
 	DataImportCronNotUpToDateGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "kubevirt_cdi_dataimportcron_not_up_to_date_total",
-			Help: "Total number of DataImportCrons that are failing and as a result not keeping OS images up to date",
+			Help: "Total number of DataImportCrons with outdated imports",
 		})
 )
 
@@ -96,7 +96,7 @@ func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.
 	dataImportCron := &cdiv1.DataImportCron{}
 	if err := r.client.Get(ctx, req.NamespacedName, dataImportCron); err != nil {
 		if k8serrors.IsNotFound(err) {
-			return reconcile.Result{}, r.checkFailingDataImportCrons()
+			return reconcile.Result{}, nil
 		}
 		return reconcile.Result{}, err
 	}
@@ -263,6 +263,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	desiredDigest := dataImportCron.Annotations[AnnSourceDesiredDigest]
 	digestUpdated := desiredDigest != "" && (len(imports) == 0 || desiredDigest != imports[0].Digest)
 	if digestUpdated {
+		updateDataImportCronFailingMetric(dataImportCron, true)
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Source digest updated since last import", outdated)
 		if importSucceeded || len(imports) == 0 {
 			if err := r.createImportDataVolume(ctx, dataImportCron); err != nil {
@@ -270,17 +271,20 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			}
 		}
 	} else if importSucceeded {
+		updateDataImportCronFailingMetric(dataImportCron, false)
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionTrue, "Latest import is up to date", upToDate)
 	} else if len(imports) > 0 {
+		updateDataImportCronFailingMetric(dataImportCron, true)
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Import is progressing", inProgress)
 	} else {
+		updateDataImportCronFailingMetric(dataImportCron, true)
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "No source digest", noDigest)
 	}
 
 	if err := r.client.Update(ctx, dataImportCron); err != nil {
 		return res, err
 	}
-	return res, r.checkFailingDataImportCrons()
+	return res, nil
 }
 
 func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
@@ -434,6 +438,10 @@ func (r *DataImportCronReconciler) deleteOldImports(ctx context.Context, dataImp
 }
 
 func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+	defer func() {
+		updateDataImportCronFailingMetric(dataImportCron, false)
+	}()
+
 	if !HasFinalizer(dataImportCron, dataImportCronFinalizer) {
 		return nil
 	}
@@ -456,7 +464,7 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 	if err := r.client.Update(ctx, dataImportCron); err != nil {
 		return err
 	}
-	return r.checkFailingDataImportCrons()
+	return nil
 }
 
 // NewDataImportCronController creates a new instance of the DataImportCron controller
@@ -658,24 +666,6 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 
 	util.SetRecommendedLabels(cronJob, r.installerLabels, common.CDIControllerName)
 	return cronJob, nil
-}
-
-func (r *DataImportCronReconciler) checkFailingDataImportCrons() error {
-	numNotUpToDate := 0
-	dataImportCronList := &cdiv1.DataImportCronList{}
-	if err := r.client.List(context.TODO(), dataImportCronList); err != nil {
-		return err
-	}
-	r.log.Info("checkFailingDataImportCrons", "CronListLen", fmt.Sprintf("%d", len(dataImportCronList.Items)))
-	for _, cron := range dataImportCronList.Items {
-		upToDateCondition := FindDataImportCronConditionByType(&cron, cdiv1.DataImportCronUpToDate)
-		if upToDateCondition != nil && upToDateCondition.ConditionState.Status == corev1.ConditionFalse {
-			numNotUpToDate++
-		}
-	}
-	DataImportCronNotUpToDateGauge.Set(float64(numNotUpToDate))
-
-	return nil
 }
 
 func (r *DataImportCronReconciler) newInitialJob(cronJob *v1beta1.CronJob) *batchv1.Job {

@@ -219,7 +219,7 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 							"kubevirt_cdi_dataimportcron_not_up_to_date_total > 0",
 							"15m",
 							map[string]string{
-								"summary":     "DataImportCron PVCs do not hold the latest OS image, disk might not contain latest OS version",
+								"summary":     "DataImportCron latest imports are outdated",
 								"runbook_url": runbookURLBasePath + "CDIDataImportCronNotUpToDate",
 							},
 							map[string]string{
