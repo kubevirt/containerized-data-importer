@@ -884,7 +884,6 @@ var _ = Describe("ALL Operator tests", func() {
 				retentionPolicy := cdiv1.DataImportCronRetainAll
 				trustedRegistryURL := fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix)
 				originalMetricVal := getMetricValue("kubevirt_cdi_dataimportcron_not_up_to_date_total")
-				expectedFailingCrons := originalMetricVal + numCrons
 				if utils.IsOpenshift(f.K8sClient) {
 					url = externalRegistryURL
 				} else {
@@ -892,31 +891,24 @@ var _ = Describe("ALL Operator tests", func() {
 					err = utils.AddInsecureRegistry(f.CrClient, url)
 					Expect(err).To(BeNil())
 
-					hasInsecReg, err := utils.HasInsecureRegistry(f.CrClient, url)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(hasInsecReg).To(BeTrue())
 					defer utils.RemoveInsecureRegistry(f.CrClient, url)
 				}
 
-				for i := 0; i < numCrons; i++ {
+				for i := 1; i < numCrons+1; i++ {
 					cron := NewDataImportCron(fmt.Sprintf("cron-test-%d", i), "5Gi", scheduleOnceAYear, fmt.Sprintf("datasource-test-%d", i), cdiv1.DataVolumeSourceRegistry{URL: &url, PullMethod: &registryPullNode}, retentionPolicy)
 					By(fmt.Sprintf("Create new DataImportCron %s", url))
 					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
 					Expect(err).ToNot(HaveOccurred())
-					var currentImportDv string
-					By("Wait for CurrentImports DataVolumeName update")
+					By("Wait for condition UpToDate=true on DataImportCron")
 					Eventually(func() bool {
 						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
 						Expect(err).ToNot(HaveOccurred())
-						if len(cron.Status.CurrentImports) == 0 {
-							return false
+						upToDateCondition := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
+						if upToDateCondition != nil && upToDateCondition.ConditionState.Status == corev1.ConditionTrue {
+							return true
 						}
-						currentImportDv = cron.Status.CurrentImports[0].DataVolumeName
-						return currentImportDv != ""
+						return false
 					}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
-					By("Wait for import completion")
-					err = utils.WaitForDataVolumePhase(f.CdiClient, cron.Namespace, cdiv1.Succeeded, currentImportDv)
-					Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 					Eventually(func() error {
 						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
 						Expect(err).ToNot(HaveOccurred())
@@ -928,11 +920,11 @@ var _ = Describe("ALL Operator tests", func() {
 						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Update(context.TODO(), cron, metav1.UpdateOptions{})
 						return err
 					}, dataImportCronTimeout, pollingInterval).Should(BeNil())
+					By(fmt.Sprintf("Ensuring metric value incremented to %d", originalMetricVal+i))
+					Eventually(func() int {
+						return getMetricValue("kubevirt_cdi_dataimportcron_not_up_to_date_total")
+					}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", originalMetricVal+i))
 				}
-
-				Eventually(func() int {
-					return getMetricValue("kubevirt_cdi_dataimportcron_not_up_to_date_total")
-				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", expectedFailingCrons))
 			})
 		})
 
