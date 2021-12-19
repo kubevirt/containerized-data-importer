@@ -106,7 +106,7 @@ function wait_cdi_pods_updated {
   ret=0
   while [[ $ret -eq 0 ]] && [[ $wait_time -lt ${CDI_PODS_UPDATE_TIMEOUT} ]]; do
     wait_time=$((wait_time + 5))
-    _kubectl get pods -n $CDI_NAMESPACE -o=jsonpath='{range .items[*]}{.metadata.name}{"\n"}{.metadata.uid}{"\n"}{.spec.containers[*].image}{"\n"}{end}' > $NEW_CDI_VER_PODS
+    _kubectl get pods -n $CDI_NAMESPACE -l '!cdi.kubevirt.io/testing' -o=jsonpath='{range .items[*]}{.metadata.name}{"\n"}{.metadata.uid}{"\n"}{.spec.containers[*].image}{"\n"}{end}' > $NEW_CDI_VER_PODS
     if [ -f $OLD_CDI_VER_PODS ] ; then
       grep -qFxf $OLD_CDI_VER_PODS $NEW_CDI_VER_PODS || ret=$?
       if [ $ret -eq 0 ] ; then
