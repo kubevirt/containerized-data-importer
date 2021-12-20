@@ -336,5 +336,5 @@ func getTokenPrivateKey() *rsa.PrivateKey {
 
 func registerMetrics() {
 	metrics.Registry.MustRegister(controller.IncompleteProfileGauge)
-	metrics.Registry.MustRegister(controller.DataImportCronNotUpToDateGauge)
+	metrics.Registry.MustRegister(controller.DataImportCronOutdatedGauge)
 }

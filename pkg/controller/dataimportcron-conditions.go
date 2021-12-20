@@ -88,15 +88,14 @@ func updateConditionState(condition *cdiv1.ConditionState, status corev1.Conditi
 	}
 }
 
-func updateDataImportCronFailingMetric(cron *cdiv1.DataImportCron, increment bool) {
-	upToDateCondition := FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
+func updateDataImportCronOutdatedMetric(upToDateCondition *cdiv1.DataImportCronCondition, increment bool) {
 	if increment {
 		if upToDateCondition == nil || upToDateCondition.ConditionState.Status != corev1.ConditionFalse {
-			DataImportCronNotUpToDateGauge.Inc()
+			DataImportCronOutdatedGauge.Inc()
 		}
 	} else {
 		if upToDateCondition.ConditionState.Status != corev1.ConditionTrue {
-			DataImportCronNotUpToDateGauge.Dec()
+			DataImportCronOutdatedGauge.Dec()
 		}
 	}
 }
