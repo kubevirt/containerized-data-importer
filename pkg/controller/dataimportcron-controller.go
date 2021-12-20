@@ -52,8 +52,8 @@ import (
 )
 
 var (
-	// DataImportCronNotUpToDateGauge is the metric we use to alert about DataImportCrons failing
-	DataImportCronNotUpToDateGauge = prometheus.NewGauge(
+	// DataImportCronOutdatedGauge is the metric we use to alert about DataImportCrons failing
+	DataImportCronOutdatedGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "kubevirt_cdi_dataimportcron_not_up_to_date_total",
 			Help: "Total number of DataImportCrons with outdated imports",
@@ -262,8 +262,9 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 
 	desiredDigest := dataImportCron.Annotations[AnnSourceDesiredDigest]
 	digestUpdated := desiredDigest != "" && (len(imports) == 0 || desiredDigest != imports[0].Digest)
+	incrementMetric := true
+	currentUpToDateCondition := FindDataImportCronConditionByType(dataImportCron, cdiv1.DataImportCronUpToDate).DeepCopy()
 	if digestUpdated {
-		updateDataImportCronFailingMetric(dataImportCron, true)
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Source digest updated since last import", outdated)
 		if importSucceeded || len(imports) == 0 {
 			if err := r.createImportDataVolume(ctx, dataImportCron); err != nil {
@@ -271,19 +272,18 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			}
 		}
 	} else if importSucceeded {
-		updateDataImportCronFailingMetric(dataImportCron, false)
+		incrementMetric = false
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionTrue, "Latest import is up to date", upToDate)
 	} else if len(imports) > 0 {
-		updateDataImportCronFailingMetric(dataImportCron, true)
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Import is progressing", inProgress)
 	} else {
-		updateDataImportCronFailingMetric(dataImportCron, true)
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "No source digest", noDigest)
 	}
 
 	if err := r.client.Update(ctx, dataImportCron); err != nil {
 		return res, err
 	}
+	updateDataImportCronOutdatedMetric(currentUpToDateCondition, incrementMetric)
 	return res, nil
 }
 
@@ -437,32 +437,36 @@ func (r *DataImportCronReconciler) deleteOldImports(ctx context.Context, dataImp
 	return nil
 }
 
-func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (err error) {
 	defer func() {
-		updateDataImportCronFailingMetric(dataImportCron, false)
+		if err == nil {
+			upToDateCondition := FindDataImportCronConditionByType(dataImportCron, cdiv1.DataImportCronUpToDate)
+			updateDataImportCronOutdatedMetric(upToDateCondition, false)
+		}
 	}()
 
 	if !HasFinalizer(dataImportCron, dataImportCronFinalizer) {
-		return nil
+		err = nil
+		return
 	}
 	cronJob := &v1beta1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: GetCronJobName(dataImportCron)}}
-	if err := r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
-		return err
+	if err = r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
+		return
 	}
 
 	if dataImportCron.Spec.RetentionPolicy != nil && *dataImportCron.Spec.RetentionPolicy == cdiv1.DataImportCronRetainNone {
 		dataSource := &cdiv1.DataSource{ObjectMeta: metav1.ObjectMeta{Namespace: dataImportCron.Namespace, Name: dataImportCron.Spec.ManagedDataSource}}
-		if err := r.client.Delete(ctx, dataSource); IgnoreNotFound(err) != nil {
-			return err
+		if err = r.client.Delete(ctx, dataSource); IgnoreNotFound(err) != nil {
+			return
 		}
-		if err := r.deleteOldImports(ctx, dataImportCron, 0); err != nil {
-			return err
+		if err = r.deleteOldImports(ctx, dataImportCron, 0); err != nil {
+			return
 		}
 	}
 
 	RemoveFinalizer(dataImportCron, dataImportCronFinalizer)
-	if err := r.client.Update(ctx, dataImportCron); err != nil {
-		return err
+	if err = r.client.Update(ctx, dataImportCron); err != nil {
+		return
 	}
 	return nil
 }
