@@ -41,6 +41,9 @@ const (
 	// UploadTargetLabel has the UID of upload target PVC
 	UploadTargetLabel = CDIComponentLabel + "/uploadTarget"
 
+	// DataImportCronLabel has the name of the DataImportCron responsible for the labeled DataSource or DataVolume
+	DataImportCronLabel = CDIComponentLabel + "/dataImportCron"
+
 	// ImporterVolumePath provides a constant for the directory where the PV is mounted.
 	ImporterVolumePath = "/data"
 	// DiskImageName provides a constant for our importer/datastream_ginkgo_test and to build ImporterWritePath

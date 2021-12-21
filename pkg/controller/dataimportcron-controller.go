@@ -75,7 +75,6 @@ const (
 	dataImportCronFinalizer = "cdi.kubevirt.io/dataImportCronFinalizer"
 
 	dataImportControllerName    = "dataimportcron-controller"
-	labelDataImportCronName     = "dataimportcron-name"
 	digestPrefix                = "sha256:"
 	digestDvNameSuffixLength    = 12
 	cronJobUIDSuffixLength      = 8
@@ -318,7 +317,7 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 	}
 	dataSourceCopy := dataSource.DeepCopy()
 	util.SetRecommendedLabels(dataSource, r.installerLabels, common.CDIControllerName)
-	dataSource.Labels[labelDataImportCronName] = dataImportCron.Name
+	dataSource.Labels[common.DataImportCronLabel] = dataImportCron.Name
 
 	sourcePVC := dataImportCron.Status.LastImportedPVC
 	if sourcePVC != nil {
@@ -394,7 +393,7 @@ func (r *DataImportCronReconciler) deleteOldImports(ctx context.Context, dataImp
 	log := r.log.WithName("deleteOldImports")
 	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
 		MatchLabels: map[string]string{
-			labelDataImportCronName: dataImportCron.Name,
+			common.DataImportCronLabel: dataImportCron.Name,
 		},
 	})
 	if err != nil {
@@ -493,7 +492,7 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 	}
 
 	getCronName := func(obj client.Object) string {
-		return obj.GetLabels()[labelDataImportCronName]
+		return obj.GetLabels()[common.DataImportCronLabel]
 	}
 	mapToCron := func(obj client.Object) []reconcile.Request {
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: getCronName(obj), Namespace: obj.GetNamespace()}}}
@@ -677,7 +676,7 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	dv.Name = dataVolumeName
 	dv.Namespace = cron.Namespace
 	util.SetRecommendedLabels(dv, r.installerLabels, common.CDIControllerName)
-	dv.Labels[labelDataImportCronName] = cron.Name
+	dv.Labels[common.DataImportCronLabel] = cron.Name
 	passCronAnnotationToDv(cron, dv, AnnImmediateBinding)
 	passCronAnnotationToDv(cron, dv, AnnPodRetainAfterCompletion)
 	return dv
