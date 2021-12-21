@@ -20,7 +20,10 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
-const s3FolderSep = "/"
+const (
+	s3FolderSep = "/"
+	httpScheme  = "http"
+)
 
 // S3Client is the interface to the used S3 client.
 type S3Client interface {
@@ -160,12 +163,23 @@ func getS3Client(endpoint, accessKey, secKey string, certDir string) (S3Client, 
 
 	creds := credentials.NewStaticCredentials(accessKey, secKey, "")
 	region := extractRegion(endpoint)
+	disableSSL := false
+	s3Url, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	// Disable SSL for http endpoint. This should cause the s3 client to create http requests.
+	if s3Url.Scheme == httpScheme {
+		disableSSL = true
+	}
+
 	sess, err := session.NewSession(&aws.Config{
 		Region:           aws.String(region),
 		Endpoint:         aws.String(endpoint),
 		Credentials:      creds,
 		S3ForcePathStyle: aws.Bool(true),
 		HTTPClient:       httpClient,
+		DisableSSL:       &disableSSL,
 	},
 	)
 	if err != nil {
