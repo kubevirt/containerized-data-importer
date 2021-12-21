@@ -417,12 +417,20 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
 
+				By("Creating datavolume with DataImportCron label")
+				dv = utils.NewDataVolumeForUpload("retain-me", "1Gi")
+				dv.Labels = map[string]string{common.DataImportCronLabel: "dic"}
+				dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
+
 				By("Cannot delete CDI")
 				err = f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{DryRun: []string{"All"}})
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("there are still DataVolumes present"))
 
-				err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Delete(context.TODO(), dv.Name, metav1.DeleteOptions{})
+				By("Delete the unlabeled datavolume")
+				err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Delete(context.TODO(), "delete-me", metav1.DeleteOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				By("Can delete CDI")
