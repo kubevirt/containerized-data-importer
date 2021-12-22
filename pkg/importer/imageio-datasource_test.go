@@ -460,7 +460,6 @@ var _ = Describe("Imageio extents", func() {
 		newOvirtClientFunc = createMockOvirtClient
 		newTerminationChannel = createMockTerminationChannel
 		createTestImageOptions = createDefaultImageOptions
-		createTestExtents = createDefaultTestExtents
 		createTestExtentData = createDefaultTestExtentData
 		tempDir = createCert()
 
@@ -483,6 +482,8 @@ var _ = Describe("Imageio extents", func() {
 	})
 
 	AfterEach(func() {
+		createTestExtents = createDefaultTestExtents
+		handleRangeRequest = defaultRangeRequestHandler
 		newOvirtClientFunc = getOvirtClient
 		if tempDir != "" {
 			os.RemoveAll(tempDir)
@@ -606,6 +607,36 @@ var _ = Describe("Imageio extents", func() {
 		extentData := createTestExtentData()
 		comparison := bytes.Compare(data, extentData)
 		Expect(comparison).To(Equal(0))
+	})
+
+	It("should refuse to write to destination if extents are returned out of order", func() {
+		createTestExtents = createBadTestExtents
+		destination := path.Join(tempDir, "outfile")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		phase, err := source.Info()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
+		err = source.StreamExtents(extentsReader, destination)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).Should(MatchRegexp(".*cannot safely append.*"))
+	})
+
+	It("should fail if server terminates connection during transfer", func() {
+		handleRangeRequest = hangupRangeRequestHandler
+		destination := path.Join(tempDir, "outfile")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		phase, err := source.Info()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
+		err = source.StreamExtents(extentsReader, destination)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).Should(MatchRegexp(".*failed to get range.*"))
 	})
 })
 
@@ -878,6 +909,7 @@ type ExtentsTester struct{}
 var createTestImageOptions = createDefaultImageOptions
 var createTestExtents = createDefaultTestExtents
 var createTestExtentData = createDefaultTestExtentData
+var handleRangeRequest = defaultRangeRequestHandler
 
 func createDefaultImageOptions() *ImageioImageOptions {
 	return &ImageioImageOptions{
@@ -895,6 +927,29 @@ func createDefaultTestExtents() []imageioExtent {
 		},
 		{
 			Start:  1024,
+			Length: 1024,
+			Zero:   true,
+			Hole:   false,
+		},
+		{
+			Start:  2048,
+			Length: 1024,
+			Zero:   false,
+			Hole:   false,
+		},
+	}
+}
+
+func createBadTestExtents() []imageioExtent {
+	return []imageioExtent{
+		{
+			Start:  1024,
+			Length: 1024,
+			Zero:   false,
+			Hole:   false,
+		},
+		{
+			Start:  0,
 			Length: 1024,
 			Zero:   true,
 			Hole:   false,
@@ -926,6 +981,20 @@ func createDefaultTestExtentData() []byte {
 	return data
 }
 
+func defaultRangeRequestHandler(start, end int64, w http.ResponseWriter, data []byte) {
+	w.Header().Add("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, end-start+1))
+	w.Header().Add("Content-Length", fmt.Sprintf("%d", end-start+1))
+	w.Write(data[start : end+1])
+}
+
+func hangupRangeRequestHandler(start, end int64, w http.ResponseWriter, data []byte) {
+	if start > 0 {
+		w.WriteHeader(http.StatusForbidden)
+	} else {
+		defaultRangeRequestHandler(start, end, w, data)
+	}
+}
+
 func (t *TransferTicketTester) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodOptions {
 		options := createTestImageOptions()
@@ -939,9 +1008,7 @@ func (t *TransferTicketTester) ServeHTTP(w http.ResponseWriter, req *http.Reques
 			byteRange = strings.Replace(byteRange, "bytes=", "", 1)
 			start, _ := strconv.ParseInt(strings.Split(byteRange, "-")[0], 10, 0)
 			end, _ := strconv.ParseInt(strings.Split(byteRange, "-")[1], 10, 0)
-			w.Header().Add("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, end-start+1))
-			w.Header().Add("Content-Length", fmt.Sprintf("%d", end-start+1))
-			w.Write(data[start : end+1])
+			handleRangeRequest(start, end, w, data)
 		}
 	}
 }
