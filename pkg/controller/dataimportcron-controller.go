@@ -51,13 +51,20 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
+const (
+	prometheusNsLabel       = "ns"
+	prometheusCronNameLabel = "cron_name"
+)
+
 var (
 	// DataImportCronOutdatedGauge is the metric we use to alert about DataImportCrons failing
-	DataImportCronOutdatedGauge = prometheus.NewGauge(
+	DataImportCronOutdatedGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "kubevirt_cdi_dataimportcron_not_up_to_date_total",
-			Help: "Total number of DataImportCrons with outdated imports",
-		})
+			Name: "kubevirt_cdi_dataimportcron_outdated",
+			Help: "DataImportCron has an outdated import",
+		},
+		[]string{prometheusNsLabel, prometheusCronNameLabel},
+	)
 )
 
 // DataImportCronReconciler members
@@ -262,8 +269,6 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 
 	desiredDigest := dataImportCron.Annotations[AnnSourceDesiredDigest]
 	digestUpdated := desiredDigest != "" && (len(imports) == 0 || desiredDigest != imports[0].Digest)
-	incrementMetric := true
-	currentUpToDateCondition := FindDataImportCronConditionByType(dataImportCron, cdiv1.DataImportCronUpToDate).DeepCopy()
 	if digestUpdated {
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Source digest updated since last import", outdated)
 		if importSucceeded || len(imports) == 0 {
@@ -272,7 +277,6 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			}
 		}
 	} else if importSucceeded {
-		incrementMetric = false
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionTrue, "Latest import is up to date", upToDate)
 	} else if len(imports) > 0 {
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Import is progressing", inProgress)
@@ -283,7 +287,6 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	if err := r.client.Update(ctx, dataImportCron); err != nil {
 		return res, err
 	}
-	updateDataImportCronOutdatedMetric(currentUpToDateCondition, incrementMetric)
 	return res, nil
 }
 
@@ -437,36 +440,32 @@ func (r *DataImportCronReconciler) deleteOldImports(ctx context.Context, dataImp
 	return nil
 }
 
-func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (err error) {
-	defer func() {
-		if err == nil {
-			upToDateCondition := FindDataImportCronConditionByType(dataImportCron, cdiv1.DataImportCronUpToDate)
-			updateDataImportCronOutdatedMetric(upToDateCondition, false)
-		}
-	}()
-
+func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
 	if !HasFinalizer(dataImportCron, dataImportCronFinalizer) {
-		err = nil
-		return
+		return nil
 	}
+
+	// Don't keep alerting over a cron thats being deleted, will get set back to 1 again by reconcile loop if needed.
+	DataImportCronOutdatedGauge.With(getPrometheusCronLabels(dataImportCron)).Set(0)
+
 	cronJob := &v1beta1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: GetCronJobName(dataImportCron)}}
-	if err = r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
-		return
+	if err := r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
+		return err
 	}
 
 	if dataImportCron.Spec.RetentionPolicy != nil && *dataImportCron.Spec.RetentionPolicy == cdiv1.DataImportCronRetainNone {
 		dataSource := &cdiv1.DataSource{ObjectMeta: metav1.ObjectMeta{Namespace: dataImportCron.Namespace, Name: dataImportCron.Spec.ManagedDataSource}}
-		if err = r.client.Delete(ctx, dataSource); IgnoreNotFound(err) != nil {
-			return
+		if err := r.client.Delete(ctx, dataSource); IgnoreNotFound(err) != nil {
+			return err
 		}
-		if err = r.deleteOldImports(ctx, dataImportCron, 0); err != nil {
-			return
+		if err := r.deleteOldImports(ctx, dataImportCron, 0); err != nil {
+			return err
 		}
 	}
 
 	RemoveFinalizer(dataImportCron, dataImportCronFinalizer)
-	if err = r.client.Update(ctx, dataImportCron); err != nil {
-		return
+	if err := r.client.Update(ctx, dataImportCron); err != nil {
+		return err
 	}
 	return nil
 }

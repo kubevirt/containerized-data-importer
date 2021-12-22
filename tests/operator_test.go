@@ -883,7 +883,7 @@ var _ = Describe("ALL Operator tests", func() {
 				numCrons := 2
 				retentionPolicy := cdiv1.DataImportCronRetainAll
 				trustedRegistryURL := fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix)
-				originalMetricVal := getMetricValue("kubevirt_cdi_dataimportcron_not_up_to_date_total")
+				originalMetricVal := getMetricValue("kubevirt_cdi_dataimportcron_outdated_total")
 				expectedFailingCrons := originalMetricVal + numCrons
 				if utils.IsOpenshift(f.K8sClient) {
 					url = externalRegistryURL
@@ -905,10 +905,7 @@ var _ = Describe("ALL Operator tests", func() {
 						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
 						Expect(err).ToNot(HaveOccurred())
 						upToDateCondition := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
-						if upToDateCondition != nil && upToDateCondition.ConditionState.Status == corev1.ConditionTrue {
-							return true
-						}
-						return false
+						return upToDateCondition != nil && upToDateCondition.ConditionState.Status == corev1.ConditionTrue
 					}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 					Eventually(func() error {
 						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
@@ -923,16 +920,16 @@ var _ = Describe("ALL Operator tests", func() {
 					}, dataImportCronTimeout, pollingInterval).Should(BeNil())
 					By(fmt.Sprintf("Ensuring metric value incremented to %d", originalMetricVal+i))
 					Eventually(func() int {
-						return getMetricValue("kubevirt_cdi_dataimportcron_not_up_to_date_total")
-					}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", originalMetricVal+i))
+						return getMetricValue("kubevirt_cdi_dataimportcron_outdated_total")
+					}, 3*time.Minute, 1*time.Second).Should(BeNumerically("==", originalMetricVal+i))
 				}
 				By("Ensure metric value decrements when crons are cleaned up")
 				for i := 1; i < numCrons+1; i++ {
 					err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Delete(context.TODO(), fmt.Sprintf("cron-test-%d", i), metav1.DeleteOptions{})
 					Expect(err).ToNot(HaveOccurred())
 					Eventually(func() int {
-						return getMetricValue("kubevirt_cdi_dataimportcron_not_up_to_date_total")
-					}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", expectedFailingCrons-i))
+						return getMetricValue("kubevirt_cdi_dataimportcron_outdated_total")
+					}, 3*time.Minute, 1*time.Second).Should(BeNumerically("==", expectedFailingCrons-i))
 				}
 			})
 		})

@@ -214,13 +214,17 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 								componentAlertLabelKey: componentAlertLabelValue,
 							},
 						),
+						generateRecordRule(
+							"kubevirt_cdi_dataimportcron_outdated_total",
+							"sum(kubevirt_cdi_dataimportcron_outdated or vector(0))",
+						),
 						generateAlertRule(
-							"CDIDataImportCronNotUpToDate",
-							"kubevirt_cdi_dataimportcron_not_up_to_date_total > 0",
+							"CDIDataImportCronOutdated",
+							"kubevirt_cdi_dataimportcron_outdated_total > 0",
 							"15m",
 							map[string]string{
 								"summary":     "DataImportCron latest imports are outdated",
-								"runbook_url": runbookURLBasePath + "CDIDataImportCronNotUpToDate",
+								"runbook_url": runbookURLBasePath + "CDIDataImportCronOutdated",
 							},
 							map[string]string{
 								severityAlertLabelKey:  "info",
