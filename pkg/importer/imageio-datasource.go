@@ -469,20 +469,8 @@ func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
 	// Validate the returned length, and return an error if it does not match the expected range size
 	expectedLength := end - start + 1
 	if length != expectedLength {
-		contentRange := response.Header.Get("Content-Range")
-		parts := strings.Split(contentRange, "*/")
-		if len(parts) > 1 {
-			if rangeLength, err := strconv.ParseInt(parts[1], 10, 64); err != nil {
-				response.Body.Close()
-				return nil, errors.Wrap(err, "failed to parse total length of image from range response")
-			} else if rangeLength != expectedLength {
-				response.Body.Close()
-				return nil, errors.Wrap(err, "parse incorrect total length of image from range response")
-			}
-		} else {
-			response.Body.Close()
-			return nil, errors.New(fmt.Sprintf("wrong length returned: %d vs expected %d", length, expectedLength))
-		}
+		response.Body.Close()
+		return nil, errors.New(fmt.Sprintf("wrong length returned: %d vs expected %d", length, expectedLength))
 	}
 
 	return response.Body, nil
