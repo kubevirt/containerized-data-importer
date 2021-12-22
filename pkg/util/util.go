@@ -382,25 +382,36 @@ func PunchHole(outFile *os.File, start, length int64) error {
 	return err
 }
 
-// SeekOffset seeks past the end of the file to append zeroes, only for newly-created (empty and zero-length) regular files.
-func SeekOffset(outFile *os.File, start, length int64) error {
-	klog.Infof("Seeking %d-bytes from offset %d", length, start)
+// AppendZeroWithTruncate resizes the file to append zeroes, meant only for newly-created (empty and zero-length) regular files.
+func AppendZeroWithTruncate(outFile *os.File, start, length int64) error {
+	klog.Infof("Truncating %d-bytes from offset %d", length, start)
 	end, err := outFile.Seek(0, io.SeekEnd)
 	if err != nil {
 		return err
 	}
 	if start != end {
-		return errors.Errorf("starting offset %d does not match previous ending offset %d, cannot safely append zeroes to this file using seek", start, end)
+		return errors.Errorf("starting offset %d does not match previous ending offset %d, cannot safely append zeroes to this file using truncate", start, end)
 	}
-	_, err = outFile.Seek(length, io.SeekCurrent)
+	err = outFile.Truncate(start + length)
+	if err != nil {
+		return err
+	}
+	_, err = outFile.Seek(0, io.SeekEnd)
 	return err
 }
 
 var zeroBuffer []byte
 
-// WriteZeroBlock just does normal file writes to the destination, a slow but reliable fallback option.
-func WriteZeroBlock(outFile *os.File, start, length int64) error {
+// AppendZeroWithWrite just does normal file writes to the destination, a slow but reliable fallback option.
+func AppendZeroWithWrite(outFile *os.File, start, length int64) error {
 	klog.Infof("Writing %d zero bytes at offset %d", length, start)
+	offset, err := outFile.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return err
+	}
+	if start != offset {
+		return errors.Errorf("starting offset %d does not match previous ending offset %d, cannot safely append zeroes to this file using write", start, offset)
+	}
 	if zeroBuffer == nil { // No need to re-allocate this on every write
 		zeroBuffer = bytes.Repeat([]byte{0}, 32<<20)
 	}

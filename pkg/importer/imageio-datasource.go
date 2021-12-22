@@ -280,7 +280,7 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 	preallocated := info.Size() >= int64(is.contentLength)
 
 	// Choose seek for regular files, and hole punching for block devices and pre-allocated files
-	zeroRange := util.SeekOffset
+	zeroRange := util.AppendZeroWithTruncate
 	if isBlock || preallocated {
 		zeroRange = util.PunchHole
 	}
@@ -290,8 +290,8 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 		if extent.Zero {
 			err = zeroRange(outFile, extent.Start, extent.Length)
 			if err != nil {
-				klog.Infof("Initial zero method failed, trying WriteZeroBlock instead. Error was: %v", err)
-				zeroRange = util.WriteZeroBlock // If the initial choice fails, fall back to regular file writing
+				klog.Infof("Initial zero method failed, trying AppendZeroWithWrite instead. Error was: %v", err)
+				zeroRange = util.AppendZeroWithWrite // If the initial choice fails, fall back to regular file writing
 				err = zeroRange(outFile, extent.Start, extent.Length)
 				if err != nil {
 					return errors.Wrap(err, "failed to zero range on destination")
