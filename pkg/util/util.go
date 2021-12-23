@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -153,12 +154,12 @@ func MinQuantity(availableSpace, imageSize *resource.Quantity) resource.Quantity
 	return *imageSize
 }
 
-// StreamDataToFile provides a function to stream the specified io.Reader to the specified local file
-func StreamDataToFile(r io.Reader, fileName string) error {
+// OpenFileOrBlockDevice opens the destination data file, whether it is a block device or regular file
+func OpenFileOrBlockDevice(fileName string) (*os.File, error) {
 	var outFile *os.File
 	blockSize, err := GetAvailableSpaceBlock(fileName)
 	if err != nil {
-		return errors.Wrapf(err, "error determining if block device exists")
+		return nil, errors.Wrapf(err, "error determining if block device exists")
 	}
 	if blockSize >= 0 {
 		// Block device found and size determined.
@@ -168,7 +169,16 @@ func StreamDataToFile(r io.Reader, fileName string) error {
 		outFile, err = os.OpenFile(fileName, os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.ModePerm)
 	}
 	if err != nil {
-		return errors.Wrapf(err, "could not open file %q", fileName)
+		return nil, errors.Wrapf(err, "could not open file %q", fileName)
+	}
+	return outFile, nil
+}
+
+// StreamDataToFile provides a function to stream the specified io.Reader to the specified local file
+func StreamDataToFile(r io.Reader, fileName string) error {
+	outFile, err := OpenFileOrBlockDevice(fileName)
+	if err != nil {
+		return err
 	}
 	defer outFile.Close()
 	klog.V(1).Infof("Writing data...\n")
@@ -357,4 +367,66 @@ func Md5sum(filePath string) (string, error) {
 
 	hashInBytes := hash.Sum(nil)[:16]
 	return hex.EncodeToString(hashInBytes), nil
+}
+
+// Three functions for zeroing a range in the destination file:
+
+// PunchHole attempts to zero a range in a file with fallocate, for block devices and pre-allocated files.
+func PunchHole(outFile *os.File, start, length int64) error {
+	klog.Infof("Punching %d-byte hole at offset %d", length, start)
+	flags := uint32(unix.FALLOC_FL_PUNCH_HOLE | unix.FALLOC_FL_KEEP_SIZE)
+	err := syscall.Fallocate(int(outFile.Fd()), flags, start, length)
+	if err == nil {
+		_, err = outFile.Seek(length, io.SeekCurrent) // Just to move current file position
+	}
+	return err
+}
+
+// AppendZeroWithTruncate resizes the file to append zeroes, meant only for newly-created (empty and zero-length) regular files.
+func AppendZeroWithTruncate(outFile *os.File, start, length int64) error {
+	klog.Infof("Truncating %d-bytes from offset %d", length, start)
+	end, err := outFile.Seek(0, io.SeekEnd)
+	if err != nil {
+		return err
+	}
+	if start != end {
+		return errors.Errorf("starting offset %d does not match previous ending offset %d, cannot safely append zeroes to this file using truncate", start, end)
+	}
+	err = outFile.Truncate(start + length)
+	if err != nil {
+		return err
+	}
+	_, err = outFile.Seek(0, io.SeekEnd)
+	return err
+}
+
+var zeroBuffer []byte
+
+// AppendZeroWithWrite just does normal file writes to the destination, a slow but reliable fallback option.
+func AppendZeroWithWrite(outFile *os.File, start, length int64) error {
+	klog.Infof("Writing %d zero bytes at offset %d", length, start)
+	offset, err := outFile.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return err
+	}
+	if start != offset {
+		return errors.Errorf("starting offset %d does not match previous ending offset %d, cannot safely append zeroes to this file using write", start, offset)
+	}
+	if zeroBuffer == nil { // No need to re-allocate this on every write
+		zeroBuffer = bytes.Repeat([]byte{0}, 32<<20)
+	}
+	count := int64(0)
+	for count < length {
+		blockSize := int64(len(zeroBuffer))
+		remaining := length - count
+		if remaining < blockSize {
+			blockSize = remaining
+		}
+		written, err := outFile.Write(zeroBuffer[:blockSize])
+		if err != nil {
+			return errors.Wrapf(err, "unable to write %d zeroes at offset %d: %v", length, start+count, err)
+		}
+		count += int64(written)
+	}
+	return nil
 }

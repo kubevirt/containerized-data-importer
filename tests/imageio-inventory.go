@@ -68,10 +68,27 @@ func ResetImageIoInventory(f *framework.Framework, configurators ...string) {
 	gomega.Expect(err).To(gomega.BeNil())
 }
 
+// CreateImageIoInventory encodes a sequence of mock responses for fakeovirt to return during the test.
+func CreateImageIoInventory(f *framework.Framework, responseSequences []imageIoMockResponseSequence) {
+	// Encode JSON and return bytes to send to curl's stdin
+	responseSequenceJSON := new(bytes.Buffer)
+	encoder := json.NewEncoder(responseSequenceJSON)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(responseSequences)
+	gomega.Expect(err).To(gomega.BeNil())
+
+	// Find the imageio simulator pod
+	pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "imageio-deployment", "app=imageio")
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	gomega.Expect(pod).ToNot(gomega.BeNil())
+
+	// Create single response to /ovirt-engine/api
+	postInventoryStubs(f, pod, responseSequenceJSON)
+}
+
 // CreateImageIoDefaultInventory resets ImageIO inventory to the defaults, and adds a response for the base /ovirt-engine/api URL.
 func CreateImageIoDefaultInventory(f *framework.Framework) {
 	ResetImageIoInventory(f)
-
 	responseSequences := []imageIoMockResponseSequence{
 		{
 			Path:   "/ovirt-engine/api/imagetransfers",
@@ -95,20 +112,90 @@ func CreateImageIoDefaultInventory(f *framework.Framework) {
 		},
 	}
 
-	// Encode JSON and return bytes to send to curl's stdin
-	responseSequenceJSON := new(bytes.Buffer)
-	encoder := json.NewEncoder(responseSequenceJSON)
-	encoder.SetEscapeHTML(false)
-	err := encoder.Encode(responseSequences)
-	gomega.Expect(err).To(gomega.BeNil())
+	CreateImageIoInventory(f, responseSequences)
+}
 
-	// Find the imageio simulator pod
-	pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "imageio-deployment", "app=imageio")
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	gomega.Expect(pod).ToNot(gomega.BeNil())
+// CreateImageIoInventoryNoExtents creates fakeovirt response sequences for an
+// image transfer that does not support the extents API. The default response
+// configuration does return "extents" in the features list, so the existing
+// test already tests the extents feature. Unfortunately it's the response from
+// imageiotest's transfer URL that matters, and imageiotest does not support
+// fakeovirt's response sequences, so the extents feature cannot be easily
+// turned off. Work around this by creating an image transfer that points to
+// the fakeovirt URL, and set it up to return a small amount of data with no
+// extents.
+func CreateImageIoInventoryNoExtents(f *framework.Framework) {
+	ResetImageIoInventory(f, "static-sso") // Make sure there are no existing image transfer responses
 
-	// Create single response to /ovirt-engine/api
-	postInventoryStubs(f, pod, responseSequenceJSON)
+	diskID := "123"
+	dataSize := 20480
+	imageioRootURL := fmt.Sprintf(utils.ImageioRootURL, f.CdiInstallNs)
+	transferURL := fmt.Sprintf("%s/ovirt-engine/api/imagetransfers/%s", imageioRootURL, diskID)
+	responseSequences := []imageIoMockResponseSequence{
+		{
+			Path:   fmt.Sprintf("/ovirt-engine/api/imagetransfers/%s", diskID),
+			Method: "GET",
+			Responses: []imageIoMockResponse{
+				{
+					ResponseBody: string(bytes.Repeat([]byte{0x55}, dataSize)),
+					ResponseCode: 200,
+					Times:        2,
+				},
+			},
+		},
+		{
+			Path:   "/ovirt-engine/api/imagetransfers",
+			Method: "GET",
+			Responses: []imageIoMockResponse{
+				{
+					ResponseBody: fmt.Sprintf("<image_transfer id=\"%s\"><signed_ticket>abc123</signed_ticket><phase>transferring</phase><transfer_url>%s</transfer_url></image_transfer>", diskID, transferURL),
+					ResponseCode: 200,
+				},
+			},
+		},
+		{
+			Path:   "/ovirt-engine/api/imagetransfers",
+			Method: "POST",
+			Responses: []imageIoMockResponse{
+				{
+					ResponseBody: fmt.Sprintf("<image_transfer id=\"%s\"><signed_ticket>abc123</signed_ticket><phase>transferring</phase><transfer_url>%s</transfer_url></image_transfer>", diskID, transferURL),
+					ResponseCode: 200,
+				},
+			},
+		},
+		{
+			Path:   fmt.Sprintf("/ovirt-engine/api/imagetransfers/%s", diskID),
+			Method: "OPTIONS",
+			Responses: []imageIoMockResponse{
+				{
+					ResponseBody: `{"unix_socket": "\u0000/org/ovirt/imageio", "features": [], "max_readers": 8, "max_writers": 8}`,
+					ResponseCode: 200,
+				},
+			},
+		},
+		{
+			Path:   "/ovirt-engine/api/disks",
+			Method: "GET",
+			Responses: []imageIoMockResponse{
+				{
+					ResponseBody: fmt.Sprintf("<disk id=\"%s\"><total_size>%d</total_size></disk>", diskID, dataSize),
+					ResponseCode: 200,
+				},
+			},
+		},
+		{
+			Path:   "/ovirt-engine/api",
+			Method: "GET",
+			Responses: []imageIoMockResponse{
+				{
+					ResponseBody: "<api/>",
+					ResponseCode: 200,
+				},
+			},
+		},
+	}
+
+	CreateImageIoInventory(f, responseSequences)
 }
 
 // CreateImageIoWarmImportInventory constructs ImageIO inventory updates for a multi-stage import
