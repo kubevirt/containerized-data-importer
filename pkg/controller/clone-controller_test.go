@@ -272,19 +272,37 @@ var _ = Describe("Clone controller reconcile loop", func() {
 	It("Should error with missing upload client name annotation if none provided", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{
 			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
-		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil))
+		sourcePod := createSourcePod(testPvc, string(testPvc.GetUID()))
+		sourcePod.Namespace = "default"
+		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil), sourcePod)
 		By("Setting up the match token")
 		reconciler.shortTokenValidator.(*FakeValidator).match = "foobaz"
 		reconciler.shortTokenValidator.(*FakeValidator).Name = "source"
 		reconciler.shortTokenValidator.(*FakeValidator).Namespace = "default"
 		reconciler.shortTokenValidator.(*FakeValidator).Params["targetNamespace"] = "default"
 		reconciler.shortTokenValidator.(*FakeValidator).Params["targetName"] = "testPvc1"
-		By("Verifying no source pod exists")
-		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
-		Expect(sourcePod).To(BeNil())
-		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("missing required " + AnnUploadClientName + " annotation"))
+	})
+
+	It("Should create cert secret", func() {
+		testPvc := createPvc("testPvc1", "default", map[string]string{
+			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnCloneSourcePod: "default-testPvc1-source-pod", AnnUploadClientName: "uploadclient"}, nil)
+		sourcePod := createSourcePod(testPvc, string(testPvc.GetUID()))
+		sourcePod.Namespace = "default"
+		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil), sourcePod)
+		By("Setting up the match token")
+		reconciler.shortTokenValidator.(*FakeValidator).match = "foobaz"
+		reconciler.shortTokenValidator.(*FakeValidator).Name = "source"
+		reconciler.shortTokenValidator.(*FakeValidator).Namespace = "default"
+		reconciler.shortTokenValidator.(*FakeValidator).Params["targetNamespace"] = "default"
+		reconciler.shortTokenValidator.(*FakeValidator).Params["targetName"] = "testPvc1"
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		secret := &corev1.Secret{}
+		reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: sourcePod.Namespace, Name: sourcePod.Name}, secret)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Should update the PVC from the pod status", func() {
@@ -804,7 +822,7 @@ func createSourcePod(pvc *corev1.PersistentVolumeClaim, pvcUID string) *corev1.P
 	podName := fmt.Sprintf("%s-%s-", common.ClonerSourcePodName, sourcePvcName)
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: podName,
+			Name: podName,
 			Annotations: map[string]string{
 				AnnCreatedBy: "yes",
 				AnnOwnerRef:  fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name),
@@ -828,12 +846,26 @@ func createSourcePod(pvc *corev1.PersistentVolumeClaim, pvcUID string) *corev1.P
 					ImagePullPolicy: corev1.PullAlways,
 					Env: []corev1.EnvVar{
 						{
-							Name:  "CLIENT_KEY",
-							Value: "bar",
+							Name: "CLIENT_KEY",
+							ValueFrom: &corev1.EnvVarSource{
+								SecretKeyRef: &corev1.SecretKeySelector{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: podName,
+									},
+									Key: "tls.key",
+								},
+							},
 						},
 						{
-							Name:  "CLIENT_CERT",
-							Value: "foo",
+							Name: "CLIENT_CERT",
+							ValueFrom: &corev1.EnvVarSource{
+								SecretKeyRef: &corev1.SecretKeySelector{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: podName,
+									},
+									Key: "tls.crt",
+								},
+							},
 						},
 						{
 							Name:  "SERVER_CA_CERT",
