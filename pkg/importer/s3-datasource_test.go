@@ -68,7 +68,6 @@ var _ = Describe("S3 data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
-		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
 		result, err := sd.Info()
 		Expect(err).To(HaveOccurred())
@@ -81,7 +80,6 @@ var _ = Describe("S3 data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
-		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
 		result, err := sd.Info()
 		Expect(err).NotTo(HaveOccurred())
@@ -94,7 +92,6 @@ var _ = Describe("S3 data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
-		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
 		result, err := sd.Info()
 		Expect(err).NotTo(HaveOccurred())
