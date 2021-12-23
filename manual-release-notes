@@ -1,0 +1,2 @@
+Enhancement: Clone source pod has certs in secrets
+BugFix: On CDI delete validation ignore DVs labeled with DataImportCron
