@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
 
@@ -157,9 +158,8 @@ var _ = Describe("PVC Transfer Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(xfer.Finalizers).To(HaveLen(0))
+			Expect(err).To(HaveOccurred())
+			Expect(errors.IsNotFound(err)).To(BeTrue())
 		})
 
 		It("Should become running", func() {

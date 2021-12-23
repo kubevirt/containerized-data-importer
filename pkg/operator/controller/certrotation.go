@@ -88,7 +88,7 @@ func newCertManager(client kubernetes.Interface, installNamespace string, additi
 	namespaces := append(additionalNamespaces, installNamespace)
 	informers := v1helpers.NewKubeInformersForNamespaces(client, namespaces...)
 
-	controllerRef, err := events.GetControllerReferenceForCurrentPod(client, installNamespace, nil)
+	controllerRef, err := events.GetControllerReferenceForCurrentPod(context.TODO(), client, installNamespace, nil)
 	if err != nil {
 		log.Info("Unable to get controller reference, using namespace")
 	}
@@ -226,7 +226,7 @@ func (cm *certManager) ensureSigner(cd cdicerts.CertificateDefinition) (*crypto.
 		return nil, err
 	}
 
-	sr := certrotation.SigningRotation{
+	sr := certrotation.RotatedSigningCASecret{
 		Name:          secret.Name,
 		Namespace:     secret.Namespace,
 		Validity:      cd.SignerConfig.Lifetime,
@@ -236,7 +236,7 @@ func (cm *certManager) ensureSigner(cd cdicerts.CertificateDefinition) (*crypto.
 		EventRecorder: cm.eventRecorder,
 	}
 
-	ca, err := sr.EnsureSigningCertKeyPair()
+	ca, err := sr.EnsureSigningCertKeyPair(context.TODO())
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +251,7 @@ func (cm *certManager) ensureCertBundle(cd cdicerts.CertificateDefinition, ca *c
 		return nil, fmt.Errorf("no lister for namespace %s", configMap.Namespace)
 	}
 	lister := listers.configMapLister
-	br := certrotation.CABundleRotation{
+	br := certrotation.CABundleConfigMap{
 		Name:          configMap.Name,
 		Namespace:     configMap.Namespace,
 		Lister:        lister,
@@ -259,7 +259,7 @@ func (cm *certManager) ensureCertBundle(cd cdicerts.CertificateDefinition, ca *c
 		EventRecorder: cm.eventRecorder,
 	}
 
-	certs, err := br.EnsureConfigMapCABundle(ca)
+	certs, err := br.EnsureConfigMapCABundle(context.TODO(), ca)
 	if err != nil {
 		return nil, err
 	}
@@ -306,7 +306,7 @@ func (cm *certManager) ensureTarget(cd cdicerts.CertificateDefinition, ca *crypt
 		}
 	}
 
-	tr := certrotation.TargetRotation{
+	tr := certrotation.RotatedSelfSignedCertKeySecret{
 		Name:          secret.Name,
 		Namespace:     secret.Namespace,
 		Validity:      cd.TargetConfig.Lifetime,
@@ -317,7 +317,7 @@ func (cm *certManager) ensureTarget(cd cdicerts.CertificateDefinition, ca *crypt
 		EventRecorder: cm.eventRecorder,
 	}
 
-	if err := tr.EnsureTargetCertKeyPair(ca, bundle); err != nil {
+	if err := tr.EnsureTargetCertKeyPair(context.TODO(), ca, bundle); err != nil {
 		return err
 	}
 

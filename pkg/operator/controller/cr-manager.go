@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"

@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "api_linter.go",
         "config.go",
+        "enum.go",
         "extension.go",
         "openapi.go",
         "union.go",

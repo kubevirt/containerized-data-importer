@@ -539,17 +539,13 @@ func getAPIServerCABundle(namespace string, c client.Client, l logr.Logger) []by
 	cm := &corev1.ConfigMap{}
 	key := client.ObjectKey{Namespace: namespace, Name: "cdi-apiserver-signer-bundle"}
 	if err := c.Get(context.TODO(), key, cm); err != nil {
-		if l != nil {
-			l.Error(err, "error getting apiserver ca bundle")
-		}
+		l.Error(err, "error getting apiserver ca bundle")
 		return nil
 	}
 	if cert, ok := cm.Data["ca-bundle.crt"]; ok {
 		return []byte(cert)
 	}
-	if l != nil {
-		l.V(2).Info("apiserver ca bundle missing from configmap")
-	}
+	l.V(2).Info("apiserver ca bundle missing from configmap")
 	return nil
 }
 

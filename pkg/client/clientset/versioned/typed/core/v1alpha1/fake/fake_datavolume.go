@@ -117,7 +117,7 @@ func (c *FakeDataVolumes) UpdateStatus(ctx context.Context, dataVolume *v1alpha1
 // Delete takes name of the dataVolume and deletes it. Returns an error if one occurs.
 func (c *FakeDataVolumes) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(datavolumesResource, c.ns, name), &v1alpha1.DataVolume{})
+		Invokes(testing.NewDeleteActionWithOptions(datavolumesResource, c.ns, name, opts), &v1alpha1.DataVolume{})
 
 	return err
 }

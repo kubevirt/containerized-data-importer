@@ -29,43 +29,46 @@ const (
 
 // CertRotationController does:
 //
-// 1) continuously create a self-signed signing CA (via SigningRotation).
-//    It creates the next one when a given percentage of the validity of the old CA has passed.
-// 2) maintain a CA bundle with all not yet expired CA certs.
-// 3) continuously create a target cert and key signed by the latest signing CA
-//    It creates the next one when a given percentage of the validity of the previous cert has
-//    passed, or when a new CA has been created.
+// 1) continuously create a self-signed signing CA (via RotatedSigningCASecret) and store it in a secret.
+// 2) maintain a CA bundle ConfigMap with all not yet expired CA certs.
+// 3) continuously create a target cert and key signed by the latest signing CA and store it in a secret.
 type CertRotationController struct {
+	// name is used in operator conditions to identify this controller, compare CertRotationDegradedConditionTypeFmt.
 	name string
 
-	SigningRotation  SigningRotation
-	CABundleRotation CABundleRotation
-	TargetRotation   TargetRotation
-	OperatorClient   v1helpers.StaticPodOperatorClient
+	// rotatedSigningCASecret rotates a self-signed signing CA stored in a secret.
+	rotatedSigningCASecret RotatedSigningCASecret
+	// CABundleConfigMap maintains a CA bundle config map, by adding new CA certs coming from rotatedSigningCASecret, and by removing expired old ones.
+	CABundleConfigMap CABundleConfigMap
+	// RotatedSelfSignedCertKeySecret rotates a key and cert signed by a signing CA and stores it in a secret.
+	RotatedSelfSignedCertKeySecret RotatedSelfSignedCertKeySecret
+
+	// Plumbing:
+	OperatorClient v1helpers.StaticPodOperatorClient
 }
 
 func NewCertRotationController(
 	name string,
-	signingRotation SigningRotation,
-	caBundleRotation CABundleRotation,
-	targetRotation TargetRotation,
+	rotatedSigningCASecret RotatedSigningCASecret,
+	caBundleConfigMap CABundleConfigMap,
+	rotatedSelfSignedCertKeySecret RotatedSelfSignedCertKeySecret,
 	operatorClient v1helpers.StaticPodOperatorClient,
 	recorder events.Recorder,
 ) factory.Controller {
 	c := &CertRotationController{
-		name:             name,
-		SigningRotation:  signingRotation,
-		CABundleRotation: caBundleRotation,
-		TargetRotation:   targetRotation,
-		OperatorClient:   operatorClient,
+		name:                           name,
+		rotatedSigningCASecret:         rotatedSigningCASecret,
+		CABundleConfigMap:              caBundleConfigMap,
+		RotatedSelfSignedCertKeySecret: rotatedSelfSignedCertKeySecret,
+		OperatorClient:                 operatorClient,
 	}
 	return factory.New().
-		ResyncEvery(30*time.Second).
+		ResyncEvery(time.Minute).
 		WithSync(c.Sync).
 		WithInformers(
-			signingRotation.Informer.Informer(),
-			caBundleRotation.Informer.Informer(),
-			targetRotation.Informer.Informer(),
+			rotatedSigningCASecret.Informer.Informer(),
+			caBundleConfigMap.Informer.Informer(),
+			rotatedSelfSignedCertKeySecret.Informer.Informer(),
 		).
 		WithPostStartHooks(
 			c.targetCertRecheckerPostRunHook,
@@ -74,7 +77,7 @@ func NewCertRotationController(
 }
 
 func (c CertRotationController) Sync(ctx context.Context, syncCtx factory.SyncContext) error {
-	syncErr := c.syncWorker()
+	syncErr := c.syncWorker(ctx)
 
 	// running this function with RunOnceContextKey value context will make this "run-once" without updating status.
 	isRunOnce, ok := ctx.Value(RunOnceContextKey).(bool)
@@ -91,7 +94,7 @@ func (c CertRotationController) Sync(ctx context.Context, syncCtx factory.SyncCo
 		newCondition.Reason = "RotationError"
 		newCondition.Message = syncErr.Error()
 	}
-	_, updated, updateErr := v1helpers.UpdateStaticPodStatus(c.OperatorClient, v1helpers.UpdateStaticPodConditionFn(newCondition))
+	_, updated, updateErr := v1helpers.UpdateStaticPodStatus(ctx, c.OperatorClient, v1helpers.UpdateStaticPodConditionFn(newCondition))
 	if updateErr != nil {
 		return updateErr
 	}
@@ -102,18 +105,18 @@ func (c CertRotationController) Sync(ctx context.Context, syncCtx factory.SyncCo
 	return syncErr
 }
 
-func (c CertRotationController) syncWorker() error {
-	signingCertKeyPair, err := c.SigningRotation.EnsureSigningCertKeyPair()
+func (c CertRotationController) syncWorker(ctx context.Context) error {
+	signingCertKeyPair, err := c.rotatedSigningCASecret.EnsureSigningCertKeyPair(ctx)
 	if err != nil {
 		return err
 	}
 
-	cabundleCerts, err := c.CABundleRotation.EnsureConfigMapCABundle(signingCertKeyPair)
+	cabundleCerts, err := c.CABundleConfigMap.EnsureConfigMapCABundle(ctx, signingCertKeyPair)
 	if err != nil {
 		return err
 	}
 
-	if err := c.TargetRotation.EnsureTargetCertKeyPair(signingCertKeyPair, cabundleCerts); err != nil {
+	if err := c.RotatedSelfSignedCertKeySecret.EnsureTargetCertKeyPair(ctx, signingCertKeyPair, cabundleCerts); err != nil {
 		return err
 	}
 
@@ -122,7 +125,7 @@ func (c CertRotationController) syncWorker() error {
 
 func (c CertRotationController) targetCertRecheckerPostRunHook(ctx context.Context, syncCtx factory.SyncContext) error {
 	// If we have a need to force rechecking the cert, use this channel to do it.
-	refresher, ok := c.TargetRotation.CertCreator.(TargetCertRechecker)
+	refresher, ok := c.RotatedSelfSignedCertKeySecret.CertCreator.(TargetCertRechecker)
 	if !ok {
 		return nil
 	}

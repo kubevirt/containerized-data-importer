@@ -112,18 +112,18 @@ func ensureSCCExists(logger logr.Logger, c client.Client, saNamespace, saName st
 }
 
 func (r *ReconcileCDI) watchSecurityContextConstraints() error {
-	err := r.controller.Watch(
-		&source.Kind{Type: &secv1.SecurityContextConstraints{}},
-		enqueueCDI(r.client),
-	)
-	if err != nil {
-		if meta.IsNoMatchError(err) {
-			log.Info("Not watching SecurityContextConstraints")
-			return nil
-		}
-
-		return err
+	err := r.uncachedClient.List(context.TODO(), &secv1.SecurityContextConstraintsList{}, &client.ListOptions{
+		Limit: 1,
+	})
+	if err == nil {
+		return r.controller.Watch(&source.Kind{Type: &secv1.SecurityContextConstraints{}}, enqueueCDI(r.client))
+	}
+	if meta.IsNoMatchError(err) {
+		log.Info("Not watching SecurityContextConstraints")
+		return nil
 	}
 
-	return nil
+	log.Info("GOODBYE SCC")
+
+	return err
 }

@@ -20,7 +20,6 @@ import (
 	"context"
 	generrors "errors"
 	"fmt"
-	"os"
 	"reflect"
 	"time"
 
@@ -52,7 +51,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -80,21 +78,6 @@ type args struct {
 	reconciler *ReconcileCDI
 }
 
-var (
-	envVars = map[string]string{
-		"OPERATOR_VERSION":         version,
-		"DEPLOY_CLUSTER_RESOURCES": "true",
-		"CONTROLLER_IMAGE":         "kubevirt/cdi-controller",
-		"IMPORTER_IMAGE":           "kubevirt/cdi-importer",
-		"CLONER_IMAGE":             "kubevirt/cdi-cloner",
-		"UPLOAD_PROXY_IMAGE":       "ckubevirt/di-uploadproxy",
-		"UPLOAD_SERVER_IMAGE":      "kubevirt/cdi-uploadserver",
-		"APISERVER_IMAGE":          "kubevirt/cdi-apiserver",
-		"VERBOSITY":                "1",
-		"PULL_POLICY":              "Always",
-	}
-)
-
 func init() {
 	cdiv1.AddToScheme(scheme.Scheme)
 	extv1.AddToScheme(scheme.Scheme)
@@ -111,41 +94,6 @@ type isUpgraded func(postUpgradeObj client.Object, deisredObj client.Object) boo
 type createUnusedObject func() (client.Object, error)
 
 var _ = Describe("Controller", func() {
-	Describe("controller runtime bootstrap test", func() {
-		Context("Create manager and controller", func() {
-			BeforeEach(func() {
-				for k, v := range envVars {
-					os.Setenv(k, v)
-				}
-			})
-
-			AfterEach(func() {
-				for k := range envVars {
-					os.Unsetenv(k)
-				}
-			})
-
-			It("should succeed", func() {
-				mgr, err := manager.New(cfg, manager.Options{})
-				Expect(err).ToNot(HaveOccurred())
-
-				err = cdiv1.AddToScheme(mgr.GetScheme())
-				Expect(err).ToNot(HaveOccurred())
-
-				err = extv1.AddToScheme(mgr.GetScheme())
-				Expect(err).ToNot(HaveOccurred())
-
-				err = secv1.Install(mgr.GetScheme())
-				Expect(err).ToNot(HaveOccurred())
-
-				mgr.GetClient().Create(context.TODO(), createCDI("cdi", "good uid"), &client.CreateOptions{})
-
-				err = Add(mgr)
-				Expect(err).ToNot(HaveOccurred())
-			})
-		})
-	})
-
 	DescribeTable("check can create types", func(obj client.Object) {
 		client := createClient(obj)
 
@@ -627,10 +575,7 @@ var _ = Describe("Controller", func() {
 				err = args.client.Update(context.TODO(), args.cdi)
 				Expect(err).ToNot(HaveOccurred())
 
-				doReconcile(args)
-
-				Expect(args.cdi.Finalizers).Should(BeEmpty())
-				Expect(args.cdi.Status.Phase).Should(Equal(sdkapi.PhaseDeleted))
+				doReconcileExpectDelete(args)
 
 				_, err = getObject(args.client, pod)
 				Expect(errors.IsNotFound(err)).To(BeTrue())
@@ -789,6 +734,7 @@ var _ = Describe("Controller", func() {
 					crSetVersion(args.reconciler.reconciler, args.cdi, prevVersion)
 					//marc CDI CR for deltetion
 					args.cdi.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
+					args.cdi.Finalizers = append(args.cdi.Finalizers, "keepmearound")
 					err := args.client.Update(context.TODO(), args.cdi)
 					Expect(err).ToNot(HaveOccurred())
 
@@ -826,9 +772,7 @@ var _ = Describe("Controller", func() {
 					err = args.client.Update(context.TODO(), args.cdi)
 					Expect(err).ToNot(HaveOccurred())
 
-					doReconcile(args)
-					//verify the version cr is marked as deleted
-					Expect(args.cdi.Status.Phase).Should(Equal(sdkapi.PhaseDeleted))
+					doReconcileExpectDelete(args)
 
 					//verify events, this should include an upgrade event
 					match := createDeleteCDIAfterReadyEventValidationMap()
@@ -1605,6 +1549,16 @@ func doReconcileRequeue(args *args) {
 	Expect(err).ToNot(HaveOccurred())
 }
 
+func doReconcileExpectDelete(args *args) {
+	result, err := args.reconciler.Reconcile(context.TODO(), reconcileRequest(args.cdi.Name))
+	Expect(err).ToNot(HaveOccurred())
+	Expect(result.Requeue).To(BeFalse())
+
+	_, err = getCDI(args.client, args.cdi)
+	Expect(err).To(HaveOccurred())
+	Expect(errors.IsNotFound(err)).To(BeTrue())
+}
+
 func createClient(objs ...client.Object) client.Client {
 	var runtimeObjs []runtime.Object
 	for _, obj := range objs {
@@ -1671,7 +1625,7 @@ func createReconciler(client client.Client) *ReconcileCDI {
 		certManager:    newFakeCertManager(client, namespace),
 	}
 	callbackDispatcher := callbacks.NewCallbackDispatcher(log, client, client, scheme.Scheme, namespace)
-	r.reconciler = sdkr.NewReconciler(r, log, client, callbackDispatcher, scheme.Scheme, createVersionLabel, updateVersionLabel, LastAppliedConfigAnnotation, certPollInterval, finalizerName, recorder).
+	r.reconciler = sdkr.NewReconciler(r, log, client, callbackDispatcher, scheme.Scheme, createVersionLabel, updateVersionLabel, LastAppliedConfigAnnotation, certPollInterval, finalizerName, false, recorder).
 		WithWatching(true)
 
 	r.registerHooks()

@@ -13,10 +13,10 @@ import (
 
 // GetCertRotationScale  The normal scale is based on a day.  The value returned by this function
 // is used to scale rotation durations instead of a day, so you can set it shorter.
-func GetCertRotationScale(client kubernetes.Interface, namespace string) (time.Duration, error) {
+func GetCertRotationScale(ctx context.Context, client kubernetes.Interface, namespace string) (time.Duration, error) {
 	certRotationScale := time.Duration(0)
 	err := wait.PollImmediate(time.Second, 1*time.Minute, func() (bool, error) {
-		certRotationConfig, err := client.CoreV1().ConfigMaps(namespace).Get(context.TODO(), "unsupported-cert-rotation-config", metav1.GetOptions{})
+		certRotationConfig, err := client.CoreV1().ConfigMaps(namespace).Get(ctx, "unsupported-cert-rotation-config", metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return true, nil

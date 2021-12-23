@@ -31,13 +31,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/source"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 const (
@@ -353,48 +354,42 @@ func generateRecordRule(record, expr string) promv1.Rule {
 }
 
 func (r *ReconcileCDI) watchPrometheusResources() error {
-	var err error
+	listObjs := []client.ObjectList{
+		&promv1.PrometheusRuleList{},
+		&promv1.ServiceMonitorList{},
+	}
 
-	err = r.controller.Watch(
-		&source.Kind{Type: &promv1.PrometheusRule{}},
-		enqueueCDI(r.client),
-	)
-	if err != nil {
-		if meta.IsNoMatchError(err) {
-			log.Info("Not watching PrometheusRules")
-			return nil
+	objs := []client.Object{
+		&promv1.PrometheusRule{},
+		&promv1.ServiceMonitor{},
+	}
+
+	for i, listObj := range listObjs {
+		obj := objs[i]
+		err := r.uncachedClient.List(context.TODO(), listObj, &client.ListOptions{
+			Namespace: util.GetNamespace(),
+			Limit:     1,
+		})
+		if err == nil {
+			if err := r.controller.Watch(&source.Kind{Type: obj}, enqueueCDI(r.client)); err != nil {
+				return err
+			}
+		} else if meta.IsNoMatchError(err) {
+			log.Info("Not watching", "type", fmt.Sprintf("%T", obj))
+		} else {
+			return err
 		}
-
-		return err
 	}
 
-	err = r.controller.Watch(
-		&source.Kind{Type: &promv1.ServiceMonitor{}},
-		enqueueCDI(r.client),
-	)
-	if err != nil {
-		if meta.IsNoMatchError(err) {
-			log.Info("Not watching ServiceMonitors")
-			return nil
+	objs = []client.Object{
+		&rbacv1.Role{},
+		&rbacv1.RoleBinding{},
+	}
+
+	for _, obj := range objs {
+		if err := r.controller.Watch(&source.Kind{Type: obj}, enqueueCDI(r.client)); err != nil {
+			return err
 		}
-
-		return err
-	}
-
-	err = r.controller.Watch(
-		&source.Kind{Type: &rbacv1.Role{}},
-		enqueueCDI(r.client),
-	)
-	if err != nil {
-		return err
-	}
-
-	err = r.controller.Watch(
-		&source.Kind{Type: &rbacv1.RoleBinding{}},
-		enqueueCDI(r.client),
-	)
-	if err != nil {
-		return err
 	}
 
 	return nil

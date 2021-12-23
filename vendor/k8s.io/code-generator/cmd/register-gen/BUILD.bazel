@@ -11,7 +11,6 @@ go_library(
         "//vendor/k8s.io/code-generator/cmd/register-gen/args:go_default_library",
         "//vendor/k8s.io/code-generator/cmd/register-gen/generators:go_default_library",
         "//vendor/k8s.io/code-generator/pkg/util:go_default_library",
-        "//vendor/k8s.io/gengo/args:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
     ],
 )

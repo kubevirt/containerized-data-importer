@@ -80,6 +80,7 @@ go_test(
         "config-controller_test.go",
         "controller_suite_test.go",
         "dataimportcron-controller_test.go",
+        "datasource-controller_test.go",
         "datavolume-conditions_test.go",
         "datavolume-controller_test.go",
         "import-controller_test.go",

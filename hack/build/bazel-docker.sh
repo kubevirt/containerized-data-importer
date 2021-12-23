@@ -123,7 +123,7 @@ else
     volumes="-v ${BUILDER_VOLUME}:/root:rw,z,exec"
 fi
 
-if [ -n "$DOCKER_CA_CERT_FILE" ] ; then
+if [ -n "$DOCKER_CA_CERT_FILE" ]; then
     volumes="$volumes -v ${DOCKER_CA_CERT_FILE}:${DOCKERIZED_CUSTOM_CA_PATH}:ro,z"
 fi
 

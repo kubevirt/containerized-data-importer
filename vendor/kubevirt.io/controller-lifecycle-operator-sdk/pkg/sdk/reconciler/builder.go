@@ -12,7 +12,7 @@ import (
 )
 
 // NewReconciler creates new Reconciler instance configured with given parameters
-func NewReconciler(crManager CrManager, log logr.Logger, client client.Client, callbackDispatcher CallbackDispatcher, scheme *runtime.Scheme, createVersionLabel string, updateVersionLabel string, lastAppliedConfigAnnotation string, perishablesSyncInterval time.Duration, finalizerName string, recorder record.EventRecorder) *Reconciler {
+func NewReconciler(crManager CrManager, log logr.Logger, client client.Client, callbackDispatcher CallbackDispatcher, scheme *runtime.Scheme, createVersionLabel string, updateVersionLabel string, lastAppliedConfigAnnotation string, perishablesSyncInterval time.Duration, finalizerName string, subresourceEnabled bool, recorder record.EventRecorder) *Reconciler {
 	return &Reconciler{
 		crManager:                     crManager,
 		log:                           log,
@@ -30,6 +30,7 @@ func NewReconciler(crManager CrManager, log logr.Logger, client client.Client, c
 		checkSanity:                   checkSanity,
 		watch:                         watch,
 		preCreate:                     preCreate,
+		subresourceEnabled:            subresourceEnabled,
 	}
 }
 

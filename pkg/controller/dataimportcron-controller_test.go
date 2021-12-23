@@ -160,6 +160,9 @@ var _ = Describe("All DataImportCron Tests", func() {
 			reconciler = createDataImportCronReconciler(cron)
 			verifyConditions("Before DesiredDigest is set", false, false, false, noImport, noDigest, "")
 
+			if cron.Annotations == nil {
+				cron.Annotations = make(map[string]string)
+			}
 			cron.Annotations[AnnSourceDesiredDigest] = testDigest
 			err := reconciler.client.Update(context.TODO(), cron)
 			Expect(err).ToNot(HaveOccurred())
@@ -277,9 +280,6 @@ var _ = Describe("All DataImportCron Tests", func() {
 			_, err = reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
 
-			// Actual DataImportCron deletion
-			err = reconciler.client.Delete(context.TODO(), cron)
-			Expect(err).ToNot(HaveOccurred())
 			err = reconciler.client.Get(context.TODO(), cronKey, cron)
 			Expect(err).To(HaveOccurred())
 

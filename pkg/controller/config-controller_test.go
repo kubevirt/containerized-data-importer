@@ -370,8 +370,6 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 		err = reconciler.reconcileImportProxy(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
-		Expect(err).ToNot(HaveOccurred())
 		Expect(proxyHTTPURL).To(Equal(*cdiConfig.Status.ImportProxy.HTTPProxy))
 		Expect(proxyHTTPSURL).To(Equal(*cdiConfig.Status.ImportProxy.HTTPSProxy))
 		Expect(noProxyDomains).To(Equal(*cdiConfig.Status.ImportProxy.NoProxy))

@@ -21,8 +21,8 @@ export GO111MODULE=on
 
 export SCRIPT_ROOT="$(cd "$(dirname $0)/../" && pwd -P)"
 CODEGEN_PKG=${CODEGEN_PKG:-$(
-	cd ${SCRIPT_ROOT}
-	ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator
+    cd ${SCRIPT_ROOT}
+    ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator
 )}
 
 find "${SCRIPT_ROOT}/pkg/" -name "*generated*.go" -exec rm {} -f \;
@@ -36,9 +36,9 @@ ${SCRIPT_ROOT}/hack/build/build-go.sh generate
 #                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
 /bin/bash ${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
-	kubevirt.io/containerized-data-importer/pkg/client kubevirt.io/containerized-data-importer-api/pkg/apis \
-	"core:v1alpha1 upload:v1alpha1 core:v1beta1 upload:v1beta1" \
-	--go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
+    kubevirt.io/containerized-data-importer/pkg/client kubevirt.io/containerized-data-importer-api/pkg/apis \
+    "core:v1alpha1 upload:v1alpha1 core:v1beta1 upload:v1beta1" \
+    --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
 echo "Generating swagger doc"
 swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1/types.go
@@ -50,33 +50,33 @@ swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-import
 (go install ${CODEGEN_PKG}/cmd/openapi-gen)
 
 (
-	TMP_DIR=$(mktemp -d)
-	mkdir -p ${TMP_DIR}/src/kubevirt.io/
-	ln -s ${SCRIPT_ROOT} ${TMP_DIR}/src/kubevirt.io/containerized-data-importer
+    TMP_DIR=$(mktemp -d)
+    mkdir -p ${TMP_DIR}/src/kubevirt.io/
+    ln -s ${SCRIPT_ROOT} ${TMP_DIR}/src/kubevirt.io/containerized-data-importer
 
-	trap 'rm -rf -- "${TMP_DIR}"' EXIT
-	export GOPATH=${TMP_DIR}/src
+    trap 'rm -rf -- "${TMP_DIR}"' EXIT
+    export GOPATH=${TMP_DIR}/src
 
-	echo "Generating openapi"
-	openapi-gen --input-dirs k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,github.com/openshift/custom-resource-status/conditions/v1,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1,kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api \
-		--output-base ${GOPATH} \
-		--output-package kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1 \
-		--go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
+    echo "Generating openapi"
+    openapi-gen --input-dirs k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,github.com/openshift/custom-resource-status/conditions/v1,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1,kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api \
+        --output-base ${GOPATH} \
+        --output-package kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1 \
+        --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
-	openapi-gen --input-dirs k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/api/core/v1,kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1alpha1 \
-		--output-base ${GOPATH} \
-		--output-package kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1 \
-		--go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
+    openapi-gen --input-dirs k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/api/core/v1,kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1alpha1 \
+        --output-base ${GOPATH} \
+        --output-package kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1 \
+        --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
-	openapi-gen --input-dirs k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,github.com/openshift/custom-resource-status/conditions/v1,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api \
-		--output-base ${GOPATH} \
-		--output-package kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1 \
-		--go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
+    openapi-gen --input-dirs k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,github.com/openshift/custom-resource-status/conditions/v1,kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1,kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api \
+        --output-base ${GOPATH} \
+        --output-package kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1 \
+        --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
-	openapi-gen --input-dirs k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/api/core/v1,kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1 \
-		--output-base ${GOPATH} \
-		--output-package kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1 \
-		--go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
+    openapi-gen --input-dirs k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/api/core/v1,kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1 \
+        --output-base ${GOPATH} \
+        --output-package kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1 \
+        --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 )
 
 (cd ${SCRIPT_ROOT}/tools/openapi-spec-generator/ && go build -o ../../bin/openapi-spec-generator)
@@ -85,13 +85,13 @@ ${SCRIPT_ROOT}/bin/openapi-spec-generator >${SCRIPT_ROOT}/api/openapi-spec/swagg
 
 echo "************* running controller-gen to generate schema yaml ********************"
 (
-	cd ./staging/src/kubevirt.io/containerized-data-importer-api
-	controller-gen crd:crdVersions=v1 output:dir=${SCRIPT_ROOT}/_out/manifests/schema paths=./pkg/apis/core/...
+    cd ./staging/src/kubevirt.io/containerized-data-importer-api
+    controller-gen crd:crdVersions=v1 output:dir=${SCRIPT_ROOT}/_out/manifests/schema paths=./pkg/apis/core/...
 )
 cd ${SCRIPT_ROOT}/_out/manifests/schema
 for file in *.yaml; do
-	tail -n +3 $file >$file"new"
-	mv $file"new" $file
+    tail -n +3 $file >$file"new"
+    mv $file"new" $file
 done
 cd -
 (cd "${SCRIPT_ROOT}/tools/crd-generator/" && go build -o "${SCRIPT_ROOT}/bin/crd-generator" ./...)

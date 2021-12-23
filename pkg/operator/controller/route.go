@@ -130,18 +130,17 @@ func ensureUploadProxyRouteExists(logger logr.Logger, c client.Client, scheme *r
 }
 
 func (r *ReconcileCDI) watchRoutes() error {
-	err := r.controller.Watch(
-		&source.Kind{Type: &routev1.Route{}},
-		enqueueCDI(r.client),
-	)
-	if err != nil {
-		if meta.IsNoMatchError(err) {
-			log.Info("Not watching Routes")
-			return nil
-		}
-
-		return err
+	err := r.uncachedClient.List(context.TODO(), &routev1.RouteList{}, &client.ListOptions{
+		Namespace: util.GetNamespace(),
+		Limit:     1,
+	})
+	if err == nil {
+		return r.controller.Watch(&source.Kind{Type: &routev1.Route{}}, enqueueCDI(r.client))
+	}
+	if meta.IsNoMatchError(err) {
+		log.Info("Not watching Routes")
+		return nil
 	}
 
-	return nil
+	return err
 }
