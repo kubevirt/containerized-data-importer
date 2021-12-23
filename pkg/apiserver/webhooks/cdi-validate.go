@@ -32,6 +32,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 const uninstallErrorMsg = "Rejecting the uninstall request, since there are still DataVolumes present. Either delete all DataVolumes or change the uninstall strategy before uninstalling CDI."
@@ -64,7 +65,7 @@ func (wh *cdiValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admission
 	}
 
 	if cdi.Spec.UninstallStrategy != nil && *cdi.Spec.UninstallStrategy == cdiv1.CDIUninstallStrategyBlockUninstallIfWorkloadsExist {
-		dvs, err := wh.client.CdiV1beta1().DataVolumes(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{Limit: 2})
+		dvs, err := wh.client.CdiV1beta1().DataVolumes(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{Limit: 2, LabelSelector: "!" + common.DataImportCronLabel})
 		if err != nil {
 			return toAdmissionResponseError(err)
 		}
