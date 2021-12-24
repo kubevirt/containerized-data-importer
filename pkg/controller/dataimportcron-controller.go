@@ -27,6 +27,7 @@ import (
 	"github.com/gorhill/cronexpr"
 	imagev1 "github.com/openshift/api/image/v1"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 
 	batchv1 "k8s.io/api/batch/v1"
 	v1beta1 "k8s.io/api/batch/v1beta1"
@@ -48,6 +49,22 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+)
+
+const (
+	prometheusNsLabel       = "ns"
+	prometheusCronNameLabel = "cron_name"
+)
+
+var (
+	// DataImportCronOutdatedGauge is the metric we use to alert about DataImportCrons failing
+	DataImportCronOutdatedGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "kubevirt_cdi_dataimportcron_outdated",
+			Help: "DataImportCron has an outdated import",
+		},
+		[]string{prometheusNsLabel, prometheusCronNameLabel},
+	)
 )
 
 // DataImportCronReconciler members
@@ -427,6 +444,10 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 	if !HasFinalizer(dataImportCron, dataImportCronFinalizer) {
 		return nil
 	}
+
+	// Don't keep alerting over a cron thats being deleted, will get set back to 1 again by reconcile loop if needed.
+	DataImportCronOutdatedGauge.With(getPrometheusCronLabels(dataImportCron)).Set(0)
+
 	cronJob := &v1beta1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: GetCronJobName(dataImportCron)}}
 	if err := r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
 		return err
