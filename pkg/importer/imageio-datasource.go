@@ -19,12 +19,15 @@ package importer
 import (
 	"context"
 	"crypto/x509"
+	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -160,9 +163,17 @@ func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 func (is *ImageioDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
 	defer is.cleanupTransfer()
 	is.readers.StartProgressUpdate()
-	err := util.StreamDataToFile(is.readers.TopReader(), fileName)
-	if err != nil {
-		return ProcessingPhaseError, err
+
+	if extentsReader, err := is.getExtentsReader(); err == nil {
+		err := is.StreamExtents(extentsReader, fileName)
+		if err != nil {
+			return ProcessingPhaseError, err
+		}
+	} else {
+		err := util.StreamDataToFile(is.readers.TopReader(), fileName)
+		if err != nil {
+			return ProcessingPhaseError, err
+		}
 	}
 	return ProcessingPhaseResize, nil
 }
@@ -225,6 +236,246 @@ func (is *ImageioDataSource) IsDeltaCopy() bool {
 	return result
 }
 
+// getExtentsReader retrieves an extents reader from ImageioDataSource.imageioReader, if it has one.
+func (is *ImageioDataSource) getExtentsReader() (*extentReader, error) {
+	countingReader, ok := is.imageioReader.(*util.CountingReader)
+	if !ok {
+		return nil, errors.New("not a counting reader")
+	}
+	extentsReader, ok := countingReader.Reader.(*extentReader)
+	if !ok {
+		return nil, errors.New("not an extents reader")
+	}
+	return extentsReader, nil
+}
+
+// StreamExtents requests individual extents from the ImageIO API and copies them to the destination.
+// It skips downloading ranges of all zero bytes.
+func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName string) error {
+	outFile, err := util.OpenFileOrBlockDevice(fileName)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := outFile.Close(); err != nil {
+			klog.Infof("Error closing destination file: %v", err)
+		}
+	}()
+
+	// Monitor for progress in the background and make sure the transfer ticket does not expire
+	transferID, success := is.imageTransfer.Id()
+	if !success {
+		return errors.New("unable to retrieve image transfer ID for ticket renewal")
+	}
+	doneChannel := make(chan struct{}, 1)
+	defer func() { doneChannel <- struct{}{} }()
+	go is.monitorExtentsProgress(transferID, extentsReader, 30*time.Second, doneChannel)
+
+	// Gather some information about the destination to choose which zero method to use
+	info, err := outFile.Stat()
+	if err != nil {
+		return err
+	}
+	isBlock := !info.Mode().IsRegular()
+	preallocated := info.Size() >= int64(is.contentLength)
+
+	// Choose seek for regular files, and hole punching for block devices and pre-allocated files
+	zeroRange := util.AppendZeroWithTruncate
+	if isBlock || preallocated {
+		zeroRange = util.PunchHole
+	}
+
+	// Transfer all the non-zero extents, and try to quickly write out blocks of all zero bytes for extents that only contain zero
+	for index, extent := range extentsReader.extents {
+		if extent.Zero {
+			err = zeroRange(outFile, extent.Start, extent.Length)
+			if err != nil {
+				klog.Infof("Initial zero method failed, trying AppendZeroWithWrite instead. Error was: %v", err)
+				zeroRange = util.AppendZeroWithWrite // If the initial choice fails, fall back to regular file writing
+				err = zeroRange(outFile, extent.Start, extent.Length)
+				if err != nil {
+					return errors.Wrap(err, "failed to zero range on destination")
+				}
+			}
+			is.readers.progressReader.Current += uint64(extent.Length)
+		} else {
+			klog.Infof("Downloading %d-byte extent at offset %d", extent.Length, extent.Start)
+			responseBody, err := extentsReader.GetRange(extent.Start, extent.Start+extent.Length-1)
+			if err != nil { // Ignore special EOF case, extents should give the exact right size to read
+				return errors.Wrap(err, "failed to get range")
+			}
+			final := (index == (len(extentsReader.extents) - 1))
+			err = is.transferExtent(responseBody, outFile, extent, final)
+			if err != nil {
+				return errors.Wrap(err, "failed to transfer extent")
+			}
+		}
+	}
+
+	// A sync here seems to make it more likely that the next sync will work.
+	err = outFile.Sync()
+	if err != nil {
+		klog.Infof("Error from first attempt syncing %s: %v", fileName, err)
+	}
+
+	return nil
+}
+
+// transferExtent copies one extent from the source to the destination, updates the progress
+// counter, and closes the source. Each source reader is expected to contain one extent.
+func (is *ImageioDataSource) transferExtent(source io.ReadCloser, dest io.Writer, extent imageioExtent, final bool) error {
+	defer source.Close()
+	is.readers.progressReader.SetNextReader(source, final)
+
+	written, err := io.Copy(dest, is.readers.progressReader)
+	if err != nil {
+		return errors.Wrap(err, "failed to write to file")
+	}
+	if written != extent.Length {
+		return errors.New("failed to copy total extent length")
+	}
+
+	return nil
+}
+
+// monitorExtentsProgress sends a ticket renewal if there has been no download progress during the
+// polling time. This can happen if the destination storage does not have a fast way to punch holes.
+func (is *ImageioDataSource) monitorExtentsProgress(transferID string, extentsReader *extentReader, pollTime time.Duration, doneChannel chan struct{}) {
+	current := is.readers.progressReader.Current
+	for {
+		select {
+		case <-time.After(pollTime):
+			if is.readers.progressReader.Current <= current {
+				klog.Infof("No progress in the last %s, attempting ticket renewal to avoid timeout", pollTime)
+				if err := is.renewExtentsTicket(transferID, extentsReader); err != nil {
+					klog.Infof("Error renewing ticket: %v", err)
+				}
+			} else {
+				current = is.readers.progressReader.Current
+			}
+		case <-doneChannel:
+			klog.Info("Closing ticket expiration monitor")
+			return
+		}
+	}
+}
+
+// renewExtentsTicket ensures the ImageIO transfer ticket stays active by issuing a renewal and
+// by doing a small amount of I/O to prevent the oVirt engine from canceling the download.
+func (is *ImageioDataSource) renewExtentsTicket(transferID string, extentsReader *extentReader) error {
+	transfersService := is.connection.SystemService().ImageTransfersService()
+	transferService := transfersService.ImageTransferService(transferID)
+	_, err := transferService.Extend().Send()
+	if err != nil {
+		return errors.Wrap(err, "failed to renew transfer ticket")
+	}
+
+	readSize := 512
+	buf := make([]byte, readSize)
+	responseBody, err := extentsReader.GetRange(0, int64(readSize-1))
+	if err != nil {
+		return errors.Wrap(err, "failed sending small read to prevent download timeout")
+	}
+	defer responseBody.Close()
+
+	_, err = io.ReadFull(responseBody, buf)
+	return err
+}
+
+// imageioExtent holds information about a particular sequence of bytes, decodable from the ImageIO API.
+type imageioExtent struct {
+	Start  int64 `json:"start"`
+	Length int64 `json:"length"`
+	Zero   bool  `json:"zero"`
+	Hole   bool  `json:"hole"`
+}
+
+// extentReader wraps the ImageIO extents API with the ReadCloser interface so that it can be used
+// as the imageioReader in the ImageioDataSource.
+type extentReader struct {
+	client      *http.Client
+	extents     []imageioExtent
+	transferURL string
+	offset      int64
+	size        int64
+}
+
+// Read downloads a range of bytes from the ImageIO source. Having this attached
+// to extentReader provides compatibility with the FormatReader header parsing.
+func (reader *extentReader) Read(p []byte) (int, error) {
+	start := reader.offset
+	last := reader.size - 1
+	end := start + int64(len(p)) - 1
+	if end > last {
+		end = last
+	}
+	length := end - start + 1
+
+	responseBody, err := reader.GetRange(start, end)
+	if err != nil && err != io.EOF {
+		return 0, errors.Wrap(err, "failed to read from range")
+	}
+	if responseBody != nil {
+		defer responseBody.Close()
+	}
+
+	var written int
+	if err != io.EOF {
+		written, err = io.ReadFull(responseBody, p[:length])
+	}
+
+	reader.offset += int64(written)
+	return written, err
+}
+
+// Close closes the extentReader, which currently does not require any work.
+func (reader *extentReader) Close() error {
+	return nil
+}
+
+// GetRange requests a range of bytes from the ImageIO server, and returns the
+// response body so the caller can copy the data wherever it needs to go.
+func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
+	// Return EOF if there are no more bytes to read
+	if start >= reader.size {
+		return nil, io.EOF
+	}
+
+	// Don't try to read past end of available data
+	last := reader.size - 1
+	if end > last {
+		end = last
+		klog.Infof("Range request extends past end of image, trimming to %d", end)
+	}
+
+	request, err := http.NewRequest("GET", reader.transferURL, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create range request")
+	}
+	request.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", start, end))
+
+	response, err := reader.client.Do(request)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to do range request")
+	}
+
+	contentLength := response.Header.Get("Content-Length")
+	length, err := strconv.ParseInt(contentLength, 10, 64)
+	if err != nil {
+		response.Body.Close()
+		return nil, errors.Wrap(err, fmt.Sprintf("bad content-length in range request: %s", contentLength))
+	}
+
+	// Validate the returned length, and return an error if it does not match the expected range size
+	expectedLength := end - start + 1
+	if length != expectedLength {
+		response.Body.Close()
+		return nil, errors.New(fmt.Sprintf("wrong length returned: %d vs expected %d", length, expectedLength))
+	}
+
+	return response.Body, nil
+}
+
 func createImageioReader(ctx context.Context, ep string, accessKey string, secKey string, certDir string, diskID string, currentCheckpoint string, previousCheckpoint string) (io.ReadCloser, uint64, *ovirtsdk4.ImageTransfer, ConnectionInterface, error) {
 	conn, err := newOvirtClientFunc(ep, accessKey, secKey)
 	if err != nil {
@@ -283,25 +534,74 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 		return nil, uint64(0), it, conn, errors.New("Error transfer url not available")
 	}
 
-	req, err := http.NewRequest("GET", transferURL, nil)
-	req = req.WithContext(ctx)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, uint64(0), it, conn, errors.Wrap(err, "Sending request failed")
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, uint64(0), it, conn, errors.Errorf("bad status: %s", resp.Status)
+	// For raw images, see if the transfer can be sped up with the extents API
+	extentsFeature := false
+	if formatType == ovirtsdk4.DISKFORMAT_RAW {
+		extentsFeature, err = checkExtentsFeature(ctx, client, transferURL)
+		if err != nil {
+			klog.Infof("Unable to check extents feature on this endpoint: %v", err)
+		}
 	}
 
-	if total == 0 {
-		// The total seems bogus. Let's try the GET Content-Length header
-		total = parseHTTPHeader(resp)
+	var reader io.ReadCloser
+	if extentsFeature {
+		req, err := http.NewRequest("GET", transferURL+"/extents", nil)
+		req = req.WithContext(ctx)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, uint64(0), it, conn, errors.Wrap(err, "failed to query extents")
+		}
+		defer resp.Body.Close()
+
+		var extents []imageioExtent
+		err = json.NewDecoder(resp.Body).Decode(&extents)
+		if err != nil {
+			return nil, uint64(0), it, conn, errors.Wrap(err, "unable to decode extents")
+		}
+
+		// Add up all extents to calculate true total data size
+		total = 0
+		nonzero := int64(0)
+		for _, extent := range extents {
+			total += uint64(extent.Length)
+			if !extent.Zero {
+				nonzero += extent.Length
+			}
+		}
+		klog.Infof("Total size of non-zero extents: %d, total size of all extents: %d", nonzero, total)
+
+		reader = &extentReader{
+			client:      client,
+			extents:     extents,
+			transferURL: transferURL,
+			size:        int64(total),
+		}
+	} else {
+		req, err := http.NewRequest("GET", transferURL, nil)
+		req = req.WithContext(ctx)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, uint64(0), it, conn, errors.Wrap(err, "Sending request failed")
+		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, uint64(0), it, conn, errors.Errorf("bad status: %s", resp.Status)
+		}
+
+		if total == 0 {
+			// The total seems bogus. Let's try the GET Content-Length header
+			total = parseHTTPHeader(resp)
+		}
+
+		reader = resp.Body
 	}
+
 	countingReader := &util.CountingReader{
-		Reader:  resp.Body,
+		Reader:  reader,
 		Current: 0,
 	}
+
 	return countingReader, total, it, conn, nil
 }
 
@@ -605,6 +905,44 @@ func loadCA(certDir string) (*x509.CertPool, error) {
 	return caCertPool, nil
 }
 
+// ImageioImageOptions is the ImageIO API's response to an OPTIONS request
+type ImageioImageOptions struct {
+	UnixSocket string   `json:"unix_socket"`
+	Features   []string `json:"features"`
+	MaxReaders int      `json:"max_readers"`
+	MaxWriters int      `json:"max_writers"`
+}
+
+// checkExtentsFeature sends OPTIONS to check for ImageIO extents API feature
+func checkExtentsFeature(ctx context.Context, httpClient *http.Client, transferURL string) (bool, error) {
+	request, err := http.NewRequest(http.MethodOptions, transferURL, nil)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to create options request")
+	}
+	request = request.WithContext(ctx)
+
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return false, errors.Wrap(err, "error sending options request")
+	}
+	defer response.Body.Close()
+
+	options := &ImageioImageOptions{}
+	err = json.NewDecoder(response.Body).Decode(options)
+	if err != nil {
+		return false, errors.Wrap(err, "unable to decode options response")
+	}
+
+	extentsEnabled := false
+	for _, feature := range options.Features {
+		if feature == "extents" {
+			extentsEnabled = true
+		}
+	}
+
+	return extentsEnabled, nil
+}
+
 // may be overridden in tests
 var newOvirtClientFunc = getOvirtClient
 
@@ -682,6 +1020,7 @@ type ImageTransfersServiceInterface interface {
 // ImageTransferServiceInterface defines service methods
 type ImageTransferServiceInterface interface {
 	Cancel() ImageTransferServiceCancelRequestInterface
+	Extend() ImageTransferServiceExtendRequestInterface
 	Finalize() ImageTransferServiceFinalizeRequestInterface
 	Get() ImageTransferServiceGetRequestInterface
 }
@@ -693,6 +1032,15 @@ type ImageTransferServiceCancelRequestInterface interface {
 
 // ImageTransferServiceCancelResponseInterface defines service methods
 type ImageTransferServiceCancelResponseInterface interface {
+}
+
+// ImageTransferServiceExtendRequestInterface defines service methods
+type ImageTransferServiceExtendRequestInterface interface {
+	Send() (ImageTransferServiceExtendResponseInterface, error)
+}
+
+// ImageTransferServiceExtendResponseInterface defines service methods
+type ImageTransferServiceExtendResponseInterface interface {
 }
 
 // ImageTransferServiceFinalizeRequestInterface defines service methods
@@ -795,6 +1143,16 @@ type ImageTransferServiceCancelResponse struct {
 	srv *ovirtsdk4.ImageTransferServiceCancelResponse
 }
 
+// ImageTransferServiceExtendRequest wraps cancel request
+type ImageTransferServiceExtendRequest struct {
+	srv *ovirtsdk4.ImageTransferServiceExtendRequest
+}
+
+// ImageTransferServiceExtendResponse wraps cancel response
+type ImageTransferServiceExtendResponse struct {
+	srv *ovirtsdk4.ImageTransferServiceExtendResponse
+}
+
 // ImageTransferServiceFinalizeRequest warps finalize request
 type ImageTransferServiceFinalizeRequest struct {
 	srv *ovirtsdk4.ImageTransferServiceFinalizeRequest
@@ -854,6 +1212,14 @@ func (service *ImageTransfersServiceResponse) Send() (ImageTransfersServiceAddRe
 func (service *ImageTransferServiceCancelRequest) Send() (ImageTransferServiceCancelResponseInterface, error) {
 	resp, err := service.srv.Send()
 	return &ImageTransferServiceCancelResponse{
+		srv: resp,
+	}, err
+}
+
+// Send returns transfer extend response
+func (service *ImageTransferServiceExtendRequest) Send() (ImageTransferServiceExtendResponseInterface, error) {
+	resp, err := service.srv.Send()
+	return &ImageTransferServiceExtendResponse{
 		srv: resp,
 	}, err
 }
@@ -926,6 +1292,13 @@ func (service *ImageTransfersService) ImageTransferService(id string) ImageTrans
 func (service *ImageTransferService) Cancel() ImageTransferServiceCancelRequestInterface {
 	return &ImageTransferServiceCancelRequest{
 		srv: service.srv.Cancel(),
+	}
+}
+
+// Extend returns image service
+func (service *ImageTransferService) Extend() ImageTransferServiceExtendRequestInterface {
+	return &ImageTransferServiceExtendRequest{
+		srv: service.srv.Extend(),
 	}
 }
 

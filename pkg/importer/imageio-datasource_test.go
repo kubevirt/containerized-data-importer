@@ -3,11 +3,15 @@ package importer
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,6 +34,7 @@ var diskCreateError error
 var diskSnapshots = &ovirtsdk4.DiskSnapshotSlice{}
 var storageDomain = &ovirtsdk4.StorageDomain{}
 var storageDomains = &ovirtsdk4.StorageDomainSlice{}
+var renewalTime time.Time
 
 var _ = Describe("Imageio reader", func() {
 	var (
@@ -446,6 +451,195 @@ var _ = Describe("imageio snapshots", func() {
 	})
 })
 
+var _ = Describe("Imageio extents", func() {
+	var (
+		ts      *httptest.Server
+		tempDir string
+	)
+	BeforeEach(func() {
+		newOvirtClientFunc = createMockOvirtClient
+		newTerminationChannel = createMockTerminationChannel
+		createTestImageOptions = createDefaultImageOptions
+		createTestExtentData = createDefaultTestExtentData
+		tempDir = createCert()
+
+		disk.SetTotalSize(3072)
+		disk.SetId(diskID)
+
+		mux := http.NewServeMux()
+		ticketTester := &TransferTicketTester{}
+		extentTester := &ExtentsTester{}
+		mux.Handle("/", http.FileServer(http.Dir(imageDir)))
+		mux.Handle("/ovirt-engine/api/tickets/"+diskID, ticketTester)
+		mux.Handle("/ovirt-engine/api/tickets/"+diskID+"/extents", extentTester)
+		ts = httptest.NewServer(mux)
+
+		it.SetId(diskID)
+		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
+		it.SetTransferUrl(ts.URL + "/ovirt-engine/api/tickets/" + diskID)
+		diskCreateError = nil
+		diskAvailable = true
+	})
+
+	AfterEach(func() {
+		createTestExtents = createDefaultTestExtents
+		handleRangeRequest = defaultRangeRequestHandler
+		newOvirtClientFunc = getOvirtClient
+		if tempDir != "" {
+			os.RemoveAll(tempDir)
+		}
+		ts.Close()
+	})
+
+	It("should create an extents reader when the feature is enabled", func() {
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		countingReader, ok := source.imageioReader.(*util.CountingReader)
+		Expect(ok).To(Equal(true))
+		extentsReader, ok := countingReader.Reader.(*extentReader)
+		Expect(ok).To(Equal(true))
+		secondReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(secondReader).To(BeAssignableToTypeOf(extentsReader))
+	})
+
+	It("should not create an extents reader when the feature is disabled", func() {
+		createTestImageOptions = func() *ImageioImageOptions {
+			return &ImageioImageOptions{}
+		}
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		countingReader, ok := source.imageioReader.(*util.CountingReader)
+		Expect(ok).To(Equal(true))
+		_, ok = countingReader.Reader.(*extentReader)
+		Expect(ok).To(Equal(false))
+		secondReader, _ := source.getExtentsReader()
+		Expect(secondReader).To(BeNil())
+	})
+
+	It("should be able to get a range", func() {
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		reader, err := extentsReader.GetRange(1020, 1030)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(reader).ToNot(BeNil())
+	})
+
+	It("should be able to read from an extents reader", func() {
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		data := make([]byte, source.contentLength)
+		written, err := extentsReader.Read(data)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(written).To(Equal(len(data)))
+		extentData := createTestExtentData()
+		comparison := bytes.Compare(data, extentData)
+		Expect(comparison).To(Equal(0))
+	})
+
+	It("should send a small read along with a ticket renewal", func() {
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		ticketTime := time.Now()
+		time.Sleep(1 * time.Millisecond)
+		err = source.renewExtentsTicket(it.MustId(), extentsReader)
+		Expect(renewalTime.Equal(ticketTime)).To(BeFalse())
+	})
+
+	It("should send a ticket renewal if there has been no progress", func() {
+		pollCount := 10
+		createTestExtentData = func() []byte {
+			// Each poll read consumes 512 bytes, make sure there will always be more
+			return bytes.Repeat([]byte{0x55}, pollCount*1024)
+		}
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		ticketTime := time.Now()
+		renewalTime = ticketTime
+		doneChannel := make(chan struct{}, 1)
+		defer func() { doneChannel <- struct{}{} }()
+		phase, err := source.Info() // Get progressReader filled out
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
+		go source.monitorExtentsProgress(it.MustId(), extentsReader, 1*time.Millisecond, doneChannel)
+		time.Sleep(time.Duration(pollCount) * time.Millisecond)
+		Expect(renewalTime.Equal(ticketTime)).To(BeFalse())
+	})
+
+	It("should not send a ticket renewal if there has been progress", func() {
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		ticketTime := time.Now()
+		renewalTime = ticketTime
+		doneChannel := make(chan struct{}, 1)
+		defer func() { doneChannel <- struct{}{} }()
+		phase, err := source.Info() // Get progressReader filled out
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
+		go source.monitorExtentsProgress(it.MustId(), extentsReader, 10*time.Millisecond, doneChannel)
+		source.readers.progressReader.Current++
+		Expect(renewalTime.Equal(ticketTime)).To(BeTrue())
+	})
+
+	It("should stream extents to a local file", func() {
+		destination := path.Join(tempDir, "outfile")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		phase, err := source.Info()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
+		err = source.StreamExtents(extentsReader, destination)
+		Expect(err).ToNot(HaveOccurred())
+		data, err := ioutil.ReadFile(destination)
+		Expect(err).ToNot(HaveOccurred())
+		extentData := createTestExtentData()
+		comparison := bytes.Compare(data, extentData)
+		Expect(comparison).To(Equal(0))
+	})
+
+	It("should refuse to write to destination if extents are returned out of order", func() {
+		createTestExtents = createBadTestExtents
+		destination := path.Join(tempDir, "outfile")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		phase, err := source.Info()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
+		err = source.StreamExtents(extentsReader, destination)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).Should(MatchRegexp(".*cannot safely append.*"))
+	})
+
+	It("should fail if server terminates connection during transfer", func() {
+		handleRangeRequest = hangupRangeRequestHandler
+		destination := path.Join(tempDir, "outfile")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		Expect(err).ToNot(HaveOccurred())
+		extentsReader, err := source.getExtentsReader()
+		Expect(err).ToNot(HaveOccurred())
+		phase, err := source.Info()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
+		err = source.StreamExtents(extentsReader, destination)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).Should(MatchRegexp(".*failed to get range.*"))
+	})
+})
+
 // MockOvirtClient is a mock minio client
 type MockOvirtClient struct {
 	ep     string
@@ -459,6 +653,10 @@ type MockAddService struct {
 }
 
 type MockCancelService struct {
+	client *MockOvirtClient
+}
+
+type MockExtendService struct {
 	client *MockOvirtClient
 }
 
@@ -500,6 +698,10 @@ type MockImageTransferServiceCancelResponse struct {
 	srv *ovirtsdk4.ImageTransferServiceCancelResponse
 }
 
+type MockImageTransferServiceExtendResponse struct {
+	srv *ovirtsdk4.ImageTransferServiceExtendResponse
+}
+
 type MockImageTransferServiceFinalizeResponse struct {
 	srv *ovirtsdk4.ImageTransferServiceFinalizeResponse
 }
@@ -538,6 +740,10 @@ func (conn *MockOvirtClient) ImageTransferService(string) ImageTransferServiceIn
 
 func (service *MockImageTransferService) Cancel() ImageTransferServiceCancelRequestInterface {
 	return &MockCancelService{}
+}
+
+func (service *MockImageTransferService) Extend() ImageTransferServiceExtendRequestInterface {
+	return &MockExtendService{}
 }
 
 func (service *MockImageTransferService) Finalize() ImageTransferServiceFinalizeRequestInterface {
@@ -619,6 +825,11 @@ func (conn *MockCancelService) Send() (ImageTransferServiceCancelResponseInterfa
 	return &MockImageTransferServiceCancelResponse{srv: nil}, err
 }
 
+func (conn *MockExtendService) Send() (ImageTransferServiceExtendResponseInterface, error) {
+	renewalTime = time.Now()
+	return &MockImageTransferServiceExtendResponse{}, nil
+}
+
 func (conn *MockFinalizeService) Send() (ImageTransferServiceFinalizeResponseInterface, error) {
 	var err error
 	if mockFinalizeHook != nil {
@@ -690,4 +901,120 @@ func createMockOvirtClient(ep string, accessKey string, secKey string) (Connecti
 		secKey: secKey,
 		doErr:  false,
 	}, nil
+}
+
+type TransferTicketTester struct{}
+type ExtentsTester struct{}
+
+var createTestImageOptions = createDefaultImageOptions
+var createTestExtents = createDefaultTestExtents
+var createTestExtentData = createDefaultTestExtentData
+var handleRangeRequest = defaultRangeRequestHandler
+
+func createDefaultImageOptions() *ImageioImageOptions {
+	return &ImageioImageOptions{
+		Features: []string{"extents"},
+	}
+}
+
+func createDefaultTestExtents() []imageioExtent {
+	return []imageioExtent{
+		{
+			Start:  0,
+			Length: 1024,
+			Zero:   false,
+			Hole:   false,
+		},
+		{
+			Start:  1024,
+			Length: 1024,
+			Zero:   true,
+			Hole:   false,
+		},
+		{
+			Start:  2048,
+			Length: 1024,
+			Zero:   false,
+			Hole:   false,
+		},
+	}
+}
+
+func createBadTestExtents() []imageioExtent {
+	return []imageioExtent{
+		{
+			Start:  1024,
+			Length: 1024,
+			Zero:   false,
+			Hole:   false,
+		},
+		{
+			Start:  0,
+			Length: 1024,
+			Zero:   true,
+			Hole:   false,
+		},
+		{
+			Start:  2048,
+			Length: 1024,
+			Zero:   false,
+			Hole:   false,
+		},
+	}
+}
+
+func createDefaultTestExtentData() []byte {
+	extents := createTestExtents()
+	size := int64(0)
+	for _, extent := range extents {
+		size += extent.Length
+	}
+	data := make([]byte, size)
+	for _, extent := range extents {
+		value := byte(0x55)
+		if extent.Zero {
+			value = 0
+		}
+		block := bytes.Repeat([]byte{value}, int(extent.Length))
+		copy(data[extent.Start:], block)
+	}
+	return data
+}
+
+func defaultRangeRequestHandler(start, end int64, w http.ResponseWriter, data []byte) {
+	w.Header().Add("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, end-start+1))
+	w.Header().Add("Content-Length", fmt.Sprintf("%d", end-start+1))
+	w.Write(data[start : end+1])
+}
+
+func hangupRangeRequestHandler(start, end int64, w http.ResponseWriter, data []byte) {
+	if start > 0 {
+		w.WriteHeader(http.StatusForbidden)
+	} else {
+		defaultRangeRequestHandler(start, end, w, data)
+	}
+}
+
+func (t *TransferTicketTester) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Method == http.MethodOptions {
+		options := createTestImageOptions()
+		err := json.NewEncoder(w).Encode(options)
+		Expect(err).ToNot(HaveOccurred())
+	} else if req.Method == http.MethodGet {
+		data := createTestExtentData()
+		byteRange, present := req.Header["Range"]
+		if present {
+			byteRange := byteRange[0]
+			byteRange = strings.Replace(byteRange, "bytes=", "", 1)
+			start, _ := strconv.ParseInt(strings.Split(byteRange, "-")[0], 10, 0)
+			end, _ := strconv.ParseInt(strings.Split(byteRange, "-")[1], 10, 0)
+			handleRangeRequest(start, end, w, data)
+		}
+	}
+}
+
+func (t *ExtentsTester) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	extents := createTestExtents()
+	err := json.NewEncoder(w).Encode(extents)
+	Expect(err).ToNot(HaveOccurred())
 }

@@ -23,6 +23,7 @@ type ProgressReader struct {
 	total    uint64
 	progress *prometheus.CounterVec
 	ownerUID string
+	final    bool
 }
 
 // NewProgressReader creates a new instance of a prometheus updating progress reader.
@@ -35,6 +36,7 @@ func NewProgressReader(r io.ReadCloser, total uint64, progress *prometheus.Count
 		total:    total,
 		progress: progress,
 		ownerUID: ownerUID,
+		final:    true,
 	}
 
 	return promReader
@@ -57,8 +59,9 @@ func (r *ProgressReader) timedUpdateProgress() {
 
 func (r *ProgressReader) updateProgress() bool {
 	if r.total > 0 {
+		finished := r.final && r.Done
 		currentProgress := 100.0
-		if !r.Done && r.Current < r.total {
+		if !finished && r.Current < r.total {
 			currentProgress = float64(r.Current) / float64(r.total) * 100.0
 		}
 		metric := &dto.Metric{}
@@ -67,9 +70,20 @@ func (r *ProgressReader) updateProgress() bool {
 			r.progress.WithLabelValues(r.ownerUID).Add(currentProgress - *metric.Counter.Value)
 		}
 		klog.V(1).Infoln(fmt.Sprintf("%.2f", currentProgress))
-		return !r.Done
+		return !finished
 	}
 	return false
+}
+
+// SetNextReader replaces the current counting reader with a new one,
+// for tracking progress over multiple readers.
+func (r *ProgressReader) SetNextReader(reader io.ReadCloser, final bool) {
+	r.CountingReader = util.CountingReader{
+		Reader:  reader,
+		Current: r.Current,
+		Done:    false,
+	}
+	r.final = final
 }
 
 // StartPrometheusEndpoint starts an http server providing a prometheus endpoint using the passed
