@@ -244,6 +244,14 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(*dv.Spec.Source.Registry.URL).To(Equal("docker://" + testDockerRef))
+			dv.Status.Phase = cdiv1.Succeeded
+			dv.Status.Conditions = updateReadyCondition(dv.Status.Conditions, corev1.ConditionTrue, "", "")
+			err = reconciler.client.Update(context.TODO(), dv)
+			Expect(err).ToNot(HaveOccurred())
+			verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready)
+			cond := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions)
+			Expect(cond).ToNot(BeNil())
+			condTime := cond.LastHeartbeatTime
 
 			now := metav1.Now()
 			cron.DeletionTimestamp = &now
@@ -251,6 +259,12 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			_, err = reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
+
+			// Actual DataImportCron deletion
+			err = reconciler.client.Delete(context.TODO(), cron)
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), cronKey, cron)
+			Expect(err).To(HaveOccurred())
 
 			// Should retain DataSource and DataVolume on DataImportCron deletion as default RetentionPolicy is RetainAll
 			dataSource = &cdiv1.DataSource{}
@@ -260,6 +274,29 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.List(context.TODO(), dvList, &client.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(len(dvList.Items)).ToNot(Equal(0))
+
+			// Test DV is reused
+			time.Sleep(1 * time.Second)
+			cron = newDataImportCronWithImageStream(cronName)
+			reconciler = createDataImportCronReconciler(cron, imageStream, dv)
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), cronKey, cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			imports = cron.Status.CurrentImports
+			Expect(len(imports)).ToNot(BeZero())
+			dvName = imports[0].DataVolumeName
+			Expect(dvName).ToNot(BeEmpty())
+
+			dv1 := &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv1)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv1.Status.Phase).To(Equal(cdiv1.Succeeded))
+			cond = findConditionByType(cdiv1.DataVolumeReady, dv1.Status.Conditions)
+			Expect(cond).ToNot(BeNil())
+			Expect(cond.LastHeartbeatTime.Time).To(BeTemporally(">", condTime.Time))
 		})
 	})
 })
