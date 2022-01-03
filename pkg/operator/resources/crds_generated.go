@@ -3714,9 +3714,14 @@ metadata:
 spec:
   group: cdi.kubevirt.io
   names:
+    categories:
+    - all
     kind: DataImportCron
     listKind: DataImportCronList
     plural: dataimportcrons
+    shortNames:
+    - dic
+    - dics
     singular: dataimportcron
   scope: Namespaced
   versions:
@@ -4391,9 +4396,13 @@ metadata:
 spec:
   group: cdi.kubevirt.io
   names:
+    categories:
+    - all
     kind: DataSource
     listKind: DataSourceList
     plural: datasources
+    shortNames:
+    - das
     singular: datasource
   scope: Namespaced
   versions:

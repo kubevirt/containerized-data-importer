@@ -380,14 +380,24 @@ func (r *DataImportCronReconciler) updateDataImportCronOnSuccess(ctx context.Con
 }
 
 func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	log := r.log.WithName("createImportDataVolume")
 	dataSourceName := dataImportCron.Spec.ManagedDataSource
 	digest := dataImportCron.Annotations[AnnSourceDesiredDigest]
 	dvName := createDvName(dataSourceName, digest)
-	log.Info("Creating new source DataVolume", "name", dvName)
 	dv := r.newSourceDataVolume(dataImportCron, dvName)
 	if err := r.client.Create(ctx, dv); err != nil {
-		return err
+		if !k8serrors.IsAlreadyExists(err) {
+			return err
+		}
+		if err := r.client.Get(ctx, types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}, dv); err != nil {
+			return err
+		}
+		// Touch the DV Ready condition heartbeat time, so DV wan't be garbage collected
+		if cond := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions); cond != nil {
+			cond.LastHeartbeatTime = metav1.Now()
+			if err := r.client.Update(ctx, dv); err != nil {
+				return err
+			}
+		}
 	}
 	// Update references to current import
 	dataImportCron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: dvName, Digest: digest}}
@@ -424,7 +434,13 @@ func (r *DataImportCronReconciler) deleteOldImports(ctx context.Context, dataImp
 		return nil
 	}
 	sort.Slice(dvList.Items, func(i, j int) bool {
-		return dvList.Items[i].CreationTimestamp.Time.After(dvList.Items[j].CreationTimestamp.Time)
+		getDvTimestamp := func(dv cdiv1.DataVolume) time.Time {
+			if cond := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions); cond != nil {
+				return cond.LastHeartbeatTime.Time
+			}
+			return dv.CreationTimestamp.Time
+		}
+		return getDvTimestamp(dvList.Items[i]).After(getDvTimestamp(dvList.Items[j]))
 	})
 	for _, dv := range dvList.Items[maxDvs:] {
 		if err := r.client.Delete(ctx, &dv); err != nil {
