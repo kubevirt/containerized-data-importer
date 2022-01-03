@@ -209,6 +209,10 @@ func start(ctx context.Context, cfg *rest.Config) {
 		klog.Errorf("Unable to setup dataimportcron controller: %v", err)
 		os.Exit(1)
 	}
+	if _, err := controller.NewDataSourceController(mgr, log, installerLabels); err != nil {
+		klog.Errorf("Unable to setup datasource controller: %v", err)
+		os.Exit(1)
+	}
 
 	klog.V(1).Infoln("created cdi controllers")
 

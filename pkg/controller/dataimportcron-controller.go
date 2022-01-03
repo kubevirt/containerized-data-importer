@@ -338,22 +338,7 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 
 	sourcePVC := dataImportCron.Status.LastImportedPVC
 	if sourcePVC != nil {
-		dv := &cdiv1.DataVolume{}
-		if err := r.client.Get(ctx, types.NamespacedName{Namespace: sourcePVC.Namespace, Name: sourcePVC.Name}, dv); err != nil {
-			if k8serrors.IsNotFound(err) {
-				log.Info("DataVolume not found", "name", sourcePVC.Name)
-				updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "DataVolume not found", notFound)
-			} else {
-				return err
-			}
-		} else if dv.Status.Phase == cdiv1.Succeeded {
-			updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionTrue, "DataSource is ready to be consumed", ready)
-		} else {
-			updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, fmt.Sprintf("Import DataVolume phase %s", dv.Status.Phase), string(dv.Status.Phase))
-		}
 		dataSource.Spec.Source.PVC = sourcePVC
-	} else {
-		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "No imports yet", noImport)
 	}
 	if !reflect.DeepEqual(dataSource, dataSourceCopy) {
 		if err := r.client.Update(ctx, dataSource); err != nil {
