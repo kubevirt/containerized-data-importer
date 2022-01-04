@@ -22,25 +22,23 @@ import (
 
 const (
 	dataImportCronTimeout = 4 * time.Minute
+	scheduleEveryMinute   = "* * * * *"
+	scheduleOnceAYear     = "0 0 1 1 *"
 )
 
 var (
-	importsToKeep int32 = 1
+	importsToKeep       int32 = 1
+	registryPullNode          = cdiv1.RegistryPullNode
+	externalRegistryURL       = "docker://quay.io/kubevirt/cirros-container-disk-demo"
 )
 
 var _ = Describe("DataImportCron", func() {
-	const (
-		scheduleEveryMinute = "* * * * *"
-		scheduleOnceAYear   = "0 0 1 1 *"
-	)
 	var (
-		f                   = framework.NewFramework(namespacePrefix)
-		registryPullNode    = cdiv1.RegistryPullNode
-		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
-		externalRegistryURL = "docker://quay.io/kubevirt/cirros-container-disk-demo"
-		dataSourceName      = "datasource-test"
-		cron                *cdiv1.DataImportCron
-		err                 error
+		f                  = framework.NewFramework(namespacePrefix)
+		trustedRegistryURL = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
+		dataSourceName     = "datasource-test"
+		cron               *cdiv1.DataImportCron
+		err                error
 	)
 
 	table.DescribeTable("should", func(schedule string, retentionPolicy cdiv1.DataImportCronRetentionPolicy, repeat int, checkGarbageCollection bool) {

@@ -17,6 +17,7 @@ See the License for the specific language governing permissions and
 package controller
 
 import (
+	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -34,6 +35,13 @@ const (
 )
 
 func updateDataImportCronCondition(cron *cdiv1.DataImportCron, conditionType cdiv1.DataImportCronConditionType, status corev1.ConditionStatus, message, reason string) {
+	if conditionType == cdiv1.DataImportCronUpToDate {
+		if status != corev1.ConditionTrue {
+			DataImportCronOutdatedGauge.With(getPrometheusCronLabels(cron)).Set(1)
+		} else {
+			DataImportCronOutdatedGauge.With(getPrometheusCronLabels(cron)).Set(0)
+		}
+	}
 	if condition := FindDataImportCronConditionByType(cron, conditionType); condition != nil {
 		updateConditionState(&condition.ConditionState, status, message, reason)
 	} else {
@@ -85,5 +93,12 @@ func updateConditionState(condition *cdiv1.ConditionState, status corev1.Conditi
 		condition.LastHeartbeatTime = now
 		condition.Reason = reason
 		condition.Message = message
+	}
+}
+
+func getPrometheusCronLabels(cron *cdiv1.DataImportCron) prometheus.Labels {
+	return prometheus.Labels{
+		prometheusNsLabel:       cron.GetNamespace(),
+		prometheusCronNameLabel: cron.GetName(),
 	}
 }

@@ -31,6 +31,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -870,6 +871,65 @@ var _ = Describe("ALL Operator tests", func() {
 					Eventually(func() int {
 						return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
 					}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", expectedIncomplete))
+				}
+			})
+
+			It("DataImportCron failing metric expected value when patching DesiredDigest annotation with junk sha256 value", func() {
+				if !tests.IsPrometheusAvailable(f.ExtClient) {
+					Skip("This test depends on prometheus infra being available")
+				}
+				var url string
+				var err error
+				numCrons := 2
+				retentionPolicy := cdiv1.DataImportCronRetainAll
+				trustedRegistryURL := fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix)
+				originalMetricVal := getMetricValue("kubevirt_cdi_dataimportcron_outdated_total")
+				expectedFailingCrons := originalMetricVal + numCrons
+				if utils.IsOpenshift(f.K8sClient) {
+					url = externalRegistryURL
+				} else {
+					url = trustedRegistryURL
+					err = utils.AddInsecureRegistry(f.CrClient, url)
+					Expect(err).To(BeNil())
+
+					defer utils.RemoveInsecureRegistry(f.CrClient, url)
+				}
+
+				for i := 1; i < numCrons+1; i++ {
+					cron := NewDataImportCron(fmt.Sprintf("cron-test-%d", i), "5Gi", scheduleOnceAYear, fmt.Sprintf("datasource-test-%d", i), cdiv1.DataVolumeSourceRegistry{URL: &url, PullMethod: &registryPullNode}, retentionPolicy)
+					By(fmt.Sprintf("Create new DataImportCron %s", url))
+					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					By("Wait for condition UpToDate=true on DataImportCron")
+					Eventually(func() bool {
+						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						upToDateCondition := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
+						return upToDateCondition != nil && upToDateCondition.ConditionState.Status == corev1.ConditionTrue
+					}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+					Eventually(func() error {
+						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						if cron.Annotations == nil {
+							cron.Annotations = make(map[string]string)
+						}
+						// notarealsha
+						cron.Annotations[controller.AnnSourceDesiredDigest] = "sha256:c616e1c85568b1f1d528da2b3dbc257fd2035ada441e286a8c42606491442a5d"
+						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Update(context.TODO(), cron, metav1.UpdateOptions{})
+						return err
+					}, dataImportCronTimeout, pollingInterval).Should(BeNil())
+					By(fmt.Sprintf("Ensuring metric value incremented to %d", originalMetricVal+i))
+					Eventually(func() int {
+						return getMetricValue("kubevirt_cdi_dataimportcron_outdated_total")
+					}, 3*time.Minute, 1*time.Second).Should(BeNumerically("==", originalMetricVal+i))
+				}
+				By("Ensure metric value decrements when crons are cleaned up")
+				for i := 1; i < numCrons+1; i++ {
+					err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Delete(context.TODO(), fmt.Sprintf("cron-test-%d", i), metav1.DeleteOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					Eventually(func() int {
+						return getMetricValue("kubevirt_cdi_dataimportcron_outdated_total")
+					}, 3*time.Minute, 1*time.Second).Should(BeNumerically("==", expectedFailingCrons-i))
 				}
 			})
 		})
