@@ -35,7 +35,6 @@ import (
 	"syscall"
 	"time"
 
-	libnbd "github.com/mrnold/go-libnbd"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/vmware/govmomi"
@@ -52,6 +51,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	libnbd "libguestfs.org/libnbd"
 )
 
 // May be overridden in tests
