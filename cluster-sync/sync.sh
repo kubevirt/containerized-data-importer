@@ -130,6 +130,10 @@ function setup_for_upgrade_testing {
     echo "Old version testing environment already setup"
     return
   fi
+  if [ "${KUBEVIRT_PROVIDER}" == "external" ]; then
+    echo "External provider, not setting up upgrade testing"
+    return
+  fi
   echo "Missing old version environment setup, creating"
   _kubectl apply -f "./_out/manifests/cdi-testing-sa.yaml"
   _kubectl apply -f "./_out/manifests/file-host.yaml"
