@@ -246,6 +246,9 @@ const (
 
 	// UnusualRestartCountThreshold is the number of pod restarts that we consider unusual and would like to alert about
 	UnusualRestartCountThreshold = 3
+
+	// CDIControllerLeaderElectionHelperName is the name of the configmap that is used as a helper for controller leader election
+	CDIControllerLeaderElectionHelperName = "cdi-controller-leader-election-helper"
 )
 
 // ProxyPaths are all supported paths
