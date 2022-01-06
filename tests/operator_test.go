@@ -684,7 +684,7 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 		})
 
-		var _ = Describe("Alert tests", func() {
+		var _ = Describe("[rfe_id:7101][crit:medium][vendor:cnv-qe@redhat.com][level:component]Alert tests", func() {
 			var numAddedStorageClasses int
 			f := framework.NewFramework("alert-tests")
 
@@ -749,7 +749,7 @@ var _ = Describe("ALL Operator tests", func() {
 				}
 			}
 
-			It("CDIOperatorDown alert firing when operator scaled down", func() {
+			It("[test_id:7962] CDIOperatorDown alert firing when operator scaled down", func() {
 				if !tests.IsPrometheusAvailable(f.ExtClient) {
 					Skip("This test depends on prometheus infra being available")
 				}
@@ -827,7 +827,7 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("CDI ready metric value as expected when ready to use", func() {
+			It("[test_id:7963] CDI ready metric value as expected when ready to use", func() {
 				if !tests.IsPrometheusAvailable(f.ExtClient) {
 					Skip("This test depends on prometheus infra being available")
 				}
@@ -837,7 +837,7 @@ var _ = Describe("ALL Operator tests", func() {
 				}, 1*time.Minute, 1*time.Second).Should(BeNumerically("==", 1))
 			})
 
-			It("StorageProfile incomplete metric expected value when creating an incomplete profile", func() {
+			It("[test_id:7965] StorageProfile incomplete metric expected value when creating an incomplete profile", func() {
 				if !tests.IsPrometheusAvailable(f.ExtClient) {
 					Skip("This test depends on prometheus infra being available")
 				}
@@ -874,7 +874,7 @@ var _ = Describe("ALL Operator tests", func() {
 				}
 			})
 
-			It("DataImportCron failing metric expected value when patching DesiredDigest annotation with junk sha256 value", func() {
+			It("[test_id:7964] DataImportCron failing metric expected value when patching DesiredDigest annotation with junk sha256 value", func() {
 				if !tests.IsPrometheusAvailable(f.ExtClient) {
 					Skip("This test depends on prometheus infra being available")
 				}
