@@ -7,6 +7,7 @@ go_library(
         "config-controller.go",
         "dataimportcron-conditions.go",
         "dataimportcron-controller.go",
+        "datasource-controller.go",
         "datavolume-conditions.go",
         "datavolume-controller.go",
         "import-controller.go",

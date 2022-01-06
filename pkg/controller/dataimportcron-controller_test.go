@@ -57,12 +57,13 @@ const (
 var _ = Describe("All DataImportCron Tests", func() {
 	var _ = Describe("DataImportCron controller reconcile loop", func() {
 		var (
-			reconciler *DataImportCronReconciler
-			cron       *cdiv1.DataImportCron
-			dataSource *cdiv1.DataSource
-			cronKey    = types.NamespacedName{Name: cronName, Namespace: metav1.NamespaceDefault}
-			cronReq    = reconcile.Request{NamespacedName: cronKey}
-			cronJobKey = func(cron *cdiv1.DataImportCron) types.NamespacedName {
+			reconciler   *DataImportCronReconciler
+			dsReconciler *DataSourceReconciler
+			cron         *cdiv1.DataImportCron
+			dataSource   *cdiv1.DataSource
+			cronKey      = types.NamespacedName{Name: cronName, Namespace: metav1.NamespaceDefault}
+			cronReq      = reconcile.Request{NamespacedName: cronKey}
+			cronJobKey   = func(cron *cdiv1.DataImportCron) types.NamespacedName {
 				return types.NamespacedName{Name: GetCronJobName(cron), Namespace: reconciler.cdiNamespace}
 			}
 			dataSourceKey = func(cron *cdiv1.DataImportCron) types.NamespacedName {
@@ -87,7 +88,23 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(cronCond).ToNot(BeNil())
 			verifyConditionState(string(cdiv1.DataImportCronUpToDate), cronCond.ConditionState, isUpToDate, reasonUpToDate)
 			if dataSource != nil {
+				imports := cron.Status.CurrentImports
+				Expect(imports).ToNot(BeNil())
+				Expect(len(imports)).ToNot(BeZero())
+				dvName := imports[0].DataVolumeName
+				Expect(dvName).ToNot(BeEmpty())
+
+				dv := &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(err).ToNot(HaveOccurred())
 				err = reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)
+				Expect(err).ToNot(HaveOccurred())
+				dsReconciler = createDataSourceReconciler(dataSource, dv)
+				dsReq := reconcile.Request{NamespacedName: dataSourceKey(cron)}
+				_, err = dsReconciler.Reconcile(context.TODO(), dsReq)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = dsReconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)
 				Expect(err).ToNot(HaveOccurred())
 				dsCond := FindDataSourceConditionByType(dataSource, cdiv1.DataSourceReady)
 				Expect(dsCond).ToNot(BeNil())
@@ -147,7 +164,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err := reconciler.client.Update(context.TODO(), cron)
 			Expect(err).ToNot(HaveOccurred())
 			dataSource = &cdiv1.DataSource{}
-			verifyConditions("After DesiredDigest is set", false, false, false, noImport, outdated, noImport)
+			verifyConditions("After DesiredDigest is set", false, false, false, noImport, outdated, noPvc)
 
 			imports := cron.Status.CurrentImports
 			Expect(imports).ToNot(BeNil())
@@ -165,12 +182,12 @@ var _ = Describe("All DataImportCron Tests", func() {
 			dv.Status.Phase = cdiv1.ImportScheduled
 			err = reconciler.client.Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
-			verifyConditions("Import scheduled", false, false, false, scheduled, inProgress, noImport)
+			verifyConditions("Import scheduled", false, false, false, scheduled, inProgress, noPvc)
 
 			dv.Status.Phase = cdiv1.ImportInProgress
 			err = reconciler.client.Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
-			verifyConditions("Import in progress", true, false, false, inProgress, inProgress, noImport)
+			verifyConditions("Import in progress", true, false, false, inProgress, inProgress, noPvc)
 			Expect(cron.Status.LastExecutionTimestamp).ToNot(BeNil())
 
 			dv.Status.Phase = cdiv1.Succeeded

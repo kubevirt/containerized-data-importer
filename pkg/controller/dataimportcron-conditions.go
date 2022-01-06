@@ -29,9 +29,7 @@ const (
 	outdated   = "Outdated"
 	scheduled  = "ImportScheduled"
 	inProgress = "ImportProgressing"
-	failed     = "ImportFailed"
 	upToDate   = "UpToDate"
-	ready      = "Ready"
 )
 
 func updateDataImportCronCondition(cron *cdiv1.DataImportCron, conditionType cdiv1.DataImportCronConditionType, status corev1.ConditionStatus, message, reason string) {
@@ -56,26 +54,6 @@ func FindDataImportCronConditionByType(cron *cdiv1.DataImportCron, conditionType
 	for i, condition := range cron.Status.Conditions {
 		if condition.Type == conditionType {
 			return &cron.Status.Conditions[i]
-		}
-	}
-	return nil
-}
-
-func updateDataSourceCondition(ds *cdiv1.DataSource, conditionType cdiv1.DataSourceConditionType, status corev1.ConditionStatus, message, reason string) {
-	if condition := FindDataSourceConditionByType(ds, conditionType); condition != nil {
-		updateConditionState(&condition.ConditionState, status, message, reason)
-	} else {
-		condition = &cdiv1.DataSourceCondition{Type: conditionType}
-		updateConditionState(&condition.ConditionState, status, message, reason)
-		ds.Status.Conditions = append(ds.Status.Conditions, *condition)
-	}
-}
-
-// FindDataSourceConditionByType finds DataSourceCondition by condition type
-func FindDataSourceConditionByType(ds *cdiv1.DataSource, conditionType cdiv1.DataSourceConditionType) *cdiv1.DataSourceCondition {
-	for i, condition := range ds.Status.Conditions {
-		if condition.Type == conditionType {
-			return &ds.Status.Conditions[i]
 		}
 	}
 	return nil
