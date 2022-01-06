@@ -640,6 +640,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 
 	var successfulJobsHistoryLimit int32 = 0
 	var failedJobsHistoryLimit int32 = 0
+	var activeDeadlineSeconds int64 = 120
 	var ttlSecondsAfterFinished int32 = 0
 	var backoffLimit int32 = 2
 
@@ -662,6 +663,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 							ServiceAccountName: "cdi-cronjob",
 						},
 					},
+					ActiveDeadlineSeconds:   &activeDeadlineSeconds,
 					TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
 					BackoffLimit:            &backoffLimit,
 				},
