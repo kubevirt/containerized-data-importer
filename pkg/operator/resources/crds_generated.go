@@ -5289,6 +5289,10 @@ spec:
                     description: DataVolumeStatus contains the current status of the
                       DataVolume
                     properties:
+                      claimName:
+                        description: ClaimName is the name of the underlying PVC used
+                          by the DataVolume.
+                        type: string
                       conditions:
                         items:
                           description: DataVolumeCondition represents the state of
@@ -6049,6 +6053,10 @@ spec:
           status:
             description: DataVolumeStatus contains the current status of the DataVolume
             properties:
+              claimName:
+                description: ClaimName is the name of the underlying PVC used by the
+                  DataVolume.
+                type: string
               conditions:
                 items:
                   description: DataVolumeCondition represents the state of a data
@@ -6623,6 +6631,10 @@ spec:
           status:
             description: DataVolumeStatus contains the current status of the DataVolume
             properties:
+              claimName:
+                description: ClaimName is the name of the underlying PVC used by the
+                  DataVolume.
+                type: string
               conditions:
                 items:
                   description: DataVolumeCondition represents the state of a data

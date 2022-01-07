@@ -15596,6 +15596,13 @@ func schema_pkg_apis_core_v1alpha1_DataVolumeStatus(ref common.ReferenceCallback
 				Description: "DataVolumeStatus contains the current status of the DataVolume",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"claimName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ClaimName is the name of the underlying PVC used by the DataVolume.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"phase": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Phase is the current phase of the data volume",

@@ -49,6 +49,7 @@ go_test(
         "tests_suite_test.go",
         "transfer_test.go",
         "transport_test.go",
+        "upgrade_test.go",
         "upload_test.go",
         "webhook_test.go",
     ],

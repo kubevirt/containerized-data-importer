@@ -248,6 +248,8 @@ const (
 
 // DataVolumeStatus contains the current status of the DataVolume
 type DataVolumeStatus struct {
+	// ClaimName is the name of the underlying PVC used by the DataVolume.
+	ClaimName string `json:"claimName,omitempty"`
 	//Phase is the current phase of the data volume
 	Phase    DataVolumePhase    `json:"phase,omitempty"`
 	Progress DataVolumeProgress `json:"progress,omitempty"`

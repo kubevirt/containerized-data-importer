@@ -106,7 +106,7 @@ function wait_cdi_pods_updated {
   ret=0
   while [[ $ret -eq 0 ]] && [[ $wait_time -lt ${CDI_PODS_UPDATE_TIMEOUT} ]]; do
     wait_time=$((wait_time + 5))
-    _kubectl get pods -n $CDI_NAMESPACE -o=jsonpath='{range .items[*]}{.metadata.name}{"\n"}{.metadata.uid}{"\n"}{.spec.containers[*].image}{"\n"}{end}' > $NEW_CDI_VER_PODS
+    _kubectl get pods -n $CDI_NAMESPACE -l '!cdi.kubevirt.io/testing' -o=jsonpath='{range .items[*]}{.metadata.name}{"\n"}{.metadata.uid}{"\n"}{.spec.containers[*].image}{"\n"}{end}' > $NEW_CDI_VER_PODS
     if [ -f $OLD_CDI_VER_PODS ] ; then
       grep -qFxf $OLD_CDI_VER_PODS $NEW_CDI_VER_PODS || ret=$?
       if [ $ret -eq 0 ] ; then
@@ -121,6 +121,29 @@ function wait_cdi_pods_updated {
     echo "Not all pods updated"
     exit 1
   fi
+}
+
+# Setup some datavolumes in older version for testing upgrades
+# Done unconditionally to make it easier to write tests.
+function setup_for_upgrade_testing {
+  if _kubectl get namespace cdi-testing-old-version-artifacts ; then
+    echo "Old version testing environment already setup"
+    return
+  fi
+  if [ "${KUBEVIRT_PROVIDER}" == "external" ]; then
+    echo "External provider, not setting up upgrade testing"
+    return
+  fi
+  echo "Missing old version environment setup, creating"
+  _kubectl apply -f "./_out/manifests/cdi-testing-sa.yaml"
+  _kubectl apply -f "./_out/manifests/file-host.yaml"
+  _kubectl apply -f "./_out/manifests/registry-host.yaml"
+  echo "Waiting for testing tools to be ready"
+  _kubectl wait pod -n ${CDI_NAMESPACE} --for=condition=Ready --all --timeout=${CDI_AVAILABLE_TIMEOUT}s
+  _kubectl create namespace cdi-testing-old-version-artifacts
+  _kubectl apply --namespace cdi-testing-old-version-artifacts -f "./_out/manifests/upgrade-testing-artifacts.yaml"
+  echo "Waiting for old version artifacts to come up"
+  _kubectl wait dv --namespace cdi-testing-old-version-artifacts --for=condition=Ready --all --timeout=${CDI_AVAILABLE_TIMEOUT}s
 }
 
 # Start functional test HTTP server.
@@ -190,6 +213,7 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
     fi
     echo "Currently at version: $VERSION"
     wait_cdi_pods_updated
+    setup_for_upgrade_testing
   done
   echo "Upgrading to latest"
   retry_counter=0
