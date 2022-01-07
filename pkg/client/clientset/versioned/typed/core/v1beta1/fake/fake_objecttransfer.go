@@ -110,7 +110,7 @@ func (c *FakeObjectTransfers) UpdateStatus(ctx context.Context, objectTransfer *
 // Delete takes name of the objectTransfer and deletes it. Returns an error if one occurs.
 func (c *FakeObjectTransfers) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(objecttransfersResource, name), &v1beta1.ObjectTransfer{})
+		Invokes(testing.NewRootDeleteActionWithOptions(objecttransfersResource, name, opts), &v1beta1.ObjectTransfer{})
 	return err
 }
 

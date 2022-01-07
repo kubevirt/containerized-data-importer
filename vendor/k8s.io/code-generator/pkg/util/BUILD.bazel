@@ -9,4 +9,5 @@ go_library(
     importmap = "kubevirt.io/containerized-data-importer/vendor/k8s.io/code-generator/pkg/util",
     importpath = "k8s.io/code-generator/pkg/util",
     visibility = ["//visibility:public"],
+    deps = ["//vendor/golang.org/x/tools/go/packages:go_default_library"],
 )

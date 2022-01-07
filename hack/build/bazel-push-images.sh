@@ -22,9 +22,9 @@ set -e
 source hack/build/common.sh
 source hack/build/config.sh
 
-if [ -n "$DOCKER_CA_CERT_FILE" ] ; then
+if [ -n "$DOCKER_CA_CERT_FILE" ]; then
     /usr/bin/update-ca-trust
-fi 
+fi
 
 PUSH_TARGETS=(${PUSH_TARGETS:-$CONTROLLER_IMAGE_NAME $IMPORTER_IMAGE_NAME $CLONER_IMAGE_NAME $APISERVER_IMAGE_NAME $UPLOADPROXY_IMAGE_NAME $UPLOADSERVER_IMAGE_NAME $OPERATOR_IMAGE_NAME})
 

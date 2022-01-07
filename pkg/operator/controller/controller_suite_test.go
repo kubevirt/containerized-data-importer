@@ -22,15 +22,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/metrics"
 
-	"kubevirt.io/containerized-data-importer/pkg/operator/resources/operator"
 	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
@@ -39,46 +33,6 @@ func TestOperator(t *testing.T) {
 	RunSpecsWithDefaultAndCustomReporters(t, "Controller Suite", reporters.NewReporters())
 }
 
-var testenv *envtest.Environment
-var cfg *rest.Config
-var clientset *kubernetes.Clientset
-
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
-
-	env := &envtest.Environment{}
-
-	var err error
-	cfg, err = env.Start()
-	Expect(err).NotTo(HaveOccurred())
-
-	clientset, err = kubernetes.NewForConfig(cfg)
-	Expect(err).NotTo(HaveOccurred())
-
-	opts := envtest.CRDInstallOptions{
-		CRDs: []client.Object{operator.NewCdiCrd()},
-	}
-
-	crds, err := envtest.InstallCRDs(cfg, opts)
-	Expect(err).NotTo(HaveOccurred())
-	err = envtest.WaitForCRDs(cfg, crds, envtest.CRDInstallOptions{})
-	Expect(err).NotTo(HaveOccurred())
-
-	// Prevent the metrics listener being created
-	metrics.DefaultBindAddress = "0"
-
-	testenv = env
-
-	close(done)
-}, 60)
-
-var _ = AfterSuite(func() {
-	if testenv == nil {
-		return
-	}
-
-	testenv.Stop()
-
-	// Put the DefaultBindAddress back
-	metrics.DefaultBindAddress = ":8080"
 })

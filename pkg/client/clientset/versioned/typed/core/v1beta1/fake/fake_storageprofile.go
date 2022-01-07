@@ -110,7 +110,7 @@ func (c *FakeStorageProfiles) UpdateStatus(ctx context.Context, storageProfile *
 // Delete takes name of the storageProfile and deletes it. Returns an error if one occurs.
 func (c *FakeStorageProfiles) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(storageprofilesResource, name), &v1beta1.StorageProfile{})
+		Invokes(testing.NewRootDeleteActionWithOptions(storageprofilesResource, name, opts), &v1beta1.StorageProfile{})
 	return err
 }
 

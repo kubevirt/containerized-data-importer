@@ -2779,6 +2779,10 @@
       "description": "Operation is the type of operation which lead to this ManagedFieldsEntry being created. The only valid values for this field are 'Apply' and 'Update'.",
       "type": "string"
      },
+     "subresource": {
+      "description": "Subresource is the name of the subresource used to update that object, or empty string if the object was updated through the main resource. The value of this field is used to distinguish between managers, even if they share the same name. For example, a status update will be distinct from a regular update using the same manager name. Note that the APIVersion field is not related to the Subresource field and it always corresponds to the version of the main resource.",
+      "type": "string"
+     },
      "time": {
       "description": "Time is timestamp of when these fields were set. It should always be empty if Operation is 'Apply'",
       "$ref": "#/definitions/v1.Time"
@@ -2818,7 +2822,8 @@
        "$ref": "#/definitions/v1.NodeSelectorTerm"
       }
      }
-    }
+    },
+    "x-kubernetes-map-type": "atomic"
    },
    "v1.NodeSelectorRequirement": {
     "description": "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
@@ -2834,9 +2839,17 @@
       "default": ""
      },
      "operator": {
-      "description": "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+      "description": "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.\n\nPossible enum values:\n - `\"DoesNotExist\"`\n - `\"Exists\"`\n - `\"Gt\"`\n - `\"In\"`\n - `\"Lt\"`\n - `\"NotIn\"`",
       "type": "string",
-      "default": ""
+      "default": "",
+      "enum": [
+       "DoesNotExist",
+       "Exists",
+       "Gt",
+       "In",
+       "Lt",
+       "NotIn"
+      ]
      },
      "values": {
       "description": "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
@@ -2868,7 +2881,8 @@
        "$ref": "#/definitions/v1.NodeSelectorRequirement"
       }
      }
-    }
+    },
+    "x-kubernetes-map-type": "atomic"
    },
    "v1.ObjectMeta": {
     "description": "ObjectMeta is metadata that all persisted resources must have, which includes all objects users must create.",
@@ -3004,7 +3018,8 @@
       "type": "string",
       "default": ""
      }
-    }
+    },
+    "x-kubernetes-map-type": "atomic"
    },
    "v1.Patch": {
     "description": "Patch is provided to give a concrete name and type to the Kubernetes PATCH request body.",
@@ -3023,11 +3038,15 @@
       }
      },
      "dataSource": {
-      "description": "This field can be used to specify either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot) * An existing PVC (PersistentVolumeClaim) * An existing custom resource that implements data population (Alpha) In order to use custom resource types that implement data population, the AnyVolumeDataSource feature gate must be enabled. If the provisioner or an external controller can support the specified data source, it will create a new volume based on the contents of the specified data source.",
+      "description": "This field can be used to specify either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot) * An existing PVC (PersistentVolumeClaim) If the provisioner or an external controller can support the specified data source, it will create a new volume based on the contents of the specified data source. If the AnyVolumeDataSource feature gate is enabled, this field will always have the same contents as the DataSourceRef field.",
+      "$ref": "#/definitions/v1.TypedLocalObjectReference"
+     },
+     "dataSourceRef": {
+      "description": "Specifies the object from which to populate the volume with data, if a non-empty volume is desired. This may be any local object from a non-empty API group (non core object) or a PersistentVolumeClaim object. When this field is specified, volume binding will only succeed if the type of the specified object matches some installed volume populator or dynamic provisioner. This field will replace the functionality of the DataSource field and as such if both fields are non-empty, they must have the same value. For backwards compatibility, both fields (DataSource and DataSourceRef) will be set to the same value automatically if one of them is empty and the other is non-empty. There are two important differences between DataSource and DataSourceRef: * While DataSource only allows two specific types of objects, DataSourceRef\n  allows any non-core object, as well as PersistentVolumeClaim objects.\n* While DataSource ignores disallowed values (dropping them), DataSourceRef\n  preserves all values, and generates an error if a disallowed value is\n  specified.\n(Alpha) Using this field requires the AnyVolumeDataSource feature gate to be enabled.",
       "$ref": "#/definitions/v1.TypedLocalObjectReference"
      },
      "resources": {
-      "description": "Resources represents the minimum resources the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources",
+      "description": "Resources represents the minimum resources the volume should have. If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements that are lower than previous value but must still be higher than capacity recorded in the status field of the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources",
       "default": {},
       "$ref": "#/definitions/v1.ResourceRequirements"
      },
@@ -3082,8 +3101,12 @@
       "description": "A label query over a set of resources, in this case pods.",
       "$ref": "#/definitions/v1.LabelSelector"
      },
+     "namespaceSelector": {
+      "description": "A label query over the set of namespaces that the term applies to. The term is applied to the union of the namespaces selected by this field and the ones listed in the namespaces field. null selector and null or empty namespaces list means \"this pod's namespace\". An empty selector ({}) matches all namespaces. This field is beta-level and is only honored when PodAffinityNamespaceSelector feature is enabled.",
+      "$ref": "#/definitions/v1.LabelSelector"
+     },
      "namespaces": {
-      "description": "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
+      "description": "namespaces specifies a static list of namespace names that the term applies to. The term is applied to the union of the namespaces listed in this field and the ones selected by namespaceSelector. null or empty namespaces list and null namespaceSelector means \"this pod's namespace\"",
       "type": "array",
       "items": {
        "type": "string",
@@ -3159,7 +3182,7 @@
     "type": "object",
     "properties": {
      "limits": {
-      "description": "Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
+      "description": "Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
       "type": "object",
       "additionalProperties": {
        "default": {},
@@ -3167,7 +3190,7 @@
       }
      },
      "requests": {
-      "description": "Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
+      "description": "Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
       "type": "object",
       "additionalProperties": {
        "default": {},
@@ -3316,16 +3339,25 @@
     "type": "object",
     "properties": {
      "effect": {
-      "description": "Effect indicates the taint effect to match. Empty means match all taint effects. When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.",
-      "type": "string"
+      "description": "Effect indicates the taint effect to match. Empty means match all taint effects. When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.\n\nPossible enum values:\n - `\"NoExecute\"` Evict any already-running pods that do not tolerate the taint. Currently enforced by NodeController.\n - `\"NoSchedule\"` Do not allow new pods to schedule onto the node unless they tolerate the taint, but allow all pods submitted to Kubelet without going through the scheduler to start, and allow all already-running pods to continue running. Enforced by the scheduler.\n - `\"PreferNoSchedule\"` Like TaintEffectNoSchedule, but the scheduler tries not to schedule new pods onto the node, rather than prohibiting new pods from scheduling onto the node entirely. Enforced by the scheduler.",
+      "type": "string",
+      "enum": [
+       "NoExecute",
+       "NoSchedule",
+       "PreferNoSchedule"
+      ]
      },
      "key": {
       "description": "Key is the taint key that the toleration applies to. Empty means match all taint keys. If the key is empty, operator must be Exists; this combination means to match all values and all keys.",
       "type": "string"
      },
      "operator": {
-      "description": "Operator represents a key's relationship to the value. Valid operators are Exists and Equal. Defaults to Equal. Exists is equivalent to wildcard for value, so that a pod can tolerate all taints of a particular category.",
-      "type": "string"
+      "description": "Operator represents a key's relationship to the value. Valid operators are Exists and Equal. Defaults to Equal. Exists is equivalent to wildcard for value, so that a pod can tolerate all taints of a particular category.\n\nPossible enum values:\n - `\"Equal\"`\n - `\"Exists\"`",
+      "type": "string",
+      "enum": [
+       "Equal",
+       "Exists"
+      ]
      },
      "tolerationSeconds": {
       "description": "TolerationSeconds represents the period of time the toleration (which must be of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default, it is not set, which means tolerate the taint forever (do not evict). Zero and negative values will be treated as 0 (evict immediately) by the system.",
@@ -3360,7 +3392,8 @@
       "type": "string",
       "default": ""
      }
-    }
+    },
+    "x-kubernetes-map-type": "atomic"
    },
    "v1.WatchEvent": {
     "description": "Event represents a single event to a watched resource.",
@@ -3627,8 +3660,13 @@
       "$ref": "#/definitions/v1beta1.CDIConfigSpec"
      },
      "imagePullPolicy": {
-      "description": "PullPolicy describes a policy for if/when to pull a container image",
-      "type": "string"
+      "description": "PullPolicy describes a policy for if/when to pull a container image\n\nPossible enum values:\n - `\"Always\"` means that kubelet always attempts to pull the latest image. Container will fail If the pull fails.\n - `\"IfNotPresent\"` means that kubelet pulls if the image isn't present on disk. Container will fail if the image isn't present and the pull fails.\n - `\"Never\"` means that kubelet never pulls an image, but only uses a local image. Container will fail if the image isn't present",
+      "type": "string",
+      "enum": [
+       "Always",
+       "IfNotPresent",
+       "Never"
+      ]
      },
      "infra": {
       "description": "Rules on which nodes CDI infrastructure pods will be scheduled",

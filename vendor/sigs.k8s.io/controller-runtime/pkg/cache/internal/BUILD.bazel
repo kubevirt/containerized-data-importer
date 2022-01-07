@@ -5,7 +5,9 @@ go_library(
     srcs = [
         "cache_reader.go",
         "deleg_map.go",
+        "disabledeepcopy.go",
         "informers_map.go",
+        "selector.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/sigs.k8s.io/controller-runtime/pkg/cache/internal",
     importpath = "sigs.k8s.io/controller-runtime/pkg/cache/internal",

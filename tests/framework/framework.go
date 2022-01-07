@@ -567,7 +567,7 @@ func (f *Framework) UpdateCdiConfigResourceLimits(resourceCPU, resourceMemory, l
 		}
 		values := strings.Fields(res)
 		if len(values) != 4 {
-			return false, errors.New("length is not 4: " + string(len(values)))
+			return false, errors.New(fmt.Sprintf("length is not 4: %d", len(values)))
 		}
 		reqCPU, err := strconv.ParseInt(values[0], 10, 64)
 		if err != nil {

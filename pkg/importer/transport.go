@@ -32,6 +32,7 @@ import (
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
+
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )

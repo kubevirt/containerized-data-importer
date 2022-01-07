@@ -18,8 +18,9 @@ package cluster
 
 import (
 	rbacv1 "k8s.io/api/rbac/v1"
-	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
 const (

@@ -6,6 +6,7 @@ go_library(
         "deleg.go",
         "log.go",
         "null.go",
+        "warning_handler.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/sigs.k8s.io/controller-runtime/pkg/log",
     importpath = "sigs.k8s.io/controller-runtime/pkg/log",

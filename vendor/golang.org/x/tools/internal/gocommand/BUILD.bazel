@@ -12,6 +12,7 @@ go_library(
     visibility = ["//vendor/golang.org/x/tools:__subpackages__"],
     deps = [
         "//vendor/golang.org/x/mod/semver:go_default_library",
+        "//vendor/golang.org/x/sys/execabs:go_default_library",
         "//vendor/golang.org/x/tools/internal/event:go_default_library",
     ],
 )

@@ -117,7 +117,7 @@ func (c *FakeDataSources) UpdateStatus(ctx context.Context, dataSource *v1beta1.
 // Delete takes name of the dataSource and deletes it. Returns an error if one occurs.
 func (c *FakeDataSources) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(datasourcesResource, c.ns, name), &v1beta1.DataSource{})
+		Invokes(testing.NewDeleteActionWithOptions(datasourcesResource, c.ns, name, opts), &v1beta1.DataSource{})
 
 	return err
 }

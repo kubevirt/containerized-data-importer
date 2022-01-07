@@ -110,7 +110,7 @@ func (c *FakeCDIConfigs) UpdateStatus(ctx context.Context, cDIConfig *v1beta1.CD
 // Delete takes name of the cDIConfig and deletes it. Returns an error if one occurs.
 func (c *FakeCDIConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(cdiconfigsResource, name), &v1beta1.CDIConfig{})
+		Invokes(testing.NewRootDeleteActionWithOptions(cdiconfigsResource, name, opts), &v1beta1.CDIConfig{})
 	return err
 }
 

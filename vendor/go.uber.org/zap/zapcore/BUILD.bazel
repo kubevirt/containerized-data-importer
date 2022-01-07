@@ -3,6 +3,8 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "go_default_library",
     srcs = [
+        "buffered_write_syncer.go",
+        "clock.go",
         "console_encoder.go",
         "core.go",
         "doc.go",

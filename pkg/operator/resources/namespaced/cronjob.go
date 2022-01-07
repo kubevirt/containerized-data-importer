@@ -19,8 +19,9 @@ package namespaced
 import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
 const (

@@ -117,7 +117,7 @@ func (c *FakeUploadTokenRequests) UpdateStatus(ctx context.Context, uploadTokenR
 // Delete takes name of the uploadTokenRequest and deletes it. Returns an error if one occurs.
 func (c *FakeUploadTokenRequests) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(uploadtokenrequestsResource, c.ns, name), &v1beta1.UploadTokenRequest{})
+		Invokes(testing.NewDeleteActionWithOptions(uploadtokenrequestsResource, c.ns, name, opts), &v1beta1.UploadTokenRequest{})
 
 	return err
 }
