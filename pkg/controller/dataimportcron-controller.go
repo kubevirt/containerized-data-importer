@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"regexp"
 	"sort"
 	"time"
 
@@ -688,7 +689,7 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	var digestedURL string
 	dv := cron.Spec.Template.DeepCopy()
 	if isURLSource(cron) {
-		digestedURL = *dv.Spec.Source.Registry.URL + "@" + cron.Annotations[AnnSourceDesiredDigest]
+		digestedURL = untagURL(*dv.Spec.Source.Registry.URL) + "@" + cron.Annotations[AnnSourceDesiredDigest]
 	} else if isImageStreamSource(cron) {
 		// No way to import image stream by name when we want speciific digest, so we use its docker reference
 		digestedURL = "docker://" + cron.Annotations[AnnImageStreamDockerRef]
@@ -702,6 +703,14 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	passCronAnnotationToDv(cron, dv, AnnImmediateBinding)
 	passCronAnnotationToDv(cron, dv, AnnPodRetainAfterCompletion)
 	return dv
+}
+
+func untagURL(url string) string {
+	re := regexp.MustCompile(`:\w+[\w\-\.]*$`)
+	if subs := re.Split(url, -1); len(subs) == 2 && len(subs[0]) > 0 && len(subs[1]) == 0 {
+		return subs[0]
+	}
+	return url
 }
 
 func passCronAnnotationToDv(cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume, ann string) {
