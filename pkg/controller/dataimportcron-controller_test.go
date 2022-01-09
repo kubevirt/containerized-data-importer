@@ -46,12 +46,13 @@ var (
 	cronLog         = logf.Log.WithName("data-import-cron-controller-test")
 	cronName        = "test-cron"
 	imageStreamName = "test-imagestream"
-	testRegistryURL = "docker://quay.io/kubevirt/junk"
 )
 
 const (
-	testDigest    = "sha256:68b44fc891f3fae6703d4b74bcc9b5f24df8d23f12e642805d1420cbe7a4be70"
-	testDockerRef = "quay.io/kubevirt/blabla@" + testDigest
+	testRegistryURL = "docker://quay.io/kubevirt/junk"
+	testTag         = ":12.34_56-7890"
+	testDigest      = "sha256:68b44fc891f3fae6703d4b74bcc9b5f24df8d23f12e642805d1420cbe7a4be70"
+	testDockerRef   = "quay.io/kubevirt/blabla@" + testDigest
 )
 
 var _ = Describe("All DataImportCron Tests", func() {
@@ -318,6 +319,13 @@ var _ = Describe("All DataImportCron Tests", func() {
 	})
 })
 
+var _ = Describe("untagURL", func() {
+	It("should Remove tag from URL", func() {
+		Expect(untagURL(testRegistryURL + testTag)).To(Equal(testRegistryURL))
+		Expect(untagURL(testRegistryURL)).To(Equal(testRegistryURL))
+	})
+})
+
 func createDataImportCronReconciler(objects ...runtime.Object) *DataImportCronReconciler {
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	objs := []runtime.Object{}
@@ -374,6 +382,7 @@ func newDataImportCron(name string) *cdiv1.DataImportCron {
 	garbageCollect := cdiv1.DataImportCronGarbageCollectOutdated
 	registryPullNodesource := cdiv1.RegistryPullNode
 	importsToKeep := int32(2)
+	url := testRegistryURL + testTag
 
 	return &cdiv1.DataImportCron{
 		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
@@ -388,7 +397,7 @@ func newDataImportCron(name string) *cdiv1.DataImportCron {
 				Spec: cdiv1.DataVolumeSpec{
 					Source: &cdiv1.DataVolumeSource{
 						Registry: &cdiv1.DataVolumeSourceRegistry{
-							URL:        &testRegistryURL,
+							URL:        &url,
 							PullMethod: &registryPullNodesource,
 						},
 					},
