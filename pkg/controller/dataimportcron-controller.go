@@ -449,8 +449,7 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 	// Don't keep alerting over a cron thats being deleted, will get set back to 1 again by reconcile loop if needed.
 	DataImportCronOutdatedGauge.With(getPrometheusCronLabels(dataImportCron)).Set(0)
 
-	cronJob := &v1beta1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: GetCronJobName(dataImportCron)}}
-	if err := r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
+	if err := r.deleteJobs(ctx, dataImportCron); err != nil {
 		return err
 	}
 
@@ -467,6 +466,34 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 	RemoveFinalizer(dataImportCron, dataImportCronFinalizer)
 	if err := r.client.Update(ctx, dataImportCron); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (r *DataImportCronReconciler) deleteJobs(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+	cronJobName := GetCronJobName(dataImportCron)
+	cronJob := &v1beta1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: cronJobName}}
+	if err := r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
+		return err
+	}
+
+	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			common.DataImportCronLabel: cronJobName,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	jobs := &batchv1.JobList{}
+	if err := r.client.List(ctx, jobs, &client.ListOptions{Namespace: r.cdiNamespace, LabelSelector: selector}); IgnoreNotFound(err) != nil {
+		return err
+	}
+	deletePropagationBackground := metav1.DeletePropagationBackground
+	for _, job := range jobs.Items {
+		if err := r.client.Delete(context.TODO(), &job, &client.DeleteOptions{PropagationPolicy: &deletePropagationBackground}); IgnoreNotFound(err) != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -628,9 +655,10 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 	var ttlSecondsAfterFinished int32 = 0
 	var backoffLimit int32 = 2
 
+	cronJobName := GetCronJobName(cron)
 	cronJob := &v1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetCronJobName(cron),
+			Name:      cronJobName,
 			Namespace: r.cdiNamespace,
 		},
 		Spec: v1beta1.CronJobSpec{
@@ -639,6 +667,11 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 			SuccessfulJobsHistoryLimit: &successfulJobsHistoryLimit,
 			FailedJobsHistoryLimit:     &failedJobsHistoryLimit,
 			JobTemplate: v1beta1.JobTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						common.DataImportCronLabel: cronJobName,
+					},
+				},
 				Spec: batchv1.JobSpec{
 					Template: corev1.PodTemplateSpec{
 						Spec: corev1.PodSpec{
@@ -677,6 +710,7 @@ func (r *DataImportCronReconciler) newInitialJob(cronJob *v1beta1.CronJob) *batc
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "job-" + cronJob.Name,
 			Namespace: cronJob.Namespace,
+			Labels:    cronJob.Spec.JobTemplate.Labels,
 		},
 		Spec: cronJob.Spec.JobTemplate.Spec,
 	}

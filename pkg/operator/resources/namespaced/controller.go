@@ -113,6 +113,7 @@ func createControllerRole() *rbacv1.Role {
 			},
 			Verbs: []string{
 				"create",
+				"delete",
 			},
 		},
 	}
