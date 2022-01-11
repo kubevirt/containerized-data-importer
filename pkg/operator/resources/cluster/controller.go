@@ -236,17 +236,6 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"create",
 			},
 		},
-		{
-			APIGroups: []string{
-				"batch",
-			},
-			Resources: []string{
-				"jobs",
-			},
-			Verbs: []string{
-				"list",
-			},
-		},
 	}
 }
 
