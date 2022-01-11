@@ -19,10 +19,12 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"reflect"
 	"sort"
 	"time"
 
+	"github.com/containers/image/v5/docker/reference"
 	"github.com/go-logr/logr"
 	"github.com/gorhill/cronexpr"
 	imagev1 "github.com/openshift/api/image/v1"
@@ -688,7 +690,7 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	var digestedURL string
 	dv := cron.Spec.Template.DeepCopy()
 	if isURLSource(cron) {
-		digestedURL = *dv.Spec.Source.Registry.URL + "@" + cron.Annotations[AnnSourceDesiredDigest]
+		digestedURL = untagDigestedDockerURL(*dv.Spec.Source.Registry.URL + "@" + cron.Annotations[AnnSourceDesiredDigest])
 	} else if isImageStreamSource(cron) {
 		// No way to import image stream by name when we want speciific digest, so we use its docker reference
 		digestedURL = "docker://" + cron.Annotations[AnnImageStreamDockerRef]
@@ -702,6 +704,20 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	passCronAnnotationToDv(cron, dv, AnnImmediateBinding)
 	passCronAnnotationToDv(cron, dv, AnnPodRetainAfterCompletion)
 	return dv
+}
+
+func untagDigestedDockerURL(dockerURL string) string {
+	if u, err := url.Parse(dockerURL); err == nil {
+		url := u.Host + u.Path
+		subs := reference.ReferenceRegexp.FindStringSubmatch(url)
+		// Check for tag
+		if len(subs) > 2 && len(subs[2]) > 0 {
+			if untaggedRef, err := reference.ParseDockerRef(url); err == nil {
+				return u.Scheme + "://" + untaggedRef.String()
+			}
+		}
+	}
+	return dockerURL
 }
 
 func passCronAnnotationToDv(cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume, ann string) {
