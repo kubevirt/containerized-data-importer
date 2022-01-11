@@ -321,8 +321,10 @@ var _ = Describe("All DataImportCron Tests", func() {
 
 var _ = Describe("untagURL", func() {
 	It("should Remove tag from URL", func() {
-		Expect(untagURL(testRegistryURL + testTag)).To(Equal(testRegistryURL))
-		Expect(untagURL(testRegistryURL)).To(Equal(testRegistryURL))
+		testDigestedURL := testRegistryURL + "@" + testDigest
+		Expect(untagDigestedDockerURL(testRegistryURL + testTag + "@" + testDigest)).To(Equal(testDigestedURL))
+		Expect(untagDigestedDockerURL(testDigestedURL)).To(Equal(testDigestedURL))
+		Expect(untagDigestedDockerURL(testRegistryURL)).To(Equal(testRegistryURL))
 	})
 })
 
