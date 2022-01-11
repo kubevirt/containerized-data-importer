@@ -37,6 +37,10 @@ const (
 	PrometheusLabelValue = "true"
 	// PrometheusServiceName is the name of the prometheus service created by the operator.
 	PrometheusServiceName = "cdi-prometheus-metrics"
+	// KubePersistentVolumeFillingUpSuppressLabelKey is the label name that helps suppress this alert for our PVCs
+	KubePersistentVolumeFillingUpSuppressLabelKey = "alerts.k8s.io/KubePersistentVolumeFillingUp"
+	// KubePersistentVolumeFillingUpSuppressLabelValue is the label value that helps suppress this alert for our PVCs
+	KubePersistentVolumeFillingUpSuppressLabelValue = "disabled"
 
 	// UploadTargetLabel has the UID of upload target PVC
 	UploadTargetLabel = CDIComponentLabel + "/uploadTarget"

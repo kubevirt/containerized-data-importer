@@ -335,15 +335,20 @@ func newPvcFromSnapshot(snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *core
 		return nil, err
 	}
 
+	labels := map[string]string{
+		"cdi-controller":         snapshot.Name,
+		common.CDILabelKey:       common.CDILabelValue,
+		common.CDIComponentLabel: common.SmartClonerCDILabel,
+	}
+	if resolveVolumeMode(targetPvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
+		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
+	}
+
 	target := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      snapshot.Name,
 			Namespace: snapshot.Namespace,
-			Labels: map[string]string{
-				"cdi-controller":         snapshot.Name,
-				common.CDILabelKey:       common.CDILabelValue,
-				common.CDIComponentLabel: common.SmartClonerCDILabel,
-			},
+			Labels:    labels,
 			Annotations: map[string]string{
 				AnnSmartCloneRequest:       "true",
 				AnnRunningCondition:        string(corev1.ConditionFalse),

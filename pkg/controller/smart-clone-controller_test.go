@@ -207,6 +207,7 @@ var _ = Describe("All smart clone tests", func() {
 			err = reconciler.client.Get(context.TODO(), nn, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Labels[common.AppKubernetesVersionLabel]).To(Equal("v0.0.0-tests"))
+			Expect(pvc.Labels[common.KubePersistentVolumeFillingUpSuppressLabelKey]).To(Equal(common.KubePersistentVolumeFillingUpSuppressLabelValue))
 
 			event := <-reconciler.recorder.(*record.FakeRecorder).Events
 			Expect(event).To(ContainSubstring("Creating PVC for smart-clone is in progress"))
