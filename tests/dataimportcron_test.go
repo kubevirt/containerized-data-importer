@@ -199,6 +199,88 @@ var _ = Describe("DataImportCron", func() {
 		table.Entry("[test_id:7414] Should successfully import PVC from registry URL on source digest update", scheduleOnceAYear, cdiv1.DataImportCronRetainAll, 2, false),
 		table.Entry("[test_id:7406] Should successfully garbage collect old PVCs when importing new ones", scheduleOnceAYear, cdiv1.DataImportCronRetainNone, 2, true),
 	)
+
+	It("[test_id:8033] should delete jobs on deletion", func() {
+		url := trustedRegistryURL()
+		noSuchCM := "nosuch"
+		cron = NewDataImportCron("cron-test", "5Gi", scheduleEveryMinute, dataSourceName, cdiv1.DataVolumeSourceRegistry{URL: &url, PullMethod: &registryPullNode, CertConfigMap: &noSuchCM}, cdiv1.DataImportCronRetainAll)
+		By("Create new DataImportCron")
+		cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		verify := func(err error) bool {
+			if errors.IsNotFound(err) {
+				return false
+			}
+			Expect(err).ToNot(HaveOccurred())
+			return true
+		}
+
+		By("Verify initial job created")
+		initialJobName := controller.GetInitialJobName(cron)
+		Eventually(func() bool {
+			_, err := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), initialJobName, metav1.GetOptions{})
+			return verify(err)
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
+		By("Verify initial job pod created")
+		Eventually(func() bool {
+			pod, _ := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, initialJobName, "")
+			return pod != nil
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
+		By("Verify cronjob created and has active job")
+		cronJobName := controller.GetCronJobName(cron)
+		var jobName string
+		Eventually(func() bool {
+			cronjob, err := f.K8sClient.BatchV1beta1().CronJobs(f.CdiInstallNs).Get(context.TODO(), cronJobName, metav1.GetOptions{})
+			if verify(err) && len(cronjob.Status.Active) > 0 {
+				jobName = cronjob.Status.Active[0].Name
+				return len(jobName) > 0
+			}
+			return false
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
+		By("Verify cronjob first job created")
+		Eventually(func() bool {
+			_, err := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), jobName, metav1.GetOptions{})
+			return verify(err)
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
+		By("Verify cronjob first job pod created")
+		Eventually(func() bool {
+			pod, _ := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, jobName, "")
+			return pod != nil
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
+		By("Delete cron")
+		err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Delete(context.TODO(), cron.Name, metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify initial job deleted")
+		Eventually(func() bool {
+			_, err := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), initialJobName, metav1.GetOptions{})
+			return errors.IsNotFound(err)
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
+		By("Verify initial job pod deleted")
+		Eventually(func() bool {
+			pod, _ := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, initialJobName, "")
+			return pod == nil
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
+		By("Verify cronjob first job deleted")
+		Eventually(func() bool {
+			_, err := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), jobName, metav1.GetOptions{})
+			return errors.IsNotFound(err)
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
+		By("Verify cronjob first job pod deleted")
+		Eventually(func() bool {
+			pod, _ := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, jobName, "")
+			return pod == nil
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+	})
 })
 
 // NewDataImportCron initializes a DataImportCron struct

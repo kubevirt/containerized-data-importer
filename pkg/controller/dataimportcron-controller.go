@@ -128,7 +128,7 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 		if err := r.client.Create(ctx, cronJob); err != nil {
 			return err
 		}
-		if err := r.client.Create(ctx, r.newInitialJob(cronJob)); err != nil {
+		if err := r.client.Create(ctx, r.newInitialJob(dataImportCron, cronJob)); err != nil {
 			return err
 		}
 	} else if isImageStreamSource(dataImportCron) && dataImportCron.Annotations[AnnNextCronTime] == "" {
@@ -471,29 +471,15 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 }
 
 func (r *DataImportCronReconciler) deleteJobs(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	cronJobName := GetCronJobName(dataImportCron)
-	cronJob := &v1beta1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: cronJobName}}
-	if err := r.client.Delete(ctx, cronJob); IgnoreNotFound(err) != nil {
-		return err
-	}
-
-	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			common.DataImportCronLabel: cronJobName,
-		},
-	})
-	if err != nil {
-		return err
-	}
-	jobs := &batchv1.JobList{}
-	if err := r.client.List(ctx, jobs, &client.ListOptions{Namespace: r.cdiNamespace, LabelSelector: selector}); IgnoreNotFound(err) != nil {
-		return err
-	}
 	deletePropagationBackground := metav1.DeletePropagationBackground
-	for _, job := range jobs.Items {
-		if err := r.client.Delete(context.TODO(), &job, &client.DeleteOptions{PropagationPolicy: &deletePropagationBackground}); IgnoreNotFound(err) != nil {
-			return err
-		}
+	deleteOpts := &client.DeleteOptions{PropagationPolicy: &deletePropagationBackground}
+	cronJob := &v1beta1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: GetCronJobName(dataImportCron)}}
+	if err := r.client.Delete(ctx, cronJob, deleteOpts); IgnoreNotFound(err) != nil {
+		return err
+	}
+	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: GetInitialJobName(dataImportCron)}}
+	if err := r.client.Delete(ctx, job, deleteOpts); IgnoreNotFound(err) != nil {
+		return err
 	}
 	return nil
 }
@@ -650,10 +636,11 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 		)
 	}
 
-	var successfulJobsHistoryLimit int32 = 0
-	var failedJobsHistoryLimit int32 = 0
-	var ttlSecondsAfterFinished int32 = 0
-	var backoffLimit int32 = 2
+	successfulJobsHistoryLimit := int32(0)
+	failedJobsHistoryLimit := int32(0)
+	ttlSecondsAfterFinished := int32(0)
+	backoffLimit := int32(2)
+	gracePeriodSeconds := int64(0)
 
 	cronJobName := GetCronJobName(cron)
 	cronJob := &v1beta1.CronJob{
@@ -667,17 +654,13 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 			SuccessfulJobsHistoryLimit: &successfulJobsHistoryLimit,
 			FailedJobsHistoryLimit:     &failedJobsHistoryLimit,
 			JobTemplate: v1beta1.JobTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						common.DataImportCronLabel: cronJobName,
-					},
-				},
 				Spec: batchv1.JobSpec{
 					Template: corev1.PodTemplateSpec{
 						Spec: corev1.PodSpec{
-							RestartPolicy:      corev1.RestartPolicyNever,
-							Containers:         []corev1.Container{container},
-							ServiceAccountName: "cdi-cronjob",
+							RestartPolicy:                 corev1.RestartPolicyNever,
+							TerminationGracePeriodSeconds: &gracePeriodSeconds,
+							Containers:                    []corev1.Container{container},
+							ServiceAccountName:            "cdi-cronjob",
 						},
 					},
 					TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
@@ -705,12 +688,11 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 	return cronJob, nil
 }
 
-func (r *DataImportCronReconciler) newInitialJob(cronJob *v1beta1.CronJob) *batchv1.Job {
+func (r *DataImportCronReconciler) newInitialJob(cron *cdiv1.DataImportCron, cronJob *v1beta1.CronJob) *batchv1.Job {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "job-" + cronJob.Name,
+			Name:      GetInitialJobName(cron),
 			Namespace: cronJob.Namespace,
-			Labels:    cronJob.Spec.JobTemplate.Labels,
 		},
 		Spec: cronJob.Spec.JobTemplate.Spec,
 	}
@@ -764,4 +746,9 @@ func createDvName(prefix, digest string) string {
 // GetCronJobName get CronJob name based on cron name and UID
 func GetCronJobName(cron *cdiv1.DataImportCron) string {
 	return cron.Name + "-" + string(cron.UID)[:cronJobUIDSuffixLength]
+}
+
+// GetInitialJobName get initial job name based on cron name and UID
+func GetInitialJobName(cron *cdiv1.DataImportCron) string {
+	return "initial-job-" + GetCronJobName(cron)
 }
