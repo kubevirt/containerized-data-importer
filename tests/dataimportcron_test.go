@@ -9,6 +9,7 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -208,50 +209,41 @@ var _ = Describe("DataImportCron", func() {
 		cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		verify := func(err error) bool {
-			if errors.IsNotFound(err) {
-				return false
-			}
-			Expect(err).ToNot(HaveOccurred())
-			return true
-		}
-
 		By("Verify initial job created")
 		initialJobName := controller.GetInitialJobName(cron)
-		Eventually(func() bool {
-			_, err := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), initialJobName, metav1.GetOptions{})
-			return verify(err)
-		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+		Eventually(func() *batchv1.Job {
+			job, _ := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), initialJobName, metav1.GetOptions{})
+			return job
+		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeNil())
 
 		By("Verify initial job pod created")
-		Eventually(func() bool {
+		Eventually(func() *corev1.Pod {
 			pod, _ := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, initialJobName, "")
-			return pod != nil
-		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+			return pod
+		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeNil())
 
 		By("Verify cronjob created and has active job")
 		cronJobName := controller.GetCronJobName(cron)
-		var jobName string
-		Eventually(func() bool {
-			cronjob, err := f.K8sClient.BatchV1beta1().CronJobs(f.CdiInstallNs).Get(context.TODO(), cronJobName, metav1.GetOptions{})
-			if verify(err) && len(cronjob.Status.Active) > 0 {
+		jobName := ""
+		Eventually(func() string {
+			cronjob, _ := f.K8sClient.BatchV1beta1().CronJobs(f.CdiInstallNs).Get(context.TODO(), cronJobName, metav1.GetOptions{})
+			if cronjob != nil && len(cronjob.Status.Active) > 0 {
 				jobName = cronjob.Status.Active[0].Name
-				return len(jobName) > 0
 			}
-			return false
-		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+			return jobName
+		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeEmpty())
 
 		By("Verify cronjob first job created")
-		Eventually(func() bool {
-			_, err := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), jobName, metav1.GetOptions{})
-			return verify(err)
-		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+		Eventually(func() *batchv1.Job {
+			job, _ := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), jobName, metav1.GetOptions{})
+			return job
+		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeNil())
 
 		By("Verify cronjob first job pod created")
-		Eventually(func() bool {
+		Eventually(func() *corev1.Pod {
 			pod, _ := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, jobName, "")
-			return pod != nil
-		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+			return pod
+		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeNil())
 
 		By("Delete cron")
 		err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Delete(context.TODO(), cron.Name, metav1.DeleteOptions{})
@@ -265,8 +257,8 @@ var _ = Describe("DataImportCron", func() {
 
 		By("Verify initial job pod deleted")
 		Eventually(func() bool {
-			pod, _ := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, initialJobName, "")
-			return pod == nil
+			_, err := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, initialJobName, "")
+			return errors.IsNotFound(err)
 		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 
 		By("Verify cronjob first job deleted")
@@ -277,8 +269,8 @@ var _ = Describe("DataImportCron", func() {
 
 		By("Verify cronjob first job pod deleted")
 		Eventually(func() bool {
-			pod, _ := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, jobName, "")
-			return pod == nil
+			_, err := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, jobName, "")
+			return errors.IsNotFound(err)
 		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 	})
 })

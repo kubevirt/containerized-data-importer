@@ -128,7 +128,7 @@ func findPodByCompFuncOnce(clientSet *kubernetes.Clientset, namespace, prefix, l
 		}
 	}
 	if result == nil {
-		return nil, fmt.Errorf("Unable to find pod containing %s", prefix)
+		return nil, errors.NewNotFound(v1.Resource("pod"), prefix)
 	}
 	return result, nil
 }
