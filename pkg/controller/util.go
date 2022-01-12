@@ -114,6 +114,8 @@ const (
 	AnnVddkVersion = AnnAPIGroup + "/storage.pod.vddk.version"
 	// AnnVddkHostConnection shows the last ESX host that serviced a DV's importer pod
 	AnnVddkHostConnection = AnnAPIGroup + "/storage.pod.vddk.host"
+	// AnnVddkInitImageURL saves a per-DV VDDK image URL on the PVC
+	AnnVddkInitImageURL = AnnAPIGroup + "/storage.pod.vddk.initimageurl"
 
 	// PodRunningReason is const that defines the pod was started as a reason
 	podRunningReason = "Pod is running"

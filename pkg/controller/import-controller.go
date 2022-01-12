@@ -490,16 +490,21 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 
 	if getSource(pvc) == SourceVDDK {
 		r.log.V(1).Info("Pod requires VDDK sidecar for VMware transfer")
-		vddkImageName, err = r.getVddkImageName()
-		if err != nil {
-			anno := pvc.GetAnnotations()
-			anno[AnnBoundCondition] = "false"
-			anno[AnnBoundConditionMessage] = fmt.Sprintf("waiting for %s configmap for VDDK image", common.VddkConfigMap)
-			anno[AnnBoundConditionReason] = common.AwaitingVDDK
-			if updateErr := r.updatePVC(pvc, r.log); updateErr != nil {
-				return updateErr
+		anno := pvc.GetAnnotations()
+		if imageName, ok := anno[AnnVddkInitImageURL]; ok {
+			vddkImageName = &imageName
+		} else {
+			if vddkImageName, err = r.getVddkImageName(); err != nil {
+				r.log.V(1).Error(err, "failed to get VDDK image name from configmap")
 			}
-			return err
+		}
+		if vddkImageName == nil {
+			anno[AnnBoundCondition] = "false"
+			anno[AnnBoundConditionMessage] = fmt.Sprintf("waiting for %s configmap or %s annotation for VDDK image", common.VddkConfigMap, AnnVddkInitImageURL)
+			anno[AnnBoundConditionReason] = common.AwaitingVDDK
+			if err := r.updatePVC(pvc, r.log); err != nil {
+				return err
+			}
 		}
 	}
 
