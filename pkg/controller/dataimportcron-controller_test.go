@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	imagev1 "github.com/openshift/api/image/v1"
@@ -391,7 +392,7 @@ func newDataImportCron(name string) *cdiv1.DataImportCron {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Namespace:   metav1.NamespaceDefault,
-			UID:         types.UID(metav1.NamespaceDefault + "-" + name),
+			UID:         types.UID(uuid.NewString()),
 			Annotations: map[string]string{},
 		},
 		Spec: cdiv1.DataImportCronSpec{
