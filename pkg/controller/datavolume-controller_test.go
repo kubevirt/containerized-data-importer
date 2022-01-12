@@ -812,6 +812,19 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(newDv.GetAnnotations()[AnnVddkHostConnection]).To(Equal("esx1.test"))
 			Expect(newDv.GetAnnotations()[AnnVddkVersion]).To(Equal("1.3.4"))
 		})
+
+		It("Should add VDDK image URL to PVC", func() {
+			dv := newVDDKDataVolume("test-dv")
+			dv.Spec.Source.VDDK.InitImageURL = "test://image"
+			reconciler = createDatavolumeReconciler(dv)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc).ToNot(BeNil())
+			Expect(pvc.GetAnnotations()[AnnVddkInitImageURL]).To(Equal("test://image"))
+		})
 	})
 
 	var _ = Describe("Reconcile Datavolume status", func() {
@@ -1888,6 +1901,24 @@ func newBlankImageDataVolume(name string) *cdiv1.DataVolume {
 		Spec: cdiv1.DataVolumeSpec{
 			Source: &cdiv1.DataVolumeSource{
 				Blank: &cdiv1.DataVolumeBlankImage{},
+			},
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			},
+		},
+	}
+}
+
+func newVDDKDataVolume(name string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: metav1.NamespaceDefault,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				VDDK: &cdiv1.DataVolumeSourceVDDK{},
 			},
 			PVC: &corev1.PersistentVolumeClaimSpec{
 				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},

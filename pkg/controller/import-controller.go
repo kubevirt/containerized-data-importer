@@ -499,12 +499,14 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 			}
 		}
 		if vddkImageName == nil {
+			message := fmt.Sprintf("waiting for %s configmap or %s annotation for VDDK image", common.VddkConfigMap, AnnVddkInitImageURL)
 			anno[AnnBoundCondition] = "false"
-			anno[AnnBoundConditionMessage] = fmt.Sprintf("waiting for %s configmap or %s annotation for VDDK image", common.VddkConfigMap, AnnVddkInitImageURL)
+			anno[AnnBoundConditionMessage] = message
 			anno[AnnBoundConditionReason] = common.AwaitingVDDK
 			if err := r.updatePVC(pvc, r.log); err != nil {
 				return err
 			}
+			return errors.New(message)
 		}
 	}
 
