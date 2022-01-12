@@ -37,6 +37,7 @@ go_test(
         "cloner_test.go",
         "csiclone_test.go",
         "dataimportcron_test.go",
+        "datasource_test.go",
         "datavolume_test.go",
         "explain_test.go",
         "import_proxy_test.go",
