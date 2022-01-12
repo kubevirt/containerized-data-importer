@@ -4083,6 +4083,11 @@ spec:
                                 description: BackingFile is the path to the virtual
                                   hard disk to migrate from vCenter/ESXi
                                 type: string
+                              initImageURL:
+                                description: InitImageURL is an optional URL to an
+                                  image containing an extracted VDDK library, overrides
+                                  v2v-vmware config map
+                                type: string
                               secretRef:
                                 description: SecretRef provides a reference to a secret
                                   containing the username and password needed to access
@@ -4823,6 +4828,10 @@ spec:
                         description: BackingFile is the path to the virtual hard disk
                           to migrate from vCenter/ESXi
                         type: string
+                      initImageURL:
+                        description: InitImageURL is an optional URL to an image containing
+                          an extracted VDDK library, overrides v2v-vmware config map
+                        type: string
                       secretRef:
                         description: SecretRef provides a reference to a secret containing
                           the username and password needed to access the vCenter or
@@ -5341,6 +5350,10 @@ spec:
                       backingFile:
                         description: BackingFile is the path to the virtual hard disk
                           to migrate from vCenter/ESXi
+                        type: string
+                      initImageURL:
+                        description: InitImageURL is an optional URL to an image containing
+                          an extracted VDDK library, overrides v2v-vmware config map
                         type: string
                       secretRef:
                         description: SecretRef provides a reference to a secret containing
