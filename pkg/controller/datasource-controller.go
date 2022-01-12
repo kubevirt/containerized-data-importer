@@ -140,5 +140,25 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 	if err := c.Watch(&source.Kind{Type: &cdiv1.DataSource{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
+
+	mapToDataSource := func(obj client.Object) []reconcile.Request {
+		var reqs []reconcile.Request
+		dsList := &cdiv1.DataSourceList{}
+		if err := mgr.GetClient().List(context.TODO(), dsList, &client.ListOptions{}); err != nil {
+			return nil
+		}
+		for _, ds := range dsList.Items {
+			pvc := ds.Spec.Source.PVC
+			if pvc != nil && pvc.Name == obj.GetName() && pvc.Namespace == obj.GetNamespace() {
+				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: ds.Namespace, Name: ds.Name}})
+			}
+		}
+		return reqs
+	}
+	if err := c.Watch(&source.Kind{Type: &cdiv1.DataVolume{}},
+		handler.EnqueueRequestsFromMapFunc(mapToDataSource),
+	); err != nil {
+		return err
+	}
 	return nil
 }
