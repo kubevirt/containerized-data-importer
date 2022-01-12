@@ -2370,6 +2370,9 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 		annotations[AnnBackingFile] = dataVolume.Spec.Source.VDDK.BackingFile
 		annotations[AnnUUID] = dataVolume.Spec.Source.VDDK.UUID
 		annotations[AnnThumbprint] = dataVolume.Spec.Source.VDDK.Thumbprint
+		if dataVolume.Spec.Source.VDDK.InitImageURL != "" {
+			annotations[AnnVddkInitImageURL] = dataVolume.Spec.Source.VDDK.InitImageURL
+		}
 	} else {
 		return nil, errors.Errorf("no source set for datavolume")
 	}
