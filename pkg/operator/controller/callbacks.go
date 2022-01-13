@@ -82,11 +82,11 @@ func reconcileDeleteControllerDeployment(args *callbacks.ReconcileCallbackArgs) 
 	args.Logger.Info("Deleting CRDs and verifing no finalizers")
 
 	crd := &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "dataimportcrons.cdi.kubevirt.io"}}
-	if err := args.Client.Delete(context.TODO(), crd, &client.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
+	if err := args.Client.Delete(context.TODO(), crd, &client.DeleteOptions{}); cdicontroller.IgnoreNotFound(err) != nil {
 		return err
 	}
 	dics := &cdiv1.DataImportCronList{}
-	if err := args.Client.List(context.TODO(), dics, &client.ListOptions{}); err != nil && !errors.IsNotFound(err) {
+	if err := args.Client.List(context.TODO(), dics, &client.ListOptions{}); cdicontroller.IgnoreIsNoMatchError(err) != nil {
 		return err
 	}
 	for _, dic := range dics.Items {
@@ -96,11 +96,11 @@ func reconcileDeleteControllerDeployment(args *callbacks.ReconcileCallbackArgs) 
 	}
 
 	crd = &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "datavolumes.cdi.kubevirt.io"}}
-	if err := args.Client.Delete(context.TODO(), crd, &client.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
+	if err := args.Client.Delete(context.TODO(), crd, &client.DeleteOptions{}); cdicontroller.IgnoreNotFound(err) != nil {
 		return err
 	}
 	dvs := &cdiv1.DataVolumeList{}
-	if err := args.Client.List(context.TODO(), dvs, &client.ListOptions{}); err != nil && !errors.IsNotFound(err) {
+	if err := args.Client.List(context.TODO(), dvs, &client.ListOptions{}); cdicontroller.IgnoreIsNoMatchError(err) != nil {
 		return err
 	}
 	for _, dv := range dvs.Items {
