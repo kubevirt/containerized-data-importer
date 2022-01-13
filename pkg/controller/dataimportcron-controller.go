@@ -120,7 +120,6 @@ func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.
 func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
 	AddFinalizer(dataImportCron, dataImportCronFinalizer)
 	if isURLSource(dataImportCron) && !r.cronJobExists(ctx, dataImportCron) {
-		util.SetRecommendedLabels(dataImportCron, r.installerLabels, common.CDIControllerName)
 		cronJob, err := r.newCronJob(dataImportCron)
 		if err != nil {
 			return err
@@ -132,7 +131,6 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 			return err
 		}
 	} else if isImageStreamSource(dataImportCron) && dataImportCron.Annotations[AnnNextCronTime] == "" {
-		util.SetRecommendedLabels(dataImportCron, r.installerLabels, common.CDIControllerName)
 		addAnnotation(dataImportCron, AnnNextCronTime, time.Now().Format(time.RFC3339))
 	}
 	return nil
