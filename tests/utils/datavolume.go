@@ -401,6 +401,41 @@ func NewDataVolumeForImageCloning(dataVolumeName, size, namespace, pvcName strin
 	return dv
 }
 
+// NewDataVolumeForImageCloningAndStorageSpec initializes a DataVolume struct with spec.storage for cloning disk image
+func NewDataVolumeForImageCloningAndStorageSpec(dataVolumeName, size, namespace, pvcName string, storageClassName *string, volumeMode *k8sv1.PersistentVolumeMode) *cdiv1.DataVolume {
+	storageSpec := &cdiv1.StorageSpec{
+		AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+		Resources: k8sv1.ResourceRequirements{
+			Requests: k8sv1.ResourceList{
+				k8sv1.ResourceStorage: resource.MustParse(size),
+			},
+		},
+	}
+
+	dv := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        dataVolumeName,
+			Annotations: map[string]string{},
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Namespace: namespace,
+					Name:      pvcName,
+				},
+			},
+			Storage: storageSpec,
+		},
+	}
+	if volumeMode != nil {
+		dv.Spec.Storage.VolumeMode = volumeMode
+	}
+	if storageClassName != nil {
+		dv.Spec.Storage.StorageClassName = storageClassName
+	}
+	return dv
+}
+
 // NewDataVolumeWithRegistryImport initializes a DataVolume struct with registry annotations
 func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registryURL string) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
