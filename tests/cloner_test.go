@@ -466,6 +466,48 @@ var _ = Describe("all clone tests", func() {
 				err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 				Expect(err).ToNot(HaveOccurred())
 			})
+			// should clone from fs to fs using spec.storage.size
+			It("[test_id:XYZ]Should clone data from fs to fs while using calculated storage size", func() {
+				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+
+				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+				dataVolume.Spec.Storage.VolumeMode = &volumeMode
+				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+				sourcePvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				targetDV := utils.NewDataVolumeForImageCloningAndStorageSpec("target-dv", "1Gi", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
+				tagretDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
+				Expect(err).ToNot(HaveOccurred())
+				targetPvc, err := utils.WaitForPVC(f.K8sClient, tagretDataVolume.Namespace, tagretDataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Wait for target PVC Bound phase")
+				utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
+				By("Wait for target DV Succeeded phase")
+				err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, "target-dv", cloneCompleteTimeout)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Source file system pvc md5summing")
+				diskImagePath := filepath.Join(testBaseDir, testFile)
+				sourceMD5, err := f.GetMD5(f.Namespace, sourcePvc, diskImagePath, crossVolumeModeCloneMD5NumBytes)
+				Expect(err).ToNot(HaveOccurred())
+				By("Deleting verifier pod")
+				err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Target file system pvc md5summing")
+				targetMD5, err := f.GetMD5(f.Namespace, targetPvc, diskImagePath, crossVolumeModeCloneMD5NumBytes)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(sourceMD5 == targetMD5).To(BeTrue())
+				By("Deleting verifier pod")
+				err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+				Expect(err).ToNot(HaveOccurred())
+			})
 		}
 
 		Context("HostAssisted Clone", func() {

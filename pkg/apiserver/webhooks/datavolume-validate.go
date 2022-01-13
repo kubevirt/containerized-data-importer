@@ -433,18 +433,26 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.Da
 		}
 	}
 	var targetResources v1.ResourceRequirements
-	if spec.PVC != nil {
+
+	explicitPvcRequest := spec.PVC != nil
+	if explicitPvcRequest {
 		targetResources = spec.PVC.Resources
 	} else {
 		targetResources = spec.Storage.Resources
 	}
-	if err = controller.ValidateCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
-		return &metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: err.Error(),
-			Field:   field.String(),
+
+	// TODO: Spec.Storage API needs a better more complex check to validate clone size - to account for fsOverhead
+	// simple size comparison will not work here
+	if controller.GetVolumeMode(sourcePVC) == v1.PersistentVolumeBlock || explicitPvcRequest {
+		if err = controller.ValidateCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
+			return &metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: err.Error(),
+				Field:   field.String(),
+			}
 		}
 	}
+
 	return nil
 }
 
