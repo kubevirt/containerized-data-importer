@@ -580,15 +580,18 @@ func WaitForDataVolumePhase(clientSet *cdiclientset.Clientset, namespace string,
 
 // WaitForDataVolumePhaseWithTimeout waits for DV's phase to be in a particular phase (Pending, Bound, or Lost) with a specified timeout
 func WaitForDataVolumePhaseWithTimeout(clientSet *cdiclientset.Clientset, namespace string, phase cdiv1.DataVolumePhase, dataVolumeName string, timeout time.Duration) error {
+	var actualPhase cdiv1.DataVolumePhase
+
 	err := wait.PollImmediate(dataVolumePollInterval, timeout, func() (bool, error) {
 		dataVolume, err := clientSet.CdiV1beta1().DataVolumes(namespace).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
 		if err != nil || dataVolume.Status.Phase != phase {
+			actualPhase = dataVolume.Status.Phase
 			return false, err
 		}
 		return true, nil
 	})
 	if err != nil {
-		return fmt.Errorf("DataVolume %s not in phase %s within %v", dataVolumeName, phase, timeout)
+		return fmt.Errorf("DataVolume %s not in phase %s within %v, actual phase=%s", dataVolumeName, phase, timeout, actualPhase)
 	}
 	return nil
 }
