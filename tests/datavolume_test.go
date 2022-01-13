@@ -989,9 +989,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dv := createVddkDataVolume(dataVolumeName, size, url)
 			configMap, err := f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Get(context.TODO(), savedVddkConfigMap, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			vddkUrl, ok := configMap.Data[common.VddkConfigDataKey]
+			vddkURL, ok := configMap.Data[common.VddkConfigDataKey]
 			Expect(ok).To(Equal(true))
-			dv.Spec.Source.VDDK.InitImageURL = vddkUrl
+			dv.Spec.Source.VDDK.InitImageURL = vddkURL
 			return dv
 		}
 
