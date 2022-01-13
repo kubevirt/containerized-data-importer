@@ -30,8 +30,10 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
@@ -126,39 +128,72 @@ func NewDataSourceController(mgr manager.Manager, log logr.Logger, installerLabe
 	if err != nil {
 		return nil, err
 	}
-	if err := addDataSourceControllerWatches(mgr, DataSourceController, log); err != nil {
+	if err := addDataSourceControllerWatches(mgr, DataSourceController); err != nil {
 		return nil, err
 	}
 	log.Info("Initialized DataSource controller")
 	return DataSourceController, nil
 }
 
-func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
+func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller) error {
 	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
-	if err := c.Watch(&source.Kind{Type: &cdiv1.DataSource{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err := c.Watch(&source.Kind{Type: &cdiv1.DataSource{}}, &handler.EnqueueRequestForObject{},
+		predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool { return true },
+			DeleteFunc: func(e event.DeleteEvent) bool { return true },
+			UpdateFunc: func(e event.UpdateEvent) bool { return !sameDataSourcePvc(e.ObjectOld, e.ObjectNew) },
+		},
+	); err != nil {
 		return err
 	}
 
-	mapToDataSource := func(obj client.Object) []reconcile.Request {
-		var reqs []reconcile.Request
-		dsList := &cdiv1.DataSourceList{}
-		if err := mgr.GetClient().List(context.TODO(), dsList, &client.ListOptions{}); err != nil {
-			return nil
-		}
-		for _, ds := range dsList.Items {
-			pvc := ds.Spec.Source.PVC
-			if pvc != nil && pvc.Name == obj.GetName() && pvc.Namespace == obj.GetNamespace() {
-				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: ds.Namespace, Name: ds.Name}})
-			}
-		}
-		return reqs
+	const dataSourcePvcField = "spec.source.pvc"
+
+	getKey := func(namespace, name string) string {
+		return namespace + "." + name
 	}
+
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourcePvcField, func(obj client.Object) []string {
+		if pvc := obj.(*cdiv1.DataSource).Spec.Source.PVC; pvc != nil {
+			return []string{getKey(pvc.Namespace, pvc.Name)}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	mapToDataSource := func(obj client.Object) (reqs []reconcile.Request) {
+		var dataSources cdiv1.DataSourceList
+		matchingFields := client.MatchingFields{dataSourcePvcField: getKey(obj.GetNamespace(), obj.GetName())}
+		mgr.GetClient().List(context.TODO(), &dataSources, matchingFields)
+		for _, ds := range dataSources.Items {
+			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: ds.Namespace, Name: ds.Name}})
+		}
+		return
+	}
+
 	if err := c.Watch(&source.Kind{Type: &cdiv1.DataVolume{}},
 		handler.EnqueueRequestsFromMapFunc(mapToDataSource),
+		predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool { return true },
+			DeleteFunc: func(e event.DeleteEvent) bool { return true },
+			// Only DV status phase update is interesting to reconcile
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				dvOld, okOld := e.ObjectOld.(*cdiv1.DataVolume)
+				dvNew, okNew := e.ObjectNew.(*cdiv1.DataVolume)
+				return okOld && okNew && dvOld.Status.Phase != dvNew.Status.Phase
+			},
+		},
 	); err != nil {
 		return err
 	}
 	return nil
+}
+
+func sameDataSourcePvc(objOld, objNew client.Object) bool {
+	dsOld, okOld := objOld.(*cdiv1.DataSource)
+	dsNew, okNew := objNew.(*cdiv1.DataSource)
+	return okOld && okNew && reflect.DeepEqual(dsOld.Spec.Source.PVC, dsNew.Spec.Source.PVC)
 }
