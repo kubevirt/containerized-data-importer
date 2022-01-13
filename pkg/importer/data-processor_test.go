@@ -1,6 +1,7 @@
 package importer
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -131,6 +132,18 @@ func (madp *MockAsyncDataProvider) GetResumePhase() ProcessingPhase {
 	return madp.ResumePhase
 }
 
+const ProcessingPhaseFoo ProcessingPhase = "Foo"
+
+type MockCustomizedDataProvider struct {
+	MockDataProvider
+	fooResponse ProcessingPhase
+}
+
+func (mcdp *MockCustomizedDataProvider) Foo() (ProcessingPhase, error) {
+	mcdp.calledPhases = append(mcdp.calledPhases, ProcessingPhaseFoo)
+	return mcdp.fooResponse, nil
+}
+
 var _ = Describe("Data Processor", func() {
 	It("should call the right phases based on the responses from the provider, Transfer should pass the scratch data dir as a path", func() {
 		mdp := &MockDataProvider{
@@ -256,6 +269,44 @@ var _ = Describe("Data Processor", func() {
 			Expect(ProcessingPhaseTransferScratch).To(Equal(mdp.calledPhases[1]))
 			Expect(tmpDir).To(Equal(mdp.transferPath))
 		})
+	})
+
+	It("should allow phase regsitry", func() {
+		mcdp := &MockCustomizedDataProvider{
+			MockDataProvider: MockDataProvider{
+				infoResponse:     ProcessingPhaseTransferDataDir,
+				transferResponse: ProcessingPhaseFoo,
+			},
+			fooResponse: ProcessingPhaseComplete,
+		}
+		dp := NewDataProcessor(mcdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
+		dp.RegisterPhaseExecutor(ProcessingPhaseFoo, func() (ProcessingPhase, error) {
+			return mcdp.Foo()
+		})
+		err := dp.ProcessData()
+		fmt.Println(mcdp.calledPhases)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(3).To(Equal(len(mcdp.calledPhases)))
+		Expect(ProcessingPhaseInfo).To(Equal(mcdp.calledPhases[0]))
+		Expect(ProcessingPhaseTransferDataDir).To(Equal(mcdp.calledPhases[1]))
+		Expect("dataDir").To(Equal(mcdp.transferPath))
+		Expect(ProcessingPhaseFoo).To(Equal(mcdp.calledPhases[2]))
+	})
+
+	It("should return error if there is a loop", func() {
+		mcdp := &MockCustomizedDataProvider{
+			MockDataProvider: MockDataProvider{
+				infoResponse:     ProcessingPhaseTransferDataDir,
+				transferResponse: ProcessingPhaseFoo,
+			},
+			fooResponse: ProcessingPhaseInfo,
+		}
+		dp := NewDataProcessor(mcdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
+		dp.RegisterPhaseExecutor(ProcessingPhaseFoo, func() (ProcessingPhase, error) {
+			return mcdp.Foo()
+		})
+		err := dp.ProcessData()
+		Expect(err).To(HaveOccurred())
 	})
 
 	table.DescribeTable("should avoid cleanup before delta copies", func(dataSource DataSourceInterface, expectedCleanup bool) {

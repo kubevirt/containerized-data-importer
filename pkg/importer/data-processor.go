@@ -123,6 +123,8 @@ type DataProcessor struct {
 	preallocation bool
 	// preallocationApplied is used to pass information whether preallocation has been performed, or not
 	preallocationApplied bool
+	// phaseExecutors is a mapping from the given processing phase to its execution function. The function returns the next processing phase or error.
+	phaseExecutors map[ProcessingPhase]func() (ProcessingPhase, error)
 }
 
 // NewDataProcessor create a new instance of a data processor using the passed in data provider.
@@ -149,7 +151,17 @@ func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratch
 	}
 	// Calculate available space before doing anything.
 	dp.availableSpace = dp.calculateTargetSize()
+	dp.initDefaultPhases()
 	return dp
+}
+
+// RegisterPhaseExecutor registers an execution function for the given phase.
+// If there is already an function registered, override it with the new function.
+func (dp *DataProcessor) RegisterPhaseExecutor(pp ProcessingPhase, executor func() (ProcessingPhase, error)) {
+	if _, ok := dp.phaseExecutors[pp]; ok {
+		klog.Warningf("Executor already exists at phase %s. Override it.", pp)
+	}
+	dp.phaseExecutors[pp] = executor
 }
 
 // ProcessData is the main synchronous processing loop
@@ -183,66 +195,93 @@ func (dp *DataProcessor) ProcessDataResume() error {
 	return dp.ProcessDataWithPause()
 }
 
+func (dp *DataProcessor) initDefaultPhases() {
+	dp.phaseExecutors = make(map[ProcessingPhase]func() (ProcessingPhase, error))
+	dp.RegisterPhaseExecutor(ProcessingPhaseInfo, func() (ProcessingPhase, error) {
+		pp, err := dp.source.Info()
+		if err != nil {
+			err = errors.Wrap(err, "Unable to obtain information about data source")
+		}
+		return pp, err
+	})
+	dp.RegisterPhaseExecutor(ProcessingPhaseTransferScratch, func() (ProcessingPhase, error) {
+		pp, err := dp.source.Transfer(dp.scratchDataDir)
+		if err == ErrInvalidPath {
+			// Passed in invalid scratch space path, return scratch space needed error.
+			err = ErrRequiresScratchSpace
+		} else if err != nil {
+			err = errors.Wrap(err, "Unable to transfer source data to scratch space")
+		}
+		return pp, err
+	})
+	dp.RegisterPhaseExecutor(ProcessingPhaseTransferDataDir, func() (ProcessingPhase, error) {
+		pp, err := dp.source.Transfer(dp.dataDir)
+		if err != nil {
+			err = errors.Wrap(err, "Unable to transfer source data to target directory")
+		}
+		return pp, err
+	})
+	dp.RegisterPhaseExecutor(ProcessingPhaseTransferDataFile, func() (ProcessingPhase, error) {
+		pp, err := dp.source.TransferFile(dp.dataFile)
+		if err != nil {
+			err = errors.Wrap(err, "Unable to transfer source data to target file")
+		}
+		return pp, err
+	})
+	dp.RegisterPhaseExecutor(ProcessingPhaseValidatePause, func() (ProcessingPhase, error) {
+		pp := ProcessingPhasePause
+		err := dp.validate(dp.source.GetURL())
+		if err != nil {
+			pp = ProcessingPhaseError
+		}
+		return pp, err
+	})
+	dp.RegisterPhaseExecutor(ProcessingPhaseConvert, func() (ProcessingPhase, error) {
+		pp, err := dp.convert(dp.source.GetURL())
+		if err != nil {
+			err = errors.Wrap(err, "Unable to convert source data to target format")
+		}
+		return pp, err
+	})
+	dp.RegisterPhaseExecutor(ProcessingPhaseResize, func() (ProcessingPhase, error) {
+		pp, err := dp.resize()
+		if err != nil {
+			err = errors.Wrap(err, "Unable to resize disk image to requested size")
+		}
+		return pp, err
+	})
+	dp.RegisterPhaseExecutor(ProcessingPhaseMergeDelta, func() (ProcessingPhase, error) {
+		pp, err := dp.merge()
+		if err != nil {
+			err = errors.Wrap(err, "Unable to apply delta to base image")
+		}
+		return pp, err
+	})
+}
+
 // ProcessDataWithPause is the main processing loop.
 func (dp *DataProcessor) ProcessDataWithPause() error {
-	var err error
+	visited := make(map[ProcessingPhase]bool, len(dp.phaseExecutors))
 	for dp.currentPhase != ProcessingPhaseComplete && dp.currentPhase != ProcessingPhasePause {
-		switch dp.currentPhase {
-		case ProcessingPhaseInfo:
-			dp.currentPhase, err = dp.source.Info()
-			if err != nil {
-				err = errors.Wrap(err, "Unable to obtain information about data source")
-			}
-		case ProcessingPhaseTransferScratch:
-			dp.currentPhase, err = dp.source.Transfer(dp.scratchDataDir)
-			if err == ErrInvalidPath {
-				// Passed in invalid scratch space path, return scratch space needed error.
-				err = ErrRequiresScratchSpace
-			} else if err != nil {
-				err = errors.Wrap(err, "Unable to transfer source data to scratch space")
-			}
-		case ProcessingPhaseTransferDataDir:
-			dp.currentPhase, err = dp.source.Transfer(dp.dataDir)
-			if err != nil {
-				err = errors.Wrap(err, "Unable to transfer source data to target directory")
-			}
-		case ProcessingPhaseTransferDataFile:
-			dp.currentPhase, err = dp.source.TransferFile(dp.dataFile)
-			if err != nil {
-				err = errors.Wrap(err, "Unable to transfer source data to target file")
-			}
-		case ProcessingPhaseValidatePause:
-			validateErr := dp.validate(dp.source.GetURL())
-			if validateErr != nil {
-				dp.currentPhase = ProcessingPhaseError
-				err = validateErr
-			}
-			dp.currentPhase = ProcessingPhasePause
-		case ProcessingPhaseConvert:
-			dp.currentPhase, err = dp.convert(dp.source.GetURL())
-			if err != nil {
-				err = errors.Wrap(err, "Unable to convert source data to target format")
-			}
-		case ProcessingPhaseResize:
-			dp.currentPhase, err = dp.resize()
-			if err != nil {
-				err = errors.Wrap(err, "Unable to resize disk image to requested size")
-			}
-		case ProcessingPhaseMergeDelta:
-			dp.currentPhase, err = dp.merge()
-			if err != nil {
-				err = errors.Wrap(err, "Unable to apply delta to base image")
-			}
-		default:
+		if visited[dp.currentPhase] {
+			err := errors.Errorf("loop detected on phase %s", dp.currentPhase)
+			klog.Errorf("%+v", err)
+			return err
+		}
+		executor, ok := dp.phaseExecutors[dp.currentPhase]
+		if !ok {
 			return errors.Errorf("Unknown processing phase %s", dp.currentPhase)
 		}
+		nextPhase, err := executor()
+		visited[dp.currentPhase] = true
 		if err != nil {
 			klog.Errorf("%+v", err)
 			return err
 		}
+		dp.currentPhase = nextPhase
 		klog.V(1).Infof("New phase: %s\n", dp.currentPhase)
 	}
-	return err
+	return nil
 }
 
 func (dp *DataProcessor) validate(url *url.URL) error {
