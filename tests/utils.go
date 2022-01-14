@@ -305,16 +305,20 @@ func MakePrometheusHTTPRequest(f *framework.Framework, endpoint string) *http.Re
 		},
 	}
 	gomega.Eventually(func() bool {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: calling endpoint %s/api/v1/%s\n", url, endpoint)
 		req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/%s", url, endpoint), nil)
 		if err != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Error: calling endpoint %v\n", err)
 			return false
 		}
 		req.Header.Add("Authorization", "Bearer "+token)
 		resp, err = client.Do(req)
 		if err != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "Error: calling endpoint with token %s, %v\n", token, err)
 			return false
 		}
 		if resp.StatusCode != http.StatusOK {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: status %d\n", resp.StatusCode)
 			return false
 		}
 		return true
