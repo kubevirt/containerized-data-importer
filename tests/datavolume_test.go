@@ -1097,6 +1097,26 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				}}),
 		)
 
+		table.DescribeTable("should have an alert suppressing label on corresponding PVC", func(dvFunc func(string, string, string) *cdiv1.DataVolume, url string) {
+			dataVolume := dvFunc("suppress-fillingup-alert-dv", "1Gi", url)
+
+			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			// verify PVC was created
+			By("verifying pvc was created and is Bound")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Alert-suppressing label exists
+			Expect(pvc.Labels[common.KubePersistentVolumeFillingUpSuppressLabelKey]).To(Equal(common.KubePersistentVolumeFillingUpSuppressLabelValue))
+		},
+			table.Entry("[test_id:8043]for import DataVolume", utils.NewDataVolumeWithHTTPImport, tinyCoreIsoURL()),
+			table.Entry("[test_id:8044]for upload DataVolume", createUploadDataVolume, tinyCoreIsoURL()),
+			table.Entry("[test_id:8045]for clone DataVolume", createCloneDataVolume, fillCommand),
+		)
+
 		It("[test_id:4961]should handle a pre populated PVC", func() {
 			By(fmt.Sprintf("initializing source PVC %s", dataVolumeName))
 			sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)

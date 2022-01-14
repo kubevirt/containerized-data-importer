@@ -91,6 +91,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
 			Expect(pvc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+			Expect(pvc.Labels[common.KubePersistentVolumeFillingUpSuppressLabelKey]).To(Equal(common.KubePersistentVolumeFillingUpSuppressLabelValue))
 		})
 
 		It("Should set params on a PVC from import DV.PVC", func() {
