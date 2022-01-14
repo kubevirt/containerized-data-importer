@@ -1269,10 +1269,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			})
 
 			Eventually(func() bool {
-				config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+				config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
-				return reflect.DeepEqual(config.Spec, origSpec)
-			}, 30*time.Second, time.Second)
+				return reflect.DeepEqual(config.Spec, *origSpec)
+			}, 30*time.Second, time.Second).Should(BeTrue())
 		})
 
 		It("[test_id:5911]Import succeeds creating a PVC from DV without accessModes", func() {
