@@ -647,6 +647,7 @@ var _ = Describe("Update PVC from POD", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resPvc.GetAnnotations()[AnnVddkInitImageURL]).To(Equal("test://image"))
+		Expect(common.AwaitingVDDK).ToNot(Equal(resPvc.GetAnnotations()[AnnBoundConditionReason]))
 	})
 
 	It("Should copy VDDK connection information to annotations on PVC", func() {
