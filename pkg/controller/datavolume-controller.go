@@ -2280,6 +2280,9 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 	labels := map[string]string{
 		common.CDILabelKey: common.CDILabelValue,
 	}
+	if resolveVolumeMode(targetPvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
+		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
+	}
 	annotations := make(map[string]string)
 
 	for k, v := range dataVolume.ObjectMeta.Annotations {
