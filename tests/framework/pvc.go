@@ -135,7 +135,7 @@ func (f *Framework) CreateAndPopulateSourcePVC(pvcDef *k8sv1.PersistentVolumeCla
 	// Create the source PVC and populate it with a file, so we can verify the clone.
 	sourcePvc, err := f.CreatePVCFromDefinition(pvcDef)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	pod, err := f.CreatePod(f.NewPodWithPVC(podName, fillCommand, sourcePvc))
+	pod, err := f.CreatePod(f.NewPodWithPVC(podName, fillCommand+"&& sync", sourcePvc))
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	err = f.WaitTimeoutForPodStatus(pod.Name, k8sv1.PodSucceeded, utils.PodWaitForTime)
@@ -155,7 +155,6 @@ func (f *Framework) VerifyTargetPVCContentMD5(namespace *k8sv1.Namespace, pvc *k
 	if err != nil {
 		return false, err
 	}
-
 	return expectedHash == md5, nil
 }
 
@@ -169,7 +168,7 @@ func (f *Framework) GetMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolu
 
 	cmd := "md5sum " + fileName
 	if numBytes > 0 {
-		cmd = fmt.Sprintf("head -c %d %s | md5sum", numBytes, fileName)
+		cmd = fmt.Sprintf("head -c %d %s 1> null && head -c %d %s | md5sum", numBytes, fileName, numBytes, fileName)
 	}
 
 	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
