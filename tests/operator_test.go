@@ -438,6 +438,49 @@ var _ = Describe("ALL Operator tests", func() {
 				err = f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{DryRun: []string{"All"}})
 				Expect(err).ToNot(HaveOccurred())
 			})
+
+			It("[test_id:8087]CDI CR deletion should delete DataImportCron CRD and all DataImportCrons with finalizers", func() {
+				var url string
+				if utils.IsOpenshift(f.K8sClient) {
+					url = externalRegistryURL
+				} else {
+					url = fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix)
+					err := utils.AddInsecureRegistry(f.CrClient, url)
+					Expect(err).To(BeNil())
+				}
+
+				By("Create new DataImportCron")
+				cron := NewDataImportCron("cron-test", "5Gi", scheduleEveryMinute, "ds", cdiv1.DataVolumeSourceRegistry{URL: &url, PullMethod: &registryPullNode}, cdiv1.DataImportCronRetainAll)
+				cron, err := f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verify cron first import completed")
+				Eventually(func() bool {
+					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					upToDateCond := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
+					return upToDateCond != nil && upToDateCond.Status == corev1.ConditionTrue
+				}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
+				Expect(len(cron.Finalizers)).ToNot(BeZero())
+				pvc := cron.Status.LastImportedPVC
+				Expect(pvc).ToNot(BeNil())
+
+				By("Verify dv succeeded")
+				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
+
+				By("Delete CDI CR")
+				err = f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				By("Wait util CDI CR is gone")
+				Eventually(func() bool { return crGone(f, cr) }, 1*time.Minute, 2*time.Second).Should(BeTrue())
+
+				By("Verify no DataImportCrons")
+				_, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
+				Expect(errors.IsNotFound(err)).To(BeTrue())
+			})
 		})
 
 		var _ = Describe("[rfe_id:4784][crit:high] CDI Operator deployment + CDI CR delete tests", func() {
