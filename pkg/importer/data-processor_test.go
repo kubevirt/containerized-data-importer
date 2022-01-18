@@ -309,6 +309,15 @@ var _ = Describe("Data Processor", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
+	It("should return error if there is an unknown phase", func() {
+		mdp := &MockDataProvider{
+			infoResponse: "unknown",
+		}
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
+		err := dp.ProcessData()
+		Expect(err).To(HaveOccurred())
+	})
+
 	table.DescribeTable("should avoid cleanup before delta copies", func(dataSource DataSourceInterface, expectedCleanup bool) {
 		tmpDir, err := ioutil.TempDir("", "scratch")
 		Expect(err).ToNot(HaveOccurred())
