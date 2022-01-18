@@ -100,7 +100,7 @@ var _ = Describe("DataSource", func() {
 
 	updateDsPvc := func(ds *cdiv1.DataSource, pvcName string) {
 		By(fmt.Sprintf("updating DataSource %s -> %s", ds.Name, pvcName))
-		ds.Spec.Source.PVC = &cdiv1.DataVolumeSourcePVC{Namespace: f.Namespace.Name, Name: pvcName}
+		ds.Spec.Source.PVC = &cdiv1.DataVolumeSourcePVC{Namespace: "", Name: pvcName}
 		ds, err := f.CdiClient.CdiV1beta1().DataSources(ds.Namespace).Update(context.TODO(), ds, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 	}

@@ -72,7 +72,8 @@ func (r *DataSourceReconciler) update(ctx context.Context, dataSource *cdiv1.Dat
 	sourcePVC := dataSource.Spec.Source.PVC
 	if sourcePVC != nil {
 		dv := &cdiv1.DataVolume{}
-		if err := r.client.Get(ctx, types.NamespacedName{Namespace: sourcePVC.Namespace, Name: sourcePVC.Name}, dv); err != nil {
+		ns := getNamespace(sourcePVC.Namespace, dataSource.Namespace)
+		if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: sourcePVC.Name}, dv); err != nil {
 			if k8serrors.IsNotFound(err) {
 				r.log.Info("DataVolume not found", "name", sourcePVC.Name)
 				updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "DataVolume not found", notFound)
@@ -128,14 +129,14 @@ func NewDataSourceController(mgr manager.Manager, log logr.Logger, installerLabe
 	if err != nil {
 		return nil, err
 	}
-	if err := addDataSourceControllerWatches(mgr, DataSourceController); err != nil {
+	if err := addDataSourceControllerWatches(mgr, DataSourceController, log); err != nil {
 		return nil, err
 	}
 	log.Info("Initialized DataSource controller")
 	return DataSourceController, nil
 }
 
-func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller) error {
+func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
 	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
@@ -157,7 +158,8 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 
 	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourcePvcField, func(obj client.Object) []string {
 		if pvc := obj.(*cdiv1.DataSource).Spec.Source.PVC; pvc != nil {
-			return []string{getKey(pvc.Namespace, pvc.Name)}
+			ns := getNamespace(pvc.Namespace, obj.GetNamespace())
+			return []string{getKey(ns, pvc.Name)}
 		}
 		return nil
 	}); err != nil {
@@ -167,7 +169,10 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 	mapToDataSource := func(obj client.Object) (reqs []reconcile.Request) {
 		var dataSources cdiv1.DataSourceList
 		matchingFields := client.MatchingFields{dataSourcePvcField: getKey(obj.GetNamespace(), obj.GetName())}
-		mgr.GetClient().List(context.TODO(), &dataSources, matchingFields)
+		if err := mgr.GetClient().List(context.TODO(), &dataSources, matchingFields); err != nil {
+			log.Error(err, "Unable list DataSources with matching fields")
+			return
+		}
 		for _, ds := range dataSources.Items {
 			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: ds.Namespace, Name: ds.Name}})
 		}
@@ -196,4 +201,11 @@ func sameDataSourcePvc(objOld, objNew client.Object) bool {
 	dsOld, okOld := objOld.(*cdiv1.DataSource)
 	dsNew, okNew := objNew.(*cdiv1.DataSource)
 	return okOld && okNew && reflect.DeepEqual(dsOld.Spec.Source.PVC, dsNew.Spec.Source.PVC)
+}
+
+func getNamespace(namespace, defaultNamespace string) string {
+	if namespace == "" {
+		return defaultNamespace
+	}
+	return namespace
 }
