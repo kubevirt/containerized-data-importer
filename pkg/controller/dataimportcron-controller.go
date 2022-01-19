@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"reflect"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/containers/image/v5/docker/reference"
@@ -138,30 +139,61 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 	return nil
 }
 
-func (r *DataImportCronReconciler) getImageStream(ctx context.Context, imageStreamName, imageStreamNamespace string) (*imagev1.ImageStream, error) {
+func (r *DataImportCronReconciler) getImageStream(ctx context.Context, imageStreamName, imageStreamNamespace string) (*imagev1.ImageStream, string, error) {
 	if imageStreamName == "" || imageStreamNamespace == "" {
-		return nil, errors.Errorf("Missing imagestream name or namespace")
+		return nil, "", errors.Errorf("Missing imagestream name or namespace")
 	}
 	imageStream := &imagev1.ImageStream{}
+	isName, isTag, err := splitImageStreamName(imageStreamName)
+	if err != nil {
+		return nil, "", err
+	}
 	imageStreamNamespacedName := types.NamespacedName{
 		Namespace: imageStreamNamespace,
-		Name:      imageStreamName,
+		Name:      isName,
 	}
 	if err := r.client.Get(ctx, imageStreamNamespacedName, imageStream); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return imageStream, nil
+	return imageStream, isTag, nil
 }
 
-func getImageStreamDigest(imageStream *imagev1.ImageStream) (string, string, error) {
+func getImageStreamDigest(imageStream *imagev1.ImageStream, imageStreamTag string) (string, string, error) {
 	if imageStream == nil {
-		return "", "", errors.Errorf("No imagestream")
+		return "", "", errors.Errorf("No ImageStream")
 	}
 	tags := imageStream.Status.Tags
-	if len(tags) == 0 || len(tags[0].Items) == 0 {
-		return "", "", errors.Errorf("No imagestream tag items %s", imageStream.Name)
+	if len(tags) == 0 {
+		return "", "", errors.Errorf("ImageStream %s has no tags", imageStream.Name)
 	}
-	return tags[0].Items[0].Image, tags[0].Items[0].DockerImageReference, nil
+
+	tagIdx := 0
+	if len(imageStreamTag) > 0 {
+		tagIdx = -1
+		for i, tag := range tags {
+			if tag.Tag == imageStreamTag {
+				tagIdx = i
+				break
+			}
+		}
+	}
+	if tagIdx == -1 {
+		return "", "", errors.Errorf("ImageStream %s has no tag %s", imageStream.Name, imageStreamTag)
+	}
+
+	if len(tags[tagIdx].Items) == 0 {
+		return "", "", errors.Errorf("ImageStream %s tag %s has no items", imageStream.Name, imageStreamTag)
+	}
+	return tags[tagIdx].Items[0].Image, tags[tagIdx].Items[0].DockerImageReference, nil
+}
+
+func splitImageStreamName(imageStreamName string) (string, string, error) {
+	if subs := strings.Split(imageStreamName, ":"); len(subs) == 1 {
+		return imageStreamName, "", nil
+	} else if len(subs) == 2 {
+		return subs[0], subs[1], nil
+	}
+	return "", "", errors.Errorf("Illegal ImageStream name %s", imageStreamName)
 }
 
 func (r *DataImportCronReconciler) pollImageStreamDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
@@ -298,19 +330,16 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 	if regSource.ImageStream == nil {
 		return nil
 	}
-	imageStream, err := r.getImageStream(ctx, *regSource.ImageStream, dataImportCron.Namespace)
+	imageStream, imageStreamTag, err := r.getImageStream(ctx, *regSource.ImageStream, dataImportCron.Namespace)
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			return nil
-		}
 		return err
 	}
-	digest, dockerRef, err := getImageStreamDigest(imageStream)
+	digest, dockerRef, err := getImageStreamDigest(imageStream, imageStreamTag)
 	if err != nil {
 		return err
 	}
 	if digest != "" && dataImportCron.Annotations[AnnSourceDesiredDigest] != digest {
-		r.log.Info("updated", "digest", digest, "cron", dataImportCron.Name)
+		r.log.Info("Updated", "digest", digest, "cron", dataImportCron.Name)
 		addAnnotation(dataImportCron, AnnSourceDesiredDigest, digest)
 		addAnnotation(dataImportCron, AnnImageStreamDockerRef, dockerRef)
 	}
@@ -318,7 +347,7 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 }
 
 func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	log := r.log.WithName("update")
+	log := r.log.WithName("updateDataSource")
 	dataSourceName := dataImportCron.Spec.ManagedDataSource
 	dataSource := &cdiv1.DataSource{}
 	if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: dataSourceName}, dataSource); err != nil {
