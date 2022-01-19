@@ -604,7 +604,7 @@ var _ = Describe("Update PVC from POD", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resPvc.GetAnnotations()[AnnBoundCondition]).To(Equal("false"))
-		Expect(resPvc.GetAnnotations()[AnnBoundConditionMessage]).To(Equal("waiting for v2v-vmware configmap for VDDK image"))
+		Expect(resPvc.GetAnnotations()[AnnBoundConditionMessage]).To(Equal(fmt.Sprintf("waiting for v2v-vmware configmap or %s annotation for VDDK image", AnnVddkInitImageURL)))
 		Expect(resPvc.GetAnnotations()[AnnBoundConditionReason]).To(Equal(common.AwaitingVDDK))
 
 		By("Checking again after creating configmap")
@@ -636,6 +636,18 @@ var _ = Describe("Update PVC from POD", func() {
 		reconciler = createImportReconciler(configmap, pvc)
 		err := reconciler.createImporterPod(pvc)
 		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("Should not mark PVC as waiting for VDDK configmap, if image URL annotation is present", func() {
+		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "testpod", AnnSource: SourceVDDK, AnnVddkInitImageURL: "test://image"}, nil, corev1.ClaimBound)
+		reconciler = createImportReconciler(pvc)
+		err := reconciler.createImporterPod(pvc)
+		Expect(err).ToNot(HaveOccurred())
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resPvc.GetAnnotations()[AnnVddkInitImageURL]).To(Equal("test://image"))
+		Expect(common.AwaitingVDDK).ToNot(Equal(resPvc.GetAnnotations()[AnnBoundConditionReason]))
 	})
 
 	It("Should copy VDDK connection information to annotations on PVC", func() {
