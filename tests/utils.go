@@ -346,7 +346,7 @@ func getPrometheusURL(f *framework.Framework) string {
 		}, 10*time.Second, time.Second).Should(gomega.BeTrue())
 		port = strings.TrimSpace(port)
 		gomega.Expect(port).ToNot(gomega.BeEmpty())
-		url = fmt.Sprintf("http://localhost:%s", port)
+		url = fmt.Sprintf("http://127.0.0.1:%s", port)
 	}
 
 	return url
