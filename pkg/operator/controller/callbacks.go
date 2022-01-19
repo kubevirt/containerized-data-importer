@@ -79,6 +79,36 @@ func reconcileDeleteControllerDeployment(args *callbacks.ReconcileCallbackArgs) 
 		return nil
 	}
 
+	args.Logger.Info("Deleting CRDs and verifing no finalizers")
+
+	crd := &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "dataimportcrons.cdi.kubevirt.io"}}
+	if err := args.Client.Delete(context.TODO(), crd, &client.DeleteOptions{}); cdicontroller.IgnoreNotFound(err) != nil {
+		return err
+	}
+	dics := &cdiv1.DataImportCronList{}
+	if err := args.Client.List(context.TODO(), dics, &client.ListOptions{}); cdicontroller.IgnoreIsNoMatchError(err) != nil {
+		return err
+	}
+	for _, dic := range dics.Items {
+		if len(dic.Finalizers) > 0 {
+			return fmt.Errorf("DataImportCron %s has Finalizers %v", dic.Name, dic.Finalizers)
+		}
+	}
+
+	crd = &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "datavolumes.cdi.kubevirt.io"}}
+	if err := args.Client.Delete(context.TODO(), crd, &client.DeleteOptions{}); cdicontroller.IgnoreNotFound(err) != nil {
+		return err
+	}
+	dvs := &cdiv1.DataVolumeList{}
+	if err := args.Client.List(context.TODO(), dvs, &client.ListOptions{}); cdicontroller.IgnoreIsNoMatchError(err) != nil {
+		return err
+	}
+	for _, dv := range dvs.Items {
+		if len(dv.Finalizers) > 0 {
+			return fmt.Errorf("DataVolume %s has Finalizers %v", dv.Name, dv.Finalizers)
+		}
+	}
+
 	args.Logger.Info("Deleting CDI deployment and all import/upload/clone pods/services")
 
 	err := args.Client.Delete(context.TODO(), deployment, &client.DeleteOptions{
