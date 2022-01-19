@@ -44,9 +44,8 @@ import (
 )
 
 var (
-	cronLog         = logf.Log.WithName("data-import-cron-controller-test")
-	cronName        = "test-cron"
-	imageStreamName = "test-imagestream"
+	cronLog  = logf.Log.WithName("data-import-cron-controller-test")
+	cronName = "test-cron"
 )
 
 const (
@@ -54,6 +53,8 @@ const (
 	testTag         = ":12.34_56-7890"
 	testDigest      = "sha256:68b44fc891f3fae6703d4b74bcc9b5f24df8d23f12e642805d1420cbe7a4be70"
 	testDockerRef   = "quay.io/kubevirt/blabla@" + testDigest
+	imageStreamName = "test-imagestream"
+	imageStreamTag  = "test-imagestream-tag"
 )
 
 var _ = Describe("All DataImportCron Tests", func() {
@@ -353,7 +354,8 @@ func createDataImportCronReconciler(objects ...runtime.Object) *DataImportCronRe
 
 func newDataImportCronWithImageStream(name string) *cdiv1.DataImportCron {
 	cron := newDataImportCron(name)
-	cron.Spec.Template.Spec.Source.Registry.ImageStream = &imageStreamName
+	taggedImageStreamName := imageStreamName + ":" + imageStreamTag
+	cron.Spec.Template.Spec.Source.Registry.ImageStream = &taggedImageStreamName
 	cron.Spec.Template.Spec.Source.Registry.URL = nil
 	return cron
 }
@@ -369,6 +371,10 @@ func newImageStream(name string) *imagev1.ImageStream {
 		Status: imagev1.ImageStreamStatus{
 			Tags: []imagev1.NamedTagEventList{
 				{
+					Tag: "nosuch",
+				},
+				{
+					Tag: imageStreamTag,
 					Items: []imagev1.TagEvent{
 						{
 							Image:                testDigest,
