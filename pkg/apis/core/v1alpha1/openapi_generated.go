@@ -15261,6 +15261,13 @@ func schema_pkg_apis_core_v1alpha1_DataVolumeSourceVDDK(ref common.ReferenceCall
 							Format:      "",
 						},
 					},
+					"initImageURL": {
+						SchemaProps: spec.SchemaProps{
+							Description: "InitImageURL is an optional URL to an image containing an extracted VDDK library, overrides v2v-vmware config map",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},
@@ -15459,13 +15466,6 @@ func schema_pkg_apis_core_v1alpha1_ImportProxy(ref common.ReferenceCallback) com
 					"trustedCAProxy": {
 						SchemaProps: spec.SchemaProps{
 							Description: "TrustedCAProxy is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle. The TrustedCAProxy field is consumed by the import controller that is resposible for coping it to a config map named trusted-ca-proxy-bundle-cm in the cdi namespace. Here is an example of the ConfigMap (in yaml):\n\napiVersion: v1 kind: ConfigMap metadata:\n  name: trusted-ca-proxy-bundle-cm\n  namespace: cdi\ndata:\n  ca.pem: |\n    -----BEGIN CERTIFICATE-----\n\t   ... <base64 encoded cert> ...\n\t   -----END CERTIFICATE-----",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"initImageURL": {
-						SchemaProps: spec.SchemaProps{
-							Description: "InitImageURL is an optional URL to an image containing an extracted VDDK library, overrides v2v-vmware config map",
 							Type:        []string{"string"},
 							Format:      "",
 						},
