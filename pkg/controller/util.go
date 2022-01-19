@@ -932,6 +932,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 			return nil, errors.Errorf("DataVolume spec is missing accessMode")
 		}
 	} else {
+		pvcSpec.StorageClassName = &storageClass.Name
 		// given storageClass we can apply defaults if needed
 		if (pvcSpec.VolumeMode == nil || *pvcSpec.VolumeMode == "") && (len(pvcSpec.AccessModes) == 0) {
 			accessModes, volumeMode, err := getDefaultVolumeAndAccessMode(client, storageClass)
@@ -960,7 +961,6 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 			pvcSpec.VolumeMode = volumeMode
 		}
 	}
-	pvcSpec.StorageClassName = &storageClass.Name
 
 	requestedVolumeSize, err := volumeSize(client, storage, pvcSpec.VolumeMode)
 	if err != nil {
