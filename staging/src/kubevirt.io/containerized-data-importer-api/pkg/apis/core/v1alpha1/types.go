@@ -197,6 +197,8 @@ type DataVolumeSourceVDDK struct {
 	Thumbprint string `json:"thumbprint,omitempty"`
 	// SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host
 	SecretRef string `json:"secretRef,omitempty"`
+	// InitImageURL is an optional URL to an image containing an extracted VDDK library, overrides v2v-vmware config map
+	InitImageURL string `json:"initImageURL,omitempty"`
 }
 
 // DataVolumeStatus contains the current status of the DataVolume

@@ -108,3 +108,13 @@ func CreateCertConfigMapWeirdFilename(client kubernetes.Interface, destNamespace
 
 	return destName, nil
 }
+
+// DeleteConfigMap deletes a ConfigMap
+func DeleteConfigMap(client kubernetes.Interface, namespace, name string) error {
+	err := client.CoreV1().ConfigMaps(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+
+	return nil
+}

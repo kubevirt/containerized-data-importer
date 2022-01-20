@@ -16165,6 +16165,13 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceVDDK(ref common.ReferenceCallb
 							Format:      "",
 						},
 					},
+					"initImageURL": {
+						SchemaProps: spec.SchemaProps{
+							Description: "InitImageURL is an optional URL to an image containing an extracted VDDK library, overrides v2v-vmware config map",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},
