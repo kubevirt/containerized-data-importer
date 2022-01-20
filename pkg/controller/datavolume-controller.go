@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"math"
 	"net/http"
 	"reflect"
@@ -1566,7 +1567,7 @@ func (r *DatavolumeReconciler) advancedClonePossible(dataVolume *cdiv1.DataVolum
 		return false, err
 	}
 
-	return r.validateAdvancedCloneSizeCompatible(sourcePvc, targetStorageSpec)
+	return r.validateAdvancedCloneSizeCompatible(dataVolume, sourcePvc, targetStorageSpec)
 }
 
 func (r *DatavolumeReconciler) validateSameStorageClass(
@@ -1609,18 +1610,19 @@ func (r *DatavolumeReconciler) validateSameVolumeMode(
 }
 
 func (r *DatavolumeReconciler) validateAdvancedCloneSizeCompatible(
+	dataVolume *cdiv1.DataVolume,
 	sourcePvc *corev1.PersistentVolumeClaim,
 	targetStorageSpec *corev1.PersistentVolumeClaimSpec) (bool, error) {
-
 	srcStorageClass := &storagev1.StorageClass{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *sourcePvc.Spec.StorageClassName}, srcStorageClass); IgnoreNotFound(err) != nil {
 		return false, err
 	}
 
+	srcRequest, hasSrcRequest := sourcePvc.Spec.Resources.Requests[corev1.ResourceStorage]
 	srcCapacity, hasSrcCapacity := sourcePvc.Status.Capacity[corev1.ResourceStorage]
 	targetRequest, hasTargetRequest := targetStorageSpec.Resources.Requests[corev1.ResourceStorage]
 	allowExpansion := srcStorageClass.AllowVolumeExpansion != nil && *srcStorageClass.AllowVolumeExpansion
-	if !hasSrcCapacity || !hasTargetRequest {
+	if !hasSrcRequest || !hasSrcCapacity || !hasTargetRequest {
 		// return error so we retry the reconcile
 		return false, errors.New("source/target size info missing")
 	}
@@ -1628,8 +1630,36 @@ func (r *DatavolumeReconciler) validateAdvancedCloneSizeCompatible(
 	if srcCapacity.Cmp(targetRequest) < 0 && !allowExpansion {
 		return false, nil
 	}
+	// todo: need to check for pvc - storage, storage-pvc, pvc-pvc and storage-storage combinations.
+	usableSpace, err := r.calculateUsableSpace(srcStorageClass, sourcePvc.Spec.VolumeMode, srcRequest)
+	if err != nil {
+		return false, err
+	}
+	if usableSpace.Cmp(targetRequest) > 0 {
+		message := "target resources requested storage size is smaller than the source requested size"
+		r.recorder.Event(dataVolume, corev1.EventTypeWarning, ErrIncompatiblePVC, message)
+		return false, errors.New(message)
+	}
 
 	return true, nil
+}
+
+func (r *DatavolumeReconciler) calculateUsableSpace(srcStorageClass *storagev1.StorageClass,
+	mode *corev1.PersistentVolumeMode,
+	srcRequest resource.Quantity) (resource.Quantity, error) {
+
+	if resolveVolumeMode(mode) == corev1.PersistentVolumeFilesystem {
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(r.client, &srcStorageClass.Name)
+		if err != nil {
+			return resource.Quantity{}, err
+		}
+		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
+		usableSpace := GetUsableSpace(fsOverheadFloat, srcRequest.Value())
+
+		return *resource.NewScaledQuantity(usableSpace, 0), nil
+	}
+
+	return srcRequest, nil
 }
 
 func (r *DatavolumeReconciler) getCloneStrategy(dataVolume *cdiv1.DataVolume) (*cdiv1.CDICloneStrategy, error) {
@@ -2479,4 +2509,13 @@ func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
 
 func newLongTermCloneTokenGenerator(key *rsa.PrivateKey) token.Generator {
 	return token.NewGenerator(common.ExtendedCloneTokenIssuer, key, 10*365*24*time.Hour)
+}
+
+// GetUsableSpace calculates space to use taking file system overhead into account
+func GetUsableSpace(filesystemOverhead float64, availableSpace int64) int64 {
+	// +1 always rounds up.
+	spaceWithOverhead := int64(math.Ceil((1 - filesystemOverhead) * float64(availableSpace)))
+	// qemu-img will round up, making us use more than the usable space.
+	// This later conflicts with image size validation.
+	return util.RoundDown(spaceWithOverhead, util.DefaultAlignBlockSize)
 }
