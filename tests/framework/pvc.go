@@ -61,7 +61,7 @@ func (f *Framework) ForceBindPvcIfDvIsWaitForFirstConsumer(dv *cdiv1.DataVolume)
 	fmt.Fprintf(ginkgo.GinkgoWriter, "verifying pvc was created for dv %s\n", dv.Name)
 	// FIXME: #1210, brybacki, tomob this code assumes dvname = pvcname needs to be fixed,
 	pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred(), "PVC should exist")
 	if f.IsBindingModeWaitForFirstConsumer(pvc.Spec.StorageClassName) {
 		err = utils.WaitForDataVolumePhase(f.CdiClient, dv.Namespace, cdiv1.WaitForFirstConsumer, dv.Name)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
