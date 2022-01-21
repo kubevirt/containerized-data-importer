@@ -245,17 +245,16 @@ var _ = Describe("all clone tests", func() {
 
 				actualCloneType := utils.GetCloneType(f.CdiClient, dataVolume)
 				if actualCloneType == "snapshot" {
-					eventReason := controller.SmartCloneSourceInUse
-					verifyEvent(eventReason, targetNamespaceName, f)
+					expectEvent(f, targetNamespaceName).Should(ContainSubstring(controller.SmartCloneSourceInUse))
 				} else if actualCloneType == "csivolumeclone" {
-					verifyEvent(controller.CSICloneSourceInUse, targetNamespaceName, f)
+					expectEvent(f, targetNamespaceName).Should(ContainSubstring(controller.CSICloneSourceInUse))
 				} else {
 					Fail(fmt.Sprintf("Unknown clonetype %s", actualCloneType))
 				}
 				err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				//verify event
-				verifyEvent(controller.ErrResourceExists, targetNamespaceName, f)
+				expectEvent(f, targetNamespaceName).Should(ContainSubstring(controller.ErrResourceExists))
 			})
 
 			It("[test_id:1356]Should not clone anything when CloneOf annotation exists", func() {
@@ -1673,11 +1672,11 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
-		verifyEvent(controller.CloneSourceInUse, targetNs.Name, f)
+		expectEvent(f, targetNs.Name).Should(ContainSubstring(controller.CloneSourceInUse))
 		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 	} else if cloneType == "snapshot" {
-		verifyEvent(controller.SmartCloneSourceInUse, targetNs.Name, f)
+		expectEvent(f, targetNs.Name).Should(ContainSubstring(controller.SmartCloneSourceInUse))
 		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -1685,7 +1684,7 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 	} else {
-		verifyEvent(controller.CSICloneSourceInUse, targetNs.Name, f)
+		expectEvent(f, targetNs.Name).Should(ContainSubstring(controller.CSICloneSourceInUse))
 		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
