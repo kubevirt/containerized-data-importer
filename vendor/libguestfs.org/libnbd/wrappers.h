@@ -3,7 +3,7 @@
  * generator/generator
  * ANY CHANGES YOU MAKE TO THIS FILE WILL BE LOST.
  *
- * Copyright (C) 2013-2020 Red Hat Inc.
+ * Copyright (C) 2013-2021 Red Hat Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,15 +25,23 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 #include <errno.h>
 
 #include "libnbd.h"
 
-/* When calling callbacks we pass the callback ID (an int) in
- * the void *user_data field.  I couldn't work out how to do
- * this in golang, so this helper function does the cast.
+/* When calling callbacks we pass the callback ID (a golang int /
+ * C.long) in the void *user_data field.  We need to create a block
+ * to store the callback number.  This must be freed by C.free(vp)
  */
-static inline void *long_to_vp (long i) { return (void *)(intptr_t)i; }
+static inline void *
+alloc_cbid (long i)
+{
+  long *p = malloc (sizeof (long));
+  assert (p != NULL);
+  *p = i;
+  return p;
+}
 
 /* save_error is called from the same thread to make a copy
  * of the error which can later be retrieve from golang code
@@ -81,6 +89,10 @@ int _nbd_set_handle_name_wrapper (struct error *err,
         struct nbd_handle *h, const char *handle_name);
 char * _nbd_get_handle_name_wrapper (struct error *err,
         struct nbd_handle *h);
+uintptr_t _nbd_set_private_data_wrapper (struct error *err,
+        struct nbd_handle *h, uintptr_t private_data);
+uintptr_t _nbd_get_private_data_wrapper (struct error *err,
+        struct nbd_handle *h);
 int _nbd_set_export_name_wrapper (struct error *err,
         struct nbd_handle *h, const char *export_name);
 char * _nbd_get_export_name_wrapper (struct error *err,
@@ -121,6 +133,10 @@ int _nbd_set_handshake_flags_wrapper (struct error *err,
         struct nbd_handle *h, uint32_t flags);
 uint32_t _nbd_get_handshake_flags_wrapper (struct error *err,
         struct nbd_handle *h);
+int _nbd_set_strict_mode_wrapper (struct error *err,
+        struct nbd_handle *h, uint32_t flags);
+uint32_t _nbd_get_strict_mode_wrapper (struct error *err,
+        struct nbd_handle *h);
 int _nbd_set_opt_mode_wrapper (struct error *err,
         struct nbd_handle *h, bool enable);
 int _nbd_get_opt_mode_wrapper (struct error *err,
@@ -133,8 +149,16 @@ int _nbd_opt_list_wrapper (struct error *err,
         struct nbd_handle *h, nbd_list_callback list_callback);
 int _nbd_opt_info_wrapper (struct error *err,
         struct nbd_handle *h);
+int _nbd_opt_list_meta_context_wrapper (struct error *err,
+        struct nbd_handle *h, nbd_context_callback context_callback);
 int _nbd_add_meta_context_wrapper (struct error *err,
         struct nbd_handle *h, const char *name);
+ssize_t _nbd_get_nr_meta_contexts_wrapper (struct error *err,
+        struct nbd_handle *h);
+char * _nbd_get_meta_context_wrapper (struct error *err,
+        struct nbd_handle *h, size_t i);
+int _nbd_clear_meta_contexts_wrapper (struct error *err,
+        struct nbd_handle *h);
 int _nbd_set_uri_allow_transports_wrapper (struct error *err,
         struct nbd_handle *h, uint32_t mask);
 int _nbd_set_uri_allow_tls_wrapper (struct error *err,
@@ -236,6 +260,9 @@ int _nbd_aio_opt_list_wrapper (struct error *err,
         nbd_completion_callback completion_callback);
 int _nbd_aio_opt_info_wrapper (struct error *err,
         struct nbd_handle *h, nbd_completion_callback completion_callback);
+int _nbd_aio_opt_list_meta_context_wrapper (struct error *err,
+        struct nbd_handle *h, nbd_context_callback context_callback,
+        nbd_completion_callback completion_callback);
 int64_t _nbd_aio_pread_wrapper (struct error *err,
         struct nbd_handle *h, void *buf, size_t count, uint64_t offset,
         nbd_completion_callback completion_callback, uint32_t flags);
@@ -305,6 +332,8 @@ int _nbd_supports_tls_wrapper (struct error *err,
         struct nbd_handle *h);
 int _nbd_supports_uri_wrapper (struct error *err,
         struct nbd_handle *h);
+char * _nbd_get_uri_wrapper (struct error *err,
+        struct nbd_handle *h);
 
 extern int chunk_callback ();
 
@@ -336,5 +365,10 @@ extern int list_callback ();
 int _nbd_list_callback_wrapper (void *user_data, const char *name,
                                 const char *description);
 void _nbd_list_callback_free (void *user_data);
+
+extern int context_callback ();
+
+int _nbd_context_callback_wrapper (void *user_data, const char *name);
+void _nbd_context_callback_free (void *user_data);
 
 #endif /* LIBNBD_GOLANG_WRAPPERS_H */

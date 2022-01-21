@@ -3,7 +3,7 @@
  * generator/generator
  * ANY CHANGES YOU MAKE TO THIS FILE WILL BE LOST.
  *
- * Copyright (C) 2013-2020 Red Hat Inc.
+ * Copyright (C) 2013-2021 Red Hat Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,7 +23,7 @@
 package libnbd
 
 /*
-#cgo LDFLAGS: -lnbd
+#cgo pkg-config: libnbd
 #cgo CFLAGS: -D_GNU_SOURCE=1
 
 #include <stdio.h>
@@ -61,24 +61,43 @@ const (
 /* Flags. */
 type CmdFlag uint32
 const (
-    CMD_FLAG_FUA = CmdFlag(1)
-    CMD_FLAG_NO_HOLE = CmdFlag(2)
-    CMD_FLAG_DF = CmdFlag(4)
-    CMD_FLAG_REQ_ONE = CmdFlag(8)
-    CMD_FLAG_FAST_ZERO = CmdFlag(16)
+    CMD_FLAG_FUA = CmdFlag(0x01)
+    CMD_FLAG_NO_HOLE = CmdFlag(0x02)
+    CMD_FLAG_DF = CmdFlag(0x04)
+    CMD_FLAG_REQ_ONE = CmdFlag(0x08)
+    CMD_FLAG_FAST_ZERO = CmdFlag(0x10)
+    CMD_FLAG_MASK = CmdFlag(0x1f)
 )
 
 type HandshakeFlag uint32
 const (
-    HANDSHAKE_FLAG_FIXED_NEWSTYLE = HandshakeFlag(1)
-    HANDSHAKE_FLAG_NO_ZEROES = HandshakeFlag(2)
+    HANDSHAKE_FLAG_FIXED_NEWSTYLE = HandshakeFlag(0x01)
+    HANDSHAKE_FLAG_NO_ZEROES = HandshakeFlag(0x02)
+    HANDSHAKE_FLAG_MASK = HandshakeFlag(0x03)
+)
+
+type Strict uint32
+const (
+    STRICT_COMMANDS = Strict(0x01)
+    STRICT_FLAGS = Strict(0x02)
+    STRICT_BOUNDS = Strict(0x04)
+    STRICT_ZERO_SIZE = Strict(0x08)
+    STRICT_ALIGN = Strict(0x10)
+    STRICT_MASK = Strict(0x1f)
 )
 
 type AllowTransport uint32
 const (
-    ALLOW_TRANSPORT_TCP = AllowTransport(1)
-    ALLOW_TRANSPORT_UNIX = AllowTransport(2)
-    ALLOW_TRANSPORT_VSOCK = AllowTransport(4)
+    ALLOW_TRANSPORT_TCP = AllowTransport(0x01)
+    ALLOW_TRANSPORT_UNIX = AllowTransport(0x02)
+    ALLOW_TRANSPORT_VSOCK = AllowTransport(0x04)
+    ALLOW_TRANSPORT_MASK = AllowTransport(0x07)
+)
+
+type Shutdown uint32
+const (
+    SHUTDOWN_ABANDON_PENDING = Shutdown(0x10000)
+    SHUTDOWN_MASK = Shutdown(0x10000)
 )
 
 /* Constants. */
@@ -143,7 +162,8 @@ func (h *Libnbd) SetDebugCallback (debug DebugCallback) error {
     var c_debug C.nbd_debug_callback
     c_debug.callback = (*[0]byte)(C._nbd_debug_callback_wrapper)
     c_debug.free = (*[0]byte)(C._nbd_debug_callback_free)
-    c_debug.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (debug))))
+    debug_cbid := registerCallbackId(debug)
+    c_debug.user_data = C.alloc_cbid(C.long(debug_cbid))
 
     ret := C._nbd_set_debug_callback_wrapper (&c_err, h.h, c_debug)
     runtime.KeepAlive (h.h)
@@ -211,6 +231,33 @@ func (h *Libnbd) GetHandleName () (*string, error) {
     r := C.GoString (ret)
     C.free (unsafe.Pointer (ret))
     return &r, nil
+}
+
+/* SetPrivateData: set the per-handle private data */
+func (h *Libnbd) SetPrivateData (private_data uint) (uint, error) {
+    if h.h == nil {
+        return 0, closed_handle_error ("set_private_data")
+    }
+
+    var c_err C.struct_error
+    c_private_data := C.uintptr_t (private_data)
+
+    ret := C._nbd_set_private_data_wrapper (&c_err, h.h, c_private_data)
+    runtime.KeepAlive (h.h)
+    return uint (ret), nil
+}
+
+/* GetPrivateData: get the per-handle private data */
+func (h *Libnbd) GetPrivateData () (uint, error) {
+    if h.h == nil {
+        return 0, closed_handle_error ("get_private_data")
+    }
+
+    var c_err C.struct_error
+
+    ret := C._nbd_get_private_data_wrapper (&c_err, h.h)
+    runtime.KeepAlive (h.h)
+    return uint (ret), nil
 }
 
 /* SetExportName: set the export name */
@@ -589,6 +636,38 @@ func (h *Libnbd) GetHandshakeFlags () (HandshakeFlag, error) {
     return HandshakeFlag (ret), nil
 }
 
+/* SetStrictMode: control how strictly to follow NBD protocol */
+func (h *Libnbd) SetStrictMode (flags Strict) error {
+    if h.h == nil {
+        return closed_handle_error ("set_strict_mode")
+    }
+
+    var c_err C.struct_error
+    c_flags := C.uint32_t (flags)
+
+    ret := C._nbd_set_strict_mode_wrapper (&c_err, h.h, c_flags)
+    runtime.KeepAlive (h.h)
+    if ret == -1 {
+        err := get_error ("set_strict_mode", c_err)
+        C.free_error (&c_err)
+        return err
+    }
+    return nil
+}
+
+/* GetStrictMode: see which strictness flags are in effect */
+func (h *Libnbd) GetStrictMode () (Strict, error) {
+    if h.h == nil {
+        return 0, closed_handle_error ("get_strict_mode")
+    }
+
+    var c_err C.struct_error
+
+    ret := C._nbd_get_strict_mode_wrapper (&c_err, h.h)
+    runtime.KeepAlive (h.h)
+    return Strict (ret), nil
+}
+
 /* SetOptMode: control option mode, for pausing during option negotiation */
 func (h *Libnbd) SetOptMode (enable bool) error {
     if h.h == nil {
@@ -673,7 +752,8 @@ func (h *Libnbd) OptList (list ListCallback) (uint, error) {
     var c_list C.nbd_list_callback
     c_list.callback = (*[0]byte)(C._nbd_list_callback_wrapper)
     c_list.free = (*[0]byte)(C._nbd_list_callback_free)
-    c_list.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (list))))
+    list_cbid := registerCallbackId(list)
+    c_list.user_data = C.alloc_cbid(C.long(list_cbid))
 
     ret := C._nbd_opt_list_wrapper (&c_err, h.h, c_list)
     runtime.KeepAlive (h.h)
@@ -703,6 +783,29 @@ func (h *Libnbd) OptInfo () error {
     return nil
 }
 
+/* OptListMetaContext: request the server to list available meta contexts */
+func (h *Libnbd) OptListMetaContext (context ContextCallback) (uint, error) {
+    if h.h == nil {
+        return 0, closed_handle_error ("opt_list_meta_context")
+    }
+
+    var c_err C.struct_error
+    var c_context C.nbd_context_callback
+    c_context.callback = (*[0]byte)(C._nbd_context_callback_wrapper)
+    c_context.free = (*[0]byte)(C._nbd_context_callback_free)
+    context_cbid := registerCallbackId(context)
+    c_context.user_data = C.alloc_cbid(C.long(context_cbid))
+
+    ret := C._nbd_opt_list_meta_context_wrapper (&c_err, h.h, c_context)
+    runtime.KeepAlive (h.h)
+    if ret == -1 {
+        err := get_error ("opt_list_meta_context", c_err)
+        C.free_error (&c_err)
+        return 0, err
+    }
+    return uint (ret), nil
+}
+
 /* AddMetaContext: ask server to negotiate metadata context */
 func (h *Libnbd) AddMetaContext (name string) error {
     if h.h == nil {
@@ -717,6 +820,63 @@ func (h *Libnbd) AddMetaContext (name string) error {
     runtime.KeepAlive (h.h)
     if ret == -1 {
         err := get_error ("add_meta_context", c_err)
+        C.free_error (&c_err)
+        return err
+    }
+    return nil
+}
+
+/* GetNrMetaContexts: return the current number of requested meta contexts */
+func (h *Libnbd) GetNrMetaContexts () (uint, error) {
+    if h.h == nil {
+        return 0, closed_handle_error ("get_nr_meta_contexts")
+    }
+
+    var c_err C.struct_error
+
+    ret := C._nbd_get_nr_meta_contexts_wrapper (&c_err, h.h)
+    runtime.KeepAlive (h.h)
+    if ret == -1 {
+        err := get_error ("get_nr_meta_contexts", c_err)
+        C.free_error (&c_err)
+        return 0, err
+    }
+    return uint (ret), nil
+}
+
+/* GetMetaContext: return the i'th meta context request */
+func (h *Libnbd) GetMetaContext (i int) (*string, error) {
+    if h.h == nil {
+        return nil, closed_handle_error ("get_meta_context")
+    }
+
+    var c_err C.struct_error
+    c_i := C.size_t (i)
+
+    ret := C._nbd_get_meta_context_wrapper (&c_err, h.h, c_i)
+    runtime.KeepAlive (h.h)
+    if ret == nil {
+        err := get_error ("get_meta_context", c_err)
+        C.free_error (&c_err)
+        return nil, err
+    }
+    r := C.GoString (ret)
+    C.free (unsafe.Pointer (ret))
+    return &r, nil
+}
+
+/* ClearMetaContexts: reset the list of requested meta contexts */
+func (h *Libnbd) ClearMetaContexts () error {
+    if h.h == nil {
+        return closed_handle_error ("clear_meta_contexts")
+    }
+
+    var c_err C.struct_error
+
+    ret := C._nbd_clear_meta_contexts_wrapper (&c_err, h.h)
+    runtime.KeepAlive (h.h)
+    if ret == -1 {
+        err := get_error ("clear_meta_contexts", c_err)
         C.free_error (&c_err)
         return err
     }
@@ -1243,7 +1403,8 @@ func (h *Libnbd) PreadStructured (buf []byte, offset uint64, chunk ChunkCallback
     var c_chunk C.nbd_chunk_callback
     c_chunk.callback = (*[0]byte)(C._nbd_chunk_callback_wrapper)
     c_chunk.free = (*[0]byte)(C._nbd_chunk_callback_free)
-    c_chunk.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (chunk))))
+    chunk_cbid := registerCallbackId(chunk)
+    c_chunk.user_data = C.alloc_cbid(C.long(chunk_cbid))
     var c_flags C.uint32_t
     if optargs != nil {
         if optargs.FlagsSet {
@@ -1299,7 +1460,7 @@ func (h *Libnbd) Pwrite (buf []byte, offset uint64, optargs *PwriteOptargs) erro
 type ShutdownOptargs struct {
   /* Flags field is ignored unless FlagsSet == true. */
   FlagsSet bool
-  Flags CmdFlag
+  Flags Shutdown
 }
 
 /* Shutdown: disconnect from the NBD server */
@@ -1475,7 +1636,8 @@ func (h *Libnbd) BlockStatus (count uint64, offset uint64, extent ExtentCallback
     var c_extent C.nbd_extent_callback
     c_extent.callback = (*[0]byte)(C._nbd_extent_callback_wrapper)
     c_extent.free = (*[0]byte)(C._nbd_extent_callback_free)
-    c_extent.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (extent))))
+    extent_cbid := registerCallbackId(extent)
+    c_extent.user_data = C.alloc_cbid(C.long(extent_cbid))
     var c_flags C.uint32_t
     if optargs != nil {
         if optargs.FlagsSet {
@@ -1693,7 +1855,8 @@ func (h *Libnbd) AioOptGo (optargs *AioOptGoOptargs) error {
         if optargs.CompletionCallbackSet {
             c_completion.callback = (*[0]byte)(C._nbd_completion_callback_wrapper)
             c_completion.free = (*[0]byte)(C._nbd_completion_callback_free)
-            c_completion.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (optargs.CompletionCallback))))
+            completion_cbid := registerCallbackId(optargs.CompletionCallback)
+            c_completion.user_data = C.alloc_cbid(C.long(completion_cbid))
         }
     }
 
@@ -1742,13 +1905,15 @@ func (h *Libnbd) AioOptList (list ListCallback, optargs *AioOptListOptargs) erro
     var c_list C.nbd_list_callback
     c_list.callback = (*[0]byte)(C._nbd_list_callback_wrapper)
     c_list.free = (*[0]byte)(C._nbd_list_callback_free)
-    c_list.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (list))))
+    list_cbid := registerCallbackId(list)
+    c_list.user_data = C.alloc_cbid(C.long(list_cbid))
     var c_completion C.nbd_completion_callback
     if optargs != nil {
         if optargs.CompletionCallbackSet {
             c_completion.callback = (*[0]byte)(C._nbd_completion_callback_wrapper)
             c_completion.free = (*[0]byte)(C._nbd_completion_callback_free)
-            c_completion.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (optargs.CompletionCallback))))
+            completion_cbid := registerCallbackId(optargs.CompletionCallback)
+            c_completion.user_data = C.alloc_cbid(C.long(completion_cbid))
         }
     }
 
@@ -1781,7 +1946,8 @@ func (h *Libnbd) AioOptInfo (optargs *AioOptInfoOptargs) error {
         if optargs.CompletionCallbackSet {
             c_completion.callback = (*[0]byte)(C._nbd_completion_callback_wrapper)
             c_completion.free = (*[0]byte)(C._nbd_completion_callback_free)
-            c_completion.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (optargs.CompletionCallback))))
+            completion_cbid := registerCallbackId(optargs.CompletionCallback)
+            c_completion.user_data = C.alloc_cbid(C.long(completion_cbid))
         }
     }
 
@@ -1793,6 +1959,45 @@ func (h *Libnbd) AioOptInfo (optargs *AioOptInfoOptargs) error {
         return err
     }
     return nil
+}
+
+/* Struct carrying optional arguments for AioOptListMetaContext. */
+type AioOptListMetaContextOptargs struct {
+  /* CompletionCallback field is ignored unless CompletionCallbackSet == true. */
+  CompletionCallbackSet bool
+  CompletionCallback CompletionCallback
+}
+
+/* AioOptListMetaContext: request the server to list available meta contexts */
+func (h *Libnbd) AioOptListMetaContext (context ContextCallback, optargs *AioOptListMetaContextOptargs) (uint, error) {
+    if h.h == nil {
+        return 0, closed_handle_error ("aio_opt_list_meta_context")
+    }
+
+    var c_err C.struct_error
+    var c_context C.nbd_context_callback
+    c_context.callback = (*[0]byte)(C._nbd_context_callback_wrapper)
+    c_context.free = (*[0]byte)(C._nbd_context_callback_free)
+    context_cbid := registerCallbackId(context)
+    c_context.user_data = C.alloc_cbid(C.long(context_cbid))
+    var c_completion C.nbd_completion_callback
+    if optargs != nil {
+        if optargs.CompletionCallbackSet {
+            c_completion.callback = (*[0]byte)(C._nbd_completion_callback_wrapper)
+            c_completion.free = (*[0]byte)(C._nbd_completion_callback_free)
+            completion_cbid := registerCallbackId(optargs.CompletionCallback)
+            c_completion.user_data = C.alloc_cbid(C.long(completion_cbid))
+        }
+    }
+
+    ret := C._nbd_aio_opt_list_meta_context_wrapper (&c_err, h.h, c_context, c_completion)
+    runtime.KeepAlive (h.h)
+    if ret == -1 {
+        err := get_error ("aio_opt_list_meta_context", c_err)
+        C.free_error (&c_err)
+        return 0, err
+    }
+    return uint (ret), nil
 }
 
 /* Struct carrying optional arguments for AioPread. */
@@ -1821,7 +2026,8 @@ func (h *Libnbd) AioPread (buf AioBuffer, offset uint64, optargs *AioPreadOptarg
         if optargs.CompletionCallbackSet {
             c_completion.callback = (*[0]byte)(C._nbd_completion_callback_wrapper)
             c_completion.free = (*[0]byte)(C._nbd_completion_callback_free)
-            c_completion.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (optargs.CompletionCallback))))
+            completion_cbid := registerCallbackId(optargs.CompletionCallback)
+            c_completion.user_data = C.alloc_cbid(C.long(completion_cbid))
         }
         if optargs.FlagsSet {
             c_flags = C.uint32_t (optargs.Flags)
@@ -1861,14 +2067,16 @@ func (h *Libnbd) AioPreadStructured (buf AioBuffer, offset uint64, chunk ChunkCa
     var c_chunk C.nbd_chunk_callback
     c_chunk.callback = (*[0]byte)(C._nbd_chunk_callback_wrapper)
     c_chunk.free = (*[0]byte)(C._nbd_chunk_callback_free)
-    c_chunk.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (chunk))))
+    chunk_cbid := registerCallbackId(chunk)
+    c_chunk.user_data = C.alloc_cbid(C.long(chunk_cbid))
     var c_completion C.nbd_completion_callback
     var c_flags C.uint32_t
     if optargs != nil {
         if optargs.CompletionCallbackSet {
             c_completion.callback = (*[0]byte)(C._nbd_completion_callback_wrapper)
             c_completion.free = (*[0]byte)(C._nbd_completion_callback_free)
-            c_completion.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (optargs.CompletionCallback))))
+            completion_cbid := registerCallbackId(optargs.CompletionCallback)
+            c_completion.user_data = C.alloc_cbid(C.long(completion_cbid))
         }
         if optargs.FlagsSet {
             c_flags = C.uint32_t (optargs.Flags)
@@ -1911,7 +2119,8 @@ func (h *Libnbd) AioPwrite (buf AioBuffer, offset uint64, optargs *AioPwriteOpta
         if optargs.CompletionCallbackSet {
             c_completion.callback = (*[0]byte)(C._nbd_completion_callback_wrapper)
             c_completion.free = (*[0]byte)(C._nbd_completion_callback_free)
-            c_completion.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (optargs.CompletionCallback))))
+            completion_cbid := registerCallbackId(optargs.CompletionCallback)
+            c_completion.user_data = C.alloc_cbid(C.long(completion_cbid))
         }
         if optargs.FlagsSet {
             c_flags = C.uint32_t (optargs.Flags)
@@ -1982,7 +2191,8 @@ func (h *Libnbd) AioFlush (optargs *AioFlushOptargs) (uint64, error) {
         if optargs.CompletionCallbackSet {
             c_completion.callback = (*[0]byte)(C._nbd_completion_callback_wrapper)
             c_completion.free = (*[0]byte)(C._nbd_completion_callback_free)
-            c_completion.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (optargs.CompletionCallback))))
+            completion_cbid := registerCallbackId(optargs.CompletionCallback)
+            c_completion.user_data = C.alloc_cbid(C.long(completion_cbid))
         }
         if optargs.FlagsSet {
             c_flags = C.uint32_t (optargs.Flags)
@@ -2024,7 +2234,8 @@ func (h *Libnbd) AioTrim (count uint64, offset uint64, optargs *AioTrimOptargs) 
         if optargs.CompletionCallbackSet {
             c_completion.callback = (*[0]byte)(C._nbd_completion_callback_wrapper)
             c_completion.free = (*[0]byte)(C._nbd_completion_callback_free)
-            c_completion.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (optargs.CompletionCallback))))
+            completion_cbid := registerCallbackId(optargs.CompletionCallback)
+            c_completion.user_data = C.alloc_cbid(C.long(completion_cbid))
         }
         if optargs.FlagsSet {
             c_flags = C.uint32_t (optargs.Flags)
@@ -2066,7 +2277,8 @@ func (h *Libnbd) AioCache (count uint64, offset uint64, optargs *AioCacheOptargs
         if optargs.CompletionCallbackSet {
             c_completion.callback = (*[0]byte)(C._nbd_completion_callback_wrapper)
             c_completion.free = (*[0]byte)(C._nbd_completion_callback_free)
-            c_completion.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (optargs.CompletionCallback))))
+            completion_cbid := registerCallbackId(optargs.CompletionCallback)
+            c_completion.user_data = C.alloc_cbid(C.long(completion_cbid))
         }
         if optargs.FlagsSet {
             c_flags = C.uint32_t (optargs.Flags)
@@ -2108,7 +2320,8 @@ func (h *Libnbd) AioZero (count uint64, offset uint64, optargs *AioZeroOptargs) 
         if optargs.CompletionCallbackSet {
             c_completion.callback = (*[0]byte)(C._nbd_completion_callback_wrapper)
             c_completion.free = (*[0]byte)(C._nbd_completion_callback_free)
-            c_completion.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (optargs.CompletionCallback))))
+            completion_cbid := registerCallbackId(optargs.CompletionCallback)
+            c_completion.user_data = C.alloc_cbid(C.long(completion_cbid))
         }
         if optargs.FlagsSet {
             c_flags = C.uint32_t (optargs.Flags)
@@ -2147,14 +2360,16 @@ func (h *Libnbd) AioBlockStatus (count uint64, offset uint64, extent ExtentCallb
     var c_extent C.nbd_extent_callback
     c_extent.callback = (*[0]byte)(C._nbd_extent_callback_wrapper)
     c_extent.free = (*[0]byte)(C._nbd_extent_callback_free)
-    c_extent.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (extent))))
+    extent_cbid := registerCallbackId(extent)
+    c_extent.user_data = C.alloc_cbid(C.long(extent_cbid))
     var c_completion C.nbd_completion_callback
     var c_flags C.uint32_t
     if optargs != nil {
         if optargs.CompletionCallbackSet {
             c_completion.callback = (*[0]byte)(C._nbd_completion_callback_wrapper)
             c_completion.free = (*[0]byte)(C._nbd_completion_callback_free)
-            c_completion.user_data = unsafe.Pointer (C.long_to_vp (C.long (registerCallbackId (optargs.CompletionCallback))))
+            completion_cbid := registerCallbackId(optargs.CompletionCallback)
+            c_completion.user_data = C.alloc_cbid(C.long(completion_cbid))
         }
         if optargs.FlagsSet {
             c_flags = C.uint32_t (optargs.Flags)
@@ -2542,5 +2757,25 @@ func (h *Libnbd) SupportsUri () (bool, error) {
     }
     r := int (ret)
     if r != 0 { return true, nil } else { return false, nil }
+}
+
+/* GetUri: construct an NBD URI for a connection */
+func (h *Libnbd) GetUri () (*string, error) {
+    if h.h == nil {
+        return nil, closed_handle_error ("get_uri")
+    }
+
+    var c_err C.struct_error
+
+    ret := C._nbd_get_uri_wrapper (&c_err, h.h)
+    runtime.KeepAlive (h.h)
+    if ret == nil {
+        err := get_error ("get_uri", c_err)
+        C.free_error (&c_err)
+        return nil, err
+    }
+    r := C.GoString (ret)
+    C.free (unsafe.Pointer (ret))
+    return &r, nil
 }
 
