@@ -867,13 +867,19 @@ http_file(
 http_file(
     name = "libnbd",
     sha256 = "8376108ecef9e8e518cbd07ddc58d13e613553c4b4179720c99da8b786a5cd71",
-    urls = ["https://ftp-stud.hs-esslingen.de/pub/fedora/linux/updates/33/Everything/x86_64/Packages/l/libnbd-1.6.5-1.fc33.x86_64.rpm"],
+    urls = [
+        "https://ftp-stud.hs-esslingen.de/pub/fedora/linux/updates/33/Everything/x86_64/Packages/l/libnbd-1.6.5-1.fc33.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/8376108ecef9e8e518cbd07ddc58d13e613553c4b4179720c99da8b786a5cd71",
+    ],
 )
 
 http_file(
     name = "libnbd-aarch64",
     sha256 = "0e24ffdcda4efc7445834c86d29d7416426bafa9073259cc31bcb1f03fb5eaeb",
-    urls = ["https://ftp-stud.hs-esslingen.de/pub/fedora/linux/updates/33/Everything/aarch64/Packages/l/libnbd-1.6.5-1.fc33.aarch64.rpm"],
+    urls = [
+        "https://ftp-stud.hs-esslingen.de/pub/fedora/linux/updates/33/Everything/aarch64/Packages/l/libnbd-1.6.5-1.fc33.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/0e24ffdcda4efc7445834c86d29d7416426bafa9073259cc31bcb1f03fb5eaeb",
+    ],
 )
 
 http_file(
