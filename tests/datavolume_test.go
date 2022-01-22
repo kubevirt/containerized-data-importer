@@ -770,7 +770,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:         "1Gi",
 				url:          tinyCoreIsoURL,
 				dvFunc:       utils.NewDataVolumeWithArchiveContent,
-				errorMessage: "Unable to process data: exit status 2",
+				errorMessage: "Unable to process data",
 				eventReason:  "Error",
 				phase:        cdiv1.ImportInProgress,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -786,7 +786,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
-					Message: "Unable to process data: exit status 2",
+					Message: "Unable to process data",
 					Reason:  "Error",
 				}}),
 			table.Entry("[test_id:3932]succeed creating dv from imageio source", dataVolumeTestArguments{
