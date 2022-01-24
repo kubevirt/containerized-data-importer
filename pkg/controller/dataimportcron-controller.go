@@ -141,21 +141,21 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 
 func (r *DataImportCronReconciler) getImageStream(ctx context.Context, imageStreamName, imageStreamNamespace string) (*imagev1.ImageStream, string, error) {
 	if imageStreamName == "" || imageStreamNamespace == "" {
-		return nil, "", errors.Errorf("Missing imagestream name or namespace")
+		return nil, "", errors.Errorf("Missing ImageStream name or namespace")
 	}
 	imageStream := &imagev1.ImageStream{}
-	isName, isTag, err := splitImageStreamName(imageStreamName)
+	name, tag, err := splitImageStreamName(imageStreamName)
 	if err != nil {
 		return nil, "", err
 	}
 	imageStreamNamespacedName := types.NamespacedName{
 		Namespace: imageStreamNamespace,
-		Name:      isName,
+		Name:      name,
 	}
 	if err := r.client.Get(ctx, imageStreamNamespacedName, imageStream); err != nil {
 		return nil, "", err
 	}
-	return imageStream, isTag, nil
+	return imageStream, tag, nil
 }
 
 func getImageStreamDigest(imageStream *imagev1.ImageStream, imageStreamTag string) (string, string, error) {
@@ -190,7 +190,7 @@ func getImageStreamDigest(imageStream *imagev1.ImageStream, imageStreamTag strin
 func splitImageStreamName(imageStreamName string) (string, string, error) {
 	if subs := strings.Split(imageStreamName, ":"); len(subs) == 1 {
 		return imageStreamName, "", nil
-	} else if len(subs) == 2 {
+	} else if len(subs) == 2 && len(subs[0]) > 0 && len(subs[1]) > 0 {
 		return subs[0], subs[1], nil
 	}
 	return "", "", errors.Errorf("Illegal ImageStream name %s", imageStreamName)
