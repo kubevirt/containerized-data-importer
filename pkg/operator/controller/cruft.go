@@ -250,6 +250,12 @@ func reconcileRemainingRelationshipLabels(args *callbacks.ReconcileCallbackArgs)
 				Namespace: namespace,
 			},
 		},
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      common.CDIControllerLeaderElectionHelperName,
+				Namespace: namespace,
+			},
+		},
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      apiserver.APISigningKeySecretName,

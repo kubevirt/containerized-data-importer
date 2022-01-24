@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	configMapName = "cdi-controller-leader-election-helper"
+	configMapName = common.CDIControllerLeaderElectionHelperName
 	componentName = "cdi-controller"
 )
 
