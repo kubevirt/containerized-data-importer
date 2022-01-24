@@ -193,7 +193,7 @@ func main() {
 				dp.Close()
 				os.Exit(common.ScratchSpaceNeededExitCode)
 			}
-			err = util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %+v", err))
+			err = util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %+v", err.Error()))
 			if err != nil {
 				klog.Errorf("%+v", err)
 			}
