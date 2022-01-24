@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	imagev1 "github.com/openshift/api/image/v1"
 
@@ -55,6 +56,7 @@ const (
 	testDockerRef   = "quay.io/kubevirt/blabla@" + testDigest
 	imageStreamName = "test-imagestream"
 	imageStreamTag  = "test-imagestream-tag"
+	tagWithNoItems  = "tag-with-no-items"
 )
 
 var _ = Describe("All DataImportCron Tests", func() {
@@ -227,9 +229,25 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(len(dvList.Items)).To(Equal(0))
 		})
 
-		It("Should update AnnNextCronTime annotation on a valid DataImportCron with ImageStream, and start an import and update DataImportCron when AnnNextCronTime annotation is updated to now", func() {
-			cron = newDataImportCronWithImageStream(cronName)
+		DescribeTable("Should fail when ImageStream", func(taggedImageStreamName, errorString string) {
+			cron = newDataImportCronWithImageStream(cronName, taggedImageStreamName)
 			imageStream := newImageStream(imageStreamName)
+			reconciler = createDataImportCronReconciler(cron, imageStream)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(errorString))
+		},
+			Entry("is not found", "no-such-image-stream", "not found"),
+			Entry("tag is not found", imageStreamName+":"+"no-such-tag", "has no tag"),
+			Entry("tag has no items", imageStreamName+":"+tagWithNoItems, "has no items"),
+			Entry("has a colon but an empty tag", imageStreamName+":", "Illegal ImageStream name"),
+			Entry("has an illegal format with two colons", imageStreamName+":"+imageStreamTag+":label", "Illegal ImageStream name"),
+		)
+
+		DescribeTable("Should start an import and update DataImportCron when ImageStream", func(taggedImageStreamName string, imageStreamTagsFromIndex int) {
+			cron = newDataImportCronWithImageStream(cronName, taggedImageStreamName)
+			imageStream := newImageStream(imageStreamName)
+			imageStream.Status.Tags = imageStream.Status.Tags[imageStreamTagsFromIndex:]
 			reconciler = createDataImportCronReconciler(cron, imageStream)
 			_, err := reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
@@ -297,7 +315,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 
 			// Test DV is reused
 			time.Sleep(1 * time.Second)
-			cron = newDataImportCronWithImageStream(cronName)
+			cron = newDataImportCronWithImageStream(cronName, taggedImageStreamName)
 			reconciler = createDataImportCronReconciler(cron, imageStream, dv)
 			_, err = reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
@@ -317,7 +335,10 @@ var _ = Describe("All DataImportCron Tests", func() {
 			cond = findConditionByType(cdiv1.DataVolumeReady, dv1.Status.Conditions)
 			Expect(cond).ToNot(BeNil())
 			Expect(cond.LastHeartbeatTime.Time).To(BeTemporally(">", condTime.Time))
-		})
+		},
+			Entry("has tag", imageStreamName+":"+imageStreamTag, 0),
+			Entry("has no tag", imageStreamName, 1),
+		)
 	})
 })
 
@@ -352,9 +373,8 @@ func createDataImportCronReconciler(objects ...runtime.Object) *DataImportCronRe
 	return r
 }
 
-func newDataImportCronWithImageStream(name string) *cdiv1.DataImportCron {
-	cron := newDataImportCron(name)
-	taggedImageStreamName := imageStreamName + ":" + imageStreamTag
+func newDataImportCronWithImageStream(dataImportCronName, taggedImageStreamName string) *cdiv1.DataImportCron {
+	cron := newDataImportCron(dataImportCronName)
 	cron.Spec.Template.Spec.Source.Registry.ImageStream = &taggedImageStreamName
 	cron.Spec.Template.Spec.Source.Registry.URL = nil
 	return cron
@@ -371,7 +391,7 @@ func newImageStream(name string) *imagev1.ImageStream {
 		Status: imagev1.ImageStreamStatus{
 			Tags: []imagev1.NamedTagEventList{
 				{
-					Tag: "nosuch",
+					Tag: tagWithNoItems,
 				},
 				{
 					Tag: imageStreamTag,
