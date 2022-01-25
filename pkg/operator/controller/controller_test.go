@@ -1523,12 +1523,14 @@ func createArgs() *args {
 }
 
 func doReconcile(args *args) {
-	result, err := args.reconciler.Reconcile(context.TODO(), reconcileRequest(args.cdi.Name))
-	Expect(err).ToNot(HaveOccurred())
-	Expect(result.Requeue).To(BeFalse())
+	Eventually(func() bool {
+		result, err := args.reconciler.Reconcile(context.TODO(), reconcileRequest(args.cdi.Name))
+		return err == nil && !result.Requeue
+	}, 1*time.Minute, 2*time.Second).Should(BeTrue())
 
-	args.cdi, err = getCDI(args.client, args.cdi)
+	cdi, err := getCDI(args.client, args.cdi)
 	Expect(err).ToNot(HaveOccurred())
+	args.cdi = cdi
 }
 
 func doReconcileError(args *args) {
@@ -1550,11 +1552,12 @@ func doReconcileRequeue(args *args) {
 }
 
 func doReconcileExpectDelete(args *args) {
-	result, err := args.reconciler.Reconcile(context.TODO(), reconcileRequest(args.cdi.Name))
-	Expect(err).ToNot(HaveOccurred())
-	Expect(result.Requeue).To(BeFalse())
+	Eventually(func() bool {
+		result, err := args.reconciler.Reconcile(context.TODO(), reconcileRequest(args.cdi.Name))
+		return err == nil && !result.Requeue
+	}, 1*time.Minute, 2*time.Second).Should(BeTrue())
 
-	_, err = getCDI(args.client, args.cdi)
+	_, err := getCDI(args.client, args.cdi)
 	Expect(err).To(HaveOccurred())
 	Expect(errors.IsNotFound(err)).To(BeTrue())
 }

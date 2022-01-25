@@ -471,14 +471,33 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
 
+				By("Start goroutine creating DataImportCrons")
+				go func() {
+					for i := 0; i < 100; i++ {
+						cron := NewDataImportCron(fmt.Sprintf("cron-test-%d", i), "5Gi", scheduleEveryMinute, "ds", cdiv1.DataVolumeSourceRegistry{URL: &url, PullMethod: &registryPullNode}, cdiv1.DataImportCronRetainAll)
+						cron, err := f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
+						if err != nil {
+							By(fmt.Sprintf("DataImportCron %d error %s", i, err.Error()))
+							break
+						}
+					}
+				}()
+
 				By("Delete CDI CR")
 				err = f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				By("Wait util CDI CR is gone")
-				Eventually(func() bool { return crGone(f, cr) }, 1*time.Minute, 2*time.Second).Should(BeTrue())
+				Eventually(func() bool {
+					dics, err := f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
+					if err == nil {
+						By(fmt.Sprintf("DataImportCrons %d", len(dics.Items)))
+					}
+					return crGone(f, cr)
+				}, 1*time.Minute, 2*time.Second).Should(BeTrue())
 
-				By("Verify no DataImportCrons")
+				By("Verify no DataImportCrons are found as CRDs are gone")
 				_, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
+				Expect(err).To(HaveOccurred())
 				Expect(errors.IsNotFound(err)).To(BeTrue())
 			})
 		})

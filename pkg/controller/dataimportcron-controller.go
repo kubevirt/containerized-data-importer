@@ -34,6 +34,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	v1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -120,7 +121,19 @@ func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.
 }
 
 func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	AddFinalizer(dataImportCron, dataImportCronFinalizer)
+	log := r.log.WithName("initCron")
+	if !HasFinalizer(dataImportCron, dataImportCronFinalizer) {
+		crd := &extv1.CustomResourceDefinition{}
+		if err := r.client.Get(context.TODO(), types.NamespacedName{Name: "dataimportcrons.cdi.kubevirt.io"}, crd); err == nil {
+			log.Error(err, "Cannot get CRD")
+			return nil
+		}
+		if crd.DeletionTimestamp != nil {
+			log.Info("CRD has DeletionTimestamp")
+			return nil
+		}
+		AddFinalizer(dataImportCron, dataImportCronFinalizer)
+	}
 	if isURLSource(dataImportCron) && !r.cronJobExists(ctx, dataImportCron) {
 		cronJob, err := r.newCronJob(dataImportCron)
 		if err != nil {

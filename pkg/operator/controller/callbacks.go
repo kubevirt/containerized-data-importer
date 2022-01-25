@@ -36,6 +36,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 	cdicontroller "kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
 )
@@ -79,38 +80,12 @@ func reconcileDeleteControllerDeployment(args *callbacks.ReconcileCallbackArgs) 
 		return nil
 	}
 
-	args.Logger.Info("Deleting CRDs and verifing no finalizers")
-
-	crd := &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "dataimportcrons.cdi.kubevirt.io"}}
-	if err := args.Client.Delete(context.TODO(), crd, &client.DeleteOptions{}); cdicontroller.IgnoreNotFound(err) != nil {
+	args.Logger.Info("Deleting CRDs")
+	if err := deleteCRDs(args); err != nil {
 		return err
-	}
-	dics := &cdiv1.DataImportCronList{}
-	if err := args.Client.List(context.TODO(), dics, &client.ListOptions{}); cdicontroller.IgnoreIsNoMatchError(err) != nil {
-		return err
-	}
-	for _, dic := range dics.Items {
-		if len(dic.Finalizers) > 0 {
-			return fmt.Errorf("DataImportCron %s has Finalizers %v", dic.Name, dic.Finalizers)
-		}
-	}
-
-	crd = &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "datavolumes.cdi.kubevirt.io"}}
-	if err := args.Client.Delete(context.TODO(), crd, &client.DeleteOptions{}); cdicontroller.IgnoreNotFound(err) != nil {
-		return err
-	}
-	dvs := &cdiv1.DataVolumeList{}
-	if err := args.Client.List(context.TODO(), dvs, &client.ListOptions{}); cdicontroller.IgnoreIsNoMatchError(err) != nil {
-		return err
-	}
-	for _, dv := range dvs.Items {
-		if len(dv.Finalizers) > 0 {
-			return fmt.Errorf("DataVolume %s has Finalizers %v", dv.Name, dv.Finalizers)
-		}
 	}
 
 	args.Logger.Info("Deleting CDI deployment and all import/upload/clone pods/services")
-
 	err := args.Client.Delete(context.TODO(), deployment, &client.DeleteOptions{
 		PropagationPolicy: &[]metav1.DeletionPropagation{metav1.DeletePropagationForeground}[0],
 	})
@@ -129,6 +104,28 @@ func reconcileDeleteControllerDeployment(args *callbacks.ReconcileCallbackArgs) 
 	}
 	args.Recorder.Event(cr, corev1.EventTypeNormal, deleteResourceSuccess, "Deleted worker resources successfully")
 
+	return nil
+}
+
+func deleteCRDs(args *callbacks.ReconcileCallbackArgs) error {
+	crdNames := []string{
+		"dataimportcrons.cdi.kubevirt.io",
+		"datavolumes.cdi.kubevirt.io",
+		"objecttransfers.cdi.kubevirt.io",
+	}
+	crdsExist := false
+	for _, crdName := range crdNames {
+		crd := &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: crdName}}
+		if err := args.Client.Delete(context.TODO(), crd, &client.DeleteOptions{}); err == nil {
+			args.Logger.Info("CRD is not deleted yet", "crdName", crdName)
+			crdsExist = true
+		} else if controller.IgnoreNotFound(err) != nil {
+			return err
+		}
+	}
+	if crdsExist {
+		return fmt.Errorf("CRDs are not deleted yet")
+	}
 	return nil
 }
 
