@@ -153,7 +153,7 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 	const dataSourcePvcField = "spec.source.pvc"
 
 	getKey := func(namespace, name string) string {
-		return namespace + "." + name
+		return namespace + "/" + name
 	}
 
 	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourcePvcField, func(obj client.Object) []string {
