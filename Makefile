@@ -147,6 +147,12 @@ builder-push:
 openshift-ci-image-push:
 	./hack/build/osci-image-builder.sh
 
+generate-doc: build-docgen
+	_out/metricsdocs > doc/metrics.md
+
+build-docgen:
+	go build -ldflags="-s -w" -o _out/metricsdocs ./tools/metricsdocs
+
 help:
 	@echo "Usage: make [Targets ...]"
 	@echo " all "

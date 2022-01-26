@@ -128,6 +128,129 @@ func isPrometheusDeployed(logger logr.Logger, c client.Client, namespace string)
 	return true, nil
 }
 
+// RecordRulesDesc represent CDI Prometheus Record Rules
+type RecordRulesDesc struct {
+	Name        string
+	Expr        string
+	Description string
+}
+
+// GetRecordRulesDesc returns CDI Prometheus Record Rules
+func GetRecordRulesDesc(namespace string) []RecordRulesDesc {
+	return []RecordRulesDesc{
+		{
+			"kubevirt_cdi_operator_up_total",
+			fmt.Sprintf("sum(up{namespace='%s', pod=~'cdi-operator-.*'} or vector(0))", namespace),
+			"CDI operator status",
+		},
+		{
+			"kubevirt_cdi_import_dv_unusual_restartcount_total",
+			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			"Total restart count in CDI Data Volume importer pod",
+		},
+		{
+			"kubevirt_cdi_upload_dv_unusual_restartcount_total",
+			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			"Total restart count in CDI Data Volume upload server pod",
+		},
+		{
+			"kubevirt_cdi_clone_dv_unusual_restartcount_total",
+			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			"Total restart count in CDI Data Volume cloner pod",
+		},
+		{
+			"kubevirt_cdi_dataimportcron_outdated_total",
+			"sum(kubevirt_cdi_dataimportcron_outdated or vector(0))",
+			"Total count of outdated DataImportCron imports",
+		},
+	}
+}
+
+func getRecordRules(namespace string) []promv1.Rule {
+	var recordRules []promv1.Rule
+
+	for _, rrd := range GetRecordRulesDesc(namespace) {
+		recordRules = append(recordRules, generateRecordRule(rrd.Name, rrd.Expr))
+	}
+
+	return recordRules
+}
+
+func getAlertRules() []promv1.Rule {
+	return []promv1.Rule{
+		generateAlertRule(
+			"CDIOperatorDown",
+			"kubevirt_cdi_operator_up_total == 0",
+			"5m",
+			map[string]string{
+				"summary":     "CDI operator is down",
+				"runbook_url": runbookURLBasePath + "CDIOperatorDown",
+			},
+			map[string]string{
+				severityAlertLabelKey:  "warning",
+				partOfAlertLabelKey:    partOfAlertLabelValue,
+				componentAlertLabelKey: componentAlertLabelValue,
+			},
+		),
+		generateAlertRule(
+			"CDINotReady",
+			"kubevirt_cdi_cr_ready == 0",
+			"5m",
+			map[string]string{
+				"summary":     "CDI is not available to use",
+				"runbook_url": runbookURLBasePath + "CDINotReady",
+			},
+			map[string]string{
+				severityAlertLabelKey:  "warning",
+				partOfAlertLabelKey:    partOfAlertLabelValue,
+				componentAlertLabelKey: componentAlertLabelValue,
+			},
+		),
+		generateAlertRule(
+			"CDIDataVolumeUnusualRestartCount",
+			"kubevirt_cdi_import_dv_unusual_restartcount_total > 0 or kubevirt_cdi_upload_dv_unusual_restartcount_total > 0 or kubevirt_cdi_clone_dv_unusual_restartcount_total > 0",
+			"5m",
+			map[string]string{
+				"summary":     "Cluster has DVs with an unusual restart count, meaning they are probably failing and need to be investigated",
+				"runbook_url": runbookURLBasePath + "CDIDataVolumeUnusualRestartCount",
+			},
+			map[string]string{
+				severityAlertLabelKey:  "warning",
+				partOfAlertLabelKey:    partOfAlertLabelValue,
+				componentAlertLabelKey: componentAlertLabelValue,
+			},
+		),
+		generateAlertRule(
+			"CDIStorageProfilesIncomplete",
+			"kubevirt_cdi_incomplete_storageprofiles_total > 0",
+			"5m",
+			map[string]string{
+				"summary":     "StorageProfiles are incomplete, accessMode/volumeMode cannot be inferred by CDI",
+				"runbook_url": runbookURLBasePath + "CDIStorageProfilesIncomplete",
+			},
+			map[string]string{
+				severityAlertLabelKey:  "info",
+				partOfAlertLabelKey:    partOfAlertLabelValue,
+				componentAlertLabelKey: componentAlertLabelValue,
+			},
+		),
+		generateAlertRule(
+			"CDIDataImportCronOutdated",
+			"kubevirt_cdi_dataimportcron_outdated_total > 0",
+			"15m",
+			map[string]string{
+				"summary":     "DataImportCron latest imports are outdated",
+				"runbook_url": runbookURLBasePath + "CDIDataImportCronOutdated",
+			},
+			map[string]string{
+				severityAlertLabelKey:  "info",
+				partOfAlertLabelKey:    partOfAlertLabelValue,
+				componentAlertLabelKey: componentAlertLabelValue,
+			},
+		),
+	}
+}
+
 func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 	return &promv1.PrometheusRule{
 		ObjectMeta: metav1.ObjectMeta{
@@ -141,99 +264,8 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 		Spec: promv1.PrometheusRuleSpec{
 			Groups: []promv1.RuleGroup{
 				{
-					Name: "cdi.rules",
-					Rules: []promv1.Rule{
-						generateRecordRule(
-							"kubevirt_cdi_operator_up_total",
-							fmt.Sprintf("sum(up{namespace='%s', pod=~'cdi-operator-.*'} or vector(0))", namespace),
-						),
-						generateAlertRule(
-							"CDIOperatorDown",
-							"kubevirt_cdi_operator_up_total == 0",
-							"5m",
-							map[string]string{
-								"summary":     "CDI operator is down",
-								"runbook_url": runbookURLBasePath + "CDIOperatorDown",
-							},
-							map[string]string{
-								severityAlertLabelKey:  "warning",
-								partOfAlertLabelKey:    partOfAlertLabelValue,
-								componentAlertLabelKey: componentAlertLabelValue,
-							},
-						),
-						generateAlertRule(
-							"CDINotReady",
-							"kubevirt_cdi_cr_ready == 0",
-							"5m",
-							map[string]string{
-								"summary":     "CDI is not available to use",
-								"runbook_url": runbookURLBasePath + "CDINotReady",
-							},
-							map[string]string{
-								severityAlertLabelKey:  "warning",
-								partOfAlertLabelKey:    partOfAlertLabelValue,
-								componentAlertLabelKey: componentAlertLabelValue,
-							},
-						),
-						generateRecordRule(
-							"kubevirt_cdi_import_dv_unusual_restartcount_total",
-							fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
-						),
-						generateRecordRule(
-							"kubevirt_cdi_upload_dv_unusual_restartcount_total",
-							fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
-						),
-						generateRecordRule(
-							"kubevirt_cdi_clone_dv_unusual_restartcount_total",
-							fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
-						),
-						generateAlertRule(
-							"CDIDataVolumeUnusualRestartCount",
-							"kubevirt_cdi_import_dv_unusual_restartcount_total > 0 or kubevirt_cdi_upload_dv_unusual_restartcount_total > 0 or kubevirt_cdi_clone_dv_unusual_restartcount_total > 0",
-							"5m",
-							map[string]string{
-								"summary":     "Cluster has DVs with an unusual restart count, meaning they are probably failing and need to be investigated",
-								"runbook_url": runbookURLBasePath + "CDIDataVolumeUnusualRestartCount",
-							},
-							map[string]string{
-								severityAlertLabelKey:  "warning",
-								partOfAlertLabelKey:    partOfAlertLabelValue,
-								componentAlertLabelKey: componentAlertLabelValue,
-							},
-						),
-						generateAlertRule(
-							"CDIStorageProfilesIncomplete",
-							"kubevirt_cdi_incomplete_storageprofiles_total > 0",
-							"5m",
-							map[string]string{
-								"summary":     "StorageProfiles are incomplete, accessMode/volumeMode cannot be inferred by CDI",
-								"runbook_url": runbookURLBasePath + "CDIStorageProfilesIncomplete",
-							},
-							map[string]string{
-								severityAlertLabelKey:  "info",
-								partOfAlertLabelKey:    partOfAlertLabelValue,
-								componentAlertLabelKey: componentAlertLabelValue,
-							},
-						),
-						generateRecordRule(
-							"kubevirt_cdi_dataimportcron_outdated_total",
-							"sum(kubevirt_cdi_dataimportcron_outdated or vector(0))",
-						),
-						generateAlertRule(
-							"CDIDataImportCronOutdated",
-							"kubevirt_cdi_dataimportcron_outdated_total > 0",
-							"15m",
-							map[string]string{
-								"summary":     "DataImportCron latest imports are outdated",
-								"runbook_url": runbookURLBasePath + "CDIDataImportCronOutdated",
-							},
-							map[string]string{
-								severityAlertLabelKey:  "info",
-								partOfAlertLabelKey:    partOfAlertLabelValue,
-								componentAlertLabelKey: componentAlertLabelValue,
-							},
-						),
-					},
+					Name:  "cdi.rules",
+					Rules: append(getRecordRules(namespace), getAlertRules()...),
 				},
 			},
 		},
