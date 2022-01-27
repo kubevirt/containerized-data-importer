@@ -30,13 +30,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
 	cdicontroller "kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
 )
@@ -115,13 +115,29 @@ func deleteCRDs(args *callbacks.ReconcileCallbackArgs) error {
 	}
 	crdsExist := false
 	for _, crdName := range crdNames {
-		crd := &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: crdName}}
-		if err := args.Client.Delete(context.TODO(), crd, &client.DeleteOptions{}); err == nil {
-			args.Logger.Info("CRD is not deleted yet", "crdName", crdName)
-			crdsExist = true
-		} else if controller.IgnoreNotFound(err) != nil {
+		crd := &extv1.CustomResourceDefinition{}
+		if err := args.Client.Get(context.TODO(), types.NamespacedName{Name: crdName}, crd); err != nil {
+			if errors.IsNotFound(err) {
+				continue
+			}
 			return err
 		}
+		if crd.DeletionTimestamp == nil {
+			if err := args.Client.Delete(context.TODO(), crd, &client.DeleteOptions{}); err != nil {
+				if errors.IsNotFound(err) {
+					continue
+				}
+				return err
+			}
+			if err := args.Client.Get(context.TODO(), types.NamespacedName{Name: crdName}, crd); err != nil {
+				if errors.IsNotFound(err) {
+					continue
+				}
+				return err
+			}
+		}
+		args.Logger.Info("CRD is not deleted yet", "crdName", crdName)
+		crdsExist = true
 	}
 	if crdsExist {
 		return fmt.Errorf("CRDs are not deleted yet")

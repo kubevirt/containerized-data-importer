@@ -122,16 +122,13 @@ func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.
 }
 
 func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	log := r.log.WithName("initCron")
 	if !HasFinalizer(dataImportCron, dataImportCronFinalizer) {
 		crd := &extv1.CustomResourceDefinition{}
-		if err := r.client.Get(context.TODO(), types.NamespacedName{Name: "dataimportcrons.cdi.kubevirt.io"}, crd); err == nil {
-			log.Error(err, "Cannot get CRD")
-			return nil
+		if err := r.client.Get(context.TODO(), types.NamespacedName{Name: "dataimportcrons.cdi.kubevirt.io"}, crd); err != nil {
+			return err
 		}
 		if crd.DeletionTimestamp != nil {
-			log.Info("CRD has DeletionTimestamp")
-			return nil
+			return errors.Errorf("CRD has DeletionTimestamp")
 		}
 		AddFinalizer(dataImportCron, dataImportCronFinalizer)
 	}
@@ -562,6 +559,9 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 	if err := imagev1.AddToScheme(mgr.GetScheme()); err != nil {
+		return err
+	}
+	if err := extv1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
 	if err := c.Watch(&source.Kind{Type: &cdiv1.DataImportCron{}}, &handler.EnqueueRequestForObject{}); err != nil {
