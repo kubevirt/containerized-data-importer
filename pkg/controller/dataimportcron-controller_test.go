@@ -28,6 +28,7 @@ import (
 
 	v1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -331,13 +332,14 @@ var _ = Describe("untagURL", func() {
 
 func createDataImportCronReconciler(objects ...runtime.Object) *DataImportCronReconciler {
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
-	objs := []runtime.Object{}
-	objs = append(objs, cdiConfig)
+	crd := &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "dataimportcrons.cdi.kubevirt.io"}}
+	objs := []runtime.Object{cdiConfig, crd}
 	objs = append(objs, objects...)
 
 	s := scheme.Scheme
 	cdiv1.AddToScheme(s)
 	imagev1.AddToScheme(s)
+	extv1.AddToScheme(s)
 
 	cl := fake.NewFakeClientWithScheme(s, objs...)
 	rec := record.NewFakeRecorder(1)
