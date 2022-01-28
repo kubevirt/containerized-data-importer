@@ -81,7 +81,7 @@ var _ = Describe("Transport Tests", func() {
 		}
 
 		if certConfigMap != "" {
-			n, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, certConfigMap, ns, "")
+			n, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, certConfigMap, ns, "", "")
 			Expect(err).To(BeNil())
 			pvcAnn[controller.AnnCertConfigMap] = n
 		}
