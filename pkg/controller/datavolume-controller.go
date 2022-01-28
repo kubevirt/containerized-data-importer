@@ -984,6 +984,7 @@ func (r *DatavolumeReconciler) setMultistageImportAnnotations(dataVolume *cdiv1.
 		if pod == nil && phase == string(corev1.PodSucceeded) {
 			// Reset PVC phase so importer will create a new pod
 			pvcCopy.ObjectMeta.Annotations[AnnPodPhase] = string(corev1.PodUnknown)
+			delete(pvcCopy.ObjectMeta.Annotations, AnnImportPod)
 		}
 		// else: There's a pod already running, no need to try to start a new one.
 	}
