@@ -880,6 +880,17 @@ func getValueFromAnnotation(pvc *corev1.PersistentVolumeClaim, annotation string
 	return value
 }
 
+// If this pod is going to transfer one checkpoint in a multi-stage import, attach the checkpoint name to the pod name so
+// that each checkpoint gets a unique pod. That way each pod can be inspected using the retainAfterCompletion annotation.
+func podNameWithCheckpoint(pvc *corev1.PersistentVolumeClaim) string {
+	name := pvc.Name
+	checkpoint, present := pvc.Annotations[AnnCurrentCheckpoint]
+	if present && checkpoint != "" {
+		name += "-checkpoint-" + checkpoint
+	}
+	return name
+}
+
 func getImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 	podName, ok := pvc.Annotations[AnnImportPod]
 	if ok {
@@ -887,11 +898,11 @@ func getImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 	}
 	// fallback to legacy naming, in fact the following function is fully compatible with legacy
 	// name concatenation "importer-{pvc.Name}" if the name length is under the size limits,
-	return naming.GetResourceName(common.ImporterPodName, pvc.Name)
+	return naming.GetResourceName(common.ImporterPodName, podNameWithCheckpoint(pvc))
 }
 
 func createImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
-	return naming.GetResourceName(common.ImporterPodName, pvc.Name)
+	return naming.GetResourceName(common.ImporterPodName, podNameWithCheckpoint(pvc))
 }
 
 // createImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
