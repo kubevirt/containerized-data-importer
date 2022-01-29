@@ -35,6 +35,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	v1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -121,7 +122,16 @@ func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.
 }
 
 func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	AddFinalizer(dataImportCron, dataImportCronFinalizer)
+	if !HasFinalizer(dataImportCron, dataImportCronFinalizer) {
+		crd := &extv1.CustomResourceDefinition{}
+		if err := r.client.Get(context.TODO(), types.NamespacedName{Name: "dataimportcrons.cdi.kubevirt.io"}, crd); err != nil {
+			return err
+		}
+		if crd.DeletionTimestamp != nil {
+			return errors.Errorf("CRD has DeletionTimestamp")
+		}
+		AddFinalizer(dataImportCron, dataImportCronFinalizer)
+	}
 	if isURLSource(dataImportCron) && !r.cronJobExists(ctx, dataImportCron) {
 		cronJob, err := r.newCronJob(dataImportCron)
 		if err != nil {
@@ -549,6 +559,9 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 	if err := imagev1.AddToScheme(mgr.GetScheme()); err != nil {
+		return err
+	}
+	if err := extv1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
 	if err := c.Watch(&source.Kind{Type: &cdiv1.DataImportCron{}}, &handler.EnqueueRequestForObject{}); err != nil {
