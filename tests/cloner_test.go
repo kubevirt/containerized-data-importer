@@ -545,7 +545,7 @@ var _ = Describe("all clone tests", func() {
 					f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv)
 				}
 
-				expectEvent(f, f.Namespace.Name).Should(ContainSubstring(controller.ErrIncompatiblePVC))
+				verifyEvent(string(controller.ErrIncompatiblePVC), targetDv.Namespace, f)
 			})
 
 		}
