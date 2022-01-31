@@ -494,7 +494,8 @@ var _ = Describe("all clone tests", func() {
 				if cloneType == "network" {
 					f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv)
 				}
-				verifyEvent(string(controller.ErrIncompatiblePVC), f.Namespace.Name, f)
+
+				verifyEvent(string(controller.ErrIncompatiblePVC), targetDv.Namespace, f)
 			})
 
 		}

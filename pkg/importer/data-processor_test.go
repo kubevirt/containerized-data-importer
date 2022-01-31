@@ -14,7 +14,6 @@ import (
 	"github.com/pkg/errors"
 
 	"kubevirt.io/containerized-data-importer/pkg/image"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 type fakeInfoOpRetVal struct {
@@ -258,37 +257,6 @@ var _ = Describe("Data Processor", func() {
 		})
 	})
 
-	const (
-		Mi              = int64(1024 * 1024)
-		Gi              = 1024 * Mi
-		noOverhead      = float64(0)
-		defaultOverhead = float64(0.055)
-		largeOverhead   = float64(0.75)
-	)
-	table.DescribeTable("getusablespace should return properly aligned sizes,", func(virtualSize int64, overhead float64) {
-		for i := int64(virtualSize - 1024); i < virtualSize+1024; i++ {
-			// Requested space is virtualSize rounded up to 1Mi alignment / (1 - overhead) rounded up
-			requestedSpace := int64(float64(util.RoundUp(i, util.DefaultAlignBlockSize)+1) / float64(1-overhead))
-			if i <= virtualSize {
-				Expect(GetUsableSpace(overhead, requestedSpace)).To(Equal(virtualSize))
-			} else {
-				Expect(GetUsableSpace(overhead, requestedSpace)).To(Equal(virtualSize + Mi))
-			}
-		}
-	},
-		table.Entry("1Mi virtual size, 0 overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, noOverhead),
-		table.Entry("1Mi virtual size, default overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, defaultOverhead),
-		table.Entry("1Mi virtual size, large overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, largeOverhead),
-		table.Entry("40Mi virtual size, 0 overhead to be 40Mi if <= 1Mi and 41Mi if > 40Mi", 40*Mi, noOverhead),
-		table.Entry("40Mi virtual size, default overhead to be 40Mi if <= 1Mi and 41Mi if > 40Mi", 40*Mi, defaultOverhead),
-		table.Entry("40Mi virtual size, large overhead to be 40Mi if <= 40Mi and 41Mi if > 40Mi", 40*Mi, largeOverhead),
-		table.Entry("1Gi virtual size, 0 overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, noOverhead),
-		table.Entry("1Gi virtual size, default overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, defaultOverhead),
-		table.Entry("1Gi virtual size, large overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, largeOverhead),
-		table.Entry("40Gi virtual size, 0 overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, noOverhead),
-		table.Entry("40Gi virtual size, default overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, defaultOverhead),
-		table.Entry("40Gi virtual size, large overhead to be 40Gi if <= 40Gi and 41Gi if > 40Gi", 40*Gi, largeOverhead),
-	)
 })
 
 var _ = Describe("Convert", func() {

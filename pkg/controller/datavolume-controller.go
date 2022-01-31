@@ -1553,7 +1553,7 @@ func (r *DatavolumeReconciler) calculateUsableSpace(srcStorageClass *storagev1.S
 			return resource.Quantity{}, err
 		}
 		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
-		usableSpace := GetUsableSpace(fsOverheadFloat, srcRequest.Value())
+		usableSpace := util.GetUsableSpace(fsOverheadFloat, srcRequest.Value())
 
 		return *resource.NewScaledQuantity(usableSpace, 0), nil
 	}
