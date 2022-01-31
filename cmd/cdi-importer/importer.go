@@ -253,7 +253,7 @@ func createBlankImage(imageSize string, availableDestSpace int64, preallocation 
 
 	var err error
 	if volumeMode == v1.PersistentVolumeFilesystem {
-		quantityWithFSOverhead := importer.GetUsableSpace(filesystemOverhead, minSizeQuantity.Value())
+		quantityWithFSOverhead := util.GetUsableSpace(filesystemOverhead, minSizeQuantity.Value())
 		klog.Infof("Space adjusted for filesystem overhead: %d.\n", quantityWithFSOverhead)
 		err = image.CreateBlankImage(common.ImporterWritePath, *resource.NewScaledQuantity(quantityWithFSOverhead, 0), preallocation)
 	} else if volumeMode == v1.PersistentVolumeBlock && preallocation {

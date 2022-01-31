@@ -1654,7 +1654,7 @@ func (r *DatavolumeReconciler) calculateUsableSpace(srcStorageClass *storagev1.S
 			return resource.Quantity{}, err
 		}
 		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
-		usableSpace := GetUsableSpace(fsOverheadFloat, srcRequest.Value())
+		usableSpace := util.GetUsableSpace(fsOverheadFloat, srcRequest.Value())
 
 		return *resource.NewScaledQuantity(usableSpace, 0), nil
 	}
@@ -2509,13 +2509,4 @@ func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
 
 func newLongTermCloneTokenGenerator(key *rsa.PrivateKey) token.Generator {
 	return token.NewGenerator(common.ExtendedCloneTokenIssuer, key, 10*365*24*time.Hour)
-}
-
-// GetUsableSpace calculates space to use taking file system overhead into account
-func GetUsableSpace(filesystemOverhead float64, availableSpace int64) int64 {
-	// +1 always rounds up.
-	spaceWithOverhead := int64(math.Ceil((1 - filesystemOverhead) * float64(availableSpace)))
-	// qemu-img will round up, making us use more than the usable space.
-	// This later conflicts with image size validation.
-	return util.RoundDown(spaceWithOverhead, util.DefaultAlignBlockSize)
 }
