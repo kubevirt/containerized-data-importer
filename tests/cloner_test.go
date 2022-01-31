@@ -518,12 +518,11 @@ var _ = Describe("all clone tests", func() {
 			})
 
 			It("[rfe_id:1126][crit:High][vendor:cnv-qe@redhat.com][level:component] Should fail with Event when cloning into a smaller sized data volume", func() {
-				By("Creating a source from a real image") // todo fs....
+				By("Creating a source from a real image")
 				sourceDv := utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", tinyCoreIsoURL())
 				filesystem := v1.PersistentVolumeFilesystem
 				sourceDv.Spec.PVC.VolumeMode = &filesystem
 				sourceDv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
-				fmt.Fprintf(GinkgoWriter, "sourceDv %v", sourceDv)
 
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
@@ -537,7 +536,6 @@ var _ = Describe("all clone tests", func() {
 					sourceDv.Name,
 					sourceDv.Spec.PVC.StorageClassName,
 					sourceDv.Spec.PVC.VolumeMode)
-				fmt.Fprintf(GinkgoWriter, "targetDv %v", targetDv)
 
 				targetDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
 				Expect(err).ToNot(HaveOccurred())
@@ -885,7 +883,7 @@ var _ = Describe("all clone tests", func() {
 		})
 
 		It("[rfe_id:1126][test_id:1896][crit:High][vendor:cnv-qe@redhat.com][level:component] Should not allow cloning into a smaller sized data volume", func() {
-			By("Creating a source from a real image") // todo fs....
+			By("Creating a source from a real image")
 			sourceDv = utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", tinyCoreIsoURL())
 			filesystem := v1.PersistentVolumeFilesystem
 			sourceDv.Spec.PVC.VolumeMode = &filesystem
