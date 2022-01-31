@@ -21,7 +21,6 @@ require (
 	github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
-	github.com/mrnold/go-libnbd v1.4.1-cdi
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.17.0
 	github.com/opencontainers/runc v1.0.3 // indirect
@@ -55,6 +54,7 @@ require (
 	kubevirt.io/containerized-data-importer-api v0.0.0
 	kubevirt.io/controller-lifecycle-operator-sdk v0.2.3
 	kubevirt.io/qe-tools v0.1.6
+	libguestfs.org/libnbd v1.11.5
 	sigs.k8s.io/controller-runtime v0.11.0
 )
 

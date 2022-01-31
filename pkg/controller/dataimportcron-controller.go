@@ -33,7 +33,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	batchv1 "k8s.io/api/batch/v1"
-	v1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -512,7 +511,7 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *
 func (r *DataImportCronReconciler) deleteJobs(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
 	deletePropagationBackground := metav1.DeletePropagationBackground
 	deleteOpts := &client.DeleteOptions{PropagationPolicy: &deletePropagationBackground}
-	cronJob := &v1beta1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: GetCronJobName(dataImportCron)}}
+	cronJob := &batchv1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: GetCronJobName(dataImportCron)}}
 	if err := r.client.Delete(ctx, cronJob, deleteOpts); IgnoreNotFound(err) != nil {
 		return err
 	}
@@ -599,12 +598,12 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 }
 
 func (r *DataImportCronReconciler) cronJobExists(ctx context.Context, cron *cdiv1.DataImportCron) bool {
-	var cronJob v1beta1.CronJob
+	var cronJob batchv1.CronJob
 	cronJobNamespacedName := types.NamespacedName{Namespace: r.cdiNamespace, Name: GetCronJobName(cron)}
 	return r.uncachedClient.Get(ctx, cronJobNamespacedName, &cronJob) == nil
 }
 
-func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1beta1.CronJob, error) {
+func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batchv1.CronJob, error) {
 	regSource, err := getCronRegistrySource(cron)
 	if err != nil {
 		return nil, err
@@ -685,17 +684,17 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 	gracePeriodSeconds := int64(0)
 
 	cronJobName := GetCronJobName(cron)
-	cronJob := &v1beta1.CronJob{
+	cronJob := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cronJobName,
 			Namespace: r.cdiNamespace,
 		},
-		Spec: v1beta1.CronJobSpec{
+		Spec: batchv1.CronJobSpec{
 			Schedule:                   cron.Spec.Schedule,
-			ConcurrencyPolicy:          v1beta1.ForbidConcurrent,
+			ConcurrencyPolicy:          batchv1.ForbidConcurrent,
 			SuccessfulJobsHistoryLimit: &successfulJobsHistoryLimit,
 			FailedJobsHistoryLimit:     &failedJobsHistoryLimit,
-			JobTemplate: v1beta1.JobTemplateSpec{
+			JobTemplate: batchv1.JobTemplateSpec{
 				Spec: batchv1.JobSpec{
 					Template: corev1.PodTemplateSpec{
 						Spec: corev1.PodSpec{
@@ -730,7 +729,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*v1be
 	return cronJob, nil
 }
 
-func (r *DataImportCronReconciler) newInitialJob(cron *cdiv1.DataImportCron, cronJob *v1beta1.CronJob) *batchv1.Job {
+func (r *DataImportCronReconciler) newInitialJob(cron *cdiv1.DataImportCron, cronJob *batchv1.CronJob) *batchv1.Job {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      GetInitialJobName(cron),
