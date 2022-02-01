@@ -280,13 +280,12 @@ var _ = Describe("Import Proxy tests", func() {
 				expected:      BeFalse}),
 		)
 
-		It("should proxy registry imports", func() {
+		DescribeTable("should proxy registry imports", func(isHTTPS, hasAuth bool) {
 			now := time.Now()
 			By("Updating CDIConfig with ImportProxy configuration")
-			updateProxy(f, "", createProxyURL(true, false, f.CdiInstallNs), "", ocpClient)
+			updateProxy(f, "", createProxyURL(isHTTPS, hasAuth, f.CdiInstallNs), "", ocpClient)
 
 			By("Creating new datavolume")
-			// Note this 'proxy URL' is a rate limit proxy in front of the registry
 			dv := utils.NewDataVolumeWithRegistryImport("import-dv", "1Gi", fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs))
 			dv.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 			cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
@@ -305,7 +304,12 @@ var _ = Describe("Import Proxy tests", func() {
 
 			By("Checking the importer pod information in the proxy log to verify if the requests were proxied")
 			verifyImporterPodInfoInProxyLogs(f, dv, tinyCoreQcow2, true, now, BeTrue)
-		})
+		},
+			Entry("with http proxy, no auth", false, false),
+			Entry("with http proxy, auth", false, true),
+			Entry("with https proxy, no auth", true, false),
+			Entry("with https proxy, auth", true, true),
+		)
 	})
 })
 

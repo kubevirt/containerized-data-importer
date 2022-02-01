@@ -17,6 +17,7 @@ limitations under the License.
 package importer
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -27,6 +28,7 @@ import (
 
 	"k8s.io/klog/v2"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -53,11 +55,21 @@ type RegistryDataSource struct {
 
 // NewRegistryDataSource creates a new instance of the Registry Data Source.
 func NewRegistryDataSource(endpoint, accessKey, secKey, certDir string, insecureTLS bool) *RegistryDataSource {
+	allCertDir, err := createCertificateDir(certDir)
+	if err != nil {
+		if allCertDir != "/" {
+			err = os.RemoveAll(allCertDir)
+			if err != nil {
+				klog.Errorf("Unable to clean up all cert dir %v", err)
+			}
+		}
+		allCertDir = certDir
+	}
 	return &RegistryDataSource{
 		endpoint:    endpoint,
 		accessKey:   accessKey,
 		secKey:      secKey,
-		certDir:     certDir,
+		certDir:     allCertDir,
 		insecureTLS: insecureTLS,
 	}
 }
@@ -150,4 +162,35 @@ func getImageFileName(dir string) (string, error) {
 	klog.V(1).Infof("VM disk image filename is %s", filename)
 
 	return filename, nil
+}
+
+func createCertificateDir(registryCertDir string) (string, error) {
+	allCerts := "/all_certs"
+	err := os.MkdirAll(allCerts, 0777)
+	if err != nil {
+		return allCerts, err
+	}
+	klog.Info("Copying proxy certs")
+	directory, _ := os.Open(common.ImporterProxyCertDir)
+	objects, err := directory.Readdir(-1)
+	for _, obj := range objects {
+		if strings.HasSuffix(obj.Name(), ".crt") {
+			err = util.LinkFile(filepath.Join(common.ImporterProxyCertDir, obj.Name()), filepath.Join(allCerts, fmt.Sprintf("proxy-%s", obj.Name())))
+			if err != nil {
+				return allCerts, err
+			}
+		}
+	}
+	klog.Info("Copying registry certs")
+	directory, _ = os.Open(registryCertDir)
+	objects, err = directory.Readdir(-1)
+	for _, obj := range objects {
+		if strings.HasSuffix(obj.Name(), ".crt") {
+			err = util.LinkFile(filepath.Join(registryCertDir, obj.Name()), filepath.Join(allCerts, obj.Name()))
+			if err != nil {
+				return allCerts, err
+			}
+		}
+	}
+	return allCerts, nil
 }
