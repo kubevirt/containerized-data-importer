@@ -2205,7 +2205,7 @@ func (r *DatavolumeReconciler) getPodFromPvc(namespace string, pvc *corev1.Persi
 
 	pvcUID := pvc.GetUID()
 	for _, pod := range pods.Items {
-		if isPodForCompletedCheckpoint(&pod, pvc) {
+		if shouldIgnorePod(&pod, pvc) {
 			continue
 		}
 		for _, or := range pod.OwnerReferences {
@@ -2231,12 +2231,13 @@ func (r *DatavolumeReconciler) addOwnerRef(pvc *corev1.PersistentVolumeClaim, dv
 	return r.client.Update(context.TODO(), pvc)
 }
 
-// Return whether or not this is a pod that was used for one checkpoint of a multi-stage import.
-// If it is, it should likely be ignored by most pod lookups.
-func isPodForCompletedCheckpoint(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim) bool {
-	checkpoint, present := pvc.ObjectMeta.Annotations[AnnCurrentCheckpoint]
-	if present && checkpoint != "" && pod.Status.Phase == corev1.PodSucceeded {
-		return true
+// If this is a completed pod that was used for one checkpoint of a multi-stage import, it
+// should be ignored by pod lookups as long as the retainAfterCompletion annotation is set.
+func shouldIgnorePod(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim) bool {
+	retain := pvc.ObjectMeta.Annotations[AnnPodRetainAfterCompletion]
+	checkpoint := pvc.ObjectMeta.Annotations[AnnCurrentCheckpoint]
+	if checkpoint != "" && pod.Status.Phase == corev1.PodSucceeded {
+		return retain == "true"
 	}
 	return false
 }
