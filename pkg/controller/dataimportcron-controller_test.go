@@ -27,7 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 	imagev1 "github.com/openshift/api/image/v1"
 
-	v1beta1 "k8s.io/api/batch/v1beta1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -137,7 +137,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			_, err := reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
 
-			cronjob := &v1beta1.CronJob{}
+			cronjob := &batchv1.CronJob{}
 			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
 			Expect(err).ToNot(HaveOccurred())
 

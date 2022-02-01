@@ -236,9 +236,6 @@ github.com/moby/sys/mountinfo
 github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.2
 github.com/modern-go/reflect2
-# github.com/mrnold/go-libnbd v1.4.1-cdi
-## explicit
-github.com/mrnold/go-libnbd
 # github.com/nxadm/tail v1.4.8
 github.com/nxadm/tail
 github.com/nxadm/tail/ratelimiter
@@ -1117,6 +1114,9 @@ kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/resources
 ## explicit
 kubevirt.io/qe-tools/pkg/ginkgo-reporters
 kubevirt.io/qe-tools/pkg/polarion-xml
+# libguestfs.org/libnbd v1.11.5
+## explicit
+libguestfs.org/libnbd
 # sigs.k8s.io/controller-runtime v0.11.0
 ## explicit
 sigs.k8s.io/controller-runtime/pkg/cache
