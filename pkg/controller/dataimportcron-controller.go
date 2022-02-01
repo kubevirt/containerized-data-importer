@@ -241,6 +241,7 @@ func getCronRegistrySource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourceR
 	return source.Registry, nil
 }
 
+// FIXME: refactor and adapt for concurrent imports
 func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
 	log := r.log.WithName("update")
 	res := reconcile.Result{}
@@ -249,19 +250,22 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	dataImportCron.Status.LastExecutionTimestamp = &now
 
 	importSucceeded := false
-	imports := dataImportCron.Status.CurrentImports
-	if imports != nil {
+	imports := &dataImportCron.Status.CurrentImports
+	dataVolume := &cdiv1.DataVolume{}
+	dvFound := false
+	if *imports != nil {
 		// Get the currently imported DataVolume
-		dataVolume := &cdiv1.DataVolume{}
-		if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: imports[0].DataVolumeName}, dataVolume); err != nil {
+		if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: (*imports)[0].DataVolumeName}, dataVolume); err != nil {
 			if !k8serrors.IsNotFound(err) {
 				return res, err
 			}
-			log.Info("DataVolume not found for some reason, so let's recreate it", "name", imports[0].DataVolumeName)
-			if err := r.createImportDataVolume(ctx, dataImportCron); err != nil {
-				return res, err
-			}
+			log.Info("DataVolume not found, removing from current imports", "name", (*imports)[0].DataVolumeName)
+			*imports = (*imports)[1:]
+		} else {
+			dvFound = true
 		}
+	}
+	if dvFound {
 		switch dataVolume.Status.Phase {
 		case cdiv1.Succeeded:
 			importSucceeded = true
@@ -298,17 +302,22 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	}
 
 	desiredDigest := dataImportCron.Annotations[AnnSourceDesiredDigest]
-	digestUpdated := desiredDigest != "" && (len(imports) == 0 || desiredDigest != imports[0].Digest)
+	digestUpdated := desiredDigest != "" && (len(*imports) == 0 || desiredDigest != (*imports)[0].Digest)
 	if digestUpdated {
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Source digest updated since last import", outdated)
-		if importSucceeded || len(imports) == 0 {
+		if dvFound {
+			if err := r.deleteErroneousDataVolume(ctx, dataImportCron, dataVolume); err != nil {
+				return res, err
+			}
+		}
+		if importSucceeded || len(*imports) == 0 {
 			if err := r.createImportDataVolume(ctx, dataImportCron); err != nil {
 				return res, err
 			}
 		}
 	} else if importSucceeded {
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionTrue, "Latest import is up to date", upToDate)
-	} else if len(imports) > 0 {
+	} else if len(*imports) > 0 {
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Import is progressing", inProgress)
 	} else {
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "No source digest", noDigest)
@@ -318,6 +327,24 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		return res, err
 	}
 	return res, nil
+}
+
+func (r *DataImportCronReconciler) deleteErroneousDataVolume(ctx context.Context, cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume) error {
+	if cond := findConditionByType(cdiv1.DataVolumeRunning, dv.Status.Conditions); cond != nil {
+		if cond.Status == corev1.ConditionFalse && cond.Reason == common.GenericError {
+			r.log.Info("Delete DataVolume and reset DesiredDigest due to error", "message", cond.Message)
+			// Unlabel the DV before deleting it, to eliminate reconcile before DIC is updated
+			dv.Labels[common.DataImportCronLabel] = ""
+			if err := r.client.Update(ctx, dv); IgnoreNotFound(err) != nil {
+				return err
+			}
+			if err := r.client.Delete(ctx, dv); IgnoreNotFound(err) != nil {
+				return err
+			}
+			cron.Status.CurrentImports = nil
+		}
+	}
+	return nil
 }
 
 func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
@@ -397,7 +424,13 @@ func (r *DataImportCronReconciler) updateDataImportCronOnSuccess(ctx context.Con
 func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
 	dataSourceName := dataImportCron.Spec.ManagedDataSource
 	digest := dataImportCron.Annotations[AnnSourceDesiredDigest]
-	dvName := createDvName(dataSourceName, digest)
+	if digest == "" {
+		return nil
+	}
+	dvName, err := createDvName(dataSourceName, digest)
+	if err != nil {
+		return err
+	}
 	dv := r.newSourceDataVolume(dataImportCron, dvName)
 	if err := r.client.Create(ctx, dv); err != nil {
 		if !k8serrors.IsAlreadyExists(err) {
@@ -820,10 +853,16 @@ func (r *DataImportCronReconciler) newDataSource(cron *cdiv1.DataImportCron) *cd
 }
 
 // Create DataVolume name based on the DataSource name + prefix of the digest sha256
-func createDvName(prefix, digest string) string {
+func createDvName(prefix, digest string) (string, error) {
 	fromIdx := len(digestPrefix)
 	toIdx := fromIdx + digestDvNameSuffixLength
-	return prefix + "-" + digest[fromIdx:toIdx]
+	if !strings.HasPrefix(digest, digestPrefix) {
+		return "", errors.Errorf("Digest has no supported prefix")
+	}
+	if len(digest) < toIdx {
+		return "", errors.Errorf("Digest is too short")
+	}
+	return prefix + "-" + digest[fromIdx:toIdx], nil
 }
 
 // GetCronJobName get CronJob name based on cron name and UID

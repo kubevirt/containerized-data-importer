@@ -296,15 +296,18 @@ var _ = Describe("ALL Operator tests", func() {
 					return
 				}
 
+				By("Check if CDI CR exists")
 				cdi, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
 				if err == nil {
 					if cdi.DeletionTimestamp == nil {
+						By("CDI CR exists")
 						cdi.Spec = cr.Spec
 						_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
 						Expect(err).ToNot(HaveOccurred())
 						return
 					}
 
+					By("Waiting for CDI CR deletion")
 					Eventually(func() bool {
 						_, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
 						if errors.IsNotFound(err) {
@@ -324,9 +327,11 @@ var _ = Describe("ALL Operator tests", func() {
 					Spec: cr.Spec,
 				}
 
+				By("Create CDI CR")
 				cdi, err = f.CdiClient.CdiV1beta1().CDIs().Create(context.TODO(), cdi, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
+				By("Waiting for CDI CR")
 				Eventually(func() bool {
 					cdi, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
@@ -441,18 +446,12 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("[test_id:8087]CDI CR deletion should delete DataImportCron CRD and all DataImportCrons", func() {
-				var url string
-				if utils.IsOpenshift(f.K8sClient) {
-					url = externalRegistryURL
-				} else {
-					url = fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix)
-					err := utils.AddInsecureRegistry(f.CrClient, url)
-					Expect(err).To(BeNil())
-				}
+				reg, err := getDataVolumeSourceRegistry(f)
+				Expect(err).To(BeNil())
 
 				By("Create new DataImportCron")
-				cron := NewDataImportCron("cron-test", "5Gi", scheduleEveryMinute, "ds", cdiv1.DataVolumeSourceRegistry{URL: &url, PullMethod: &registryPullNode}, cdiv1.DataImportCronRetainAll)
-				cron, err := f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
+				cron := NewDataImportCron("cron-test", "5Gi", scheduleEveryMinute, "ds", *reg)
+				cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				By("Verify cron first import completed")
@@ -474,42 +473,34 @@ var _ = Describe("ALL Operator tests", func() {
 				By("Start goroutine creating DataImportCrons")
 				go func() {
 					defer GinkgoRecover()
-					for i := 0; i < 100; i++ {
+					var err error
+					for i := 0; i < 100 && err == nil; i++ {
 						cronName := fmt.Sprintf("cron-test-%d", i)
-						cron := NewDataImportCron(cronName, "5Gi", scheduleEveryMinute, "ds", cdiv1.DataVolumeSourceRegistry{URL: &url, PullMethod: &registryPullNode}, cdiv1.DataImportCronRetainAll)
-						cron, err := f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
-						if err != nil {
-							By(fmt.Sprintf("DataImportCron %d error %s", i, err.Error()))
-							break
-						}
+						cron := NewDataImportCron(cronName, "5Gi", scheduleEveryMinute, "ds", *reg)
+						_, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
 					}
 				}()
 
-				By("Delete CDI CR")
-				dp := metav1.DeletePropagationForeground
-				err = f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{PropagationPolicy: &dp})
-				Expect(err).ToNot(HaveOccurred())
-				By("Wait util CDI CR is gone")
-				Eventually(func() bool {
-					dics, err := f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
-					if err == nil {
-						By(fmt.Sprintf("DataImportCrons %d", len(dics.Items)))
-					}
-					return crGone(f, cr)
-				}, 1*time.Minute, 2*time.Second).Should(BeTrue())
+				removeCDI()
 
-				By("Verify no DataImportCrons are found as CRDs are gone")
+				By("Verify no DataImportCrons are found as CRDs and cdi-deployment are gone")
 				_, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(HaveOccurred())
 				Expect(errors.IsNotFound(err)).To(BeTrue())
 
-				By("Verify no cronjobs or jobs left")
-				cronjobs, err := f.K8sClient.BatchV1().CronJobs(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				Expect(len(cronjobs.Items)).To(BeZero())
-				jobs, err := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				Expect(len(jobs.Items)).To(BeZero())
+				By("Verify no cronjobs left")
+				Eventually(func() bool {
+					cronjobs, err := f.K8sClient.BatchV1().CronJobs(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					return len(cronjobs.Items) == 0
+				}, 1*time.Minute, 2*time.Second).Should(BeTrue())
+
+				By("Verify no jobs left")
+				Eventually(func() bool {
+					jobs, err := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					return len(jobs.Items) == 0
+				}, 1*time.Minute, 2*time.Second).Should(BeTrue())
 			})
 		})
 
@@ -951,26 +942,17 @@ var _ = Describe("ALL Operator tests", func() {
 				if !tests.IsPrometheusAvailable(f.ExtClient) {
 					Skip("This test depends on prometheus infra being available")
 				}
-				var url string
-				var err error
 				numCrons := 2
-				retentionPolicy := cdiv1.DataImportCronRetainAll
-				trustedRegistryURL := fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix)
 				originalMetricVal := getMetricValue("kubevirt_cdi_dataimportcron_outdated_total")
 				expectedFailingCrons := originalMetricVal + numCrons
-				if utils.IsOpenshift(f.K8sClient) {
-					url = externalRegistryURL
-				} else {
-					url = trustedRegistryURL
-					err = utils.AddInsecureRegistry(f.CrClient, url)
-					Expect(err).To(BeNil())
 
-					defer utils.RemoveInsecureRegistry(f.CrClient, url)
-				}
+				reg, err := getDataVolumeSourceRegistry(f)
+				Expect(err).To(BeNil())
+				defer utils.RemoveInsecureRegistry(f.CrClient, *reg.URL)
 
 				for i := 1; i < numCrons+1; i++ {
-					cron := NewDataImportCron(fmt.Sprintf("cron-test-%d", i), "5Gi", scheduleOnceAYear, fmt.Sprintf("datasource-test-%d", i), cdiv1.DataVolumeSourceRegistry{URL: &url, PullMethod: &registryPullNode}, retentionPolicy)
-					By(fmt.Sprintf("Create new DataImportCron %s", url))
+					cron := NewDataImportCron(fmt.Sprintf("cron-test-%d", i), "5Gi", scheduleOnceAYear, fmt.Sprintf("datasource-test-%d", i), *reg)
+					By(fmt.Sprintf("Create new DataImportCron %s", *reg.URL))
 					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
 					Expect(err).ToNot(HaveOccurred())
 					By("Wait for condition UpToDate=true on DataImportCron")
