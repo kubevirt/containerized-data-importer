@@ -105,18 +105,16 @@ var _ = Describe("Import Proxy tests", func() {
 		if utils.IsOpenshift(f.K8sClient) {
 			By("Reverting the cluster wide proxy spec to the original configuration")
 			cleanClusterWideProxy(ocpClient, clusterWideProxySpec)
-
-			By("Resuming MCPs")
-			manipulateMachineConfigPools(f, false)
-
-			By("Finish node reboots")
-			// Wait a bit for the reboot to start so we don't succeed immediately
-			time.Sleep(2 * time.Minute)
+			// Work around a bug where node reboots would still happen by ensuring
+			// that the MCP has settled after reverting the proxy
 			Eventually(func() error {
 				output, err := RunOcCommand(f, "wait", "mcp", "--all", "--for", "condition=updated", "--timeout", "1s")
 				By(output)
 				return err
-			}, 50*time.Minute, time.Second).ShouldNot(HaveOccurred())
+			}, 15*time.Minute, time.Second).ShouldNot(HaveOccurred())
+
+			By("Resuming MCPs")
+			manipulateMachineConfigPools(f, false)
 		}
 
 		By("Restoring CDIConfig to original state")
@@ -482,17 +480,19 @@ func wasPodProxied(imgURL, podIP, proxyLog string, isHTTPS bool) bool {
 			matchedHost = matched[1]
 			matchedSrc = matched[2]
 			matchedBytes, _ = strconv.Atoi(matched[3])
+			if strings.Contains(matchedHost, u.Host) && strings.Contains(matchedSrc, podIP) && matchedBytes > 1024 {
+				fmt.Fprintf(GinkgoWriter, "INFO: Matched: %s, %s, %s, %s, [%s]\n", matchedHost, u.Host, matchedSrc, podIP, line)
+				res = true
+			}
 		} else {
 			matched = httpMatcher.FindStringSubmatch(line)
 			if len(matched) > 1 {
 				matchedBytes, _ = strconv.Atoi(matched[1])
 			}
-		}
-		fmt.Fprintf(GinkgoWriter, "INFO: Proxy log: %s\n", line)
-		if strings.Contains(matchedHost, u.Host) && strings.Contains(matchedSrc, podIP) && matchedBytes > 1024 {
-			res = true
-		} else if matchedBytes > 1024 {
-			res = true
+			if matchedBytes > 1024 {
+				fmt.Fprintf(GinkgoWriter, "INFO: Matched line: [%s]\n", line)
+				res = true
+			}
 		}
 	}
 	if res {
