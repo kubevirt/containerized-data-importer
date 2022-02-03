@@ -14,7 +14,7 @@ import (
 
 // CopyRegistryCertConfigMap copies the test registry configmap, it assumes the Registry host is in the CDI namespace
 func CopyRegistryCertConfigMap(client kubernetes.Interface, destNamespace, cdiNamespace string) (string, error) {
-	n, err := CopyConfigMap(client, cdiNamespace, RegistryCertConfigMap, destNamespace, "")
+	n, err := CopyConfigMap(client, cdiNamespace, RegistryCertConfigMap, destNamespace, "", "")
 	if err != nil {
 		return "", err
 	}
@@ -23,7 +23,7 @@ func CopyRegistryCertConfigMap(client kubernetes.Interface, destNamespace, cdiNa
 
 // CopyRegistryCertConfigMapDestName copies the test registry configmap, it assumes the Registry host is in the CDI namespace
 func CopyRegistryCertConfigMapDestName(client kubernetes.Interface, destNamespace, cdiNamespace, destName string) (string, error) {
-	n, err := CopyConfigMap(client, cdiNamespace, RegistryCertConfigMap, destNamespace, destName)
+	n, err := CopyConfigMap(client, cdiNamespace, RegistryCertConfigMap, destNamespace, destName, "")
 	if err != nil {
 		return "", err
 	}
@@ -32,7 +32,7 @@ func CopyRegistryCertConfigMapDestName(client kubernetes.Interface, destNamespac
 
 // CopyFileHostCertConfigMap copies the test file host configmap, it assumes the File host is in the CDI namespace
 func CopyFileHostCertConfigMap(client kubernetes.Interface, destNamespace, cdiNamespace string) (string, error) {
-	n, err := CopyConfigMap(client, cdiNamespace, FileHostCertConfigMap, destNamespace, "")
+	n, err := CopyConfigMap(client, cdiNamespace, FileHostCertConfigMap, destNamespace, "", "")
 	if err != nil {
 		return "", err
 	}
@@ -41,15 +41,15 @@ func CopyFileHostCertConfigMap(client kubernetes.Interface, destNamespace, cdiNa
 
 // CopyImageIOCertConfigMap copies the test imageio configmap, it assumes the imageio server is in the CDI namespace
 func CopyImageIOCertConfigMap(client kubernetes.Interface, destNamespace, cdiNamespace string) (string, error) {
-	n, err := CopyConfigMap(client, cdiNamespace, ImageIOCertConfigMap, destNamespace, "")
+	n, err := CopyConfigMap(client, cdiNamespace, ImageIOCertConfigMap, destNamespace, "", "")
 	if err != nil {
 		return "", err
 	}
 	return n, nil
 }
 
-// CopyConfigMap copies a ConfigMap
-func CopyConfigMap(client kubernetes.Interface, srcNamespace, srcName, destNamespace, destName string) (string, error) {
+// CopyConfigMap copies a ConfigMap, set destKey if you want to override the default tls.crt with a different key name
+func CopyConfigMap(client kubernetes.Interface, srcNamespace, srcName, destNamespace, destName, destKey string) (string, error) {
 	src, err := client.CoreV1().ConfigMaps(srcNamespace).Get(context.TODO(), srcName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -64,6 +64,15 @@ func CopyConfigMap(client kubernetes.Interface, srcNamespace, srcName, destNames
 			Name: destName,
 		},
 		Data: src.Data,
+	}
+
+	// Use this when overriding the default key when copying the configmap.
+	if destKey != "" {
+		data := make(map[string]string, 0)
+		for _, v := range src.Data {
+			data[destKey] = v
+		}
+		dst.Data = data
 	}
 
 	err = client.CoreV1().ConfigMaps(destNamespace).Delete(context.TODO(), destName, metav1.DeleteOptions{})
