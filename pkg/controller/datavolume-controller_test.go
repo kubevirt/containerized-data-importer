@@ -1539,7 +1539,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		})
 
 		It("Should return error if no pods can be found", func() {
-			_, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc.GetUID())
+			_, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Unable to find pod owned by UID: %s, in namespace: %s", string(pvc.GetUID()), metav1.NamespaceDefault)))
 		})
@@ -1550,7 +1550,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pod.GetLabels()[common.PrometheusLabelKey] = common.PrometheusLabelValue
 			err := reconciler.client.Create(context.TODO(), pod)
 			Expect(err).ToNot(HaveOccurred())
-			foundPod, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc.GetUID())
+			foundPod, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(foundPod.Name).To(Equal(pod.Name))
 		})
@@ -1563,7 +1563,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pod.OwnerReferences = nil
 			err := reconciler.client.Create(context.TODO(), pod)
 			Expect(err).ToNot(HaveOccurred())
-			foundPod, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc.GetUID())
+			foundPod, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(foundPod.Name).To(Equal(pod.Name))
 		})
@@ -1576,7 +1576,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pod.OwnerReferences = nil
 			err := reconciler.client.Create(context.TODO(), pod)
 			Expect(err).ToNot(HaveOccurred())
-			_, err = reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc.GetUID())
+			_, err = reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Unable to find pod owned by UID: %s, in namespace: %s", string(pvc.GetUID()), metav1.NamespaceDefault)))
 		})
