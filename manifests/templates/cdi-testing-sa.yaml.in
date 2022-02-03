@@ -16,7 +16,7 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["configmaps"]
-  resourceNames: ["cdi-file-host-certs", "cdi-docker-registry-host-certs", "imageio-certs"]
+  resourceNames: ["cdi-file-host-certs", "cdi-docker-registry-host-certs", "imageio-certs", "cdi-test-proxy-certs"]
   verbs: ["get", "update"]
 - apiGroups: [""]
   resources: ["configmaps"]

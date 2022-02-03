@@ -762,7 +762,9 @@ func GetPreallocation(client client.Client, dataVolume *cdiv1.DataVolume) bool {
 // GetClusterWideProxy returns the OpenShift cluster wide proxy object
 func GetClusterWideProxy(r client.Client) (*ocpconfigv1.Proxy, error) {
 	clusterWideProxy := &ocpconfigv1.Proxy{}
-	if err := r.Get(context.TODO(), types.NamespacedName{Name: ClusterWideProxyName}, clusterWideProxy); err != nil {
+	// Ignore both no CRD found (IgnoreIsNoMatch) and the object itself not existing IsNotFound because we want to skip if not
+	// in Open Shift.
+	if err := r.Get(context.TODO(), types.NamespacedName{Name: ClusterWideProxyName}, clusterWideProxy); IgnoreIsNoMatchError(err) != nil && !k8serrors.IsNotFound(err) {
 		return nil, err
 	}
 	return clusterWideProxy, nil
@@ -808,7 +810,7 @@ func getPriorityClass(pvc *v1.PersistentVolumeClaim) string {
 }
 
 func shouldDeletePod(pvc *v1.PersistentVolumeClaim) bool {
-	return pvc.GetAnnotations()[AnnPodRetainAfterCompletion] != "true" || pvc.DeletionTimestamp != nil
+	return pvc.GetAnnotations()[AnnPodRetainAfterCompletion] != "true" || pvc.GetAnnotations()[AnnRequiresScratch] == "true" || pvc.DeletionTimestamp != nil
 }
 
 // AddFinalizer adds a finalizer to a resource
