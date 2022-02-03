@@ -685,6 +685,38 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()[AnnVddkVersion]).To(Equal("1.0.0"))
 	})
 
+	It("Should delete pod for scratch space even if retainAfterCompletion is set", func() {
+		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "testpod", AnnRequiresScratch: "true", AnnSource: SourceVDDK}, nil, corev1.ClaimPending)
+		pod := createImporterTestPod(pvc, "testPvc1", nil)
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodSucceeded,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					LastTerminationState: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{
+							ExitCode: common.ScratchSpaceNeededExitCode,
+							Message:  "",
+						},
+					},
+				},
+			},
+		}
+
+		reconciler = createImportReconciler(pvc, pod)
+		initPod := &corev1.Pod{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, initPod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(initPod).ToNot(BeNil())
+
+		err = reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
+		Expect(err).ToNot(HaveOccurred())
+
+		resPod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("\"importer-testPvc1\" not found"))
+	})
+
 })
 
 var _ = Describe("Create Importer Pod", func() {
