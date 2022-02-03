@@ -145,7 +145,14 @@ func start(ctx context.Context, cfg *rest.Config) {
 		klog.Fatalf("Error building extClient: %s", err.Error())
 	}
 
-	mgr, err := manager.New(config.GetConfigOrDie(), manager.Options{})
+	opts := manager.Options{
+		LeaderElection:             true,
+		LeaderElectionNamespace:    namespace,
+		LeaderElectionID:           "cdi-controller-leader-election-helper",
+		LeaderElectionResourceLock: "leases",
+	}
+
+	mgr, err := manager.New(config.GetConfigOrDie(), opts)
 	if err != nil {
 		klog.Errorf("Unable to setup controller manager: %v", err)
 		os.Exit(1)

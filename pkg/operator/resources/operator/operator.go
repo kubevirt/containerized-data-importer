@@ -237,6 +237,17 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 				"patch",
 			},
 		},
+		{
+			APIGroups: []string{
+				"coordination.k8s.io",
+			},
+			Resources: []string{
+				"leases",
+			},
+			Verbs: []string{
+				"*",
+			},
+		},
 	}
 	return rules
 }
