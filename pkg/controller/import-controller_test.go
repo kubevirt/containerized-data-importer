@@ -751,6 +751,29 @@ var _ = Describe("Create Importer Pod", func() {
 		table.Entry("should create pod with file system volume mode and scratchspace", createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName", AnnPriorityClassName: "p0"}, nil), &scratchPvcName),
 		table.Entry("should create pod with block volume mode and scratchspace", createBlockPvc("testBlockPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName", AnnPriorityClassName: "p0"}, nil), &scratchPvcName),
 	)
+
+	It("should append current checkpoint name to importer pod", func() {
+		pvc := createPvc("testPvc1", "default", map[string]string{AnnCurrentCheckpoint: "snap1", AnnEndpoint: testEndPoint}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+
+		reconciler := createImportReconciler(pvc)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+
+		// First reconcile sets AnnImportPod
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resPvc.Annotations[AnnImportPod]).To(Equal("importer-testPvc1-checkpoint-snap1"))
+
+		// Second reconcile creates pod
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+
+		resPod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1-checkpoint-snap1", Namespace: "default"}, resPod)
+		Expect(err).ToNot(HaveOccurred())
+	})
 })
 
 var _ = Describe("Import test env", func() {
