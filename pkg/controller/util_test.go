@@ -366,8 +366,8 @@ var _ = Describe("GetClusterWideProxy", func() {
 	It("Should return a nil cluster wide proxy obj", func() {
 		client := createClient()
 		proxy, err := GetClusterWideProxy(client)
-		Expect(err).To(HaveOccurred())
-		Expect(proxy).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(proxy).To(BeEquivalentTo(&ocpconfigv1.Proxy{}))
 	})
 })
 

@@ -83,6 +83,7 @@ container_image(
         "81",
         "82",
         "83",
+        "444",
     ],
     tars = [":nginx-conf-tar"],
     visibility = ["//visibility:public"],

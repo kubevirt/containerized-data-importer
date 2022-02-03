@@ -286,6 +286,16 @@ func CopyDir(source string, dest string) (err error) {
 	return
 }
 
+// LinkFile symlinks the source to the target
+func LinkFile(source, target string) error {
+	out, err := exec.Command("/usr/bin/ln", "-s", source, target).CombinedOutput()
+	if err != nil {
+		fmt.Printf("out [%s]\n", string(out))
+		return err
+	}
+	return nil
+}
+
 // RoundDown returns the number rounded down to the nearest multiple.
 func RoundDown(number, multiple int64) int64 {
 	return number / multiple * multiple

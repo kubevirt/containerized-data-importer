@@ -675,6 +675,7 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 	} else {
 		setBoundConditionFromPVC(anno, AnnBoundCondition, scratchPvc)
 	}
+	anno[AnnRequiresScratch] = "false"
 	return nil
 }
 
@@ -953,7 +954,7 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 			MountPath: common.ImporterProxyCertDir,
 		}
 		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
-		pod.Spec.Volumes = append(pod.Spec.Volumes, createProxyConfigMapVolume(CertVolName, podEnvVar.certConfigMapProxy))
+		pod.Spec.Volumes = append(pod.Spec.Volumes, createProxyConfigMapVolume(ProxyCertVolName, podEnvVar.certConfigMapProxy))
 	}
 
 	if podEnvVar.contentType == string(cdiv1.DataVolumeKubeVirt) {
@@ -970,7 +971,7 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 
 func createProxyConfigMapVolume(certVolName, objRef string) corev1.Volume {
 	return corev1.Volume{
-		Name: CertVolName,
+		Name: certVolName,
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{

@@ -17,6 +17,8 @@ spec:
         name: cdi-test-proxy
         cdi.kubevirt.io/testing: ""
     spec:
+      securityContext:
+        runAsUser: 0
       serviceAccountName: cdi-testing-sa
       containers:
       - name: http
@@ -36,7 +38,7 @@ spec:
         - name: https-no-auth
           containerPort: 443
         - name: https-auth
-          containerPort: 8443
+          containerPort: 444
 ---
 apiVersion: v1
 kind: Service
@@ -60,5 +62,5 @@ spec:
     port: 443
     targetPort: 443
   - name: https-auth
-    port: 8443
-    targetPort: 8443
+    port: 444
+    targetPort: 444
