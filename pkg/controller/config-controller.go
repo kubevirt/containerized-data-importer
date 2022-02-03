@@ -351,7 +351,6 @@ func (r *CDIConfigReconciler) createCDIConfig() (*cdiv1.CDIConfig, error) {
 }
 
 func (r *CDIConfigReconciler) reconcileImportProxy(config *cdiv1.CDIConfig) error {
-	log := r.log.WithName("CDIconfig").WithName("ImportProxyReconcile")
 	config.Status.ImportProxy = config.Spec.ImportProxy
 
 	// Avoid nil pointers and segfaults for the initial case, where ImportProxy is nil for both the spec and the status.
@@ -366,15 +365,17 @@ func (r *CDIConfigReconciler) reconcileImportProxy(config *cdiv1.CDIConfig) erro
 		// Try Openshift cluster wide proxy only if the CDIConfig default config is empty
 		clusterWideProxy, err := GetClusterWideProxy(r.client)
 		if err != nil {
-			log.V(3).Info(err.Error())
-			return nil
+			return err
 		}
 		config.Status.ImportProxy.HTTPProxy = &clusterWideProxy.Status.HTTPProxy
 		config.Status.ImportProxy.HTTPSProxy = &clusterWideProxy.Status.HTTPSProxy
 		config.Status.ImportProxy.NoProxy = &clusterWideProxy.Status.NoProxy
 		if clusterWideProxy.Spec.TrustedCA.Name != "" {
 			config.Status.ImportProxy.TrustedCAProxy = &clusterWideProxy.Spec.TrustedCA.Name
-			r.reconcileImportProxyCAConfigMap(config, clusterWideProxy)
+			err = r.reconcileImportProxyCAConfigMap(config, clusterWideProxy)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

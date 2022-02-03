@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -15,7 +16,6 @@ import (
 	"github.com/onsi/gomega/types"
 
 	configclient "github.com/openshift/client-go/config/clientset/versioned"
-	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -30,14 +30,23 @@ import (
 )
 
 const (
-	username         = "foo"
-	password         = "bar"
-	httpPort         = "8080"
-	httpPortWithAuth = "8081"
-	proxyServerName  = "cdi-test-proxy"
-	fileHostName     = "cdi-file-host"
-	imgURL           = "tinyCore.iso"
-	imgPort          = ":82" //we used the port with rate limit to be able to inspect the pod before it finishes
+	username                 = "foo"
+	password                 = "bar"
+	proxyHTTPPort            = "8080"
+	proxyHTTPPortWithAuth    = "8081"
+	proxyTLSHTTPPort         = "443"
+	proxyTLSHTTPPortWithAuth = "444"
+	proxyServerName          = "cdi-test-proxy"
+	fileHostName             = "cdi-file-host"
+	tinyCoreQcow2            = "tinyCore.qcow2"
+	tinyCoreIso              = "tinyCore.iso"
+	tinyCoreIsoGz            = "tinyCore.iso.gz"
+	tlsPort                  = ":443"
+	tlsAuthPort              = ":444"
+	authPort                 = ":81"
+	port                     = ":80"
+	trustedCaProxyConfigName = "user-ca-bundle"
+	cdiProxyCaConfigMapName  = "cdi-test-proxy-certs"
 )
 
 var _ = Describe("Import Proxy tests", func() {
@@ -54,6 +63,7 @@ var _ = Describe("Import Proxy tests", func() {
 		name          string
 		size          string
 		noProxy       string
+		imgName       string
 		isHTTPS       bool
 		withBasicAuth bool
 		expected      func() types.GomegaMatcher
@@ -94,18 +104,16 @@ var _ = Describe("Import Proxy tests", func() {
 		if utils.IsOpenshift(f.K8sClient) {
 			By("Reverting the cluster wide proxy spec to the original configuration")
 			cleanClusterWideProxy(ocpClient, clusterWideProxySpec)
-
-			By("Resuming MCPs")
-			manipulateMachineConfigPools(f, false)
-
-			By("Finish node reboots")
-			// Wait a bit for the reboot to start so we don't succeed immediately
-			time.Sleep(2 * time.Minute)
+			// Work around a bug where node reboots would still happen by ensuring
+			// that the MCP has settled after reverting the proxy
 			Eventually(func() error {
 				output, err := RunOcCommand(f, "wait", "mcp", "--all", "--for", "condition=updated", "--timeout", "1s")
 				By(output)
 				return err
-			}, 50*time.Minute, time.Second).ShouldNot(HaveOccurred())
+			}, 15*time.Minute, time.Second).ShouldNot(HaveOccurred())
+
+			By("Resuming MCPs")
+			manipulateMachineConfigPools(f, false)
 		}
 
 		By("Restoring CDIConfig to original state")
@@ -122,15 +130,18 @@ var _ = Describe("Import Proxy tests", func() {
 
 	Context("[Destructive]", func() {
 		DescribeTable("should", func(args importProxyTestArguments) {
+
+			now := time.Now()
 			var proxyHTTPURL string
 			var proxyHTTPSURL string
+			By("Setting proxy to point to test proxy in namespace " + f.CdiInstallNs)
 			if args.isHTTPS {
 				proxyHTTPSURL = createProxyURL(args.isHTTPS, args.withBasicAuth, f.CdiInstallNs)
 			} else {
 				proxyHTTPURL = createProxyURL(args.isHTTPS, args.withBasicAuth, f.CdiInstallNs)
 			}
 			noProxy := args.noProxy
-			imgURL := createImgURL(args.isHTTPS, f.CdiInstallNs)
+			imgURL := createImgURL(args.isHTTPS, args.withBasicAuth, args.imgName, f.CdiInstallNs)
 			dvName = args.name
 
 			By("Updating CDIConfig with ImportProxy configuration")
@@ -145,20 +156,36 @@ var _ = Describe("Import Proxy tests", func() {
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dvName)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(pvc)
+			podIP := getImporterPodIP(f)
 
-			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
-			// We do not wait the datavolume to suceed in the end of the test because it is a very slow process due to the rate limit.
-			// Having the importer pod in the phase InProgress is enough to verify if the requests were proxied or not.
-			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dvName)
+			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.Succeeded)))
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Checking the importer pod information in the proxy log to verify if the requests were proxied")
-			verifyImporterPodInfoInProxyLogs(f, dataVolume, imgURL, args.isHTTPS, args.expected)
+			verifyImporterPodInfoInProxyLogs(f, dataVolume, imgURL, args.isHTTPS, podIP, now, args.expected)
 		},
 			Entry("succeed creating import dv with a proxied server (http)", importProxyTestArguments{
 				name:          "dv-import-http-proxy",
 				size:          "1Gi",
 				noProxy:       "",
+				imgName:       tinyCoreQcow2,
+				isHTTPS:       false,
+				withBasicAuth: false,
+				expected:      BeTrue}),
+			Entry("succeed creating iso import dv with a proxied server (http)", importProxyTestArguments{
+				name:          "dv-import-http-proxy",
+				size:          "1Gi",
+				noProxy:       "",
+				imgName:       tinyCoreIso,
+				isHTTPS:       false,
+				withBasicAuth: false,
+				expected:      BeTrue}),
+			Entry("succeed creating iso.gz import dv with a proxied server (http)", importProxyTestArguments{
+				name:          "dv-import-http-proxy",
+				size:          "1Gi",
+				noProxy:       "",
+				imgName:       tinyCoreIsoGz,
 				isHTTPS:       false,
 				withBasicAuth: false,
 				expected:      BeTrue}),
@@ -166,6 +193,23 @@ var _ = Describe("Import Proxy tests", func() {
 				name:          "dv-import-http-proxy-auth",
 				size:          "1Gi",
 				noProxy:       "",
+				imgName:       tinyCoreQcow2,
+				isHTTPS:       false,
+				withBasicAuth: true,
+				expected:      BeTrue}),
+			Entry("succeed creating iso import dv with a proxied server (http) with basic autentication", importProxyTestArguments{
+				name:          "dv-import-http-proxy-auth",
+				size:          "1Gi",
+				noProxy:       "",
+				imgName:       tinyCoreIso,
+				isHTTPS:       false,
+				withBasicAuth: true,
+				expected:      BeTrue}),
+			Entry("succeed creating iso.gz import dv with a proxied server (http) with basic autentication", importProxyTestArguments{
+				name:          "dv-import-http-proxy-auth",
+				size:          "1Gi",
+				noProxy:       "",
+				imgName:       tinyCoreIsoGz,
 				isHTTPS:       false,
 				withBasicAuth: true,
 				expected:      BeTrue}),
@@ -173,6 +217,23 @@ var _ = Describe("Import Proxy tests", func() {
 				name:          "dv-import-https-proxy",
 				size:          "1Gi",
 				noProxy:       "",
+				imgName:       tinyCoreQcow2,
+				isHTTPS:       true,
+				withBasicAuth: false,
+				expected:      BeTrue}),
+			Entry("succeed creating iso import dv with a proxied server (https) with the target server with tls", importProxyTestArguments{
+				name:          "dv-import-https-proxy",
+				size:          "1Gi",
+				noProxy:       "",
+				imgName:       tinyCoreIso,
+				isHTTPS:       true,
+				withBasicAuth: false,
+				expected:      BeTrue}),
+			Entry("succeed creating iso.gz import dv with a proxied server (https) with the target server with tls", importProxyTestArguments{
+				name:          "dv-import-https-proxy",
+				size:          "1Gi",
+				noProxy:       "",
+				imgName:       tinyCoreIsoGz,
 				isHTTPS:       true,
 				withBasicAuth: false,
 				expected:      BeTrue}),
@@ -180,6 +241,23 @@ var _ = Describe("Import Proxy tests", func() {
 				name:          "dv-import-https-proxy-auth",
 				size:          "1Gi",
 				noProxy:       "",
+				imgName:       tinyCoreQcow2,
+				isHTTPS:       true,
+				withBasicAuth: true,
+				expected:      BeTrue}),
+			Entry("succeed creating iso import dv with a proxied server (https) with basic autentication and the target server with tls", importProxyTestArguments{
+				name:          "dv-import-https-proxy-auth",
+				size:          "1Gi",
+				noProxy:       "",
+				imgName:       tinyCoreIso,
+				isHTTPS:       true,
+				withBasicAuth: true,
+				expected:      BeTrue}),
+			Entry("succeed creating iso import dv with a proxied server (https) with basic autentication and the target server with tls", importProxyTestArguments{
+				name:          "dv-import-https-proxy-auth",
+				size:          "1Gi",
+				noProxy:       "",
+				imgName:       tinyCoreIsoGz,
 				isHTTPS:       true,
 				withBasicAuth: true,
 				expected:      BeTrue}),
@@ -187,18 +265,30 @@ var _ = Describe("Import Proxy tests", func() {
 				name:          "dv-import-noproxy",
 				size:          "1Gi",
 				noProxy:       "*",
+				imgName:       tinyCoreQcow2,
+				isHTTPS:       false,
+				withBasicAuth: false,
+				expected:      BeFalse}),
+			Entry("succeed creating import dv with a proxied server (http) but bypassing the proxy", importProxyTestArguments{
+				name:          "dv-import-noproxy",
+				size:          "1Gi",
+				noProxy:       "*",
+				imgName:       tinyCoreIso,
 				isHTTPS:       false,
 				withBasicAuth: false,
 				expected:      BeFalse}),
 		)
 
-		It("should proxy registry imports", func() {
+		DescribeTable("should proxy registry imports", func(isHTTPS, hasAuth bool) {
+			now := time.Now()
 			By("Updating CDIConfig with ImportProxy configuration")
-			updateProxy(f, "", createProxyURL(true, false, f.CdiInstallNs), "", ocpClient)
+			updateProxy(f, "", createProxyURL(isHTTPS, hasAuth, f.CdiInstallNs), "", ocpClient)
 
 			By("Creating new datavolume")
-			// Note this 'proxy URL' is a rate limit proxy in front of the registry
 			dv := utils.NewDataVolumeWithRegistryImport("import-dv", "1Gi", fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs))
+			if len(dv.GetAnnotations()) == 0 {
+				dv.SetAnnotations(make(map[string]string, 0))
+			}
 			cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 			Expect(err).To(BeNil())
 			dv.Spec.Source.Registry.CertConfigMap = cm
@@ -209,43 +299,70 @@ var _ = Describe("Import Proxy tests", func() {
 			pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(pvc)
-			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
-			// We do not wait the datavolume to suceed in the end of the test because it is a very slow process due to the rate limit.
-			// Having the importer pod in the phase InProgress is enough to verify if the requests were proxied or not.
-			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dv.Name)
+			podIP := getImporterPodIP(f)
+
+			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.Succeeded)))
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Checking the importer pod information in the proxy log to verify if the requests were proxied")
-			verifyImporterPodInfoInProxyLogs(f, dv, imgURL, true, BeTrue)
-		})
+			verifyImporterPodInfoInProxyLogs(f, dv, tinyCoreQcow2, true, podIP, now, BeTrue)
+		},
+			Entry("with http proxy, no auth", false, false),
+			Entry("with http proxy, auth", false, true),
+			Entry("with https proxy, no auth", true, false),
+			Entry("with https proxy, auth", true, true),
+		)
 	})
 })
 
 func updateProxy(f *framework.Framework, proxyHTTPURL, proxyHTTPSURL, noProxy string, ocpClient *configclient.Clientset) {
 	By("Updating CDIConfig with ImportProxy configuration")
 	if !utils.IsOpenshift(f.K8sClient) {
-		updateCDIConfigProxy(f, proxyHTTPURL, proxyHTTPSURL, noProxy)
+		proxyCAConfigMapName, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, f.Namespace.Name, trustedCaProxyConfigName, "")
+		Expect(err).ToNot(HaveOccurred())
+		updateCDIConfigProxy(f, proxyHTTPURL, proxyHTTPSURL, noProxy, proxyCAConfigMapName)
 	} else {
-		updateCDIConfigByUpdatingTheClusterWideProxy(f, ocpClient, proxyHTTPURL, proxyHTTPSURL, noProxy)
+		_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, f.Namespace.Name, "proxy-test-ca", "")
+		Expect(err).ToNot(HaveOccurred())
+		clusterWideProxyCAConfigMapName, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, "openshift-config", "proxy-test-ca", "ca-bundle.crt")
+		Expect(err).ToNot(HaveOccurred())
+		updateCDIConfigByUpdatingTheClusterWideProxy(f, ocpClient, proxyHTTPURL, proxyHTTPSURL, noProxy, clusterWideProxyCAConfigMapName)
 	}
 }
 
 func createProxyURL(isHTTPS, withBasicAuth bool, namespace string) string {
 	var auth string
-	port := httpPort
-	if withBasicAuth {
-		port = httpPortWithAuth
-		auth = fmt.Sprintf("%s:%s@", username, password)
+	protocol := "http"
+	port := proxyHTTPPort
+	if isHTTPS {
+		protocol = "https"
+		port = proxyTLSHTTPPort
 	}
-	return fmt.Sprintf("http://%s%s.%s:%s", auth, proxyServerName, namespace, port)
+	if withBasicAuth {
+		port = proxyHTTPPortWithAuth
+		auth = fmt.Sprintf("%s:%s@", username, password)
+		if isHTTPS {
+			port = proxyTLSHTTPPortWithAuth
+		}
+	}
+	return fmt.Sprintf("%s://%s%s.%s:%s", protocol, auth, proxyServerName, namespace, port)
 }
 
-func createImgURL(withHTTPS bool, namespace string) string {
+func createImgURL(withHTTPS, withAuth bool, imgName, namespace string) string {
 	protocol := "http"
+	imgPort := port
+	if withAuth {
+		imgPort = authPort
+	}
 	if withHTTPS {
 		protocol = "https"
+		imgPort = tlsPort
+		if withAuth {
+			imgPort = tlsAuthPort
+		}
 	}
-	return fmt.Sprintf("%s://%s.%s%s/%s", protocol, fileHostName, namespace, imgPort, imgURL)
+	return fmt.Sprintf("%s://%s.%s%s/%s", protocol, fileHostName, namespace, imgPort, imgName)
 }
 
 func createHTTPDataVolume(f *framework.Framework, dataVolumeName, size, url string, isHTTPS, withBasicAuth bool) *cdiv1.DataVolume {
@@ -257,8 +374,8 @@ func createHTTPDataVolume(f *framework.Framework, dataVolumeName, size, url stri
 	}
 	if withBasicAuth {
 		stringData := map[string]string{
-			common.KeyAccess: username,
-			common.KeySecret: password,
+			common.KeyAccess: utils.AccessKeyValue,
+			common.KeySecret: utils.SecretKeyValue,
 		}
 		s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, "mysecret"))
 		dataVolume.Spec.Source.HTTP.SecretRef = s.Name
@@ -266,12 +383,13 @@ func createHTTPDataVolume(f *framework.Framework, dataVolumeName, size, url stri
 	return dataVolume
 }
 
-func updateCDIConfigProxy(f *framework.Framework, proxyHTTPURL string, proxyHTTPSURL string, noProxy string) {
+func updateCDIConfigProxy(f *framework.Framework, proxyHTTPURL, proxyHTTPSURL, noProxy, trustedCa string) {
 	err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 		config.ImportProxy = &cdiv1.ImportProxy{
-			HTTPProxy:  &proxyHTTPURL,
-			HTTPSProxy: &proxyHTTPSURL,
-			NoProxy:    &noProxy,
+			HTTPProxy:      &proxyHTTPURL,
+			HTTPSProxy:     &proxyHTTPSURL,
+			NoProxy:        &noProxy,
+			TrustedCAProxy: &trustedCa,
 		}
 	})
 	Expect(err).ToNot(HaveOccurred())
@@ -279,15 +397,16 @@ func updateCDIConfigProxy(f *framework.Framework, proxyHTTPURL string, proxyHTTP
 
 // updateCDIConfigByUpdatingTheClusterWideProxy changes the OpenShift cluster-wide proxy configuration, but we do not want in this test to have the OpenShift API behind the proxy since it might break OpenShift because of proxy hijacking.
 // Then, for testing the importer pod using the proxy configuration from the cluster-wide proxy, we disable the proxy in the cluster-wide proxy obj with noProxy="*", and enable the proxy in the CDIConfig to test the importer pod with proxy configurations.
-func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpClient *configclient.Clientset, proxyHTTPURL string, proxyHTTPSURL string, noProxy string) {
+func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpClient *configclient.Clientset, proxyHTTPURL, proxyHTTPSURL, noProxy, trustedCa string) {
 	By("Updating OpenShift Cluster Wide Proxy with ImportProxy urls")
-	updateClusterWideProxyObj(ocpClient, proxyHTTPURL, proxyHTTPSURL, noProxy)
+	updateClusterWideProxyObj(ocpClient, proxyHTTPURL, proxyHTTPSURL, noProxy, trustedCa)
 
 	By("Waiting OpenShift Cluster Wide Proxy reconcile")
 	// the default OpenShift no_proxy configuration only appears in the proxy object after and http(s) url is updated
 	Eventually(func() bool {
 		cwproxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
+		fmt.Fprintf(GinkgoWriter, "INFO: status HTTP: %s, proxyHTTPURL: %s, status HTTPS: %s, proxyHTTPSURL: %s,\n", cwproxy.Status.HTTPProxy, proxyHTTPURL, cwproxy.Status.HTTPSProxy, proxyHTTPSURL)
 		if cwproxy.Status.HTTPProxy == proxyHTTPURL && cwproxy.Status.HTTPSProxy == proxyHTTPSURL {
 			return true
 		}
@@ -306,7 +425,7 @@ func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpCli
 	}, time.Second*120, time.Second).Should(BeTrue())
 }
 
-func updateClusterWideProxyObj(ocpClient *configclient.Clientset, HTTPProxy, HTTPSProxy, NoProxy string) {
+func updateClusterWideProxyObj(ocpClient *configclient.Clientset, HTTPProxy, HTTPSProxy, NoProxy, trustedCa string) {
 	proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
 		Skip("This OpenShift cluster version does not have a Cluster Wide Proxy object")
@@ -315,15 +434,15 @@ func updateClusterWideProxyObj(ocpClient *configclient.Clientset, HTTPProxy, HTT
 	proxy.Spec.HTTPProxy = HTTPProxy
 	proxy.Spec.HTTPSProxy = HTTPSProxy
 	proxy.Spec.NoProxy = NoProxy
+	proxy.Spec.TrustedCA.Name = trustedCa
 	_, err = ocpClient.ConfigV1().Proxies().Update(context.TODO(), proxy, metav1.UpdateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 }
 
 // verifyImporterPodInfoInProxyLogs verifiy if the importer pod request (method, url and impoter pod IP) appears in the proxy log
-func verifyImporterPodInfoInProxyLogs(f *framework.Framework, dataVolume *cdiv1.DataVolume, imgURL string, isHTTPS bool, expected func() types.GomegaMatcher) {
-	podIP := getImporterPodIP(f)
+func verifyImporterPodInfoInProxyLogs(f *framework.Framework, dataVolume *cdiv1.DataVolume, imgURL string, isHTTPS bool, podIP string, since time.Time, expected func() types.GomegaMatcher) {
 	Eventually(func() bool {
-		return wasPodProxied(imgURL, podIP, getProxyLog(f), isHTTPS)
+		return wasPodProxied(imgURL, podIP, getProxyLog(f, since), isHTTPS)
 	}, time.Second*60, time.Second).Should(expected())
 }
 
@@ -331,7 +450,7 @@ func getImporterPodIP(f *framework.Framework) string {
 	podIP := ""
 	Eventually(func() string {
 		pod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
-		if err != nil || pod.Status.Phase == corev1.PodPending {
+		if err != nil || pod.Status.PodIP == "" {
 			return ""
 		}
 		fmt.Fprintf(GinkgoWriter, "INFO: Checking POD %s IP: %s\n", pod.Name, pod.Status.PodIP)
@@ -341,37 +460,60 @@ func getImporterPodIP(f *framework.Framework) string {
 	return podIP
 }
 
-func getProxyLog(f *framework.Framework) string {
+func getProxyLog(f *framework.Framework, since time.Time) string {
 	proxyPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, proxyServerName, fmt.Sprintf("name=%s", proxyServerName))
 	Expect(err).ToNot(HaveOccurred())
 	fmt.Fprintf(GinkgoWriter, "INFO: Analyzing the proxy pod %s logs\n", proxyPod.Name)
-	log, err := RunKubectlCommand(f, "logs", proxyPod.Name, "-n", proxyPod.Namespace, "--since=15m")
+	log, err := RunKubectlCommand(f, "logs", proxyPod.Name, "-n", proxyPod.Namespace, fmt.Sprintf("--since-time=%s", since.Format(time.RFC3339)))
 	Expect(err).To(BeNil())
 	return log
 }
 
 func wasPodProxied(imgURL, podIP, proxyLog string, isHTTPS bool) bool {
+	lineMatcher := regexp.MustCompile("URL:(.*) SRC IP:(.*) BYTES:(\\d+)")
+	httpMatcher := regexp.MustCompile("Content-Range\\[bytes (\\d+)\\-(\\d+)\\/(\\d+)\\]")
 	u, _ := url.Parse(imgURL)
+	res := false
 	for _, line := range strings.Split(strings.TrimSuffix(proxyLog, "\n"), "\n") {
-		if strings.Contains(line, u.Host) && strings.Contains(line, podIP) {
-			fmt.Fprintf(GinkgoWriter, "INFO: Proxy log: %s\n", line)
-			fmt.Fprintf(GinkgoWriter, "INFO: The import POD requests were proxied\n")
-			return true
+		matched := lineMatcher.FindStringSubmatch(line)
+		matchedHost := ""
+		matchedSrc := ""
+		matchedBytes := 0
+		if len(matched) > 1 {
+			matchedHost = matched[1]
+			matchedSrc = matched[2]
+			matchedBytes, _ = strconv.Atoi(matched[3])
+			if strings.Contains(matchedHost, u.Host) && strings.Contains(matchedSrc, podIP) && matchedBytes > 1024 {
+				fmt.Fprintf(GinkgoWriter, "INFO: Matched: %s, %s, %s, %s, [%s]\n", matchedHost, u.Host, matchedSrc, podIP, line)
+				res = true
+			}
+		} else {
+			matched = httpMatcher.FindStringSubmatch(line)
+			if len(matched) > 1 {
+				matchedBytes, _ = strconv.Atoi(matched[1])
+			}
+			if matchedBytes > 1024 {
+				fmt.Fprintf(GinkgoWriter, "INFO: Matched line: [%s]\n", line)
+				res = true
+			}
 		}
 	}
-	fmt.Fprintf(GinkgoWriter, "INFO: The import POD requests were not proxied\n")
-	return false
+	if res {
+		fmt.Fprintf(GinkgoWriter, "INFO: The import POD requests were proxied\n")
+	} else {
+		fmt.Fprintf(GinkgoWriter, "INFO: The import POD requests were not proxied\n")
+	}
+	return res
 }
 
 func cleanClusterWideProxy(ocpClient *configclient.Clientset, clusterWideProxySpec *ocpconfigv1.ProxySpec) {
-	updateClusterWideProxyObj(ocpClient, clusterWideProxySpec.HTTPProxy, clusterWideProxySpec.HTTPSProxy, clusterWideProxySpec.NoProxy)
+	updateClusterWideProxyObj(ocpClient, clusterWideProxySpec.HTTPProxy, clusterWideProxySpec.HTTPSProxy, clusterWideProxySpec.NoProxy, clusterWideProxySpec.TrustedCA.Name)
 	By("Waiting OpenShift Cluster Wide Proxy to be reset to original configuration")
 	Eventually(func() bool {
 		proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		if proxy.Status.HTTPProxy == clusterWideProxySpec.HTTPProxy &&
-			proxy.Status.HTTPSProxy == clusterWideProxySpec.HTTPSProxy &&
-			proxy.Status.NoProxy == clusterWideProxySpec.NoProxy {
+			proxy.Status.HTTPSProxy == clusterWideProxySpec.HTTPSProxy {
 			return true
 		}
 		return false

@@ -7,7 +7,12 @@ go_image(
     base = "@fedora//image",
     importpath = "kubevirt.io/containerized-data-importer/tools/cdi-func-test-proxy",
     visibility = ["//visibility:public"],
-    deps = [],
+    deps = [
+        "//pkg/util:go_default_library",
+        "//tests/utils:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
+        "//vendor/k8s.io/klog/v2:go_default_library",
+    ],
 )
 
 go_library(
@@ -15,6 +20,12 @@ go_library(
     srcs = ["main.go"],
     importpath = "kubevirt.io/containerized-data-importer/tools/cdi-func-test-proxy",
     visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/util:go_default_library",
+        "//tests/utils:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
+        "//vendor/k8s.io/klog/v2:go_default_library",
+    ],
 )
 
 go_binary(
