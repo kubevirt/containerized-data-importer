@@ -997,14 +997,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		// Similar to previous table, but with additional cleanup steps to save and restore VDDK image config map
 		table.DescribeTable("should", func(args dataVolumeTestArguments) {
-			_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, common.VddkConfigMap, f.CdiInstallNs, savedVddkConfigMap)
+			_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, common.VddkConfigMap, f.CdiInstallNs, savedVddkConfigMap, "")
 			Expect(err).ToNot(HaveOccurred())
 
 			err = utils.DeleteConfigMap(f.K8sClient, f.CdiInstallNs, common.VddkConfigMap)
 			Expect(err).ToNot(HaveOccurred())
 
 			defer func() {
-				_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, savedVddkConfigMap, f.CdiInstallNs, common.VddkConfigMap)
+				_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, savedVddkConfigMap, f.CdiInstallNs, common.VddkConfigMap, "")
 				Expect(err).ToNot(HaveOccurred())
 
 				err = utils.DeleteConfigMap(f.K8sClient, f.CdiInstallNs, savedVddkConfigMap)
