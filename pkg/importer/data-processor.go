@@ -18,7 +18,6 @@ package importer
 
 import (
 	"fmt"
-	"math"
 	"net/url"
 	"os"
 
@@ -362,14 +361,5 @@ func (dp *DataProcessor) PreallocationApplied() bool {
 }
 
 func (dp *DataProcessor) getUsableSpace() int64 {
-	return GetUsableSpace(dp.filesystemOverhead, dp.availableSpace)
-}
-
-// GetUsableSpace calculates space to use taking file system overhead into account
-func GetUsableSpace(filesystemOverhead float64, availableSpace int64) int64 {
-	// +1 always rounds up.
-	spaceWithOverhead := int64(math.Ceil((1 - filesystemOverhead) * float64(availableSpace)))
-	// qemu-img will round up, making us use more than the usable space.
-	// This later conflicts with image size validation.
-	return util.RoundDown(spaceWithOverhead, util.DefaultAlignBlockSize)
+	return util.GetUsableSpace(dp.filesystemOverhead, dp.availableSpace)
 }

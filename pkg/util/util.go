@@ -348,3 +348,12 @@ func SetRecommendedLabels(obj metav1.Object, installerLabels map[string]string, 
 
 	obj.SetLabels(mergedLabels)
 }
+
+// GetUsableSpace calculates space to use taking file system overhead into account
+func GetUsableSpace(filesystemOverhead float64, availableSpace int64) int64 {
+	// +1 always rounds up.
+	spaceWithOverhead := int64(math.Ceil((1 - filesystemOverhead) * float64(availableSpace)))
+	// qemu-img will round up, making us use more than the usable space.
+	// This later conflicts with image size validation.
+	return RoundDown(spaceWithOverhead, DefaultAlignBlockSize)
+}
