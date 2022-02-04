@@ -81,8 +81,6 @@ func main() {
 	imageSize, _ := util.ParseEnvVar(common.ImporterImageSize, false)
 	filesystemOverhead, _ := strconv.ParseFloat(os.Getenv(common.FilesystemOverheadVar), 64)
 	preallocation, err := strconv.ParseBool(os.Getenv(common.Preallocation))
-	var preallocationApplied bool
-	var ds importer.DataSourceInterface
 
 	volumeMode := v1.PersistentVolumeBlock
 	if _, err := os.Stat(common.WriteBlockPath); os.IsNotExist(err) {
@@ -94,20 +92,7 @@ func main() {
 	// With writeback cache mode it's possible that the process will exit before all writes have been commited to storage.
 	// To guarantee that our write was commited to storage, we make a fsync syscall and ensure success.
 	// Also might be a good idea to sync any chmod's we might have done.
-	defer func() {
-		dataFile := getImporterDestPath(contentType, volumeMode)
-		file, err := os.Open(dataFile)
-		if err != nil {
-			klog.Errorf("could not get file descriptor for fsync call: %+v", err)
-			os.Exit(1)
-		}
-		if err := file.Sync(); err != nil {
-			klog.Errorf("could not fsync following qemu-img writing: %+v", err)
-			os.Exit(1)
-		}
-		klog.V(3).Infof("Successfully completed fsync(%s) syscall, commited to disk\n", dataFile)
-		file.Close()
-	}()
+	defer fsyncDataFile(contentType, volumeMode)
 
 	//Registry import currently support kubevirt content type only
 	if contentType != string(cdiv1.DataVolumeKubeVirt) && (source == controller.SourceRegistry || source == controller.SourceImageio) {
@@ -121,51 +106,90 @@ func main() {
 		os.Exit(1)
 	}
 	if source == controller.SourceNone {
-		if contentType == string(cdiv1.DataVolumeKubeVirt) {
-			createBlankImage(imageSize, availableDestSpace, preallocation, volumeMode, filesystemOverhead)
-			preallocationApplied = preallocation
-		} else {
-			errorEmptyDiskWithContentTypeArchive()
-		}
-	} else {
-		waitForReadyFile()
-		klog.V(1).Infoln("begin import process")
-
-		ds = newDataSource(source, contentType, volumeMode)
-		defer ds.Close()
-
-		processor := newDataProcessor(contentType, volumeMode, ds, imageSize, filesystemOverhead, preallocation)
-		err = processor.ProcessData()
-
+		err := handleEmptyImage(contentType, imageSize, availableDestSpace, preallocation, volumeMode, filesystemOverhead)
 		if err != nil {
 			klog.Errorf("%+v", err)
-			if err == importer.ErrRequiresScratchSpace {
-				ds.Close()
-				os.Exit(common.ScratchSpaceNeededExitCode)
-			}
-			err = util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %+v", err.Error()))
-			if err != nil {
-				klog.Errorf("%+v", err)
-			}
-			ds.Close()
 			os.Exit(1)
 		}
-		touchDoneFile()
-		preallocationApplied = processor.PreallocationApplied()
+
+	} else {
+		exitCode := handleImport(source, contentType, volumeMode, imageSize, filesystemOverhead, preallocation)
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
 	}
+}
+
+func handleEmptyImage(contentType string, imageSize string, availableDestSpace int64, preallocation bool, volumeMode v1.PersistentVolumeMode, filesystemOverhead float64) error {
+	var preallocationApplied bool
+
+	if contentType == string(cdiv1.DataVolumeKubeVirt) {
+		createBlankImage(imageSize, availableDestSpace, preallocation, volumeMode, filesystemOverhead)
+		preallocationApplied = preallocation
+	} else {
+		errorEmptyDiskWithContentTypeArchive()
+	}
+
+	err := importCompleteTerminationMessage(preallocationApplied)
+	return err
+}
+
+func handleImport(
+	source string,
+	contentType string,
+	volumeMode v1.PersistentVolumeMode,
+	imageSize string,
+	filesystemOverhead float64,
+	preallocation bool) int {
+	klog.V(1).Infoln("begin import process")
+
+	ds := newDataSource(source, contentType, volumeMode)
+	defer func() {
+		ds.Close()
+	}()
+
+	processor := newDataProcessor(contentType, volumeMode, ds, imageSize, filesystemOverhead, preallocation)
+	waitForReadyFile()
+	err := processor.ProcessData()
+
+	if err != nil {
+		klog.Errorf("%+v", err)
+		if err == importer.ErrRequiresScratchSpace {
+			return common.ScratchSpaceNeededExitCode
+		}
+		err = util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %+v", err))
+		if err != nil {
+			klog.Errorf("%+v", err)
+		}
+
+		return 1
+	}
+	touchDoneFile()
+	// due to the way some data sources can add additional information to termination message
+	// after finished (ds.close() ) termination message has to be written first, before the
+	// the ds is closed
+	// TODO: think about making communication explicit, probably DS interface should be extended
+	err = importCompleteTerminationMessage(processor.PreallocationApplied())
+	if err != nil {
+		klog.Errorf("%+v", err)
+		return 1
+	}
+
+	return 0
+}
+
+func importCompleteTerminationMessage(preallocationApplied bool) error {
 	message := "Import Complete"
 	if preallocationApplied {
 		message += ", " + common.PreallocationApplied
 	}
-	err = util.WriteTerminationMessage(message)
+	err := util.WriteTerminationMessage(message)
 	if err != nil {
-		klog.Errorf("%+v", err)
-		if ds != nil {
-			ds.Close()
-		}
-		os.Exit(1)
+		return err
 	}
+
 	klog.V(1).Infoln(message)
+	return nil
 }
 
 func newDataProcessor(contentType string, volumeMode v1.PersistentVolumeMode, ds importer.DataSourceInterface, imageSize string, filesystemOverhead float64, preallocation bool) *importer.DataProcessor {
@@ -288,4 +312,19 @@ func errorEmptyDiskWithContentTypeArchive() {
 		klog.Errorf("%+v", err)
 	}
 	os.Exit(1)
+}
+
+func fsyncDataFile(contentType string, volumeMode v1.PersistentVolumeMode) {
+	dataFile := getImporterDestPath(contentType, volumeMode)
+	file, err := os.Open(dataFile)
+	if err != nil {
+		klog.Errorf("could not get file descriptor for fsync call: %+v", err)
+		os.Exit(1)
+	}
+	if err := file.Sync(); err != nil {
+		klog.Errorf("could not fsync following qemu-img writing: %+v", err)
+		os.Exit(1)
+	}
+	klog.V(3).Infof("Successfully completed fsync(%s) syscall, commited to disk\n", dataFile)
+	file.Close()
 }
