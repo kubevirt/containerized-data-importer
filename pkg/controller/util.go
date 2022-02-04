@@ -214,6 +214,11 @@ func getRequestedImageSize(pvc *v1.PersistentVolumeClaim) (string, error) {
 	return pvcSize.String(), nil
 }
 
+// GetVolumeMode returns the volumeMode from PVC handling default empty value
+func GetVolumeMode(pvc *v1.PersistentVolumeClaim) v1.PersistentVolumeMode {
+	return getVolumeMode(pvc)
+}
+
 // returns the volumeMode from PVC handling default empty value
 func getVolumeMode(pvc *v1.PersistentVolumeClaim) v1.PersistentVolumeMode {
 	return resolveVolumeMode(pvc.Spec.VolumeMode)
