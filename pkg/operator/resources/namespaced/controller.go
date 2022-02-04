@@ -116,6 +116,17 @@ func createControllerRole() *rbacv1.Role {
 				"delete",
 			},
 		},
+		{
+			APIGroups: []string{
+				"coordination.k8s.io",
+			},
+			Resources: []string{
+				"leases",
+			},
+			Verbs: []string{
+				"*",
+			},
+		},
 	}
 	return utils.ResourceBuilder.CreateRole(controllerResourceName, rules)
 }
