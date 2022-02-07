@@ -143,8 +143,6 @@ var _ = Describe("All DataImportCron Tests", func() {
 
 			err = reconciler.client.Get(context.TODO(), cronKey, cron)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cron.Finalizers).ToNot(BeNil())
-			Expect(cron.Finalizers[0]).To(Equal(dataImportCronFinalizer))
 
 			now := metav1.Now()
 			cron.DeletionTimestamp = &now
