@@ -439,7 +439,7 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("[test_id:8087]CDI CR deletion should delete DataImportCron CRD and all DataImportCrons with finalizers", func() {
+			It("[test_id:8087]CDI CR deletion should delete DataImportCron CRD and all DataImportCrons", func() {
 				var url string
 				if utils.IsOpenshift(f.K8sClient) {
 					url = externalRegistryURL
@@ -462,7 +462,6 @@ var _ = Describe("ALL Operator tests", func() {
 					return upToDateCond != nil && upToDateCond.Status == corev1.ConditionTrue
 				}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 
-				Expect(len(cron.Finalizers)).ToNot(BeZero())
 				pvc := cron.Status.LastImportedPVC
 				Expect(pvc).ToNot(BeNil())
 
@@ -473,8 +472,10 @@ var _ = Describe("ALL Operator tests", func() {
 
 				By("Start goroutine creating DataImportCrons")
 				go func() {
+					defer GinkgoRecover()
 					for i := 0; i < 100; i++ {
-						cron := NewDataImportCron(fmt.Sprintf("cron-test-%d", i), "5Gi", scheduleEveryMinute, "ds", cdiv1.DataVolumeSourceRegistry{URL: &url, PullMethod: &registryPullNode}, cdiv1.DataImportCronRetainAll)
+						cronName := fmt.Sprintf("cron-test-%d", i)
+						cron := NewDataImportCron(cronName, "5Gi", scheduleEveryMinute, "ds", cdiv1.DataVolumeSourceRegistry{URL: &url, PullMethod: &registryPullNode}, cdiv1.DataImportCronRetainAll)
 						cron, err := f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
 						if err != nil {
 							By(fmt.Sprintf("DataImportCron %d error %s", i, err.Error()))
@@ -484,7 +485,8 @@ var _ = Describe("ALL Operator tests", func() {
 				}()
 
 				By("Delete CDI CR")
-				err = f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{})
+				dp := metav1.DeletePropagationForeground
+				err = f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{PropagationPolicy: &dp})
 				Expect(err).ToNot(HaveOccurred())
 				By("Wait util CDI CR is gone")
 				Eventually(func() bool {
@@ -499,6 +501,14 @@ var _ = Describe("ALL Operator tests", func() {
 				_, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(HaveOccurred())
 				Expect(errors.IsNotFound(err)).To(BeTrue())
+
+				By("Verify no cronjobs or jobs left")
+				cronjobs, err := f.K8sClient.BatchV1().CronJobs(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(len(cronjobs.Items)).To(BeZero())
+				jobs, err := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(len(jobs.Items)).To(BeZero())
 			})
 		})
 

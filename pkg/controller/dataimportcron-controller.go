@@ -37,6 +37,7 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -51,6 +52,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -91,9 +93,6 @@ const (
 	// AnnNextCronTime is the next time stamp which satisfies the cron expression
 	AnnNextCronTime = AnnAPIGroup + "/storage.import.nextCronTime"
 
-	// dataImportCronFinalizer ensures CronJob is deleted when DataImportCron is deleted, as there is no cross-namespace OwnerReference
-	dataImportCronFinalizer = "cdi.kubevirt.io/dataImportCronFinalizer"
-
 	dataImportControllerName    = "dataimportcron-controller"
 	digestPrefix                = "sha256:"
 	digestDvNameSuffixLength    = 12
@@ -104,14 +103,10 @@ const (
 // Reconcile loop for DataImportCronReconciler
 func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	dataImportCron := &cdiv1.DataImportCron{}
-	if err := r.client.Get(ctx, req.NamespacedName, dataImportCron); err != nil {
-		if k8serrors.IsNotFound(err) {
-			return reconcile.Result{}, nil
-		}
+	if err := r.client.Get(ctx, req.NamespacedName, dataImportCron); IgnoreNotFound(err) != nil {
 		return reconcile.Result{}, err
-	}
-	if dataImportCron.DeletionTimestamp != nil {
-		err := r.cleanup(ctx, dataImportCron)
+	} else if err != nil || dataImportCron.DeletionTimestamp != nil {
+		err := r.cleanup(ctx, req.NamespacedName)
 		return reconcile.Result{}, err
 	}
 	if err := r.initCron(ctx, dataImportCron); err != nil {
@@ -121,16 +116,6 @@ func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.
 }
 
 func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	if !HasFinalizer(dataImportCron, dataImportCronFinalizer) {
-		crd := &extv1.CustomResourceDefinition{}
-		if err := r.client.Get(context.TODO(), types.NamespacedName{Name: "dataimportcrons.cdi.kubevirt.io"}, crd); err != nil {
-			return err
-		}
-		if crd.DeletionTimestamp != nil {
-			return errors.Errorf("CRD has DeletionTimestamp")
-		}
-		AddFinalizer(dataImportCron, dataImportCronFinalizer)
-	}
 	if isURLSource(dataImportCron) && !r.cronJobExists(ctx, dataImportCron) {
 		cronJob, err := r.newCronJob(dataImportCron)
 		if err != nil {
@@ -139,7 +124,11 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 		if err := r.client.Create(ctx, cronJob); err != nil {
 			return err
 		}
-		if err := r.client.Create(ctx, r.newInitialJob(dataImportCron, cronJob)); err != nil {
+		job, err := r.newInitialJob(dataImportCron, cronJob)
+		if err != nil {
+			return err
+		}
+		if err := r.client.Create(ctx, job); err != nil {
 			return err
 		}
 	} else if isImageStreamSource(dataImportCron) && dataImportCron.Annotations[AnnNextCronTime] == "" {
@@ -375,7 +364,7 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 		return nil
 	}
 	dataSourceCopy := dataSource.DeepCopy()
-	dataSource.Labels[common.DataImportCronLabel] = dataImportCron.Name
+	r.setDataImportCronResourceLabels(dataImportCron, dataSource)
 
 	sourcePVC := dataImportCron.Status.LastImportedPVC
 	if sourcePVC != nil {
@@ -444,11 +433,7 @@ func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context,
 
 func (r *DataImportCronReconciler) deleteOldImports(ctx context.Context, dataImportCron *cdiv1.DataImportCron, maxDvs int) error {
 	log := r.log.WithName("deleteOldImports")
-	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			common.DataImportCronLabel: dataImportCron.Name,
-		},
-	})
+	selector, err := getSelector(map[string]string{common.DataImportCronLabel: dataImportCron.Name})
 	if err != nil {
 		return err
 	}
@@ -482,45 +467,64 @@ func (r *DataImportCronReconciler) deleteOldImports(ctx context.Context, dataImp
 	return nil
 }
 
-func (r *DataImportCronReconciler) cleanup(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	if !HasFinalizer(dataImportCron, dataImportCronFinalizer) {
-		return nil
-	}
-
+func (r *DataImportCronReconciler) cleanup(ctx context.Context, cron types.NamespacedName) error {
 	// Don't keep alerting over a cron thats being deleted, will get set back to 1 again by reconcile loop if needed.
-	DataImportCronOutdatedGauge.With(getPrometheusCronLabels(dataImportCron)).Set(0)
-
-	if err := r.deleteJobs(ctx, dataImportCron); err != nil {
+	DataImportCronOutdatedGauge.With(getPrometheusCronLabels(cron)).Set(0)
+	if err := r.deleteJobs(ctx, cron); err != nil {
 		return err
 	}
 
-	if dataImportCron.Spec.RetentionPolicy != nil && *dataImportCron.Spec.RetentionPolicy == cdiv1.DataImportCronRetainNone {
-		dataSource := &cdiv1.DataSource{ObjectMeta: metav1.ObjectMeta{Namespace: dataImportCron.Namespace, Name: dataImportCron.Spec.ManagedDataSource}}
-		if err := r.client.Delete(ctx, dataSource); IgnoreNotFound(err) != nil {
-			return err
-		}
-		if err := r.deleteOldImports(ctx, dataImportCron, 0); err != nil {
+	selector, err := getSelector(map[string]string{common.DataImportCronLabel: cron.Name, common.DataImportCronCleanupLabel: "true"})
+	if err != nil {
+		return err
+	}
+	dataSourceList := &cdiv1.DataSourceList{}
+	if err := r.client.List(ctx, dataSourceList, &client.ListOptions{Namespace: cron.Namespace, LabelSelector: selector}); err != nil {
+		return err
+	}
+	for _, dataSource := range dataSourceList.Items {
+		if err := r.client.Delete(ctx, &dataSource); IgnoreNotFound(err) != nil {
 			return err
 		}
 	}
 
-	RemoveFinalizer(dataImportCron, dataImportCronFinalizer)
-	if err := r.client.Update(ctx, dataImportCron); err != nil {
+	dvList := &cdiv1.DataVolumeList{}
+	if err := r.client.List(ctx, dvList, &client.ListOptions{Namespace: cron.Namespace, LabelSelector: selector}); err != nil {
 		return err
 	}
+	for _, dv := range dvList.Items {
+		if err := r.client.Delete(ctx, &dv); IgnoreNotFound(err) != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func (r *DataImportCronReconciler) deleteJobs(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+func (r *DataImportCronReconciler) deleteJobs(ctx context.Context, cron types.NamespacedName) error {
 	deletePropagationBackground := metav1.DeletePropagationBackground
 	deleteOpts := &client.DeleteOptions{PropagationPolicy: &deletePropagationBackground}
-	cronJob := &batchv1.CronJob{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: GetCronJobName(dataImportCron)}}
-	if err := r.client.Delete(ctx, cronJob, deleteOpts); IgnoreNotFound(err) != nil {
+	selector, err := getSelector(map[string]string{common.DataImportCronLabel: getCronJobLabelValue(cron.Namespace, cron.Name)})
+	if err != nil {
 		return err
 	}
-	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Namespace: r.cdiNamespace, Name: GetInitialJobName(dataImportCron)}}
-	if err := r.client.Delete(ctx, job, deleteOpts); IgnoreNotFound(err) != nil {
+	cronJobList := &batchv1.CronJobList{}
+	if err := r.client.List(ctx, cronJobList, &client.ListOptions{Namespace: r.cdiNamespace, LabelSelector: selector}); err != nil {
 		return err
+	}
+	for _, cronJob := range cronJobList.Items {
+		if err := r.client.Delete(ctx, &cronJob, deleteOpts); IgnoreNotFound(err) != nil {
+			return err
+		}
+	}
+	jobList := &batchv1.JobList{}
+	if err := r.client.List(ctx, jobList, &client.ListOptions{Namespace: r.cdiNamespace, LabelSelector: selector}); err != nil {
+		return err
+	}
+	for _, job := range jobList.Items {
+		if err := r.client.Delete(ctx, &job, deleteOpts); IgnoreNotFound(err) != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -727,11 +731,13 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 		cronJob.Spec.JobTemplate.Spec.Template.Spec.Volumes = []corev1.Volume{vol}
 	}
 
-	util.SetRecommendedLabels(cronJob, r.installerLabels, common.CDIControllerName)
+	if err := r.setJobCommon(cron, cronJob); err != nil {
+		return nil, err
+	}
 	return cronJob, nil
 }
 
-func (r *DataImportCronReconciler) newInitialJob(cron *cdiv1.DataImportCron, cronJob *batchv1.CronJob) *batchv1.Job {
+func (r *DataImportCronReconciler) newInitialJob(cron *cdiv1.DataImportCron, cronJob *batchv1.CronJob) (*batchv1.Job, error) {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      GetInitialJobName(cron),
@@ -739,8 +745,21 @@ func (r *DataImportCronReconciler) newInitialJob(cron *cdiv1.DataImportCron, cro
 		},
 		Spec: cronJob.Spec.JobTemplate.Spec,
 	}
-	util.SetRecommendedLabels(job, r.installerLabels, common.CDIControllerName)
-	return job
+	if err := r.setJobCommon(cron, job); err != nil {
+		return nil, err
+	}
+	return job, nil
+}
+
+func (r *DataImportCronReconciler) setJobCommon(cron *cdiv1.DataImportCron, obj metav1.Object) error {
+	if err := operator.SetOwnerRuntime(r.uncachedClient, obj); err != nil {
+		return err
+	}
+	util.SetRecommendedLabels(obj, r.installerLabels, common.CDIControllerName)
+	labels := obj.GetLabels()
+	labels[common.DataImportCronLabel] = getCronJobLabelValue(cron.Namespace, cron.Name)
+	obj.SetLabels(labels)
+	return nil
 }
 
 func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdiv1.DataVolume {
@@ -756,11 +775,20 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	dv.Spec.Source.Registry.URL = &digestedURL
 	dv.Name = dataVolumeName
 	dv.Namespace = cron.Namespace
-	util.SetRecommendedLabels(dv, r.installerLabels, common.CDIControllerName)
-	dv.Labels[common.DataImportCronLabel] = cron.Name
+	r.setDataImportCronResourceLabels(cron, dv)
 	passCronAnnotationToDv(cron, dv, AnnImmediateBinding)
 	passCronAnnotationToDv(cron, dv, AnnPodRetainAfterCompletion)
 	return dv
+}
+
+func (r *DataImportCronReconciler) setDataImportCronResourceLabels(cron *cdiv1.DataImportCron, obj metav1.Object) {
+	util.SetRecommendedLabels(obj, r.installerLabels, common.CDIControllerName)
+	labels := obj.GetLabels()
+	labels[common.DataImportCronLabel] = cron.Name
+	if cron.Spec.RetentionPolicy != nil && *cron.Spec.RetentionPolicy == cdiv1.DataImportCronRetainNone {
+		labels[common.DataImportCronCleanupLabel] = "true"
+	}
+	obj.SetLabels(labels)
 }
 
 func untagDigestedDockerURL(dockerURL string) string {
@@ -810,4 +838,12 @@ func GetCronJobName(cron *cdiv1.DataImportCron) string {
 // GetInitialJobName get initial job name based on cron name and UID
 func GetInitialJobName(cron *cdiv1.DataImportCron) string {
 	return "initial-job-" + GetCronJobName(cron)
+}
+
+func getSelector(matchLabels map[string]string) (labels.Selector, error) {
+	return metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: matchLabels})
+}
+
+func getCronJobLabelValue(cronNamespace, cronName string) string {
+	return cronNamespace + "." + cronName
 }
