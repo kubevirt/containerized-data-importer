@@ -153,47 +153,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	}
 
 	createVddkWarmImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
-		// Find vcenter-simulator pod
-		pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "vcenter-deployment", "app=vcenter")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(pod).ToNot(BeNil())
-
-		// Get test VM UUID
-		id, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
-		Expect(err).To(BeNil())
-		vmid, err := uuid.Parse(strings.TrimSpace(id))
-		Expect(err).To(BeNil())
-
-		// Get snapshot 1 ID
-		previousCheckpoint, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmsnapshot1")
-		Expect(err).To(BeNil())
-		previousCheckpoint = strings.TrimSpace(previousCheckpoint)
-		Expect(err).To(BeNil())
-
-		// Get snapshot 2 ID
-		currentCheckpoint, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmsnapshot2")
-		Expect(err).To(BeNil())
-		currentCheckpoint = strings.TrimSpace(currentCheckpoint)
-		Expect(err).To(BeNil())
-
-		// Get disk name
-		disk, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
-		Expect(err).To(BeNil())
-		disk = strings.TrimSpace(disk)
-		Expect(err).To(BeNil())
-
-		// Create VDDK login secret
-		stringData := map[string]string{
-			common.KeyAccess: "user",
-			common.KeySecret: "pass",
-		}
-		backingFile := disk
-		secretRef := "vddksecret"
-		thumbprint := "testprint"
-		finalCheckpoint := true
-		s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, secretRef))
-
-		return utils.NewDataVolumeWithVddkWarmImport(dataVolumeName, size, backingFile, s.Name, thumbprint, url, vmid.String(), currentCheckpoint, previousCheckpoint, finalCheckpoint)
+		return CreateVddkWarmImportDataVolume(f, dataVolumeName, size, url)
 	}
 
 	createImageIoDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
