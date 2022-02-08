@@ -544,7 +544,8 @@ func NewDataVolumeWithVddkImport(dataVolumeName string, size string, backingFile
 func NewDataVolumeWithVddkWarmImport(dataVolumeName string, size string, backingFile string, secretRef string, thumbprint string, httpURL string, uuid string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint bool) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: dataVolumeName,
+			Name:        dataVolumeName,
+			Annotations: map[string]string{},
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: &cdiv1.DataVolumeSource{

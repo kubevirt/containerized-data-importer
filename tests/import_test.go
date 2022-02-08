@@ -154,6 +154,34 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(err).ToNot(HaveOccurred())
 		Expect(importer.DeletionTimestamp).To(BeNil())
 	})
+
+	It("[test_id:6688] Should retain all multi-stage importer pods after completion with dv annotation cdi.kubevirt.io/storage.pod.retainAfterCompletion=true", func() {
+		vcenterURL := fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
+		dataVolume := tests.CreateVddkWarmImportDataVolume(f, "import-pod-retain-test", "100Mi", vcenterURL)
+		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
+		dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f.CdiClient, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+
+		By("Find importer pods after completion")
+		for _, checkpoint := range dataVolume.Spec.Checkpoints {
+			name := fmt.Sprintf("%s-%s-checkpoint-%s", common.ImporterPodName, dataVolume.Name, checkpoint.Current)
+			By("Find importer pod " + name)
+			importer, err := utils.FindPodByPrefixOnce(f.K8sClient, dataVolume.Namespace, name, common.CDILabelSelector)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(importer.DeletionTimestamp).To(BeNil())
+		}
+	})
+
 })
 
 var _ = Describe("[Istio] Namespace sidecar injection", func() {
