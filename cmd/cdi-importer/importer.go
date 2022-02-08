@@ -144,9 +144,7 @@ func handleImport(
 	klog.V(1).Infoln("begin import process")
 
 	ds := newDataSource(source, contentType, volumeMode)
-	defer func() {
-		ds.Close()
-	}()
+	defer ds.Close()
 
 	processor := newDataProcessor(contentType, volumeMode, ds, imageSize, filesystemOverhead, preallocation)
 	waitForReadyFile()
@@ -157,7 +155,7 @@ func handleImport(
 		if err == importer.ErrRequiresScratchSpace {
 			return common.ScratchSpaceNeededExitCode
 		}
-		err = util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %+v", err))
+		err = util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %+v", err.Error()))
 		if err != nil {
 			klog.Errorf("%+v", err)
 		}
