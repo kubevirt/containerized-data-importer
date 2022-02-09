@@ -260,6 +260,12 @@ var _ = Describe("DataImportCron", func() {
 		err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Delete(context.TODO(), cron.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
+		By("Verify cronjob deleted")
+		Eventually(func() bool {
+			_, err := f.K8sClient.BatchV1beta1().CronJobs(f.CdiInstallNs).Get(context.TODO(), cronJobName, metav1.GetOptions{})
+			return errors.IsNotFound(err)
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
 		By("Verify initial job deleted")
 		Eventually(func() bool {
 			_, err := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), initialJobName, metav1.GetOptions{})
