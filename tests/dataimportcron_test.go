@@ -140,6 +140,17 @@ var _ = Describe("DataImportCron", func() {
 					cron.Status.LastImportedPVC != nil && cron.Status.LastImportedPVC.Name == currentImportDv
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 
+			By("Update DataSource pvc with dummy name")
+			dataSource.Spec.Source.PVC.Name = "dummy"
+			dataSource, err = f.CdiClient.CdiV1beta1().DataSources(dataSource.Namespace).Update(context.TODO(), dataSource, metav1.UpdateOptions{})
+			Expect(err).To(BeNil())
+			By("Verify DataSource pvc name was reconciled")
+			Eventually(func() bool {
+				dataSource, err = f.CdiClient.CdiV1beta1().DataSources(dataSource.Namespace).Get(context.TODO(), dataSource.Name, metav1.GetOptions{})
+				Expect(err).To(BeNil())
+				return dataSource.Spec.Source.PVC.Name == currentImportDv
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
 			By("Delete DataSource")
 			err = f.CdiClient.CdiV1beta1().DataSources(dataSource.Namespace).Delete(context.TODO(), dataSource.Name, metav1.DeleteOptions{})
 			Expect(err).To(BeNil())
