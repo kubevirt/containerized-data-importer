@@ -362,6 +362,7 @@ func getMonitoringNs(f *framework.Framework) string {
 	return "monitoring"
 }
 
+// CreateVddkWarmImportDataVolume fetches snapshot information from vcsim and returns a multi-stage VDDK data volume
 func CreateVddkWarmImportDataVolume(f *framework.Framework, dataVolumeName, size, url string) *cdiv1.DataVolume {
 	// Find vcenter-simulator pod
 	pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "vcenter-deployment", "app=vcenter")
