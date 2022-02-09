@@ -363,7 +363,7 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 	if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: dataSourceName}, dataSource); err != nil {
 		if k8serrors.IsNotFound(err) {
 			log.Info("Create DataSource", "name", dataSourceName)
-			dataSource = newDataSource(dataImportCron)
+			dataSource = r.newDataSource(dataImportCron)
 			if err := r.client.Create(ctx, dataSource); err != nil {
 				return err
 			}
@@ -371,8 +371,11 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 			return err
 		}
 	}
+	if dataSource.Labels[common.DataImportCronLabel] == "" {
+		log.Info("DataSource has no DataImportCron label, so it is not updated", "name", dataSourceName)
+		return nil
+	}
 	dataSourceCopy := dataSource.DeepCopy()
-	util.SetRecommendedLabels(dataSource, r.installerLabels, common.CDIControllerName)
 	dataSource.Labels[common.DataImportCronLabel] = dataImportCron.Name
 
 	sourcePVC := dataImportCron.Status.LastImportedPVC
@@ -584,12 +587,11 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 	); err != nil {
 		return err
 	}
-	// Watch only for DataSource deletion
 	if err := c.Watch(&source.Kind{Type: &cdiv1.DataSource{}},
 		handler.EnqueueRequestsFromMapFunc(mapToCron),
 		predicate.Funcs{
 			CreateFunc: func(event.CreateEvent) bool { return false },
-			UpdateFunc: func(event.UpdateEvent) bool { return false },
+			UpdateFunc: func(e event.UpdateEvent) bool { return getCronName(e.ObjectNew) != "" },
 			DeleteFunc: func(e event.DeleteEvent) bool { return getCronName(e.Object) != "" },
 		},
 	); err != nil {
@@ -782,13 +784,15 @@ func passCronAnnotationToDv(cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume, an
 	}
 }
 
-func newDataSource(cron *cdiv1.DataImportCron) *cdiv1.DataSource {
+func (r *DataImportCronReconciler) newDataSource(cron *cdiv1.DataImportCron) *cdiv1.DataSource {
 	dataSource := &cdiv1.DataSource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cron.Spec.ManagedDataSource,
 			Namespace: cron.Namespace,
 		},
 	}
+	util.SetRecommendedLabels(dataSource, r.installerLabels, common.CDIControllerName)
+	dataSource.Labels[common.DataImportCronLabel] = cron.Name
 	return dataSource
 }
 
