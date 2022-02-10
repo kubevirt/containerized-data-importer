@@ -420,19 +420,10 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 }
 
 func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+	log := r.log.WithName("garbageCollectOldImports")
 	if dataImportCron.Spec.GarbageCollect != nil && *dataImportCron.Spec.GarbageCollect != cdiv1.DataImportCronGarbageCollectOutdated {
 		return nil
 	}
-	maxDvs := defaultImportsToKeepPerCron
-	importsToKeep := dataImportCron.Spec.ImportsToKeep
-	if importsToKeep != nil && *importsToKeep >= 0 {
-		maxDvs = int(*importsToKeep)
-	}
-	return r.deleteOldImports(ctx, dataImportCron, maxDvs)
-}
-
-func (r *DataImportCronReconciler) deleteOldImports(ctx context.Context, dataImportCron *cdiv1.DataImportCron, maxDvs int) error {
-	log := r.log.WithName("deleteOldImports")
 	selector, err := getSelector(map[string]string{common.DataImportCronLabel: dataImportCron.Name})
 	if err != nil {
 		return err
@@ -440,6 +431,11 @@ func (r *DataImportCronReconciler) deleteOldImports(ctx context.Context, dataImp
 	dvList := &cdiv1.DataVolumeList{}
 	if err := r.client.List(ctx, dvList, &client.ListOptions{Namespace: dataImportCron.Namespace, LabelSelector: selector}); err != nil {
 		return err
+	}
+	maxDvs := defaultImportsToKeepPerCron
+	importsToKeep := dataImportCron.Spec.ImportsToKeep
+	if importsToKeep != nil && *importsToKeep >= 0 {
+		maxDvs = int(*importsToKeep)
 	}
 	if len(dvList.Items) <= maxDvs {
 		return nil
