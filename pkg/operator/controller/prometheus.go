@@ -211,7 +211,7 @@ func getAlertRules() []promv1.Rule {
 			"kubevirt_cdi_import_dv_unusual_restartcount_total > 0 or kubevirt_cdi_upload_dv_unusual_restartcount_total > 0 or kubevirt_cdi_clone_dv_unusual_restartcount_total > 0",
 			"5m",
 			map[string]string{
-				"summary":     "Cluster has DVs with an unusual restart count, meaning they are probably failing and need to be investigated",
+				"summary":     "Cluster has DataVolumes (PVC population request) with an unusual restart count, meaning they are probably failing and need to be investigated",
 				"runbook_url": runbookURLBasePath + "CDIDataVolumeUnusualRestartCount",
 			},
 			map[string]string{
@@ -225,7 +225,7 @@ func getAlertRules() []promv1.Rule {
 			"kubevirt_cdi_incomplete_storageprofiles_total > 0",
 			"5m",
 			map[string]string{
-				"summary":     "StorageProfiles are incomplete, accessMode/volumeMode cannot be inferred by CDI",
+				"summary":     "Incomplete StorageProfiles exist, accessMode/volumeMode cannot be inferred by CDI for PVC population request",
 				"runbook_url": runbookURLBasePath + "CDIStorageProfilesIncomplete",
 			},
 			map[string]string{
@@ -239,7 +239,7 @@ func getAlertRules() []promv1.Rule {
 			"kubevirt_cdi_dataimportcron_outdated_total > 0",
 			"15m",
 			map[string]string{
-				"summary":     "DataImportCron latest imports are outdated",
+				"summary":     "DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule",
 				"runbook_url": runbookURLBasePath + "CDIDataImportCronOutdated",
 			},
 			map[string]string{
