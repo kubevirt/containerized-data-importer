@@ -445,7 +445,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			r.recorder.Event(pvc, corev1.EventTypeNormal, ImportSucceededPVC, "Import Successful")
 			log.V(1).Info("Import completed successfully")
 		}
-		if scratchExitCode || shouldDeletePod(pvc) {
+		if shouldDeletePod(pvc) {
 			log.V(1).Info("Deleting pod", "pod.Name", pod.Name)
 			if err := r.cleanup(pvc, pod, log); err != nil {
 				return err
