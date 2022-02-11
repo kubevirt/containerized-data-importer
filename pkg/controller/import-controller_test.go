@@ -688,7 +688,14 @@ var _ = Describe("Update PVC from POD", func() {
 	})
 
 	It("Should delete pod for scratch space even if retainAfterCompletion is set", func() {
-		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "testpod", AnnRequiresScratch: "true", AnnSource: SourceVDDK}, nil, corev1.ClaimPending)
+		annotations := map[string]string{
+			AnnEndpoint:                 testEndPoint,
+			AnnImportPod:                "testpod",
+			AnnRequiresScratch:          "true",
+			AnnSource:                   SourceVDDK,
+			AnnPodRetainAfterCompletion: "true",
+		}
+		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, annotations, nil, corev1.ClaimPending)
 		pod := createImporterTestPod(pvc, "testPvc1", nil)
 		pod.Status = corev1.PodStatus{
 			Phase: corev1.PodSucceeded,
