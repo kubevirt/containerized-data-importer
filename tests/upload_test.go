@@ -426,10 +426,18 @@ func formRequestFunc(url, fileName string) (*http.Request, error) {
 		Expect(err).ToNot(HaveOccurred())
 
 		_, err = io.Copy(formFile, f)
-		Expect(err).ToNot(HaveOccurred())
+		if err != nil {
+			// Not catching the error and failing here is fine, we verify the integrity of the
+			// image in other places.
+			fmt.Fprintf(GinkgoWriter, "ERROR copying: %s\n", err.Error())
+		}
 
 		err = multipartWriter.Close()
-		Expect(err).ToNot(HaveOccurred())
+		if err != nil {
+			// Not catching the error and failing here is fine, we verify the integrity of the
+			// image in other places.
+			fmt.Fprintf(GinkgoWriter, "ERROR closing: %s\n", err.Error())
+		}
 	}()
 
 	return req, nil
