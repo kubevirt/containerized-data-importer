@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -43,6 +44,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	kvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 )
@@ -784,28 +786,39 @@ var _ = Describe("Create Importer Pod", func() {
 		table.Entry("should create pod with block volume mode and scratchspace", createBlockPvc("testBlockPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName", AnnPriorityClassName: "p0"}, nil), &scratchPvcName),
 	)
 
-	It("should append current checkpoint name to importer pod", func() {
-		pvc := createPvc("testPvc1", "default", map[string]string{AnnCurrentCheckpoint: "snap1", AnnEndpoint: testEndPoint}, nil)
+	table.DescribeTable("should append current checkpoint name to importer pod", func(pvcName, checkpointID string) {
+		pvc := createPvc(pvcName, "default", map[string]string{AnnCurrentCheckpoint: checkpointID, AnnEndpoint: testEndPoint}, nil)
 		pvc.Status.Phase = v1.ClaimBound
 
+		suffix := fmt.Sprintf("%s-checkpoint-%s", pvcName, checkpointID)
+		expectedName := fmt.Sprintf("importer-%s", suffix)
+		if len(expectedName) > kvalidation.DNS1123SubdomainMaxLength {
+			expectedName = naming.GetResourceName("importer", suffix)
+		}
+
 		reconciler := createImportReconciler(pvc)
-		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: pvcName, Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 
 		// First reconcile sets AnnImportPod
 		resPvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: pvcName, Namespace: "default"}, resPvc)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(resPvc.Annotations[AnnImportPod]).To(Equal("importer-testPvc1-checkpoint-snap1"))
+		Expect(resPvc.Annotations[AnnImportPod]).To(Equal(expectedName))
 
 		// Second reconcile creates pod
-		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: pvcName, Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 
 		resPod := &corev1.Pod{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1-checkpoint-snap1", Namespace: "default"}, resPod)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: expectedName, Namespace: "default"}, resPod)
 		Expect(err).ToNot(HaveOccurred())
-	})
+	},
+		table.Entry("with short PVC and checkpoint names", "testPvc1", "snap1"),
+		table.Entry("with long checkpoint name", "testPvc1", strings.Repeat("repeating-checkpoint-id-", 10)),
+		table.Entry("with long PVC name", strings.Repeat("test-pvc-", 20), "snap1"),
+		table.Entry("with long PVC and checkpoint names", strings.Repeat("test-pvc-", 20), strings.Repeat("repeating-checkpoint-id-", 10)),
+	)
 })
 
 var _ = Describe("Import test env", func() {
