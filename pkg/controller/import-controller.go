@@ -525,6 +525,23 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		vddkImageName:     vddkImageName,
 		priorityClassName: getPriorityClass(pvc),
 	}
+
+	// Check for old terminating scratch spaces, this can happen in warm migration scenarios where the scratch
+	// space for a previous pod has not been deleted yet. In that case check if the scratch PVC is terminating
+	// before creating the new importer pod. This should give the PVC time to get deleted.
+	if requiresScratch && podArgs.scratchPvcName != nil {
+		r.log.V(1).Info("Checking for old scratch pvcs")
+		scratchPvc := &corev1.PersistentVolumeClaim{}
+		err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: pvc.GetNamespace(), Name: *podArgs.scratchPvcName}, scratchPvc)
+		if IgnoreNotFound(err) != nil {
+			return err
+		}
+		if scratchPvc.DeletionTimestamp != nil {
+			// Old scratch space with same name is still being cleaned up, return error.
+			return errors.New("Waiting for scratch space to be deleted")
+		}
+	}
+
 	pod, err := createImporterPod(r.log, r.client, podArgs, r.installerLabels)
 	if err != nil {
 		return err
@@ -725,6 +742,10 @@ func (r *ImportReconciler) requiresScratchSpace(pvc *corev1.PersistentVolumeClai
 		switch getSource(pvc) {
 		case SourceGlance:
 			scratchRequired = true
+		case SourceImageio:
+			if val, ok := pvc.Annotations[AnnCurrentCheckpoint]; ok {
+				scratchRequired = val != ""
+			}
 		case SourceRegistry:
 			scratchRequired = pvc.Annotations[AnnRegistryImportMethod] != string(cdiv1.RegistryPullNode)
 		}
