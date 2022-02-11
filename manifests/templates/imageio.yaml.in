@@ -32,8 +32,7 @@ spec:
           mountPath: "/tmp"
       containers:
       - name: imageiotest
-        # Docker file: https://github.com/machacekondra/imageiotest
-        image: quay.io/kubevirt/imageiotest:v0.0.1
+        image: {{ .DockerRepo }}/cdi-func-test-imageio:{{ .DockerTag }}
         imagePullPolicy: {{ .PullPolicy }}
         ports:
         - containerPort: 12345
@@ -41,7 +40,7 @@ spec:
         - name: "certs"
           mountPath: "/tmp"
         command: ["/bin/bash"]
-        args: ["-c", "openssl ca x509 -in /tmp/certs/tls.crt -out /ovirt-imageio/daemon/test/pki/ca.pem; openssl x509 -in /tmp/certs/tls.crt -out /ovirt-imageio/daemon/test/pki/cert.pem; cp /tmp/certs/tls.key /ovirt-imageio/daemon/test/pki/key.pem; cd ovirt-imageio/daemon; ./ovirt-imageio -c test/conf& sleep 3; curl --unix-socket /ovirt-imageio/daemon/test/daemon.sock -X PUT -d '{\"uuid\": \"cirros\", \"size\": 46137344, \"url\": \"file:///images/cirros.img\", \"timeout\": 30000000000000, \"ops\": [\"read\"]}' http://localhost:12345/tickets/cirros; sleep infinity"]
+        args: ["-c", "mkdir -p /images; openssl x509 -in /tmp/certs/tls.crt -out /tmp/certs/ca.pem; openssl x509 -in /tmp/certs/tls.crt -out /tmp/certs/cert.pem; ovirt-imageio& sleep 3; curl --unix-socket /tmp/daemon.sock -X PUT -d '{\"uuid\": \"cirros\", \"size\": 46137344, \"url\": \"file:///images/cirros.img\", \"timeout\": 30000000000000, \"ops\": [\"read\"]}' http://localhost:12345/tickets/cirros; sleep infinity"]
       - name: fakeovirt
         # Docker file: https://github.com/machacekondra/fakeovirt
         image: quay.io/kubevirt/fakeovirt:v1.38.0

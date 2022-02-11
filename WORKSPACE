@@ -911,3 +911,71 @@ http_file(
         "https://storage.googleapis.com/builddeps/ab5a824d402c717bfe8e01cfb216a70fd4a7e1d66d2d7baa80ac6ad6581081c9",
     ],
 )
+
+http_file(
+    name = "ovirt-imageio-client",
+    sha256 = "a012d8204098d992099620de1d14b423bfd179b54a618deec98cdcb37027a0cd",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/fedora-34-x86_64/03380475-ovirt-imageio/ovirt-imageio-client-2.4.1-0.202202080814.git10cee74.fc34.x86_64.rpm"],
+)
+
+http_file(
+    name = "ovirt-imageio-client-aarch64",
+    sha256 = "a012d8204098d992099620de1d14b423bfd179b54a618deec98cdcb37027a0cd",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/fedora-34-aarch64/03380475-ovirt-imageio/ovirt-imageio-client-2.4.1-0.202202080814.git10cee74.fc34.aarch64.rpm"],
+)
+
+http_file(
+    name = "ovirt-imageio-common",
+    sha256 = "91b4e27378d7c66bc3fd9065e7390cdc969ad46de2ff9b669cbac3b02eb036ce",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/fedora-34-x86_64/03380475-ovirt-imageio/ovirt-imageio-common-2.4.1-0.202202080814.git10cee74.fc34.x86_64.rpm"],
+)
+
+http_file(
+    name = "ovirt-imageio-common-aarch64",
+    sha256 = "a6f78aff23fbc6b1f68cea041144da7a6a830b7a9922bf13a140db5c1376b55c",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/fedora-34-aarch64/03380475-ovirt-imageio/ovirt-imageio-common-2.4.1-0.202202080814.git10cee74.fc34.aarch64.rpm"],
+)
+
+http_file(
+    name = "ovirt-imageio-daemon",
+    sha256 = "abbf056b5ef3a27e7485966959651d56e4c34c853782a8f4726cfc73e11bda77",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/fedora-34-x86_64/03380475-ovirt-imageio/ovirt-imageio-daemon-2.4.1-0.202202080814.git10cee74.fc34.x86_64.rpm"],
+)
+
+http_file(
+    name = "ovirt-imageio-daemon-aarch64",
+    sha256 = "5cc941ed70952899802026a896e946736f6e3f18d3542cfc55699a06a3b42aa9",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/fedora-34-aarch64/03380475-ovirt-imageio/ovirt-imageio-daemon-2.4.1-0.202202080814.git10cee74.fc34.aarch64.rpm"],
+)
+
+http_file(
+    name = "python3-systemd",
+    sha256 = "883d4369f52801efacb50508b455a21667fe614f3856ef923d6b13cad45f3d93",
+    urls = [
+        "https://ftp-stud.hs-esslingen.de/pub/fedora/linux/updates/33/Everything/x86_64/Packages/p/python3-systemd-234-19.fc33.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "python3-systemd-aarch64",
+    sha256 = "fa45405ee30180ad84bf8f300b88bfe18b3529f2fd8d0feef9bc93ff49c42c0f",
+    urls = [
+        "https://ftp-stud.hs-esslingen.de/pub/fedora/linux/updates/33/Everything/aarch64/Packages/p/python3-systemd-234-19.fc33.aarch64.rpm",
+    ],
+)
+
+http_file(
+    name = "openssl",
+    sha256 = "e09142081d33d3977dfea2c0740c2c8f07810b7a598819ec69903b923f998a14",
+    urls = [
+        "https://ftp-stud.hs-esslingen.de/pub/fedora/linux/updates/33/Everything/x86_64/Packages/o/openssl-1.1.1l-2.fc33.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "openssl-aarch64",
+    sha256 = "2019d6cb2a2ec5207ebc412d8dc2246da68aa9b443cb89939ec1d1d2260c6771",
+    urls = [
+        "https://ftp-stud.hs-esslingen.de/pub/fedora/linux/updates/33/Everything/aarch64/Packages/o/openssl-1.1.1l-2.fc33.aarch64.rpm",
+    ],
+)
