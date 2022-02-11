@@ -1524,9 +1524,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	Describe("Create a PVC using data from StorageProfile", func() {
 		var (
-			config   *cdiv1.CDIConfig
-			origSpec *cdiv1.CDIConfigSpec
-			err      error
+			config              *cdiv1.CDIConfig
+			origSpec            *cdiv1.CDIConfigSpec
+			originalProfileSpec *cdiv1.StorageProfileSpec
+			err                 error
+			defaultScName       string
 		)
 
 		fillData := "123456789012345678901234567890123456789012345678901234567890"
@@ -1590,9 +1592,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		configureStorageProfile := func(client client.Client,
 			storageClassName string,
 			accessModes []v1.PersistentVolumeAccessMode,
-			volumeMode v1.PersistentVolumeMode) *cdiv1.StorageProfileSpec {
+			volumeMode v1.PersistentVolumeMode) {
 
-			originalProfileSpec := getStorageProfileSpec(client, storageClassName)
 			propertySet := cdiv1.ClaimPropertySet{AccessModes: accessModes, VolumeMode: &volumeMode}
 			updateStorageProfileSpec(client,
 				storageClassName,
@@ -1606,8 +1607,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				}
 				return cdiv1.ClaimPropertySet{}
 			}, time.Second*30, time.Second).Should(Equal(propertySet))
-
-			return originalProfileSpec
 		}
 
 		findStorageProfileWithoutAccessModes := func(client client.Client) string {
@@ -1631,12 +1630,21 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		BeforeEach(func() {
+			defaultScName = utils.DefaultStorageClass.GetName()
+
 			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			origSpec = config.Spec.DeepCopy()
+
+			originalProfileSpec = getStorageProfileSpec(f.CrClient, defaultScName)
 		})
 
 		AfterEach(func() {
+			if originalProfileSpec != nil {
+				By("Restoring the StorageProfile to original state")
+				updateStorageProfileSpec(f.CrClient, defaultScName, *originalProfileSpec)
+			}
+
 			By("Restoring CDIConfig to original state")
 			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 				origSpec.DeepCopyInto(config)
@@ -1649,11 +1657,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, 30*time.Second, time.Second).Should(BeTrue())
 		})
 
-		It("[test_id:5911]Import succeeds creating a PVC from DV without accessModes", func() {
-			defaultScName := utils.DefaultStorageClass.GetName()
-
+		It("[test_id:5911]Import succeeds creating a PVC from DV without accessModes and storageClass name", func() {
 			By(fmt.Sprintf("configure storage profile %s", defaultScName))
-			originalProfileSpec := configureStorageProfile(f.CrClient,
+			configureStorageProfile(f.CrClient,
 				defaultScName,
 				[]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 				v1.PersistentVolumeFilesystem)
@@ -1677,20 +1683,76 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
 			Expect(*pvc.Spec.StorageClassName).To(And(Not(BeNil())), Equal(defaultScName))
+		})
 
-			By("Restore the profile")
-			updateStorageProfileSpec(f.CrClient, defaultScName, *originalProfileSpec)
+		It("[test_id:8170]Import succeeds when storage class is not specified, but access mode is", func() {
+			By(fmt.Sprintf("configure storage profile %s", defaultScName))
+			configureStorageProfile(f.CrClient,
+				defaultScName,
+				[]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+				v1.PersistentVolumeFilesystem)
+			requestedSize := resource.MustParse("100Mi")
+
+			expectedMode := []v1.PersistentVolumeAccessMode{v1.ReadWriteMany}
+			spec := cdiv1.StorageSpec{
+				AccessModes: expectedMode,
+				VolumeMode:  nil,
+				Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						v1.ResourceStorage: requestedSize,
+					},
+				},
+			}
+
+			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
+			dataVolume := createDataVolumeForImport(f, spec)
+
+			By("verifying pvc created with correct accessModes and storageclass name")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Spec.AccessModes).To(Equal(expectedMode))
+			Expect(*pvc.Spec.StorageClassName).To(And(Not(BeNil())), Equal(defaultScName))
+		})
+
+		It("[test_id:8169]Import succeeds when storage class is not specified, but volume mode is", func() {
+			By(fmt.Sprintf("configure storage profile %s", defaultScName))
+			configureStorageProfile(f.CrClient,
+				defaultScName,
+				[]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+				v1.PersistentVolumeFilesystem)
+			requestedSize := resource.MustParse("100Mi")
+
+			expectedVolumeMode := v1.PersistentVolumeBlock
+			spec := cdiv1.StorageSpec{
+				AccessModes: nil,
+				VolumeMode:  &expectedVolumeMode,
+				Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						v1.ResourceStorage: requestedSize,
+					},
+				},
+			}
+
+			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
+			dataVolume := createDataVolumeForImport(f, spec)
+
+			By("verifying pvc created with correct accessModes and storageclass name")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
+			Expect(*pvc.Spec.VolumeMode).To(Equal(expectedVolumeMode))
+			Expect(*pvc.Spec.StorageClassName).To(And(Not(BeNil())), Equal(defaultScName))
 		})
 
 		It("[test_id:5912]Import fails creating a PVC from DV without accessModes and volume mode, no profile", func() {
 			// assumes local is available and has no volumeMode
-			defaultScName := findStorageProfileWithoutAccessModes(f.CrClient)
+			storageProfileName := findStorageProfileWithoutAccessModes(f.CrClient)
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
 			requestedSize := resource.MustParse("100Mi")
 			spec := cdiv1.StorageSpec{
 				AccessModes:      nil,
 				VolumeMode:       nil,
-				StorageClassName: &defaultScName,
+				StorageClassName: &storageProfileName,
 				Resources: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
@@ -1718,13 +1780,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		It("[test_id:5913]Import recovers when user adds accessModes to profile", func() {
 			// assumes local is available and has no volumeMode
-			defaultScName := findStorageProfileWithoutAccessModes(f.CrClient)
+			storageProfileName := findStorageProfileWithoutAccessModes(f.CrClient)
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
 			requestedSize := resource.MustParse("100Mi")
 			spec := cdiv1.StorageSpec{
 				AccessModes:      nil,
 				VolumeMode:       nil,
-				StorageClassName: &defaultScName,
+				StorageClassName: &storageProfileName,
 				Resources: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
@@ -1749,9 +1811,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				return false
 			}, timeout, pollingInterval).Should(BeTrue())
 
-			By(fmt.Sprintf("configure storage profile %s", defaultScName))
-			originalProfileSpec := configureStorageProfile(f.CrClient,
-				defaultScName,
+			By(fmt.Sprintf("configure storage profile %s", storageProfileName))
+			originalProfileSpec := getStorageProfileSpec(f.CrClient, storageProfileName)
+			configureStorageProfile(f.CrClient,
+				storageProfileName,
 				[]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 				v1.PersistentVolumeFilesystem)
 
@@ -1761,11 +1824,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
 
 			By("Restore the profile")
-			updateStorageProfileSpec(f.CrClient, defaultScName, *originalProfileSpec)
+			updateStorageProfileSpec(f.CrClient, storageProfileName, *originalProfileSpec)
 		})
 
 		It("[test_id:6483]Import pod should not have size corrected on block", func() {
-			defaultScName := utils.DefaultStorageClass.GetName()
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
 			// volumeMode Block, so no overhead applied
@@ -1793,14 +1855,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		It("[test_id:6484]Import pod should not have size corrected on block, when no volumeMode on DV", func() {
-			defaultScName := utils.DefaultStorageClass.GetName()
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
 			// volumeMode Block, so no overhead applied
 			expectedSize := resource.MustParse("100Mi")
 
 			By(fmt.Sprintf("configure storage profile %s to volumeModeBlock", defaultScName))
-			originalProfileSpec := configureStorageProfile(f.CrClient,
+			configureStorageProfile(f.CrClient,
 				defaultScName,
 				[]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 				v1.PersistentVolumeBlock)
@@ -1822,13 +1883,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(expectedSize.Value()))
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
-
-			By("Restore the profile")
-			updateStorageProfileSpec(f.CrClient, defaultScName, *originalProfileSpec)
 		})
 
 		It("[test_id:6485]Import pod should have size corrected on filesystem", func() {
-			defaultScName := utils.DefaultStorageClass.GetName()
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
 			// given 50 percent overhead, expected size is 2x requestedSize
@@ -1859,7 +1916,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		It("[test_id:6099]Upload pvc should have size corrected on filesystem volume", func() {
-			defaultScName := utils.DefaultStorageClass.GetName()
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
 			// given 50 percent overhead, expected size is 2x requestedSize
@@ -1868,9 +1924,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("creating datavolume for upload")
 			volumeMode := v1.PersistentVolumeFilesystem
 			dataVolume := createDataVolumeForUpload(f, cdiv1.StorageSpec{
-				AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-				VolumeMode:       &volumeMode,
-				StorageClassName: &defaultScName,
+				AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+				VolumeMode:  &volumeMode,
 				Resources: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
@@ -1883,10 +1938,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(expectedSize.Value()))
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
+			Expect(*pvc.Spec.StorageClassName).To(And(Not(BeNil())), Equal(defaultScName))
 		})
 
 		It("[test_id:6100]Upload pvc should not have size corrected on block volume", func() {
-			defaultScName := utils.DefaultStorageClass.GetName()
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
 			// volumeMode Block, so no overhead applied
@@ -1914,14 +1969,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		It("[test_id:6486]Upload pvc should not have size corrected on block volume, when no volumeMode on DV", func() {
-			defaultScName := utils.DefaultStorageClass.GetName()
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
 			// volumeMode Block, so no overhead applied
 			expectedSize := resource.MustParse("100Mi")
 
 			By(fmt.Sprintf("configure storage profile %s to volumeModeBlock", defaultScName))
-			originalProfileSpec := configureStorageProfile(f.CrClient,
+			configureStorageProfile(f.CrClient,
 				defaultScName,
 				[]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 				v1.PersistentVolumeBlock)
@@ -1942,13 +1996,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(expectedSize.Value()))
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
-
-			By("Restore the profile")
-			updateStorageProfileSpec(f.CrClient, defaultScName, *originalProfileSpec)
 		})
 
 		It("[test_id:6101]Clone pod should not have size corrected on block", func() {
-			defaultScName := utils.DefaultStorageClass.GetName()
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
 			// volumeMode Block, so no overhead applied
@@ -1958,9 +2008,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			volumeMode := v1.PersistentVolumeBlock
 			dataVolume := createCloneDataVolume(dataVolumeName,
 				cdiv1.StorageSpec{
-					AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-					VolumeMode:       &volumeMode,
-					StorageClassName: &defaultScName,
+					AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+					VolumeMode:  &volumeMode,
 					Resources: v1.ResourceRequirements{
 						Requests: v1.ResourceList{
 							v1.ResourceStorage: requestedSize,
@@ -1973,17 +2022,17 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(expectedSize.Value()))
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
+			Expect(*pvc.Spec.StorageClassName).To(And(Not(BeNil())), Equal(defaultScName))
 		})
 
 		It("[test_id:6487]Clone pod should not have size corrected on block, when no volumeMode on DV", func() {
-			defaultScName := utils.DefaultStorageClass.GetName()
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
 			// volumeMode Block, so no overhead applied
 			expectedSize := resource.MustParse("100Mi")
 
 			By(fmt.Sprintf("configure storage profile %s to volumeModeBlock", defaultScName))
-			originalProfileSpec := configureStorageProfile(f.CrClient,
+			configureStorageProfile(f.CrClient,
 				defaultScName,
 				[]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 				v1.PersistentVolumeBlock)
@@ -2005,13 +2054,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(expectedSize.Value()))
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
-
-			By("Restore the profile")
-			updateStorageProfileSpec(f.CrClient, defaultScName, *originalProfileSpec)
 		})
 
 		It("[test_id:6102]Clone pod should have size corrected on filesystem", func() {
-			defaultScName := utils.DefaultStorageClass.GetName()
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
 			// given 50 percent overhead, expected size is 2x requestedSize
