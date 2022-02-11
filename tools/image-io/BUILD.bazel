@@ -37,13 +37,15 @@ container_image(
         "//conditions:default": "amd64",
     }),
     base = ":cdi-func-test-imageio-base-image",
-    cmd = "mkdir -p /images",
     directory = "/",
     entrypoint = ["ovirt-imageio"],
     ports = [
         "12345",
     ],
-    tars = [":ovirt-imageio-conf-tar"],
+    tars = [
+        ":ovirt-imageio-conf-tar",
+        ":test-img-tar",
+    ],
     visibility = ["//visibility:public"],
 )
 
@@ -59,4 +61,11 @@ pkg_tar(
     srcs = [":ovirt-imageio-conf"],
     mode = "644",
     package_dir = "/etc/ovirt-imageio/conf.d",
+)
+
+pkg_tar(
+    name = "test-img-tar",
+    srcs = ["//:test-images"],
+    mode = "644",
+    package_dir = "/images",
 )
