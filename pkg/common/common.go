@@ -47,6 +47,8 @@ const (
 
 	// DataImportCronLabel has the name of the DataImportCron responsible for the labeled DataSource or DataVolume
 	DataImportCronLabel = CDIComponentLabel + "/dataImportCron"
+	// DataImportCronCleanupLabel tells whether to delete the resource when its DataImportCron is deleted
+	DataImportCronCleanupLabel = DataImportCronLabel + ".cleanup"
 
 	// ImporterVolumePath provides a constant for the directory where the PV is mounted.
 	ImporterVolumePath = "/data"
