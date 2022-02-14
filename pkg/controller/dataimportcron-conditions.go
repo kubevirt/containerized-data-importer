@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
@@ -35,11 +36,11 @@ const (
 
 func updateDataImportCronCondition(cron *cdiv1.DataImportCron, conditionType cdiv1.DataImportCronConditionType, status corev1.ConditionStatus, message, reason string) {
 	if conditionType == cdiv1.DataImportCronUpToDate {
+		gaugeVal := float64(0)
 		if status != corev1.ConditionTrue {
-			DataImportCronOutdatedGauge.With(getPrometheusCronLabels(cron)).Set(1)
-		} else {
-			DataImportCronOutdatedGauge.With(getPrometheusCronLabels(cron)).Set(0)
+			gaugeVal = 1
 		}
+		DataImportCronOutdatedGauge.With(getPrometheusCronLabels(types.NamespacedName{Namespace: cron.Namespace, Name: cron.Name})).Set(gaugeVal)
 	}
 	if condition := FindDataImportCronConditionByType(cron, conditionType); condition != nil {
 		updateConditionState(&condition.ConditionState, status, message, reason)
@@ -75,9 +76,9 @@ func updateConditionState(condition *cdiv1.ConditionState, status corev1.Conditi
 	}
 }
 
-func getPrometheusCronLabels(cron *cdiv1.DataImportCron) prometheus.Labels {
+func getPrometheusCronLabels(cron types.NamespacedName) prometheus.Labels {
 	return prometheus.Labels{
-		prometheusNsLabel:       cron.GetNamespace(),
-		prometheusCronNameLabel: cron.GetName(),
+		prometheusNsLabel:       cron.Namespace,
+		prometheusCronNameLabel: cron.Name,
 	}
 }
