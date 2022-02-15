@@ -912,6 +912,7 @@ http_file(
     ],
 )
 
+#imageio rpms and dependencies
 http_file(
     name = "ovirt-imageio-client",
     sha256 = "a012d8204098d992099620de1d14b423bfd179b54a618deec98cdcb37027a0cd",

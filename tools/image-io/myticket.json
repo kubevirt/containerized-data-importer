@@ -1,0 +1,6 @@
+{"uuid": "cirros",
+ "size": 46137344,
+ "url": "file:///images/cirros.raw",
+ "timeout": 30000000000000, 
+ "ops": ["read"]
+}

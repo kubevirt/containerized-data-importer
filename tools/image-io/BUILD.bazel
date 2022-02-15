@@ -45,6 +45,7 @@ container_image(
     tars = [
         ":ovirt-imageio-conf-tar",
         ":test-img-tar",
+        ":test-ticket-tar",
     ],
     visibility = ["//visibility:public"],
 )
@@ -53,6 +54,13 @@ filegroup(
     name = "ovirt-imageio-conf",
     srcs = [
         ":99-cdi.conf",
+    ],
+)
+
+filegroup(
+    name = "test-ticket",
+    srcs = [
+        ":myticket.json",
     ],
 )
 
@@ -68,4 +76,11 @@ pkg_tar(
     srcs = ["//:test-images"],
     mode = "644",
     package_dir = "/images",
+)
+
+pkg_tar(
+    name = "test-ticket-tar",
+    srcs = [":test-ticket"],
+    mode = "644",
+    package_dir = "/",
 )

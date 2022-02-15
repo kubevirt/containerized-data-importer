@@ -130,6 +130,27 @@ var _ = Describe("Test PVC annotations status", func() {
 		}, nil)
 		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
+
+	It("Should be interesting if complete, and endpoint and source is set, and multistage import not done", func() {
+		r := createImportReconciler()
+		testPvc := createPvc("testPvc1", "default", map[string]string{
+			AnnPodPhase: string(corev1.PodSucceeded),
+			AnnEndpoint: testEndPoint, AnnSource: SourceHTTP,
+			AnnCurrentCheckpoint: "test-check",
+		}, nil)
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
+	})
+
+	It("Should NOT be interesting if complete, and endpoint and source is set, and multistage import done", func() {
+		r := createImportReconciler()
+		testPvc := createPvc("testPvc1", "default", map[string]string{
+			AnnPodPhase: string(corev1.PodSucceeded),
+			AnnEndpoint: testEndPoint, AnnSource: SourceHTTP,
+			AnnCurrentCheckpoint:    "test-check",
+			AnnMultiStageImportDone: "true",
+		}, nil)
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeFalse())
+	})
 })
 
 var _ = Describe("ImportConfig Controller reconcile loop", func() {

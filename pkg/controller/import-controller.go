@@ -219,7 +219,10 @@ func (r *ImportReconciler) shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim,
 	if err != nil {
 		return false, err
 	}
-	return !isPVCComplete(pvc) &&
+	multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, AnnCurrentCheckpoint)
+	multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, AnnMultiStageImportDone)
+
+	return (!isPVCComplete(pvc) || (isPVCComplete(pvc) && multiStageImport && !multiStageAlreadyDone)) &&
 			(checkPVC(pvc, AnnEndpoint, log) || checkPVC(pvc, AnnSource, log)) &&
 			shouldHandlePvc(pvc, waitForFirstConsumerEnabled, log),
 		nil
@@ -253,11 +256,14 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 		return reconcile.Result{}, err
 	}
 	if !shouldReconcile {
-		log.V(1).Info("Should not reconcile this PVC",
+		multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, AnnCurrentCheckpoint)
+		multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, AnnMultiStageImportDone)
+
+		log.V(3).Info("Should not reconcile this PVC",
 			"pvc.annotation.phase.complete", isPVCComplete(pvc),
 			"pvc.annotations.endpoint", checkPVC(pvc, AnnEndpoint, log),
 			"pvc.annotations.source", checkPVC(pvc, AnnSource, log),
-			"isBound", isBound(pvc, log))
+			"isBound", isBound(pvc, log), "isMultistage", multiStageImport, "multiStageDone", multiStageAlreadyDone)
 		return reconcile.Result{}, nil
 	}
 
@@ -774,7 +780,7 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 			if err != nil {
 				return err
 			}
-			return errors.New("terminating scratch space found, deleted pod")
+			return fmt.Errorf("terminating scratch space found, deleting pod %s", pod.Name)
 		}
 		setBoundConditionFromPVC(anno, AnnBoundCondition, scratchPvc)
 	}
