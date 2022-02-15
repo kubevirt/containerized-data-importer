@@ -1,0 +1,2 @@
+v1.44.1:
+BugFix: Set http(s)_proxy to lower case env variable
