@@ -1,3 +1,11 @@
 v1.43.1:
 BugFix: Backport DataImportCron fixes
 BugFix: KubePersistentVolumeFillingUp Firing for VM disk Filesystem PVCs
+
+v.1.43.2:
+BugFix: Clone with volume mode file system using Storage API fails
+BugFix: Set http(s)_proxy to lower case env variable
+BugFix: Fix CRDs deletion in operator deletion
+Enhancement: Add DataImportCron ImageStream tag support
+Enhancement: Allow optional per-DataVolume VDDK image
+BugFix: Get rid of DataImportCron finalizer
