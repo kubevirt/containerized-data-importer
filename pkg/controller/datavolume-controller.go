@@ -22,7 +22,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"math"
 	"net/http"
 	"reflect"
@@ -30,6 +29,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
@@ -847,18 +848,13 @@ func (r *DatavolumeReconciler) reconcileSmartClonePvc(log logr.Logger,
 		}
 
 		if err := r.client.Create(context.TODO(), newSnapshot); err != nil {
-			if k8serrors.IsAlreadyExists(err) {
-				return reconcile.Result{}, nil
+			if !k8serrors.IsAlreadyExists(err) {
+				return reconcile.Result{}, err
 			}
-
-			return reconcile.Result{}, err
 		}
-
-		return reconcile.Result{},
-			r.updateCloneStatusPhase(cdiv1.SnapshotForSmartCloneInProgress, datavolume, nil, SmartClone)
 	}
 
-	return reconcile.Result{}, nil
+	return reconcile.Result{}, r.updateCloneStatusPhase(cdiv1.SnapshotForSmartCloneInProgress, datavolume, nil, SmartClone)
 }
 
 func (r *DatavolumeReconciler) doCrossNamespaceClone(log logr.Logger,
