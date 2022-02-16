@@ -9,9 +9,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const keyDescribePrefix = "container-registry-login:"
+// NOTE: none of the functions here are currently used.  If we ever want to
+// re-enable keyring support, we should introduce a similar built-in credential
+// helpers as for `sysregistriesv2.AuthenticationFileHelper`.
 
-func getAuthFromKernelKeyring(registry string) (string, string, error) {
+const keyDescribePrefix = "container-registry-login:" //nolint:deadcode,unused
+
+func getAuthFromKernelKeyring(registry string) (string, string, error) { //nolint:deadcode,unused
 	userkeyring, err := keyctl.UserKeyring()
 	if err != nil {
 		return "", "", err
@@ -31,7 +35,7 @@ func getAuthFromKernelKeyring(registry string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-func deleteAuthFromKernelKeyring(registry string) error {
+func deleteAuthFromKernelKeyring(registry string) error { //nolint:deadcode,unused
 	userkeyring, err := keyctl.UserKeyring()
 
 	if err != nil {
@@ -44,7 +48,7 @@ func deleteAuthFromKernelKeyring(registry string) error {
 	return key.Unlink()
 }
 
-func removeAllAuthFromKernelKeyring() error {
+func removeAllAuthFromKernelKeyring() error { //nolint:deadcode,unused
 	keys, err := keyctl.ReadUserKeyring()
 	if err != nil {
 		return err
@@ -63,13 +67,13 @@ func removeAllAuthFromKernelKeyring() error {
 		// split string "type;uid;gid;perm;description"
 		keyAttrs := strings.SplitN(keyAttr, ";", 5)
 		if len(keyAttrs) < 5 {
-			return errors.Errorf("Key attributes of %d are not avaliable", k.ID())
+			return errors.Errorf("Key attributes of %d are not available", k.ID())
 		}
 		keyDescribe := keyAttrs[4]
 		if strings.HasPrefix(keyDescribe, keyDescribePrefix) {
 			err := keyctl.Unlink(userkeyring, k)
 			if err != nil {
-				return errors.Wrapf(err, "error unlinking key %d", k.ID())
+				return errors.Wrapf(err, "unlinking key %d", k.ID())
 			}
 			logrus.Debugf("unlinked key %d:%s", k.ID(), keyAttr)
 		}
@@ -77,7 +81,7 @@ func removeAllAuthFromKernelKeyring() error {
 	return nil
 }
 
-func setAuthToKernelKeyring(registry, username, password string) error {
+func setAuthToKernelKeyring(registry, username, password string) error { //nolint:deadcode,unused
 	keyring, err := keyctl.SessionKeyring()
 	if err != nil {
 		return err
@@ -96,20 +100,20 @@ func setAuthToKernelKeyring(registry, username, password string) error {
 	// link the key to userKeyring
 	userKeyring, err := keyctl.UserKeyring()
 	if err != nil {
-		return errors.Wrapf(err, "error getting user keyring")
+		return errors.Wrapf(err, "getting user keyring")
 	}
 	err = keyctl.Link(userKeyring, id)
 	if err != nil {
-		return errors.Wrapf(err, "error linking the key to user keyring")
+		return errors.Wrapf(err, "linking the key to user keyring")
 	}
 	// unlink the key from session keyring
 	err = keyctl.Unlink(keyring, id)
 	if err != nil {
-		return errors.Wrapf(err, "error unlinking the key from session keyring")
+		return errors.Wrapf(err, "unlinking the key from session keyring")
 	}
 	return nil
 }
 
-func genDescription(registry string) string {
+func genDescription(registry string) string { //nolint:deadcode,unused
 	return fmt.Sprintf("%s%s", keyDescribePrefix, registry)
 }

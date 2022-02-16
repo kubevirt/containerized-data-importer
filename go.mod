@@ -5,8 +5,7 @@ go 1.16
 require (
 	github.com/appscode/jsonpatch v0.0.0-20190108182946-7c0e3b262f30
 	github.com/aws/aws-sdk-go v1.25.48
-	github.com/containers/image/v5 v5.5.1
-	github.com/containers/storage v1.32.4 // indirect
+	github.com/containers/image/v5 v5.19.1
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/prometheus-operator v0.38.1-0.20200424145508-7e176fda06cc
 	github.com/docker/go-units v0.4.0
@@ -24,7 +23,6 @@ require (
 	github.com/mrnold/go-libnbd v1.4.1-cdi
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.17.0
-	github.com/opencontainers/runc v1.0.3 // indirect
 	github.com/openshift/api v0.0.0
 	github.com/openshift/client-go v0.0.0
 	github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca
@@ -39,7 +37,7 @@ require (
 	github.com/rs/cors v1.7.0
 	github.com/ulikunitz/xz v0.5.10
 	github.com/vmware/govmomi v0.23.1
-	golang.org/x/sys v0.0.0-20211029165221-6e7872819dc8
+	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/square/go-jose.v2 v2.5.1
 	k8s.io/api v0.23.0
