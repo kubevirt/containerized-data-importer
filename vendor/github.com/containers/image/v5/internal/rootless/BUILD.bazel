@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["rootless.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/internal/rootless",
+    importpath = "github.com/containers/image/v5/internal/rootless",
+    visibility = ["//vendor/github.com/containers/image/v5:__subpackages__"],
+)

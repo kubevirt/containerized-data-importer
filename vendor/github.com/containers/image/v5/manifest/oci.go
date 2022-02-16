@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/containers/image/v5/pkg/compression"
+	compressiontypes "github.com/containers/image/v5/pkg/compression/types"
 	"github.com/containers/image/v5/types"
 	ociencspec "github.com/containers/ocicrypt/spec"
 	"github.com/opencontainers/go-digest"
@@ -54,6 +54,10 @@ func OCI1FromManifest(manifest []byte) (*OCI1, error) {
 	if err := json.Unmarshal(manifest, &oci1); err != nil {
 		return nil, err
 	}
+	if err := validateUnambiguousManifestFormat(manifest, imgspecv1.MediaTypeImageIndex,
+		allowedFieldConfig|allowedFieldLayers); err != nil {
+		return nil, err
+	}
 	return &oci1, nil
 }
 
@@ -62,6 +66,7 @@ func OCI1FromComponents(config imgspecv1.Descriptor, layers []imgspecv1.Descript
 	return &OCI1{
 		imgspecv1.Manifest{
 			Versioned: specs.Versioned{SchemaVersion: 2},
+			MediaType: imgspecv1.MediaTypeImageManifest,
 			Config:    config,
 			Layers:    layers,
 		},
@@ -96,18 +101,20 @@ func (m *OCI1) LayerInfos() []LayerInfo {
 
 var oci1CompressionMIMETypeSets = []compressionMIMETypeSet{
 	{
-		mtsUncompressed:         imgspecv1.MediaTypeImageLayerNonDistributable,
-		compression.Gzip.Name(): imgspecv1.MediaTypeImageLayerNonDistributableGzip,
-		compression.Zstd.Name(): imgspecv1.MediaTypeImageLayerNonDistributableZstd,
+		mtsUncompressed:                    imgspecv1.MediaTypeImageLayerNonDistributable,
+		compressiontypes.GzipAlgorithmName: imgspecv1.MediaTypeImageLayerNonDistributableGzip,
+		compressiontypes.ZstdAlgorithmName: imgspecv1.MediaTypeImageLayerNonDistributableZstd,
 	},
 	{
-		mtsUncompressed:         imgspecv1.MediaTypeImageLayer,
-		compression.Gzip.Name(): imgspecv1.MediaTypeImageLayerGzip,
-		compression.Zstd.Name(): imgspecv1.MediaTypeImageLayerZstd,
+		mtsUncompressed:                    imgspecv1.MediaTypeImageLayer,
+		compressiontypes.GzipAlgorithmName: imgspecv1.MediaTypeImageLayerGzip,
+		compressiontypes.ZstdAlgorithmName: imgspecv1.MediaTypeImageLayerZstd,
 	},
 }
 
 // UpdateLayerInfos replaces the original layers with the specified BlobInfos (size+digest+urls+mediatype), in order (the root layer first, and then successive layered layers)
+// The returned error will be a manifest.ManifestLayerCompressionIncompatibilityError if any of the layerInfos includes a combination of CompressionOperation and
+// CompressionAlgorithm that isn't supported by OCI.
 func (m *OCI1) UpdateLayerInfos(layerInfos []types.BlobInfo) error {
 	if len(m.Layers) != len(layerInfos) {
 		return errors.Errorf("Error preparing updated manifest: layer count changed from %d to %d", len(m.Layers), len(layerInfos))
@@ -125,7 +132,7 @@ func (m *OCI1) UpdateLayerInfos(layerInfos []types.BlobInfo) error {
 		}
 		mimeType, err := updatedMIMEType(oci1CompressionMIMETypeSets, mimeType, info)
 		if err != nil {
-			return errors.Wrapf(err, "Error preparing updated manifest, layer %q", info.Digest)
+			return errors.Wrapf(err, "preparing updated manifest, layer %q", info.Digest)
 		}
 		if info.CryptoOperation == types.Encrypt {
 			encMediaType, err := getEncryptedMediaType(mimeType)
