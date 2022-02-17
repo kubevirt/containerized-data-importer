@@ -219,7 +219,10 @@ func (r *ImportReconciler) shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim,
 	if err != nil {
 		return false, err
 	}
-	return !isPVCComplete(pvc) &&
+	multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, AnnCurrentCheckpoint)
+	multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, AnnMultiStageImportDone)
+
+	return (!isPVCComplete(pvc) || (isPVCComplete(pvc) && multiStageImport && !multiStageAlreadyDone)) &&
 			(checkPVC(pvc, AnnEndpoint, log) || checkPVC(pvc, AnnSource, log)) &&
 			shouldHandlePvc(pvc, waitForFirstConsumerEnabled, log),
 		nil
@@ -253,11 +256,14 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 		return reconcile.Result{}, err
 	}
 	if !shouldReconcile {
-		log.V(1).Info("Should not reconcile this PVC",
+		multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, AnnCurrentCheckpoint)
+		multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, AnnMultiStageImportDone)
+
+		log.V(3).Info("Should not reconcile this PVC",
 			"pvc.annotation.phase.complete", isPVCComplete(pvc),
 			"pvc.annotations.endpoint", checkPVC(pvc, AnnEndpoint, log),
 			"pvc.annotations.source", checkPVC(pvc, AnnSource, log),
-			"isBound", isBound(pvc, log))
+			"isBound", isBound(pvc, log), "isMultistage", multiStageImport, "multiStageDone", multiStageAlreadyDone)
 		return reconcile.Result{}, nil
 	}
 
@@ -526,22 +532,6 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		priorityClassName: getPriorityClass(pvc),
 	}
 
-	// Check for old terminating scratch spaces, this can happen in warm migration scenarios where the scratch
-	// space for a previous pod has not been deleted yet. In that case check if the scratch PVC is terminating
-	// before creating the new importer pod. This should give the PVC time to get deleted.
-	if requiresScratch && podArgs.scratchPvcName != nil {
-		r.log.V(1).Info("Checking for old scratch pvcs")
-		scratchPvc := &corev1.PersistentVolumeClaim{}
-		err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: pvc.GetNamespace(), Name: *podArgs.scratchPvcName}, scratchPvc)
-		if IgnoreNotFound(err) != nil {
-			return err
-		}
-		if scratchPvc.DeletionTimestamp != nil {
-			// Old scratch space with same name is still being cleaned up, return error.
-			return errors.New("Waiting for scratch space to be deleted")
-		}
-	}
-
 	pod, err := createImporterPod(r.log, r.client, podArgs, r.installerLabels)
 	if err != nil {
 		return err
@@ -782,6 +772,16 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 		anno[AnnBoundConditionMessage] = "Creating scratch space"
 		anno[AnnBoundConditionReason] = creatingScratch
 	} else {
+		if scratchPvc.DeletionTimestamp != nil {
+			// Delete the pod since we are in a deadlock situation now. The scratch PVC from the previous import is not gone
+			// yet but terminating, and the new pod is still being created and the scratch PVC now has a finalizer on it.
+			// Only way to break it, is to delete the importer pod, and give the pvc a chance to disappear.
+			err = r.client.Delete(context.TODO(), pod)
+			if err != nil {
+				return err
+			}
+			return fmt.Errorf("terminating scratch space found, deleting pod %s", pod.Name)
+		}
 		setBoundConditionFromPVC(anno, AnnBoundCondition, scratchPvc)
 	}
 	anno[AnnRequiresScratch] = "false"

@@ -773,7 +773,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.PEntry("[test_id:3937]succeed creating warm import dv from imageio source", dataVolumeTestArguments{
+			table.Entry("[test_id:3937]succeed creating warm import dv from imageio source", dataVolumeTestArguments{
+				// The final snapshot importer pod will give an error due to the static response from the fake imageio
+				// it returns the previous snapshot data, which will fail the commit to the target image.
+				// the importer pod will restart and then succeed because the fake imageio now sends the
+				// right data. This is normal.
 				name:             "dv-imageio-test",
 				size:             "1Gi",
 				url:              imageioURL,

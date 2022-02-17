@@ -450,8 +450,8 @@ func postInventoryStubs(f *framework.Framework, pod *v1.Pod, stubs *bytes.Buffer
 func copyDiskImage(f *framework.Framework, pod *v1.Pod, name string) {
 	path := getSnapshotPath(name)
 	dest := fmt.Sprintf("%s:/images/%s", pod.Name, name)
-	_, err := RunKubectlCommand(f, "cp", "-n", pod.Namespace, "-c", "imageiotest", path, dest)
-	gomega.Expect(err).To(gomega.BeNil())
+	out, err := RunKubectlCommand(f, "cp", "-n", pod.Namespace, "-c", "imageiotest", path, dest)
+	gomega.Expect(err).To(gomega.BeNil(), fmt.Sprintf("%s", out))
 }
 
 // Add ticket to imageiotest API, so importer can download it
@@ -474,7 +474,7 @@ func addTicket(f *framework.Framework, pod *v1.Pod, snapshot imageIoDiskSnapshot
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Post to API in imageiotest container
-	command := CreateKubectlCommand(f, "exec", "-i", "-n", pod.Namespace, pod.Name, "-c", "imageiotest", "--", "/usr/bin/curl", "-s", "--unix-socket", "/ovirt-imageio/daemon/test/daemon.sock", "-X", "PUT", "-d", "@-", fmt.Sprintf("http://localhost:12345/tickets/%s", snapshot.SnapshotID))
+	command := CreateKubectlCommand(f, "exec", "-i", "-n", pod.Namespace, pod.Name, "-c", "imageiotest", "--", "/usr/bin/curl", "-s", "--unix-socket", "/tmp/daemon.sock", "-X", "PUT", "-d", "@-", fmt.Sprintf("http://localhost:12345/tickets/%s", snapshot.SnapshotID))
 	command.Stdin = ticketBytes
 	command.Stdout = os.Stdout
 	command.Stderr = command.Stdout
