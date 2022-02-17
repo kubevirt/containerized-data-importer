@@ -12,6 +12,7 @@ go_library(
     deps = [
         "//vendor/github.com/containers/image/v5/pkg/compression/internal:go_default_library",
         "//vendor/github.com/containers/image/v5/pkg/compression/types:go_default_library",
+        "//vendor/github.com/containers/storage/pkg/chunked/compressor:go_default_library",
         "//vendor/github.com/klauspost/compress/zstd:go_default_library",
         "//vendor/github.com/klauspost/pgzip:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",

@@ -11,10 +11,13 @@ go_library(
     importpath = "github.com/containers/image/v5/pkg/docker/config",
     visibility = ["//visibility:public"],
     deps = [
+        "//vendor/github.com/containers/image/v5/docker/reference:go_default_library",
+        "//vendor/github.com/containers/image/v5/pkg/sysregistriesv2:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",
+        "//vendor/github.com/containers/storage/pkg/homedir:go_default_library",
         "//vendor/github.com/docker/docker-credential-helpers/client:go_default_library",
         "//vendor/github.com/docker/docker-credential-helpers/credentials:go_default_library",
-        "//vendor/github.com/docker/docker/pkg/homedir:go_default_library",
+        "//vendor/github.com/hashicorp/go-multierror:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/github.com/sirupsen/logrus:go_default_library",
     ] + select({
