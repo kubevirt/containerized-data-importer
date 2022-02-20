@@ -119,6 +119,7 @@ func BuildTestSuite() {
 	AfterSuite(func() {
 		Eventually(func() []corev1.Namespace {
 			nsList, _ := utils.GetTestNamespaceList(framework.ClientsInstance.K8sClient, framework.NsPrefixLabel)
+			fmt.Fprintf(ginkgo.GinkgoWriter, "DEBUG: AfterSuite nsList: %v\n", nsList.Items)
 			return nsList.Items
 		}, nsDeletedTimeout, pollInterval).Should(BeEmpty())
 	})

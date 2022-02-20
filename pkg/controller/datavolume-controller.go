@@ -847,9 +847,18 @@ func (r *DatavolumeReconciler) reconcileSmartClonePvc(log logr.Logger,
 				r.updateCloneStatusPhase(cdiv1.CloneScheduled, datavolume, nil, SmartClone)
 		}
 
-		if err := r.client.Create(context.TODO(), newSnapshot); err != nil {
-			if !k8serrors.IsAlreadyExists(err) {
+		targetPvc := &corev1.PersistentVolumeClaim{}
+		if err := r.client.Get(context.TODO(), nn, targetPvc); err != nil {
+			if !k8serrors.IsNotFound(err) {
 				return reconcile.Result{}, err
+			}
+
+			if err := r.client.Create(context.TODO(), newSnapshot); err != nil {
+				if !k8serrors.IsAlreadyExists(err) {
+					return reconcile.Result{}, err
+				}
+			} else {
+				r.log.V(1).Info("snapshot created successfully", "snapshot.Namespace", newSnapshot.Namespace, "snapshot.Name", newSnapshot.Name)
 			}
 		}
 	}
