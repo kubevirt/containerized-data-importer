@@ -23,8 +23,8 @@ function configure_storage() {
     echo "Installing hostpath provisioner storage"
     configure_hpp
   elif [[ $KUBEVIRT_STORAGE == "nfs" ]] ; then
-    echo "Installing NFS static storage"
-    configure_nfs
+    echo "Installing NFS CSI dynamic storage"
+    configure_nfs_csi
   elif [[ $KUBEVIRT_STORAGE == "ember_lvm" ]] ; then
     echo "Installing ember csi lvm storage"
     configure_ember_lvm

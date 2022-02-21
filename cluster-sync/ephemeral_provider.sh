@@ -91,6 +91,11 @@ function configure_nfs() {
   _kubectl patch storageclass nfs -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
 }
 
+function configure_nfs_csi() {
+  #Configure dynamic NFS provisioner which is deployed by kubevirtci (https://github.com/kubernetes-csi/csi-driver-nfs)
+  _kubectl patch storageclass nfs-csi -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+}
+
 function configure_ember_lvm() {
   _kubectl apply -f ./cluster-sync/external-snapshotter
 

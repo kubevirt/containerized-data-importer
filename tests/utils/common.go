@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -131,19 +132,32 @@ func CacheTestsData(client *kubernetes.Clientset, cdiNs string) {
 }
 
 func getNfsService(client *kubernetes.Clientset, cdiNs string) *corev1.Service {
-	service, err := client.CoreV1().Services(cdiNs).Get(context.TODO(), "nfs-service", metav1.GetOptions{})
-	if err != nil {
-		return nil
+	for _, ns := range []string{cdiNs, "nfs-csi"} {
+		service, err := client.CoreV1().Services(ns).Get(context.TODO(), "nfs-service", metav1.GetOptions{})
+		if err == nil {
+			return service
+		}
 	}
-	return service
+	return nil
 }
 
-// IsNfs returns true if the default storage class is the static nfs storage class with no provisioner
+// IsNfs returns true if any type of nfs (static/dynamic-csi) is the default storage class
 func IsNfs() bool {
-	if NfsService == nil {
+	if DefaultStorageClass == nil {
 		return false
 	}
-	return true
+	return strings.Contains(DefaultStorageClass.GetName(), "nfs")
+}
+
+// IsStaticNfs returns true if the default storage class is the static nfs storage class with no provisioner
+func IsStaticNfs() bool {
+	return IsNfs() && DefaultStorageClass.Provisioner == "kubernetes.io/no-provisioner"
+}
+
+// IsStaticNfsWithInternalClusterServer returns true if the default storage class is the static nfs storage class with no provisioner
+// and the NFS server is running inside the cluster (as opposed to external)
+func IsStaticNfsWithInternalClusterServer() bool {
+	return IsStaticNfs() && NfsService != nil
 }
 
 // UpdateCDIConfigWithOptions updates CDIConfig with specific UpdateOptions
