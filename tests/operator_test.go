@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"reflect"
 	"strconv"
 	"time"
@@ -1002,6 +1003,31 @@ var _ = Describe("ALL Operator tests", func() {
 					Eventually(func() int {
 						return getMetricValue("kubevirt_cdi_dataimportcron_outdated_total")
 					}, 3*time.Minute, 1*time.Second).Should(BeNumerically("==", expectedFailingCrons-i))
+				}
+			})
+
+			It("[test_id:8259] Alerts runbooks should have available URLs", func() {
+				promRule := &promv1.PrometheusRule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "prometheus-cdi-rules",
+						Namespace: f.CdiInstallNs,
+					},
+				}
+				err := f.CrClient.Get(context.TODO(), crclient.ObjectKeyFromObject(promRule), promRule)
+				Expect(err).ToNot(HaveOccurred())
+				for _, group := range promRule.Spec.Groups {
+					if group.Name == "cdi.rules" {
+						for _, rule := range group.Rules {
+							if len(rule.Alert) > 0 {
+								Expect(rule.Annotations).ToNot(BeNil())
+								url, ok := rule.Annotations["runbook_url"]
+								Expect(ok).To(BeTrue())
+								resp, err := http.Head(url)
+								Expect(err).ToNot(HaveOccurred())
+								Expect(resp.StatusCode).Should(Equal(http.StatusOK))
+							}
+						}
+					}
 				}
 			})
 		})
