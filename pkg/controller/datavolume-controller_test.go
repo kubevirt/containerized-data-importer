@@ -552,6 +552,63 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(dv.Status.Phase).To(Equal(cdiv1.SnapshotForSmartCloneInProgress))
 		})
 
+		It("Should not recreate snpashot that was cleaned-up", func() {
+			dv := newCloneDataVolume("test-dv")
+			scName := "testsc"
+			sc := createStorageClassWithProvisioner(scName, map[string]string{
+				AnnDefaultStorageClass: "true",
+			}, "csi-plugin")
+			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, blockMode)
+
+			dv.Spec.PVC.StorageClassName = &scName
+			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			expectedSnapshotClass := "snap-class"
+			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
+			reconciler := createDatavolumeReconciler(sc, sp, dv, pvc, snapClass)
+			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			By("Verifying that snapshot now exists and phase is snapshot in progress")
+			snap := &snapshotv1.VolumeSnapshot{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}, snap)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(snap.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(cdiv1.SnapshotForSmartCloneInProgress))
+
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("persistentvolumeclaims \"test-dv\" not found"))
+			// Create smart clone PVC ourselves and delete snapshot (do smart clone controller's job)
+			// Shouldn't see a recreated snapshot as it was legitimately cleaned up
+			targetPvc := createPvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			controller := true
+			targetPvc.OwnerReferences = append(targetPvc.OwnerReferences, metav1.OwnerReference{
+				Kind:       "DataVolume",
+				Controller: &controller,
+				Name:       "test-dv",
+				UID:        dv.UID,
+			})
+			err = reconciler.client.Create(context.TODO(), targetPvc)
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, targetPvc)
+			Expect(err).ToNot(HaveOccurred())
+			// Smart clone target PVC is done (bound), cleaning up snapshot
+			err = reconciler.client.Delete(context.TODO(), snap)
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}, snap)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("volumesnapshots.snapshot.storage.k8s.io \"test-dv\" not found"))
+			// Reconcile and check it wasn't recreated
+			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}, snap)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("volumesnapshots.snapshot.storage.k8s.io \"test-dv\" not found"))
+		})
+
 		It("Should do nothing when smart clone with namespace transfer and not target found", func() {
 			dv := newCloneDataVolume("test-dv")
 			scName := "testsc"
