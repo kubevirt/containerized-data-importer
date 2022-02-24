@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -208,7 +209,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(err).ToNot(HaveOccurred())
 		}
 
-		By("Creating PVC with upload target annotation and archive context-type")
+		By("Creating PVC with upload target annotation and archive content-type")
 		archivePVC, err = f.CreateBoundPVCFromDefinition(utils.UploadArchivePVCDefinition())
 		Expect(err).ToNot(HaveOccurred())
 
@@ -242,7 +243,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 			By("Verify content")
 			for file, expectedMd5 := range filesToUpload {
-				pathInPvc := utils.DefaultPvcMountPath + "/" + file
+				pathInPvc := filepath.Join(utils.DefaultPvcMountPath, file)
 				same, err := f.VerifyTargetPVCContentMD5(f.Namespace, archivePVC, pathInPvc, expectedMd5)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(same).To(BeTrue())
