@@ -75,6 +75,7 @@ test-functional: build-functest
 test-lint:
 	${DO_BAZ} "./hack/build/run-lint-checks.sh"
 	"./hack/ci/language.sh"
+	"./hack/ci/duplicate-sha256.sh"
 
 docker-registry-cleanup:
 	./hack/build/cleanup_docker.sh
