@@ -88,10 +88,9 @@ var _ = Describe("DataImportCron", func() {
 				cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				condProgressing := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronProgressing)
-				Expect(condProgressing).ToNot(BeNil())
 				condUpToDate := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
-				Expect(condUpToDate).ToNot(BeNil())
-				return condProgressing.Status == statusProgressing && condUpToDate.Status == statusUpToDate
+				return condProgressing != nil && condProgressing.Status == statusProgressing &&
+					condUpToDate != nil && condUpToDate.Status == statusUpToDate
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 		}
 
