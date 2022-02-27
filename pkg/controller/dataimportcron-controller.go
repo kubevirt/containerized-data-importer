@@ -250,17 +250,17 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	dataImportCron.Status.LastExecutionTimestamp = &now
 
 	importSucceeded := false
-	imports := &dataImportCron.Status.CurrentImports
+	imports := dataImportCron.Status.CurrentImports
 	dataVolume := &cdiv1.DataVolume{}
 	dvFound := false
-	if *imports != nil {
+	if len(imports) > 0 {
 		// Get the currently imported DataVolume
-		if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: (*imports)[0].DataVolumeName}, dataVolume); err != nil {
+		if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: imports[0].DataVolumeName}, dataVolume); err != nil {
 			if !k8serrors.IsNotFound(err) {
 				return res, err
 			}
-			log.Info("DataVolume not found, removing from current imports", "name", (*imports)[0].DataVolumeName)
-			*imports = (*imports)[1:]
+			log.Info("DataVolume not found, removing from current imports", "name", imports[0].DataVolumeName)
+			dataImportCron.Status.CurrentImports = imports[1:]
 		} else {
 			dvFound = true
 		}
@@ -302,7 +302,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	}
 
 	desiredDigest := dataImportCron.Annotations[AnnSourceDesiredDigest]
-	digestUpdated := desiredDigest != "" && (len(*imports) == 0 || desiredDigest != (*imports)[0].Digest)
+	digestUpdated := desiredDigest != "" && (len(imports) == 0 || desiredDigest != imports[0].Digest)
 	if digestUpdated {
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Source digest updated since last import", outdated)
 		if dvFound {
@@ -310,14 +310,14 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 				return res, err
 			}
 		}
-		if importSucceeded || len(*imports) == 0 {
+		if importSucceeded || len(imports) == 0 {
 			if err := r.createImportDataVolume(ctx, dataImportCron); err != nil {
 				return res, err
 			}
 		}
 	} else if importSucceeded {
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionTrue, "Latest import is up to date", upToDate)
-	} else if len(*imports) > 0 {
+	} else if len(imports) > 0 {
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Import is progressing", inProgress)
 	} else {
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "No source digest", noDigest)
