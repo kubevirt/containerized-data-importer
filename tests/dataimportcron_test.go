@@ -72,7 +72,7 @@ var _ = Describe("DataImportCron", func() {
 		if schedule == scheduleEveryMinute {
 			By("Verify cronjob was created")
 			Eventually(func() bool {
-				_, err = f.K8sClient.BatchV1beta1().CronJobs(f.CdiInstallNs).Get(context.TODO(), controller.GetCronJobName(cron), metav1.GetOptions{})
+				_, err = f.K8sClient.BatchV1().CronJobs(f.CdiInstallNs).Get(context.TODO(), controller.GetCronJobName(cron), metav1.GetOptions{})
 				if errors.IsNotFound(err) {
 					return false
 				}
@@ -243,7 +243,7 @@ var _ = Describe("DataImportCron", func() {
 		cronJobName := controller.GetCronJobName(cron)
 		jobName := ""
 		Eventually(func() string {
-			cronjob, _ := f.K8sClient.BatchV1beta1().CronJobs(f.CdiInstallNs).Get(context.TODO(), cronJobName, metav1.GetOptions{})
+			cronjob, _ := f.K8sClient.BatchV1().CronJobs(f.CdiInstallNs).Get(context.TODO(), cronJobName, metav1.GetOptions{})
 			if cronjob != nil && len(cronjob.Status.Active) > 0 {
 				jobName = cronjob.Status.Active[0].Name
 			}
@@ -268,7 +268,7 @@ var _ = Describe("DataImportCron", func() {
 
 		By("Verify cronjob deleted")
 		Eventually(func() bool {
-			_, err := f.K8sClient.BatchV1beta1().CronJobs(f.CdiInstallNs).Get(context.TODO(), cronJobName, metav1.GetOptions{})
+			_, err := f.K8sClient.BatchV1().CronJobs(f.CdiInstallNs).Get(context.TODO(), cronJobName, metav1.GetOptions{})
 			return errors.IsNotFound(err)
 		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
 
