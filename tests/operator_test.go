@@ -483,10 +483,11 @@ var _ = Describe("ALL Operator tests", func() {
 
 				removeCDI()
 
-				By("Verify no DataImportCrons are found as CRDs and cdi-deployment are gone")
-				_, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
-				Expect(err).To(HaveOccurred())
-				Expect(errors.IsNotFound(err)).To(BeTrue())
+				By("Verify no DataImportCrons are found")
+				Eventually(func() bool {
+					_, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
+					return err != nil && errors.IsNotFound(err)
+				}, 1*time.Minute, 2*time.Second).Should(BeTrue())
 
 				By("Verify no cronjobs left")
 				Eventually(func() bool {

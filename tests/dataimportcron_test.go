@@ -125,20 +125,19 @@ var _ = Describe("DataImportCron", func() {
 					By("Delete last import DV")
 					err = f.CdiClient.CdiV1beta1().DataVolumes(ns).Delete(context.TODO(), currentImportDv, metav1.DeleteOptions{})
 					Expect(err).ToNot(HaveOccurred())
+					lastImportDv = ""
 
-					By("Wait for no CurrentImports")
+					By("Wait for non-empty desired digest")
 					Eventually(func() bool {
 						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
 						Expect(err).ToNot(HaveOccurred())
-						return len(cron.Status.CurrentImports) == 0
+						return cron.Annotations[controller.AnnSourceDesiredDigest] != ""
 					}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
-					lastImportDv = ""
 				}
 			}
 
 			waitForConditions(corev1.ConditionFalse, corev1.ConditionTrue)
-			By("Verify DesiredDigest and CurrentImports update")
-			Expect(cron.Annotations[controller.AnnSourceDesiredDigest]).ToNot(BeEmpty())
+			By("Verify CurrentImports update")
 			currentImportDv = cron.Status.CurrentImports[0].DataVolumeName
 			Expect(currentImportDv).ToNot(BeEmpty())
 			Expect(currentImportDv).ToNot(Equal(lastImportDv))
