@@ -916,55 +916,37 @@ http_file(
 http_file(
     name = "ovirt-imageio-client",
     sha256 = "a012d8204098d992099620de1d14b423bfd179b54a618deec98cdcb37027a0cd",
-    urls = [
-        "https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/fedora-34-x86_64/03380475-ovirt-imageio/ovirt-imageio-client-2.4.1-0.202202080814.git10cee74.fc34.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/a012d8204098d992099620de1d14b423bfd179b54a618deec98cdcb37027a0cd",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/a012d8204098d992099620de1d14b423bfd179b54a618deec98cdcb37027a0cd"],
 )
 
 http_file(
     name = "ovirt-imageio-client-aarch64",
     sha256 = "a012d8204098d992099620de1d14b423bfd179b54a618deec98cdcb37027a0cd",
-    urls = [
-        "https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/fedora-34-aarch64/03380475-ovirt-imageio/ovirt-imageio-client-2.4.1-0.202202080814.git10cee74.fc34.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/a012d8204098d992099620de1d14b423bfd179b54a618deec98cdcb37027a0cd",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/a012d8204098d992099620de1d14b423bfd179b54a618deec98cdcb37027a0cd"],
 )
 
 http_file(
     name = "ovirt-imageio-common",
     sha256 = "91b4e27378d7c66bc3fd9065e7390cdc969ad46de2ff9b669cbac3b02eb036ce",
-    urls = [
-        "https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/fedora-34-x86_64/03380475-ovirt-imageio/ovirt-imageio-common-2.4.1-0.202202080814.git10cee74.fc34.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/91b4e27378d7c66bc3fd9065e7390cdc969ad46de2ff9b669cbac3b02eb036ce",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/91b4e27378d7c66bc3fd9065e7390cdc969ad46de2ff9b669cbac3b02eb036ce"],
 )
 
 http_file(
     name = "ovirt-imageio-common-aarch64",
     sha256 = "a6f78aff23fbc6b1f68cea041144da7a6a830b7a9922bf13a140db5c1376b55c",
-    urls = [
-        "https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/fedora-34-aarch64/03380475-ovirt-imageio/ovirt-imageio-common-2.4.1-0.202202080814.git10cee74.fc34.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/a6f78aff23fbc6b1f68cea041144da7a6a830b7a9922bf13a140db5c1376b55c",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/a6f78aff23fbc6b1f68cea041144da7a6a830b7a9922bf13a140db5c1376b55c"],
 )
 
 http_file(
     name = "ovirt-imageio-daemon",
     sha256 = "abbf056b5ef3a27e7485966959651d56e4c34c853782a8f4726cfc73e11bda77",
-    urls = [
-        "https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/fedora-34-x86_64/03380475-ovirt-imageio/ovirt-imageio-daemon-2.4.1-0.202202080814.git10cee74.fc34.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/abbf056b5ef3a27e7485966959651d56e4c34c853782a8f4726cfc73e11bda77",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/abbf056b5ef3a27e7485966959651d56e4c34c853782a8f4726cfc73e11bda77"],
 )
 
 http_file(
     name = "ovirt-imageio-daemon-aarch64",
     sha256 = "5cc941ed70952899802026a896e946736f6e3f18d3542cfc55699a06a3b42aa9",
-    urls = [
-        "https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/fedora-34-aarch64/03380475-ovirt-imageio/ovirt-imageio-daemon-2.4.1-0.202202080814.git10cee74.fc34.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/5cc941ed70952899802026a896e946736f6e3f18d3542cfc55699a06a3b42aa9",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/5cc941ed70952899802026a896e946736f6e3f18d3542cfc55699a06a3b42aa9"],
 )
 
 http_file(
