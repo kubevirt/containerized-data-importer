@@ -41,6 +41,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -55,6 +56,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )
 
 const (
@@ -242,7 +244,6 @@ func getCronRegistrySource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourceR
 	return source.Registry, nil
 }
 
-// FIXME: refactor and adapt for concurrent imports
 func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
 	log := r.log.WithName("update")
 	res := reconcile.Result{}
@@ -863,17 +864,17 @@ func createDvName(prefix, digest string) (string, error) {
 	if len(digest) < toIdx {
 		return "", errors.Errorf("Digest is too short")
 	}
-	return prefix + "-" + digest[fromIdx:toIdx], nil
+	return naming.GetResourceName(prefix, digest[fromIdx:toIdx]), nil
 }
 
 // GetCronJobName get CronJob name based on cron name and UID
 func GetCronJobName(cron *cdiv1.DataImportCron) string {
-	return cron.Name + "-" + string(cron.UID)[:cronJobUIDSuffixLength]
+	return naming.GetResourceName(cron.Name, string(cron.UID)[:cronJobUIDSuffixLength])
 }
 
 // GetInitialJobName get initial job name based on cron name and UID
 func GetInitialJobName(cron *cdiv1.DataImportCron) string {
-	return "initial-job-" + GetCronJobName(cron)
+	return naming.GetResourceName("initial-job", GetCronJobName(cron))
 }
 
 func getSelector(matchLabels map[string]string) (labels.Selector, error) {
@@ -881,5 +882,10 @@ func getSelector(matchLabels map[string]string) (labels.Selector, error) {
 }
 
 func getCronJobLabelValue(cronNamespace, cronName string) string {
-	return cronNamespace + "." + cronName
+	const maxLen = validation.DNS1035LabelMaxLength
+	label := cronNamespace + "." + cronName
+	if len(label) > maxLen {
+		return label[:maxLen]
+	}
+	return label
 }
