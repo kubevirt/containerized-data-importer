@@ -60,9 +60,12 @@ var _ = Describe("DataImportCron", func() {
 
 		By(fmt.Sprintf("Create new DataImportCron %s, url %s", cronName, *reg.URL))
 		cron = NewDataImportCron(cronName, "5Gi", scheduleEveryMinute, dataSourceName, *reg)
+
+		expectedImports := int(importsToKeep)
 		if !garbageCollection {
 			garbageCollect := cdiv1.DataImportCronGarbageCollectNever
 			cron.Spec.GarbageCollect = &garbageCollect
+			expectedImports = 2
 		}
 		if !retention {
 			retentionPolicy := cdiv1.DataImportCronRetainNone
@@ -79,7 +82,7 @@ var _ = Describe("DataImportCron", func() {
 			}
 			Expect(err).ToNot(HaveOccurred())
 			return true
-		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "cronjob was not created")
 
 		waitForConditions := func(statusProgressing, statusUpToDate corev1.ConditionStatus) {
 			By(fmt.Sprintf("Wait for DataImportCron Progressing:%s, UpToDate:%s", statusProgressing, statusUpToDate))
@@ -91,7 +94,7 @@ var _ = Describe("DataImportCron", func() {
 				condUpToDate := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
 				return condProgressing != nil && condProgressing.Status == statusProgressing &&
 					condUpToDate != nil && condUpToDate.Status == statusUpToDate
-			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "Timeout waiting for DataImportCron conditions")
 		}
 
 		var lastImportDv, currentImportDv string
@@ -107,12 +110,12 @@ var _ = Describe("DataImportCron", func() {
 					Expect(err).ToNot(HaveOccurred())
 
 					By("Wait for CurrentImports update")
-					Eventually(func() bool {
+					Eventually(func() string {
 						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
 						currentImportDv = cron.Status.CurrentImports[0].DataVolumeName
 						Expect(currentImportDv).ToNot(BeEmpty())
-						return currentImportDv != lastImportDv
-					}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+						return currentImportDv
+					}, dataImportCronTimeout, pollingInterval).ShouldNot(Equal(lastImportDv), "Current import was not updated")
 					lastImportDv = currentImportDv
 				} else {
 					By("Reset desired digest")
@@ -128,11 +131,11 @@ var _ = Describe("DataImportCron", func() {
 					lastImportDv = ""
 
 					By("Wait for non-empty desired digest")
-					Eventually(func() bool {
+					Eventually(func() string {
 						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
 						Expect(err).ToNot(HaveOccurred())
-						return cron.Annotations[controller.AnnSourceDesiredDigest] != ""
-					}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+						return cron.Annotations[controller.AnnSourceDesiredDigest]
+					}, dataImportCronTimeout, pollingInterval).ShouldNot(BeEmpty(), "Desired digest is empty")
 				}
 			}
 
@@ -151,7 +154,7 @@ var _ = Describe("DataImportCron", func() {
 			err = utils.WaitForDataVolumePhase(f.CdiClient, ns, cdiv1.Succeeded, currentImportDv)
 			Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 
-			By("Verify datasource was updated")
+			By("Verify DataSource was updated")
 			var dataSource *cdiv1.DataSource
 			Eventually(func() bool {
 				dataSource, err = f.CdiClient.CdiV1beta1().DataSources(ns).Get(context.TODO(), cron.Spec.ManagedDataSource, metav1.GetOptions{})
@@ -162,7 +165,7 @@ var _ = Describe("DataImportCron", func() {
 				readyCond := controller.FindDataSourceConditionByType(dataSource, cdiv1.DataSourceReady)
 				return readyCond != nil && readyCond.Status == corev1.ConditionTrue &&
 					dataSource.Spec.Source.PVC != nil && dataSource.Spec.Source.PVC.Name == currentImportDv
-			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "DataSource was not updated")
 
 			By("Verify cron was updated")
 			Expect(cron.Status.LastImportedPVC).ToNot(BeNil())
@@ -177,7 +180,7 @@ var _ = Describe("DataImportCron", func() {
 				dataSource, err = f.CdiClient.CdiV1beta1().DataSources(ns).Get(context.TODO(), dataSourceName, metav1.GetOptions{})
 				Expect(err).To(BeNil())
 				return dataSource.Spec.Source.PVC.Name == currentImportDv
-			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "DataSource pvc name was not reconciled")
 
 			By("Delete DataSource")
 			err = f.CdiClient.CdiV1beta1().DataSources(ns).Delete(context.TODO(), dataSourceName, metav1.DeleteOptions{})
@@ -186,7 +189,7 @@ var _ = Describe("DataImportCron", func() {
 			Eventually(func() bool {
 				ds, err := f.CdiClient.CdiV1beta1().DataSources(ns).Get(context.TODO(), dataSourceName, metav1.GetOptions{})
 				return err == nil && ds.UID != dataSource.UID
-			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "DataSource was not re-created")
 
 			By("Delete last imported PVC")
 			err = f.DeletePVC(currentPvc)
@@ -195,21 +198,18 @@ var _ = Describe("DataImportCron", func() {
 			Eventually(func() bool {
 				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(ns).Get(context.TODO(), currentPvc.Name, metav1.GetOptions{})
 				return err == nil && pvc.UID != currentPvc.UID
-			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "Last imported PVC was not re-created")
 
 			By("Wait for import completion")
 			err = utils.WaitForDataVolumePhase(f.CdiClient, ns, cdiv1.Succeeded, currentImportDv)
 			Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 		}
 		By("Check garbage collection")
-		Eventually(func() bool {
+		Eventually(func() int {
 			dvList, err := f.CdiClient.CdiV1beta1().DataVolumes(ns).List(context.TODO(), metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			if !garbageCollection {
-				return len(dvList.Items) == 2
-			}
-			return len(dvList.Items) == int(importsToKeep)
-		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+			return len(dvList.Items)
+		}, dataImportCronTimeout, pollingInterval).Should(Equal(expectedImports), "Garbage collection failed cleaning old imports")
 
 		lastImportedPVC := cron.Status.LastImportedPVC
 
@@ -230,14 +230,14 @@ var _ = Describe("DataImportCron", func() {
 			Eventually(func() bool {
 				_, err := f.CdiClient.CdiV1beta1().DataSources(ns).Get(context.TODO(), dataSourceName, metav1.GetOptions{})
 				return errors.IsNotFound(err)
-			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "DataSource was not deleted")
 
 			By("Verify PVCs deletion")
 			Eventually(func() bool {
 				pvcs, err := f.K8sClient.CoreV1().PersistentVolumeClaims(ns).List(context.TODO(), metav1.ListOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				return len(pvcs.Items) == 0
-			}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "PVCs were not deleted")
 		}
 	},
 		table.Entry("[test_id:7403] succeed importing initial PVC from registry URL", false, true, false, 1),
@@ -261,13 +261,13 @@ var _ = Describe("DataImportCron", func() {
 		Eventually(func() *batchv1.Job {
 			job, _ := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), initialJobName, metav1.GetOptions{})
 			return job
-		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeNil())
+		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeNil(), "initial job was not created")
 
 		By("Verify initial job pod created")
 		Eventually(func() *corev1.Pod {
 			pod, _ := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, initialJobName, "")
 			return pod
-		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeNil())
+		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeNil(), "initial job pod was not created")
 
 		By("Verify cronjob created and has active job")
 		cronJobName := controller.GetCronJobName(cron)
@@ -278,19 +278,19 @@ var _ = Describe("DataImportCron", func() {
 				jobName = cronjob.Status.Active[0].Name
 			}
 			return jobName
-		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeEmpty())
+		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeEmpty(), "cronjob has no active job")
 
 		By("Verify cronjob first job created")
 		Eventually(func() *batchv1.Job {
 			job, _ := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), jobName, metav1.GetOptions{})
 			return job
-		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeNil())
+		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeNil(), "cronjob first job was not created")
 
 		By("Verify cronjob first job pod created")
 		Eventually(func() *corev1.Pod {
 			pod, _ := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, jobName, "")
 			return pod
-		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeNil())
+		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeNil(), "cronjob first job pod was not created")
 
 		By("Delete cron")
 		err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Delete(context.TODO(), cronName, metav1.DeleteOptions{})
@@ -300,31 +300,31 @@ var _ = Describe("DataImportCron", func() {
 		Eventually(func() bool {
 			_, err := f.K8sClient.BatchV1().CronJobs(f.CdiInstallNs).Get(context.TODO(), cronJobName, metav1.GetOptions{})
 			return errors.IsNotFound(err)
-		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "cronjob was not deleted")
 
 		By("Verify initial job deleted")
 		Eventually(func() bool {
 			_, err := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), initialJobName, metav1.GetOptions{})
 			return errors.IsNotFound(err)
-		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "initial job was not deleted")
 
 		By("Verify initial job pod deleted")
 		Eventually(func() bool {
 			_, err := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, initialJobName, "")
 			return errors.IsNotFound(err)
-		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "initial job pod was not deleted")
 
 		By("Verify cronjob first job deleted")
 		Eventually(func() bool {
 			_, err := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), jobName, metav1.GetOptions{})
 			return errors.IsNotFound(err)
-		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "cronjob first job was not deleted")
 
 		By("Verify cronjob first job pod deleted")
 		Eventually(func() bool {
 			_, err := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, jobName, "")
 			return errors.IsNotFound(err)
-		}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "cronjob first job pod was not deleted")
 	})
 })
 
