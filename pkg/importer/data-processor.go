@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog/v2"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -56,7 +57,7 @@ const (
 	// ProcessingPhasePause is the phase where we pause processing and end the loop, and expect something to call the process loop again.
 	ProcessingPhasePause ProcessingPhase = "Pause"
 	// ProcessingPhaseError is the phase in which we encountered an error and need to exit ungracefully.
-	ProcessingPhaseError ProcessingPhase = "Error"
+	ProcessingPhaseError ProcessingPhase = common.GenericError
 	// ProcessingPhaseMergeDelta is the phase in a multi-stage import where a delta image downloaded to scratch is applied to the base image
 	ProcessingPhaseMergeDelta ProcessingPhase = "MergeDelta"
 )

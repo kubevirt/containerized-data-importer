@@ -41,16 +41,22 @@ func init() {
 }
 
 func waitForReadyFile() {
+	const readyFileTimeoutSeconds = 60
 	readyFile, _ := util.ParseEnvVar(common.ImporterReadyFile, false)
 	if readyFile == "" {
 		return
 	}
-	for {
+	for i := 0; i < readyFileTimeoutSeconds; i++ {
 		if _, err := os.Stat(readyFile); err == nil {
-			break
+			return
 		}
 		time.Sleep(time.Second)
 	}
+	err := util.WriteTerminationMessage(fmt.Sprintf("Timeout waiting for file %s", readyFile))
+	if err != nil {
+		klog.Errorf("%+v", err)
+	}
+	os.Exit(1)
 }
 
 func touchDoneFile() {

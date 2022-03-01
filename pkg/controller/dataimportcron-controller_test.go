@@ -228,6 +228,18 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(len(dvList.Items)).To(Equal(0))
 		})
 
+		DescribeTable("Should fail when digest", func(digest, errorString string) {
+			cron = newDataImportCron(cronName)
+			cron.Annotations[AnnSourceDesiredDigest] = digest
+			reconciler = createDataImportCronReconciler(cron)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(errorString))
+		},
+			Entry("has no supported prefix", "sha234:012345678901", "Digest has no supported prefix"),
+			Entry("is too short", "sha256:01234567890", "Digest is too short"),
+		)
+
 		DescribeTable("Should fail when ImageStream", func(taggedImageStreamName, errorString string) {
 			cron = newDataImportCronWithImageStream(cronName, taggedImageStreamName)
 			imageStream := newImageStream(imageStreamName)
