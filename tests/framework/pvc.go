@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/docker/go-units"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	k8sv1 "k8s.io/api/core/v1"
@@ -220,11 +222,22 @@ func (f *Framework) VerifyBlankDisk(namespace *k8sv1.Namespace, pvc *k8sv1.Persi
 // VerifySparse checks a disk image being sparse after creation/resize.
 func (f *Framework) VerifySparse(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, imagePath string) (bool, error) {
 	var info image.ImgInfo
+	var imageContentSize int64
 	err := f.GetImageInfo(namespace, pvc, imagePath, &info)
 	if err != nil {
 		return false, err
 	}
-	return info.VirtualSize >= info.ActualSize, nil
+	// qemu-img info gives us ActualSize but that is size on disk
+	// which isn't important to us in this comparison; we compare content size
+	err = f.GetImageContentSize(namespace, pvc, imagePath, &imageContentSize)
+	if err != nil {
+		return false, err
+	}
+	if info.ActualSize-imageContentSize >= units.MiB {
+		return false, fmt.Errorf("Diff between content size %d and size on disk %d is significant, something's not right", imageContentSize, info.ActualSize)
+	}
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: VerifySparse comparison: Virtual: %d vs Content: %d\n", info.VirtualSize, imageContentSize)
+	return info.VirtualSize >= imageContentSize, nil
 }
 
 // VerifyFSOverhead checks whether virtual size is smaller than actual size. That means FS Overhead has been accounted for.
@@ -458,6 +471,26 @@ func (f *Framework) GetImageInfo(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 			klog.Errorf("Invalid JSON:\n%s\n", string(output))
 			return false, err
 		}
+
+		return true, nil
+	})
+
+	return err
+}
+
+// GetImageContentSize returns the content size (as opposed to size on disk) of an image
+func (f *Framework) GetImageContentSize(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, imagePath string, imageSize *int64) error {
+	cmd := fmt.Sprintf("du -s --apparent-size -B 1 %s | cut -f 1", imagePath)
+
+	_, err := f.verifyInPod(namespace, pvc, cmd, func(output, stderr string) (bool, error) {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "CMD (%s) output %s\n", cmd, output)
+
+		size, err := strconv.ParseInt(output, 10, 64)
+		if err != nil {
+			klog.Errorf("Invalid image content size:\n%s\n", string(output))
+			return false, err
+		}
+		*imageSize = size
 
 		return true, nil
 	})
