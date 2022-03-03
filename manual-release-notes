@@ -1,3 +1,13 @@
+v1.34.3:
+BugFix: Fix http(s) proxy not working when using nbdkit to import images.
+BugFix: Fix unable to list ConfigMap in cluster scope error messages in cdi controller log.
+BugFix: Uncached client for Cluster Proxy
+BugFix: Align disk image size to 1Mi instead of 512 bytes.
+Bugfix: Fix fsoverhead calculation
+BugFix: large qcow2.gz files failed to import due to pr limit
+Enhancement: Add VDDK version information to DV annotation after importer pod is deleted.
+TestFix: Many test stabilizing backports (imageio, cluster proxy,
+
 v1.34.2:
 TestFix: Make annotation test less flaky.
 Enhancement: Update to latest api versions for libraries.
