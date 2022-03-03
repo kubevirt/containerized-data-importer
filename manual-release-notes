@@ -1,0 +1,14 @@
+v1.38.1:
+Bugfix: Fix fsoverhead calculation
+BugFix: cdi-docker-registry-host Pod fails to start on OpenShift
+Enhancement: Add VDDK version information to DV annotation after importer pod is deleted.
+TestFix: Many test stabilizing backports (imageio, cluster proxy)
+BugFix: Clone with volume mode file system using StorageProfile
+BugFix: Some of the cdi resources are missing labels after upgrade
+BuildFix: Fixed fedora sha
+Enhancement: Allow admin user to specify priority class of CDI control plane
+BugFix: VDDK: accept snapshot change IDs in previous checkpoint fields
+BugFix: our qemu-img convert cmd writes with cache=none (bypassing cache)
+BugFix: Correct the cloneStrategy on StorageProfile
+BugFix: 1999571 - fix clone into larger capacity nfs volume
+BugFix: Some of the cdi resources missing app labels
