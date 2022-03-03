@@ -352,6 +352,10 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, err
 	}
 
+	if datavolume.Status.Phase == cdiv1.Succeeded {
+		return reconcile.Result{}, nil
+	}
+
 	transferName := fmt.Sprintf("cdi-tmp-%s", datavolume.UID)
 
 	if datavolume.DeletionTimestamp != nil {
