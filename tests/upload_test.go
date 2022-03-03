@@ -137,11 +137,34 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(err).ToNot(HaveOccurred())
 	}
 
+	checkUploadCertSecrets := func() {
+		pod, err := f.K8sClient.CoreV1().Pods(pvc.Namespace).Get(context.TODO(), utils.UploadPodName(pvc), metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		secret, err := f.K8sClient.CoreV1().Secrets(pvc.Namespace).Get(context.TODO(), utils.UploadPodName(pvc), metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		for _, name := range []string{"TLS_KEY", "TLS_CERT"} {
+			found := false
+			for _, ev := range pod.Spec.Containers[0].Env {
+				if ev.Name == name &&
+					ev.ValueFrom != nil &&
+					ev.ValueFrom.SecretKeyRef != nil &&
+					ev.ValueFrom.SecretKeyRef.Name == secret.Name {
+					found = true
+				}
+			}
+			Expect(found).To(BeTrue())
+		}
+	}
+
 	DescribeTable("should", func(uploader uploadFunc, validToken bool, expectedStatus int) {
 		By("Verify PVC annotation says ready")
 		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(found).To(BeTrue())
+
+		checkUploadCertSecrets()
 
 		var token string
 		if validToken {
