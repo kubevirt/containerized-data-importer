@@ -31,7 +31,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
 		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"openshift-storage.rbd.csi.ceph.com": {
-		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock}},
+		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
 	// ceph-fs
 	"cephfs.csi.ceph.com":                   {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"openshift-storage.cephfs.csi.ceph.com": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
