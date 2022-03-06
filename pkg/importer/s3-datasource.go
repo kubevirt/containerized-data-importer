@@ -130,13 +130,14 @@ func createS3Reader(ep *url.URL, accessKey, secKey string, certDir string) (io.R
 	klog.V(3).Infoln("Using S3 client to get data")
 
 	endpoint := ep.Host
+	urlScheme := ep.Scheme
 	klog.Infof("Endpoint %s", endpoint)
 	path := strings.Trim(ep.Path, "/")
 	bucket, object := extractBucketAndObject(path)
 
 	klog.V(1).Infof("bucket %s", bucket)
 	klog.V(1).Infof("object %s", object)
-	svc, err := newClientFunc(endpoint, accessKey, secKey, certDir)
+	svc, err := newClientFunc(endpoint, accessKey, secKey, certDir, urlScheme)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not build s3 client for %q", ep.Host)
 	}
@@ -153,7 +154,7 @@ func createS3Reader(ep *url.URL, accessKey, secKey string, certDir string) (io.R
 	return objectReader, nil
 }
 
-func getS3Client(endpoint, accessKey, secKey string, certDir string) (S3Client, error) {
+func getS3Client(endpoint, accessKey, secKey string, certDir string, urlScheme string) (S3Client, error) {
 	// Adding certs using CustomCABundle will overwrite the SystemCerts, so we opt by creating a custom HTTPClient
 	httpClient, err := createHTTPClient(certDir)
 
@@ -164,12 +165,8 @@ func getS3Client(endpoint, accessKey, secKey string, certDir string) (S3Client, 
 	creds := credentials.NewStaticCredentials(accessKey, secKey, "")
 	region := extractRegion(endpoint)
 	disableSSL := false
-	s3Url, err := url.Parse(endpoint)
-	if err != nil {
-		return nil, err
-	}
 	// Disable SSL for http endpoint. This should cause the s3 client to create http requests.
-	if s3Url.Scheme == httpScheme {
+	if urlScheme == httpScheme {
 		disableSSL = true
 	}
 

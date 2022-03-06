@@ -223,6 +223,11 @@ func createHTTPClient(certDir string) (*http.Client, error) {
 	}
 
 	if certDir == "" {
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+		client.Transport = transport
 		return client, nil
 	}
 

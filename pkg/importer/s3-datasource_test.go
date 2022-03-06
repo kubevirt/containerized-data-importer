@@ -186,7 +186,7 @@ var _ = Describe("S3 data source", func() {
 	})
 
 	It("GetS3Client should return a real client", func() {
-		_, err := getS3Client("", "", "", "")
+		_, err := getS3Client("", "", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -210,11 +210,11 @@ type MockS3Client struct {
 	doErr    bool
 }
 
-func failMockS3Client(endpoint, accKey, secKey string, certDir string) (S3Client, error) {
+func failMockS3Client(endpoint, accKey, secKey string, certDir string, urlScheme string) (S3Client, error) {
 	return nil, errors.New("Failed to create client")
 }
 
-func createMockS3Client(endpoint, accKey, secKey string, certDir string) (S3Client, error) {
+func createMockS3Client(endpoint, accKey, secKey string, certDir string, urlScheme string) (S3Client, error) {
 	return &MockS3Client{
 		accKey:  accKey,
 		secKey:  secKey,
@@ -223,7 +223,7 @@ func createMockS3Client(endpoint, accKey, secKey string, certDir string) (S3Clie
 	}, nil
 }
 
-func createErrMockS3Client(endpoint, accKey, secKey string, certDir string) (S3Client, error) {
+func createErrMockS3Client(endpoint, accKey, secKey string, certDir string, urlScheme string) (S3Client, error) {
 	return &MockS3Client{
 		doErr: true,
 	}, nil
