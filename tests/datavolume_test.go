@@ -607,7 +607,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("succeed creating import dv with custom https headers", dataVolumeTestArguments{
+			table.Entry("[rfe_id:7202][crit:high][posneg:positive][test_id:8277]succeed creating import dv with custom https headers", dataVolumeTestArguments{
 				name:             "dv-http-import-headers",
 				size:             "1Gi",
 				url:              tinyCoreIsoAuthURL,
@@ -631,7 +631,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("succeed creating import dv with custom https headers from a secret", dataVolumeTestArguments{
+			table.Entry("[rfe_id:7202][crit:high][posneg:positive][test_id:8278]succeed creating import dv with custom https headers from a secret", dataVolumeTestArguments{
 				name:             "dv-http-import-headers",
 				size:             "1Gi",
 				url:              tinyCoreIsoAuthURL,
