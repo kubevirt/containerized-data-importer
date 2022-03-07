@@ -83,9 +83,6 @@ var _ = Describe("Import Proxy tests", func() {
 			clusterWideProxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			clusterWideProxySpec = clusterWideProxy.Spec.DeepCopy()
-
-			By("Pausing MCPs - disabling the Machine Config Operator from automatically rebooting since we don't need that to ensure we proxy things")
-			manipulateMachineConfigPools(f, true)
 		}
 		By("Saving original CDIConfig")
 		config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -105,16 +102,6 @@ var _ = Describe("Import Proxy tests", func() {
 		if utils.IsOpenshift(f.K8sClient) {
 			By("Reverting the cluster wide proxy spec to the original configuration")
 			cleanClusterWideProxy(ocpClient, clusterWideProxySpec)
-			// Work around a bug where node reboots would still happen by ensuring
-			// that the MCP has settled after reverting the proxy
-			Eventually(func() error {
-				output, err := RunOcCommand(f, "wait", "mcp", "--all", "--for", "condition=updated", "--timeout", "1s")
-				By(output)
-				return err
-			}, 15*time.Minute, time.Second).ShouldNot(HaveOccurred())
-
-			By("Resuming MCPs")
-			manipulateMachineConfigPools(f, false)
 		}
 
 		By("Restoring CDIConfig to original state")
@@ -518,25 +505,4 @@ func cleanClusterWideProxy(ocpClient *configclient.Clientset, clusterWideProxySp
 		}
 		return false
 	}, timeout, pollingInterval).Should(BeTrue())
-}
-
-func manipulateMachineConfigPools(f *framework.Framework, paused bool) {
-	pausedStr := strconv.FormatBool(paused)
-	mcpGetOutput, err := RunOcCommand(f, "get", "mcp", "--no-headers", "-o", "custom-columns=:metadata.name")
-	Expect(err).ToNot(HaveOccurred())
-	mcpNames := strings.Split(strings.TrimSuffix(mcpGetOutput, "\n"), "\n")
-	Expect(mcpNames).To(HaveLen(2))
-
-	for _, mcp := range mcpNames {
-		_, err = RunOcCommand(f, "patch", "mcp", mcp, "--type", "merge", "--patch", fmt.Sprintf("{\"spec\":{\"paused\":%s}}", pausedStr))
-		Expect(err).ToNot(HaveOccurred())
-		Eventually(func() bool {
-			isPaused, err := RunOcCommand(f, "get", "mcp", mcp, "--template", "{{.spec.paused}}")
-			By(fmt.Sprintf("%s .paused = %s", mcp, isPaused))
-			if err != nil {
-				return false
-			}
-			return isPaused == pausedStr
-		}, 180*time.Second, time.Second).Should(BeTrue())
-	}
 }
