@@ -144,18 +144,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		secret, err := f.K8sClient.CoreV1().Secrets(pvc.Namespace).Get(context.TODO(), utils.UploadPodName(pvc), metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		for _, name := range []string{"TLS_KEY", "TLS_CERT"} {
-			found := false
-			for _, ev := range pod.Spec.Containers[0].Env {
-				if ev.Name == name &&
-					ev.ValueFrom != nil &&
-					ev.ValueFrom.SecretKeyRef != nil &&
-					ev.ValueFrom.SecretKeyRef.Name == secret.Name {
-					found = true
-				}
-			}
-			Expect(found).To(BeTrue())
-		}
+		Expect(HasEnvironmentVariableFromSecret(pod, "TLS_KEY", secret)).To(BeTrue(), "Should have TLS_KEY")
+		Expect(HasEnvironmentVariableFromSecret(pod, "TLS_CERT", secret)).To(BeTrue(), "Should have TLS_CERT")
 	}
 
 	DescribeTable("should", func(uploader uploadFunc, validToken bool, expectedStatus int) {
@@ -572,6 +562,18 @@ func findProxyURLCdiConfig(f *framework.Framework) string {
 		return fmt.Sprintf("https://%s", *config.Status.UploadProxyURL)
 	}
 	return ""
+}
+
+func HasEnvironmentVariableFromSecret(pod *v1.Pod, name string, secret *v1.Secret) bool {
+	for _, ev := range pod.Spec.Containers[0].Env {
+		if ev.Name == name &&
+			ev.ValueFrom != nil &&
+			ev.ValueFrom.SecretKeyRef != nil &&
+			ev.ValueFrom.SecretKeyRef.Name == secret.Name {
+			return true
+		}
+	}
+	return false
 }
 
 var _ = Describe("Block PV upload Test", func() {
