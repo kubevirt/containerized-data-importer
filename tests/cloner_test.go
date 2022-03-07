@@ -814,7 +814,7 @@ var _ = Describe("all clone tests", func() {
 
 		It("should successfully clone", func() {
 			if !utils.IsNfs() {
-				Skip("NFS specific test")
+				Skip("NFS specific test; fine with both static NFS and CSI because no CSI clone")
 			}
 
 			By("Creating a source from a real image")
@@ -826,10 +826,12 @@ var _ = Describe("all clone tests", func() {
 			By("Waiting for import to be completed")
 			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
 
-			pvDef := framework.NfsPvDef(1, framework.ExtraNfsDiskPrefix, utils.NfsService.Spec.ClusterIP, framework.BiggerNfsPvSize)
-			pv, err := utils.CreatePVFromDefinition(f.K8sClient, pvDef)
-			Expect(err).ToNot(HaveOccurred())
-			bigPV = pv
+			if utils.IsStaticNfsWithInternalClusterServer() {
+				pvDef := framework.NfsPvDef(1, framework.ExtraNfsDiskPrefix, utils.NfsService.Spec.ClusterIP, framework.BiggerNfsPvSize)
+				pv, err := utils.CreatePVFromDefinition(f.K8sClient, pvDef)
+				Expect(err).ToNot(HaveOccurred())
+				bigPV = pv
+			}
 
 			targetDv := utils.NewDataVolumeForImageCloning("target-dv", framework.BiggerNfsPvSize, f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 			targetDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
@@ -853,6 +855,11 @@ var _ = Describe("all clone tests", func() {
 			targetCapacity := targetPVC.Status.Capacity.Storage()
 			Expect(targetCapacity).ToNot(BeNil())
 			Expect(srcCapacity.Cmp(*targetCapacity)).To(Equal(-1))
+
+			By("Verify content")
+			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, targetPVC, utils.DefaultImagePath, utils.UploadFileMD5, utils.UploadFileSize)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(same).To(BeTrue())
 		})
 	})
 
