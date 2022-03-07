@@ -45,22 +45,21 @@ if [ -z "$(docker volume list | grep ${BUILDER_VOLUME})" ]; then
         docker volume create --name ${BUILDER_VOLUME}
     fi
 fi
-PROXY="--env HTTP_PROXY=http://10.190.176.78:1081 --env HTTPS_PROXY=http://10.190.176.78:1081"
 
 # Make sure that the output directory exists
 echo "Making sure output directory exists..."
 if [ "$KUBEVIRTCI_RUNTIME" = "podman" ]; then
-    docker run $PROXY -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable --rm --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} mkdir -p /root/go/src/kubevirt.io/containerized-data-importer/_out
+    docker run -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable --rm --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} mkdir -p /root/go/src/kubevirt.io/containerized-data-importer/_out
 else
-    docker run $PROXY -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label:disable --rm --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} mkdir -p /root/go/src/kubevirt.io/containerized-data-importer/_out
+    docker run -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label:disable --rm --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} mkdir -p /root/go/src/kubevirt.io/containerized-data-importer/_out
 fi
 
 echo "Starting rsyncd"
 # Start an rsyncd instance and make sure it gets stopped after the script exits
 if [ "$KUBEVIRTCI_RUNTIME" = "podman" ]; then
-    RSYNC_CID_CDI=$(docker run $PROXY -d -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable --expose 873 -P --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} /usr/bin/rsync --no-detach --daemon --verbose)
+    RSYNC_CID_CDI=$(docker run -d -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable --expose 873 -P --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} /usr/bin/rsync --no-detach --daemon --verbose)
 else
-    RSYNC_CID_CDI=$(docker run $PROXY -d -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label:disable --expose 873 -P --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} /usr/bin/rsync --no-detach --daemon --verbose)
+    RSYNC_CID_CDI=$(docker run -d -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label:disable --expose 873 -P --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} /usr/bin/rsync --no-detach --daemon --verbose)
 fi
 
 function finish() {
@@ -131,9 +130,9 @@ fi
 # Ensure that a bazel server is running
 if [ -z "$(docker ps --format '{{.Names}}' | grep ${BAZEL_BUILDER_SERVER})" ]; then
     if [ "$KUBEVIRTCI_RUNTIME" = "podman" ]; then
-        docker run $PROXY --network host -d ${volumes} --security-opt label=disable --name ${BAZEL_BUILDER_SERVER} -e "GOPATH=/root/go" -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
+        docker run --network host -d ${volumes} --security-opt label=disable --name ${BAZEL_BUILDER_SERVER} -e "GOPATH=/root/go" -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
     else
-        docker run $PROXY --network host -d ${volumes} --security-opt label:disable --name ${BAZEL_BUILDER_SERVER} -e "GOPATH=/root/go" -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
+        docker run --network host -d ${volumes} --security-opt label:disable --name ${BAZEL_BUILDER_SERVER} -e "GOPATH=/root/go" -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
     fi
 fi
 
