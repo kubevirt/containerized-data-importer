@@ -20,10 +20,10 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// nfs-csi
 	"nfs.csi.k8s.io": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
 	// ceph-rbd
-	"kubernetes.io/rbd":                  {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
-	"rbd.csi.ceph.com":                   {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
-	"rook-ceph.rbd.csi.ceph.com":         {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}, {AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
-	"openshift-storage.rbd.csi.ceph.com": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock}},
+	"kubernetes.io/rbd":                  createRbdCapabilities(),
+	"rbd.csi.ceph.com":                   createRbdCapabilities(),
+	"rook-ceph.rbd.csi.ceph.com":         createRbdCapabilities(),
+	"openshift-storage.rbd.csi.ceph.com": createRbdCapabilities(),
 	// ceph-fs
 	"cephfs.csi.ceph.com":                   {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"openshift-storage.cephfs.csi.ceph.com": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
@@ -95,4 +95,11 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		}
 		return "UNKNOWN"
 	},
+}
+
+func createRbdCapabilities() []StorageCapabilities {
+	return []StorageCapabilities{
+		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}}
 }
