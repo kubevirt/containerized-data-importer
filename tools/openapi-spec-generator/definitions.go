@@ -44,26 +44,21 @@ const (
 	mimeINI        string = "text/plain"
 )
 
-// CoreAPI returns the DataVolume API for DataVolumes
+// CoreAPI returns the API for CDI custom resources
 func CoreAPI() []*restful.WebService {
-
-	dvGVR := schema.GroupVersionResource{
-		Group:    cdiv1.SchemeGroupVersion.Group,
-		Version:  cdiv1.SchemeGroupVersion.Version,
-		Resource: "datavolumes",
+	getGVR := func(resourceName string) schema.GroupVersionResource {
+		return schema.GroupVersionResource{
+			Group:    cdiv1.SchemeGroupVersion.Group,
+			Version:  cdiv1.SchemeGroupVersion.Version,
+			Resource: resourceName,
+		}
 	}
 
-	cdiGVR := schema.GroupVersionResource{
-		Group:    cdiv1.SchemeGroupVersion.Group,
-		Version:  cdiv1.SchemeGroupVersion.Version,
-		Resource: "cdis",
-	}
-
-	cdiConfigGVR := schema.GroupVersionResource{
-		Group:    cdiv1.SchemeGroupVersion.Group,
-		Version:  cdiv1.SchemeGroupVersion.Version,
-		Resource: "cdiconfigs",
-	}
+	dvGVR := getGVR("datavolumes")
+	dsGVR := getGVR("datasources")
+	dicGVR := getGVR("dataimportcrons")
+	cdiGVR := getGVR("cdis")
+	cdiConfigGVR := getGVR("cdiconfigs")
 
 	ws, err := groupVersionProxyBase(cdiv1.SchemeGroupVersion)
 	if err != nil {
@@ -71,6 +66,16 @@ func CoreAPI() []*restful.WebService {
 	}
 
 	ws, err = genericResourceProxy(ws, dvGVR, &cdiv1.DataVolume{}, "DataVolume", &cdiv1.DataVolumeList{})
+	if err != nil {
+		panic(err)
+	}
+
+	ws, err = genericResourceProxy(ws, dsGVR, &cdiv1.DataSource{}, "DataSource", &cdiv1.DataSourceList{})
+	if err != nil {
+		panic(err)
+	}
+
+	ws, err = genericResourceProxy(ws, dicGVR, &cdiv1.DataImportCron{}, "DataImportCron", &cdiv1.DataImportCronList{})
 	if err != nil {
 		panic(err)
 	}
