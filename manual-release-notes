@@ -1,0 +1,6 @@
+v1.46.0
+Enhancement: Add DataImportCron and DataSource to openapi-spec
+BugFix: fix ip:port endpoint not valid in s3 importer
+BugFix: bz 2054778 -  PVC created with filesystem volume mode in some cases, instead of block volume mode - fails
+BugFix: Delete erroneous DataVolumes on DataImportCron source digest update
+
