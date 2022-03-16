@@ -138,7 +138,6 @@ http_archive(
 # Pull base image centos:stream9
 container_pull(
     name = "centos",
-    digest = "sha256:f0d6230902f2c527dbce4934abaca0e74264d68bae53c1f4a1adfa964ace62db",
     registry = "quay.io",
     repository = "centos/centos",
     tag = "stream9",
@@ -146,7 +145,6 @@ container_pull(
 
 container_pull(
     name = "centos-aarch64",
-    digest = "sha256:76a776d0fb95ea9bc3b9b788aa8748d0cc7b342505e71227a172c4001a948e8b",
     registry = "quay.io",
     repository = "centos/centos",
     architecture = "arm64",
