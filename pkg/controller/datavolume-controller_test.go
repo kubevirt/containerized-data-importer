@@ -288,6 +288,44 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(*pvc.Spec.VolumeMode).To(Equal(filesystemMode))
 		})
 
+		It("Should set on a PVC matching access mode from storageProfile to the DV given contentType archive", func() {
+			scName := "testStorageClass"
+			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
+			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
+				StorageClassName: &scName,
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("1G"),
+					},
+				},
+			}
+			importDataVolume.Spec.ContentType = cdiv1.DataVolumeArchive
+
+			storageClass := createStorageClass(scName, nil)
+
+			// First is RWX / block, but because of the contentType DataVolumeArchive, the volumeMode should be fs,
+			// and the matched accessMode is RWO
+			claimPropertySets := []cdiv1.ClaimPropertySet{
+				{AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}, VolumeMode: &blockMode},
+				{AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, VolumeMode: &blockMode},
+				{AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, VolumeMode: &filesystemMode},
+			}
+			storageProfile := createStorageProfileWithClaimPropertySets(scName, claimPropertySets)
+			reconciler = createDatavolumeReconciler(storageClass, storageProfile, importDataVolume)
+
+			// actual test
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Name).To(Equal("test-dv"))
+			Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
+			Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadWriteOnce))
+			Expect(*pvc.Spec.VolumeMode).To(Equal(filesystemMode))
+		})
+
 		It("Should set on a PVC matching volume mode from storageProfile to the given DV access mode", func() {
 			scName := "testStorageClass"
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
