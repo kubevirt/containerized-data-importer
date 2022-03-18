@@ -891,6 +891,72 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(deleted).To(BeTrue())
 	})
 
+	It("Upload an image exactly the same size as DV request (bz#2064936)", func() {
+		// This image size and filesystem overhead combination was experimentally determined
+		// to reproduce bz#2064936 in CI when using ceph/rbd with a Filesystem mode PV since
+		// the filesystem capacity will be constrained by the PVC request size.
+		size := "858993459"
+		fsOverhead := "0.055" // The default value
+		tests.SetFilesystemOverhead(f, fsOverhead, fsOverhead)
+
+		volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+		accessModes := []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
+		dvName := "upload-dv"
+		By(fmt.Sprintf("Creating new datavolume %s", dvName))
+		dv := utils.NewDataVolumeForUploadWithStorageAPI(dvName, size)
+		dv.Spec.Storage.AccessModes = accessModes
+		dv.Spec.Storage.VolumeMode = &volumeMode
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		By("verifying pvc was created, force bind if needed")
+		pvc, err := utils.WaitForPVC(f.K8sClient, pvc.Namespace, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		phase := cdiv1.UploadReady
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Get an upload token")
+		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Create empty image with specific size")
+		uploadFile := "tricky.qcow2"
+		args := []string{"create", "-f", "qcow2", uploadFile, size}
+		cmd := exec.Command("qemu-img", args...)
+		cout, err := cmd.CombinedOutput()
+		if err != nil {
+			Fail(fmt.Sprintf("Failed to create test qcow2 image: %s", cout))
+		}
+		defer os.Remove(uploadFile)
+
+		By("Do upload")
+		Eventually(func() error {
+			return uploadFileNameToPath(binaryRequestFunc, uploadFile, uploadProxyURL, syncUploadPath, token, http.StatusOK)
+		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+
+		phase = cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+	})
+
 	It("[test_id:3993] Upload image to data volume and verify retry count", func() {
 		dvName := "upload-dv"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))

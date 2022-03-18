@@ -22,8 +22,9 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 	v1 "k8s.io/api/core/v1"
 
-	"kubevirt.io/containerized-data-importer/pkg/image"
 	libnbd "libguestfs.org/libnbd"
+
+	"kubevirt.io/containerized-data-importer/pkg/image"
 )
 
 const (

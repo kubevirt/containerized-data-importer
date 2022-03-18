@@ -48,10 +48,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 
+	libnbd "libguestfs.org/libnbd"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-	libnbd "libguestfs.org/libnbd"
 )
 
 // May be overridden in tests
