@@ -122,7 +122,7 @@ func updateReadyCondition(conditions []cdiv1.DataVolumeCondition, status corev1.
 }
 
 func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim, reason string) []cdiv1.DataVolumeCondition {
-	if pvc != nil {
+	if pvc != nil && pvc.Name != "" {
 		pvcCondition := getPVCCondition(pvc.GetAnnotations())
 		switch pvc.Status.Phase {
 		case corev1.ClaimBound:
