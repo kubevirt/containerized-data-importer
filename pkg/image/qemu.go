@@ -62,7 +62,7 @@ type QEMUOperations interface {
 	ConvertToRawStream(*url.URL, string, bool) error
 	Resize(string, resource.Quantity, bool) error
 	Info(url *url.URL) (*ImgInfo, error)
-	Validate(*url.URL, int64, float64) error
+	Validate(*url.URL, int64) error
 	CreateBlankImage(string, resource.Quantity, bool) error
 	Rebase(backingFile string, delta string) error
 	Commit(image string) error
@@ -215,7 +215,7 @@ func isSupportedFormat(value string) bool {
 	}
 }
 
-func checkIfURLIsValid(info *ImgInfo, availableSize int64, filesystemOverhead float64, image string) error {
+func checkIfURLIsValid(info *ImgInfo, availableSize int64, image string) error {
 	if !isSupportedFormat(info.Format) {
 		return errors.Errorf("Invalid format %s for image %s", info.Format, image)
 	}
@@ -226,18 +226,18 @@ func checkIfURLIsValid(info *ImgInfo, availableSize int64, filesystemOverhead fl
 		}
 	}
 
-	if int64(float64(availableSize)*(1-filesystemOverhead)) < info.VirtualSize {
-		return errors.Errorf("Virtual image size %d is larger than available size %d (PVC size %d, reserved overhead %f%%). A larger PVC is required.", info.VirtualSize, int64((1-filesystemOverhead)*float64(availableSize)), info.VirtualSize, filesystemOverhead)
+	if availableSize < info.VirtualSize {
+		return errors.Errorf("Virtual image size %d is larger than the reported available storage %d (available storage on PVC %d). A larger PVC is required.", info.VirtualSize, availableSize, info.VirtualSize)
 	}
 	return nil
 }
 
-func (o *qemuOperations) Validate(url *url.URL, availableSize int64, filesystemOverhead float64) error {
+func (o *qemuOperations) Validate(url *url.URL, availableSize int64) error {
 	info, err := o.Info(url)
 	if err != nil {
 		return err
 	}
-	return checkIfURLIsValid(info, availableSize, filesystemOverhead, url.String())
+	return checkIfURLIsValid(info, availableSize, url.String())
 }
 
 // ConvertToRawStream converts an http accessible image to raw format without locally caching the image
@@ -246,8 +246,8 @@ func ConvertToRawStream(url *url.URL, dest string, preallocate bool) error {
 }
 
 // Validate does basic validation of a qemu image
-func Validate(url *url.URL, availableSize int64, filesystemOverhead float64) error {
-	return qemuIterface.Validate(url, availableSize, filesystemOverhead)
+func Validate(url *url.URL, availableSize int64) error {
+	return qemuIterface.Validate(url, availableSize)
 }
 
 func reportProgress(line string) {
