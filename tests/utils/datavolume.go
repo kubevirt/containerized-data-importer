@@ -362,6 +362,29 @@ func NewDataVolumeForUpload(dataVolumeName string, size string) *cdiv1.DataVolum
 	}
 }
 
+// NewDataVolumeForUploadWithStorageAPI initializes a DataVolume struct with Upload annotations
+// and using the Storage API instead of the PVC API
+func NewDataVolumeForUploadWithStorageAPI(dataVolumeName string, size string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        dataVolumeName,
+			Annotations: map[string]string{},
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				Upload: &cdiv1.DataVolumeSourceUpload{},
+			},
+			Storage: &cdiv1.StorageSpec{
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+}
+
 // NewDataVolumeForBlankRawImage initializes a DataVolume struct for creating blank raw image
 func NewDataVolumeForBlankRawImage(dataVolumeName, size string) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
@@ -624,6 +647,12 @@ func NewDataVolumeWithArchiveContent(dataVolumeName string, size string, httpURL
 
 // PersistentVolumeClaimFromDataVolume creates a PersistentVolumeClaim definition so we can use PersistentVolumeClaim for various operations.
 func PersistentVolumeClaimFromDataVolume(datavolume *cdiv1.DataVolume) *corev1.PersistentVolumeClaim {
+	// This function can work with DVs that use the 'Storage' field instead of the 'PVC' field
+	spec := corev1.PersistentVolumeClaimSpec{}
+	if datavolume.Spec.PVC != nil {
+		spec = *datavolume.Spec.PVC
+	}
+
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      datavolume.Name,
@@ -636,7 +665,7 @@ func PersistentVolumeClaimFromDataVolume(datavolume *cdiv1.DataVolume) *corev1.P
 				}),
 			},
 		},
-		Spec: *datavolume.Spec.PVC,
+		Spec: spec,
 	}
 }
 
