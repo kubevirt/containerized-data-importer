@@ -286,7 +286,7 @@ func (dp *DataProcessor) ProcessDataWithPause() error {
 
 func (dp *DataProcessor) validate(url *url.URL) error {
 	klog.V(1).Infoln("Validating image")
-	err := qemuOperations.Validate(url, dp.availableSpace, dp.filesystemOverhead)
+	err := qemuOperations.Validate(url, dp.availableSpace)
 	if err != nil {
 		return ValidationSizeError{err: err}
 	}
