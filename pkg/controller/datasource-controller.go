@@ -170,7 +170,7 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 		var dataSources cdiv1.DataSourceList
 		matchingFields := client.MatchingFields{dataSourcePvcField: getKey(obj.GetNamespace(), obj.GetName())}
 		if err := mgr.GetClient().List(context.TODO(), &dataSources, matchingFields); err != nil {
-			log.Error(err, "Unable list DataSources with matching fields")
+			log.Error(err, "Unable to list DataSources", "matchingFields", matchingFields)
 			return
 		}
 		for _, ds := range dataSources.Items {
