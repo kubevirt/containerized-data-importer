@@ -821,33 +821,6 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		Expect(token).ToNot(BeEmpty())
 	})
 
-	DescribeTable("Async upload with filesystem overhead", func(expectedStatus int, globalOverhead, scOverhead string) {
-		tests.SetFilesystemOverhead(f, globalOverhead, scOverhead)
-
-		By("Creating PVC with upload target annotation")
-		pvc, err := f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Verify PVC annotation says ready")
-		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(found).To(BeTrue())
-
-		By("Get an upload token")
-		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(token).ToNot(BeEmpty())
-
-		By("Do upload")
-		Eventually(func() error {
-			return uploadImageAsync(uploadProxyURL, token, expectedStatus)
-		}, timeout, pollingInterval).Should(BeNil(), "uploadImageAsync should return nil, even if not ready")
-	},
-		Entry("[test_id:4548] Succeed with low global overhead", http.StatusOK, "0.1", ""),
-		Entry("[test_id:4672][posneg:negative] Fail with high global overhead", http.StatusBadRequest, "0.99", ""),
-		Entry("[test_id:4673] Succeed with low per-storageclass overhead (despite high global overhead)", http.StatusOK, "0.99", "0.1"),
-		Entry("[test_id:4714][posneg:negative] Fail with high per-storageclass overhead (despite low global overhead)", http.StatusBadRequest, "0.1", "0.99"),
-	)
 })
 
 var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component] Upload tests", func() {
