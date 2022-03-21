@@ -349,7 +349,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		By("Verify size error in logs")
 		Eventually(func() bool {
 			log, _ := tests.RunKubectlCommand(f, "logs", uploadPod.Name, "-n", uploadPod.Namespace)
-			if strings.Contains(log, "is larger than the reported available size") {
+			if strings.Contains(log, "is larger than the reported available") {
 				return true
 			}
 			if strings.Contains(log, "no space left on device") {

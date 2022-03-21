@@ -394,7 +394,7 @@ var _ = Describe("Importer CDI config manipulation tests", func() {
 			By("Verify size error in logs")
 			Eventually(func() bool {
 				log, _ := tests.RunKubectlCommand(f, "logs", importer.Name, "-n", importer.Namespace)
-				if strings.Contains(log, "is larger than available size") {
+				if strings.Contains(log, "is larger than the reported available") {
 					return true
 				}
 				if strings.Contains(log, "no space left on device") {
