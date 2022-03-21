@@ -227,7 +227,7 @@ func checkIfURLIsValid(info *ImgInfo, availableSize int64, image string) error {
 	}
 
 	if availableSize < info.VirtualSize {
-		return errors.Errorf("Virtual image size %d is larger than the reported available storage %d (available storage on PVC %d). A larger PVC is required.", info.VirtualSize, availableSize, info.VirtualSize)
+		return errors.Errorf("Virtual image size %d is larger than the reported available storage %d. A larger PVC is required.", info.VirtualSize, availableSize)
 	}
 	return nil
 }
