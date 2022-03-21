@@ -22,6 +22,9 @@ const (
 	CirrosQCow2File = "/cirros-qcow2.img"
 	// UploadFile is the file to upload
 	UploadFile = imagesPath + TinyCoreFile
+	// FsOverheadFile a file with some arbitrary size to check the fsOverhead validation logic
+	FsOverheadFile = imagesPath + "/fs-overhead.qcow2"
+
 	// UploadFileLargeVirtualDiskQcow is the file to upload (QCOW2)
 	UploadFileLargeVirtualDiskQcow = "./images/cirros-large-virtual-size.qcow2"
 	// UploadFileLargeVirtualDiskXz is the file to upload (XZ-compressed RAW file)
