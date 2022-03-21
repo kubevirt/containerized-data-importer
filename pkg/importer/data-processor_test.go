@@ -459,7 +459,7 @@ func (o *fakeQEMUOperations) ConvertToRawStream(*url.URL, string, bool) error {
 	return o.e2
 }
 
-func (o *fakeQEMUOperations) Validate(*url.URL, int64, float64) error {
+func (o *fakeQEMUOperations) Validate(*url.URL, int64) error {
 	return o.e5
 }
 
