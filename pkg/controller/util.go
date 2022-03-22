@@ -574,7 +574,7 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, prefix
 }
 
 func simplifyKnownMessage(msg string) string {
-	if strings.Contains(msg, "is larger than available size") ||
+	if strings.Contains(msg, "is larger than the reported available") ||
 		strings.Contains(msg, "no space left on device") ||
 		strings.Contains(msg, "file largest block is bigger than maxblock") {
 		return "DataVolume too small to contain image"
