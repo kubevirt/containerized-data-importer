@@ -15,6 +15,9 @@ import (
 const (
 	// UploadFile is the file to upload
 	UploadFile = "./images/tinyCore.iso"
+	// FsOverheadFile a file with some arbitrary size to check the fsOverhead validation logic
+	FsOverheadFile = "./images/fs-overhead.qcow2"
+
 	// UploadFileLargeVirtualDiskQcow is the file to upload (QCOW2)
 	UploadFileLargeVirtualDiskQcow = "./images/cirros-large-virtual-size.qcow2"
 	// UploadFileLargeVirtualDiskXz is the file to upload (XZ-compressed RAW file)

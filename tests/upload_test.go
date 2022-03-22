@@ -245,7 +245,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		By("Verify size error in logs")
 		Eventually(func() bool {
 			log, _ := tests.RunKubectlCommand(f, "logs", uploadPod.Name, "-n", uploadPod.Namespace)
-			if strings.Contains(log, "is larger than available size") {
+			if strings.Contains(log, "is larger than the reported available") {
 				return true
 			}
 			if strings.Contains(log, "no space left on device") {
@@ -694,33 +694,6 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		Expect(token).ToNot(BeEmpty())
 	})
 
-	DescribeTable("Async upload with filesystem overhead", func(expectedStatus int, globalOverhead, scOverhead string) {
-		tests.SetFilesystemOverhead(f, globalOverhead, scOverhead)
-
-		By("Creating PVC with upload target annotation")
-		pvc, err := f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Verify PVC annotation says ready")
-		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(found).To(BeTrue())
-
-		By("Get an upload token")
-		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(token).ToNot(BeEmpty())
-
-		By("Do upload")
-		Eventually(func() error {
-			return uploadImageAsync(uploadProxyURL, token, expectedStatus)
-		}, timeout, pollingInterval).Should(BeNil(), "uploadImageAsync should return nil, even if not ready")
-	},
-		Entry("[test_id:4548] Succeed with low global overhead", http.StatusOK, "0.1", ""),
-		Entry("[test_id:4672][posneg:negative] Fail with high global overhead", http.StatusBadRequest, "0.99", ""),
-		Entry("[test_id:4673] Succeed with low per-storageclass overhead (despite high global overhead)", http.StatusOK, "0.99", "0.1"),
-		Entry("[test_id:4714][posneg:negative] Fail with high per-storageclass overhead (despite low global overhead)", http.StatusBadRequest, "0.1", "0.99"),
-	)
 })
 
 var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component] Upload tests", func() {
@@ -762,6 +735,62 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(deleted).To(BeTrue())
+	})
+
+	It("Upload an image exactly the same size as DV request (bz#2064936)", func() {
+		// This image size and filesystem overhead combination was experimentally determined
+		// to reproduce bz#2064936 in CI when using ceph/rbd with a Filesystem mode PV since
+		// the filesystem capacity will be constrained by the PVC request size.
+		size := "858993459"
+		fsOverhead := "0.055" // The default value
+		tests.SetFilesystemOverhead(f, fsOverhead, fsOverhead)
+
+		volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+		accessModes := []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
+		dvName := "upload-dv"
+		By(fmt.Sprintf("Creating new datavolume %s", dvName))
+		dv := utils.NewDataVolumeForUploadWithStorageAPI(dvName, size)
+		dv.Spec.Storage.AccessModes = accessModes
+		dv.Spec.Storage.VolumeMode = &volumeMode
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		By("verifying pvc was created, force bind if needed")
+		pvc, err := utils.WaitForPVC(f.K8sClient, pvc.Namespace, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		phase := cdiv1.UploadReady
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Get an upload token")
+		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Do upload")
+		Eventually(func() error {
+			return uploadFileNameToPath(binaryRequestFunc, utils.FsOverheadFile, uploadProxyURL, syncUploadPath, token, http.StatusOK)
+		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+
+		phase = cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("[test_id:3993] Upload image to data volume and verify retry count", func() {
