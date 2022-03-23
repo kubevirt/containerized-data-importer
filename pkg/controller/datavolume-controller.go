@@ -340,18 +340,23 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 		}
 	}
 
+	const dvPhaseField = "status.phase"
+
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, dvPhaseField, func(obj client.Object) []string {
+		return []string{string(obj.(*cdiv1.DataVolume).Status.Phase)}
+	}); err != nil {
+		return err
+	}
+
 	// Watch for SC updates and reconcile the DVs waiting for default SC
-	// FIXME: consider labelling DVs with waitingForDefaultSC instead of checking for empty phase
 	if err := datavolumeController.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, handler.EnqueueRequestsFromMapFunc(
 		func(obj client.Object) (reqs []reconcile.Request) {
 			dvList := &cdiv1.DataVolumeList{}
-			if err := mgr.GetClient().List(context.TODO(), dvList, &client.ListOptions{}); err != nil {
+			if err := mgr.GetClient().List(context.TODO(), dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
 				return
 			}
 			for _, dv := range dvList.Items {
-				if dv.Status.Phase == "" {
-					reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
-				}
+				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
 			}
 			return
 		},
