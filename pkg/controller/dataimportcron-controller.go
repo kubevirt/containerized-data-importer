@@ -330,9 +330,10 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 }
 
 func (r *DataImportCronReconciler) deleteErroneousDataVolume(ctx context.Context, cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume) error {
+	log := r.log.WithValues("name", dv.Name).WithValues("uid", dv.UID)
 	if cond := findConditionByType(cdiv1.DataVolumeRunning, dv.Status.Conditions); cond != nil {
 		if cond.Status == corev1.ConditionFalse && cond.Reason == common.GenericError {
-			r.log.Info("Delete DataVolume and reset DesiredDigest due to error", "name", dv.Name, "uid", dv.UID, "message", cond.Message)
+			log.Info("Delete DataVolume and reset DesiredDigest due to error", "message", cond.Message)
 			// Unlabel the DV before deleting it, to eliminate reconcile before DIC is updated
 			dv.Labels[common.DataImportCronLabel] = ""
 			if err := r.client.Update(ctx, dv); IgnoreNotFound(err) != nil {
@@ -348,6 +349,7 @@ func (r *DataImportCronReconciler) deleteErroneousDataVolume(ctx context.Context
 }
 
 func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+	log := r.log.WithValues("name", dataImportCron.Name).WithValues("uid", dataImportCron.UID)
 	regSource, err := getCronRegistrySource(dataImportCron)
 	if err != nil {
 		return err
@@ -364,7 +366,7 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 		return err
 	}
 	if digest != "" && dataImportCron.Annotations[AnnSourceDesiredDigest] != digest {
-		r.log.Info("Updated", "digest", digest, "cron", dataImportCron.Name, "uid", dataImportCron.UID)
+		log.Info("Updating DataImportCron", "digest", digest)
 		addAnnotation(dataImportCron, AnnSourceDesiredDigest, digest)
 		addAnnotation(dataImportCron, AnnImageStreamDockerRef, dockerRef)
 	}
@@ -487,14 +489,15 @@ func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context,
 		return getDvTimestamp(dvList.Items[i]).After(getDvTimestamp(dvList.Items[j]))
 	})
 	for _, dv := range dvList.Items[maxDvs:] {
+		logDv := log.WithValues("name", dv.Name).WithValues("uid", dv.UID)
 		if err := r.client.Delete(ctx, &dv); err != nil {
 			if k8serrors.IsNotFound(err) {
-				log.Info("DataVolume not found for deletion", "name", dv.Name)
+				logDv.Info("DataVolume not found for deletion")
 			} else {
-				log.Error(err, "Unable to delete DataVolume", "name", dv.Name, "uid", dv.UID)
+				logDv.Error(err, "Unable to delete DataVolume")
 			}
 		} else {
-			log.Info("DataVolume deleted", "name", dv.Name, "uid", dv.UID)
+			logDv.Info("DataVolume deleted")
 		}
 	}
 	return nil
