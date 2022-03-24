@@ -3,6 +3,7 @@ package tests_test
 import (
 	"context"
 	"fmt"
+	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -45,6 +46,13 @@ var _ = Describe("DataImportCron", func() {
 	BeforeEach(func() {
 		ns = f.Namespace.Name
 	})
+
+	updateDigest := func(digest string) func(cron *cdiv1.DataImportCron) *cdiv1.DataImportCron {
+		return func(cron *cdiv1.DataImportCron) *cdiv1.DataImportCron {
+			cron.Annotations[controller.AnnSourceDesiredDigest] = digest
+			return cron
+		}
+	}
 
 	table.DescribeTable("should", func(garbageCollection, retention, createErrorDv bool, repeat int) {
 		reg, err := getDataVolumeSourceRegistry(f)
@@ -103,11 +111,9 @@ var _ = Describe("DataImportCron", func() {
 			if i > 0 {
 				if createErrorDv {
 					By("Set desired digest to nonexisting one")
-					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
-					Expect(err).ToNot(HaveOccurred())
-					cron.Annotations[controller.AnnSourceDesiredDigest] = "sha256:12345678900987654321"
-					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Update(context.TODO(), cron, metav1.UpdateOptions{})
-					Expect(err).ToNot(HaveOccurred())
+
+					//get and update!!!
+					retryOnceOnErr(updateDataImportCron(f.CdiClient, ns, cronName, updateDigest("sha256:12345678900987654321"))).Should(BeNil())
 
 					By("Wait for CurrentImports update")
 					Eventually(func() string {
@@ -119,11 +125,7 @@ var _ = Describe("DataImportCron", func() {
 					lastImportDv = currentImportDv
 				} else {
 					By("Reset desired digest")
-					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
-					Expect(err).ToNot(HaveOccurred())
-					cron.Annotations[controller.AnnSourceDesiredDigest] = ""
-					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Update(context.TODO(), cron, metav1.UpdateOptions{})
-					Expect(err).ToNot(HaveOccurred())
+					retryOnceOnErr(updateDataImportCron(f.CdiClient, ns, cronName, updateDigest(""))).Should(BeNil())
 
 					By("Delete last import DV")
 					err = f.CdiClient.CdiV1beta1().DataVolumes(ns).Delete(context.TODO(), currentImportDv, metav1.DeleteOptions{})
@@ -173,8 +175,14 @@ var _ = Describe("DataImportCron", func() {
 
 			By("Update DataSource pvc with dummy name")
 			dataSource.Spec.Source.PVC.Name = "dummy"
-			dataSource, err = f.CdiClient.CdiV1beta1().DataSources(ns).Update(context.TODO(), dataSource, metav1.UpdateOptions{})
-			Expect(err).To(BeNil())
+			retryOnceOnErr(
+				updateDataSource(f.CdiClient, ns, cron.Spec.ManagedDataSource,
+					func(dataSource *cdiv1.DataSource) *cdiv1.DataSource {
+						dataSource.Spec.Source.PVC.Name = "dummy"
+						return dataSource
+					},
+				)).Should(BeNil())
+
 			By("Verify DataSource pvc name was reconciled")
 			Eventually(func() bool {
 				dataSource, err = f.CdiClient.CdiV1beta1().DataSources(ns).Get(context.TODO(), dataSourceName, metav1.GetOptions{})
@@ -379,4 +387,44 @@ func getDataVolumeSourceRegistry(f *framework.Framework) (*cdiv1.DataVolumeSourc
 		return nil, err
 	}
 	return reg, nil
+}
+
+func updateDataImportCron(clientSet *cdiclientset.Clientset, namespace string, cronName string,
+	update func(cron *cdiv1.DataImportCron) *cdiv1.DataImportCron) func() error {
+
+	return func() error {
+		cron, err := clientSet.CdiV1beta1().DataImportCrons(namespace).Get(context.TODO(), cronName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		cron = update(cron)
+
+		_, err = clientSet.CdiV1beta1().DataImportCrons(namespace).Update(context.TODO(), cron, metav1.UpdateOptions{})
+		return err
+	}
+}
+
+func updateDataSource(clientSet *cdiclientset.Clientset, namespace string, dataSourceName string,
+	update func(dataSource *cdiv1.DataSource) *cdiv1.DataSource) func() error {
+	return func() error {
+		dataSource, err := clientSet.CdiV1beta1().DataSources(namespace).Get(context.TODO(), dataSourceName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		dataSource = update(dataSource)
+
+		_, err = clientSet.CdiV1beta1().DataSources(namespace).Update(context.TODO(), dataSource, metav1.UpdateOptions{})
+		return err
+	}
+}
+
+func retryOnceOnErr(f func() error) Assertion {
+	err := f()
+	if err != nil {
+		err = f()
+	}
+
+	return Expect(err)
 }
