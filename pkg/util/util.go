@@ -121,15 +121,15 @@ func GetAvailableSpace(path string) (int64, error) {
 
 // GetAvailableSpaceBlock gets the amount of available space at the block device path specified.
 func GetAvailableSpaceBlock(deviceName string) (int64, error) {
-	// Check if device exists.
+	// Check if the file exists and is a device file.
 	info, err := os.Stat(deviceName)
 	if os.IsNotExist(err) {
 		return int64(-1), nil
 	}
-	if info.IsDir() {
+	if !isDevice(info.Mode()) {
 		return int64(-1), nil
 	}
-	// Device exists and is not a directory attempt to get size
+	// Device exists, attempt to get size.
 	cmd := exec.Command(blockdevFileName, "--getsize64", deviceName)
 	var out bytes.Buffer
 	var errBuf bytes.Buffer
@@ -144,6 +144,14 @@ func GetAvailableSpaceBlock(deviceName string) (int64, error) {
 		return int64(-1), err
 	}
 	return i, nil
+}
+
+// isDevice returns true if it's a device file
+func isDevice(fileMode os.FileMode) bool {
+	if (fileMode & os.ModeDevice) != 0 {
+		return true
+	}
+	return false
 }
 
 // MinQuantity calculates the minimum of two quantities.
