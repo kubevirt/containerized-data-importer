@@ -221,7 +221,7 @@ http_file(
 http_file(
     name = "buildah-aarch64",
     urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/buildah-1.24.0-0.15.el9.aarch64.rpm"],
-    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
+    sha256 = "8c4781f9d883a542ae8a445ff25171105b47db4b52de36a6666a41dbad84eaea",
 )
 
 # containers-common is a noarch rpm which support both x86_64 and aarch64
@@ -318,7 +318,7 @@ http_file(
 http_file(
     name = "nbdkit-vddk-plugin",
     urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-vddk-plugin-1.28.2-2.el9.x86_64.rpm"],
-    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
+    sha256 = "6b4f2bf4ad89c2dad35c860b03ffebed79cd896a9c7ffcfa3d0254adcd728d82",
 )
 
 http_file(
