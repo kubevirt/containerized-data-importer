@@ -428,38 +428,38 @@ http_file(
 #imageio rpms and dependencies
 http_file(
     name = "ovirt-imageio-client",
-    sha256 = "3b230c1b6809be7d19b2abfb37bc6b44114c149692d5c4f53ade50981243ef66",
-    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03673832-ovirt-imageio/ovirt-imageio-client-2.4.1-0.202203111239.gitfb3003c.el9.x86_64.rpm"],
+    sha256 = "5d2eefc623963030ecf4a76473584882056016a28f617a865d813c1bf34d703b",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03803470-ovirt-imageio/ovirt-imageio-client-2.4.2-0.202203211308.git8505899.el9.x86_64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-client-aarch64",
-    sha256 = "3b230c1b6809be7d19b2abfb37bc6b44114c149692d5c4f53ade50981243ef66",
-    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03673832-ovirt-imageio/ovirt-imageio-client-2.4.1-0.202203111239.gitfb3003c.el9.aarch64.rpm"],
+    sha256 = "ff5aaaa9c725fc1930edf1eb1e5031ef8c37045a0dc38e0b277a6132cf448605",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03803470-ovirt-imageio/ovirt-imageio-client-2.4.2-0.202203211308.git8505899.el9.aarch64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-common",
-    sha256 = "b90e4ae7eced0d426cf0d3416f19977db2679482ea40e97fe0cace6a605c007f",
-    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03673832-ovirt-imageio/ovirt-imageio-common-2.4.1-0.202203111239.gitfb3003c.el9.x86_64.rpm"],
+    sha256 = "cf34767ec803fa67cc9638d8ee7492e7f3d2f396a0bc1c23b902a9459c8cae77",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03803470-ovirt-imageio/ovirt-imageio-common-2.4.2-0.202203211308.git8505899.el9.x86_64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-common-aarch64",
-    sha256 = "460e433b73a6c31f3dda3d0cb0ba788f5863b6fe80b091b65a9bfe4606c21532",
-    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03673832-ovirt-imageio/ovirt-imageio-common-2.4.1-0.202203111239.gitfb3003c.el9.aarch64.rpm"],
+    sha256 = "a2e7568f5611b3fefcc4f6560984c36e78c6fe4aff9022f9d14a7806fc8f4f89",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03803470-ovirt-imageio/ovirt-imageio-common-2.4.2-0.202203211308.git8505899.el9.aarch64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-daemon",
-    sha256 = "74f85c8fed0207ddcfd57a7a4f3ab20a172be9692f90d12d8f4b1634c1f54ebe",
-    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03673832-ovirt-imageio/ovirt-imageio-daemon-2.4.1-0.202203111239.gitfb3003c.el9.x86_64.rpm"],
+    sha256 = "f12f2be35443079eba32869ed323bc53a1ec42f49a2e416209267bb8caed4be0",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03803470-ovirt-imageio/ovirt-imageio-daemon-2.4.2-0.202203211308.git8505899.el9.x86_64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-daemon-aarch64",
-    sha256 = "5ff3732a8617ae8caa841d8aabe1815d7e30e5b5ffffaecba15f91f9357bf745",
-    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03673832-ovirt-imageio/ovirt-imageio-daemon-2.4.1-0.202203111239.gitfb3003c.el9.aarch64.rpm"],
+    sha256 = "74b7c6b2d0fc6a27019e7c2535f0e012bc3db92559c782776acafd5569f866eb",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03803470-ovirt-imageio/ovirt-imageio-daemon-2.4.2-0.202203211308.git8505899.el9.aarch64.rpm"],
 )
 
 http_file(
