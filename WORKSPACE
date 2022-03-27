@@ -232,12 +232,6 @@ http_file(
 )
 
 http_file(
-    name = "tar",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/tar-1.34-3.el9.x86_64.rpm"],
-    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
-)
-
-http_file(
     name = "ostree-libs",
     urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/ostree-libs-2021.6-1.el9.x86_64.rpm"],
     sha256 = "51215b94203d89d3277871a951c5d49811e064d5685d3e336be818973a39dd67",
@@ -253,42 +247,6 @@ http_file(
     name = "device-mapper-libs",
     urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/device-mapper-libs-1.02.181-1.el9.x86_64.rpm"],
     sha256 = "1a8b1af5dbf1e764a02e1fa5e43fe11e8ca97c161efa808c45c35abd5c91e1cf",
-)
-
-http_file(
-    name = "device-mapper-event",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/device-mapper-event-1.02.181-1.el9.x86_64.rpm"],
-    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
-)
-
-http_file(
-    name = "device-mapper-event-aarch64",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/device-mapper-event-1.02.181-1.el9.aarch64.rpm"],
-    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
-)
-
-http_file(
-    name = "device-mapper-event-libs",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/device-mapper-event-libs-1.02.181-1.el9.x86_64.rpm"],
-    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
-)
-
-http_file(
-    name = "device-mapper-event-libs-aarch64",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/device-mapper-event-libs-1.02.181-1.el9.aarch64.rpm"],
-    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
-)
-
-http_file(
-    name = "device-mapper-persistent-data",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/device-mapper-persistent-data-0.9.0-11.el9.x86_64.rpm"],
-    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
-)
-
-http_file(
-    name = "device-mapper-persistent-data-aarch64",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/device-mapper-persistent-data-0.9.0-11.el9.aarch64.rpm"],
-    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
 )
 
 http_file(
@@ -355,12 +313,6 @@ http_file(
     name = "nbdkit-curl-plugin-aarch64",
     urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-curl-plugin-1.28.2-2.el9.aarch64.rpm"],
     sha256 = "cfcd93018797e4e0a89482e3032a14165cd25849282f10467f0ce328bafba120",
-)
-
-http_file(
-    name = "libxcrypt",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/libxcrypt-4.4.18-3.el9.x86_64.rpm"],
-    sha256 = "defd09adbb24ed8171521e306b50a8047e4b5d7bf08fa6337751b8e3997dcbe8",
 )
 
 http_file(
