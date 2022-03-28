@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 
@@ -37,12 +38,11 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 )
 
 // Status provides CDI status sub-resource
 func (r *ReconcileCDI) Status(cr client.Object) *sdkapi.Status {
-	return &cr.(*cdiv1.CDI).Status.Status
+	return toSDKStatus(&cr.(*cdiv1.CDI).Status.Status)
 }
 
 // Create creates new CDI resource
@@ -147,4 +147,15 @@ func (r *ReconcileCDI) GetAllResources(crObject client.Object) ([]client.Object,
 	}
 
 	return resources, nil
+}
+
+func toSDKStatus(status *cdiv1.Status) *sdkapi.Status {
+	return &sdkapi.Status{
+		Phase:           sdkapi.Phase(status.Phase),
+		Conditions:      status.Conditions,
+		OperatorVersion: status.OperatorVersion,
+		TargetVersion:   status.TargetVersion,
+		ObservedVersion: status.ObservedVersion,
+	}
+
 }

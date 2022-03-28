@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
-
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -553,7 +551,7 @@ func createCloneSourcePodName(targetPvc *corev1.PersistentVolumeClaim) string {
 // MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
 func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerRefAnno string,
 	serverCACert []byte, targetPvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements,
-	workloadNodePlacement *sdkapi.NodePlacement) *corev1.Pod {
+	workloadNodePlacement *cdiv1.NodePlacement) *corev1.Pod {
 
 	var ownerID string
 	cloneSourcePodName := targetPvc.Annotations[AnnCloneSourcePod]

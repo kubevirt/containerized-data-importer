@@ -393,3 +393,22 @@ func (ImportProxy) SwaggerDoc() map[string]string {
 		"trustedCAProxy": "TrustedCAProxy is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle.\nThe TrustedCAProxy field is consumed by the import controller that is resposible for coping it to a config map named trusted-ca-proxy-bundle-cm in the cdi namespace.\nHere is an example of the ConfigMap (in yaml):\n\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: trusted-ca-proxy-bundle-cm\n  namespace: cdi\ndata:\n  ca.pem: |",
 	}
 }
+
+func (Status) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                "Status represents status of a operator configuration resource; must be inlined in the operator configuration resource status",
+		"conditions":      "A list of current conditions of the resource",
+		"operatorVersion": "The version of the resource as defined by the operator",
+		"targetVersion":   "The desired version of the resource",
+		"observedVersion": "The observed version of the resource",
+	}
+}
+
+func (NodePlacement) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":             "NodePlacement describes node scheduling configuration.\n+k8s:openapi-gen=true",
+		"nodeSelector": "nodeSelector is the node selector applied to the relevant kind of pods\nIt specifies a map of key-value pairs: for the pod to be eligible to run on a node,\nthe node must have each of the indicated key-value pairs as labels\n(it can have additional labels as well).\nSee https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector\n+kubebuilder:validation:Optional\n+optional",
+		"affinity":     "affinity enables pod affinity/anti-affinity placement expanding the types of constraints\nthat can be expressed with nodeSelector.\naffinity is going to be applied to the relevant kind of pods in parallel with nodeSelector\nSee https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity\n+kubebuilder:validation:Optional\n+optional",
+		"tolerations":  "tolerations is a list of tolerations applied to the relevant kind of pods\nSee https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info.\nThese are additional tolerations other than default ones.\n+kubebuilder:validation:Optional\n+optional",
+	}
+}

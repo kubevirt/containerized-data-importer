@@ -2103,7 +2103,6 @@ spec:
                 description: The version of the resource as defined by the operator
                 type: string
               phase:
-                description: Phase is the current phase of the deployment
                 type: string
               targetVersion:
                 description: The desired version of the resource
@@ -4200,7 +4199,6 @@ spec:
                 description: The version of the resource as defined by the operator
                 type: string
               phase:
-                description: Phase is the current phase of the deployment
                 type: string
               targetVersion:
                 description: The desired version of the resource

@@ -33,7 +33,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 )
 
 const (
@@ -675,7 +674,7 @@ func GetPodsUsingPVCs(c client.Client, namespace string, names sets.String, allo
 }
 
 // GetWorkloadNodePlacement extracts the workload-specific nodeplacement values from the CDI CR
-func GetWorkloadNodePlacement(c client.Client) (*sdkapi.NodePlacement, error) {
+func GetWorkloadNodePlacement(c client.Client) (*cdiv1.NodePlacement, error) {
 	cr, err := GetActiveCDI(c)
 	if err != nil {
 		return nil, err
@@ -697,7 +696,7 @@ func GetActiveCDI(c client.Client) (*cdiv1.CDI, error) {
 
 	var activeResources []cdiv1.CDI
 	for _, cr := range crList.Items {
-		if cr.Status.Phase != sdkapi.PhaseError {
+		if cr.Status.Phase != cdiv1.PhaseError {
 			activeResources = append(activeResources, cr)
 		}
 	}

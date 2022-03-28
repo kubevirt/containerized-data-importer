@@ -24,8 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
-
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
@@ -60,7 +58,7 @@ func (wh *cdiValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admission
 	}
 
 	switch cdi.Status.Phase {
-	case sdkapi.PhaseEmpty, sdkapi.PhaseError:
+	case cdiv1.PhaseEmpty, cdiv1.PhaseError:
 		return allowedAdmissionResponse()
 	}
 

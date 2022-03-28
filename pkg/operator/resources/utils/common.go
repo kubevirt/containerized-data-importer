@@ -19,6 +19,7 @@ package utils
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -61,13 +62,13 @@ func CreatePortsContainer(name, image, pullPolicy string, ports []corev1.Contain
 }
 
 // CreateDeployment creates deployment
-func CreateDeployment(name, matchKey, matchValue, serviceAccountName string, replicas int32, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
+func CreateDeployment(name, matchKey, matchValue, serviceAccountName string, replicas int32, infraNodePlacement *cdiv1.NodePlacement) *appsv1.Deployment {
 	podSpec := corev1.PodSpec{
 		SecurityContext: &corev1.PodSecurityContext{
 			RunAsNonRoot: &[]bool{true}[0],
 		},
 	}
-	deployment := ResourceBuilder.CreateDeployment(name, "", matchKey, matchValue, serviceAccountName, replicas, podSpec, infraNodePlacement)
+	deployment := ResourceBuilder.CreateDeployment(name, "", matchKey, matchValue, serviceAccountName, replicas, podSpec, toNodePlacement(infraNodePlacement))
 	return deployment
 }
 
@@ -90,4 +91,12 @@ func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAcco
 	deployment.SetLabels(labels)
 	deployment.Spec.Template.SetLabels(labels)
 	return deployment
+}
+
+func toNodePlacement(placement *cdiv1.NodePlacement) *sdkapi.NodePlacement {
+	return &sdkapi.NodePlacement{
+		NodeSelector: placement.NodeSelector,
+		Affinity:     placement.Affinity,
+		Tolerations:  placement.Tolerations,
+	}
 }

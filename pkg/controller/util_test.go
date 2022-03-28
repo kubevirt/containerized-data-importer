@@ -29,8 +29,6 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 )
@@ -166,7 +164,7 @@ var _ = Describe("GetWorkloadNodePlacement", func() {
 
 	It("Should return a node placement, with one active CDI CR one error", func() {
 		errCR := createCDIWithWorkload("cdi-test2", "2222-2222")
-		errCR.Status.Phase = sdkapi.PhaseError
+		errCR.Status.Phase = cdiv1.PhaseError
 		client := createClient(createCDIWithWorkload("cdi-test", "1111-1111"), errCR)
 		res, err := GetWorkloadNodePlacement(client)
 		Expect(err).ToNot(HaveOccurred())
@@ -856,11 +854,11 @@ func createCDIWithWorkload(name, uid string) *cdiv1.CDI {
 			UID:  types.UID(uid),
 		},
 		Spec: cdiv1.CDISpec{
-			Workloads: api.NodePlacement{},
+			Workloads: cdiv1.NodePlacement{},
 		},
 		Status: cdiv1.CDIStatus{
-			Status: sdkapi.Status{
-				Phase: sdkapi.PhaseDeployed,
+			Status: cdiv1.Status{
+				Phase: cdiv1.PhaseDeployed,
 			},
 		},
 	}

@@ -20,9 +20,8 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
 	utils "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/resources"
 )
@@ -41,7 +40,7 @@ type FactoryArgs struct {
 	PullPolicy             string `required:"true" split_words:"true"`
 	PriorityClassName      string
 	Namespace              string
-	InfraNodePlacement     *sdkapi.NodePlacement
+	InfraNodePlacement     *cdiv1.NodePlacement
 }
 
 type factoryFunc func(*FactoryArgs) []client.Object

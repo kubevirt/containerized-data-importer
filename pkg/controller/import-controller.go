@@ -31,7 +31,6 @@ import (
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 )
 
 const (
@@ -160,7 +159,7 @@ type importerPodArgs struct {
 	pvc                     *corev1.PersistentVolumeClaim
 	scratchPvcName          *string
 	podResourceRequirements *corev1.ResourceRequirements
-	workloadNodePlacement   *sdkapi.NodePlacement
+	workloadNodePlacement   *cdiv1.NodePlacement
 	vddkImageName           *string
 	priorityClassName       string
 }

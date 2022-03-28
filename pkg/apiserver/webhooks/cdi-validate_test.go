@@ -22,8 +22,6 @@ package webhooks
 import (
 	"encoding/json"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -51,8 +49,8 @@ var _ = Describe("CDI Delete Webhook", func() {
 					UninstallStrategy: strategy,
 				},
 				Status: cdiv1.CDIStatus{
-					Status: sdkapi.Status{
-						Phase: sdkapi.PhaseDeployed,
+					Status: cdiv1.Status{
+						Phase: cdiv1.PhaseDeployed,
 					},
 				},
 			}
@@ -92,8 +90,8 @@ var _ = Describe("CDI Delete Webhook", func() {
 					UninstallStrategy: strategy,
 				},
 				Status: cdiv1.CDIStatus{
-					Status: sdkapi.Status{
-						Phase: sdkapi.PhaseDeployed,
+					Status: cdiv1.Status{
+						Phase: cdiv1.PhaseDeployed,
 					},
 				},
 			}
@@ -132,8 +130,8 @@ var _ = Describe("CDI Delete Webhook", func() {
 					UninstallStrategy: &block,
 				},
 				Status: cdiv1.CDIStatus{
-					Status: sdkapi.Status{
-						Phase: sdkapi.PhaseDeployed,
+					Status: cdiv1.Status{
+						Phase: cdiv1.PhaseDeployed,
 					},
 				},
 			}
@@ -168,8 +166,8 @@ var _ = Describe("CDI Delete Webhook", func() {
 					UninstallStrategy: &block,
 				},
 				Status: cdiv1.CDIStatus{
-					Status: sdkapi.Status{
-						Phase: sdkapi.PhaseDeployed,
+					Status: cdiv1.Status{
+						Phase: cdiv1.PhaseDeployed,
 					},
 				},
 			}
@@ -200,8 +198,8 @@ var _ = Describe("CDI Delete Webhook", func() {
 					UninstallStrategy: &block,
 				},
 				Status: cdiv1.CDIStatus{
-					Status: sdkapi.Status{
-						Phase: sdkapi.PhaseError,
+					Status: cdiv1.Status{
+						Phase: cdiv1.PhaseError,
 					},
 				},
 			}

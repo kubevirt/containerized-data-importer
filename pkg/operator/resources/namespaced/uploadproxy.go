@@ -22,9 +22,8 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
@@ -84,7 +83,7 @@ func createUploadProxyRole() *rbacv1.Role {
 	return utils.ResourceBuilder.CreateRole(uploadProxyResourceName, rules)
 }
 
-func createUploadProxyDeployment(image, verbosity, pullPolicy, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
+func createUploadProxyDeployment(image, verbosity, pullPolicy, priorityClassName string, infraNodePlacement *cdiv1.NodePlacement) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
 	deployment := utils.CreateDeployment(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, uploadProxyResourceName, int32(1), infraNodePlacement)
 	if priorityClassName != "" {
