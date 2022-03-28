@@ -309,6 +309,29 @@ var _ = Describe("PVC Transfer Tests", func() {
 			checkCompleteFalse(xfer, "Running", "")
 		})
 
+		It("Should create target even when a new source appears", func() {
+			xfer := pvcTransferRunning()
+			xfer.Status.Data["pvReclaim"] = "Delete"
+			pv := sourcePV()
+			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
+			pv.Spec.ClaimRef = nil
+			newSource := createBoundPVC()
+			newSource.Spec.VolumeName = "somethingelse"
+			pvc := &corev1.PersistentVolumeClaim{}
+
+			r := createReconciler(xfer, pv, newSource)
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
+			Expect(err).ToNot(HaveOccurred())
+
+			err = getResource(r.Client, "", xfer.Name, xfer)
+			Expect(err).ToNot(HaveOccurred())
+			err = getResource(r.Client, "target-ns", "target-pvc", pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferRunning))
+			checkCompleteFalse(xfer, "Running", "")
+		})
+
 		It("Should wait for target to be bound", func() {
 			xfer := pvcTransferRunning()
 			xfer.Status.Data["pvReclaim"] = "Delete"

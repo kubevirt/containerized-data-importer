@@ -158,12 +158,17 @@ func (r *SmartCloneReconciler) Reconcile(_ context.Context, req reconcile.Reques
 func (r *SmartCloneReconciler) reconcilePvc(log logr.Logger, pvc *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
 	log.WithValues("pvc.Name", pvc.Name).WithValues("pvc.Namespace", pvc.Namespace).Info("Reconciling PVC")
 
+	snapshotName, hasSnapshot := pvc.Annotations[annSmartCloneSnapshot]
+
 	// Don't delete snapshot unless the PVC is bound.
-	if pvc.Status.Phase == corev1.ClaimBound {
-		namespace, name, err := cache.SplitMetaNamespaceKey(pvc.Annotations[annSmartCloneSnapshot])
+	if hasSnapshot && pvc.Status.Phase == corev1.ClaimBound {
+		namespace, name, err := cache.SplitMetaNamespaceKey(snapshotName)
 		if err != nil {
-			log.Info("Handling PVC without snapshot name annotation, exiting")
-			return reconcile.Result{}, nil
+			return reconcile.Result{}, err
+		}
+
+		if err := r.deleteSnapshot(log, namespace, name); err != nil {
+			return reconcile.Result{}, err
 		}
 
 		if v, ok := pvc.Annotations[AnnCloneOf]; !ok || v != "true" {
@@ -175,10 +180,6 @@ func (r *SmartCloneReconciler) reconcilePvc(log logr.Logger, pvc *corev1.Persist
 			if err := r.client.Update(context.TODO(), pvc); err != nil {
 				return reconcile.Result{}, err
 			}
-		}
-
-		if err := r.deleteSnapshot(log, namespace, name); err != nil {
-			return reconcile.Result{}, err
 		}
 	}
 
