@@ -20,6 +20,7 @@ go_library(
         "//vendor/golang.org/x/tools/go/internal/packagesdriver:go_default_library",
         "//vendor/golang.org/x/tools/internal/gocommand:go_default_library",
         "//vendor/golang.org/x/tools/internal/packagesinternal:go_default_library",
+        "//vendor/golang.org/x/tools/internal/typeparams:go_default_library",
         "//vendor/golang.org/x/tools/internal/typesinternal:go_default_library",
         "//vendor/golang.org/x/xerrors:go_default_library",
     ],

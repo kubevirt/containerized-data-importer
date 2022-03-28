@@ -37,6 +37,7 @@ go_library(
         "have_occurred_matcher.go",
         "have_prefix_matcher.go",
         "have_suffix_matcher.go",
+        "have_value.go",
         "match_error_matcher.go",
         "match_json_matcher.go",
         "match_regexp_matcher.go",
@@ -57,6 +58,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//vendor/github.com/onsi/gomega/format:go_default_library",
+        "//vendor/github.com/onsi/gomega/internal/gutil:go_default_library",
         "//vendor/github.com/onsi/gomega/matchers/support/goraph/bipartitegraph:go_default_library",
         "//vendor/github.com/onsi/gomega/types:go_default_library",
         "//vendor/golang.org/x/net/html/charset:go_default_library",
