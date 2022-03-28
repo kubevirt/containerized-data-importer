@@ -349,7 +349,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageSpec":              schema_pkg_apis_core_v1beta1_StorageSpec(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.TransferSource":           schema_pkg_apis_core_v1beta1_TransferSource(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.TransferTarget":           schema_pkg_apis_core_v1beta1_TransferTarget(ref),
-		"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement":                    schema_controller_lifecycle_operator_sdk_pkg_sdk_api_NodePlacement(ref),
+		"kubevirt.io/controller-lifecycle-operator-sdk/api.NodePlacement":                            schema_kubevirtio_controller_lifecycle_operator_sdk_api_NodePlacement(ref),
 	}
 }
 
@@ -14899,14 +14899,14 @@ func schema_pkg_apis_core_v1beta1_CDISpec(ref common.ReferenceCallback) common.O
 						SchemaProps: spec.SchemaProps{
 							Description: "Rules on which nodes CDI infrastructure pods will be scheduled",
 							Default:     map[string]interface{}{},
-							Ref:         ref("kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement"),
+							Ref:         ref("kubevirt.io/controller-lifecycle-operator-sdk/api.NodePlacement"),
 						},
 					},
 					"workload": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Restrict on which nodes CDI workload pods will be scheduled",
 							Default:     map[string]interface{}{},
-							Ref:         ref("kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement"),
+							Ref:         ref("kubevirt.io/controller-lifecycle-operator-sdk/api.NodePlacement"),
 						},
 					},
 					"cloneStrategyOverride": {
@@ -14939,7 +14939,7 @@ func schema_pkg_apis_core_v1beta1_CDISpec(ref common.ReferenceCallback) common.O
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDICertConfig", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfigSpec", "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement"},
+			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDICertConfig", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfigSpec", "kubevirt.io/controller-lifecycle-operator-sdk/api.NodePlacement"},
 	}
 }
 
@@ -16993,7 +16993,7 @@ func schema_pkg_apis_core_v1beta1_TransferTarget(ref common.ReferenceCallback) c
 	}
 }
 
-func schema_controller_lifecycle_operator_sdk_pkg_sdk_api_NodePlacement(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_kubevirtio_controller_lifecycle_operator_sdk_api_NodePlacement(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{

@@ -25,7 +25,7 @@ import (
 
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 	sdkr "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/reconciler"
 
 	. "github.com/onsi/ginkgo"
