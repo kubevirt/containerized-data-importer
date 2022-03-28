@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1524,9 +1525,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	Describe("Create a PVC using data from StorageProfile", func() {
 		var (
-			config   *cdiv1.CDIConfig
-			origSpec *cdiv1.CDIConfigSpec
-			err      error
+			config        *cdiv1.CDIConfig
+			origSpec      *cdiv1.CDIConfigSpec
+			defaultSc     *storagev1.StorageClass
+			defaultScName string
+			err           error
 		)
 
 		fillData := "123456789012345678901234567890123456789012345678901234567890"
@@ -1631,12 +1634,23 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		BeforeEach(func() {
+			defaultScName = utils.DefaultStorageClass.GetName()
+			utils.DefaultStorageClass, err = f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), defaultScName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			defaultSc = utils.DefaultStorageClass
 			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			origSpec = config.Spec.DeepCopy()
 		})
 
 		AfterEach(func() {
+			if defaultSc.Annotations[controller.AnnDefaultStorageClass] != "true" {
+				By("Restoring default storage class")
+				defaultSc.Annotations[controller.AnnDefaultStorageClass] = "true"
+				utils.DefaultStorageClass, err = f.K8sClient.StorageV1().StorageClasses().Update(context.TODO(), defaultSc, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+			}
+
 			By("Restoring CDIConfig to original state")
 			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 				origSpec.DeepCopyInto(config)
@@ -1714,6 +1728,49 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
 				return false
 			}, timeout, pollingInterval).Should(BeTrue())
+		})
+
+		It("[test_id:8383]Import fails when no default storage class, and recovers when default is set", func() {
+			By("updating to no default storage class")
+			defaultSc.Annotations[controller.AnnDefaultStorageClass] = "false"
+			defaultSc, err = f.K8sClient.StorageV1().StorageClasses().Update(context.TODO(), defaultSc, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
+			requestedSize := resource.MustParse("100Mi")
+			spec := cdiv1.StorageSpec{
+				Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						v1.ResourceStorage: requestedSize,
+					},
+				},
+			}
+			dataVolume := createDataVolumeForImport(f, spec)
+
+			By("verifying event occurred")
+			Eventually(func() bool {
+				// Only find DV events, we know the PVC gets the same events
+				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+				if err == nil {
+					fmt.Fprintf(GinkgoWriter, "%s", events)
+					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume.storage spec is missing accessMode and no storageClass to choose profile")
+				}
+				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+				return false
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			By("verifying pvc not created")
+			_, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+			By("restoring default storage class")
+			defaultSc.Annotations[controller.AnnDefaultStorageClass] = "true"
+			defaultSc, err = f.K8sClient.StorageV1().StorageClasses().Update(context.TODO(), defaultSc, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying pvc created")
+			_, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("[test_id:5913]Import recovers when user adds accessModes to profile", func() {
