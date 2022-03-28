@@ -170,6 +170,18 @@ container_pull(
 
 # RPMS
 http_file(
+    name = "util-linux-core",
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/util-linux-core-2.37.2-1.el9.x86_64.rpm"],
+    sha256 = "0313682867c1d07785a6d02ff87e1899f484bd1ce6348fa5c673eca78c0da2bd",
+)
+
+http_file(
+    name = "util-linux-core-aarch64",
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/util-linux-core-2.37.2-1.el9.aarch64.rpm"],
+    sha256 = "5bd360c94d20a11bac665b634569fc2597eab88280d88cd5b71be853e8331e14",
+)
+
+http_file(
     name = "qemu-img",
     urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/qemu-img-6.2.0-11.el9.x86_64.rpm"],
     sha256 = "0d4d841dc2adf971fbd296eb115559aa6460ccef3ead39e2d17773642d9a68a9",

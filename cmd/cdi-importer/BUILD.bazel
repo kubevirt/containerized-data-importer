@@ -20,6 +20,7 @@ rpm_image(
             "@qemu-img-aarch64//file",
             "@libaio-aarch64//file",
             "@ostree-libs-aarch64//file",
+            "@util-linux-core-aarch64//file",
             "@containers-common//file",
         ],
         "//conditions:default": [
@@ -34,6 +35,7 @@ rpm_image(
             "@qemu-img//file",
             "@libaio//file",
             "@ostree-libs//file",
+            "@util-linux-core//file",
             "@containers-common//file",
         ],
     }),
