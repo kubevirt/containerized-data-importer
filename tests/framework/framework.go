@@ -497,7 +497,8 @@ func (f *Framework) CreateStorageQuota(numPVCs, requestStorage int64) error {
 	return wait.PollImmediate(2*time.Second, nsDeleteTime, func() (bool, error) {
 		quota, err := f.K8sClient.CoreV1().ResourceQuotas(ns).Get(context.TODO(), "test-storage-quota", metav1.GetOptions{})
 		if err != nil {
-			return false, err
+			fmt.Fprintf(ginkgo.GinkgoWriter, "ERROR: GET ResourceQuota failed once, retrying: %v\n", err.Error())
+			return false, nil
 		}
 		return len(quota.Status.Hard) == 2, nil
 	})
