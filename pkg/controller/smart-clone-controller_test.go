@@ -117,6 +117,15 @@ var _ = Describe("All smart clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
+		It("Should error with malformed annotation", func() {
+			reconciler := createSmartCloneReconciler()
+			pvc := createPVCWithSnapshotSource("test-dv", "invalid")
+			pvc.Annotations["cdi.kubevirt.io/smartCloneSnapshot"] = "foo/bar/baz"
+			_, err := reconciler.reconcilePvc(reconciler.log, pvc)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("unexpected key format"))
+		})
+
 		It("Should add cloneOf annotation and delete snapshot", func() {
 			pvc := createPVCWithSnapshotSource("test-dv", "invalid")
 			snapshot := createSnapshotVolume("invalid", pvc.Namespace, nil)
