@@ -1005,10 +1005,11 @@ func (r *DatavolumeReconciler) setMultistageImportAnnotations(dataVolume *cdiv1.
 			podNamespace = dataVolume.Namespace
 		}
 		phase := pvcCopy.ObjectMeta.Annotations[AnnPodPhase]
-		pod, _ := r.getPodFromPvc(podNamespace, pvcCopy.ObjectMeta.UID)
+		pod, _ := r.getPodFromPvc(podNamespace, pvcCopy)
 		if pod == nil && phase == string(corev1.PodSucceeded) {
 			// Reset PVC phase so importer will create a new pod
 			pvcCopy.ObjectMeta.Annotations[AnnPodPhase] = string(corev1.PodUnknown)
+			delete(pvcCopy.ObjectMeta.Annotations, AnnImportPod)
 		}
 		// else: There's a pod already running, no need to try to start a new one.
 	}
@@ -1465,7 +1466,7 @@ func getStorageVolumeMode(c client.Client, dataVolume *cdiv1.DataVolume, storage
 	return nil, errors.Errorf("no target storage defined")
 }
 
-func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvcUID types.UID) (reconcile.Result, error) {
+func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
 	var podNamespace string
 	if datavolume.Status.Progress == "" {
 		datavolume.Status.Progress = "N/A"
@@ -1482,7 +1483,7 @@ func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVol
 		r.log.Info("Datavolume finished, no longer updating progress", "Namespace", datavolume.Namespace, "Name", datavolume.Name, "Phase", datavolume.Status.Phase)
 		return reconcile.Result{}, nil
 	}
-	pod, err := r.getPodFromPvc(podNamespace, pvcUID)
+	pod, err := r.getPodFromPvc(podNamespace, pvc)
 	if err == nil {
 		if pod.Status.Phase != corev1.PodRunning {
 			// Avoid long timeouts and error traces from HTTP get when pod is already gone
@@ -2126,7 +2127,7 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		if i, err := strconv.Atoi(pvc.Annotations[AnnPodRestarts]); err == nil && i >= 0 {
 			dataVolumeCopy.Status.RestartCount = int32(i)
 		}
-		result, err = r.reconcileProgressUpdate(dataVolumeCopy, pvc.GetUID())
+		result, err = r.reconcileProgressUpdate(dataVolumeCopy, pvc)
 		if err != nil {
 			return result, err
 		}
@@ -2216,8 +2217,8 @@ func (r *DatavolumeReconciler) emitEvent(dataVolume *cdiv1.DataVolume, dataVolum
 	return nil
 }
 
-// getPodFromPvc determines the pod associated with the pvc UID passed in.
-func (r *DatavolumeReconciler) getPodFromPvc(namespace string, pvcUID types.UID) (*corev1.Pod, error) {
+// getPodFromPvc determines the pod associated with the pvc passed in.
+func (r *DatavolumeReconciler) getPodFromPvc(namespace string, pvc *corev1.PersistentVolumeClaim) (*corev1.Pod, error) {
 	l, _ := labels.Parse(common.PrometheusLabelKey)
 	pods := &corev1.PodList{}
 	listOptions := client.ListOptions{
@@ -2227,7 +2228,11 @@ func (r *DatavolumeReconciler) getPodFromPvc(namespace string, pvcUID types.UID)
 		return nil, err
 	}
 
+	pvcUID := pvc.GetUID()
 	for _, pod := range pods.Items {
+		if shouldIgnorePod(&pod, pvc) {
+			continue
+		}
 		for _, or := range pod.OwnerReferences {
 			if or.UID == pvcUID {
 				return &pod, nil
@@ -2249,6 +2254,17 @@ func (r *DatavolumeReconciler) addOwnerRef(pvc *corev1.PersistentVolumeClaim, dv
 	}
 
 	return r.client.Update(context.TODO(), pvc)
+}
+
+// If this is a completed pod that was used for one checkpoint of a multi-stage import, it
+// should be ignored by pod lookups as long as the retainAfterCompletion annotation is set.
+func shouldIgnorePod(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim) bool {
+	retain := pvc.ObjectMeta.Annotations[AnnPodRetainAfterCompletion]
+	checkpoint := pvc.ObjectMeta.Annotations[AnnCurrentCheckpoint]
+	if checkpoint != "" && pod.Status.Phase == corev1.PodSucceeded {
+		return retain == "true"
+	}
+	return false
 }
 
 func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) error {
