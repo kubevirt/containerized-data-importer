@@ -195,14 +195,14 @@ http_file(
 
 http_file(
     name = "nginx",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nginx-1.20.1-8.el9.x86_64.rpm"],
-    sha256 = "c5d2144014193f5902a6b89a5f06f5bd51a235aad9c071d724ac13b533fbece1",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nginx-1.20.1-10.el9.x86_64.rpm"],
+    sha256 = "8dd157d2198e737dee4315ddfa1785bf26007c1d2a07704fcb48299fccde9629",
 )
 
 http_file(
     name = "nginx-aarch64",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nginx-1.20.1-8.el9.aarch64.rpm"],
-    sha256 = "6d7ff7ee127c4bd4f6b73f2620c34fdc89149a30a12de0ef26b7163986de42b1",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nginx-1.20.1-10.el9.aarch64.rpm"],
+    sha256 = "81917c701f3e595fa8c40736b6a958fa9df335289696f1b75ba6a6d766357671",
 )
 
 http_file(
@@ -263,68 +263,68 @@ http_file(
 
 http_file(
     name = "nbdkit-server",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-server-1.28.2-2.el9.x86_64.rpm"],
-    sha256 = "d0ff18a0c80f078fe2be429d1a6dc57f4799f71202da171ae7a8de395d4a0e7e",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-server-1.30.1-2.el9.x86_64.rpm"],
+    sha256 = "3e677a5613e9fea1bc27503e282222b7131db4f177d9222948313c912c57b610",
 )
 
 http_file(
     name = "nbdkit-server-aarch64",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-server-1.28.2-2.el9.aarch64.rpm"],
-    sha256 = "cda386348687e7933ce497f789d142186d02b9aec215cb5da1139a572732336b",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-server-1.30.1-2.el9.aarch64.rpm"],
+    sha256 = "66a465ea8d131491fb581082ec7c5044c3918e6d2016db361796cd76cb4286ee",
 )
 
 http_file(
     name = "nbdkit-basic-filters",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-basic-filters-1.28.2-2.el9.x86_64.rpm"],
-    sha256 = "bfc389aac53dcc7c3e2ff7fc55c311b957b53ee12977dbe214e2141350079251",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-basic-filters-1.30.1-2.el9.x86_64.rpm"],
+    sha256 = "a48949f07b3b216da2ec315eea0371326af7065a6481b0015b1975ebf5617c08",
 )
 
 http_file(
     name = "nbdkit-basic-filters-aarch64",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-basic-filters-1.28.2-2.el9.aarch64.rpm"],
-    sha256 = "c5d949608dfdfcb358d323c9727d2c527259412c10c6cbbac07dc4a06b183ff0",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-basic-filters-1.30.1-2.el9.aarch64.rpm"],
+    sha256 = "38e603ca2272c2d4839b05555df85082aa9aee10bca02913a4d4906d72c48d49",
 )
 
 http_file(
     name = "nbdkit-vddk-plugin",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-vddk-plugin-1.28.2-2.el9.x86_64.rpm"],
-    sha256 = "6b4f2bf4ad89c2dad35c860b03ffebed79cd896a9c7ffcfa3d0254adcd728d82",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-vddk-plugin-1.30.1-2.el9.x86_64.rpm"],
+    sha256 = "04a2e9f046d8f63628cfdd42ab7cc16a92e0f4610172b9c73ec9d19c768cc95e",
 )
 
 http_file(
     name = "nbdkit-xz-filter",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-xz-filter-1.28.2-2.el9.x86_64.rpm"],
-    sha256 = "a941c019a8d688d53daae067f10d3c7dd341ec948df1cc42fb04c3e2ef92981e",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-xz-filter-1.30.1-2.el9.x86_64.rpm"],
+    sha256 = "f4e7b9ea8bd7fd73e58c9ad24846a7467a9b36d9a98d851341cfded8e14ca59e",
 )
 
 http_file(
     name = "nbdkit-xz-filter-aarch64",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-xz-filter-1.28.2-2.el9.aarch64.rpm"],
-    sha256 = "1876ca52e433107b65d1ebf4b471a7dcec9ecc3b19b4af28901b0469058dc32d",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-xz-filter-1.30.1-2.el9.aarch64.rpm"],
+    sha256 = "59fe2df30e34d32b1083bbeeadb71a1112967e44d6d6529217aee0fa0084a955",
 )
 
 http_file(
     name = "nbdkit-gzip-filter",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-gzip-filter-1.28.2-2.el9.x86_64.rpm"],
-    sha256 = "b7086c980f11da7ad01e8aec53a7d7c01d519d6920216ac95e040ba13f9d69c9",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-gzip-filter-1.30.1-2.el9.x86_64.rpm"],
+    sha256 = "809d15266a1a243326b65425d5e1c3b1072fe5127e6131d1edde1be702c1d1c4",
 )
 
 http_file(
     name = "nbdkit-gzip-filter-aarch64",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-gzip-filter-1.28.2-2.el9.aarch64.rpm"],
-    sha256 = "5720fa674b52545c2ec9ea761546f240e7fc97602646be9dc119a35b81fd8bbb",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-gzip-filter-1.30.1-2.el9.aarch64.rpm"],
+    sha256 = "00e25f543a8f7dc26393a01a94f43b7dc688e063377bc9220ff4a48fa5a785b9",
 )
 
 http_file(
     name = "nbdkit-curl-plugin",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-curl-plugin-1.28.2-2.el9.x86_64.rpm"],
-    sha256 = "d31387b261a1e1d568349caeaea580932904462788439c4c087d96664c32818d",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-curl-plugin-1.30.1-2.el9.x86_64.rpm"],
+    sha256 = "87dbe46ebce06e20216ff7efd3207347ec3404e832094805c21e83f9d34039c2",
 )
 
 http_file(
     name = "nbdkit-curl-plugin-aarch64",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-curl-plugin-1.28.2-2.el9.aarch64.rpm"],
-    sha256 = "cfcd93018797e4e0a89482e3032a14165cd25849282f10467f0ce328bafba120",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-curl-plugin-1.30.1-2.el9.aarch64.rpm"],
+    sha256 = "cab28966e1a42c9ad1e258ad8ca6f82ffd3d7f9d2797b36d55699daee2dc552b",
 )
 
 http_file(
@@ -343,14 +343,14 @@ http_file(
 
 http_file(
     name = "libnbd",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/libnbd-1.10.1-1.el9.x86_64.rpm"],
-    sha256 = "ff76851f63d3d5a54b482160af1424878e80f06c3de01fff6f3b2c3e8c6b1561",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/libnbd-1.12.2-1.el9.x86_64.rpm"],
+    sha256 = "8516de690d958c8cab488a5961f5eecaa641e4f4af2d989b411c760853d18827",
 )
 
 http_file(
     name = "libnbd-aarch64",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/libnbd-1.10.1-1.el9.aarch64.rpm"],
-    sha256 = "eb2c09d93281804616d868db4c8cd822acba5d6ddf820d6d3651e6eadc5d91f1",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/libnbd-1.12.2-1.el9.aarch64.rpm"],
+    sha256 = "9c15ca579e08d8df7a6950a8d63ceafcdd724bbef54ca8c4bc299eb7a4d9b608",
 )
 
 http_file(
@@ -392,38 +392,38 @@ http_file(
 #imageio rpms and dependencies
 http_file(
     name = "ovirt-imageio-client",
-    sha256 = "5d2eefc623963030ecf4a76473584882056016a28f617a865d813c1bf34d703b",
-    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03803470-ovirt-imageio/ovirt-imageio-client-2.4.2-0.202203211308.git8505899.el9.x86_64.rpm"],
+    sha256 = "4447b2e6c659f0b486f8db82b415eaa065adb09092b00308eade30632be0c4bf",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03941554-ovirt-imageio/ovirt-imageio-client-2.4.3-1.el9.x86_64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-client-aarch64",
-    sha256 = "ff5aaaa9c725fc1930edf1eb1e5031ef8c37045a0dc38e0b277a6132cf448605",
-    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03803470-ovirt-imageio/ovirt-imageio-client-2.4.2-0.202203211308.git8505899.el9.aarch64.rpm"],
+    sha256 = "ab2cdec494c6ed22cb718779bf1445d3ede79c051337e506b3c05c77c28f5b2d",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03941554-ovirt-imageio/ovirt-imageio-client-2.4.3-1.el9.aarch64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-common",
-    sha256 = "cf34767ec803fa67cc9638d8ee7492e7f3d2f396a0bc1c23b902a9459c8cae77",
-    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03803470-ovirt-imageio/ovirt-imageio-common-2.4.2-0.202203211308.git8505899.el9.x86_64.rpm"],
+    sha256 = "d6562eb701afcbde7ab1f14e1cc5f3a8be3ecc7fa25b9f3b831e342c3e14bc2a",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03941554-ovirt-imageio/ovirt-imageio-common-2.4.3-1.el9.x86_64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-common-aarch64",
-    sha256 = "a2e7568f5611b3fefcc4f6560984c36e78c6fe4aff9022f9d14a7806fc8f4f89",
-    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03803470-ovirt-imageio/ovirt-imageio-common-2.4.2-0.202203211308.git8505899.el9.aarch64.rpm"],
+    sha256 = "f8a9273463657244fdf34fef0077f2c79f1216891439472df0543eb5133d7922",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03941554-ovirt-imageio/ovirt-imageio-common-2.4.3-1.el9.aarch64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-daemon",
-    sha256 = "f12f2be35443079eba32869ed323bc53a1ec42f49a2e416209267bb8caed4be0",
-    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03803470-ovirt-imageio/ovirt-imageio-daemon-2.4.2-0.202203211308.git8505899.el9.x86_64.rpm"],
+    sha256 = "e0df3d43109769d2745a0d2befc05db8961b7de770047adf8ad60469d6e430f0",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/03941554-ovirt-imageio/ovirt-imageio-daemon-2.4.3-1.el9.x86_64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-daemon-aarch64",
-    sha256 = "74b7c6b2d0fc6a27019e7c2535f0e012bc3db92559c782776acafd5569f866eb",
-    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03803470-ovirt-imageio/ovirt-imageio-daemon-2.4.2-0.202203211308.git8505899.el9.aarch64.rpm"],
+    sha256 = "5a6697a4fd9c8d52a8a9ead8a4281b3d208df221e0d87f4377e7a3f6a3a1608d",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/03941554-ovirt-imageio/ovirt-imageio-daemon-2.4.3-1.el9.aarch64.rpm"],
 )
 
 http_file(
