@@ -34,7 +34,7 @@ require (
 	github.com/ovirt/go-ovirt-client v0.6.0
 	github.com/ovirt/go-ovirt-client-log-klog v1.0.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.11.0
+	github.com/prometheus/client_golang v1.11.1
 	github.com/prometheus/client_model v0.2.0
 	github.com/rs/cors v1.7.0
 	github.com/ulikunitz/xz v0.5.10
