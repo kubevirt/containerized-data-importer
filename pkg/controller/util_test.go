@@ -29,8 +29,8 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
+	"kubevirt.io/controller-lifecycle-operator-sdk/api"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 )

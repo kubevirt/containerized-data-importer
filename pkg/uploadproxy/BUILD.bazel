@@ -10,7 +10,6 @@ go_library(
         "//pkg/controller:go_default_library",
         "//pkg/token:go_default_library",
         "//pkg/util/cert/fetcher:go_default_library",
-        "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/github.com/rs/cors:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
@@ -19,6 +18,7 @@ go_library(
         "//vendor/k8s.io/apimachinery/pkg/util/wait:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
+        "//vendor/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
     ],
 )
 

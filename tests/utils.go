@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo"
