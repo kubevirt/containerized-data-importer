@@ -41,16 +41,22 @@ func init() {
 }
 
 func waitForReadyFile() {
+	const readyFileTimeoutSeconds = 60
 	readyFile, _ := util.ParseEnvVar(common.ImporterReadyFile, false)
 	if readyFile == "" {
 		return
 	}
-	for {
+	for i := 0; i < readyFileTimeoutSeconds; i++ {
 		if _, err := os.Stat(readyFile); err == nil {
-			break
+			return
 		}
 		time.Sleep(time.Second)
 	}
+	err := util.WriteTerminationMessage(fmt.Sprintf("Timeout waiting for file %s", readyFile))
+	if err != nil {
+		klog.Errorf("%+v", err)
+	}
+	os.Exit(1)
 }
 
 func touchDoneFile() {
@@ -111,8 +117,8 @@ func main() {
 			klog.Errorf("%+v", err)
 			os.Exit(1)
 		}
-
 	} else {
+		waitForReadyFile()
 		exitCode := handleImport(source, contentType, volumeMode, imageSize, filesystemOverhead, preallocation)
 		if exitCode != 0 {
 			os.Exit(exitCode)
@@ -147,7 +153,6 @@ func handleImport(
 	defer ds.Close()
 
 	processor := newDataProcessor(contentType, volumeMode, ds, imageSize, filesystemOverhead, preallocation)
-	waitForReadyFile()
 	err := processor.ProcessData()
 
 	if err != nil {
