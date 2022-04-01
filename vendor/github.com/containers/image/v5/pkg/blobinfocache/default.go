@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 
+	"github.com/containers/image/v5/internal/rootless"
 	"github.com/containers/image/v5/pkg/blobinfocache/boltdb"
 	"github.com/containers/image/v5/pkg/blobinfocache/memory"
 	"github.com/containers/image/v5/types"
@@ -20,7 +20,7 @@ const (
 	systemBlobInfoCacheDir = "/var/lib/containers/cache"
 )
 
-// blobInfoCacheDir returns a path to a blob info cache appropripate for sys and euid.
+// blobInfoCacheDir returns a path to a blob info cache appropriate for sys and euid.
 // euid is used so that (sudo …) does not write root-owned files into the unprivileged users’ home directory.
 func blobInfoCacheDir(sys *types.SystemContext, euid int) (string, error) {
 	if sys != nil && sys.BlobInfoCacheDir != "" {
@@ -48,18 +48,9 @@ func blobInfoCacheDir(sys *types.SystemContext, euid int) (string, error) {
 	return filepath.Join(dataDir, "containers", "cache"), nil
 }
 
-func getRootlessUID() int {
-	uidEnv := os.Getenv("_CONTAINERS_ROOTLESS_UID")
-	if uidEnv != "" {
-		u, _ := strconv.Atoi(uidEnv)
-		return u
-	}
-	return os.Geteuid()
-}
-
 // DefaultCache returns the default BlobInfoCache implementation appropriate for sys.
 func DefaultCache(sys *types.SystemContext) types.BlobInfoCache {
-	dir, err := blobInfoCacheDir(sys, getRootlessUID())
+	dir, err := blobInfoCacheDir(sys, rootless.GetRootlessEUID())
 	if err != nil {
 		logrus.Debugf("Error determining a location for %s, using a memory-only cache", blobInfoCacheFilename)
 		return memory.New()
