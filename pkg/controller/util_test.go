@@ -525,6 +525,25 @@ func createPvcInStorageClass(name, ns string, storageClassName *string, annotati
 	return pvc
 }
 
+func CreatePv(name string, storageClassName string) *v1.PersistentVolume {
+	volumeMode := v1.PersistentVolumeFilesystem
+	pv := &v1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			UID:  types.UID(name),
+		},
+		Spec: v1.PersistentVolumeSpec{
+			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany, v1.ReadWriteOnce},
+			Capacity: v1.ResourceList{
+				v1.ResourceName(v1.ResourceStorage): resource.MustParse("1G"),
+			},
+			StorageClassName: storageClassName,
+			VolumeMode:       &volumeMode,
+		},
+	}
+	return pv
+}
+
 func createScratchPvc(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, storageClassName string) *v1.PersistentVolumeClaim {
 	t := true
 	labels := map[string]string{
@@ -693,12 +712,13 @@ func createStorageClassWithBindingMode(name string, annotations map[string]strin
 	}
 }
 
-func createStorageClassWithProvisioner(name string, annotations map[string]string, provisioner string) *storagev1.StorageClass {
+func createStorageClassWithProvisioner(name string, annotations, labels map[string]string, provisioner string) *storagev1.StorageClass {
 	return &storagev1.StorageClass{
 		Provisioner: provisioner,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Annotations: annotations,
+			Labels:      labels,
 		},
 	}
 }

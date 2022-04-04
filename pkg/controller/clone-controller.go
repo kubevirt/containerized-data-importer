@@ -774,8 +774,8 @@ func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *corev1.Persiste
 		return err
 	}
 	// Allow different source and target volume modes only on KubeVirt content type
-	sourceVolumeMode := resolveVolumeMode(sourceSpec.VolumeMode)
-	targetVolumeMode := resolveVolumeMode(targetSpec.VolumeMode)
+	sourceVolumeMode := util.ResolveVolumeMode(sourceSpec.VolumeMode)
+	targetVolumeMode := util.ResolveVolumeMode(targetSpec.VolumeMode)
 	if sourceVolumeMode != targetVolumeMode && contentType != cdiv1.DataVolumeKubeVirt {
 		return fmt.Errorf("source volumeMode (%s) and target volumeMode (%s) do not match, contentType (%s)",
 			sourceVolumeMode, targetVolumeMode, contentType)

@@ -141,7 +141,7 @@ func (r *StorageProfileReconciler) getStorageProfile(sc *storagev1.StorageClass)
 
 func (r *StorageProfileReconciler) reconcilePropertySets(sc *storagev1.StorageClass) []cdiv1.ClaimPropertySet {
 	claimPropertySets := []cdiv1.ClaimPropertySet{}
-	capabilities, found := storagecapabilities.Get(sc)
+	capabilities, found := storagecapabilities.Get(r.client, sc)
 	if found {
 		for i := range capabilities {
 			claimPropertySet := cdiv1.ClaimPropertySet{
