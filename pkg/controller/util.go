@@ -974,7 +974,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 		}
 	}
 
-	requestedVolumeSize, err := volumeSize(client, storage, pvcSpec.VolumeMode)
+	requestedVolumeSize, err := volumeSize(client, dv.Spec, pvcSpec.VolumeMode)
 	if err != nil {
 		return nil, err
 	}
@@ -1090,16 +1090,22 @@ func getDefaultAccessModes(c client.Client, storageClass *storagev1.StorageClass
 	return nil, errors.Errorf("no accessMode defined on StorageProfile for %s StorageClass", storageClass.Name)
 }
 
-func volumeSize(c client.Client, storage *cdiv1.StorageSpec, volumeMode *v1.PersistentVolumeMode) (*resource.Quantity, error) {
+func volumeSize(c client.Client, spec cdiv1.DataVolumeSpec, volumeMode *v1.PersistentVolumeMode) (*resource.Quantity, error) {
 	// resources.requests[storage] - just copy it to pvc,
-	requestedSize, found := storage.Resources.Requests[v1.ResourceStorage]
+	requestedSize, found := spec.Storage.Resources.Requests[v1.ResourceStorage]
+
 	if !found {
-		return nil, errors.Errorf("Datavolume Spec is not valid - missing storage size")
+		// Storage size can be empty when using PVC source
+		if spec.Source.PVC != nil {
+			return &requestedSize, nil
+		} else {
+			return nil, errors.Errorf("Datavolume Spec is not valid - missing storage size")
+		}
 	}
 
 	// disk or image size, inflate it with overhead
 	if util.ResolveVolumeMode(volumeMode) == v1.PersistentVolumeFilesystem {
-		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, storage.StorageClassName)
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, spec.Storage.StorageClassName)
 		if err != nil {
 			return nil, err
 		}

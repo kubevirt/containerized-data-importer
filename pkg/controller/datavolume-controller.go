@@ -547,6 +547,18 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 	pvcPopulated bool,
 	selectedCloneStrategy cloneStrategy) (reconcile.Result, error) {
 
+	// When cloning a PVC, if the target's size is not specified,
+	// said value can be attainable from the source PVC
+	targetRequest, hasTargetRequest := pvcSpec.Resources.Requests[corev1.ResourceStorage]
+	if hasTargetRequest && targetRequest.IsZero() {
+		sourcePvc, _ := r.findSourcePvc(datavolume)
+		if selectedCloneStrategy == SmartClone || selectedCloneStrategy == CsiClone {
+			pvcSpec.Resources.Requests[corev1.ResourceStorage] = *sourcePvc.Status.Capacity.Storage()
+		} else {
+			// HostAssistedClone
+		}
+	}
+
 	if !prePopulated && !pvcPopulated {
 		if pvc == nil {
 			if selectedCloneStrategy == SmartClone {
@@ -1760,7 +1772,7 @@ func (r *DatavolumeReconciler) validateAdvancedCloneSizeCompatible(
 	if err != nil {
 		return false, err
 	}
-	if usableSpace.Cmp(targetRequest) > 0 {
+	if usableSpace.Cmp(targetRequest) > 0 && !targetRequest.IsZero() {
 		message := "target resources requested storage size is smaller than the source requested size"
 		r.recorder.Event(dataVolume, corev1.EventTypeWarning, ErrIncompatiblePVC, message)
 		return false, errors.New(message)
