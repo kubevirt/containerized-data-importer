@@ -547,6 +547,33 @@ var _ = Describe("all clone tests", func() {
 				expectEvent(f, f.Namespace.Name).Should(ContainSubstring(controller.ErrIncompatiblePVC))
 			})
 
+			It("should handle a pre populated PVC during clone", func() {
+				By(fmt.Sprintf("initializing target PVC %s", dataVolumeName))
+				sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
+				annotations := map[string]string{"cdi.kubevirt.io/storage.populatedFor": dataVolumeName}
+				pvcDef := utils.NewPVCDefinition(dataVolumeName, "1G", annotations, nil)
+				_ = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
+
+				srcPpvcDef := utils.NewPVCDefinition("sourcepvcempty", "1G", nil, nil)
+				sourcePvc := f.CreateAndPopulateSourcePVC(srcPpvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
+
+				dataVolume := utils.NewDataVolumeForImageCloning(dataVolumeName, "1G",
+					sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
+				Expect(dataVolume).ToNot(BeNil())
+
+				By(fmt.Sprintf("creating new populated datavolume %s", dataVolume.Name))
+				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(func() bool {
+					dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					pvcName := dv.Annotations["cdi.kubevirt.io/storage.prePopulated"]
+					return pvcName == pvcDef.Name &&
+						dv.Status.Phase == cdiv1.Succeeded &&
+						string(dv.Status.Progress) == "N/A"
+				}, timeout, pollingInterval).Should(BeTrue(), "DV Should succeed with storage.prePopulated==pvcName")
+			})
 		}
 
 		Context("HostAssisted Clone", func() {
