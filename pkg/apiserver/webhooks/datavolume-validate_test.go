@@ -400,6 +400,49 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(true))
 		})
 
+		It("should accept empty Storage spec when cloning PVC", func() {
+			storage := &cdiv1.StorageSpec{}
+			dv, pvc := newDataVolumeClone(storage, nil)
+			resp := validateDataVolumeCreate(dv, pvc)
+			Expect(resp.Allowed).To(Equal(true))
+		})
+
+		It("should accept blank Resources when cloning using Storage API", func() {
+			storage := &cdiv1.StorageSpec{
+				Resources: corev1.ResourceRequirements{},
+			}
+			dv, pvc := newDataVolumeClone(storage, nil)
+			resp := validateDataVolumeCreate(dv, pvc)
+			Expect(resp.Allowed).To(Equal(true))
+		})
+
+		It("should accept empty Requests when cloning using Storage API", func() {
+			requests := make(map[corev1.ResourceName]resource.Quantity)
+			storage := &cdiv1.StorageSpec{
+				Resources: corev1.ResourceRequirements{
+					Requests: requests,
+				},
+			}
+			dv, pvc := newDataVolumeClone(storage, nil)
+			resp := validateDataVolumeCreate(dv, pvc)
+			Expect(resp.Allowed).To(Equal(true))
+		})
+
+		It("should reject empty Requests when cloning using PVC API", func() {
+			requests := make(map[corev1.ResourceName]resource.Quantity)
+			pvcSpec := &corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{
+					corev1.ReadWriteOnce,
+				},
+				Resources: corev1.ResourceRequirements{
+					Requests: requests,
+				},
+			}
+			dv, pvc := newDataVolumeClone(nil, pvcSpec)
+			resp := validateDataVolumeCreate(dv, pvc)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
 		DescribeTable("should", func(oldFinalCheckpoint bool, oldCheckpoints []string, newFinalCheckpoint bool, newCheckpoints []string, modifyDV func(*cdiv1.DataVolume), expectedSuccess bool, sourceFunc func() *cdiv1.DataVolumeSource) {
 			oldDV := newMultistageDataVolume("multi-stage", oldFinalCheckpoint, oldCheckpoints, sourceFunc)
 			oldBytes, _ := json.Marshal(&oldDV)
@@ -707,6 +750,57 @@ func newDataVolumeWithSourceRef(name string, source *cdiv1.DataVolumeSource, sou
 		},
 	}
 	return dv
+}
+
+func newDataVolumeWithStorageSpec(name string, source *cdiv1.DataVolumeSource, sourceRef *cdiv1.DataVolumeSourceRef, storage *cdiv1.StorageSpec) *cdiv1.DataVolume {
+	namespace := k8sv1.NamespaceDefault
+	dv := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			SelfLink:  fmt.Sprintf("/apis/%s/namespaces/%s/datavolumes/%s", cdiv1.SchemeGroupVersion.String(), namespace, name),
+		},
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: cdiv1.SchemeGroupVersion.String(),
+			Kind:       "DataVolume",
+		},
+		Status: cdiv1.DataVolumeStatus{},
+		Spec: cdiv1.DataVolumeSpec{
+			Source:    source,
+			SourceRef: sourceRef,
+			Storage:   storage,
+		},
+	}
+	return dv
+}
+
+// Returns both the DV clone and the original PVC
+func newDataVolumeClone(storageSpec *cdiv1.StorageSpec, pvcSpec *corev1.PersistentVolumeClaimSpec) (*cdiv1.DataVolume, *corev1.PersistentVolumeClaim) {
+	var dv *cdiv1.DataVolume
+	pvcSource := &cdiv1.DataVolumeSource{
+		PVC: &cdiv1.DataVolumeSourcePVC{
+			Namespace: "testNamespace",
+			Name:      "test",
+		},
+	}
+
+	if storageSpec != nil && pvcSpec != nil {
+		return nil, nil
+	} else if storageSpec != nil {
+		dv = newDataVolumeWithStorageSpec("testDV", pvcSource, nil, storageSpec)
+	} else if pvcSpec != nil {
+		dv = newDataVolumeWithSourceRef("testDV", pvcSource, nil, pvcSpec)
+	}
+
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dv.Spec.Source.PVC.Name,
+			Namespace: dv.Spec.Source.PVC.Namespace,
+		},
+		Spec: *newPVCSpec(pvcSizeDefault),
+	}
+
+	return dv, pvc
 }
 
 const pvcSizeDefault = 5 << 20 // 5Mi
