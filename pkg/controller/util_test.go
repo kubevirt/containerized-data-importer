@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -81,6 +82,69 @@ var _ = Describe("getVolumeMode", func() {
 		table.Entry("return file system if pvc has filesystem mode", pvcVolumeModeFilesystem, corev1.PersistentVolumeFilesystem),
 		table.Entry("return file system if pvc has no mode defined", pvcVolumeModeFilesystemDefault, corev1.PersistentVolumeFilesystem),
 	)
+})
+
+var _ = Describe("volumeSize", func() {
+	client := createClient()
+
+	It("Should return empty volume size", func() {
+		pvcSource := &cdiv1.DataVolumeSource{
+			PVC: &cdiv1.DataVolumeSourcePVC{},
+		}
+		storageSpec := &cdiv1.StorageSpec{}
+		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", pvcSource, storageSpec)
+		requestedVolumeSize, err := volumeSize(client, dv.Spec, nil)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(requestedVolumeSize.IsZero()).To(Equal(true))
+	})
+
+	It("Should return error after trying to create a DataVolume with empty storage size and http source", func() {
+		httpSource := &cdiv1.DataVolumeSource{
+			HTTP: &cdiv1.DataVolumeSourceHTTP{},
+		}
+		storageSpec := &cdiv1.StorageSpec{}
+		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", httpSource, storageSpec)
+		requestedVolumeSize, err := volumeSize(client, dv.Spec, nil)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Datavolume Spec is not valid - missing storage size")))
+		Expect(requestedVolumeSize).To(BeNil())
+	})
+
+	It("Should return the expected volume size (block volume mode)", func() {
+		storageSpec := &cdiv1.StorageSpec{
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("1G"),
+				},
+			},
+		}
+		volumeMode := corev1.PersistentVolumeBlock
+		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", nil, storageSpec)
+		requestedVolumeSize, err := volumeSize(client, dv.Spec, &volumeMode)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(storageSpec.Resources.Requests.Storage().Value()).To(Equal(requestedVolumeSize.Value()))
+	})
+
+	It("Should return the expected volume size (filesystem volume mode)", func() {
+		storageSpec := &cdiv1.StorageSpec{
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("1Gi"),
+				},
+			},
+		}
+		volumeMode := corev1.PersistentVolumeFilesystem
+		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", nil, storageSpec)
+		requestedVolumeSize, err := volumeSize(client, dv.Spec, &volumeMode)
+		Expect(err).ToNot(HaveOccurred())
+		// Inflate expected size with overhead
+		fsOverhead, err2 := GetFilesystemOverheadForStorageClass(client, dv.Spec.Storage.StorageClassName)
+		Expect(err2).ToNot(HaveOccurred())
+		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
+		requiredSpace := GetRequiredSpace(fsOverheadFloat, requestedVolumeSize.Value())
+		expectedResult := resource.NewScaledQuantity(requiredSpace, 0)
+		Expect(expectedResult.Value()).To(Equal(requestedVolumeSize.Value()))
+	})
 })
 
 var _ = Describe("checkIfLabelExists", func() {
@@ -480,6 +544,19 @@ func createDataVolumeWithStorageClassPreallocation(name, ns, storageClassName st
 			PVC: &corev1.PersistentVolumeClaimSpec{
 				StorageClassName: &storageClassName,
 			},
+		},
+	}
+}
+
+func createDataVolumeWithStorageAPI(name, ns string, source *cdiv1.DataVolumeSource, storageSpec *cdiv1.StorageSpec) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source:  source,
+			Storage: storageSpec,
 		},
 	}
 }
