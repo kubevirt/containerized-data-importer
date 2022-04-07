@@ -86,14 +86,6 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 	var url string
 	var sourceType string
 
-	if spec.PVC == nil && spec.Storage == nil {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Missing Data volume PVC"),
-			Field:   field.Child("PVC").String(),
-		})
-		return causes
-	}
 	if spec.PVC != nil && spec.Storage != nil {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
@@ -437,7 +429,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.Da
 	explicitPvcRequest := spec.PVC != nil
 	if explicitPvcRequest {
 		targetResources = spec.PVC.Resources
-	} else {
+	} else if spec.Storage != nil {
 		targetResources = spec.Storage.Resources
 	}
 
@@ -466,15 +458,7 @@ func validateStorageSize(resources v1.ResourceRequirements, field *k8sfield.Path
 			}
 			return &cause, false
 		}
-	} else {
-		cause := metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("%s size is missing", name),
-			Field:   field.Child(name, "resources", "requests", "size").String(),
-		}
-		return &cause, false
 	}
-
 	return nil, true
 }
 

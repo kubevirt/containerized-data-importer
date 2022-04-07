@@ -20,6 +20,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,8 +48,9 @@ const (
 
 var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite", func() {
 	var (
-		ns string
-		f  = framework.NewFramework(namespacePrefix)
+		ns              string
+		f               = framework.NewFramework(namespacePrefix)
+		blockVolumeMode = corev1.PersistentVolumeBlock
 	)
 
 	BeforeEach(func() {
@@ -182,6 +184,39 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		}
 	})
 
+	//FIXME: cover registry and other no-size test cases
+	DescribeTable("[test_id:8590] Should successfully import with no PVC size set", func(pvcSpec *corev1.PersistentVolumeClaimSpec, storage *cdiv1.StorageSpec) {
+		if pvcSpec != nil && pvcSpec.VolumeMode != nil && *pvcSpec.VolumeMode == corev1.PersistentVolumeBlock && !f.IsBlockVolumeStorageClassAvailable() {
+			Skip("Storage Class for block volume is not available")
+		}
+
+		dataVolume := utils.NewDataVolumeWithHTTPImport("import-no-pvc-size", "0", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+		dataVolume.Spec.PVC = pvcSpec
+		dataVolume.Spec.Storage = storage
+
+		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f.CdiClient, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+	},
+		Entry("no PVC and no Storage", nil, nil),
+		Entry("Storage with no size set", nil, &cdiv1.StorageSpec{}),
+		Entry("PVC with no size set - filesystem", &corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+		}, nil),
+		Entry("PVC with no size set - block", &corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			VolumeMode:  &blockVolumeMode,
+		}, nil),
+	)
 })
 
 var _ = Describe("[Istio] Namespace sidecar injection", func() {

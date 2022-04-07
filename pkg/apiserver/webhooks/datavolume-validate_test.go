@@ -223,10 +223,10 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(false))
 		})
 
-		It("should reject DataVolume with empty PVC create", func() {
+		It("should accept DataVolume with empty PVC create", func() {
 			dataVolume := newDataVolumeWithEmptyPVCSpec("testDV", "http://www.example.com")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(Equal(true))
 		})
 
 		It("should reject DataVolume with PVC size 0", func() {

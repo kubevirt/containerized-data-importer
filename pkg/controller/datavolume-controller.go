@@ -36,6 +36,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -182,6 +183,8 @@ const (
 	annReadyForTransfer = "cdi.kubevirt.io/readyForTransfer"
 
 	annCloneType = "cdi.kubevirt.io/cloneType"
+
+	annResourceSizeHint = "cdi.kubevirt.io/resourceSizeHint"
 )
 
 type cloneStrategy int
@@ -398,7 +401,7 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 	pvcPopulated := false
 	// Get the pvc with the name specified in DataVolume.spec
 	pvc := &corev1.PersistentVolumeClaim{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: datavolume.Namespace, Name: datavolume.Name}, pvc); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: datavolume.Namespace, Name: r.getPvcName(datavolume)}, pvc); err != nil {
 		// If the resource doesn't exist, we'll create it
 		if k8serrors.IsNotFound(err) {
 			pvc = nil
@@ -461,6 +464,10 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 			}
 			pvc = newPvc
 		} else {
+			resized, err := r.resizePvcIfNeeded(pvc, datavolume)
+			if resized || err != nil {
+				return reconcile.Result{}, err
+			}
 			if getSource(pvc) == SourceVDDK {
 				changed, err := r.getVddkAnnotations(datavolume, pvc)
 				if err != nil {
@@ -568,6 +575,52 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 	return r.reconcileDataVolumeStatus(datavolume, pvc, selectedCloneStrategy)
 }
 
+// resizePvcIfNeeded supports only import
+func (r *DatavolumeReconciler) resizePvcIfNeeded(pvc *v1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (bool, error) {
+	sizeHint := pvc.Annotations[annResourceSizeHint]
+	if !isImport(dv.Spec) || sizeHint == "" {
+		return false, nil
+	}
+	curRunning := findConditionByType(cdiv1.DataVolumeRunning, dv.Status.Conditions)
+	if curRunning == nil ||
+		curRunning.Status != corev1.ConditionFalse ||
+		curRunning.Reason != common.GenericError {
+		return false, nil
+	}
+
+	if r.isExpansionAllowed(dv) {
+		requestedVolumeSize, err := volumeSize(r.client, resource.MustParse(sizeHint), pvc.Spec.VolumeMode, pvc.Spec.StorageClassName)
+		if err != nil {
+			return false, err
+		}
+		done, err := r.expand(r.log, dv, pvc, *requestedVolumeSize)
+		if err != nil || !done {
+			return !done, err
+		}
+		podName, ok := pvc.Annotations[AnnImportPod]
+		if ok {
+			pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: pvc.Namespace, Name: podName}}
+			if err := IgnoreNotFound(r.client.Delete(context.TODO(), pod)); err != nil {
+				return false, err
+			}
+		}
+		return false, nil
+	} else if dv.Annotations[annResourceSizeHint] == "" {
+		if dv.Annotations == nil {
+			dv.Annotations = make(map[string]string)
+		}
+		dv.Annotations[annResourceSizeHint] = sizeHint
+		if err := r.updateDataVolume(dv); err != nil {
+			return false, err
+		}
+		if err := r.client.Delete(context.TODO(), pvc); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
 func (r *DatavolumeReconciler) ensureExtendedToken(pvc *corev1.PersistentVolumeClaim) error {
 	_, ok := pvc.Annotations[AnnExtendedCloneToken]
 	if ok {
@@ -651,12 +704,15 @@ func (r *DatavolumeReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume,
 
 func (r *DatavolumeReconciler) createPvcForDatavolume(log logr.Logger, datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
 	log.Info("Creating PVC for datavolume")
-	newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec, datavolume.Namespace, datavolume.Name)
+	newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec, datavolume.Namespace, r.getPvcName(datavolume))
 	if err != nil {
 		return nil, err
 	}
 	util.SetRecommendedLabels(newPvc, r.installerLabels, "cdi-controller")
 
+	if !hasPvcSize(datavolume) && !r.isExpansionAllowed(datavolume) {
+		newPvc.ObjectMeta.Annotations[AnnImmediateBinding] = "true"
+	}
 	checkpoint := r.getNextCheckpoint(datavolume, newPvc)
 	if checkpoint != nil { // Initialize new warm import annotations before creating PVC
 		newPvc.ObjectMeta.Annotations[AnnCurrentCheckpoint] = checkpoint.Current
@@ -668,6 +724,32 @@ func (r *DatavolumeReconciler) createPvcForDatavolume(log logr.Logger, datavolum
 	}
 
 	return newPvc, nil
+}
+
+// Get temporary PVC name in case of an import with no size and no expansion allowed,
+// so the PVC is deleted, and recreated with the real name and corrected size
+func (r *DatavolumeReconciler) getPvcName(dv *cdiv1.DataVolume) string {
+	if isImport(dv.Spec) &&
+		!hasPvcSize(dv) &&
+		!r.isExpansionAllowed(dv) &&
+		dv.Generation != 0 {
+		return dv.Name + "-nosize"
+	}
+	return dv.Name
+}
+
+func (r *DatavolumeReconciler) isExpansionAllowed(dv *cdiv1.DataVolume) bool {
+	var scName *string
+	if dv.Spec.PVC != nil {
+		scName = dv.Spec.PVC.StorageClassName
+	} else if dv.Spec.Storage != nil {
+		scName = dv.Spec.Storage.StorageClassName
+	}
+	sc, err := GetStorageClassByName(r.client, scName)
+	if err != nil || sc == nil {
+		return false
+	}
+	return sc.AllowVolumeExpansion != nil && *sc.AllowVolumeExpansion
 }
 
 func (r *DatavolumeReconciler) reconcileCsiClonePvc(log logr.Logger,
@@ -830,7 +912,11 @@ func (r *DatavolumeReconciler) expandPvcAfterCloneFunc(
 	selectedCloneStrategy cloneStrategy,
 	nextPhase cdiv1.DataVolumePhase) (reconcile.Result, error) {
 
-	done, err := r.expand(log, datavolume, pvc, pvcSpec)
+	requestedSize, hasRequested := pvcSpec.Resources.Requests[corev1.ResourceStorage]
+	if !hasRequested {
+		return reconcile.Result{}, fmt.Errorf("Requested PVC size missing")
+	}
+	done, err := r.expand(log, datavolume, pvc, requestedSize)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -1322,15 +1408,14 @@ func expansionPodName(pvc *corev1.PersistentVolumeClaim) string {
 func (r *DatavolumeReconciler) expand(log logr.Logger,
 	dv *cdiv1.DataVolume,
 	pvc *corev1.PersistentVolumeClaim,
-	targetSpec *corev1.PersistentVolumeClaimSpec) (bool, error) {
+	requestedSize resource.Quantity) (bool, error) {
 	if pvc.Status.Phase != corev1.ClaimBound {
 		return false, fmt.Errorf("cannot expand volume in %q phase", pvc.Status.Phase)
 	}
 
-	requestedSize, hasRequested := targetSpec.Resources.Requests[corev1.ResourceStorage]
 	currentSize, hasCurrent := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 	actualSize, hasActual := pvc.Status.Capacity[corev1.ResourceStorage]
-	if !hasRequested || !hasCurrent || !hasActual {
+	if !hasCurrent || !hasActual {
 		return false, fmt.Errorf("PVC sizes missing")
 	}
 

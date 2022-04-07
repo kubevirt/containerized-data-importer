@@ -153,7 +153,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.Spec.StorageClassName).ToNot(Equal("defaultSc"))
 		})
 
-		It("Should fail on missing size, without storageClass", func() {
+		It("Should succeed on missing size, without storageClass", func() {
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 			// spec with accessMode/VolumeMode so storageprofile is not needed
 			importDataVolume.Spec.Storage = createStorageSpec()
@@ -162,11 +162,10 @@ var _ = Describe("All DataVolume Tests", func() {
 			reconciler = createDatavolumeReconciler(defaultStorageClass, importDataVolume)
 
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("missing storage size"))
+			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("Should fail on missing size, with StorageClass", func() {
+		It("Should succeed on missing size, with StorageClass", func() {
 			storageClassName := "defaultSc"
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 			// spec with accessMode/VolumeMode so storageprofile is not needed
@@ -177,9 +176,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			reconciler = createDatavolumeReconciler(defaultStorageClass, importDataVolume)
 
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
-
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("missing storage size"))
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		DescribeTable("Should set params on a PVC from storageProfile when import DV has no accessMode and no volume mode", func(contentType cdiv1.DataVolumeContentType) {
