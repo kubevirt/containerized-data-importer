@@ -438,88 +438,92 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, err
 	}
 
-	if !pvcExists {
-		if selectedCloneStrategy == SmartClone {
-			snapshotClassName, _ := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
-			return r.reconcileSmartClonePvc(log, datavolume, pvcSpec, transferName, snapshotClassName)
-		}
-		if selectedCloneStrategy == CsiClone {
-			csiDriverAvailable, err := r.storageClassCSIDriverExists(pvcSpec.StorageClassName)
-			if err != nil && !k8serrors.IsNotFound(err) {
-				return reconcile.Result{}, err
+	_, prePopulated := datavolume.Annotations[AnnPrePopulated]
+
+	if !prePopulated {
+		if !pvcExists {
+			if selectedCloneStrategy == SmartClone {
+				snapshotClassName, _ := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
+				return r.reconcileSmartClonePvc(log, datavolume, pvcSpec, transferName, snapshotClassName)
 			}
-			if !csiDriverAvailable {
-				// err csi clone not possible
-				return reconcile.Result{},
-					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.CloneScheduled, datavolume, pvc, selectedCloneStrategy,
+			if selectedCloneStrategy == CsiClone {
+				csiDriverAvailable, err := r.storageClassCSIDriverExists(pvcSpec.StorageClassName)
+				if err != nil && !k8serrors.IsNotFound(err) {
+					return reconcile.Result{}, err
+				}
+				if !csiDriverAvailable {
+					// err csi clone not possible
+					return reconcile.Result{},
+						r.updateDataVolumeStatusPhaseWithEvent(cdiv1.CloneScheduled, datavolume, pvc, selectedCloneStrategy,
+							DataVolumeEvent{
+								eventType: corev1.EventTypeWarning,
+								reason:    ErrUnableToClone,
+								message:   fmt.Sprintf("CSI Clone configured, but no CSIDriver available for %s", *pvcSpec.StorageClassName),
+							})
+				}
+
+				return r.reconcileCsiClonePvc(log, datavolume, pvcSpec, transferName)
+			}
+
+			newPvc, err := r.createPvcForDatavolume(log, datavolume, pvcSpec)
+			if err != nil {
+				if errQuotaExceeded(err) {
+					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, datavolume, nil, selectedCloneStrategy,
 						DataVolumeEvent{
 							eventType: corev1.EventTypeWarning,
-							reason:    ErrUnableToClone,
-							message:   fmt.Sprintf("CSI Clone configured, but no CSIDriver available for %s", *pvcSpec.StorageClassName),
+							reason:    ErrExceededQuota,
+							message:   err.Error(),
 						})
-			}
-
-			return r.reconcileCsiClonePvc(log, datavolume, pvcSpec, transferName)
-		}
-
-		newPvc, err := r.createPvcForDatavolume(log, datavolume, pvcSpec)
-		if err != nil {
-			if errQuotaExceeded(err) {
-				r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, datavolume, nil, selectedCloneStrategy,
-					DataVolumeEvent{
-						eventType: corev1.EventTypeWarning,
-						reason:    ErrExceededQuota,
-						message:   err.Error(),
-					})
-			}
-			return reconcile.Result{}, err
-		}
-		pvc = newPvc
-	} else {
-		if getSource(pvc) == SourceVDDK {
-			changed, err := r.getVddkAnnotations(datavolume, pvc)
-			if err != nil {
+				}
 				return reconcile.Result{}, err
 			}
-			if changed {
-				err = r.client.Get(context.TODO(), req.NamespacedName, datavolume)
+			pvc = newPvc
+		} else {
+			if getSource(pvc) == SourceVDDK {
+				changed, err := r.getVddkAnnotations(datavolume, pvc)
 				if err != nil {
 					return reconcile.Result{}, err
 				}
+				if changed {
+					err = r.client.Get(context.TODO(), req.NamespacedName, datavolume)
+					if err != nil {
+						return reconcile.Result{}, err
+					}
+				}
 			}
-		}
 
-		err = r.maybeSetMultiStageAnnotation(pvc, datavolume)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-	}
-
-	switch selectedCloneStrategy {
-	case HostAssistedClone:
-		if err := r.ensureExtendedToken(pvc); err != nil {
-			return reconcile.Result{}, err
-		}
-	case CsiClone:
-		switch pvc.Status.Phase {
-		case corev1.ClaimBound:
-			if err := r.setCloneOfOnPvc(pvc); err != nil {
+			err = r.maybeSetMultiStageAnnotation(pvc, datavolume)
+			if err != nil {
 				return reconcile.Result{}, err
 			}
-		case corev1.ClaimPending:
-			return reconcile.Result{}, r.updateCloneStatusPhase(cdiv1.CSICloneInProgress, datavolume, pvc, selectedCloneStrategy)
-		case corev1.ClaimLost:
-			return reconcile.Result{},
-				r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Failed, datavolume, pvc, selectedCloneStrategy,
-					DataVolumeEvent{
-						eventType: corev1.EventTypeWarning,
-						reason:    ErrClaimLost,
-						message:   fmt.Sprintf(MessageErrClaimLost, pvc.Name),
-					})
 		}
-		fallthrough
-	case SmartClone:
-		return r.finishClone(log, datavolume, pvc, pvcSpec, transferName, selectedCloneStrategy)
+
+		switch selectedCloneStrategy {
+		case HostAssistedClone:
+			if err := r.ensureExtendedToken(pvc); err != nil {
+				return reconcile.Result{}, err
+			}
+		case CsiClone:
+			switch pvc.Status.Phase {
+			case corev1.ClaimBound:
+				if err := r.setCloneOfOnPvc(pvc); err != nil {
+					return reconcile.Result{}, err
+				}
+			case corev1.ClaimPending:
+				return reconcile.Result{}, r.updateCloneStatusPhase(cdiv1.CSICloneInProgress, datavolume, pvc, selectedCloneStrategy)
+			case corev1.ClaimLost:
+				return reconcile.Result{},
+					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Failed, datavolume, pvc, selectedCloneStrategy,
+						DataVolumeEvent{
+							eventType: corev1.EventTypeWarning,
+							reason:    ErrClaimLost,
+							message:   fmt.Sprintf(MessageErrClaimLost, pvc.Name),
+						})
+			}
+			fallthrough
+		case SmartClone:
+			return r.finishClone(log, datavolume, pvc, pvcSpec, transferName, selectedCloneStrategy)
+		}
 	}
 
 	// Finally, we update the status block of the DataVolume resource to reflect the
@@ -2011,7 +2015,7 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 	result := reconcile.Result{}
 
 	curPhase := dataVolumeCopy.Status.Phase
-	if pvc != nil {
+	if pvc != nil && pvc.Name != "" {
 		storageClassBindingMode, err := r.getStorageClassBindingMode(pvc.Spec.StorageClassName)
 		if err != nil {
 			return reconcile.Result{}, err
@@ -2135,6 +2139,11 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		result, err = r.reconcileProgressUpdate(dataVolumeCopy, pvc)
 		if err != nil {
 			return result, err
+		}
+	} else {
+		_, ok := dataVolumeCopy.Annotations[AnnPrePopulated]
+		if ok {
+			dataVolumeCopy.Status.Phase = cdiv1.Pending
 		}
 	}
 
