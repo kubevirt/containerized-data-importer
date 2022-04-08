@@ -20,8 +20,10 @@ type RecordRulesDesc struct {
 	Expr string
 }
 
+// MetricsKey creates variables for metric reference
 type MetricsKey string
 
+// All metrics names for reference
 const (
 	ReadyGauge             MetricsKey = "readyGauge"
 	IncompleteProfile      MetricsKey = "incompleteProfile"
@@ -29,6 +31,7 @@ const (
 	CloneProgress          MetricsKey = "cloneProgress"
 )
 
+// MetricOptsList list all CDI metrics
 var MetricOptsList = map[MetricsKey]MetricOpts{
 	CloneProgress: {
 		Name: "clone_progress",
