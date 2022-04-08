@@ -40,7 +40,11 @@ spec:
         - name: "certs"
           mountPath: "/tmp"
         command: ["/bin/bash"]
-        args: ["-c", "openssl x509 -in /tmp/certs/tls.crt -out /tmp/certs/ca.pem; openssl x509 -in /tmp/certs/tls.crt -out /tmp/certs/cert.pem; ovirt-imageio& sleep 3; ovirt-imageioctl add-ticket myticket.json; sleep infinity"]
+        args:
+        - -c
+        - openssl x509 -in /tmp/certs/tls.crt -out /tmp/certs/ca.pem && openssl x509 -in
+          /tmp/certs/tls.crt -out /tmp/certs/cert.pem && ovirt-imageio& sleep 15 && ovirt-imageioctl
+          add-ticket myticket.json && tail -n+1 -f /var/log/ovirt-imageio/daemon.log
       - name: fakeovirt
         # Docker file: https://github.com/machacekondra/fakeovirt
         image: quay.io/kubevirt/fakeovirt:v1.38.0
@@ -54,7 +58,10 @@ spec:
         - name: "certs"
           mountPath: "/tmp"
         command: ["/bin/bash"]
-        args: ["-c", "cp /tmp/certs/tls.crt /app/imageio.crt; cp /tmp/certs/tls.key /app/server.key;/app/main"]
+        args:
+        - -c
+        - cp /tmp/certs/tls.crt /app/imageio.crt && cp /tmp/certs/tls.key /app/server.key
+          && /app/main
       volumes:
       - name: "certs"
         emptyDir: {}
