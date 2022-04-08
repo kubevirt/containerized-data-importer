@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"kubevirt.io/containerized-data-importer/pkg/operator/controller"
 	"sort"
 	"strings"
+
+	"kubevirt.io/containerized-data-importer/pkg/monitoring"
 )
 
 // constant parts of the file
@@ -28,8 +29,15 @@ const (
 )
 
 func main() {
-	metricsList := recordRulesDescToMetricList(controller.GetRecordRulesDesc(""))
-	sort.Sort(metricsList)
+	metricsList := recordRulesDescToMetricList(monitoring.GetRecordRulesDesc(""))
+	for _, opts := range monitoring.MetricOptsList {
+		metricsList = append(metricsList, opts)
+	}
+
+	sort.Slice(metricsList, func(i, j int) bool {
+		return metricsList[i].Name < metricsList[j].Name
+	})
+
 	writeToFile(metricsList)
 }
 
@@ -39,13 +47,8 @@ func writeToFile(metricsList metricList) {
 	fmt.Print(footer)
 }
 
-type metric struct {
-	name        string
-	description string
-}
-
-func recordRulesDescToMetricList(mdl []controller.RecordRulesDesc) metricList {
-	res := make([]metric, len(mdl))
+func recordRulesDescToMetricList(mdl []monitoring.RecordRulesDesc) metricList {
+	res := make([]monitoring.MetricOpts, len(mdl))
 	for i, md := range mdl {
 		res[i] = metricDescriptionToMetric(md)
 	}
@@ -53,19 +56,19 @@ func recordRulesDescToMetricList(mdl []controller.RecordRulesDesc) metricList {
 	return res
 }
 
-func metricDescriptionToMetric(rrd controller.RecordRulesDesc) metric {
-	return metric{
-		name:        rrd.Name,
-		description: rrd.Description,
+func metricDescriptionToMetric(rrd monitoring.RecordRulesDesc) monitoring.MetricOpts {
+	return monitoring.MetricOpts{
+		Name: rrd.Opts.Name,
+		Help: rrd.Opts.Help,
 	}
 }
 
-func (m metric) writeOut() {
-	fmt.Println("###", m.name)
-	fmt.Println(m.description)
+func writeOut(m monitoring.MetricOpts) {
+	fmt.Println("###", m.Name)
+	fmt.Println(m.Help)
 }
 
-type metricList []metric
+type metricList []monitoring.MetricOpts
 
 // Len implements sort.Interface.Len
 func (m metricList) Len() int {
@@ -74,7 +77,7 @@ func (m metricList) Len() int {
 
 // Less implements sort.Interface.Less
 func (m metricList) Less(i, j int) bool {
-	return m[i].name < m[j].name
+	return m[i].Name < m[j].Help
 }
 
 // Swap implements sort.Interface.Swap
@@ -87,11 +90,11 @@ func (m *metricList) add(line string) {
 	name := split[2]
 	split[3] = strings.Title(split[3])
 	description := strings.Join(split[3:], " ")
-	*m = append(*m, metric{name: name, description: description})
+	*m = append(*m, monitoring.MetricOpts{Name: name, Help: description})
 }
 
 func (m metricList) writeOut() {
 	for _, met := range m {
-		met.writeOut()
+		writeOut(met)
 	}
 }

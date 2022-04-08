@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"strings"
 
+	"kubevirt.io/containerized-data-importer/pkg/monitoring"
+
 	"github.com/docker/go-units"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -78,8 +80,8 @@ var (
 
 	progress = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "import_progress",
-			Help: "The import progress in percentage",
+			Name: monitoring.MetricOptsList[monitoring.CloneProgress].Name,
+			Help: monitoring.MetricOptsList[monitoring.CloneProgress].Help,
 		},
 		[]string{"ownerUID"},
 	)

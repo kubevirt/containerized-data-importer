@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"time"
 
+	"kubevirt.io/containerized-data-importer/pkg/monitoring"
+
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/generate/install"
 
 	"github.com/kelseyhightower/envconfig"
@@ -70,11 +72,12 @@ const (
 )
 
 var (
-	log        = logf.Log.WithName("cdi-operator")
+	log = logf.Log.WithName("cdi-operator")
+
 	readyGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "kubevirt_cdi_cr_ready",
-			Help: "CDI CR Ready",
+			Name: monitoring.MetricOptsList[monitoring.ReadyGauge].Name,
+			Help: monitoring.MetricOptsList[monitoring.ReadyGauge].Help,
 		})
 )
 

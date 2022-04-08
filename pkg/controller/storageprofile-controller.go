@@ -22,6 +22,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -31,8 +32,8 @@ var (
 	// IncompleteProfileGauge is the metric we use to alert about incomplete storage profiles
 	IncompleteProfileGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "kubevirt_cdi_incomplete_storageprofiles_total",
-			Help: "Total number of incomplete and hence unusable StorageProfiles",
+			Name: monitoring.MetricOptsList[monitoring.IncompleteProfile].Name,
+			Help: monitoring.MetricOptsList[monitoring.IncompleteProfile].Help,
 		})
 )
 
