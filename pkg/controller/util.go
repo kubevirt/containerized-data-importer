@@ -67,7 +67,10 @@ const (
 	AnnPrePopulated = AnnAPIGroup + "/storage.prePopulated"
 	// AnnPriorityClassName is PVC annotation to indicate the priority class name for importer, cloner and uploader pod
 	AnnPriorityClassName = AnnAPIGroup + "/storage.pod.priorityclassname"
-	// AnnPodRetainAfterCompletion is PVC annotation for retaining transfer pods after completion)
+	// AnnDeleteAfterCompletion is PVC annotation for deleting DV after completion
+	AnnDeleteAfterCompletion = AnnAPIGroup + "/storage.deleteAfterCompletion"
+
+	// AnnPodRetainAfterCompletion is PVC annotation for retaining transfer pods after completion
 	AnnPodRetainAfterCompletion = AnnAPIGroup + "/storage.pod.retainAfterCompletion"
 
 	// AnnPreviousCheckpoint provides a const to indicate the previous snapshot for a multistage import
@@ -714,6 +717,11 @@ func IsPopulated(pvc *v1.PersistentVolumeClaim, c client.Client) (bool, error) {
 		err := c.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, dv)
 		return dv, err
 	})
+}
+
+// IsSucceeded returns if the passed in PVC import/clone/upload succeeded (even if DV was already deleted) and no current checkpoint
+func IsSucceeded(pvc *v1.PersistentVolumeClaim) bool {
+	return podSucceededFromPVC(pvc) && pvc.Annotations[AnnCurrentCheckpoint] == ""
 }
 
 // SetPodPvcAnnotations applies PVC annotations on the pod

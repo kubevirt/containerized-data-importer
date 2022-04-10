@@ -30,15 +30,16 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -181,6 +182,8 @@ const (
 	annReadyForTransfer = "cdi.kubevirt.io/readyForTransfer"
 
 	annCloneType = "cdi.kubevirt.io/cloneType"
+
+	dvPhaseField = "status.phase"
 )
 
 type cloneStrategy int
@@ -381,8 +384,6 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 		}
 	}
 
-	const dvPhaseField = "status.phase"
-
 	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, dvPhaseField, func(obj client.Object) []string {
 		return []string{string(obj.(*cdiv1.DataVolume).Status.Phase)}
 	}); err != nil {
@@ -448,6 +449,14 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		}
 
 	} else {
+		res, err := r.garbageCollect(datavolume, pvc)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		if res != nil {
+			return *res, nil
+		}
+
 		// If the PVC is not controlled by this DataVolume resource, we should log
 		// a warning to the event recorder and return
 		pvcPopulated = pvcIsPopulated(pvc, datavolume)
@@ -640,7 +649,7 @@ func (r *DatavolumeReconciler) ensureExtendedToken(pvc *corev1.PersistentVolumeC
 
 	pvc.Annotations[AnnExtendedCloneToken] = newToken
 
-	if err := r.client.Update(context.TODO(), pvc); err != nil {
+	if err := r.updatePVC(pvc); err != nil {
 		return err
 	}
 
@@ -839,7 +848,7 @@ func (r *DatavolumeReconciler) setCloneOfOnPvc(pvc *corev1.PersistentVolumeClaim
 		}
 		pvc.Annotations[AnnCloneOf] = "true"
 
-		return r.client.Update(context.TODO(), pvc)
+		return r.updatePVC(pvc)
 	}
 
 	return nil
@@ -888,7 +897,7 @@ func (r *DatavolumeReconciler) expandPvcAfterCloneFunc(
 		// trigger transfer and next reconcile should have pvcExists == true
 		pvc.Annotations[annReadyForTransfer] = "true"
 		pvc.Annotations[AnnPopulatedFor] = datavolume.Name
-		if err := r.client.Update(context.TODO(), pvc); err != nil {
+		if err := r.updatePVC(pvc); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
@@ -1107,7 +1116,7 @@ func (r *DatavolumeReconciler) setMultistageImportAnnotations(dataVolume *cdiv1.
 
 	// only update if something has changed
 	if !reflect.DeepEqual(pvc, pvcCopy) {
-		return r.client.Update(context.TODO(), pvcCopy)
+		return r.updatePVC(pvcCopy)
 	}
 	return nil
 }
@@ -1131,7 +1140,7 @@ func (r *DatavolumeReconciler) deleteMultistageImportAnnotations(pvc *corev1.Per
 
 	// only update if something has changed
 	if !reflect.DeepEqual(pvc, pvcCopy) {
-		return r.client.Update(context.TODO(), pvcCopy)
+		return r.updatePVC(pvcCopy)
 	}
 	return nil
 }
@@ -1384,7 +1393,7 @@ func (r *DatavolumeReconciler) expand(log logr.Logger,
 
 	if expansionRequired && requestedSize.Cmp(currentSize) != 0 {
 		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = requestedSize
-		if err := r.client.Update(context.TODO(), pvc); err != nil {
+		if err := r.updatePVC(pvc); err != nil {
 			return false, err
 		}
 
@@ -2347,7 +2356,7 @@ func (r *DatavolumeReconciler) addOwnerRef(pvc *corev1.PersistentVolumeClaim, dv
 		return err
 	}
 
-	return r.client.Update(context.TODO(), pvc)
+	return r.updatePVC(pvc)
 }
 
 // If this is a completed pod that was used for one checkpoint of a multi-stage import, it
@@ -2608,6 +2617,10 @@ func (r *DatavolumeReconciler) updateDataVolume(dv *cdiv1.DataVolume) error {
 	return r.client.Update(context.TODO(), dv)
 }
 
+func (r *DatavolumeReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim) error {
+	return r.client.Update(context.TODO(), pvc)
+}
+
 func getName(storageClass *storagev1.StorageClass) string {
 	if storageClass != nil {
 		return storageClass.Name
@@ -2644,4 +2657,82 @@ func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
 
 func newLongTermCloneTokenGenerator(key *rsa.PrivateKey) token.Generator {
 	return token.NewGenerator(common.ExtendedCloneTokenIssuer, key, 10*365*24*time.Hour)
+}
+
+func (r *DatavolumeReconciler) garbageCollect(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (res *reconcile.Result, err error) {
+	if dataVolume.Status.Phase != cdiv1.Succeeded {
+		return
+	}
+	cdiConfig := &cdiv1.CDIConfig{}
+	if err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
+		return
+	}
+	dvTTL := cdiConfig.Spec.DataVolumeTTLSeconds
+	if dvTTL == nil || *dvTTL < 0 {
+		return
+	}
+
+	// Current DV still has TTL, so reconcile will return with the needed RequeueAfter
+	if delta := getDeltaTTL(dataVolume, *dvTTL); delta > 0 {
+		return &reconcile.Result{RequeueAfter: delta}, nil
+	}
+
+	if err = r.detachPvcDeleteDv(pvc, dataVolume); err != nil {
+		return
+	}
+
+	// FIXME: not sure this part is necessary
+	// Lookup for other DVs to garbage collect
+	selector := fields.OneTermEqualSelector(dvPhaseField, string(cdiv1.Succeeded))
+	dvList := &cdiv1.DataVolumeList{}
+	if err = r.client.List(context.TODO(), dvList, &client.ListOptions{FieldSelector: selector}); err != nil {
+		return
+	}
+	for _, dv := range dvList.Items {
+		if dv.UID == dataVolume.UID || getDeltaTTL(&dv, *dvTTL) > 0 {
+			continue
+		}
+		pvc := &corev1.PersistentVolumeClaim{}
+		if err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}, pvc); err != nil {
+			return
+		}
+		if err = r.detachPvcDeleteDv(pvc, &dv); err != nil {
+			return
+		}
+	}
+	return &reconcile.Result{}, nil
+}
+
+func (r *DatavolumeReconciler) detachPvcDeleteDv(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) error {
+	dvDelete := dv.Annotations[AnnDeleteAfterCompletion]
+	if IsSucceeded(pvc) && dvDelete == "true" {
+		updatePvcOwnerRefs(pvc, dv)
+		delete(pvc.Annotations, AnnPopulatedFor)
+		if err := r.updatePVC(pvc); err != nil {
+			return err
+		}
+		if err := r.client.Delete(context.TODO(), dv); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func updatePvcOwnerRefs(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) {
+	refs := pvc.OwnerReferences
+	for i, r := range refs {
+		if r.UID == dv.UID {
+			pvc.OwnerReferences = append(refs[:i], refs[i+1:]...)
+			break
+		}
+	}
+	pvc.OwnerReferences = append(pvc.OwnerReferences, dv.OwnerReferences...)
+}
+
+func getDeltaTTL(dv *cdiv1.DataVolume, ttl int32) time.Duration {
+	delta := time.Second * time.Duration(ttl)
+	if cond := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions); cond != nil {
+		delta -= time.Now().Sub(cond.LastHeartbeatTime.Time)
+	}
+	return delta
 }

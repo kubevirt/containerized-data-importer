@@ -19,6 +19,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -27,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes/scheme"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -182,6 +184,110 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		}
 	})
 
+})
+
+var _ = Describe("DataVolume Garbage Collection", func() {
+	var (
+		f        = framework.NewFramework(namespacePrefix)
+		ns       string
+		err      error
+		config   *cdiv1.CDIConfig
+		origSpec *cdiv1.CDIConfigSpec
+	)
+
+	BeforeEach(func() {
+		ns = f.Namespace.Name
+		config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		origSpec = config.Spec.DeepCopy()
+	})
+
+	AfterEach(func() {
+		By("Restoring CDIConfig to original state")
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			origSpec.DeepCopyInto(config)
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() bool {
+			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return reflect.DeepEqual(config.Spec, *origSpec)
+		}, 30*time.Second, time.Second).Should(BeTrue())
+	})
+
+	It("[test_id:XXXX] Should garbage collect dv after completion when CDIConfig DataVolumeTTLSeconds is set", func() {
+		By("Verify DataVolumeTTLSeconds is not set by default")
+		Expect(config.Spec.DataVolumeTTLSeconds).To(BeNil())
+
+		By("Set DataVolumeTTLSeconds to 0")
+		ttl := int32(0)
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			config.DataVolumeTTLSeconds = &ttl
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		dv := utils.NewDataVolumeWithHTTPImport("gc-test", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+		err = controllerutil.SetOwnerReference(config, dv, scheme.Scheme)
+		Expect(err).ToNot(HaveOccurred())
+
+		By(fmt.Sprintf("Create new datavolume %s", dv.Name))
+		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Annotations[controller.AnnDeleteAfterCompletion]).To(Equal("true"))
+
+		By("Verify pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, ns, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		By("Wait for DV to be garbage collected")
+		Eventually(func() bool {
+			_, err = f.CdiClient.CdiV1beta1().DataVolumes(ns).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+			return k8serrors.IsNotFound(err)
+		}, timeout, pollingInterval).Should(BeTrue())
+
+		By("Verify PVC still exists")
+		pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(ns).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(controller.IsSucceeded(pvc)).To(BeTrue())
+
+		By("Verify PVC gets DV original OwnerReferences, and the DV reference is removed")
+		Expect(pvc.OwnerReferences).Should(HaveLen(1))
+		Expect(pvc.OwnerReferences[0].UID).Should(Equal(config.UID))
+	})
+
+	It("[test_id:XXXX] Should not garbage collect dv after completion when DeleteAfterCompletion annotation is false", func() {
+		By("Verify DataVolumeTTLSeconds is not set by default")
+		Expect(config.Spec.DataVolumeTTLSeconds).To(BeNil())
+
+		By("Set DataVolumeTTLSeconds to 0")
+		ttl := int32(0)
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			config.DataVolumeTTLSeconds = &ttl
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		dv := utils.NewDataVolumeWithHTTPImport("gc-test", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+		dv.Annotations[controller.AnnDeleteAfterCompletion] = "false"
+		By(fmt.Sprintf("Create new datavolume %s", dv.Name))
+		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Annotations[controller.AnnDeleteAfterCompletion]).To(Equal("false"))
+
+		By("Verify pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, ns, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f.CdiClient, ns, cdiv1.Succeeded, dv.Name)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+
+		By("Verify DV is not garbage collected")
+		time.Sleep(time.Second * time.Duration(ttl+1))
+		_, err = f.CdiClient.CdiV1beta1().DataVolumes(ns).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+	})
 })
 
 var _ = Describe("[Istio] Namespace sidecar injection", func() {

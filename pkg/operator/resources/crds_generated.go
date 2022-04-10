@@ -2183,6 +2183,11 @@ spec:
               config:
                 description: CDIConfig at CDI level
                 properties:
+                  dataVolumeTTLSeconds:
+                    description: dataVolumeTTLSeconds is the time in seconds after
+                      DataVolume completion it can be garbage collected.
+                    format: int32
+                    type: integer
                   featureGates:
                     description: FeatureGates are a list of specific enabled feature
                       gates
@@ -4482,6 +4487,11 @@ spec:
           spec:
             description: CDIConfigSpec defines specification for user configuration
             properties:
+              dataVolumeTTLSeconds:
+                description: dataVolumeTTLSeconds is the time in seconds after DataVolume
+                  completion it can be garbage collected.
+                format: int32
+                type: integer
               featureGates:
                 description: FeatureGates are a list of specific enabled feature gates
                 items:

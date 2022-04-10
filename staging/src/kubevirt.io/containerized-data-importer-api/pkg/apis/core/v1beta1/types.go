@@ -742,6 +742,9 @@ type CDIConfigSpec struct {
 	Preallocation *bool `json:"preallocation,omitempty"`
 	// InsecureRegistries is a list of TLS disabled registries
 	InsecureRegistries []string `json:"insecureRegistries,omitempty"`
+	// dataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected.
+	// +optional
+	DataVolumeTTLSeconds *int32 `json:"dataVolumeTTLSeconds,omitempty"`
 }
 
 //CDIConfigStatus provides the most recently observed status of the CDI Config resource

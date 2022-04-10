@@ -33,6 +33,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/clone"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 )
@@ -97,8 +98,24 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 		targetName = ar.Request.Name
 	}
 
+	modifiedDataVolume := dataVolume.DeepCopy()
+	modified := false
+
+	config, _ := wh.cdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+	if config != nil && config.Spec.DataVolumeTTLSeconds != nil &&
+		modifiedDataVolume.Annotations[controller.AnnDeleteAfterCompletion] != "false" {
+		if modifiedDataVolume.Annotations == nil {
+			modifiedDataVolume.Annotations = make(map[string]string)
+		}
+		modifiedDataVolume.Annotations[controller.AnnDeleteAfterCompletion] = "true"
+		modified = true
+	}
+
 	if pvcSource == nil {
 		klog.V(3).Infof("DataVolume %s/%s not cloning", targetNamespace, targetName)
+		if modified {
+			return toPatchResponse(dataVolume, modifiedDataVolume)
+		}
 		return allowedAdmissionResponse()
 	}
 
@@ -151,11 +168,9 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 		return toAdmissionResponseError(err)
 	}
 
-	modifiedDataVolume := dataVolume.DeepCopy()
 	if modifiedDataVolume.Annotations == nil {
 		modifiedDataVolume.Annotations = make(map[string]string)
 	}
-
 	modifiedDataVolume.Annotations[controller.AnnCloneToken] = token
 
 	klog.V(3).Infof("Sending patch response...")
