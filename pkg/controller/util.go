@@ -494,7 +494,7 @@ func MakePodOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 
 // IsCsiCrdsDeployed checks whether the CSI snapshotter CRD are deployed
 func IsCsiCrdsDeployed(c extclientset.Interface) bool {
-	version := "v1beta1"
+	version := "v1"
 	vsClass := "volumesnapshotclasses." + snapshotv1.GroupName
 	vsContent := "volumesnapshotcontents." + snapshotv1.GroupName
 	vs := "volumesnapshots." + snapshotv1.GroupName
