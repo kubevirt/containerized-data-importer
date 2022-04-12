@@ -7,6 +7,7 @@ go_library(
         "deleteoptions.go",
         "labelselector.go",
         "labelselectorrequirement.go",
+        "listmeta.go",
         "managedfieldsentry.go",
         "objectmeta.go",
         "ownerreference.go",

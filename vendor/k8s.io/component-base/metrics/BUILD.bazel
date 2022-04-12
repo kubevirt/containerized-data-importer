@@ -27,7 +27,7 @@ go_library(
     importpath = "k8s.io/component-base/metrics",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/blang/semver:go_default_library",
+        "//vendor/github.com/blang/semver/v4:go_default_library",
         "//vendor/github.com/prometheus/client_golang/prometheus:go_default_library",
         "//vendor/github.com/prometheus/client_golang/prometheus/promhttp:go_default_library",
         "//vendor/github.com/prometheus/client_model/go:go_default_library",

@@ -13,6 +13,7 @@ go_library(
     deps = [
         "//vendor/github.com/emicklei/go-restful:go_default_library",
         "//vendor/k8s.io/kube-openapi/pkg/common:go_default_library",
+        "//vendor/k8s.io/kube-openapi/pkg/common/restfuladapter:go_default_library",
         "//vendor/k8s.io/kube-openapi/pkg/util:go_default_library",
         "//vendor/k8s.io/kube-openapi/pkg/validation/spec:go_default_library",
     ],

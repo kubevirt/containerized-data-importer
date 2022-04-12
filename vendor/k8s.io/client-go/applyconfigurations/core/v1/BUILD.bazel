@@ -62,6 +62,7 @@ go_library(
         "glusterfsvolumesource.go",
         "grpcaction.go",
         "hostalias.go",
+        "hostip.go",
         "hostpathvolumesource.go",
         "httpgetaction.go",
         "httpheader.go",

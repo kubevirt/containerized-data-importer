@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "contact_info.go",
         "external_docs.go",
+        "gnostic.go",
         "header.go",
         "info.go",
         "items.go",
@@ -27,5 +28,6 @@ go_library(
     deps = [
         "//vendor/github.com/go-openapi/jsonreference:go_default_library",
         "//vendor/github.com/go-openapi/swag:go_default_library",
+        "//vendor/github.com/google/gnostic/openapiv2:go_default_library",
     ],
 )
