@@ -1,53 +1,6 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
-load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image")
-
-rpm_image(
-    name = "cdi-func-test-file-host-init-base-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
-    base = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "@centos-aarch64//image",
-        "//conditions:default": "@centos//image",
-    }),
-    rpms = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "@qemu-img-aarch64//file",
-            "@libaio-aarch64//file",
-            "@liburing-aarch64//file",
-        ],
-        "//conditions:default": [
-            "@qemu-img//file",
-            "@libaio//file",
-            "@liburing//file",
-        ],
-    }),
-)
-
-rpm_image(
-    name = "cdi-func-test-file-host-http-base-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
-    base = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "@centos-aarch64//image",
-        "//conditions:default": "@centos//image",
-    }),
-    rpms = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "@nginx-aarch64//file",
-            "@nginx-filesystem//file",
-        ],
-        "//conditions:default": [
-            "@nginx//file",
-            "@nginx-filesystem//file",
-        ],
-    }),
-)
 
 go_library(
     name = "go_default_library",
@@ -74,12 +27,20 @@ container_image(
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
-    base = ":cdi-func-test-file-host-init-base-image",
     directory = "/",
-    tars = [
-        ":test-img-tar",
-        ":test-invalid-img-tar",
-    ],
+    tars = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            ":test-img-tar",
+            ":test-invalid-img-tar",
+            "//rpm:testimage_aarch64",
+        ],
+        "//conditions:default": [
+            ":test-img-tar",
+            ":test-invalid-img-tar",
+            "//rpm:testimage_x86_64",
+        ],
+    }),
+    visibility = ["//visibility:public"],
 )
 
 container_image(
@@ -104,10 +65,11 @@ container_image(
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
-    base = ":cdi-func-test-file-host-http-base-image",
-    cmd = "mkdir -p /usr/share/nginx/html/images/priv",
+    cmd = "mkdir -p /usr/share/nginx/html/images/priv && update-ca-trust && update-crypto-policies",
     directory = "/",
-    entrypoint = ["nginx"],
+    entrypoint = [
+        "nginx",
+    ],
     env = {
         "container": "",
         "docker": "",
@@ -119,7 +81,16 @@ container_image(
         "83",
         "444",
     ],
-    tars = [":nginx-conf-tar"],
+    tars = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            ":nginx-conf-tar",
+            "//rpm:testimage_aarch64",
+        ],
+        "//conditions:default": [
+            ":nginx-conf-tar",
+            "//rpm:testimage_x86_64",
+        ],
+    }),
     visibility = ["//visibility:public"],
 )
 

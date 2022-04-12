@@ -54,6 +54,9 @@ gomod-update:
 
 deps-update: gomod-update bazel-generate
 
+rpm-deps:
+	${DO_BAZ} "CUSTOM_REPO=${CUSTOM_REPO} ./hack/build/rpm-deps.sh"
+
 apidocs:
 	${DO_BAZ} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1beta1 html"
 

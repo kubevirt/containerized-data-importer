@@ -1,45 +1,4 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
-load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
-
-rpm_image(
-    name = "cdi-importer-base-image",
-    base = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "@centos-aarch64//image",
-        "//conditions:default": "@centos//image",
-    }),
-    rpms = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "@liburing-aarch64//file",
-            "@libnbd-aarch64//file",
-            "@nbdkit-server-aarch64//file",
-            "@nbdkit-basic-filters-aarch64//file",
-            #"@nbdkit-vddk-plugin-aarch64//file",
-            "@nbdkit-curl-plugin-aarch64//file",
-            "@nbdkit-xz-filter-aarch64//file",
-            "@nbdkit-gzip-filter-aarch64//file",
-            "@qemu-img-aarch64//file",
-            "@libaio-aarch64//file",
-            "@ostree-libs-aarch64//file",
-            "@util-linux-core-aarch64//file",
-            "@containers-common//file",
-        ],
-        "//conditions:default": [
-            "@liburing//file",
-            "@libnbd//file",
-            "@nbdkit-server//file",
-            "@nbdkit-basic-filters//file",
-            "@nbdkit-vddk-plugin//file",
-            "@nbdkit-curl-plugin//file",
-            "@nbdkit-xz-filter//file",
-            "@nbdkit-gzip-filter//file",
-            "@qemu-img//file",
-            "@libaio//file",
-            "@ostree-libs//file",
-            "@util-linux-core//file",
-            "@containers-common//file",
-        ],
-    }),
-)
 
 go_library(
     name = "go_default_library",
@@ -78,11 +37,13 @@ container_image(
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
-    base = ":cdi-importer-base-image",
+    base = ":importer_base",
     directory = "/usr/bin",
     entrypoint = [
-        "/usr/bin/cdi-importer",
-        "-alsologtostderr",
+        "/bin/sh",
+        "-c",
+        "/usr/bin/update-ca-trust && exec /usr/bin/cdi-importer -alsologtostderr \"$@\"",
+        "--",
     ],
     files = [
         ":cdi-importer",
@@ -90,4 +51,16 @@ container_image(
         "//tools/cdi-source-update-poller",
     ],
     visibility = ["//visibility:public"],
+)
+
+container_image(
+    name = "importer_base",
+    tars = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "//rpm:cdi_importer_base_aarch64",
+        ],
+        "//conditions:default": [
+            "//rpm:cdi_importer_base_x86_64",
+        ],
+    }),
 )

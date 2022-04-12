@@ -1,6 +1,8 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_docker//container:container.bzl", "container_image")
 load("@bazel_gazelle//:def.bzl", "gazelle")
 load("@bazel_tools//tools/python:toolchain.bzl", "py_runtime_pair")
+load("@bazeldnf//:def.bzl", "bazeldnf")
 
 py_runtime(
     name = "python2_runtime",
@@ -28,6 +30,8 @@ toolchain(
 
 # gazelle:prefix kubevirt.io/containerized-data-importer
 gazelle(name = "gazelle")
+
+bazeldnf(name = "bazeldnf")
 
 go_library(
     name = "go_default_library",
@@ -182,5 +186,31 @@ filegroup(
     srcs = [
         "//tests:images/invalid_qcow_images/invalid-qcow-large-memory.img",
     ],
+    visibility = ["//visibility:public"],
+)
+
+container_image(
+    name = "testimage_base",
+    tars = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "//rpm:testimage_aarch64",
+        ],
+        "//conditions:default": [
+            "//rpm:testimage_x86_64",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+container_image(
+    name = "centos_base",
+    tars = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "//rpm:centos_base_aarch64",
+        ],
+        "//conditions:default": [
+            "//rpm:centos_base_x86_64",
+        ],
+    }),
     visibility = ["//visibility:public"],
 )

@@ -111,6 +111,8 @@ function pushImages {
    done
 }
 
+update-ca-trust
+
 #remove storage.conf if exists
 rm -rf /etc/containers/storage.conf
 

@@ -65,10 +65,7 @@ container_image(
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
-    base = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "@centos-aarch64//image",
-        "//conditions:default": "@centos//image",
-    }),
+    base = "//:centos_base",
     directory = "/usr/bin",
     entrypoint = [
         "/usr/bin/cdi-controller",
