@@ -28,7 +28,7 @@ FUNC_TEST_BAD_WEBSERVER="cdi-func-test-bad-webserver"
 FUNC_TEST_PROXY="cdi-func-test-proxy"
 
 # update this whenever new builder tag is created
-BUILDER_IMAGE=${BUILDER_IMAGE:-quay.io/kubevirt/kubevirt-cdi-bazel-builder:2203231247-92ab271e}
+BUILDER_IMAGE=${BUILDER_IMAGE:-quay.io/mrashish/kubevirt-cdi-bazel-builder:2204121734-319648b62}
 
 BINARIES="cmd/${OPERATOR} cmd/${CONTROLLER} cmd/${IMPORTER} cmd/${CLONER} cmd/${APISERVER} cmd/${UPLOADPROXY} cmd/${UPLOADSERVER} cmd/${OPERATOR} tools/${FUNC_TEST_INIT} tools/${FUNC_TEST_REGISTRY_INIT} tools/${FUNC_TEST_BAD_WEBSERVER} tools/${FUNC_TEST_PROXY}"
 CDI_PKGS="cmd/ pkg/ test/"
