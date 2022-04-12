@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
@@ -494,7 +494,7 @@ func MakePodOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 
 // IsCsiCrdsDeployed checks whether the CSI snapshotter CRD are deployed
 func IsCsiCrdsDeployed(c extclientset.Interface) bool {
-	version := "v1beta1"
+	version := "v1"
 	vsClass := "volumesnapshotclasses." + snapshotv1.GroupName
 	vsContent := "volumesnapshotcontents." + snapshotv1.GroupName
 	vs := "volumesnapshots." + snapshotv1.GroupName
