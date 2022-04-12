@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"strconv"
 
 	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/go-logr/logr"
@@ -34,6 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	"kubevirt.io/containerized-data-importer/pkg/monitoring"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -128,49 +129,11 @@ func isPrometheusDeployed(logger logr.Logger, c client.Client, namespace string)
 	return true, nil
 }
 
-// RecordRulesDesc represent CDI Prometheus Record Rules
-type RecordRulesDesc struct {
-	Name        string
-	Expr        string
-	Description string
-}
-
-// GetRecordRulesDesc returns CDI Prometheus Record Rules
-func GetRecordRulesDesc(namespace string) []RecordRulesDesc {
-	return []RecordRulesDesc{
-		{
-			"kubevirt_cdi_operator_up_total",
-			fmt.Sprintf("sum(up{namespace='%s', pod=~'cdi-operator-.*'} or vector(0))", namespace),
-			"CDI operator status",
-		},
-		{
-			"kubevirt_cdi_import_dv_unusual_restartcount_total",
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
-			"Total restart count in CDI Data Volume importer pod",
-		},
-		{
-			"kubevirt_cdi_upload_dv_unusual_restartcount_total",
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
-			"Total restart count in CDI Data Volume upload server pod",
-		},
-		{
-			"kubevirt_cdi_clone_dv_unusual_restartcount_total",
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
-			"Total restart count in CDI Data Volume cloner pod",
-		},
-		{
-			"kubevirt_cdi_dataimportcron_outdated_total",
-			"sum(kubevirt_cdi_dataimportcron_outdated or vector(0))",
-			"Total count of outdated DataImportCron imports",
-		},
-	}
-}
-
 func getRecordRules(namespace string) []promv1.Rule {
 	var recordRules []promv1.Rule
 
-	for _, rrd := range GetRecordRulesDesc(namespace) {
-		recordRules = append(recordRules, generateRecordRule(rrd.Name, rrd.Expr))
+	for _, rrd := range monitoring.GetRecordRulesDesc(namespace) {
+		recordRules = append(recordRules, generateRecordRule(rrd.Opts.Name, rrd.Expr))
 	}
 
 	return recordRules

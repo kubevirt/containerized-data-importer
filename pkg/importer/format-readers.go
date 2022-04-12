@@ -33,6 +33,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
@@ -40,8 +41,8 @@ import (
 var (
 	progress = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "import_progress",
-			Help: "The import progress in percentage",
+			Name: monitoring.MetricOptsList[monitoring.CloneProgress].Name,
+			Help: monitoring.MetricOptsList[monitoring.CloneProgress].Help,
 		},
 		[]string{"ownerUID"},
 	)

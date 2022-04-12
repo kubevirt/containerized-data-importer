@@ -53,6 +53,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
@@ -67,8 +68,8 @@ var (
 	// DataImportCronOutdatedGauge is the metric we use to alert about DataImportCrons failing
 	DataImportCronOutdatedGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "kubevirt_cdi_dataimportcron_outdated",
-			Help: "DataImportCron has an outdated import",
+			Name: monitoring.MetricOptsList[monitoring.DataImportCronOutdated].Name,
+			Help: monitoring.MetricOptsList[monitoring.DataImportCronOutdated].Help,
 		},
 		[]string{prometheusNsLabel, prometheusCronNameLabel},
 	)
