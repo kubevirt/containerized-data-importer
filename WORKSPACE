@@ -474,6 +474,18 @@ rpm(
 )
 
 rpm(
+    name = "crypto-policies-scripts-0__20220223-1.git5203b41.el9.aarch64",
+    sha256 = "e90443cfe36a2765b66508941ed97247deae73a4c39f030be7e3d1d6a1a3b99e",
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/crypto-policies-scripts-20220223-1.git5203b41.el9.noarch.rpm"],
+)
+
+rpm(
+    name = "crypto-policies-scripts-0__20220223-1.git5203b41.el9.x86_64",
+    sha256 = "e90443cfe36a2765b66508941ed97247deae73a4c39f030be7e3d1d6a1a3b99e",
+    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/crypto-policies-scripts-20220223-1.git5203b41.el9.noarch.rpm"],
+)
+
+rpm(
     name = "cryptsetup-libs-0__2.4.3-4.el9.aarch64",
     sha256 = "acec9971baa75b27a33e10ed9e61b9cfcaf12d0c6adb7bc0a6d7af260db72d59",
     urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/cryptsetup-libs-2.4.3-4.el9.aarch64.rpm"],

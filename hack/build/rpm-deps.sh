@@ -59,6 +59,7 @@ qemu-img
 "
 
 testimage="
+crypto-policies-scripts
 qemu-img
 nginx
 python3-systemd
