@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	imagev1 "github.com/openshift/api/image/v1"
+	"github.com/pkg/errors"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -59,6 +60,21 @@ const (
 	imageStreamTag  = "test-imagestream-tag"
 	tagWithNoItems  = "tag-with-no-items"
 )
+
+type possiblyErroringFakeCtrlRuntimeClient struct {
+	client.Client
+	shouldError bool
+}
+
+func (p *possiblyErroringFakeCtrlRuntimeClient) Get(
+	ctx context.Context,
+	key client.ObjectKey,
+	cron client.Object) error {
+	if p.shouldError {
+		return errors.New("Arbitrary unit test error that isn't NotFound")
+	}
+	return p.Client.Get(ctx, key, cron)
+}
 
 var _ = Describe("All DataImportCron Tests", func() {
 	var _ = Describe("DataImportCron controller reconcile loop", func() {
@@ -128,6 +144,36 @@ var _ = Describe("All DataImportCron Tests", func() {
 		It("Should do nothing and return nil when no DataImportCron exists", func() {
 			reconciler = createDataImportCronReconciler()
 			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should not cleanup if GET dataimportcron errors with something other than notfound", func() {
+			cron = newDataImportCron(cronName)
+			reconciler = createDataImportCronReconciler(cron)
+			fakeErroringClient := &possiblyErroringFakeCtrlRuntimeClient{
+				Client:      reconciler.client,
+				shouldError: false,
+			}
+			reconciler.client = fakeErroringClient
+
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+			cronjob := &batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), cronKey, cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			// CronJob should not be cleaned up on arbitrary errors
+			fakeErroringClient.shouldError = true
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("Arbitrary unit test error"))
+
+			// Stop artificial erroring so we could try grabbing the cronjob, which should still be there
+			fakeErroringClient.shouldError = false
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
