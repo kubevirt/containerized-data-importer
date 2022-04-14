@@ -615,7 +615,10 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return obj.GetLabels()[common.DataImportCronLabel]
 	}
 	mapToCron := func(obj client.Object) []reconcile.Request {
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: getCronName(obj), Namespace: obj.GetNamespace()}}}
+		if cronName := getCronName(obj); cronName != "" {
+			return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: cronName, Namespace: obj.GetNamespace()}}}
+		}
+		return nil
 	}
 	if err := c.Watch(&source.Kind{Type: &cdiv1.DataVolume{}},
 		handler.EnqueueRequestsFromMapFunc(mapToCron),
