@@ -28,6 +28,7 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
 
@@ -51,7 +52,7 @@ func (wh *dataImportCronValidatingWebhook) Admit(ar admissionv1.AdmissionReview)
 		return toAdmissionResponseError(err)
 	}
 
-	causes := validateNameLength(cron.Name)
+	causes := validateNameLength(cron.Name, validation.DNS1035LabelMaxLength)
 	if len(causes) > 0 {
 		return toRejectedAdmissionResponse(causes)
 	}
@@ -151,7 +152,7 @@ func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *a
 		return causes
 	}
 
-	causes = validateNameLength(spec.ManagedDataSource)
+	causes = validateNameLength(spec.ManagedDataSource, validation.DNS1035LabelMaxLength)
 	if len(causes) > 0 {
 		return causes
 	}
