@@ -484,6 +484,60 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 
 	_, prePopulated := datavolume.Annotations[AnnPrePopulated]
 
+	if selectedCloneStrategy != NoClone {
+		return r.reconcileClone(log, datavolume, pvc, pvcSpec, transferName, prePopulated, pvcExists, selectedCloneStrategy)
+	}
+
+	if !prePopulated {
+		if !pvcExists {
+			newPvc, err := r.createPvcForDatavolume(log, datavolume, pvcSpec)
+			if err != nil {
+				if errQuotaExceeded(err) {
+					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, datavolume, nil, selectedCloneStrategy,
+						DataVolumeEvent{
+							eventType: corev1.EventTypeWarning,
+							reason:    ErrExceededQuota,
+							message:   err.Error(),
+						})
+				}
+				return reconcile.Result{}, err
+			}
+			pvc = newPvc
+		} else {
+			if getSource(pvc) == SourceVDDK {
+				changed, err := r.getVddkAnnotations(datavolume, pvc)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+				if changed {
+					err = r.client.Get(context.TODO(), req.NamespacedName, datavolume)
+					if err != nil {
+						return reconcile.Result{}, err
+					}
+				}
+			}
+
+			err = r.maybeSetMultiStageAnnotation(pvc, datavolume)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+	}
+
+	// Finally, we update the status block of the DataVolume resource to reflect the
+	// current state of the world
+	return r.reconcileDataVolumeStatus(datavolume, pvc)
+}
+
+func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
+	datavolume *cdiv1.DataVolume,
+	pvc *corev1.PersistentVolumeClaim,
+	pvcSpec *corev1.PersistentVolumeClaimSpec,
+	transferName string,
+	prePopulated bool,
+	pvcExists bool,
+	selectedCloneStrategy cloneStrategy) (reconcile.Result, error) {
+
 	if !prePopulated {
 		if !pvcExists {
 			if selectedCloneStrategy == SmartClone {
@@ -522,24 +576,6 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 				return reconcile.Result{}, err
 			}
 			pvc = newPvc
-		} else {
-			if getSource(pvc) == SourceVDDK {
-				changed, err := r.getVddkAnnotations(datavolume, pvc)
-				if err != nil {
-					return reconcile.Result{}, err
-				}
-				if changed {
-					err = r.client.Get(context.TODO(), req.NamespacedName, datavolume)
-					if err != nil {
-						return reconcile.Result{}, err
-					}
-				}
-			}
-
-			err = r.maybeSetMultiStageAnnotation(pvc, datavolume)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
 		}
 
 		switch selectedCloneStrategy {
