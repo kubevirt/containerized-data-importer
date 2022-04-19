@@ -15,8 +15,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -35,6 +37,7 @@ var (
 			Name: monitoring.MetricOptsList[monitoring.IncompleteProfile].Name,
 			Help: monitoring.MetricOptsList[monitoring.IncompleteProfile].Help,
 		})
+	scProvisionerMap = make(map[string]string)
 )
 
 // StorageProfileReconciler members
@@ -71,6 +74,7 @@ func (r *StorageProfileReconciler) Reconcile(_ context.Context, req reconcile.Re
 
 func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.StorageClass) (reconcile.Result, error) {
 	log := r.log.WithValues("StorageProfile", sc.Name)
+	addStorageClass(sc)
 
 	storageProfile, prevStorageProfile, err := r.getStorageProfile(sc)
 	if err != nil {
@@ -186,6 +190,7 @@ func (r *StorageProfileReconciler) createEmptyStorageProfile(sc *storagev1.Stora
 
 func (r *StorageProfileReconciler) deleteStorageProfile(name string, log logr.Logger) error {
 	log.Info("Cleaning up StorageProfile that corresponds to deleted StorageClass", "StorageClass.Name", name)
+	removeStorageClass(name)
 	storageProfileObj := &cdiv1.StorageProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -197,6 +202,25 @@ func (r *StorageProfileReconciler) deleteStorageProfile(name string, log logr.Lo
 	}
 
 	return r.checkIncompleteProfiles()
+}
+
+func removeStorageClass(name string) {
+	_, found := scProvisionerMap[name]
+	if found {
+		delete(scProvisionerMap, name)
+	}
+}
+
+func addStorageClass(sc *storagev1.StorageClass) {
+	scProvisionerMap[sc.Name] = sc.Provisioner
+}
+
+func isNoProvisioner(name string) bool {
+	provisioner, found := scProvisionerMap[name]
+	if found && provisioner == "kubernetes.io/no-provisioner" {
+		return true
+	}
+	return false
 }
 
 func (r *StorageProfileReconciler) checkIncompleteProfiles() error {
@@ -279,7 +303,25 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 	if err := c.Watch(&source.Kind{Type: &cdiv1.StorageProfile{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
+	if err := c.Watch(&source.Kind{Type: &v1.PersistentVolume{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{Name: scName(obj)},
+			}}
+		},
+	),
+		predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool { return isNoProvisioner(scName(e.Object)) },
+			UpdateFunc: func(e event.UpdateEvent) bool { return isNoProvisioner(scName(e.ObjectNew)) },
+			DeleteFunc: func(e event.DeleteEvent) bool { return isNoProvisioner(scName(e.Object)) },
+		}); err != nil {
+		return err
+	}
 	return nil
+}
+
+func scName(obj client.Object) string {
+	return obj.(*v1.PersistentVolume).Spec.StorageClassName
 }
 
 func isIncomplete(sets []cdiv1.ClaimPropertySet) bool {
