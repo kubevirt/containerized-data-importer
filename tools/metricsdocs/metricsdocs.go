@@ -60,12 +60,13 @@ func metricDescriptionToMetric(rrd monitoring.RecordRulesDesc) monitoring.Metric
 	return monitoring.MetricOpts{
 		Name: rrd.Opts.Name,
 		Help: rrd.Opts.Help,
+		Type: rrd.Opts.Type,
 	}
 }
 
 func writeOut(m monitoring.MetricOpts) {
 	fmt.Println("###", m.Name)
-	fmt.Println(m.Help)
+	fmt.Println(m.Help + ". Type: " + m.Type + ".")
 }
 
 type metricList []monitoring.MetricOpts
