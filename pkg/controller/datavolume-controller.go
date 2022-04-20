@@ -395,6 +395,7 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, err
 	}
 
+	pvcPopulated := false
 	// Get the pvc with the name specified in DataVolume.spec
 	pvc := &corev1.PersistentVolumeClaim{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: datavolume.Namespace, Name: datavolume.Name}, pvc); err != nil {
@@ -408,8 +409,9 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 	} else {
 		// If the PVC is not controlled by this DataVolume resource, we should log
 		// a warning to the event recorder and return
+		pvcPopulated = pvcIsPopulated(pvc, datavolume)
 		if !metav1.IsControlledBy(pvc, datavolume) {
-			if pvcIsPopulated(pvc, datavolume) {
+			if pvcPopulated {
 				if err := r.addOwnerRef(pvc, datavolume); err != nil {
 					return reconcile.Result{}, err
 				}
@@ -437,13 +439,13 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, err
 	}
 
-	_, prePopulated := datavolume.Annotations[AnnPrePopulated]
+	_, dvPrePopulated := datavolume.Annotations[AnnPrePopulated]
 
 	if selectedCloneStrategy != NoClone {
-		return r.reconcileClone(log, datavolume, pvc, pvcSpec, transferName, prePopulated, selectedCloneStrategy)
+		return r.reconcileClone(log, datavolume, pvc, pvcSpec, transferName, dvPrePopulated, pvcPopulated, selectedCloneStrategy)
 	}
 
-	if !prePopulated {
+	if !dvPrePopulated {
 		if pvc == nil {
 			newPvc, err := r.createPvcForDatavolume(log, datavolume, pvcSpec)
 			if err != nil {
@@ -490,6 +492,7 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 	pvcSpec *corev1.PersistentVolumeClaimSpec,
 	transferName string,
 	prePopulated bool,
+	pvcPopulated bool,
 	selectedCloneStrategy cloneStrategy) (reconcile.Result, error) {
 
 	if !prePopulated {
@@ -532,11 +535,16 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 			pvc = newPvc
 		}
 
-		switch selectedCloneStrategy {
-		case HostAssistedClone:
-			if err := r.ensureExtendedToken(pvc); err != nil {
-				return reconcile.Result{}, err
+		if !pvcPopulated {
+			switch selectedCloneStrategy {
+			case HostAssistedClone:
+				if err := r.ensureExtendedToken(pvc); err != nil {
+					return reconcile.Result{}, err
+				}
 			}
+		}
+
+		switch selectedCloneStrategy {
 		case CsiClone:
 			switch pvc.Status.Phase {
 			case corev1.ClaimBound:
