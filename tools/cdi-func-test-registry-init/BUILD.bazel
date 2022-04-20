@@ -1,35 +1,6 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
-load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image")
-
-rpm_image(
-    name = "cdi-func-test-registry-init-base-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
-    base = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
-        "//conditions:default": "@fedora//image",
-    }),
-    rpms = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "@qemu-img-aarch64//file",
-            "@xen-libs-aarch64//file",
-            "@libaio-aarch64//file",
-            "@liburing-aarch64//file",
-            "@capstone-aarch64//file",
-        ],
-        "//conditions:default": [
-            "@qemu-img//file",
-            "@xen-libs//file",
-            "@libaio//file",
-            "@liburing//file",
-            "@capstone//file",
-        ],
-    }),
-)
 
 # Init
 go_library(
@@ -57,9 +28,17 @@ container_image(
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
-    base = ":cdi-func-test-registry-init-base-image",
     directory = "/",
-    tars = [":test-img-tar"],
+    tars = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            ":test-img-tar",
+            "//rpm:testimage_aarch64",
+        ],
+        "//conditions:default": [
+            ":test-img-tar",
+            "//rpm:testimage_x86_64",
+        ],
+    }),
 )
 
 container_image(
@@ -96,43 +75,24 @@ pkg_tar(
     package_dir = "/tmp/source",
 )
 
-#Populate
-rpm_image(
-    name = "cdi-func-test-registry-populate-base-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
-    base = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
-        "//conditions:default": "@fedora//image",
-    }),
-    rpms = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "@buildah-aarch64//file",
-            "@libseccomp-aarch64//file",
-            "@device-mapper-libs-aarch64//file",
-            "@containers-common-aarch64//file",
-        ],
-        "//conditions:default": [
-            "@buildah//file",
-            "@libseccomp//file",
-            "@device-mapper-libs//file",
-            "@containers-common//file",
-        ],
-    }),
-)
-
 container_image(
     name = "cdi-func-test-registry-populate-image",
     architecture = select({
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
-    base = ":cdi-func-test-registry-populate-base-image",
     directory = "/",
     entrypoint = ["./populate-registry.sh"],
-    tars = [":populate-script-tar"],
+    tars = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            ":populate-script-tar",
+            "//rpm:testimage_aarch64",
+        ],
+        "//conditions:default": [
+            ":populate-script-tar",
+            "//rpm:testimage_x86_64",
+        ],
+    }),
     visibility = ["//visibility:public"],
 )
 

@@ -4,6 +4,9 @@ set -x
 
 mkfifo /tmp/vcfifo
 
+tar xvf /usr/bin/vcsim.tar.gz -C /usr/bin
+tar xvf /usr/bin/govc.tar.gz -C /usr/bin
+
 /usr/bin/vcsim -l :8989 -E /tmp/vcfifo -dc 0 &
 eval "$(cat /tmp/vcfifo)"
 

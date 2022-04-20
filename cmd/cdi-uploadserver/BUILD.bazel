@@ -1,31 +1,4 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
-load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
-
-rpm_image(
-    name = "cdi-uploadserver-base-image",
-    base = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
-        "//conditions:default": "@fedora//image",
-    }),
-    rpms = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "@libnbd-aarch64//file",
-            "@qemu-img-aarch64//file",
-            "@xen-libs-aarch64//file",
-            "@libaio-aarch64//file",
-            "@capstone-aarch64//file",
-            "@liburing-aarch64//file",
-        ],
-        "//conditions:default": [
-            "@libnbd//file",
-            "@qemu-img//file",
-            "@xen-libs//file",
-            "@libaio//file",
-            "@capstone//file",
-            "@liburing//file",
-        ],
-    }),
-)
 
 go_library(
     name = "go_default_library",
@@ -57,7 +30,7 @@ container_image(
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
-    base = ":cdi-uploadserver-base-image",
+    base = ":uploadserver_base",
     directory = "/usr/bin",
     entrypoint = [
         "/usr/bin/cdi-uploadserver",
@@ -65,4 +38,16 @@ container_image(
     ],
     files = [":cdi-uploadserver"],
     visibility = ["//visibility:public"],
+)
+
+container_image(
+    name = "uploadserver_base",
+    tars = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "//rpm:cdi_uploadserver_base_aarch64",
+        ],
+        "//conditions:default": [
+            "//rpm:cdi_uploadserver_base_x86_64",
+        ],
+    }),
 )

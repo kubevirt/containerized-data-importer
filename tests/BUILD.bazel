@@ -118,6 +118,7 @@ go_test(
 exports_files(
     [
         "images/tinyCore.iso",
+        "images/tinyCore.vdi",
         "images/archive.tar",
         "images/cirros-qcow2.img",
         "images/cirros.raw",

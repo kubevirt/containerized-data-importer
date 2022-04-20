@@ -1,6 +1,5 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
-load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image")
 
 go_library(
@@ -28,10 +27,7 @@ container_image(
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
-    base = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
-        "//conditions:default": "@fedora//image",
-    }),
+    base = "//:testimage_base",
     directory = "/usr/bin",
     entrypoint = [
         "imageio-init",
