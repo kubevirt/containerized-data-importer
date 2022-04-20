@@ -1095,12 +1095,12 @@ func volumeSize(c client.Client, spec cdiv1.DataVolumeSpec, volumeMode *v1.Persi
 	requestedSize, found := spec.Storage.Resources.Requests[v1.ResourceStorage]
 
 	if !found {
-		// Storage size can be empty when using PVC source
-		if spec.Source.PVC != nil {
+		// Storage size can be empty when cloning
+		isClone := spec.Source.PVC != nil
+		if isClone == true {
 			return &requestedSize, nil
-		} else {
-			return nil, errors.Errorf("Datavolume Spec is not valid - missing storage size")
 		}
+		return nil, errors.Errorf("Datavolume Spec is not valid - missing storage size")
 	}
 
 	// disk or image size, inflate it with overhead

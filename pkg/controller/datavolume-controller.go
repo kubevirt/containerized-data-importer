@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
+	"os"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -551,11 +552,8 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 	// said value can be attainable from the source PVC
 	targetRequest, hasTargetRequest := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 	if hasTargetRequest && targetRequest.IsZero() {
-		sourcePvc, _ := r.findSourcePvc(datavolume)
-		if selectedCloneStrategy == SmartClone || selectedCloneStrategy == CsiClone {
-			pvcSpec.Resources.Requests[corev1.ResourceStorage] = *sourcePvc.Status.Capacity.Storage()
-		} else {
-			// HostAssistedClone
+		if err := r.detectCloneSize(datavolume, pvcSpec, selectedCloneStrategy); err != nil {
+			return reconcile.Result{}, err
 		}
 	}
 
@@ -2733,4 +2731,177 @@ func getDeltaTTL(dv *cdiv1.DataVolume, ttl int32) time.Duration {
 		delta -= time.Now().Sub(cond.LastTransitionTime.Time)
 	}
 	return delta
+}
+
+// When cloning using an empty target size, we can detect the original PVC's size with detectCloneSize
+func (r *DatavolumeReconciler) detectCloneSize(dv *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec, cloneType cloneStrategy) error {
+	sourcePvc, err := r.findSourcePvc(dv)
+	if err != nil {
+		return err
+	}
+
+	// Due to possible overhead complications when cloning using the host-assisted strategy,
+	// we create a pod that automatically collects the size of the original virtual image with qemu-img.
+	// If another strategy is used or the original PVC's volume mode is "block",
+	// we simply extract the value from the original PVC's spec.
+	if cloneType == HostAssistedClone && getVolumeMode(sourcePvc) == corev1.PersistentVolumeFilesystem {
+		imgPath := "file:///data/disk.img" // Work in progress: This will later be changed
+
+		pod, err := r.createSizeDetectionPod(sourcePvc, imgPath)
+		if err != nil {
+			return err
+		}
+
+		if pod.Status.Phase == corev1.PodSucceeded {
+			if err := r.client.Delete(context.TODO(), pod); err != nil {
+				if !k8serrors.IsNotFound(err) {
+					return err
+				}
+			}
+		} else {
+			return r.updateCloneStatusPhase(cdiv1.ExpansionInProgress, dv, nil, cloneType)
+		}
+	} else {
+		pvcSpec.Resources.Requests[corev1.ResourceStorage] = *sourcePvc.Status.Capacity.Storage()
+	}
+
+	return nil
+}
+
+// Handles the creation of the size-detection pod
+func (r *DatavolumeReconciler) createSizeDetectionPod(sourcePvc *corev1.PersistentVolumeClaim, imgPath string) (*corev1.Pod, error) {
+	resourceRequirements, err := GetDefaultPodResourceRequirements(r.client) // Work in progress: Not really sure if necessary
+	if err != nil {
+		return nil, err
+	}
+
+	podName := sizeDetectionPodName(sourcePvc)
+	pod := &corev1.Pod{}
+	nn := types.NamespacedName{Namespace: sourcePvc.Namespace, Name: podName}
+
+	if err := r.client.Get(context.TODO(), nn, pod); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return nil, err
+		}
+
+		pod = makeSizeDetectionPod(sourcePvc, r.client, r.pullPolicy, imgPath)
+		if pod == nil {
+			return nil, errors.Errorf("Size detection pod could not be generated.")
+		}
+
+		if resourceRequirements != nil {
+			pod.Spec.Containers[0].Resources = *resourceRequirements
+		}
+
+		if err := r.client.Create(context.TODO(), pod); err != nil {
+			if !k8serrors.IsAlreadyExists(err) {
+				return nil, err
+			}
+		}
+
+		r.log.V(3).Info("Size-detection pod created\n", "pod.Name", pod.Name, "pod.Namespace", pod.Namespace)
+	}
+
+	return pod, nil
+}
+
+// Creates and returns the full size-detection pod spec
+func makeSizeDetectionPod(sourcePvc *corev1.PersistentVolumeClaim, client client.Client, pullPolicy, imgPath string) *corev1.Pod {
+	image := os.Getenv("IMPORTER_IMAGE")
+	if image == "" {
+		return nil
+	}
+
+	workloadNodePlacement, err := GetWorkloadNodePlacement(client)
+	if err != nil {
+		return nil
+	}
+
+	container := makeSizeDetectionContainerSpec(image, pullPolicy, imgPath)
+	volume := makeSizeDetectionVolumeSpec(sourcePvc.Name)
+	objectMeta := makeSizeDetectionObjectMeta(sourcePvc, true, false)
+
+	pod := &corev1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: *objectMeta,
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				*container,
+			},
+			Volumes: []corev1.Volume{
+				*volume,
+			},
+			RestartPolicy:     corev1.RestartPolicyOnFailure,
+			NodeSelector:      workloadNodePlacement.NodeSelector,
+			Tolerations:       workloadNodePlacement.Tolerations,
+			Affinity:          workloadNodePlacement.Affinity,
+			PriorityClassName: getPriorityClass(sourcePvc),
+		},
+	}
+
+	return pod
+}
+
+// Creates and returns the object metadata for the size-detection pod
+func makeSizeDetectionObjectMeta(sourcePvc *corev1.PersistentVolumeClaim, blockOwnerDeletion, isController bool) *metav1.ObjectMeta {
+	return &metav1.ObjectMeta{
+		Name:      sizeDetectionPodName(sourcePvc),
+		Namespace: sourcePvc.Namespace,
+		Annotations: map[string]string{
+			AnnCreatedBy: "yes",
+		},
+		Labels: map[string]string{
+			common.CDILabelKey:        common.CDILabelValue,
+			common.CDIComponentLabel:  common.ImporterPodName,
+			common.PrometheusLabelKey: common.PrometheusLabelValue,
+		},
+		OwnerReferences: []metav1.OwnerReference{
+			{
+				APIVersion:         "v1",
+				Kind:               "PersistentVolumeClaim",
+				Name:               sourcePvc.Name,
+				UID:                sourcePvc.GetUID(),
+				BlockOwnerDeletion: &blockOwnerDeletion,
+				Controller:         &isController,
+			},
+		},
+	}
+}
+
+// Creates and returns the Container spec for the size-detection pod
+func makeSizeDetectionContainerSpec(image, pullPolicy, imgPath string) *corev1.Container {
+	return &corev1.Container{
+		Name:            "size-detection-volume",
+		Image:           image,
+		ImagePullPolicy: corev1.PullPolicy(pullPolicy),
+		Command:         []string{"/usr/bin/cdi-image-size-detection"},
+		Args:            []string{"-url", imgPath, "-path", corev1.TerminationMessagePathDefault},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				MountPath: common.ImporterDataDir,
+				Name:      DataVolName,
+			},
+		},
+	}
+}
+
+// Creates and returns the Volume spec for the size-detection pod
+func makeSizeDetectionVolumeSpec(pvcName string) *corev1.Volume {
+	return &corev1.Volume{
+		Name: DataVolName,
+		VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: pvcName,
+				ReadOnly:  false,
+			},
+		},
+	}
+}
+
+// Returns the name of the size-detection pod accoding to the source PVC's UID
+func sizeDetectionPodName(pvc *corev1.PersistentVolumeClaim) string {
+	return "size-detection-" + string(pvc.UID)
 }
