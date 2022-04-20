@@ -436,13 +436,12 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, err
 	}
 
-	pvcExists := true
 	// Get the pvc with the name specified in DataVolume.spec
 	pvc := &corev1.PersistentVolumeClaim{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: datavolume.Namespace, Name: datavolume.Name}, pvc); err != nil {
 		// If the resource doesn't exist, we'll create it
 		if k8serrors.IsNotFound(err) {
-			pvcExists = false
+			pvc = nil
 		} else if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -485,11 +484,11 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 	_, prePopulated := datavolume.Annotations[AnnPrePopulated]
 
 	if selectedCloneStrategy != NoClone {
-		return r.reconcileClone(log, datavolume, pvc, pvcSpec, transferName, prePopulated, pvcExists, selectedCloneStrategy)
+		return r.reconcileClone(log, datavolume, pvc, pvcSpec, transferName, prePopulated, selectedCloneStrategy)
 	}
 
 	if !prePopulated {
-		if !pvcExists {
+		if pvc == nil {
 			newPvc, err := r.createPvcForDatavolume(log, datavolume, pvcSpec)
 			if err != nil {
 				if errQuotaExceeded(err) {
@@ -535,11 +534,10 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 	pvcSpec *corev1.PersistentVolumeClaimSpec,
 	transferName string,
 	prePopulated bool,
-	pvcExists bool,
 	selectedCloneStrategy cloneStrategy) (reconcile.Result, error) {
 
 	if !prePopulated {
-		if !pvcExists {
+		if pvc == nil {
 			if selectedCloneStrategy == SmartClone {
 				snapshotClassName, _ := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
 				return r.reconcileSmartClonePvc(log, datavolume, pvcSpec, transferName, snapshotClassName)
@@ -2092,7 +2090,7 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 	result := reconcile.Result{}
 
 	curPhase := dataVolumeCopy.Status.Phase
-	if pvc != nil && pvc.Name != "" {
+	if pvc != nil {
 		storageClassBindingMode, err := r.getStorageClassBindingMode(pvc.Spec.StorageClassName)
 		if err != nil {
 			return reconcile.Result{}, err
