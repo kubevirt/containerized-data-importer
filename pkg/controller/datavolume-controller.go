@@ -81,6 +81,8 @@ const (
 	ErrUnableToClone = "ErrUnableToClone"
 	// DataVolumeFailed provides a const to represent DataVolume failed status
 	DataVolumeFailed = "DataVolumeFailed"
+	// DefaultImagePath is a const with the default path where the virtual image is stored in containers
+	DefaultImagePath = "file:///data/disk.img"
 	// ImportScheduled provides a const to indicate import is scheduled
 	ImportScheduled = "ImportScheduled"
 	// ImportInProgress provides a const to indicate an import is in progress
@@ -2735,6 +2737,7 @@ func getDeltaTTL(dv *cdiv1.DataVolume, ttl int32) time.Duration {
 
 // When cloning using an empty target size, we can detect the original PVC's size with detectCloneSize
 func (r *DatavolumeReconciler) detectCloneSize(dv *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec, cloneType cloneStrategy) error {
+	var targetSize resource.Quantity
 	sourcePvc, err := r.findSourcePvc(dv)
 	if err != nil {
 		return err
@@ -2745,26 +2748,23 @@ func (r *DatavolumeReconciler) detectCloneSize(dv *cdiv1.DataVolume, pvcSpec *co
 	// If another strategy is used or the original PVC's volume mode is "block",
 	// we simply extract the value from the original PVC's spec.
 	if cloneType == HostAssistedClone && getVolumeMode(sourcePvc) == corev1.PersistentVolumeFilesystem {
-		imgPath := "file:///data/disk.img" // Work in progress: This will later be changed
-
-		pod, err := r.createSizeDetectionPod(sourcePvc, imgPath)
+		pod, err := r.createSizeDetectionPod(sourcePvc, DefaultImagePath)
 		if err != nil {
 			return err
+		} else if pod.Status.Phase != corev1.PodSucceeded {
+			return r.updateCloneStatusPhase(cdiv1.CloneScheduled, dv, nil, cloneType)
 		}
 
-		if pod.Status.Phase == corev1.PodSucceeded {
-			if err := r.client.Delete(context.TODO(), pod); err != nil {
-				if !k8serrors.IsNotFound(err) {
-					return err
-				}
-			}
-		} else {
-			return r.updateCloneStatusPhase(cdiv1.ExpansionInProgress, dv, nil, cloneType)
+		targetSize = resource.MustParse(pod.Status.ContainerStatuses[0].State.Terminated.Message + "M")
+		err = r.client.Delete(context.TODO(), pod)
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return err
 		}
 	} else {
-		pvcSpec.Resources.Requests[corev1.ResourceStorage] = *sourcePvc.Status.Capacity.Storage()
+		targetSize = *sourcePvc.Status.Capacity.Storage()
 	}
 
+	pvcSpec.Resources.Requests[corev1.ResourceStorage] = targetSize
 	return nil
 }
 
