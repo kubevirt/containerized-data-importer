@@ -44,11 +44,16 @@ Current version supports the following parameters:
 
 Values for accessModes and volumeMode are exactly the same as for PVC: `accessModes` is a list of `[ReadWriteMany|ReadWriteOnce|ReadOnlyMany]`
 and `volumeMode` is a single value `Filesystem` or `Block`.
-The value for `cloneStrategy` can be one of: `copy`,`snapshot`,`csi-clone`.
+Multiple claim property sets can be specified (`claimPropertySets` is a list).
+
+The value for `cloneStrategy` can be one of: `copy`,`snapshot`,`csi-clone`. 
 When the value is not specified the CDI will try to use the `snapshot` if possible otherwise it falls back to `copy`. 
 If the storage class (and its provider) is capable of doing CSI Volume Clone then the user may choose `csi-clone` as a preferred clone method.
 
-Multiple claim property sets can be specified (`claimPropertySets` is a list).
+StorageClass can be annotated with `cdi.kubevirt.io/clone-strategy`. The annotation value can be one of: `copy`,`snapshot`,`csi-clone`.
+CDI is using this annotation value when configuring the clone strategy on storage profile. 
+This is helpful for known provisioners that want different behavior for certain configurations in the storage class 
+
 
 ## Handling the DV with defaults from Storage Profiles 
 
@@ -203,16 +208,13 @@ Notice the event on the DV.
 ## User defined Storage Profile
 
 User with access rights to edit StorageProfile can configure recommended parameters. Edit spec section of StorageProfile by adding claimPropertySets with accessModes and volumeMode.
-When editting volumeMode you must also configure accessModes.
+When editing volumeMode you must also configure accessModes.
 Shortly, all provided parameters should be visible in the status section. User defined parameter has higher priority and overrides the one provided by CDI. 
 
 ## Priorities
 
-1. Parameter defined on DataVolume
-2. User provided parameters - defined on StorageProfile spec section.
-3. Parameters provided by CDI.
-4. Empty or kubernetes defaults (if available).
-
-
-
-
+1. Overrides (for example `cdi.Spec.CloneStrategyOverride`)
+2. Parameter defined on DataVolume
+3. User provided parameters - defined on StorageProfile spec section.
+4. Parameters provided by CDI.
+5. Empty or kubernetes defaults (if available).

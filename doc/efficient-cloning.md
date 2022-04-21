@@ -33,3 +33,4 @@ _The required prerequisites in order to trigger efficient cloning methods_
 * CSI Volume Cloning: [csi-cloning](./csi-cloning.md)
 * Smart Cloning: [smart-clone](./smart-clone.md)
 * Namespace Transfer: [namespace-transfer](./namespace-transfer.md)
+* StorageProfile (description of cloneStrategy): [storageprofile](./storageprofile.md)
