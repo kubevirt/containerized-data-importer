@@ -129,7 +129,8 @@ func (h *pvcTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (time.Du
 		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}
 
-	if sourceExists {
+	// must assert pointing to same PV to avoid races/contention with smartclone controller
+	if sourceExists && source.Spec.VolumeName == pv.Name {
 		if pv.Spec.PersistentVolumeReclaimPolicy != corev1.PersistentVolumeReclaimRetain {
 			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
 			if err := h.reconciler.updateResource(ot, pv); err != nil {
