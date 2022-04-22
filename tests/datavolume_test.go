@@ -775,7 +775,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[test_id:3937]succeed creating warm import dv from imageio source", dataVolumeTestArguments{
+			table.PEntry("[quarantine][test_id:3937]succeed creating warm import dv from imageio source", dataVolumeTestArguments{
 				// The final snapshot importer pod will give an error due to the static response from the fake imageio
 				// it returns the previous snapshot data, which will fail the commit to the target image.
 				// the importer pod will restart and then succeed because the fake imageio now sends the
@@ -923,7 +923,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete; VDDK: {\"Version\":\"1.2.3\",\"Host\":\"esx.test\"}",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[test_id:5078]succeed creating warm import dv from VDDK source", dataVolumeTestArguments{
+			table.PEntry("[quarantine][test_id:5078]succeed creating warm import dv from VDDK source", dataVolumeTestArguments{
 				name:             "dv-import-vddk",
 				size:             "1Gi",
 				url:              vcenterURL,
