@@ -13,16 +13,20 @@ import (
 const (
 	// Decimal base for proper int64 to string conversion.
 	decimal = 10
+	// Default URI scheme to access the virtual image
+	defaultScheme = "file://"
 )
 
 var (
 	imgURL   string
 	termPath string
+	scheme   string
 )
 
 func init() {
 	flag.StringVar(&imgURL, "url", "", "(Mandatory) URL address of the virtual image.")
 	flag.StringVar(&termPath, "path", "", "(Mandatory) Container's status message path.")
+	flag.StringVar(&scheme, "scheme", defaultScheme, "(Optional) Virtual image's URI scheme.")
 	flag.Parse()
 	if imgURL == "" || termPath == "" {
 		log.Fatalf("One or more mandatory parameters are missing")
@@ -31,10 +35,10 @@ func init() {
 
 func main() {
 	// Initialize 'qemu-img' handler
-	var qemuOperations = image.NewQEMUOperations()
 	log.Println("Initializing size-detection pod")
+	var qemuOperations = image.NewQEMUOperations()
 
-	parsedURL, err := url.Parse(imgURL)
+	parsedURL, err := url.Parse(scheme + imgURL)
 	if err != nil {
 		log.Fatalf("Unable to parse the provided URL: '%s", err.Error())
 	}

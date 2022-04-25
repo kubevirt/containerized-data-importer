@@ -81,8 +81,6 @@ const (
 	ErrUnableToClone = "ErrUnableToClone"
 	// DataVolumeFailed provides a const to represent DataVolume failed status
 	DataVolumeFailed = "DataVolumeFailed"
-	// DefaultImagePath is a const with the default path where the virtual image is stored in containers
-	DefaultImagePath = "file:///data/disk.img"
 	// ImportScheduled provides a const to indicate import is scheduled
 	ImportScheduled = "ImportScheduled"
 	// ImportInProgress provides a const to indicate an import is in progress
@@ -171,6 +169,8 @@ const (
 	NamespaceTransferInProgress = "NamespaceTransferInProgress"
 	// MessageNamespaceTransferInProgress is a const for reporting target transfer
 	MessageNamespaceTransferInProgress = "Transferring PersistentVolumeClaim for DataVolume %s/%s"
+	// ImgSizeNotReady is a const to report that it's not yet possible to obtain the size of the image
+	ImgSizeNotReady = "Image size not ready"
 
 	// AnnCSICloneRequest annotation associates object with CSI Clone Request
 	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"
@@ -564,7 +564,7 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 		if err != nil {
 			return reconcile.Result{}, err
 		} else if !done {
-			return reconcile.Result{Requeue: true}, nil
+			return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 		}
 	}
 
@@ -2755,48 +2755,81 @@ func (r *DatavolumeReconciler) detectCloneSize(
 	if err != nil {
 		return false, err
 	}
+	sourceSize := sourcePvc.Status.Capacity.Storage()
 
-	// Due to possible overhead complications when cloning using
-	// host-assisted strategy, we create a pod that automatically
-	// collects the size of the original virtual image with qemu-img.
+	// Due to possible filesystem overhead complications when cloning
+	// using host-assisted strategy, we create a pod that automatically
+	// collects the size of the original virtual image with 'qemu-img'.
 	// If another strategy is used or the original PVC's volume mode
 	// is "block", we simply extract the value from the original PVC's spec.
 	if cloneType == HostAssistedClone && getVolumeMode(sourcePvc) == corev1.PersistentVolumeFilesystem {
 		// If available, we first try to get the virtual size from previous iterations
 		imgSize, available := getSizeFromAnnotations(sourcePvc)
 		if !available {
-			pod, err := r.createSizeDetectionPod(sourcePvc, DefaultImagePath)
+			imgSize, err := r.getSizeFromPod(sourcePvc)
 			if err != nil {
 				return false, err
-			} else if pod.Status.Phase != corev1.PodSucceeded {
+			} else if imgSize == ImgSizeNotReady {
 				return false, nil
 			}
-
-			imgSize := pod.Status.ContainerStatuses[0].State.Terminated.Message
-			err = r.client.Delete(context.TODO(), pod)
-			if err != nil && !k8serrors.IsNotFound(err) {
-				return false, err
-			}
-			// Update Source PVC annotations
-			if err := r.updateClonePVCAnnotations(sourcePvc, imgSize); err != nil {
-				return false, err
-			}
 		}
-		// Inflate size with overhead
-		targetSize, err = inflateSizeWithOverhead(r.client, imgSize, pvcSpec.StorageClassName)
+		// If needed, inflate size with filesystem overhead
+		targetSize, err = inflateSizeWithOverhead(r.client, imgSize, pvcSpec, sourceSize)
 		if err != nil {
 			return false, err
 		}
 	} else {
-		targetSize = *sourcePvc.Status.Capacity.Storage()
+		targetSize = *sourceSize
 	}
 
 	pvcSpec.Resources.Requests[corev1.ResourceStorage] = targetSize
 	return true, nil
 }
 
+// getSizeFromAnnotations checks the source PVC's annotations and returns the requested size if it has already been obtained
+func getSizeFromAnnotations(sourcePvc *corev1.PersistentVolumeClaim) (string, bool) {
+	virtualImageSize, available := sourcePvc.Annotations[AnnVirtualImageSize]
+	if available == true {
+		sourceCapacity, available := sourcePvc.Annotations[AnnSourceCapacity]
+		currCapacity := sourcePvc.Status.Capacity
+		// Checks if the original PVC's capacity has changed
+		if available && currCapacity.Storage().Cmp(resource.MustParse(sourceCapacity)) == 0 {
+			return virtualImageSize, true
+		}
+	}
+
+	return "0", false
+}
+
+// getSizeFromPod attempts to get the image size from a pod that directly obtains said value from the source PVC
+func (r *DatavolumeReconciler) getSizeFromPod(sourcePvc *corev1.PersistentVolumeClaim) (string, error) {
+	// The pod should not be created until the source PVC has finished the import process
+	if !hasPvcSucceeded(sourcePvc) {
+		return ImgSizeNotReady, nil
+	}
+
+	pod, err := r.createSizeDetectionPod(sourcePvc)
+	if err != nil {
+		return ImgSizeNotReady, err
+	} else if !hasPodSucceeded(pod) {
+		return ImgSizeNotReady, nil
+	}
+	// Parse raw image size from the pod's termination message
+	imgSize := pod.Status.ContainerStatuses[0].State.Terminated.Message
+	err = r.client.Delete(context.TODO(), pod)
+	if err != nil && !k8serrors.IsNotFound(err) {
+		return imgSize, err
+	}
+	// Update Source PVC annotations
+	if err := r.updateClonePVCAnnotations(sourcePvc, imgSize); err != nil {
+		return imgSize, err
+	}
+
+	return imgSize, nil
+}
+
 // createSizeDetectionPod handles the creation of the size-detection pod
-func (r *DatavolumeReconciler) createSizeDetectionPod(sourcePvc *corev1.PersistentVolumeClaim, imgPath string) (*corev1.Pod, error) {
+func (r *DatavolumeReconciler) createSizeDetectionPod(sourcePvc *corev1.PersistentVolumeClaim) (*corev1.Pod, error) {
 	resourceRequirements, err := GetDefaultPodResourceRequirements(r.client)
 	if err != nil {
 		return nil, err
@@ -2811,7 +2844,7 @@ func (r *DatavolumeReconciler) createSizeDetectionPod(sourcePvc *corev1.Persiste
 			return nil, err
 		}
 		// Generate the pod spec
-		pod = makeSizeDetectionPodSpec(sourcePvc, r.client, r.pullPolicy, imgPath)
+		pod = makeSizeDetectionPodSpec(sourcePvc, r.client, r.pullPolicy)
 		if pod == nil {
 			return nil, errors.Errorf("Size detection pod could not be generated.")
 		}
@@ -2832,7 +2865,7 @@ func (r *DatavolumeReconciler) createSizeDetectionPod(sourcePvc *corev1.Persiste
 }
 
 // makeSizeDetectionPodSpec creates and returns the full size-detection pod spec
-func makeSizeDetectionPodSpec(sourcePvc *corev1.PersistentVolumeClaim, client client.Client, pullPolicy, imgPath string) *corev1.Pod {
+func makeSizeDetectionPodSpec(sourcePvc *corev1.PersistentVolumeClaim, client client.Client, pullPolicy string) *corev1.Pod {
 	image := os.Getenv("IMPORTER_IMAGE")
 	if image == "" {
 		return nil
@@ -2843,7 +2876,7 @@ func makeSizeDetectionPodSpec(sourcePvc *corev1.PersistentVolumeClaim, client cl
 		return nil
 	}
 	// Generate individual specs
-	container := makeSizeDetectionContainerSpec(image, pullPolicy, imgPath)
+	container := makeSizeDetectionContainerSpec(image, pullPolicy)
 	volume := makeSizeDetectionVolumeSpec(sourcePvc.Name)
 	objectMeta := makeSizeDetectionObjectMeta(sourcePvc, true, false)
 	// Assemble the pod
@@ -2898,13 +2931,13 @@ func makeSizeDetectionObjectMeta(sourcePvc *corev1.PersistentVolumeClaim, blockO
 }
 
 // makeSizeDetectionContainerSpec creates and returns the size-detection pod's Container spec
-func makeSizeDetectionContainerSpec(image, pullPolicy, imgPath string) *corev1.Container {
+func makeSizeDetectionContainerSpec(image, pullPolicy string) *corev1.Container {
 	return &corev1.Container{
 		Name:            "size-detection-volume",
 		Image:           image,
 		ImagePullPolicy: corev1.PullPolicy(pullPolicy),
 		Command:         []string{"/usr/bin/cdi-image-size-detection"},
-		Args:            []string{"-url", imgPath, "-path", corev1.TerminationMessagePathDefault},
+		Args:            []string{"-url", common.ImporterWritePath, "-path", corev1.TerminationMessagePathDefault},
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				MountPath: common.ImporterDataDir,
@@ -2928,37 +2961,53 @@ func makeSizeDetectionVolumeSpec(pvcName string) *corev1.Volume {
 }
 
 // inflateSizeWithOverhead inflates the obtained image size with proper overhead calculations
-func inflateSizeWithOverhead(client client.Client, imgSize string, storageClassName *string) (resource.Quantity, error) {
-	fsOverhead, err := GetFilesystemOverheadForStorageClass(client, storageClassName)
-	if err != nil {
-		return resource.Quantity{}, err
-	}
-	fsOverheadFloat, err := strconv.ParseFloat(string(fsOverhead), 64)
-	if err != nil {
-		return resource.Quantity{}, err
-	}
-	imgSizeInt, err := strconv.ParseInt(imgSize, 10, 64)
-	if err != nil {
-		return resource.Quantity{}, err
-	}
-	requiredSpace := GetRequiredSpace(fsOverheadFloat, imgSizeInt)
+func inflateSizeWithOverhead(client client.Client,
+	imgSize string,
+	pvcSpec *corev1.PersistentVolumeClaimSpec,
+	sourceSize *resource.Quantity) (resource.Quantity, error) {
 
-	return *resource.NewScaledQuantity(requiredSpace, 0), nil
-}
+	var returnSize resource.Quantity
+	var err error
 
-// getSizeFromAnnotations checks the source PVC's annotations and returns the requested size if it has already been obtained
-func getSizeFromAnnotations(sourcePvc *corev1.PersistentVolumeClaim) (string, bool) {
-	virtualImageSize, available := sourcePvc.Annotations[AnnVirtualImageSize]
-	if available == true {
-		sourceCapacity, available := sourcePvc.Annotations[AnnSourceCapacity]
-		currCapacity := sourcePvc.Status.Capacity
-		// Checks if the original PVC's capacity has changed
-		if available && currCapacity.Storage().Cmp(resource.MustParse(sourceCapacity)) == 0 {
-			return virtualImageSize, true
+	if resolveVolumeMode(pvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(client, pvcSpec.StorageClassName)
+		if err != nil {
+			return resource.Quantity{}, err
+		}
+		// Parse filesystem overhead (percentage) into a 64-bit float
+		fsOverheadFloat, err := strconv.ParseFloat(string(fsOverhead), 64)
+		if err != nil {
+			return resource.Quantity{}, err
+		}
+		// Parse the raw string containing the image size into a 64-bit int
+		imgSizeInt, err := strconv.ParseInt(imgSize, 10, 64)
+		if err != nil {
+			return resource.Quantity{}, err
+		}
+		// Merge the previous values and, if needed, round-up the result to avoid
+		// conflicts with the clone-controller
+		requiredSpace := GetRequiredSpace(fsOverheadFloat, imgSizeInt)
+		roundedSpace := roundUpToSourceQuantity(requiredSpace, sourceSize)
+		returnSize = *resource.NewScaledQuantity(roundedSpace, 0)
+	} else {
+		// Inflation is not needed with 'Block' mode
+		returnSize, err = resource.ParseQuantity(imgSize)
+		if err != nil {
+			return resource.Quantity{}, err
 		}
 	}
 
-	return "", false
+	return returnSize, nil
+}
+
+// roundUpToSourceQuantity accounts for possible round-downs when importing the source image,
+// increasing the size so the target value can be accepted by the clone-controller
+func roundUpToSourceQuantity(targetSize int64, sourceSize *resource.Quantity) int64 {
+	sourceSizeInt, _ := sourceSize.AsInt64()
+	if targetSize < sourceSizeInt {
+		targetSize = util.RoundUp(targetSize, util.DefaultAlignBlockSize)
+	}
+	return targetSize
 }
 
 // updateClonePVCAnnotations updates the clone-related annotations of the source PVC
@@ -2967,6 +3016,22 @@ func (r *DatavolumeReconciler) updateClonePVCAnnotations(sourcePvc *corev1.Persi
 	sourcePvc.Annotations[AnnVirtualImageSize] = virtualSize
 	sourcePvc.Annotations[AnnSourceCapacity] = currCapacity.Storage().String()
 	return r.client.Update(context.TODO(), sourcePvc)
+}
+
+// hasPvcSucceeded returns true if a PVC is in 'Succeeded' phase, false if not
+func hasPvcSucceeded(pvc *corev1.PersistentVolumeClaim) bool {
+	if pvc != nil {
+		phase, ok := pvc.Annotations[AnnPodPhase]
+		if ok && phase == string(corev1.PodSucceeded) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasPodSucceeded returns true if a pod is in 'Succeeded' phase, false if not
+func hasPodSucceeded(pod *corev1.Pod) bool {
+	return pod != nil && pod.Status.Phase == corev1.PodSucceeded
 }
 
 // sizeDetectionPodName returns the name of the size-detection pod accoding to the source PVC's UID
