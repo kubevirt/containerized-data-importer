@@ -255,7 +255,12 @@ var _ = Describe("Aggregated role definition tests", func() {
 				"cdi.kubevirt.io",
 			},
 			Resources: []string{
+				"cdiconfigs",
+				"dataimportcrons",
+				"datasources",
 				"datavolumes",
+				"objecttransfers",
+				"storageprofiles",
 			},
 			Verbs: []string{
 				"get",
