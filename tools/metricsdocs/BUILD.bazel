@@ -5,7 +5,7 @@ go_library(
     srcs = ["metricsdocs.go"],
     importpath = "kubevirt.io/containerized-data-importer/tools/metricsdocs",
     visibility = ["//visibility:private"],
-    deps = ["//pkg/operator/controller:go_default_library"],
+    deps = ["//pkg/monitoring:go_default_library"],
 )
 
 go_binary(

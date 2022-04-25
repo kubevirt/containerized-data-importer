@@ -85,7 +85,12 @@ func getViewPolicyRules() []rbacv1.PolicyRule {
 				"cdi.kubevirt.io",
 			},
 			Resources: []string{
+				"cdiconfigs",
+				"dataimportcrons",
+				"datasources",
 				"datavolumes",
+				"objecttransfers",
+				"storageprofiles",
 			},
 			Verbs: []string{
 				"get",
