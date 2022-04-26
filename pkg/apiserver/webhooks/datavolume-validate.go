@@ -60,12 +60,12 @@ func validateSourceURL(sourceURL string) string {
 	return ""
 }
 
-func validateNameLength(name string) []metav1.StatusCause {
+func validateNameLength(name string, maxLen int) []metav1.StatusCause {
 	var causes []metav1.StatusCause
-	if len(name) > kvalidation.DNS1123SubdomainMaxLength {
+	if len(name) > maxLen {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Name cannot be longer than %d characters", kvalidation.DNS1123SubdomainMaxLength),
+			Message: fmt.Sprintf("Name cannot be longer than %d characters", maxLen),
 			Field:   "",
 		})
 	}
@@ -526,7 +526,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 		}
 	}
 
-	causes := validateNameLength(dv.Name)
+	causes := validateNameLength(dv.Name, kvalidation.DNS1123SubdomainMaxLength)
 	if len(causes) > 0 {
 		klog.Infof("rejected DataVolume admission")
 		return toRejectedAdmissionResponse(causes)
