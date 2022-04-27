@@ -179,7 +179,10 @@ const (
 	AnnVirtualImageSize = "cdi.Kubervirt.io/virtualSize"
 
 	// AnnSourceCapacity annotation contains the storage capacity of a PVC used for host-assisted cloning
-	AnnSourceCapacity = "cdi.Kubervirt.io/SourceCapacity"
+	AnnSourceCapacity = "cdi.Kubervirt.io/sourceCapacity"
+
+	// AnnPermissiveClone annotation allows the clone-controller to skip the clone size validation
+	AnnPermissiveClone = "cdi.Kubevirt.io/permissiveClone"
 
 	annOwnedByDataVolume = "cdi.kubevirt.io/ownedByDataVolume"
 
@@ -2766,13 +2769,15 @@ func (r *DatavolumeReconciler) detectCloneSize(
 		// If available, we first try to get the virtual size from previous iterations
 		imgSize, available := getSizeFromAnnotations(sourcePvc)
 		if !available {
-			imgSize, err := r.getSizeFromPod(sourcePvc)
+			imgSize, err = r.getSizeFromPod(sourcePvc)
 			if err != nil {
 				return false, err
 			} else if imgSize == ImgSizeNotReady {
 				return false, nil
 			}
 		}
+		// We enable the clone-controller to skip the size comparison requirement
+		dv.Annotations[AnnPermissiveClone] = "true"
 		// If needed, inflate size with filesystem overhead
 		targetSize, err = inflateSizeWithOverhead(r.client, imgSize, pvcSpec, sourceSize)
 		if err != nil {
@@ -2969,7 +2974,7 @@ func inflateSizeWithOverhead(client client.Client,
 	var returnSize resource.Quantity
 	var err error
 
-	if resolveVolumeMode(pvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
+	if util.ResolveVolumeMode(pvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
 		fsOverhead, err := GetFilesystemOverheadForStorageClass(client, pvcSpec.StorageClassName)
 		if err != nil {
 			return resource.Quantity{}, err
@@ -2984,11 +2989,9 @@ func inflateSizeWithOverhead(client client.Client,
 		if err != nil {
 			return resource.Quantity{}, err
 		}
-		// Merge the previous values and, if needed, round-up the result to avoid
-		// conflicts with the clone-controller
+		// Merge the previous values into a 'resource.Quantity' struct
 		requiredSpace := GetRequiredSpace(fsOverheadFloat, imgSizeInt)
-		roundedSpace := roundUpToSourceQuantity(requiredSpace, sourceSize)
-		returnSize = *resource.NewScaledQuantity(roundedSpace, 0)
+		returnSize = *resource.NewScaledQuantity(requiredSpace, 0)
 	} else {
 		// Inflation is not needed with 'Block' mode
 		returnSize, err = resource.ParseQuantity(imgSize)
@@ -2998,16 +3001,6 @@ func inflateSizeWithOverhead(client client.Client,
 	}
 
 	return returnSize, nil
-}
-
-// roundUpToSourceQuantity accounts for possible round-downs when importing the source image,
-// increasing the size so the target value can be accepted by the clone-controller
-func roundUpToSourceQuantity(targetSize int64, sourceSize *resource.Quantity) int64 {
-	sourceSizeInt, _ := sourceSize.AsInt64()
-	if targetSize < sourceSizeInt {
-		targetSize = util.RoundUp(targetSize, util.DefaultAlignBlockSize)
-	}
-	return targetSize
 }
 
 // updateClonePVCAnnotations updates the clone-related annotations of the source PVC
