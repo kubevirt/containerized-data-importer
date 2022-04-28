@@ -47,10 +47,16 @@ container_image(
     ],
     files = [
         ":cdi-importer",
+        ":cdi-source-update-poller-wrapper",
         "//tools/cdi-containerimage-server",
         "//tools/cdi-source-update-poller",
     ],
     visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cdi-source-update-poller-wrapper",
+    srcs = [":cdi-source-update-poller"],
 )
 
 container_image(

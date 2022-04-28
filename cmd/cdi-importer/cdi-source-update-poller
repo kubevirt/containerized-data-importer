@@ -1,0 +1,4 @@
+#!/bin/sh
+
+update-ca-trust
+/usr/bin/cdi-source-update-poller-executable "$@"

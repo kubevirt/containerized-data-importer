@@ -18,6 +18,7 @@ go_library(
 
 go_binary(
     name = "cdi-source-update-poller",
+    out = "cdi-source-update-poller-executable",
     embed = [":go_default_library"],
     visibility = ["//visibility:public"],
 )
