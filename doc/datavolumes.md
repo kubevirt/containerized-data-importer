@@ -140,7 +140,26 @@ stringData:
 
 
 ### PVC source
-You can also use a PVC as an input source for a DV which will cause a clone to happen of the original PVC. You set the 'source' to be PVC, and specify the name and namespace of the PVC you want to have cloned. Be sure to specify the right amount of space to allocate for the new DV or the clone can't complete.
+You can also use a PVC as an input source for a DV which will cause a clone to happen of the original PVC. You set the 'source' to be PVC, and specify the name and namespace of the PVC you want to have cloned.
+
+Regarding the DV size, CDI can apply some logic to detect the required quantity based on the source PVC, so said amount can be left empty when using the [storage](#storage) API, as shown above:
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: "example-clone-dv"
+spec:
+  source:
+      pvc:
+        name: source-pvc
+        namespace: example-ns
+  storage:
+    accessModes:
+      - ReadWriteOnce
+```
+
+However, when using the [pvc](#pvc) API, the user needs to specify the right amount of space to allocate for the new DV, or the clone will not be able to complete.
 
 ```yaml
 apiVersion: cdi.kubevirt.io/v1beta1
@@ -157,7 +176,7 @@ spec:
       - ReadWriteOnce
     resources:
       requests:
-        storage: "128Mi"
+        storage: "128Mi"  # Size needs to be specified
 ```
 [Get example](../manifests/example/clone-datavolume.yaml)
 
@@ -397,6 +416,9 @@ spec:
 `Storage` can request specific size the same way as `pvc`. When requesting a storage with the fileSystem volumeMode CDI 
 takes into account the file system overhead and requests PVC big enough to fit an image and file system metadata. 
 This logic is only applied for the DataVolume.spec.storage. 
+
+Lastly, it is worth mentioning that the detection and automation of  storage parameters can vary depending on the used `source`,
+for example, using [pvc](#pvc-source) allows to ommit the storage size, while for others is still mandatory. We encourage to check the docs for each individual source for more information.
 
 ### Block Volume Mode
 You can import, clone and upload a disk image to a raw block persistent volume.

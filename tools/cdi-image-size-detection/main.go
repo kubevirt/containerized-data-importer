@@ -18,17 +18,17 @@ const (
 )
 
 var (
-	imgURL   string
+	imgPath  string
 	termPath string
 	scheme   string
 )
 
 func init() {
-	flag.StringVar(&imgURL, "url", "", "(Mandatory) URL address of the virtual image.")
-	flag.StringVar(&termPath, "path", "", "(Mandatory) Container's status message path.")
+	flag.StringVar(&imgPath, "image-path", "", "(Mandatory) URL address of the virtual image.")
+	flag.StringVar(&termPath, "termination-message-path", "", "(Mandatory) Container's status message path.")
 	flag.StringVar(&scheme, "scheme", defaultScheme, "(Optional) Virtual image's URI scheme.")
 	flag.Parse()
-	if imgURL == "" || termPath == "" {
+	if imgPath == "" || termPath == "" {
 		log.Fatalf("One or more mandatory parameters are missing")
 	}
 }
@@ -38,7 +38,7 @@ func main() {
 	log.Println("Initializing size-detection pod")
 	var qemuOperations = image.NewQEMUOperations()
 
-	parsedURL, err := url.Parse(scheme + imgURL)
+	parsedURL, err := url.Parse(scheme + imgPath)
 	if err != nil {
 		log.Fatalf("Unable to parse the provided URL: '%s", err.Error())
 	}
@@ -46,11 +46,11 @@ func main() {
 	// Extract the data from the image
 	imgInfo, err := qemuOperations.Info(parsedURL)
 	if err != nil {
-		log.Fatalf("Unable to extract information from '%s': '%s'", imgURL, err.Error())
+		log.Fatalf("Unable to extract information from '%s': '%s'", imgPath, err.Error())
 	}
 
-	strSize := strconv.FormatInt(imgInfo.VirtualSize, decimal)
 	// Write the parsed virtual size to the termination message file
+	strSize := strconv.FormatInt(imgInfo.VirtualSize, decimal)
 	err = util.WriteTerminationMessageToFile(termPath, strSize)
 	if err != nil {
 		log.Fatalf("Unable to write to file '%s': '%s'", termPath, err.Error())

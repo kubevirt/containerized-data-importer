@@ -84,7 +84,7 @@ var _ = Describe("getVolumeMode", func() {
 	)
 })
 
-var _ = Describe("volumeSize", func() {
+var _ = Describe("resolveVolumeSize", func() {
 	client := createClient()
 
 	It("Should return empty volume size", func() {
@@ -93,7 +93,7 @@ var _ = Describe("volumeSize", func() {
 		}
 		storageSpec := &cdiv1.StorageSpec{}
 		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", pvcSource, storageSpec)
-		requestedVolumeSize, err := volumeSize(client, dv.Spec, nil)
+		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, nil)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(requestedVolumeSize.IsZero()).To(Equal(true))
 	})
@@ -104,7 +104,7 @@ var _ = Describe("volumeSize", func() {
 		}
 		storageSpec := &cdiv1.StorageSpec{}
 		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", httpSource, storageSpec)
-		requestedVolumeSize, err := volumeSize(client, dv.Spec, nil)
+		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Datavolume Spec is not valid - missing storage size")))
 		Expect(requestedVolumeSize).To(BeNil())
@@ -120,7 +120,7 @@ var _ = Describe("volumeSize", func() {
 		}
 		volumeMode := corev1.PersistentVolumeBlock
 		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", nil, storageSpec)
-		requestedVolumeSize, err := volumeSize(client, dv.Spec, &volumeMode)
+		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, &volumeMode)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(storageSpec.Resources.Requests.Storage().Value()).To(Equal(requestedVolumeSize.Value()))
 	})
@@ -135,7 +135,7 @@ var _ = Describe("volumeSize", func() {
 		}
 		volumeMode := corev1.PersistentVolumeFilesystem
 		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", nil, storageSpec)
-		requestedVolumeSize, err := volumeSize(client, dv.Spec, &volumeMode)
+		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, &volumeMode)
 		Expect(err).ToNot(HaveOccurred())
 		// Inflate expected size with overhead
 		fsOverhead, err2 := GetFilesystemOverheadForStorageClass(client, dv.Spec.Storage.StorageClassName)

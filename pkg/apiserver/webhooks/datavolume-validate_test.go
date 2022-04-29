@@ -443,6 +443,21 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(false))
 		})
 
+		It("should reject empty Requests when using Storage API without PVC source", func() {
+			httpSource := &cdiv1.DataVolumeSource{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{URL: "http://www.example.com"},
+			}
+			requests := make(map[corev1.ResourceName]resource.Quantity)
+			storage := &cdiv1.StorageSpec{
+				Resources: corev1.ResourceRequirements{
+					Requests: requests,
+				},
+			}
+			dv := newDataVolumeWithStorageSpec("testDV", httpSource, nil, storage)
+			resp := validateDataVolumeCreate(dv)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
 		DescribeTable("should", func(oldFinalCheckpoint bool, oldCheckpoints []string, newFinalCheckpoint bool, newCheckpoints []string, modifyDV func(*cdiv1.DataVolume), expectedSuccess bool, sourceFunc func() *cdiv1.DataVolumeSource) {
 			oldDV := newMultistageDataVolume("multi-stage", oldFinalCheckpoint, oldCheckpoints, sourceFunc)
 			oldBytes, _ := json.Marshal(&oldDV)
