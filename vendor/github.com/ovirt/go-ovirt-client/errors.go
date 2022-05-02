@@ -24,6 +24,9 @@ const ETLSError ErrorCode = "tls_error"
 // ENotFound signals that the resource requested was not found.
 const ENotFound ErrorCode = "not_found"
 
+// EMultipleResults indicates that multiple items were found where only one was expected.
+const EMultipleResults ErrorCode = "multiple_results"
+
 // EBug signals an error that should never happen. Please report this.
 const EBug ErrorCode = "bug"
 
@@ -74,9 +77,18 @@ const ERelatedOperationInProgress ErrorCode = "related_operation_in_progress"
 // ELocalIO indicates an input/output error on the client side. For example, a disk could not be read.
 const ELocalIO ErrorCode = "local_io_error"
 
+// EConflict indicates an error where you tried to create or update a resource which is already in use in a different,
+// conflicting way. For example, you tried to attach a disk that is already attached.
+const EConflict ErrorCode = "conflict"
+
+// EHotPlugFailed indicates that a disk could not be hot plugged.
+const EHotPlugFailed ErrorCode = "hot_plug_failed"
+
 // CanAutoRetry returns false if the given error code is permanent and an automatic retry should not be attempted.
 func (e ErrorCode) CanAutoRetry() bool {
 	switch e {
+	case EBadArgument:
+		return false
 	case EAccessDenied:
 		return false
 	case ENotAnOVirtEngine:
@@ -84,6 +96,8 @@ func (e ErrorCode) CanAutoRetry() bool {
 	case ETLSError:
 		return false
 	case ENotFound:
+		return false
+	case EMultipleResults:
 		return false
 	case EBug:
 		return false
@@ -115,6 +129,8 @@ func (e ErrorCode) CanAutoRetry() bool {
 type EngineError interface {
 	error
 
+	// Message returns the error message without the error code.
+	Message() string
 	// String returns the string representation for this error.
 	String() string
 	// HasCode returns true if the current error, or any preceding error has the specified error code.
@@ -125,6 +141,16 @@ type EngineError interface {
 	Unwrap() error
 	// CanAutoRetry returns false if an automatic retry should not be attempted.
 	CanAutoRetry() bool
+}
+
+// HasErrorCode returns true if the specified error has the specified error code.
+func HasErrorCode(err error, code ErrorCode) bool {
+	var e EngineError
+	if errors.As(err, &e) {
+		return e.HasCode(code)
+	}
+	e = realIdentify(err)
+	return e.HasCode(code)
 }
 
 type engineError struct {
@@ -144,6 +170,10 @@ func (e *engineError) HasCode(code ErrorCode) bool {
 		}
 	}
 	return false
+}
+
+func (e *engineError) Message() string {
+	return e.message
 }
 
 func (e *engineError) String() string {
@@ -183,6 +213,7 @@ func newError(code ErrorCode, format string, args ...interface{}) EngineError {
 func wrap(err error, code ErrorCode, format string, args ...interface{}) EngineError {
 	// gocritic will complain on the following line due to appendAssign, but that's legit here.
 	realArgs := append(args, err) // nolint:gocritic
+	realMessage := fmt.Sprintf(fmt.Sprintf("%s (%v)", format, "%v"), realArgs...)
 	if code == EUnidentified {
 		var realErr EngineError
 		if errors.As(err, &realErr) {
@@ -190,9 +221,9 @@ func wrap(err error, code ErrorCode, format string, args ...interface{}) EngineE
 		} else if e := realIdentify(err); e != nil {
 			err = e
 			code = e.Code()
+			realMessage = e.Message()
 		}
 	}
-	realMessage := fmt.Sprintf(fmt.Sprintf("%s (%v)", format, "%v"), realArgs...)
 	return &engineError{
 		message: realMessage,
 		code:    code,
@@ -200,35 +231,34 @@ func wrap(err error, code ErrorCode, format string, args ...interface{}) EngineE
 	}
 }
 
-// identify attempts to identify the reason for the error and create a structure accordingly. If it fails to identify
-// the reason it will return nil.
-//
-// Usage:
-//
-//   if err != nil {
-//     if wrappedError := identify(err); wrappedError != nil {
-//         return wrappedError
-//     }
-//     // Handle unknown error here
-//   }
-func identify(err error) error {
-	return realIdentify(err)
-}
-
 func realIdentify(err error) EngineError {
 	var authErr *ovirtsdk.AuthError
 	var notFoundErr *ovirtsdk.NotFoundError
 	switch {
-	case errors.As(err, &authErr):
-		fallthrough
-	case strings.Contains(err.Error(), "access_denied"):
-		return wrap(err, EAccessDenied, "access denied, check your credentials")
+	case strings.Contains(err.Error(), "Physical Memory Guaranteed cannot exceed Memory Size"):
+		return wrap(
+			err,
+			EBadArgument,
+			"guaranteed memory size must be lower than the memory size",
+		)
+	case strings.Contains(err.Error(), "stopped after") && strings.Contains(err.Error(), "redirects"):
+		return wrap(
+			err,
+			ENotAnOVirtEngine,
+			"the specified oVirt Engine URL has resulted in a redirect, check if your URL is correct",
+		)
 	case strings.Contains(err.Error(), "parse non-array sso with response"):
-		return wrap(err,
-			ENotAnOVirtEngine, "invalid credentials, or the URL does not point to an oVirt Engine, check your settings")
+		return wrap(
+			err,
+			ENotAnOVirtEngine,
+			"invalid credentials, or the URL does not point to an oVirt Engine, check your settings",
+		)
 	case strings.Contains(err.Error(), "server gave HTTP response to HTTPS client"):
-		return wrap(err,
-			ENotAnOVirtEngine, "the server gave a HTTP response to a HTTPS client, check if your URL is correct")
+		return wrap(
+			err,
+			ENotAnOVirtEngine,
+			"the server gave a HTTP response to a HTTPS client, check if your URL is correct",
+		)
 	case strings.Contains(err.Error(), "tls"):
 		fallthrough
 	case strings.Contains(err.Error(), "x509"):
@@ -237,8 +267,18 @@ func realIdentify(err error) EngineError {
 		return wrap(err, ENotFound, "the requested resource was not found")
 	case strings.Contains(err.Error(), "Disk is locked"):
 		return wrap(err, EDiskLocked, "the disk is locked")
+	case strings.Contains(err.Error(), "Failed to hot-plug disk"):
+		return wrap(err, EHotPlugFailed, "failed to hot-plug disk")
 	case strings.Contains(err.Error(), "Related operation is currently in progress."):
 		return wrap(err, ERelatedOperationInProgress, "a related operation is in progress")
+	case strings.Contains(err.Error(), "Disk configuration") && strings.Contains(err.Error(), " is incompatible with the storage domain type."):
+		return wrap(err, EBadArgument, "disk configuration is incompatible with the storage domain type")
+	case strings.Contains(err.Error(), "409 Conflict"):
+		return wrap(err, EConflict, "conflicting operations")
+	case errors.As(err, &authErr):
+		fallthrough
+	case strings.Contains(err.Error(), "access_denied"):
+		return wrap(err, EAccessDenied, "access denied, check your credentials")
 	default:
 		return nil
 	}

@@ -1,6 +1,7 @@
 package ovirtclient
 
 import (
+	"math/rand"
 	"net/http"
 
 	ovirtsdk4 "github.com/ovirt/go-ovirt"
@@ -13,7 +14,9 @@ type Client interface {
 	// GetURL returns the oVirt engine base URL.
 	GetURL() string
 
+	AffinityGroupClient
 	DiskClient
+	DiskAttachmentClient
 	VMClient
 	NICClient
 	VNICProfileClient
@@ -23,7 +26,10 @@ type Client interface {
 	StorageDomainClient
 	HostClient
 	TemplateClient
+	TemplateDiskClient
 	TestConnectionClient
+	TagClient
+	FeatureClient
 }
 
 // ClientWithLegacySupport is an extension of Client that also offers the ability to retrieve the underlying
@@ -40,10 +46,11 @@ type ClientWithLegacySupport interface {
 }
 
 type oVirtClient struct {
-	conn       *ovirtsdk4.Connection
-	httpClient http.Client
-	logger     Logger
-	url        string
+	conn            *ovirtsdk4.Connection
+	httpClient      http.Client
+	logger          Logger
+	url             string
+	nonSecureRandom *rand.Rand
 }
 
 func (o *oVirtClient) GetSDKClient() *ovirtsdk4.Connection {

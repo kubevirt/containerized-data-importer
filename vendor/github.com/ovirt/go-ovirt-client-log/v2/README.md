@@ -50,6 +50,50 @@ Using the test logger will have the benefit that the log messages will be proper
 
 If you need a logger that doesn't do anything simply use `ovirtclientlog.NewNOOPLogger()`.
 
+### klog logging
+
+We provide klog-based logging [in a separate library](https://github.com/oVirt/go-ovirt-client-log-klog). You can use it as follows:
+
+```
+go get github.com/oVirt/go-ovirt-client-log-klog
+```
+
+```go
+package main
+
+import (
+	kloglogger "github.com/ovirt/go-ovirt-client-log-klog"
+)
+
+func main() {
+	logger := kloglogger.New()
+	
+	// Pass logger to other library as needed.
+}
+```
+
+You can also specify separate verbosity levels:
+
+```go
+package main
+
+import (
+	kloglogger "github.com/ovirt/go-ovirt-client-log-klog"
+	"k8s.io/klog/v2"
+)
+
+func main() {
+	logger := kloglogger.NewVerbose(
+		klog.V(4),
+		klog.V(3),
+		klog.V(2),
+		klog.V(1),
+    )
+
+	// Pass logger to other library as needed.
+}
+```
+
 ## Adding your own logger
 
 You can easily integrate your own logger too. Loggers must satisfy the following interface:

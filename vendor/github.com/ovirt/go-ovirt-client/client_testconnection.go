@@ -3,16 +3,29 @@ package ovirtclient
 // TestConnectionClient defines the functions related to testing the connection.
 type TestConnectionClient interface {
 	// Test tests if the connection is alive or not.
-	Test() error
+	Test(retries ...RetryStrategy) error
 }
 
-func (o *oVirtClient) Test() error {
-	if err := o.conn.Test(); err != nil {
-		return wrap(err, EConnection, "connection test failed")
-	}
-	return nil
+func (o *oVirtClient) Test(retries ...RetryStrategy) error {
+	retries = defaultRetries(retries, defaultReadTimeouts())
+	return retry(
+		"testing oVirt engine connection",
+		o.logger,
+		retries,
+		func() error {
+			return o.conn.SystemService().Connection().Test()
+		},
+	)
 }
 
-func (m *mockClient) Test() error {
-	return nil
+func (m *mockClient) Test(retries ...RetryStrategy) error {
+	retries = defaultRetries(retries, defaultReadTimeouts())
+	return retry(
+		"testing oVirt engine connection",
+		nil,
+		retries,
+		func() error {
+			return nil
+		},
+	)
 }

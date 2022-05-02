@@ -1,41 +1,99 @@
 package ovirtclient
 
 import (
+	"math/rand"
+	"net"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 // NewMock creates a new in-memory mock client. This client can be used as a testing facility for
 // higher level code.
+//goland:noinspection GoUnusedExportedFunction
 func NewMock() MockClient {
+	return NewMockWithLogger(&noopLogger{})
+}
+
+// NewMockWithLogger is identical to NewMock, but accepts a logger.
+func NewMockWithLogger(logger Logger) MockClient {
 	testCluster := generateTestCluster()
 	testHost := generateTestHost(testCluster)
 	testStorageDomain := generateTestStorageDomain()
+	secondaryStorageDomain := generateTestStorageDomain()
 	testDatacenter := generateTestDatacenter(testCluster)
 	testNetwork := generateTestNetwork(testDatacenter)
 	testVNICProfile := generateTestVNICProfile(testNetwork)
 	blankTemplate := &template{
-		id:          BlankTemplateID,
-		name:        "Blank",
-		description: "Blank template",
+		nil,
+		DefaultBlankTemplateID,
+		"Blank",
+		"Blank template",
+		TemplateStatusOK,
+		&vmCPU{
+			&vmCPUTopo{
+				cores:   1,
+				threads: 1,
+				sockets: 1,
+			},
+		},
 	}
 
+	client := getClient(
+		logger,
+		testStorageDomain,
+		secondaryStorageDomain,
+		testCluster,
+		testHost,
+		blankTemplate,
+		testVNICProfile,
+		testNetwork,
+		testDatacenter,
+	)
+
+	testCluster.client = client
+	testHost.client = client
+	blankTemplate.client = client
+	testStorageDomain.client = client
+	secondaryStorageDomain.client = client
+	testDatacenter.client = client
+	testNetwork.client = client
+	testVNICProfile.client = client
+
+	return client
+}
+
+func getClient(
+	logger Logger,
+	testStorageDomain *storageDomain,
+	secondaryStorageDomain *storageDomain,
+	testCluster *cluster,
+	testHost *host,
+	blankTemplate *template,
+	testVNICProfile *vnicProfile,
+	testNetwork *network,
+	testDatacenter *datacenterWithClusters,
+) *mockClient {
 	client := &mockClient{
-		url:  "https://localhost/ovirt-engine/api",
-		lock: &sync.Mutex{},
-		vms:  map[string]*vm{},
+		logger:          logger,
+		url:             "https://localhost/ovirt-engine/api",
+		lock:            &sync.Mutex{},
+		vms:             map[string]*vm{},
+		tags:            map[string]*tag{},
+		nonSecureRandom: rand.New(rand.NewSource(time.Now().UnixNano())), //nolint:gosec
 		storageDomains: map[string]*storageDomain{
-			testStorageDomain.ID(): testStorageDomain,
+			testStorageDomain.ID():      testStorageDomain,
+			secondaryStorageDomain.ID(): secondaryStorageDomain,
 		},
 		disks: map[string]*diskWithData{},
-		clusters: map[string]*cluster{
+		clusters: map[ClusterID]*cluster{
 			testCluster.ID(): testCluster,
 		},
 		hosts: map[string]*host{
 			testHost.ID(): testHost,
 		},
-		templates: map[string]*template{
+		templates: map[TemplateID]*template{
 			blankTemplate.ID(): blankTemplate,
 		},
 		nics: map[string]*nic{},
@@ -48,16 +106,17 @@ func NewMock() MockClient {
 		dataCenters: map[string]*datacenterWithClusters{
 			testDatacenter.ID(): testDatacenter,
 		},
+		vmDiskAttachmentsByVM:   map[string]map[string]*diskAttachment{},
+		vmDiskAttachmentsByDisk: map[string]*diskAttachment{},
+		templateDiskAttachmentsByTemplate: map[TemplateID][]*templateDiskAttachment{
+			blankTemplate.ID(): {},
+		},
+		templateDiskAttachmentsByDisk: map[string]*templateDiskAttachment{},
+		affinityGroups: map[ClusterID]map[AffinityGroupID]*affinityGroup{
+			testCluster.ID(): {},
+		},
+		vmIPs: map[string]map[string][]net.IP{},
 	}
-
-	testCluster.client = client
-	testHost.client = client
-	blankTemplate.client = client
-	testStorageDomain.client = client
-	testDatacenter.client = client
-	testNetwork.client = client
-	testVNICProfile.client = client
-
 	return client
 }
 
@@ -83,7 +142,7 @@ func generateTestDatacenter(testCluster *cluster) *datacenterWithClusters {
 			id:   uuid.NewString(),
 			name: "test",
 		},
-		clusters: []string{
+		clusters: []ClusterID{
 			testCluster.ID(),
 		},
 	}
@@ -101,7 +160,7 @@ func generateTestStorageDomain() *storageDomain {
 
 func generateTestCluster() *cluster {
 	return &cluster{
-		id:   uuid.NewString(),
+		id:   ClusterID(uuid.NewString()),
 		name: "Test cluster",
 	}
 }

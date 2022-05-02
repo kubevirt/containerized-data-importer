@@ -11,7 +11,13 @@ import (
 	ovirtsdk4 "github.com/ovirt/go-ovirt"
 )
 
+// Deprecated: use StartDownloadDisk instead.
 func (o *oVirtClient) StartImageDownload(diskID string, format ImageFormat, retries ...RetryStrategy) (ImageDownload, error) {
+	o.logger.Debugf("Using StartImageDownload is deprecated, please use StartDownloadDisk instead.")
+	return o.StartDownloadDisk(diskID, format, retries...)
+}
+
+func (o *oVirtClient) StartDownloadDisk(diskID string, format ImageFormat, retries ...RetryStrategy) (ImageDownload, error) {
 	retries = defaultRetries(retries, defaultLongTimeouts())
 
 	o.logger.Infof("Starting disk %s image download...", diskID)
@@ -45,12 +51,21 @@ func (o *oVirtClient) StartImageDownload(diskID string, format ImageFormat, retr
 	return dl, nil
 }
 
-func (o *oVirtClient) DownloadImage(
+// Deprecated: use DownloadDisk instead.
+func (o *oVirtClient) DownloadImage(diskID string, format ImageFormat, retries ...RetryStrategy) (
+	ImageDownloadReader,
+	error,
+) {
+	o.logger.Debugf("Using DownloadImage is deprecated, please use DownloadDisk instead.")
+	return o.DownloadDisk(diskID, format, retries...)
+}
+
+func (o *oVirtClient) DownloadDisk(
 	diskID string,
 	format ImageFormat,
 	retries ...RetryStrategy,
 ) (ImageDownloadReader, error) {
-	download, err := o.StartImageDownload(diskID, format, retries...)
+	download, err := o.StartDownloadDisk(diskID, format, retries...)
 	if err != nil {
 		return nil, err
 	}

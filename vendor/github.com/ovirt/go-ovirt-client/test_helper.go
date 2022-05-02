@@ -1,10 +1,11 @@
 package ovirtclient
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
-	"strings"
+	"testing"
 	"time"
 
 	ovirtclientlog "github.com/ovirt/go-ovirt-client-log/v2"
@@ -17,13 +18,17 @@ type TestHelper interface {
 	GetClient() Client
 
 	// GetClusterID returns the ID for the cluster.
-	GetClusterID() string
+	GetClusterID() ClusterID
 
 	// GetBlankTemplateID returns the ID of the blank template that can be used for creating dummy VMs.
-	GetBlankTemplateID() string
+	GetBlankTemplateID() TemplateID
 
 	// GetStorageDomainID returns the ID of the storage domain to create the images on.
 	GetStorageDomainID() string
+
+	// GetSecondaryStorageDomainID returns a second ID of a storage domain to create images on. If no secondary
+	// storage domain is available, the test will be skipped.
+	GetSecondaryStorageDomainID(t *testing.T) string
 
 	// GenerateRandomID generates a random ID for testing.
 	GenerateRandomID(length uint) string
@@ -33,6 +38,12 @@ type TestHelper interface {
 
 	// GetTLS returns the TLS provider used for this test helper.
 	GetTLS() TLSProvider
+
+	// GetUsername returns the oVirt username.
+	GetUsername() string
+
+	// GetPassword returns the oVirt password.
+	GetPassword() string
 }
 
 // MustNewTestHelper is identical to NewTestHelper, but panics instead of returning an error.
@@ -41,22 +52,16 @@ func MustNewTestHelper(
 	password string,
 	url string,
 	tlsProvider TLSProvider,
-	clusterID string,
-	blankTemplateID string,
-	storageDomainID string,
-	vnicProfileID string,
 	mock bool,
 	logger ovirtclientlog.Logger,
+	params TestHelperParameters,
 ) TestHelper {
 	helper, err := NewTestHelper(
 		url,
 		username,
 		password,
+		params,
 		tlsProvider,
-		clusterID,
-		blankTemplateID,
-		storageDomainID,
-		vnicProfileID,
 		mock,
 		logger,
 	)
@@ -75,11 +80,8 @@ func NewTestHelper(
 	url string,
 	username string,
 	password string,
+	params TestHelperParameters,
 	tlsProvider TLSProvider,
-	clusterID string,
-	blankTemplateID string,
-	storageDomainID string,
-	vnicProfileID string,
 	mock bool,
 	logger ovirtclientlog.Logger,
 ) (TestHelper, error) {
@@ -88,40 +90,143 @@ func NewTestHelper(
 		return nil, err
 	}
 
-	clusterID, err = setupTestClusterID(clusterID, client)
+	if params == nil {
+		params = &testHelperParameters{}
+	}
+
+	clusterID, err := setupTestClusterID(params.ClusterID(), client)
 	if err != nil {
 		return nil, err
 	}
 
-	storageDomainID, err = setupTestStorageDomainID(storageDomainID, client)
+	storageDomainID, err := setupTestStorageDomainID(params.StorageDomainID(), client)
 	if err != nil {
 		return nil, err
 	}
 
-	blankTemplateID, err = setupBlankTemplateID(blankTemplateID, client)
+	secondaryStorageDomainID, err := setupSecondaryStorageDomainID(params.StorageDomainID(), storageDomainID, client)
 	if err != nil {
 		return nil, err
 	}
 
-	vnicProfileID, err = setupVNICProfileID(vnicProfileID, clusterID, client)
+	blankTemplateID, err := setupBlankTemplateID(params.BlankTemplateID(), client)
+	if err != nil {
+		return nil, err
+	}
+
+	vnicProfileID, err := setupVNICProfileID(params.VNICProfileID(), clusterID, client)
 	if err != nil {
 		return nil, err
 	}
 
 	return &testHelper{
-		client:          client,
-		tls:             tlsProvider,
-		clusterID:       clusterID,
-		storageDomainID: storageDomainID,
-		blankTemplateID: blankTemplateID,
-		vnicProfileID:   vnicProfileID,
+		username:                 username,
+		password:                 password,
+		client:                   client,
+		tls:                      tlsProvider,
+		clusterID:                clusterID,
+		storageDomainID:          storageDomainID,
+		secondaryStorageDomainID: secondaryStorageDomainID,
+		blankTemplateID:          blankTemplateID,
+		vnicProfileID:            vnicProfileID,
 		// We are suppressing gosec linting here since rand is not used in a security-relevant context,
 		// only to generate random ID's for testing.
 		rand: rand.New(rand.NewSource(time.Now().UnixNano())), //nolint:gosec
 	}, nil
 }
 
-func setupVNICProfileID(vnicProfileID string, clusterID string, client Client) (string, error) {
+// TestHelperParams creates a new copy of BuildableTestHelperParameters usable for building test parameters.
+func TestHelperParams() BuildableTestHelperParameters {
+	return &testHelperParameters{}
+}
+
+// TestHelperParameters contains the optional parameters for the test helper.
+type TestHelperParameters interface {
+	// ClusterID returns the cluster ID used for testing. It can return an empty string if no
+	// test cluster is designated, in which case a cluster is selected.
+	ClusterID() ClusterID
+
+	// StorageDomainID returns the storage domain ID usable for testing. It can return an empty
+	// string if no test storage domain is designated for testing, in which case a working
+	// storage domain is selected.
+	StorageDomainID() string
+
+	// BlankTemplateID returns an ID to a template that is blank and can be used as a basis
+	// for testing. It may return an empty string if no template is provided.
+	BlankTemplateID() TemplateID
+
+	// VNICProfileID returns an ID to a VNIC profile designated for testing. It may return
+	// an empty string, in which case an arbitrary VNIC profile is selected.
+	VNICProfileID() string
+}
+
+// BuildableTestHelperParameters is a buildable version of the TestHelperParameters.
+type BuildableTestHelperParameters interface {
+	TestHelperParameters
+
+	// WithClusterID sets the cluster ID usable for testing.
+	WithClusterID(ClusterID) BuildableTestHelperParameters
+	// WithStorageDomainID sets the storage domain that can be used for testing.
+	WithStorageDomainID(string) BuildableTestHelperParameters
+	// WithSecondaryStorageDomainID sets the storage domain that can be used for testing, which is not identical to
+	// the primary storage domain ID.
+	WithSecondaryStorageDomainID(string) BuildableTestHelperParameters
+	// WithBlankTemplateID sets the blank template that can be used for testing.
+	WithBlankTemplateID(TemplateID) BuildableTestHelperParameters
+	// WithVNICProfileID sets the ID of the VNIC profile that can be used for testing.
+	WithVNICProfileID(string) BuildableTestHelperParameters
+}
+
+type testHelperParameters struct {
+	clusterID                ClusterID
+	storageDomainID          string
+	secondaryStorageDomainID string
+	blankTemplateID          TemplateID
+	vnicProfileID            string
+}
+
+func (t *testHelperParameters) WithSecondaryStorageDomainID(s string) BuildableTestHelperParameters {
+	t.secondaryStorageDomainID = s
+	return t
+}
+
+func (t *testHelperParameters) ClusterID() ClusterID {
+	return t.clusterID
+}
+
+func (t *testHelperParameters) StorageDomainID() string {
+	return t.storageDomainID
+}
+
+func (t *testHelperParameters) BlankTemplateID() TemplateID {
+	return t.blankTemplateID
+}
+
+func (t *testHelperParameters) VNICProfileID() string {
+	return t.vnicProfileID
+}
+
+func (t *testHelperParameters) WithClusterID(s ClusterID) BuildableTestHelperParameters {
+	t.clusterID = s
+	return t
+}
+
+func (t *testHelperParameters) WithStorageDomainID(s string) BuildableTestHelperParameters {
+	t.storageDomainID = s
+	return t
+}
+
+func (t *testHelperParameters) WithBlankTemplateID(s TemplateID) BuildableTestHelperParameters {
+	t.blankTemplateID = s
+	return t
+}
+
+func (t *testHelperParameters) WithVNICProfileID(s string) BuildableTestHelperParameters {
+	t.vnicProfileID = s
+	return t
+}
+
+func setupVNICProfileID(vnicProfileID string, clusterID ClusterID, client Client) (string, error) {
 	if vnicProfileID != "" {
 		_, err := client.GetVNICProfile(vnicProfileID)
 		if err != nil {
@@ -153,7 +258,7 @@ func setupVNICProfileID(vnicProfileID string, clusterID string, client Client) (
 	return "", fmt.Errorf("failed to find a valid VNIC profile ID for testing")
 }
 
-func setupBlankTemplateID(blankTemplateID string, client Client) (id string, err error) {
+func setupBlankTemplateID(blankTemplateID TemplateID, client Client) (id TemplateID, err error) {
 	if blankTemplateID == "" {
 		blankTemplateID, err = findBlankTemplateID(client)
 		if err != nil {
@@ -167,7 +272,7 @@ func setupBlankTemplateID(blankTemplateID string, client Client) (id string, err
 
 func setupTestStorageDomainID(storageDomainID string, client Client) (id string, err error) {
 	if storageDomainID == "" {
-		storageDomainID, err = findTestStorageDomainID(client)
+		storageDomainID, err = findTestStorageDomainID("", client)
 		if err != nil {
 			return "", fmt.Errorf("failed to find storage domain to test on (%w)", err)
 		}
@@ -177,7 +282,23 @@ func setupTestStorageDomainID(storageDomainID string, client Client) (id string,
 	return storageDomainID, nil
 }
 
-func setupTestClusterID(clusterID string, client Client) (id string, err error) {
+func setupSecondaryStorageDomainID(
+	storageDomainID string,
+	skipStorageDomainID string,
+	client Client,
+) (id string, err error) {
+	if storageDomainID == "" {
+		storageDomainID, err = findTestStorageDomainID(skipStorageDomainID, client)
+		if err != nil && !errors.Is(err, errNoTestStorageDomainFound) {
+			return "", fmt.Errorf("failed to find storage domain to test on (%w)", err)
+		}
+	} else if err := verifyTestStorageDomainID(client, storageDomainID); err != nil {
+		return "", fmt.Errorf("failed to verify storage domain ID %s (%w)", storageDomainID, err)
+	}
+	return storageDomainID, nil
+}
+
+func setupTestClusterID(clusterID ClusterID, client Client) (id ClusterID, err error) {
 	if clusterID == "" {
 		clusterID, err = findTestClusterID(client)
 		if err != nil {
@@ -200,7 +321,7 @@ func createTestClient(
 	var client Client
 	var err error
 	if mock {
-		client = NewMock()
+		client = NewMockWithLogger(logger)
 	} else {
 		client, err = New(
 			url,
@@ -217,26 +338,20 @@ func createTestClient(
 	return client, err
 }
 
-func findBlankTemplateID(client Client) (string, error) {
-	templates, err := client.ListTemplates()
+func findBlankTemplateID(client Client) (TemplateID, error) {
+	template, err := client.GetBlankTemplate()
 	if err != nil {
-		return "", fmt.Errorf("failed to list templates (%w)", err)
+		return "", fmt.Errorf("failed to find blank template for testing (%w)", err)
 	}
-	for _, template := range templates {
-		if template.ID() == BlankTemplateID ||
-			strings.Contains(template.Description(), "Blank template") {
-			return template.ID(), nil
-		}
-	}
-	return "", fmt.Errorf("failed to find blank template for testing")
+	return template.ID(), nil
 }
 
-func verifyBlankTemplateID(client Client, templateID string) error {
+func verifyBlankTemplateID(client Client, templateID TemplateID) error {
 	_, err := client.GetTemplate(templateID)
 	return err
 }
 
-func findTestClusterID(client Client) (string, error) {
+func findTestClusterID(client Client) (ClusterID, error) {
 	clusters, err := client.ListClusters()
 	if err != nil {
 		return "", err
@@ -255,17 +370,22 @@ func findTestClusterID(client Client) (string, error) {
 	return "", fmt.Errorf("failed to find cluster suitable for testing")
 }
 
-func verifyTestClusterID(client Client, clusterID string) error {
+func verifyTestClusterID(client Client, clusterID ClusterID) error {
 	_, err := client.GetCluster(clusterID)
 	return err
 }
 
-func findTestStorageDomainID(client Client) (string, error) {
+var errNoTestStorageDomainFound = fmt.Errorf("failed to find a working storage domain for testing")
+
+func findTestStorageDomainID(skipID string, client Client) (string, error) {
 	storageDomains, err := client.ListStorageDomains()
 	if err != nil {
 		return "", err
 	}
 	for _, storageDomain := range storageDomains {
+		if storageDomain.ID() == skipID {
+			continue
+		}
 		// Assume 2GB will be enough for testing
 		if storageDomain.Available() < 2*1024*1024*1024 {
 			continue
@@ -276,7 +396,7 @@ func findTestStorageDomainID(client Client) (string, error) {
 		}
 		return storageDomain.ID(), nil
 	}
-	return "", fmt.Errorf("failed to find a working storage domain for testing")
+	return "", errNoTestStorageDomainFound
 }
 
 func verifyTestStorageDomainID(client Client, storageDomainID string) error {
@@ -285,13 +405,31 @@ func verifyTestStorageDomainID(client Client, storageDomainID string) error {
 }
 
 type testHelper struct {
-	client          Client
-	tls             TLSProvider
-	rand            *rand.Rand
-	clusterID       string
-	storageDomainID string
-	blankTemplateID string
-	vnicProfileID   string
+	client                   Client
+	tls                      TLSProvider
+	rand                     *rand.Rand
+	clusterID                ClusterID
+	storageDomainID          string
+	blankTemplateID          TemplateID
+	vnicProfileID            string
+	secondaryStorageDomainID string
+	password                 string
+	username                 string
+}
+
+func (t *testHelper) GetUsername() string {
+	return t.username
+}
+
+func (t *testHelper) GetPassword() string {
+	return t.password
+}
+
+func (t *testHelper) GetSecondaryStorageDomainID(te *testing.T) string {
+	if t.secondaryStorageDomainID == "" {
+		te.Skipf("No secondary storage domain available, skipping test.")
+	}
+	return t.secondaryStorageDomainID
 }
 
 func (t *testHelper) GetTLS() TLSProvider {
@@ -306,11 +444,11 @@ func (t *testHelper) GetClient() Client {
 	return t.client
 }
 
-func (t *testHelper) GetClusterID() string {
+func (t *testHelper) GetClusterID() ClusterID {
 	return t.clusterID
 }
 
-func (t *testHelper) GetBlankTemplateID() string {
+func (t *testHelper) GetBlankTemplateID() TemplateID {
 	return t.blankTemplateID
 }
 
@@ -318,14 +456,8 @@ func (t *testHelper) GetStorageDomainID() string {
 	return t.storageDomainID
 }
 
-var letters = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") // nolint:gochecknoglobals
-
 func (t *testHelper) GenerateRandomID(length uint) string {
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = letters[t.rand.Intn(len(letters))]
-	}
-	return string(b)
+	return generateRandomID(length, t.rand)
 }
 
 // NewTestHelperFromEnv attempts to create a live test helper from environment variables and falls back
@@ -384,11 +516,8 @@ func getMockHelper(logger ovirtclientlog.Logger) TestHelper {
 		"https://localhost/ovirt-engine/api",
 		"admin@internal",
 		"",
+		nil,
 		TLS().Insecure(),
-		"",
-		"",
-		"",
-		"",
 		true,
 		logger,
 	)
@@ -451,20 +580,20 @@ func NewLiveTestHelperFromEnv(logger ovirtclientlog.Logger) (TestHelper, error) 
 		return nil, fmt.Errorf("the OVIRT_USER environment variable must not be empty")
 	}
 	password := os.Getenv("OVIRT_PASSWORD")
-	clusterID := os.Getenv("OVIRT_CLUSTER_ID")
-	blankTemplateID := os.Getenv("OVIRT_BLANK_TEMPLATE_ID")
-	storageDomainID := os.Getenv("OVIRT_STORAGE_DOMAIN_ID")
-	vnicProfileID := os.Getenv("OVIRT_VNIC_PROFILE_ID")
+
+	params := TestHelperParams()
+	params.WithClusterID(ClusterID(os.Getenv("OVIRT_CLUSTER_ID")))
+	params.WithBlankTemplateID(TemplateID(os.Getenv("OVIRT_BLANK_TEMPLATE_ID")))
+	params.WithStorageDomainID(os.Getenv("OVIRT_STORAGE_DOMAIN_ID"))
+	params.WithSecondaryStorageDomainID(os.Getenv("OVIRT_SECONDARY_STORAGE_DOMAIN_ID"))
+	params.WithVNICProfileID(os.Getenv("OVIRT_VNIC_PROFILE_ID"))
 
 	helper, err := NewTestHelper(
 		url,
 		user,
 		password,
+		params,
 		tls,
-		clusterID,
-		blankTemplateID,
-		storageDomainID,
-		vnicProfileID,
 		false,
 		logger,
 	)
@@ -486,6 +615,14 @@ func getConnectionParametersForLiveTesting() (string, TLSProvider, error) {
 		configured = true
 		tls.CACertsFromFile(caFile)
 	}
+	if caDir := os.Getenv("OVIRT_CA_DIR"); caDir != "" {
+		configured = true
+		tls.CACertsFromDir(caDir)
+	}
+	if caFile := os.Getenv("OVIRT_CA_FILE"); caFile != "" {
+		configured = true
+		tls.CACertsFromFile(caFile)
+	}
 	if caCert := os.Getenv("OVIRT_CA_CERT"); caCert != "" {
 		configured = true
 		tls.CACertsFromMemory([]byte(caCert))
@@ -493,6 +630,10 @@ func getConnectionParametersForLiveTesting() (string, TLSProvider, error) {
 	if os.Getenv("OVIRT_INSECURE") != "" {
 		configured = true
 		tls.Insecure()
+	}
+	if system := os.Getenv("OVIRT_SYSTEM"); system != "" {
+		configured = true
+		tls.CACertsFromSystem()
 	}
 	if !configured {
 		return "", nil, fmt.Errorf("one of OVIRT_CAFILE, OVIRT_CA_CERT, or OVIRT_INSECURE must be set")

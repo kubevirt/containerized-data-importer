@@ -4,7 +4,7 @@ import (
 	ovirtsdk4 "github.com/ovirt/go-ovirt"
 )
 
-//go:generate go run scripts/rest.go -i "DataCenter" -n "datacenter" -o "Datacenter"
+//go:generate go run scripts/rest/rest.go -i "DataCenter" -n "datacenter" -o "Datacenter"
 
 // DatacenterClient contains the functions related to handling datacenter objects in oVirt. Datacenters bind together
 // resources of an environment (clusters, storage domains).
@@ -18,16 +18,21 @@ type DatacenterClient interface {
 	ListDatacenterClusters(id string, retries ...RetryStrategy) ([]Cluster, error)
 }
 
+// DatacenterData is the core of a Datacenter when client functions are not required.
+type DatacenterData interface {
+	ID() string
+	Name() string
+}
+
 // Datacenter is a logical entity that defines the set of resources used in a specific environment.
 // See https://www.ovirt.org/documentation/administration_guide/#chap-Data_Centers for details.
 type Datacenter interface {
-	ID() string
-	Name() string
+	DatacenterData
 
 	// Clusters lists the clusters for this datacenter. This is a network call and may be slow.
 	Clusters(retries ...RetryStrategy) ([]Cluster, error)
 	// HasCluster returns true if the cluster is in the datacenter. This is a network call and may be slow.
-	HasCluster(clusterID string, retries ...RetryStrategy) (bool, error)
+	HasCluster(clusterID ClusterID, retries ...RetryStrategy) (bool, error)
 }
 
 func convertSDKDatacenter(sdkObject *ovirtsdk4.DataCenter, client *oVirtClient) (Datacenter, error) {
@@ -58,7 +63,7 @@ func (d datacenter) Clusters(retries ...RetryStrategy) ([]Cluster, error) {
 	return d.client.ListDatacenterClusters(d.id, retries...)
 }
 
-func (d datacenter) HasCluster(clusterID string, retries ...RetryStrategy) (bool, error) {
+func (d datacenter) HasCluster(clusterID ClusterID, retries ...RetryStrategy) (bool, error) {
 	clusters, err := d.client.ListDatacenterClusters(d.id, retries...)
 	if err != nil {
 		return false, err

@@ -4,12 +4,22 @@ import (
 	ovirtsdk4 "github.com/ovirt/go-ovirt"
 )
 
-//go:generate go run scripts/rest.go -i "Host" -n "host"
+//go:generate go run scripts/rest/rest.go -i "Host" -n "host"
 
 // HostClient contains the API portion that deals with hosts.
 type HostClient interface {
 	ListHosts(retries ...RetryStrategy) ([]Host, error)
 	GetHost(id string, retries ...RetryStrategy) (Host, error)
+}
+
+// HostData is the core of Host, providing only data access functions.
+type HostData interface {
+	// ID returns the identifier of the host in question.
+	ID() string
+	// ClusterID returns the ID of the cluster this host belongs to.
+	ClusterID() ClusterID
+	// Status returns the status of this host.
+	Status() HostStatus
 }
 
 // Host is the representation of a host returned from the oVirt Engine API. Hosts, also known as hypervisors, are the
@@ -18,12 +28,7 @@ type HostClient interface {
 //
 // See https://www.ovirt.org/documentation/administration_guide/#chap-Hosts for details.
 type Host interface {
-	// ID returns the identifier of the host in question.
-	ID() string
-	// ClusterID returns the ID of the cluster this host belongs to.
-	ClusterID() string
-	// Status returns the status of this host.
-	Status() HostStatus
+	HostData
 }
 
 // HostStatus represents the complex states an oVirt host can be in.
@@ -71,6 +76,40 @@ const (
 	HostStatusUp HostStatus = "up"
 )
 
+// HostStatusList is a list of HostStatus.
+type HostStatusList []HostStatus
+
+// HostStatusValues returns all possible HostStatus values.
+func HostStatusValues() HostStatusList {
+	return []HostStatus{
+		HostStatusConnecting,
+		HostStatusDown,
+		HostStatusError,
+		HostStatusInitializing,
+		HostStatusInstallFailed,
+		HostStatusInstalling,
+		HostStatusInstallingOS,
+		HostStatusKDumping,
+		HostStatusMaintenance,
+		HostStatusNonOperational,
+		HostStatusNonResponsive,
+		HostStatusPendingApproval,
+		HostStatusPreparingForMaintenance,
+		HostStatusReboot,
+		HostStatusUnassigned,
+		HostStatusUp,
+	}
+}
+
+// Strings creates a string list of the values.
+func (l HostStatusList) Strings() []string {
+	result := make([]string, len(l))
+	for i, status := range l {
+		result[i] = string(status)
+	}
+	return result
+}
+
 func convertSDKHost(sdkHost *ovirtsdk4.Host, client Client) (Host, error) {
 	id, ok := sdkHost.Id()
 	if !ok {
@@ -92,7 +131,7 @@ func convertSDKHost(sdkHost *ovirtsdk4.Host, client Client) (Host, error) {
 		client:    client,
 		id:        id,
 		status:    HostStatus(status),
-		clusterID: clusterID,
+		clusterID: ClusterID(clusterID),
 	}, nil
 }
 
@@ -100,7 +139,7 @@ type host struct {
 	client Client
 
 	id        string
-	clusterID string
+	clusterID ClusterID
 	status    HostStatus
 }
 
@@ -108,7 +147,7 @@ func (h host) ID() string {
 	return h.id
 }
 
-func (h host) ClusterID() string {
+func (h host) ClusterID() ClusterID {
 	return h.clusterID
 }
 

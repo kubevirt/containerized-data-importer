@@ -5,7 +5,7 @@ import (
 	"io"
 )
 
-func extractQCOWParameters(fileSize uint64, reader readSeekCloser) (
+func extractQCOWParameters(fileSize uint64, reader io.ReadSeekCloser) (
 	ImageFormat,
 	uint64,
 	error,
@@ -25,6 +25,9 @@ func extractQCOWParameters(fileSize uint64, reader readSeekCloser) (
 	} else {
 		// See https://people.gnome.org/~markmc/qcow-image-format.html
 		qcowSize = binary.BigEndian.Uint64(header[qcowSizeStartByte : qcowSizeStartByte+8])
+	}
+	if qcowSize <= 0 {
+		return format, 0, newError(EBadArgument, "expected positive image size, got %d instead", qcowSize)
 	}
 	return format, qcowSize, err
 }

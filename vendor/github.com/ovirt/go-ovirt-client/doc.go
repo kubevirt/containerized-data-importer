@@ -17,7 +17,7 @@ There are several ways to create a client instance. The most basic way is to use
     // Create the client
     client, err := ovirtclient.New(
         // URL
-        "https://localhost/ovirt-engine/",
+        "https://localhost/ovirt-engine/api",
         // Username
         "admin@internal",
         // Password
@@ -62,7 +62,7 @@ established. The following environment variables are supported:
 
   OVIRT_URL
 
-URL of the oVirt engine.
+URL of the oVirt engine API.
 
   OVIRT_USERNAME
 
@@ -119,7 +119,7 @@ You can also create the test helper manually:
 
         // Create the test helper
         helper, err := ovirtclient.NewTestHelper(
-            "https://localhost/ovirt-engine/",
+            "https://localhost/ovirt-engine/api",
             "admin@internal",
             "super-secret",
             ovirtclient.TLS().CACertsFromSystem(),
@@ -174,7 +174,7 @@ Modern-day oVirt engines run secured with TLS. This means that the client needs 
 server is presenting. This is controlled by the tls parameter of the New() function. You can implement your own source
 by implementing the TLSProvider interface, but the package also includes a ready-to-use provider.
 
-Create the provider using the TLS() functionL
+Create the provider using the TLS() function:
 
     tls := ovirtclient.TLS()
 
@@ -187,6 +187,9 @@ Now you need to add your oVirt engine certificate to your system trust root.
 
 If you don't want to, or can't add the certificate to the system trust root, you can also directly provide it
 to the client.
+
+    // Add certificates from a certificate pool you have previously initialized.
+    tls.CACertsFromCertPool(certpool)
 
     // Add certificates from an in-memory byte slice. Certificates must be in PEM format.
     tls.CACertsFromMemory([]byte("-----BEGIN CERTIFICATE-----\n..."))
