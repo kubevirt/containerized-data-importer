@@ -3,6 +3,7 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_image")
 load("@bazel_gazelle//:def.bzl", "gazelle")
 load("@bazel_tools//tools/python:toolchain.bzl", "py_runtime_pair")
 load("@bazeldnf//:def.bzl", "bazeldnf")
+load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
 
 py_runtime(
     name = "python2_runtime",
@@ -212,5 +213,18 @@ container_image(
             "//rpm:centos_base_x86_64",
         ],
     }),
+    visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "ca_anchors",
+    outs = ["tls-ca-bundle.pem"],
+    cmd = "/usr/bin/p11-kit extract --format=pem-bundle --filter=ca-anchors --overwrite --comment --purpose server-auth $@",
+)
+
+pkg_tar(
+    name = "ca_anchors_tar",
+    srcs = [":ca_anchors"],
+    package_dir = "/etc/pki/ca-trust/extracted/pem",
     visibility = ["//visibility:public"],
 )
