@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 source cluster-sync/ephemeral_provider.sh
+source hack/common-funcs.sh
 
 function _kubectl(){
   kubectl "$@"
@@ -23,7 +24,7 @@ function configure_storage() {
   if [[ $KUBEVIRT_STORAGE == "hpp" ]] ; then
     _kubectl apply -f ./cluster-sync/external/resources/machineconfig-worker.yaml
     echo "Installing hostpath provisioner storage, please ensure /var/hpvolumes exists and has the right SELinux labeling"
-    HPP_RELEASE=$(curl -s https://github.com/kubevirt/hostpath-provisioner-operator/releases/latest | grep -o "v[0-9]\.[0-9]*\.[0-9]*")
+    HPP_RELEASE=$(get_latest_release "kubevirt/hostpath-provisioner-operator")
     _kubectl apply -f https://github.com/kubevirt/hostpath-provisioner-operator/releases/download/$HPP_RELEASE/namespace.yaml
     _kubectl apply -f https://github.com/kubevirt/hostpath-provisioner-operator/releases/download/$HPP_RELEASE/operator.yaml -n hostpath-provisioner
     _kubectl apply -f https://github.com/kubevirt/hostpath-provisioner-operator/releases/download/$HPP_RELEASE/hostpathprovisioner_cr.yaml -n hostpath-provisioner
