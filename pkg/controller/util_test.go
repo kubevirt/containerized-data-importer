@@ -86,6 +86,16 @@ var _ = Describe("getVolumeMode", func() {
 
 var _ = Describe("resolveVolumeSize", func() {
 	client := createClient()
+	scName := "test"
+	pvcSpec := &v1.PersistentVolumeClaimSpec{
+		AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany, v1.ReadWriteOnce},
+		Resources: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				v1.ResourceName(v1.ResourceStorage): resource.MustParse("1G"),
+			},
+		},
+		StorageClassName: &scName,
+	}
 
 	It("Should return empty volume size", func() {
 		pvcSource := &cdiv1.DataVolumeSource{
@@ -93,7 +103,7 @@ var _ = Describe("resolveVolumeSize", func() {
 		}
 		storageSpec := &cdiv1.StorageSpec{}
 		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", pvcSource, storageSpec)
-		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, nil)
+		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, pvcSpec)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(requestedVolumeSize.IsZero()).To(Equal(true))
 	})
@@ -104,7 +114,7 @@ var _ = Describe("resolveVolumeSize", func() {
 		}
 		storageSpec := &cdiv1.StorageSpec{}
 		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", httpSource, storageSpec)
-		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, nil)
+		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, pvcSpec)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Datavolume Spec is not valid - missing storage size")))
 		Expect(requestedVolumeSize).To(BeNil())
@@ -119,8 +129,9 @@ var _ = Describe("resolveVolumeSize", func() {
 			},
 		}
 		volumeMode := corev1.PersistentVolumeBlock
+		pvcSpec.VolumeMode = &volumeMode
 		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", nil, storageSpec)
-		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, &volumeMode)
+		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, pvcSpec)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(storageSpec.Resources.Requests.Storage().Value()).To(Equal(requestedVolumeSize.Value()))
 	})
@@ -134,8 +145,9 @@ var _ = Describe("resolveVolumeSize", func() {
 			},
 		}
 		volumeMode := corev1.PersistentVolumeFilesystem
+		pvcSpec.VolumeMode = &volumeMode
 		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", nil, storageSpec)
-		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, &volumeMode)
+		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, pvcSpec)
 		Expect(err).ToNot(HaveOccurred())
 		// Inflate expected size with overhead
 		fsOverhead, err2 := GetFilesystemOverheadForStorageClass(client, dv.Spec.Storage.StorageClassName)
