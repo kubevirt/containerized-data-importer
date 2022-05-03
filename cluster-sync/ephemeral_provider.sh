@@ -2,6 +2,7 @@
 set -e
 
 source cluster-sync/install.sh
+source hack/common-funcs.sh
 
 ROOK_CEPH_VERSION=${ROOK_CEPH_VERSION:-v1.1.4}
 
