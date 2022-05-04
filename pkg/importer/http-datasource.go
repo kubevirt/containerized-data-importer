@@ -217,15 +217,7 @@ func (hs *HTTPDataSource) Close() error {
 	return err
 }
 
-func createHTTPClient(certDir string) (*http.Client, error) {
-	client := &http.Client{
-		// Don't set timeout here, since that will be an absolute timeout, we need a relative to last progress timeout.
-	}
-
-	if certDir == "" {
-		return client, nil
-	}
-
+func createCertPool(certDir string) (*x509.CertPool, error) {
 	// let's get system certs as well
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
@@ -268,6 +260,23 @@ func createHTTPClient(certDir string) (*http.Client, error) {
 		if ok := certPool.AppendCertsFromPEM(certs); !ok {
 			klog.Warningf("No certs in %s", fp)
 		}
+	}
+
+	return certPool, nil
+}
+
+func createHTTPClient(certDir string) (*http.Client, error) {
+	client := &http.Client{
+		// Don't set timeout here, since that will be an absolute timeout, we need a relative to last progress timeout.
+	}
+
+	if certDir == "" {
+		return client, nil
+	}
+
+	certPool, err := createCertPool(certDir)
+	if err != nil {
+		return nil, err
 	}
 
 	// the default transport contains Proxy configurations to use environment variables and default timeouts

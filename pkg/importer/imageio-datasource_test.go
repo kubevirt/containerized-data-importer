@@ -863,7 +863,7 @@ func (conn *MockOvirtClient) Close() error {
 var mockCancelHook func() error
 var mockFinalizeHook func() error
 
-func failMockOvirtClient(ep string, accessKey string, secKey string) (ConnectionInterface, error) {
+func failMockOvirtClient(ep string, accessKey string, secKey string, certDir string) (ConnectionInterface, error) {
 	return nil, errors.New("Failed to create client")
 }
 
@@ -894,7 +894,7 @@ func createCert() string {
 	return tempDir
 }
 
-func createMockOvirtClient(ep string, accessKey string, secKey string) (ConnectionInterface, error) {
+func createMockOvirtClient(ep string, accessKey string, secKey string, certDir string) (ConnectionInterface, error) {
 	return &MockOvirtClient{
 		ep:     ep,
 		accKey: accessKey,
