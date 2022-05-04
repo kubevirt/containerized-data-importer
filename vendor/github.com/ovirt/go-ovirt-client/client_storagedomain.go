@@ -1,10 +1,13 @@
 package ovirtclient
 
 import (
+	"strings"
+	"sync"
+
 	ovirtsdk4 "github.com/ovirt/go-ovirt"
 )
 
-//go:generate go run scripts/rest.go -i "StorageDomain" -n "storage domain"
+//go:generate go run scripts/rest/rest.go -i "StorageDomain" -n "storage domain"
 
 // StorageDomainClient contains the portion of the goVirt API that deals with storage domains.
 type StorageDomainClient interface {
@@ -12,21 +15,88 @@ type StorageDomainClient interface {
 	ListStorageDomains(retries ...RetryStrategy) ([]StorageDomain, error)
 	// GetStorageDomain returns a single storage domain, or an error if the storage domain could not be found.
 	GetStorageDomain(id string, retries ...RetryStrategy) (StorageDomain, error)
+	// GetDiskFromStorageDomain returns a single disk from a specific storage domain, or an error if no disk can be found.
+	GetDiskFromStorageDomain(id string, diskID string, retries ...RetryStrategy) (result Disk, err error)
+	// RemoveDiskFromStorageDomain removes a disk from a specific storage domain, but leaves the disk on other storage
+	// domains if any. If the disk is not present on any more storage domains, the entire disk will be removed.
+	RemoveDiskFromStorageDomain(id string, diskID string, retries ...RetryStrategy) error
 }
 
-// StorageDomain represents a storage domain returned from the oVirt Engine API.
-type StorageDomain interface {
+// StorageDomainData is the core of StorageDomain, providing only data access functions.
+type StorageDomainData interface {
 	// ID is the unique identified for the storage system connected to oVirt.
 	ID() string
 	// Name is the user-given name for the storage domain.
 	Name() string
 	// Available returns the number of available bytes on the storage domain
 	Available() uint64
+	// StorageType returns the type of the storage domain
+	StorageType() StorageDomainType
 	// Status returns the status of the storage domain. This status may be unknown if the storage domain is external.
 	// Check ExternalStatus as well.
 	Status() StorageDomainStatus
 	// ExternalStatus returns the external status of a storage domain.
 	ExternalStatus() StorageDomainExternalStatus
+}
+
+// StorageDomain represents a storage domain returned from the oVirt Engine API.
+type StorageDomain interface {
+	StorageDomainData
+}
+
+// StorageDomainType represents the type of the storage domain.
+type StorageDomainType string
+
+const (
+	// StorageDomainTypeCinder represents a cinder host storage type.
+	StorageDomainTypeCinder StorageDomainType = "cinder"
+	// StorageDomainTypeFCP represents a fcp host storage type.
+	StorageDomainTypeFCP StorageDomainType = "fcp"
+	// StorageDomainTypeGlance represents a glance host storage type.
+	StorageDomainTypeGlance StorageDomainType = "glance"
+	// StorageDomainTypeGlusterFS represents a glusterfs host storage type.
+	StorageDomainTypeGlusterFS StorageDomainType = "glusterfs"
+	// StorageDomainTypeISCSI represents a iscsi host storage type.
+	StorageDomainTypeISCSI StorageDomainType = "iscsi"
+	// StorageDomainTypeLocalFS represents a localfs host storage type.
+	StorageDomainTypeLocalFS StorageDomainType = "localfs"
+	// StorageDomainTypeManagedBlockStorage represents a managed block storage host storage type.
+	StorageDomainTypeManagedBlockStorage StorageDomainType = "managed_block_storage"
+	// StorageDomainTypeNFS represents a nfs host storage type.
+	StorageDomainTypeNFS StorageDomainType = "nfs"
+	// StorageDomainTypePosixFS represents a posixfs host storage type.
+	StorageDomainTypePosixFS StorageDomainType = "posixfs"
+)
+
+// StorageDomainTypeList is a list of possible StorageDomainTypes.
+type StorageDomainTypeList []StorageDomainType
+
+// FileStorageDomainTypeList is a list of possible StorageDomainTypes which are considered file storage.
+type FileStorageDomainTypeList []StorageDomainType
+
+// FileStorageDomainTypeValues returns all the StorageDomainTypes values which are considered file storage.
+func FileStorageDomainTypeValues() FileStorageDomainTypeList {
+	return []StorageDomainType{
+		StorageDomainTypeGlusterFS,
+		StorageDomainTypeLocalFS,
+		StorageDomainTypeNFS,
+		StorageDomainTypePosixFS,
+	}
+}
+
+// StorageDomainTypeValues returns all possible StorageDomainTypeValues values.
+func StorageDomainTypeValues() StorageDomainTypeList {
+	return []StorageDomainType{
+		StorageDomainTypeCinder,
+		StorageDomainTypeFCP,
+		StorageDomainTypeGlance,
+		StorageDomainTypeGlusterFS,
+		StorageDomainTypeISCSI,
+		StorageDomainTypeLocalFS,
+		StorageDomainTypeManagedBlockStorage,
+		StorageDomainTypeNFS,
+		StorageDomainTypePosixFS,
+	}
 }
 
 // StorageDomainStatus represents the status a domain can be in. Either this status field, or the
@@ -36,6 +106,21 @@ type StorageDomain interface {
 // please contribute here:
 // https://github.com/oVirt/ovirt-engine-api-model/blob/master/src/main/java/types/StorageDomainStatus.java
 type StorageDomainStatus string
+
+// Validate returns an error if the storage domain status doesn't have a valid value.
+func (s StorageDomainStatus) Validate() error {
+	for _, format := range StorageDomainStatusValues() {
+		if format == s {
+			return nil
+		}
+	}
+	return newError(
+		EBadArgument,
+		"invalid storage domain status: %s must be one of: %s",
+		s,
+		strings.Join(ImageFormatValues().Strings(), ", "),
+	)
+}
 
 const (
 	// StorageDomainStatusActivating indicates that the storage domain is currently activating and will soon be active.
@@ -63,6 +148,35 @@ const (
 	StorageDomainStatusNA StorageDomainStatus = ""
 )
 
+// StorageDomainStatusList is a list of StorageDomainStatus.
+type StorageDomainStatusList []StorageDomainStatus
+
+// StorageDomainStatusValues returns all possible StorageDomainStatus values.
+func StorageDomainStatusValues() StorageDomainStatusList {
+	return []StorageDomainStatus{
+		StorageDomainStatusActivating,
+		StorageDomainStatusActive,
+		StorageDomainStatusDetaching,
+		StorageDomainStatusInactive,
+		StorageDomainStatusLocked,
+		StorageDomainStatusMaintenance,
+		StorageDomainStatusMixed,
+		StorageDomainStatusPreparingForMaintenance,
+		StorageDomainStatusUnattached,
+		StorageDomainStatusUnknown,
+		StorageDomainStatusNA,
+	}
+}
+
+// Strings creates a string list of the values.
+func (l StorageDomainStatusList) Strings() []string {
+	result := make([]string, len(l))
+	for i, status := range l {
+		result[i] = string(status)
+	}
+	return result
+}
+
 // StorageDomainExternalStatus represents the status of an external storage domain. This status is updated externally.
 //
 // Note: this is not well-defined as the oVirt model has only a very generic description. See
@@ -89,6 +203,30 @@ const (
 	StorageDomainExternalStatusWarning StorageDomainExternalStatus = "warning"
 )
 
+// StorageDomainExternalStatusList is a list of StorageDomainStatus.
+type StorageDomainExternalStatusList []StorageDomainExternalStatus
+
+// StorageDomainExternalStatusValues returns all possible StorageDomainExternalStatus values.
+func StorageDomainExternalStatusValues() StorageDomainExternalStatusList {
+	return []StorageDomainExternalStatus{
+		StorageDomainExternalStatusNA,
+		StorageDomainExternalStatusError,
+		StorageDomainExternalStatusFailure,
+		StorageDomainExternalStatusInfo,
+		StorageDomainExternalStatusOk,
+		StorageDomainExternalStatusWarning,
+	}
+}
+
+// Strings creates a string list of the values.
+func (l StorageDomainExternalStatusList) Strings() []string {
+	result := make([]string, len(l))
+	for i, status := range l {
+		result[i] = string(status)
+	}
+	return result
+}
+
 func convertSDKStorageDomain(sdkStorageDomain *ovirtsdk4.StorageDomain, client Client) (StorageDomain, error) {
 	id, ok := sdkStorageDomain.Id()
 	if !ok {
@@ -106,6 +244,14 @@ func convertSDKStorageDomain(sdkStorageDomain *ovirtsdk4.StorageDomain, client C
 	if available < 0 {
 		return nil, newError(EBug, "invalid available bytes returned from storage domain: %d", available)
 	}
+	storage, ok := sdkStorageDomain.Storage()
+	if !ok {
+		return nil, newError(EFieldMissing, "failed to fetch hostStorage of storage domain")
+	}
+	storageType, ok := storage.Type()
+	if !ok {
+		return nil, newError(EFieldMissing, "failed to fetch storage type of storage domain")
+	}
 	// It is OK for the storage domain status to not be present if the external status is present.
 	status, _ := sdkStorageDomain.Status()
 	// It is OK for the storage domain external status to not be present if the status is present.
@@ -120,6 +266,7 @@ func convertSDKStorageDomain(sdkStorageDomain *ovirtsdk4.StorageDomain, client C
 		id:             id,
 		name:           name,
 		available:      uint64(available),
+		storageType:    StorageDomainType(storageType),
 		status:         StorageDomainStatus(status),
 		externalStatus: StorageDomainExternalStatus(externalStatus),
 	}, nil
@@ -131,6 +278,7 @@ type storageDomain struct {
 	id             string
 	name           string
 	available      uint64
+	storageType    StorageDomainType
 	status         StorageDomainStatus
 	externalStatus StorageDomainExternalStatus
 }
@@ -147,10 +295,51 @@ func (s storageDomain) Available() uint64 {
 	return s.available
 }
 
+func (s storageDomain) StorageType() StorageDomainType {
+	return s.storageType
+}
+
 func (s storageDomain) Status() StorageDomainStatus {
 	return s.status
 }
 
 func (s storageDomain) ExternalStatus() StorageDomainExternalStatus {
 	return s.externalStatus
+}
+
+type storageDomainDiskWait struct {
+	client        *oVirtClient
+	disk          Disk
+	storageDomain StorageDomain
+	correlationID string
+	lock          *sync.Mutex
+}
+
+func (d *storageDomainDiskWait) Disk() Disk {
+	d.lock.Lock()
+	defer d.lock.Unlock()
+	return d.disk
+}
+
+func (d *storageDomainDiskWait) Wait(retries ...RetryStrategy) (Disk, error) {
+	retries = defaultRetries(retries, defaultWriteTimeouts())
+	d.lock.Lock()
+	diskID := d.disk.ID()
+	storageDomainID := d.storageDomain.ID()
+	d.lock.Unlock()
+
+	if _, err := d.client.WaitForDiskOK(diskID, retries...); err != nil {
+		return nil, err
+	}
+
+	if err := d.client.waitForJobFinished(d.correlationID, retries); err != nil {
+		return nil, err
+	}
+
+	disk, err := d.client.GetDiskFromStorageDomain(storageDomainID, diskID)
+
+	if disk != nil {
+		d.disk = disk
+	}
+	return disk, err
 }

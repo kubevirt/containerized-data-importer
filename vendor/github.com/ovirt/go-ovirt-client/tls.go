@@ -41,6 +41,10 @@ type BuildableTLSProvider interface {
 	// CACertsFromSystem adds the system certificate store. This may fail because the certificate store is not available
 	// or not supported on the platform.
 	CACertsFromSystem() BuildableTLSProvider
+
+	// CACertsFromCertPool sets a certificate pool to use as a source for certificates. This is incompatible with  the
+	// CACertsFromSystem call as both create a certificate pool. This function must not be called twice.
+	CACertsFromCertPool(*x509.CertPool) BuildableTLSProvider
 }
 
 // TLS creates a BuildableTLSProvider that can be used to easily add trusted CA certificates and generally follows best
@@ -57,6 +61,7 @@ type standardTLSProvider struct {
 	caCerts     [][]byte
 	files       []string
 	directories []standardTLSProviderDirectory
+	certPool    *x509.CertPool
 	system      bool
 	configured  bool
 }
@@ -71,6 +76,17 @@ func (s *standardTLSProvider) Insecure() TLSProvider {
 	defer s.lock.Unlock()
 	s.configured = true
 	s.insecure = true
+	return s
+}
+
+func (s *standardTLSProvider) CACertsFromCertPool(certPool *x509.CertPool) BuildableTLSProvider {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if s.certPool != nil {
+		panic(newError(EConflict, "the CACertsFromCertPool function has been called twice"))
+	}
+	s.configured = true
+	s.certPool = certPool
 	return s
 }
 
@@ -141,9 +157,12 @@ func (s *standardTLSProvider) CreateTLSConfig() (*tls.Config, error) {
 		InsecureSkipVerify: false,
 	}
 
-	certPool, err := s.createCertPool()
-	if err != nil {
-		return nil, err
+	certPool := s.certPool
+	if certPool == nil {
+		var err error
+		if certPool, err = s.createCertPool(); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.addCertsFromMemory(certPool); err != nil {
 		return nil, err
@@ -171,7 +190,7 @@ func (s *standardTLSProvider) addCertsFromDir(certPool *x509.CertPool) error {
 		}
 		for _, info := range files {
 			if info.IsDir() {
-				return nil
+				continue
 			}
 			if len(dir.patterns) > 0 {
 				matches := false
@@ -238,6 +257,12 @@ func (s *standardTLSProvider) addCertsFromMemory(certPool *x509.CertPool) error 
 }
 
 func (s *standardTLSProvider) createCertPool() (*x509.CertPool, error) {
+	if s.system && s.certPool != nil {
+		return nil, newError(ETLSError, "both system and cert pool are specified, these options are incompatible")
+	}
+	if s.certPool != nil {
+		return s.certPool, nil
+	}
 	if !s.system {
 		return x509.NewCertPool(), nil
 	}

@@ -29,10 +29,6 @@ linters:
     # Make Go code more readable.
     - gocritic
     # We don't want hidden global scope, so disallow global variables. You can disable this with
-    # // nolint:gochecknoglobals where global variables are legitimately needed.
-    - gochecknoglobals
-    # Prevent init functions for the same reason as described above.
-    - gochecknoinits
     # Check if comments end in a period. This helps prevent incomplete comment lines, such as half-written sentences.
     - godot
     # Complain about comments as these indicate incomplete code.
@@ -65,6 +61,8 @@ linters:
     - importas
     # Make package imports always deterministic.
     - gci
+    # Make code properly formatted.
+    - gofmt
     # Prevent faulty error checks.
     - nilerr
     # Prevent direct error checks that won't work with wrapped errors.
@@ -73,19 +71,8 @@ linters:
     - prealloc
     # Check for improper duration handling.
     - durationcheck
-    # Report if statements that could be shorter.
-    - ifshort
     # Enforce tests being in the _test package.
     - testpackage
-
-    # endregion
-
-
-    # region Code formatting
-
-    # Enforce proper white-space handling.
-    - gofumpt
-    - whitespace
 
     # endregion
 linters-settings:

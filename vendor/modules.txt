@@ -447,13 +447,13 @@ github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/
 # github.com/ovirt/go-ovirt v0.0.0-20210809163552-d4276e35d3db
 ## explicit; go 1.15
 github.com/ovirt/go-ovirt
-# github.com/ovirt/go-ovirt-client v0.6.0
-## explicit; go 1.14
+# github.com/ovirt/go-ovirt-client v0.9.0
+## explicit; go 1.16
 github.com/ovirt/go-ovirt-client
 # github.com/ovirt/go-ovirt-client-log-klog v1.0.0
 ## explicit; go 1.14
 github.com/ovirt/go-ovirt-client-log-klog
-# github.com/ovirt/go-ovirt-client-log/v2 v2.1.0
+# github.com/ovirt/go-ovirt-client-log/v2 v2.2.0
 ## explicit; go 1.16
 github.com/ovirt/go-ovirt-client-log/v2
 # github.com/pkg/errors v0.9.1

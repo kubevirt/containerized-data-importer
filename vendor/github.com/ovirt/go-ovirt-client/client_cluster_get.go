@@ -6,14 +6,14 @@ import (
 	"fmt"
 )
 
-func (o *oVirtClient) GetCluster(id string, retries ...RetryStrategy) (result Cluster, err error) {
+func (o *oVirtClient) GetCluster(id ClusterID, retries ...RetryStrategy) (result Cluster, err error) {
 	retries = defaultRetries(retries, defaultReadTimeouts())
 	err = retry(
 		fmt.Sprintf("getting cluster %s", id),
 		o.logger,
 		retries,
 		func() error {
-			response, err := o.conn.SystemService().ClustersService().ClusterService(id).Get().Send()
+			response, err := o.conn.SystemService().ClustersService().ClusterService(string(id)).Get().Send()
 			if err != nil {
 				return err
 			}

@@ -16,17 +16,21 @@ type testLogger struct {
 }
 
 func (t *testLogger) Debugf(format string, args ...interface{}) {
+	t.t.Helper()
 	t.t.Logf(format, args...)
 }
 
 func (t *testLogger) Infof(format string, args ...interface{}) {
+	t.t.Helper()
 	t.t.Logf(format, args...)
 }
 
 func (t *testLogger) Warningf(format string, args ...interface{}) {
+	t.t.Helper()
 	t.t.Logf(format, args...)
 }
 
 func (t *testLogger) Errorf(format string, args ...interface{}) {
+	t.t.Helper()
 	t.t.Logf(format, args...)
 }

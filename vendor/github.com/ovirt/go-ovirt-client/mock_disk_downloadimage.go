@@ -7,7 +7,15 @@ import (
 	"time"
 )
 
-func (m *mockClient) StartImageDownload(diskID string, format ImageFormat, _ ...RetryStrategy) (ImageDownload, error) {
+// Deprecated: use StartDownloadDisk instead.
+func (m *mockClient) StartImageDownload(diskID string, format ImageFormat, retries ...RetryStrategy) (
+	ImageDownload,
+	error,
+) {
+	return m.StartDownloadDisk(diskID, format, retries...)
+}
+
+func (m *mockClient) StartDownloadDisk(diskID string, format ImageFormat, _ ...RetryStrategy) (ImageDownload, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -17,7 +25,7 @@ func (m *mockClient) StartImageDownload(diskID string, format ImageFormat, _ ...
 	}
 
 	if disk.format != format {
-		return nil, newError(EBug, "the mock library doesn't support converting images from %s to %s; please download images in the same format as you uploaded them", disk.format, format)
+		m.logger.Warningf("the image upload client requested a conversion from from %s to %s; the mock library does not support this and the source image data will be used unmodified which may lead to errors", disk.format, format)
 	}
 
 	dl := &mockImageDownload{
@@ -34,11 +42,19 @@ func (m *mockClient) StartImageDownload(diskID string, format ImageFormat, _ ...
 	return dl, nil
 }
 
+// Deprecated: use DownloadDisk instead.
 func (m *mockClient) DownloadImage(diskID string, format ImageFormat, retries ...RetryStrategy) (
 	ImageDownloadReader,
 	error,
 ) {
-	download, err := m.StartImageDownload(diskID, format, retries...)
+	return m.DownloadDisk(diskID, format, retries...)
+}
+
+func (m *mockClient) DownloadDisk(diskID string, format ImageFormat, retries ...RetryStrategy) (
+	ImageDownloadReader,
+	error,
+) {
+	download, err := m.StartDownloadDisk(diskID, format, retries...)
 	if err != nil {
 		return nil, err
 	}

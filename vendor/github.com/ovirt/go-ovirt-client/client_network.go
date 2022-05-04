@@ -4,7 +4,7 @@ import (
 	ovirtsdk4 "github.com/ovirt/go-ovirt"
 )
 
-//go:generate go run scripts/rest.go -i "Network" -n "network"
+//go:generate go run scripts/rest/rest.go -i "Network" -n "network"
 
 // NetworkClient describes the functions related to oVirt networks.
 //
@@ -16,15 +16,20 @@ type NetworkClient interface {
 	ListNetworks(retries ...RetryStrategy) ([]Network, error)
 }
 
-// Network is the interface defining the fields for networks.
-type Network interface {
+// NetworkData is the core of Network, providing only the data access functions, but not the client
+// functions.
+type NetworkData interface {
 	// ID returns the auto-generated identifier for this network.
 	ID() string
 	// Name returns the user-give nname for this network.
 	Name() string
-
 	// DatacenterID is the identifier of the datacenter object.
 	DatacenterID() string
+}
+
+// Network is the interface defining the fields for networks.
+type Network interface {
+	NetworkData
 
 	// Datacenter fetches the datacenter associated with this network. This is a network call and may be slow.
 	Datacenter(retries ...RetryStrategy) (Datacenter, error)

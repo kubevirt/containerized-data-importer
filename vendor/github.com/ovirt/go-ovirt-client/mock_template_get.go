@@ -2,7 +2,7 @@
 
 package ovirtclient
 
-func (m *mockClient) GetTemplate(id string, _ ...RetryStrategy) (Template, error) {
+func (m *mockClient) GetTemplate(id TemplateID, _ ...RetryStrategy) (Template, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if item, ok := m.templates[id]; ok {

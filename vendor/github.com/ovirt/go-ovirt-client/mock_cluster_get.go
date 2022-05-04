@@ -2,7 +2,7 @@
 
 package ovirtclient
 
-func (m *mockClient) GetCluster(id string, _ ...RetryStrategy) (Cluster, error) {
+func (m *mockClient) GetCluster(id ClusterID, _ ...RetryStrategy) (Cluster, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if item, ok := m.clusters[id]; ok {

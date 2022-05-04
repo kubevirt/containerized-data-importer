@@ -6,14 +6,14 @@ import (
 	"fmt"
 )
 
-func (o *oVirtClient) GetTemplate(id string, retries ...RetryStrategy) (result Template, err error) {
+func (o *oVirtClient) GetTemplate(id TemplateID, retries ...RetryStrategy) (result Template, err error) {
 	retries = defaultRetries(retries, defaultReadTimeouts())
 	err = retry(
 		fmt.Sprintf("getting template %s", id),
 		o.logger,
 		retries,
 		func() error {
-			response, err := o.conn.SystemService().TemplatesService().TemplateService(id).Get().Send()
+			response, err := o.conn.SystemService().TemplatesService().TemplateService(string(id)).Get().Send()
 			if err != nil {
 				return err
 			}

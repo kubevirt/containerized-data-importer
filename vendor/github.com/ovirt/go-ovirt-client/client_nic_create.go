@@ -6,7 +6,13 @@ import (
 	ovirtsdk "github.com/ovirt/go-ovirt"
 )
 
-func (o *oVirtClient) CreateNIC(vmid string, name string, vnicProfileID string, retries ...RetryStrategy) (result NIC, err error) {
+func (o *oVirtClient) CreateNIC(
+	vmid string,
+	vnicProfileID string,
+	name string,
+	_ OptionalNICParameters,
+	retries ...RetryStrategy,
+) (result NIC, err error) {
 	if err := validateNICCreationParameters(vmid, name); err != nil {
 		return nil, err
 	}

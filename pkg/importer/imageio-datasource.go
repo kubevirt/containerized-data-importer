@@ -477,7 +477,7 @@ func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
 }
 
 func createImageioReader(ctx context.Context, ep string, accessKey string, secKey string, certDir string, diskID string, currentCheckpoint string, previousCheckpoint string) (io.ReadCloser, uint64, *ovirtsdk4.ImageTransfer, ConnectionInterface, error) {
-	conn, err := newOvirtClientFunc(ep, accessKey, secKey)
+	conn, err := newOvirtClientFunc(ep, accessKey, secKey, certDir)
 	if err != nil {
 		return nil, uint64(0), nil, conn, errors.Wrap(err, "Error creating connection")
 	}
@@ -1419,10 +1419,16 @@ func (e *extraSettings) ExtraHeaders() map[string]string {
 	return e.extraHeaders
 }
 
-func getOvirtClient(ep string, accessKey string, secKey string) (ConnectionInterface, error) {
+func getOvirtClient(ep string, accessKey string, secKey string, certDir string) (ConnectionInterface, error) {
 	var conn *ovirtsdk4.Connection
 
-	tls := ovirtclient.TLS().Insecure()
+	certPool, err := createCertPool(certDir)
+	if err != nil {
+		return nil, err
+	}
+	tls := ovirtclient.TLS()
+	tls.CACertsFromCertPool(certPool)
+
 	logger := ovirtclientlog.New()
 	extras := &extraSettings{
 		compression:  true,
