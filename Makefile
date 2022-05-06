@@ -68,7 +68,7 @@ test: test-unit test-functional test-lint
 
 test-unit: WHAT = ./pkg/... ./cmd/...
 test-unit:
-	${DO_BAZ} "./hack/build/run-unit-tests.sh ${WHAT}"
+	${DO_BAZ} "ACK_GINKGO_DEPRECATIONS=${ACK_GINKGO_DEPRECATIONS} ./hack/build/run-unit-tests.sh ${WHAT}"
 
 test-functional:  WHAT = ./tests/...
 test-functional: build-functest
