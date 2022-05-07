@@ -40,10 +40,8 @@ container_image(
     base = ":importer_base",
     directory = "/usr/bin",
     entrypoint = [
-        "/bin/sh",
-        "-c",
-        "/usr/bin/update-ca-trust && exec /usr/bin/cdi-importer -alsologtostderr \"$@\"",
-        "--",
+        "/usr/bin/cdi-importer",
+        "-alsologtostderr",
     ],
     files = [
         ":cdi-importer",
@@ -58,9 +56,11 @@ container_image(
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             "//rpm:cdi_importer_base_aarch64",
+            "//:ca_anchors_tar",
         ],
         "//conditions:default": [
             "//rpm:cdi_importer_base_x86_64",
+            "//:ca_anchors_tar",
         ],
     }),
 )
