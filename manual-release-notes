@@ -1,0 +1,3 @@
+v1.48.1:
+BugFix: Fix regression since switching to CentOS-stream based images in DataImportCron: run update-ca-trust, so imports using TLS work again.
+
