@@ -101,8 +101,11 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 	modifiedDataVolume := dataVolume.DeepCopy()
 	modified := false
 
-	config, _ := wh.cdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-	if config != nil && config.Spec.DataVolumeTTLSeconds != nil &&
+	config, err := wh.cdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+	if err != nil {
+		return toAdmissionResponseError(err)
+	}
+	if config.Spec.DataVolumeTTLSeconds != nil &&
 		modifiedDataVolume.Annotations[controller.AnnDeleteAfterCompletion] != "false" {
 		if modifiedDataVolume.Annotations == nil {
 			modifiedDataVolume.Annotations = make(map[string]string)

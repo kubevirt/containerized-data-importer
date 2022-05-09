@@ -356,6 +356,9 @@ func newPvcFromSnapshot(snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *core
 				AnnRunningConditionMessage: cloneComplete,
 				AnnRunningConditionReason:  "Completed",
 				annSmartCloneSnapshot:      key,
+				// We are artifically adding this pod phase on a smart clone where no pods are involved
+				// to mark the DataVolume can be garbage collected, like in all the other flows.
+				AnnPodPhase: string(corev1.PodSucceeded),
 			},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{

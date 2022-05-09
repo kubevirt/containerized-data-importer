@@ -537,7 +537,7 @@ func podPhaseFromPVC(pvc *v1.PersistentVolumeClaim) v1.PodPhase {
 }
 
 func podSucceededFromPVC(pvc *v1.PersistentVolumeClaim) bool {
-	return (podPhaseFromPVC(pvc) == v1.PodSucceeded)
+	return podPhaseFromPVC(pvc) == v1.PodSucceeded
 }
 
 func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, prefix string) {
@@ -896,7 +896,8 @@ func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNa
 	return nil
 }
 
-func addAnnotation(obj metav1.Object, key, value string) {
+// AddAnnotation adds an annotation to an object
+func AddAnnotation(obj metav1.Object, key, value string) {
 	if obj.GetAnnotations() == nil {
 		obj.SetAnnotations(make(map[string]string))
 	}

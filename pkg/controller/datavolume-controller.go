@@ -39,7 +39,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -1024,10 +1023,10 @@ func (r *DatavolumeReconciler) doCrossNamespaceClone(log logr.Logger,
 func (r *DatavolumeReconciler) getVddkAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (bool, error) {
 	var dataVolumeCopy = dataVolume.DeepCopy()
 	if vddkHost := pvc.Annotations[AnnVddkHostConnection]; vddkHost != "" {
-		addAnnotation(dataVolumeCopy, AnnVddkHostConnection, vddkHost)
+		AddAnnotation(dataVolumeCopy, AnnVddkHostConnection, vddkHost)
 	}
 	if vddkVersion := pvc.Annotations[AnnVddkVersion]; vddkVersion != "" {
-		addAnnotation(dataVolumeCopy, AnnVddkVersion, vddkVersion)
+		AddAnnotation(dataVolumeCopy, AnnVddkVersion, vddkVersion)
 	}
 
 	// only update if something has changed
@@ -2030,7 +2029,7 @@ func (r *DatavolumeReconciler) updateDataVolumeStatusPhaseWithEvent(
 		reason = event.reason
 	}
 	r.updateConditions(dataVolumeCopy, pvc, reason)
-	addAnnotation(dataVolumeCopy, annCloneType, cloneStrategyToCloneType(selectedCloneStrategy))
+	AddAnnotation(dataVolumeCopy, annCloneType, cloneStrategyToCloneType(selectedCloneStrategy))
 
 	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, &event)
 }
@@ -2238,7 +2237,7 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 	}
 
 	if selectedCloneStrategy != NoClone {
-		addAnnotation(dataVolumeCopy, annCloneType, cloneStrategyToCloneType(selectedCloneStrategy))
+		AddAnnotation(dataVolumeCopy, annCloneType, cloneStrategyToCloneType(selectedCloneStrategy))
 	}
 
 	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))
@@ -2659,46 +2658,24 @@ func newLongTermCloneTokenGenerator(key *rsa.PrivateKey) token.Generator {
 	return token.NewGenerator(common.ExtendedCloneTokenIssuer, key, 10*365*24*time.Hour)
 }
 
-func (r *DatavolumeReconciler) garbageCollect(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (res *reconcile.Result, err error) {
+func (r *DatavolumeReconciler) garbageCollect(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (*reconcile.Result, error) {
 	if dataVolume.Status.Phase != cdiv1.Succeeded {
-		return
+		return nil, nil
 	}
 	cdiConfig := &cdiv1.CDIConfig{}
-	if err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
-		return
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
+		return nil, err
 	}
 	dvTTL := cdiConfig.Spec.DataVolumeTTLSeconds
 	if dvTTL == nil || *dvTTL < 0 {
-		return
+		return nil, nil
 	}
-
 	// Current DV still has TTL, so reconcile will return with the needed RequeueAfter
 	if delta := getDeltaTTL(dataVolume, *dvTTL); delta > 0 {
 		return &reconcile.Result{RequeueAfter: delta}, nil
 	}
-
-	if err = r.detachPvcDeleteDv(pvc, dataVolume); err != nil {
-		return
-	}
-
-	// FIXME: not sure this part is necessary
-	// Lookup for other DVs to garbage collect
-	selector := fields.OneTermEqualSelector(dvPhaseField, string(cdiv1.Succeeded))
-	dvList := &cdiv1.DataVolumeList{}
-	if err = r.client.List(context.TODO(), dvList, &client.ListOptions{FieldSelector: selector}); err != nil {
-		return
-	}
-	for _, dv := range dvList.Items {
-		if dv.UID == dataVolume.UID || getDeltaTTL(&dv, *dvTTL) > 0 {
-			continue
-		}
-		pvc := &corev1.PersistentVolumeClaim{}
-		if err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}, pvc); err != nil {
-			return
-		}
-		if err = r.detachPvcDeleteDv(pvc, &dv); err != nil {
-			return
-		}
+	if err := r.detachPvcDeleteDv(pvc, dataVolume); err != nil {
+		return nil, err
 	}
 	return &reconcile.Result{}, nil
 }
@@ -2732,7 +2709,7 @@ func updatePvcOwnerRefs(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume)
 func getDeltaTTL(dv *cdiv1.DataVolume, ttl int32) time.Duration {
 	delta := time.Second * time.Duration(ttl)
 	if cond := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions); cond != nil {
-		delta -= time.Now().Sub(cond.LastHeartbeatTime.Time)
+		delta -= time.Now().Sub(cond.LastTransitionTime.Time)
 	}
 	return delta
 }

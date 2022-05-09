@@ -38,6 +38,7 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 
 	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 
 	cdicorev1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -251,7 +252,11 @@ func mutateDVsEx(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthori
 		}
 		return true, sar, nil
 	})
-	cdiClient := cdiclientfake.NewSimpleClientset(cdiObjects...)
+
+	cdiConfig := controller.MakeEmptyCDIConfigSpec(common.ConfigName)
+	objs := []runtime.Object{cdiConfig}
+	objs = append(objs, cdiObjects...)
+	cdiClient := cdiclientfake.NewSimpleClientset(objs...)
 	wh := NewDataVolumeMutatingWebhook(client, cdiClient, key)
 	return serve(ar, wh)
 }
