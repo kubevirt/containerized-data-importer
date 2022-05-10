@@ -17,6 +17,8 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 )
 
 const (
@@ -439,7 +441,7 @@ func NewDataVolumeForImageCloning(dataVolumeName, size, namespace, pvcName strin
 	dv := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        dataVolumeName,
-			Annotations: map[string]string{},
+			Annotations: map[string]string{controller.AnnDeleteAfterCompletion: "false"},
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: &cdiv1.DataVolumeSource{
@@ -598,16 +600,24 @@ func NewDataVolumeWithVddkWarmImport(dataVolumeName string, size string, backing
 }
 
 // WaitForDataVolumePhase waits for DV's phase to be in a particular phase (Pending, Bound, or Lost)
-func WaitForDataVolumePhase(clientSet *cdiclientset.Clientset, namespace string, phase cdiv1.DataVolumePhase, dataVolumeName string) error {
-	return WaitForDataVolumePhaseWithTimeout(clientSet, namespace, phase, dataVolumeName, dataVolumePhaseTime)
+func WaitForDataVolumePhase(ci ClientsIface, namespace string, phase cdiv1.DataVolumePhase, dataVolumeName string) error {
+	return WaitForDataVolumePhaseWithTimeout(ci, namespace, phase, dataVolumeName, dataVolumePhaseTime)
 }
 
 // WaitForDataVolumePhaseWithTimeout waits for DV's phase to be in a particular phase (Pending, Bound, or Lost) with a specified timeout
-func WaitForDataVolumePhaseWithTimeout(clientSet *cdiclientset.Clientset, namespace string, phase cdiv1.DataVolumePhase, dataVolumeName string, timeout time.Duration) error {
+func WaitForDataVolumePhaseWithTimeout(ci ClientsIface, namespace string, phase cdiv1.DataVolumePhase, dataVolumeName string, timeout time.Duration) error {
 	var actualPhase cdiv1.DataVolumePhase
-
+	if phase == cdiv1.Succeeded {
+		cfg, err := ci.Cdi().CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if cfg.Spec.DataVolumeTTLSeconds != nil {
+			return WaitForDvGcPvcSucceeded(ci, namespace, dataVolumeName, dataVolumePhaseTime)
+		}
+	}
 	err := wait.PollImmediate(dataVolumePollInterval, timeout, func() (bool, error) {
-		dataVolume, err := clientSet.CdiV1beta1().DataVolumes(namespace).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
+		dataVolume, err := ci.Cdi().CdiV1beta1().DataVolumes(namespace).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
 		if err != nil || dataVolume.Status.Phase != phase {
 			actualPhase = dataVolume.Status.Phase
 			return false, err
@@ -616,6 +626,48 @@ func WaitForDataVolumePhaseWithTimeout(clientSet *cdiclientset.Clientset, namesp
 	})
 	if err != nil {
 		return fmt.Errorf("DataVolume %s not in phase %s within %v, actual phase=%s", dataVolumeName, phase, timeout, actualPhase)
+	}
+	return nil
+}
+
+// WaitForDvGcPvcSucceeded waits for DV garbage collected and PVC succeeded
+func WaitForDvGcPvcSucceeded(ci ClientsIface, namespace string, pvcName string, timeout time.Duration) error {
+	var actualPhase cdiv1.DataVolumePhase
+	var retain bool
+
+	err := wait.PollImmediate(dataVolumePollInterval, timeout, func() (bool, error) {
+		dv, err := ci.Cdi().CdiV1beta1().DataVolumes(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{})
+		if err == nil {
+			retain = dv.Annotations[controller.AnnDeleteAfterCompletion] == "false"
+			if retain {
+				actualPhase = dv.Status.Phase
+				return actualPhase == cdiv1.Succeeded, nil
+			}
+			return false, nil
+		}
+		if !apierrs.IsNotFound(err) {
+			return false, err
+		}
+		return true, nil
+	})
+	if retain {
+		if err != nil {
+			return err
+		}
+		if actualPhase != cdiv1.Succeeded {
+			return fmt.Errorf("DataVolume %s is not in phase Succeeded within %v, actual phase=%s", pvcName, timeout, actualPhase)
+		}
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("DataVolume %s was not garbage collected within %v err %s", pvcName, timeout, err.Error())
+	}
+	pvc, err := ci.K8s().CoreV1().PersistentVolumeClaims(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	if phase := pvc.Annotations[controller.AnnPodPhase]; phase != string(corev1.PodSucceeded) {
+		return fmt.Errorf("PVC %s is not in phase Succeeded although DataVolume garbage collected, actual phase=%s", pvcName, phase)
 	}
 	return nil
 }

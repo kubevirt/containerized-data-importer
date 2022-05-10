@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 )
 
@@ -65,6 +66,12 @@ var (
 	// DefaultStorageCSIRespectsFsGroup is true if the default storage class is CSI and respects fsGroup, false other wise.
 	DefaultStorageCSIRespectsFsGroup bool
 )
+
+// ClientsIface is the clients interface
+type ClientsIface interface {
+	K8s() *kubernetes.Clientset
+	Cdi() *cdiClientset.Clientset
+}
 
 // GetDefaultStorageClass return the storage class which is marked as default in the cluster
 func GetDefaultStorageClass(client *kubernetes.Clientset) *storagev1.StorageClass {

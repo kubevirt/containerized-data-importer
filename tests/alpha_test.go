@@ -34,7 +34,7 @@ var _ = Describe("Alpha API tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("waiting for DataVolume to be ready")
-			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.UploadReady, "upload")
+			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.UploadReady, "upload")
 			Expect(err).ToNot(HaveOccurred())
 
 			By("create a upload token")
@@ -62,7 +62,7 @@ var _ = Describe("Alpha API tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("waiting for DataVolume to be complete")
-			err = utils.WaitForDataVolumePhase(f.CdiClient, target.Namespace, cdiv1.Succeeded, target.Name)
+			err = utils.WaitForDataVolumePhase(f, target.Namespace, cdiv1.Succeeded, target.Name)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -93,7 +93,7 @@ var _ = Describe("Alpha API tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				By("waiting for DataVolume to be ready")
-				err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.UploadReady, "upload")
+				err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.UploadReady, "upload")
 
 				// tests listing alpha api
 				alphaCDIs, err := f.CdiClient.CdiV1alpha1().CDIs().List(context.TODO(), metav1.ListOptions{})

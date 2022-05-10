@@ -177,7 +177,7 @@ func verifyPVC(dataVolume *cdiv1.DataVolume, f *framework.Framework, testPath st
 
 func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f *framework.Framework) {
 	By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
-	err := utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+	err := utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 	if err != nil {
 		PrintControllerLog(f)
 		dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
@@ -205,7 +205,7 @@ func createAndPopulateSourcePVC(dataVolumeName string, volumeMode v1.PersistentV
 	Expect(err).ToNot(HaveOccurred())
 
 	By(fmt.Sprintf("Waiting for source datavolume to match phase %s", string(cdiv1.Succeeded)))
-	err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
+	err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
 	Expect(err).ToNot(HaveOccurred())
 
 	return sourcePvc
