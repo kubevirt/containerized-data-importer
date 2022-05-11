@@ -19,8 +19,7 @@ import (
 
 var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:component]Basic Sanity", func() {
 	f := framework.NewFramework("sanity", framework.Config{
-		SkipNamespaceCreation: true,
-		FeatureGates:          []string{featuregates.HonorWaitForFirstConsumer},
+		FeatureGates: []string{featuregates.HonorWaitForFirstConsumer},
 	})
 
 	Context("[test_id:1348]CDI service account should exist", func() {
@@ -139,7 +138,7 @@ func ValidateRBACForResource(f *framework.Framework, expectedResults map[string]
 	for verb, expectedRes := range expectedResults {
 		By(fmt.Sprintf("verifying cdi-sa "+resource+" rules, for verb %s", verb))
 
-		result, err := tests.RunKubectlCommand(f, "auth", "can-i", "--as", sa, verb, resource)
+		result, err := tests.RunKubectlCommand(f, "auth", "can-i", "--as", sa, verb, resource, "--namespace", f.Namespace.Name)
 		if expectedRes != "no" {
 			Expect(err).ToNot(HaveOccurred())
 		}
