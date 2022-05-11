@@ -479,6 +479,9 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+	if selectedCloneStrategy == SmartClone {
+		r.sccs.StartController()
+	}
 
 	_, dvPrePopulated := datavolume.Annotations[AnnPrePopulated]
 
@@ -1612,7 +1615,6 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 		log.Info("Missing CSI snapshotter CRDs, falling back to host assisted clone")
 		return "", nil
 	}
-	r.sccs.StartController()
 
 	targetPvcStorageClassName := targetStorageSpec.StorageClassName
 	targetStorageClass, err := GetStorageClassByName(r.client, targetPvcStorageClassName)
