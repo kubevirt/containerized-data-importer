@@ -37,7 +37,6 @@ var (
 			Name: monitoring.MetricOptsList[monitoring.IncompleteProfile].Name,
 			Help: monitoring.MetricOptsList[monitoring.IncompleteProfile].Help,
 		})
-	globalClient client.Client
 )
 
 // StorageProfileReconciler members
@@ -202,9 +201,9 @@ func (r *StorageProfileReconciler) deleteStorageProfile(name string, log logr.Lo
 	return r.checkIncompleteProfiles()
 }
 
-func isNoProvisioner(name string) bool {
+func isNoProvisioner(name string, cl client.Client) bool {
 	storageClass := &storagev1.StorageClass{}
-	if err := globalClient.Get(context.TODO(), types.NamespacedName{Name: name}, storageClass); err != nil {
+	if err := cl.Get(context.TODO(), types.NamespacedName{Name: name}, storageClass); err != nil {
 		return false
 	}
 	return storageClass.Provisioner == "kubernetes.io/no-provisioner"
@@ -290,7 +289,6 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 	if err := c.Watch(&source.Kind{Type: &cdiv1.StorageProfile{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
-	globalClient = mgr.GetClient()
 	if err := c.Watch(&source.Kind{Type: &v1.PersistentVolume{}}, handler.EnqueueRequestsFromMapFunc(
 		func(obj client.Object) []reconcile.Request {
 			return []reconcile.Request{{
@@ -299,9 +297,9 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 		},
 	),
 		predicate.Funcs{
-			CreateFunc: func(e event.CreateEvent) bool { return isNoProvisioner(scName(e.Object)) },
-			UpdateFunc: func(e event.UpdateEvent) bool { return isNoProvisioner(scName(e.ObjectNew)) },
-			DeleteFunc: func(e event.DeleteEvent) bool { return isNoProvisioner(scName(e.Object)) },
+			CreateFunc: func(e event.CreateEvent) bool { return isNoProvisioner(scName(e.Object), mgr.GetClient()) },
+			UpdateFunc: func(e event.UpdateEvent) bool { return isNoProvisioner(scName(e.ObjectNew), mgr.GetClient()) },
+			DeleteFunc: func(e event.DeleteEvent) bool { return isNoProvisioner(scName(e.Object), mgr.GetClient()) },
 		}); err != nil {
 		return err
 	}
