@@ -33,7 +33,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	extfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,17 +59,21 @@ var (
 )
 
 var _ = Describe("All DataVolume Tests", func() {
+	var (
+		reconciler *DatavolumeReconciler
+	)
+	AfterEach(func() {
+		if reconciler != nil {
+			reconciler = nil
+		}
+	})
+
 	var _ = Describe("Datavolume controller reconcile loop", func() {
-		var (
-			reconciler *DatavolumeReconciler
-		)
 		AfterEach(func() {
-			if reconciler != nil {
+			if reconciler != nil && reconciler.recorder != nil {
 				close(reconciler.recorder.(*record.FakeRecorder).Events)
-				reconciler = nil
 			}
 		})
-
 		It("Should do nothing and return nil when no DV exists", func() {
 			reconciler = createDatavolumeReconciler()
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -575,8 +579,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			expectedSnapshotClass := "snap-class"
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
-			reconciler := createDatavolumeReconciler(sc, sp, dv, pvc, snapClass)
-			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createDatavolumeReconciler(sc, sp, dv, pvc, snapClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			By("Verifying that snapshot now exists and phase is snapshot in progress")
@@ -602,8 +605,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			expectedSnapshotClass := "snap-class"
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
-			reconciler := createDatavolumeReconciler(sc, sp, dv, pvc, snapClass)
-			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createDatavolumeReconciler(sc, sp, dv, pvc, snapClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			By("Verifying that snapshot now exists and phase is snapshot in progress")
@@ -668,8 +670,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 			expectedSnapshotClass := "snap-class"
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
-			reconciler := createDatavolumeReconciler(sc, sp, dv, pvc, snapClass, ot)
-			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createDatavolumeReconciler(sc, sp, dv, pvc, snapClass, ot, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			By("Verifying that phase is still NamespaceTransferInProgress")
@@ -691,8 +692,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			expectedSnapshotClass := "snap-class"
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
-			reconciler := createDatavolumeReconciler(sc, sp, dv, pvc, snapClass, podFunc(dv))
-			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createDatavolumeReconciler(sc, sp, dv, pvc, snapClass, podFunc(dv), createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(result.Requeue).To(BeTrue())
@@ -704,6 +704,7 @@ var _ = Describe("All DataVolume Tests", func() {
 					found = true
 				}
 			}
+			reconciler.recorder = nil
 			Expect(found).To(BeTrue())
 		},
 			Entry("read/write", func(dv *cdiv1.DataVolume) *corev1.Pod {
@@ -923,10 +924,6 @@ var _ = Describe("All DataVolume Tests", func() {
 	})
 
 	var _ = Describe("Reconcile Datavolume status", func() {
-		var (
-			reconciler *DatavolumeReconciler
-		)
-
 		DescribeTable("if no pvc exists", func(current, expected cdiv1.DataVolumePhase) {
 			reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -1265,10 +1262,6 @@ var _ = Describe("All DataVolume Tests", func() {
 	})
 
 	var _ = Describe("sourcePVCPopulated", func() {
-		var (
-			reconciler *DatavolumeReconciler
-		)
-
 		It("Should return true if source has no ownerRef", func() {
 			sourcePvc := createPvc("test", "default", nil, nil)
 			targetDv := newCloneDataVolume("test-dv")
@@ -1329,8 +1322,7 @@ var _ = Describe("All DataVolume Tests", func() {
 	var _ = Describe("Smart clone", func() {
 		It("Should err, if no source pvc provided", func() {
 			dv := newImportDataVolume("test-dv")
-			reconciler := createDatavolumeReconciler(dv)
-			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createDatavolumeReconciler(dv)
 			possible, err := reconciler.advancedClonePossible(dv, dv.Spec.PVC)
 			Expect(err).To(HaveOccurred())
 			Expect(possible).To(BeFalse())
@@ -1342,7 +1334,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			sc := createStorageClass(scName, map[string]string{
 				AnnDefaultStorageClass: "true",
 			})
-			reconciler := createDatavolumeReconciler(dv, sc)
+			reconciler = createDatavolumeReconciler(dv, sc)
 			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(snapclass).To(BeEmpty())
@@ -1354,8 +1346,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			sc := createStorageClass(scName, map[string]string{
 				AnnDefaultStorageClass: "true",
 			})
-			reconciler := createDatavolumeReconciler(dv, sc)
-			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createDatavolumeReconciler(dv, sc, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			snapshotClass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(snapshotClass).To(BeEmpty())
@@ -1367,8 +1358,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			sc := createStorageClass(scName, map[string]string{
 				AnnDefaultStorageClass: "true",
 			})
-			reconciler := createDatavolumeReconciler(dv, sc)
-			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createDatavolumeReconciler(dv, sc, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			possible, err := reconciler.advancedClonePossible(dv, dv.Spec.PVC)
 			Expect(err).To(HaveOccurred())
 			Expect(possible).To(BeFalse())
@@ -1377,8 +1367,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		It("Should not allow smart clone, if source PVC exist, but no storage class exists, and no storage class in PVC def", func() {
 			dv := newCloneDataVolume("test-dv")
 			pvc := createPvc("test", metav1.NamespaceDefault, nil, nil)
-			reconciler := createDatavolumeReconciler(dv, pvc)
-			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createDatavolumeReconciler(dv, pvc)
 			possible, err := reconciler.advancedClonePossible(dv, dv.Spec.PVC)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(possible).To(BeFalse())
@@ -1396,8 +1385,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				AnnDefaultStorageClass: "true",
 			})
 			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &sourceSc, nil, nil, corev1.ClaimBound)
-			reconciler := createDatavolumeReconciler(ssc, tsc, dv, pvc)
-			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createDatavolumeReconciler(ssc, tsc, dv, pvc)
 			possible, err := reconciler.advancedClonePossible(dv, dv.Spec.PVC)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(possible).To(BeFalse())
@@ -1408,8 +1396,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			scName := "testsc"
 			dv.Spec.PVC.StorageClassName = &scName
 			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
-			reconciler := createDatavolumeReconciler(dv, pvc)
-			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createDatavolumeReconciler(dv, pvc, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("unable to retrieve storage class"))
@@ -1424,8 +1411,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			})
 			dv.Spec.PVC.StorageClassName = &scName
 			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
-			reconciler := createDatavolumeReconciler(sc, dv, pvc)
-			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createDatavolumeReconciler(sc, dv, pvc)
 			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(snapclass).To(BeEmpty())
@@ -1441,8 +1427,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			expectedSnapshotClass := "snap-class"
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
-			reconciler := createDatavolumeReconciler(sc, dv, pvc, snapClass)
-			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createDatavolumeReconciler(sc, dv, pvc, snapClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(snapclass).To(Equal(expectedSnapshotClass))
@@ -1450,8 +1435,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 		DescribeTable("Setting clone strategy affects the output of getGlobalCloneStrategyOverride", func(expectedCloneStrategy cdiv1.CDICloneStrategy) {
 			dv := newCloneDataVolume("test-dv")
-			reconciler := createDatavolumeReconciler(dv)
-			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createDatavolumeReconciler(dv)
 
 			cr := &cdiv1.CDI{}
 			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cr)
@@ -1498,8 +1482,7 @@ var _ = Describe("All DataVolume Tests", func() {
 					[]cdiv1.ClaimPropertySet{{AccessModes: accessMode, VolumeMode: &blockMode}},
 					&strategy)
 
-				reconciler := createDatavolumeReconciler(dv, srcPvc, targetPvc, storageProfile, sc)
-				reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+				reconciler = createDatavolumeReconciler(dv, srcPvc, targetPvc, storageProfile, sc)
 
 				By("Reconcile")
 				result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -1550,8 +1533,7 @@ var _ = Describe("All DataVolume Tests", func() {
 					[]cdiv1.ClaimPropertySet{{AccessModes: accessMode, VolumeMode: &blockMode}},
 					getStrategy(preferredCloneStrategy))
 
-				reconciler := createDatavolumeReconciler(dv, pvc, storageProfile, sc)
-				reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+				reconciler = createDatavolumeReconciler(dv, pvc, storageProfile, sc)
 
 				cr := &cdiv1.CDI{}
 				err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cr)
@@ -1583,8 +1565,7 @@ var _ = Describe("All DataVolume Tests", func() {
 	})
 	var _ = Describe("Get Pod from PVC", func() {
 		var (
-			reconciler *DatavolumeReconciler
-			pvc        *corev1.PersistentVolumeClaim
+			pvc *corev1.PersistentVolumeClaim
 		)
 		BeforeEach(func() {
 			reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
@@ -1862,22 +1843,23 @@ func createDatavolumeReconcilerWithoutConfig(objects ...runtime.Object) *Datavol
 	s := scheme.Scheme
 	cdiv1.AddToScheme(s)
 	snapshotv1.AddToScheme(s)
+	extv1.AddToScheme(s)
 
 	objs = append(objs, MakeEmptyCDICR())
-
-	extfakeclientset := extfake.NewSimpleClientset()
 
 	// Create a fake client to mock API calls.
 	cl := fake.NewFakeClientWithScheme(s, objs...)
 
 	rec := record.NewFakeRecorder(10)
+
+	sccs := &fakeControllerStarter{}
+
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	r := &DatavolumeReconciler{
 		client:         cl,
 		scheme:         s,
 		log:            dvLog,
 		recorder:       rec,
-		extClientSet:   extfakeclientset,
 		featureGates:   featuregates.NewFeatureGates(cl),
 		tokenValidator: &FakeValidator{match: "foobar"},
 		tokenGenerator: &FakeGenerator{token: "foobar"},
@@ -1885,18 +1867,11 @@ func createDatavolumeReconcilerWithoutConfig(objects ...runtime.Object) *Datavol
 			common.AppKubernetesPartOfLabel:  "testing",
 			common.AppKubernetesVersionLabel: "v0.0.0-tests",
 		},
+		sccs: sccs,
 	}
 	return r
 }
-func newPvc(name string) *corev1.PersistentVolumeClaim {
-	return &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: metav1.NamespaceDefault,
-			UID:       types.UID(metav1.NamespaceDefault + "-" + name),
-		},
-	}
-}
+
 func newImportDataVolumeWithPvc(name string, pvc *corev1.PersistentVolumeClaimSpec) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
 		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
@@ -2048,4 +2023,13 @@ func newVDDKDataVolume(name string) *cdiv1.DataVolume {
 			},
 		},
 	}
+}
+
+type fakeControllerStarter struct{}
+
+func (f *fakeControllerStarter) Start(ctx context.Context) error {
+	return nil
+}
+
+func (f *fakeControllerStarter) StartController() {
 }
