@@ -15,7 +15,7 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,8 +23,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiv1utils "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1/utils"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -34,6 +32,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -493,24 +492,28 @@ func MakePodOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 }
 
 // IsCsiCrdsDeployed checks whether the CSI snapshotter CRD are deployed
-func IsCsiCrdsDeployed(c extclientset.Interface) bool {
+func IsCsiCrdsDeployed(c client.Client, log logr.Logger) bool {
 	version := "v1beta1"
 	vsClass := "volumesnapshotclasses." + snapshotv1.GroupName
 	vsContent := "volumesnapshotcontents." + snapshotv1.GroupName
 	vs := "volumesnapshots." + snapshotv1.GroupName
 
-	return isCrdDeployed(c, vsClass, version) &&
-		isCrdDeployed(c, vsContent, version) &&
-		isCrdDeployed(c, vs, version)
+	return isCrdDeployed(c, vsClass, version, log) &&
+		isCrdDeployed(c, vsContent, version, log) &&
+		isCrdDeployed(c, vs, version, log)
 }
 
-func isCrdDeployed(c extclientset.Interface, name, version string) bool {
-	obj, err := c.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), name, metav1.GetOptions{})
+func isCrdDeployed(c client.Client, name, version string, log logr.Logger) bool {
+	crd := &extv1.CustomResourceDefinition{}
+	err := c.Get(context.TODO(), types.NamespacedName{Name: name}, crd)
 	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			log.Info("Error looking up CRD", "crd name", name, "version", version, "error", err)
+		}
 		return false
 	}
 
-	for _, v := range obj.Spec.Versions {
+	for _, v := range crd.Spec.Versions {
 		if v.Name == version && v.Served {
 			return true
 		}
