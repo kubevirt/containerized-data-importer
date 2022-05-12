@@ -42,6 +42,10 @@ import (
 var (
 	storageProfileLog = logf.Log.WithName("storageprofile-controller-test")
 	storageClassName  = "testSC"
+	lsoLabels         = map[string]string{
+		"local.storage.openshift.io/owner-name":      "local",
+		"local.storage.openshift.io/owner-namespace": "openshift-local-storage",
+	}
 )
 
 var _ = Describe("Storage profile controller reconcile loop", func() {
@@ -135,7 +139,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 
 	It("Should create storage profile with default claim property set for storage class", func() {
 		scProvisioner := "rook-ceph.rbd.csi.ceph.com"
-		reconciler := createStorageProfileReconciler(createStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, scProvisioner))
+		reconciler := createStorageProfileReconciler(createStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, scProvisioner))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
@@ -155,6 +159,39 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 			claimPropertySets = append(claimPropertySets, claimPropertySet)
 		}
 		Expect(sp.Status.ClaimPropertySets).To(Equal(claimPropertySets))
+	})
+
+	It("Should find storage capabilities for no-provisioner LSO storage class", func() {
+		storageClass := createStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, lsoLabels, "kubernetes.io/no-provisioner")
+		pv := CreatePv("my-pv", storageClassName)
+
+		reconciler := createStorageProfileReconciler(storageClass, pv)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+
+		storageProfileList := &cdiv1.StorageProfileList{}
+		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(storageProfileList.Items).To(HaveLen(1))
+		sp := storageProfileList.Items[0]
+		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
+		Expect(sp.Status.ClaimPropertySets).ToNot(BeEmpty())
+	})
+
+	It("Should not have storage capabilities for no-provisioner LSO storage class if there are no PVs for it", func() {
+		storageClass := createStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, lsoLabels, "kubernetes.io/no-provisioner")
+
+		reconciler := createStorageProfileReconciler(storageClass)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+
+		storageProfileList := &cdiv1.StorageProfileList{}
+		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(storageProfileList.Items).To(HaveLen(1))
+		sp := storageProfileList.Items[0]
+		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
+		Expect(sp.Status.ClaimPropertySets).To(BeEmpty())
 	})
 
 	It("Should update storage profile with editted claim property sets", func() {

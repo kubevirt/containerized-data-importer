@@ -220,16 +220,7 @@ func GetVolumeMode(pvc *v1.PersistentVolumeClaim) v1.PersistentVolumeMode {
 
 // returns the volumeMode from PVC handling default empty value
 func getVolumeMode(pvc *v1.PersistentVolumeClaim) v1.PersistentVolumeMode {
-	return resolveVolumeMode(pvc.Spec.VolumeMode)
-}
-
-// resolveVolumeMode returns the volume mode if set, otherwise defaults to file system mode
-func resolveVolumeMode(volumeMode *v1.PersistentVolumeMode) v1.PersistentVolumeMode {
-	retVolumeMode := v1.PersistentVolumeFilesystem
-	if volumeMode != nil && *volumeMode == v1.PersistentVolumeBlock {
-		retVolumeMode = v1.PersistentVolumeBlock
-	}
-	return retVolumeMode
+	return util.ResolveVolumeMode(pvc.Spec.VolumeMode)
 }
 
 // checks if particular label exists in pvc
@@ -1098,7 +1089,7 @@ func volumeSize(c client.Client, storage *cdiv1.StorageSpec, volumeMode *v1.Pers
 	}
 
 	// disk or image size, inflate it with overhead
-	if resolveVolumeMode(volumeMode) == v1.PersistentVolumeFilesystem {
+	if util.ResolveVolumeMode(volumeMode) == v1.PersistentVolumeFilesystem {
 		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, storage.StorageClassName)
 		if err != nil {
 			return nil, err

@@ -572,7 +572,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			scName := "testsc"
 			sc := createStorageClassWithProvisioner(scName, map[string]string{
 				AnnDefaultStorageClass: "true",
-			}, "csi-plugin")
+			}, map[string]string{}, "csi-plugin")
 			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, blockMode)
 
 			dv.Spec.PVC.StorageClassName = &scName
@@ -598,7 +598,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			scName := "testsc"
 			sc := createStorageClassWithProvisioner(scName, map[string]string{
 				AnnDefaultStorageClass: "true",
-			}, "csi-plugin")
+			}, map[string]string{}, "csi-plugin")
 			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, blockMode)
 
 			dv.Spec.PVC.StorageClassName = &scName
@@ -654,7 +654,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			scName := "testsc"
 			sc := createStorageClassWithProvisioner(scName, map[string]string{
 				AnnDefaultStorageClass: "true",
-			}, "csi-plugin")
+			}, map[string]string{}, "csi-plugin")
 			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, blockMode)
 
 			dv.Spec.PVC.StorageClassName = &scName
@@ -685,7 +685,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			scName := "testsc"
 			sc := createStorageClassWithProvisioner(scName, map[string]string{
 				AnnDefaultStorageClass: "true",
-			}, "csi-plugin")
+			}, map[string]string{}, "csi-plugin")
 			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, blockMode)
 
 			dv.Spec.PVC.StorageClassName = &scName
@@ -1184,7 +1184,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			// this pvc is only used by the "clone" DV
 			srcPvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
-			sc := createStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, "csi-plugin")
+			sc := createStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
 			storageProfile := createStorageProfile(scName, nil, blockMode)
 
 			reconciler = createDatavolumeReconciler(testDv, srcPvc, sc, storageProfile)
@@ -1422,7 +1422,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			scName := "testsc"
 			sc := createStorageClassWithProvisioner(scName, map[string]string{
 				AnnDefaultStorageClass: "true",
-			}, "csi-plugin")
+			}, map[string]string{}, "csi-plugin")
 			dv.Spec.PVC.StorageClassName = &scName
 			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			expectedSnapshotClass := "snap-class"
@@ -1475,7 +1475,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				})
 				sc := createStorageClassWithProvisioner(scName, map[string]string{
 					AnnDefaultStorageClass: "true",
-				}, "csi-plugin")
+				}, map[string]string{}, "csi-plugin")
 
 				accessMode := []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}
 				storageProfile := createStorageProfileWithCloneStrategy(scName,
@@ -1526,7 +1526,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 				sc := createStorageClassWithProvisioner(scName, map[string]string{
 					AnnDefaultStorageClass: "true",
-				}, "csi-plugin")
+				}, map[string]string{}, "csi-plugin")
 
 				accessMode := []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}
 				storageProfile := createStorageProfileWithCloneStrategy(scName,

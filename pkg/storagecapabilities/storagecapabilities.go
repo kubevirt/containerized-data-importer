@@ -1,9 +1,13 @@
-// Package storagecapabilities provides the capabilities (or features) for some well known storage provisioners.
+// Provides the capabilities (or features) for some well known storage provisioners.
+
 package storagecapabilities
 
 import (
+	"context"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	"kubevirt.io/containerized-data-importer/pkg/util"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // StorageCapabilities is a simple holder of storage capabilities (accessMode etc.)
@@ -54,10 +58,62 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 }
 
 // Get finds and returns a predefined StorageCapabilities for a given StorageClass
-func Get(sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
+func Get(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
 	provisionerKey := storageProvisionerKey(sc)
+	if provisionerKey == "kubernetes.io/no-provisioner" {
+		return capabilitiesForNoProvisioner(cl, sc)
+	}
 	capabilities, found := CapabilitiesByProvisionerKey[provisionerKey]
 	return capabilities, found
+}
+
+func isLocalStorageOperator(sc *storagev1.StorageClass) bool {
+	_, found := sc.Labels["local.storage.openshift.io/owner-name"]
+	return found
+}
+
+func knownNoProvisioner(sc *storagev1.StorageClass) bool {
+	if isLocalStorageOperator(sc) {
+		return true
+	}
+	return false
+}
+
+func capabilitiesForNoProvisioner(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
+	// There's so many no-provisioner storage classes, let's start slow with the known ones.
+	if !knownNoProvisioner(sc) {
+		return []StorageCapabilities{}, false
+	}
+	pvs := &v1.PersistentVolumeList{}
+	err := cl.List(context.TODO(), pvs)
+	if err != nil {
+		return []StorageCapabilities{}, false
+	}
+	capabilities := []StorageCapabilities{}
+	for _, pv := range pvs.Items {
+		if pv.Spec.StorageClassName == sc.Name {
+			for _, accessMode := range pv.Spec.AccessModes {
+				capabilities = append(capabilities, StorageCapabilities{
+					AccessMode: accessMode,
+					VolumeMode: util.ResolveVolumeMode(pv.Spec.VolumeMode),
+				})
+			}
+		}
+	}
+	capabilities = uniqueCapabilities(capabilities)
+	return capabilities, len(capabilities) > 0
+}
+
+func uniqueCapabilities(input []StorageCapabilities) []StorageCapabilities {
+	capabilitiesMap := make(map[StorageCapabilities]bool)
+	for _, capability := range input {
+		capabilitiesMap[capability] = true
+	}
+	output := []StorageCapabilities{}
+	for capability := range capabilitiesMap {
+		output = append(output, capability)
+	}
+	return output
 }
 
 func storageProvisionerKey(sc *storagev1.StorageClass) string {

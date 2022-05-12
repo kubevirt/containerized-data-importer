@@ -15,8 +15,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -141,7 +143,7 @@ func (r *StorageProfileReconciler) getStorageProfile(sc *storagev1.StorageClass)
 
 func (r *StorageProfileReconciler) reconcilePropertySets(sc *storagev1.StorageClass) []cdiv1.ClaimPropertySet {
 	claimPropertySets := []cdiv1.ClaimPropertySet{}
-	capabilities, found := storagecapabilities.Get(sc)
+	capabilities, found := storagecapabilities.Get(r.client, sc)
 	if found {
 		for i := range capabilities {
 			claimPropertySet := cdiv1.ClaimPropertySet{
@@ -197,6 +199,14 @@ func (r *StorageProfileReconciler) deleteStorageProfile(name string, log logr.Lo
 	}
 
 	return r.checkIncompleteProfiles()
+}
+
+func isNoProvisioner(name string, cl client.Client) bool {
+	storageClass := &storagev1.StorageClass{}
+	if err := cl.Get(context.TODO(), types.NamespacedName{Name: name}, storageClass); err != nil {
+		return false
+	}
+	return storageClass.Provisioner == "kubernetes.io/no-provisioner"
 }
 
 func (r *StorageProfileReconciler) checkIncompleteProfiles() error {
@@ -279,7 +289,25 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 	if err := c.Watch(&source.Kind{Type: &cdiv1.StorageProfile{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
+	if err := c.Watch(&source.Kind{Type: &v1.PersistentVolume{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{Name: scName(obj)},
+			}}
+		},
+	),
+		predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool { return isNoProvisioner(scName(e.Object), mgr.GetClient()) },
+			UpdateFunc: func(e event.UpdateEvent) bool { return isNoProvisioner(scName(e.ObjectNew), mgr.GetClient()) },
+			DeleteFunc: func(e event.DeleteEvent) bool { return isNoProvisioner(scName(e.Object), mgr.GetClient()) },
+		}); err != nil {
+		return err
+	}
 	return nil
+}
+
+func scName(obj client.Object) string {
+	return obj.(*v1.PersistentVolume).Spec.StorageClassName
 }
 
 func isIncomplete(sets []cdiv1.ClaimPropertySet) bool {

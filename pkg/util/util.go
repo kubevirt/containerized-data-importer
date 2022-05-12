@@ -457,3 +457,12 @@ func GetUsableSpace(filesystemOverhead float64, availableSpace int64) int64 {
 	// This later conflicts with image size validation.
 	return RoundDown(spaceWithOverhead, DefaultAlignBlockSize)
 }
+
+// ResolveVolumeMode returns the volume mode if set, otherwise defaults to file system mode
+func ResolveVolumeMode(volumeMode *v1.PersistentVolumeMode) v1.PersistentVolumeMode {
+	retVolumeMode := v1.PersistentVolumeFilesystem
+	if volumeMode != nil && *volumeMode == v1.PersistentVolumeBlock {
+		retVolumeMode = v1.PersistentVolumeBlock
+	}
+	return retVolumeMode
+}

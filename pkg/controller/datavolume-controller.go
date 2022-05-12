@@ -1709,12 +1709,12 @@ func (r *DatavolumeReconciler) validateSameVolumeMode(
 	sourcePvc *corev1.PersistentVolumeClaim,
 	targetStorageClass *storagev1.StorageClass) (bool, error) {
 
-	sourceVolumeMode := resolveVolumeMode(sourcePvc.Spec.VolumeMode)
+	sourceVolumeMode := util.ResolveVolumeMode(sourcePvc.Spec.VolumeMode)
 	targetSpecVolumeMode, err := getStorageVolumeMode(r.client, dataVolume, targetStorageClass)
 	if err != nil {
 		return false, err
 	}
-	targetVolumeMode := resolveVolumeMode(targetSpecVolumeMode)
+	targetVolumeMode := util.ResolveVolumeMode(targetSpecVolumeMode)
 
 	if sourceVolumeMode != targetVolumeMode {
 		r.log.V(3).Info("Source PVC and target PVC have different volume modes, falling back to host assisted clone",
@@ -1764,7 +1764,7 @@ func (r *DatavolumeReconciler) calculateUsableSpace(srcStorageClass *storagev1.S
 	mode *corev1.PersistentVolumeMode,
 	srcRequest resource.Quantity) (resource.Quantity, error) {
 
-	if resolveVolumeMode(mode) == corev1.PersistentVolumeFilesystem {
+	if util.ResolveVolumeMode(mode) == corev1.PersistentVolumeFilesystem {
 		fsOverhead, err := GetFilesystemOverheadForStorageClass(r.client, &srcStorageClass.Name)
 		if err != nil {
 			return resource.Quantity{}, err
@@ -2445,7 +2445,7 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 	labels := map[string]string{
 		common.CDILabelKey: common.CDILabelValue,
 	}
-	if resolveVolumeMode(targetPvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
+	if util.ResolveVolumeMode(targetPvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
 		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
 	}
 	annotations := make(map[string]string)
