@@ -9,16 +9,11 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/go-logr/logr"
 	"github.com/kelseyhightower/envconfig"
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
-	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	crdinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -144,9 +139,6 @@ func start(ctx context.Context, cfg *rest.Config) {
 		os.Exit(1)
 	}
 
-	crdInformerFactory := crdinformers.NewSharedInformerFactory(extClient, common.DefaultResyncPeriod)
-	crdInformer := crdInformerFactory.Apiextensions().V1().CustomResourceDefinitions().Informer()
-
 	uploadClientCAFetcher := &fetcher.FileCertFetcher{KeyFileName: controllerEnvs.UploadClientKeyFile, CertFileName: controllerEnvs.UploadClientCertFile}
 	uploadClientBundleFetcher := &fetcher.ConfigMapCertBundleFetcher{
 		Name:   controllerEnvs.UploadClientCaBundleConfigMap,
@@ -198,11 +190,6 @@ func start(ctx context.Context, cfg *rest.Config) {
 	}
 
 	klog.V(1).Infoln("created cdi controllers")
-
-	go crdInformerFactory.Start(ctx.Done())
-
-	// Add Crd informer, so we can start the smart clone controller if we detect the CSI CRDs being installed.
-	addCrdInformerEventHandlers(crdInformer, extClient, mgr, log)
 
 	if err := mgr.Start(ctx); err != nil {
 		klog.Errorf("Error running manager: %v", err)
@@ -261,31 +248,6 @@ func createReadyFile() error {
 
 func deleteReadyFile() {
 	os.Remove(readyFile)
-}
-
-func addCrdInformerEventHandlers(crdInformer cache.SharedIndexInformer, extclient extclientset.Interface, mgr manager.Manager, log logr.Logger) {
-	crdInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			crd := obj.(*extv1.CustomResourceDefinition)
-			crdName := crd.Name
-
-			vs := "volumesnapshots." + snapshotv1.GroupName
-
-			switch crdName {
-			case vs:
-				startSmartController(extclient, mgr, log)
-			}
-		},
-	})
-}
-
-func startSmartController(extclient extclientset.Interface, mgr manager.Manager, log logr.Logger) {
-	if controller.IsCsiCrdsDeployed(extclient) {
-		log.Info("CSI CRDs detected, starting smart clone controller")
-		if _, err := controller.NewSmartCloneController(mgr, log, installerLabels); err != nil {
-			log.Error(err, "Unable to setup smart clone controller: %v")
-		}
-	}
 }
 
 func getAPIServerPublicKey() *rsa.PublicKey {
