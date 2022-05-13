@@ -43,7 +43,7 @@ load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_depe
 go_rules_dependencies()
 
 go_register_toolchains(
-    go_version = "1.17.5",
+    go_version = "1.17.10",
 )
 
 http_archive(
