@@ -39,28 +39,16 @@ fi
 
 # Create the persistent docker volume
 if [ -z "$(docker volume list | grep ${BUILDER_VOLUME})" ]; then
-    if [ "$KUBEVIRTCI_RUNTIME" = "podman" ]; then
-        docker volume create ${BUILDER_VOLUME}
-    else
-        docker volume create --name ${BUILDER_VOLUME}
-    fi
+    docker volume create ${BUILDER_VOLUME}
 fi
 
 # Make sure that the output directory exists
 echo "Making sure output directory exists..."
-if [ "$KUBEVIRTCI_RUNTIME" = "podman" ]; then
-    docker run -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable --rm --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} mkdir -p /root/go/src/kubevirt.io/containerized-data-importer/_out
-else
-    docker run -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label:disable --rm --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} mkdir -p /root/go/src/kubevirt.io/containerized-data-importer/_out
-fi
+docker run -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable --rm --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} mkdir -p /root/go/src/kubevirt.io/containerized-data-importer/_out
 
 echo "Starting rsyncd"
 # Start an rsyncd instance and make sure it gets stopped after the script exits
-if [ "$KUBEVIRTCI_RUNTIME" = "podman" ]; then
-    RSYNC_CID_CDI=$(docker run -d -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable --expose 873 -P --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} /usr/bin/rsync --no-detach --daemon --verbose)
-else
-    RSYNC_CID_CDI=$(docker run -d -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label:disable --expose 873 -P --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} /usr/bin/rsync --no-detach --daemon --verbose)
-fi
+RSYNC_CID_CDI=$(docker run -d -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable --expose 873 -P --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} /usr/bin/rsync --no-detach --daemon --verbose)
 
 function finish() {
     docker stop ${RSYNC_CID_CDI} >/dev/null 2>&1 &
@@ -129,11 +117,7 @@ fi
 
 # Ensure that a bazel server is running
 if [ -z "$(docker ps --format '{{.Names}}' | grep ${BAZEL_BUILDER_SERVER})" ]; then
-    if [ "$KUBEVIRTCI_RUNTIME" = "podman" ]; then
-        docker run --ulimit nofile=10000:10000 --network host -d ${volumes} --security-opt label=disable --name ${BAZEL_BUILDER_SERVER} -e "GOPATH=/root/go" -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
-    else
-        docker run --ulimit nofile=10000:10000 --network host -d ${volumes} --security-opt label:disable --name ${BAZEL_BUILDER_SERVER} -e "GOPATH=/root/go" -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
-    fi
+    docker run --ulimit nofile=10000:10000 --network host -d ${volumes} --security-opt label=disable --name ${BAZEL_BUILDER_SERVER} -e "GOPATH=/root/go" -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
 fi
 
 echo "Starting bazel server"
