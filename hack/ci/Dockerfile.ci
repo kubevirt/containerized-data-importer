@@ -1,10 +1,10 @@
-FROM quay.io/kubevirt/kubevirt-cdi-bazel-builder:0.0.10 AS builder
+FROM quay.io/kubevirt/kubevirt-cdi-bazel-builder:2203231247-92ab271e AS builder
 WORKDIR /go/src/github.com/kubevirt.io/containerized-data-importer
 COPY . .
 
 ENV KUBEVIRT_RUN_UNNESTED=true
 
-RUN microdnf install make docker && \
+RUN dnf -y install make podman && \
     curl -L -o /usr/bin/kubectl "https://storage.googleapis.com/kubernetes-release/release/v1.19.2/bin/linux/amd64/kubectl" && \
     chmod a+x /usr/bin/kubectl
 
