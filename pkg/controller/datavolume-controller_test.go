@@ -1453,6 +1453,59 @@ var _ = Describe("All DataVolume Tests", func() {
 			Entry("snapshot", cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
 		)
 
+		DescribeTable("After smart clone", func(actualSize resource.Quantity, currentSize resource.Quantity, expectedDvPhase cdiv1.DataVolumePhase) {
+			strategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)
+			controller := true
+
+			dv := newCloneDataVolume("test-dv")
+			scName := "testsc"
+			sc := createStorageClassWithProvisioner(scName, map[string]string{
+				AnnDefaultStorageClass: "true",
+			}, map[string]string{}, "csi-plugin")
+			accessMode := []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}
+			storageProfile := createStorageProfileWithCloneStrategy(scName,
+				[]cdiv1.ClaimPropertySet{{AccessModes: accessMode, VolumeMode: &blockMode}},
+				&strategy)
+			snapshotClassName := "snap-class"
+			snapClass := createSnapshotClass(snapshotClassName, nil, "csi-plugin")
+
+			srcPvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc := createPvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc.OwnerReferences = append(targetPvc.OwnerReferences, metav1.OwnerReference{
+				Kind:       "DataVolume",
+				Controller: &controller,
+				Name:       "test-dv",
+				UID:        dv.UID,
+			})
+			targetPvc.Spec.Resources.Requests[corev1.ResourceStorage] = currentSize
+			targetPvc.Status.Capacity[corev1.ResourceStorage] = actualSize
+			targetPvc.SetAnnotations(make(map[string]string))
+			targetPvc.GetAnnotations()[AnnCloneOf] = "true"
+
+			reconciler = createDatavolumeReconciler(dv, srcPvc, targetPvc, storageProfile, sc, snapClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+
+			By("Reconcile")
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By(fmt.Sprintf("Verifying that dv phase is now in %s", expectedDvPhase))
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(expectedDvPhase))
+
+			By("Verifying that pvc request size as expected")
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Spec.Resources.Requests[corev1.ResourceStorage]).To(Equal(resource.MustParse("1G")))
+
+		},
+			Entry("Should expand pvc when actual and current differ then the requested size", resource.MustParse("500M"), resource.MustParse("500M"), cdiv1.ExpansionInProgress),
+			Entry("Should update request size when current size differ from requested size", resource.MustParse("1G"), resource.MustParse("500M"), cdiv1.ExpansionInProgress),
+			Entry("Should complete clone in case all sizes match", resource.MustParse("1G"), resource.MustParse("1G"), cdiv1.Succeeded),
+		)
 	})
 
 	var _ = Describe("CSI clone", func() {
