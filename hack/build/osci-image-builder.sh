@@ -20,6 +20,7 @@ source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
 BUILDER_SPEC="hack/ci/Dockerfile.ci"
+BUILDER_TAG=$(date +"%y%m%d%H%M")-$(git rev-parse --short HEAD)
 
 # When building and pushing a new image we do not provide the sha hash
 # because docker assigns that for us.
