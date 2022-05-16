@@ -51,7 +51,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests th
 		if !f.IsSnapshotStorageClassAvailable() {
 			Skip("Smart Clone is not applicable")
 		}
-		var cloneStrategy cdiv1.CDICloneStrategy = cdiv1.CloneStrategyHostAssisted
+		cloneStrategy := cdiv1.CloneStrategyHostAssisted
 		cdiCr.Spec.CloneStrategyOverride = &cloneStrategy
 		_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &cdiCr, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
