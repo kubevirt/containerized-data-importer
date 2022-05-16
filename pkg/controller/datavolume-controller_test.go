@@ -1449,8 +1449,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(*cloneStrategy).To(Equal(expectedCloneStrategy))
 		},
-			Entry("copy", cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
-			Entry("snapshot", cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
+			Entry("copy", cdiv1.CloneStrategyHostAssisted),
+			Entry("snapshot", cdiv1.CloneStrategySnapshot),
 		)
 
 	})
@@ -1458,7 +1458,7 @@ var _ = Describe("All DataVolume Tests", func() {
 	var _ = Describe("CSI clone", func() {
 		DescribeTable("Starting from Failed DV",
 			func(targetPvcPhase corev1.PersistentVolumeClaimPhase, expectedDvPhase cdiv1.DataVolumePhase) {
-				strategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)
+				strategy := cdiv1.CloneStrategyCsiClone
 				controller := true
 
 				dv := newCloneDataVolume("test-dv")
@@ -1505,22 +1505,13 @@ var _ = Describe("All DataVolume Tests", func() {
 
 	var _ = Describe("Clone strategy", func() {
 		var (
-			hostAssited = cdiv1.CloneStrategyHostAssisted
-			snapshot    = cdiv1.CloneStrategySnapshot
-			csiClone    = cdiv1.CloneStrategyCsiClone
+			hostAssisted = cdiv1.CloneStrategyHostAssisted
+			snapshot     = cdiv1.CloneStrategySnapshot
+			csiClone     = cdiv1.CloneStrategyCsiClone
 		)
 
-		getStrategy := func(strategyName *string) *cdiv1.CDICloneStrategy {
-			if strategyName != nil {
-				strategy := cdiv1.CDICloneStrategy(*strategyName)
-				return &strategy
-			}
-
-			return nil
-		}
-
 		DescribeTable("Setting clone strategy affects the output of getCloneStrategy",
-			func(override, preferredCloneStrategy *string, expectedCloneStrategy cdiv1.CDICloneStrategy) {
+			func(override, preferredCloneStrategy *cdiv1.CDICloneStrategy, expectedCloneStrategy cdiv1.CDICloneStrategy) {
 				dv := newCloneDataVolume("test-dv")
 				scName := "testsc"
 				pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
@@ -1531,7 +1522,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				accessMode := []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}
 				storageProfile := createStorageProfileWithCloneStrategy(scName,
 					[]cdiv1.ClaimPropertySet{{AccessModes: accessMode, VolumeMode: &blockMode}},
-					getStrategy(preferredCloneStrategy))
+					preferredCloneStrategy)
 
 				reconciler = createDatavolumeReconciler(dv, pvc, storageProfile, sc)
 
@@ -1539,7 +1530,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cr)
 				Expect(err).ToNot(HaveOccurred())
 
-				cr.Spec.CloneStrategyOverride = getStrategy(override)
+				cr.Spec.CloneStrategyOverride = override
 				err = reconciler.client.Update(context.TODO(), cr)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1547,20 +1538,20 @@ var _ = Describe("All DataVolume Tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(*cloneStrategy).To(Equal(expectedCloneStrategy))
 			},
-			Entry("override hostAssisted /host", &hostAssited, &hostAssited, cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
-			Entry("override hostAssisted /snapshot", &hostAssited, &snapshot, cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
-			Entry("override hostAssisted /csiClone", &hostAssited, &csiClone, cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
-			Entry("override hostAssisted /nil", &hostAssited, nil, cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
+			Entry("override hostAssisted /host", &hostAssisted, &hostAssisted, cdiv1.CloneStrategyHostAssisted),
+			Entry("override hostAssisted /snapshot", &hostAssisted, &snapshot, cdiv1.CloneStrategyHostAssisted),
+			Entry("override hostAssisted /csiClone", &hostAssisted, &csiClone, cdiv1.CloneStrategyHostAssisted),
+			Entry("override hostAssisted /nil", &hostAssisted, nil, cdiv1.CloneStrategyHostAssisted),
 
-			Entry("override snapshot /host", &snapshot, &hostAssited, cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
-			Entry("override snapshot /snapshot", &snapshot, &snapshot, cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
-			Entry("override snapshot /csiClone", &snapshot, &csiClone, cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
-			Entry("override snapshot /nil", &snapshot, nil, cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
+			Entry("override snapshot /host", &snapshot, &hostAssisted, cdiv1.CloneStrategySnapshot),
+			Entry("override snapshot /snapshot", &snapshot, &snapshot, cdiv1.CloneStrategySnapshot),
+			Entry("override snapshot /csiClone", &snapshot, &csiClone, cdiv1.CloneStrategySnapshot),
+			Entry("override snapshot /nil", &snapshot, nil, cdiv1.CloneStrategySnapshot),
 
-			Entry("preferred snapshot", nil, &snapshot, cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
-			Entry("preferred hostassisted", nil, &hostAssited, cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
-			Entry("preferred csiClone", nil, &csiClone, cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)),
-			Entry("should default to snapshot", nil, nil, cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
+			Entry("preferred snapshot", nil, &snapshot, cdiv1.CloneStrategySnapshot),
+			Entry("preferred hostassisted", nil, &hostAssisted, cdiv1.CloneStrategyHostAssisted),
+			Entry("preferred csiClone", nil, &csiClone, cdiv1.CloneStrategyCsiClone),
+			Entry("should default to snapshot", nil, nil, cdiv1.CloneStrategySnapshot),
 		)
 	})
 	var _ = Describe("Get Pod from PVC", func() {
