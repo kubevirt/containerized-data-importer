@@ -400,48 +400,31 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(true))
 		})
 
-		It("should accept empty Storage spec when cloning PVC", func() {
-			storage := &cdiv1.StorageSpec{}
-			dv, pvc := newDataVolumeClone(storage, nil)
+		DescribeTable("should validate clones", func(storageSpec *cdiv1.StorageSpec, pvcSpec *corev1.PersistentVolumeClaimSpec, expected bool) {
+			dv, pvc := newDataVolumeClone(storageSpec, pvcSpec)
 			resp := validateDataVolumeCreate(dv, pvc)
-			Expect(resp.Allowed).To(Equal(true))
-		})
-
-		It("should accept blank Resources when cloning using Storage API", func() {
-			storage := &cdiv1.StorageSpec{
+			Expect(resp.Allowed).To(Equal(expected))
+		},
+			Entry("should reject clones with both nil Storage and PVC spec", nil, nil, false),
+			Entry("should reject clones with both Storage and PVC spec", &cdiv1.StorageSpec{}, &corev1.PersistentVolumeClaimSpec{}, false),
+			Entry("should accept empty Storage spec when cloning PVC", &cdiv1.StorageSpec{}, nil, true),
+			Entry("should accept blank Resources when cloning using Storage API", &cdiv1.StorageSpec{
 				Resources: corev1.ResourceRequirements{},
-			}
-			dv, pvc := newDataVolumeClone(storage, nil)
-			resp := validateDataVolumeCreate(dv, pvc)
-			Expect(resp.Allowed).To(Equal(true))
-		})
-
-		It("should accept empty Requests when cloning using Storage API", func() {
-			requests := make(map[corev1.ResourceName]resource.Quantity)
-			storage := &cdiv1.StorageSpec{
+			}, nil, true),
+			Entry("should accept empty Requests when cloning using Storage API", &cdiv1.StorageSpec{
 				Resources: corev1.ResourceRequirements{
-					Requests: requests,
+					Requests: make(map[corev1.ResourceName]resource.Quantity),
 				},
-			}
-			dv, pvc := newDataVolumeClone(storage, nil)
-			resp := validateDataVolumeCreate(dv, pvc)
-			Expect(resp.Allowed).To(Equal(true))
-		})
-
-		It("should reject empty Requests when cloning using PVC API", func() {
-			requests := make(map[corev1.ResourceName]resource.Quantity)
-			pvcSpec := &corev1.PersistentVolumeClaimSpec{
+			}, nil, true),
+			Entry("should reject empty Requests when cloning using PVC API", nil, &corev1.PersistentVolumeClaimSpec{
 				AccessModes: []corev1.PersistentVolumeAccessMode{
 					corev1.ReadWriteOnce,
 				},
 				Resources: corev1.ResourceRequirements{
-					Requests: requests,
+					Requests: make(map[corev1.ResourceName]resource.Quantity),
 				},
-			}
-			dv, pvc := newDataVolumeClone(nil, pvcSpec)
-			resp := validateDataVolumeCreate(dv, pvc)
-			Expect(resp.Allowed).To(Equal(false))
-		})
+			}, false),
+		)
 
 		It("should reject empty Requests when using Storage API without PVC source", func() {
 			httpSource := &cdiv1.DataVolumeSource{
@@ -773,7 +756,6 @@ func newDataVolumeWithStorageSpec(name string, source *cdiv1.DataVolumeSource, s
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
-			SelfLink:  fmt.Sprintf("/apis/%s/namespaces/%s/datavolumes/%s", cdiv1.SchemeGroupVersion.String(), namespace, name),
 		},
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: cdiv1.SchemeGroupVersion.String(),
@@ -784,6 +766,26 @@ func newDataVolumeWithStorageSpec(name string, source *cdiv1.DataVolumeSource, s
 			Source:    source,
 			SourceRef: sourceRef,
 			Storage:   storage,
+		},
+	}
+	return dv
+}
+
+func newDataVolumeWithoutStorageAndPVC(name string, source *cdiv1.DataVolumeSource, sourceRef *cdiv1.DataVolumeSourceRef) *cdiv1.DataVolume {
+	namespace := k8sv1.NamespaceDefault
+	dv := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: cdiv1.SchemeGroupVersion.String(),
+			Kind:       "DataVolume",
+		},
+		Status: cdiv1.DataVolumeStatus{},
+		Spec: cdiv1.DataVolumeSpec{
+			Source:    source,
+			SourceRef: sourceRef,
 		},
 	}
 	return dv
@@ -800,11 +802,15 @@ func newDataVolumeClone(storageSpec *cdiv1.StorageSpec, pvcSpec *corev1.Persiste
 	}
 
 	if storageSpec != nil && pvcSpec != nil {
-		return nil, nil
+		dv = newDataVolumeWithoutStorageAndPVC("testDV", pvcSource, nil)
+		dv.Spec.Storage = storageSpec
+		dv.Spec.PVC = pvcSpec
 	} else if storageSpec != nil {
 		dv = newDataVolumeWithStorageSpec("testDV", pvcSource, nil, storageSpec)
 	} else if pvcSpec != nil {
 		dv = newDataVolumeWithSourceRef("testDV", pvcSource, nil, pvcSpec)
+	} else {
+		dv = newDataVolumeWithoutStorageAndPVC("testDV", pvcSource, nil)
 	}
 
 	pvc := &corev1.PersistentVolumeClaim{

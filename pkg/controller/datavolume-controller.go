@@ -106,6 +106,8 @@ const (
 	CSICloneInProgress = "CSICloneInProgress"
 	// CSICloneSourceInUse provides a const to indicate a csi volume clone is being delayed because the source is in use
 	CSICloneSourceInUse = "CSICloneSourceInUse"
+	// HostAssistedCloneSourceInUse provides a const to indicate a host-assisted clone is being delayed because the source is in use
+	HostAssistedCloneSourceInUse = "HostAssistedCloneSourceInUse"
 	// CloneFailed provides a const to indicate clone has failed
 	CloneFailed = "CloneFailed"
 	// CloneSucceeded provides a const to indicate clone has succeeded
@@ -160,6 +162,8 @@ const (
 	MessageUploadFailed = "Upload into %s failed"
 	// MessageUploadSucceeded provides a const to form upload has succeeded message
 	MessageUploadSucceeded = "Successfully uploaded into %s"
+	// MessageSizeDetectionPodFailed provides a const to indicate that the size-detection pod wasn't able to obtain the image size
+	MessageSizeDetectionPodFailed = "Size-detection pod failed due to %s"
 	// ExpansionInProgress is const representing target PVC expansion
 	ExpansionInProgress = "ExpansionInProgress"
 	// MessageExpansionInProgress is a const for reporting target expansion
@@ -168,6 +172,18 @@ const (
 	NamespaceTransferInProgress = "NamespaceTransferInProgress"
 	// MessageNamespaceTransferInProgress is a const for reporting target transfer
 	MessageNamespaceTransferInProgress = "Transferring PersistentVolumeClaim for DataVolume %s/%s"
+	// SizeDetectionPodCreated provides a const to indicate that the size-detection pod has been created (reason)
+	SizeDetectionPodCreated = "SizeDetectionPodCreated"
+	// MessageSizeDetectionPodCreated provides a const to indicate that the size-detection pod has been created (message)
+	MessageSizeDetectionPodCreated = "Size-detection pod created"
+	// SizeDetectionPodNotReady reports that the size-detection pod has not finished its exectuion (reason)
+	SizeDetectionPodNotReady = "SizeDetectionPodNotReady"
+	// MessageSizeDetectionPodNotReady reports that the size-detection pod has not finished its exectuion (message)
+	MessageSizeDetectionPodNotReady = "The size detection pod is not finished yet"
+	// ImportPVCNotReady reports that it's not yet possible to access the source PVC (reason)
+	ImportPVCNotReady = "ImportPVCNotReady"
+	// MessageImportPVCNotReady reports that it's not yet possible to access the source PVC (message)
+	MessageImportPVCNotReady = "The source PVC is not fully imported"
 
 	// AnnCSICloneRequest annotation associates object with CSI Clone Request
 	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"
@@ -204,6 +220,16 @@ const (
 	CsiClone
 )
 
+// Size-detection pod error codes
+const (
+	NoErr int = iota
+	ErrBadArguments
+	ErrInvalidFile
+	ErrInvalidPath
+	ErrBadTermFile
+	ErrUnknown
+)
+
 var httpClient *http.Client
 
 // DataVolumeEvent reoresents event
@@ -213,14 +239,8 @@ type DataVolumeEvent struct {
 	message   string
 }
 
-// ErrSizeDetectionPodNotReady reports that it's not yet possible to obtain the image size from the pod
-var ErrSizeDetectionPodNotReady = fmt.Errorf("The size-detection pod is not ready yet")
-
-// ErrImportPVCNotReady reports that it's not yet possible to access the source PVC
-var ErrImportPVCNotReady = fmt.Errorf("The source PVC is not fully imported")
-
-// ErrNonValidTermMsg reports that the termination message from the size-detection pod doesn't exists or is not a valid quantity
-var ErrNonValidTermMsg = fmt.Errorf("The termination message from the size-detection pod is not-valid")
+// ErrInvalidTermMsg reports that the termination message from the size-detection pod doesn't exists or is not a valid quantity
+var ErrInvalidTermMsg = fmt.Errorf("The termination message from the size-detection pod is not-valid")
 
 // DatavolumeReconciler members
 type DatavolumeReconciler struct {
@@ -578,9 +598,11 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 	// said value can be attainable from the source PVC
 	targetRequest, hasTargetRequest := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 	if !hasTargetRequest || targetRequest.IsZero() {
-		err := r.detectCloneSize(datavolume, pvcSpec, selectedCloneStrategy)
+		done, err := r.detectCloneSize(datavolume, pvcSpec, selectedCloneStrategy)
 		if err != nil {
 			return reconcile.Result{}, err
+		} else if !done {
+			return r.reconcileSizelessClone(datavolume, selectedCloneStrategy)
 		}
 	}
 
@@ -951,6 +973,40 @@ func cloneStrategyToCloneType(selectedCloneStrategy cloneStrategy) string {
 		return "network"
 	}
 	return ""
+}
+
+// reconcileSizelessClone handles the reconciling process if the size-detection mechanism is not able to obtain the img size
+func (r *DatavolumeReconciler) reconcileSizelessClone(
+	datavolume *cdiv1.DataVolume,
+	selectedCloneStrategy cloneStrategy) (reconcile.Result, error) {
+
+	var eventReason string
+
+	switch selectedCloneStrategy {
+	case SmartClone:
+		eventReason = SmartCloneSourceInUse
+	case CsiClone:
+		eventReason = CSICloneSourceInUse
+	case HostAssistedClone:
+		eventReason = HostAssistedCloneSourceInUse
+	}
+	// Check if any pods are using the source PVC
+	inUse, err := r.sourceInUse(datavolume, eventReason)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	// Check if the source PVC is fully populated
+	populated, err := r.isSourcePVCPopulated(datavolume)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if inUse || !populated {
+		return reconcile.Result{Requeue: true},
+			r.updateCloneStatusPhase(cdiv1.CloneScheduled, datavolume, nil, selectedCloneStrategy)
+	}
+
+	return reconcile.Result{}, nil
 }
 
 func (r *DatavolumeReconciler) reconcileSmartClonePvc(log logr.Logger,
@@ -2764,12 +2820,12 @@ func getDeltaTTL(dv *cdiv1.DataVolume, ttl int32) time.Duration {
 func (r *DatavolumeReconciler) detectCloneSize(
 	dv *cdiv1.DataVolume,
 	pvcSpec *corev1.PersistentVolumeClaimSpec,
-	cloneType cloneStrategy) error {
+	cloneType cloneStrategy) (bool, error) {
 
 	var targetSize resource.Quantity
 	sourcePvc, err := r.findSourcePvc(dv)
 	if err != nil {
-		return err
+		return false, err
 	}
 	sourceSize := sourcePvc.Status.Capacity.Storage()
 
@@ -2778,38 +2834,41 @@ func (r *DatavolumeReconciler) detectCloneSize(
 	// collects the size of the original virtual image with 'qemu-img'.
 	// If another strategy is used or the original PVC's volume mode
 	// is "block", we simply extract the value from the original PVC's spec.
-	if cloneType == HostAssistedClone && getVolumeMode(sourcePvc) == corev1.PersistentVolumeFilesystem {
+	if cloneType == HostAssistedClone &&
+		getVolumeMode(sourcePvc) == corev1.PersistentVolumeFilesystem &&
+		GetContentType(sourcePvc) == string(cdiv1.DataVolumeKubeVirt) {
 		// If available, we first try to get the virtual size from previous iterations
 		imgSize, available := getSizeFromAnnotations(sourcePvc)
 		if !available {
 			imgSize, err = r.getSizeFromPod(sourcePvc, dv)
 			if err != nil {
-				return err
+				return false, err
+			} else if imgSize == 0 {
+				return false, nil
 			}
 		}
 		// Allow the clone-controller to skip the size comparison requirement
 		// if the source's size ends up being larger due to overhead differences
-		isSrcGreater := sourceSize.CmpInt64(imgSize) == 1
-		if isSrcGreater == true {
+		if sourceSize.CmpInt64(imgSize) == 1 {
 			dv.Annotations[AnnPermissiveClone] = "true"
 		}
 		// If needed, inflate size with filesystem overhead
 		targetSize, err = inflateSizeWithOverhead(r.client, imgSize, pvcSpec)
 		if err != nil {
-			return err
+			return false, err
 		}
 	} else {
 		targetSize = *sourceSize
 	}
 
 	pvcSpec.Resources.Requests[corev1.ResourceStorage] = targetSize
-	return nil
+	return true, nil
 }
 
 // getSizeFromAnnotations checks the source PVC's annotations and returns the requested size if it has already been obtained
 func getSizeFromAnnotations(sourcePvc *corev1.PersistentVolumeClaim) (int64, bool) {
 	virtualImageSize, available := sourcePvc.Annotations[AnnVirtualImageSize]
-	if available == true {
+	if available {
 		sourceCapacity, available := sourcePvc.Annotations[AnnSourceCapacity]
 		currCapacity := sourcePvc.Status.Capacity
 		// Checks if the original PVC's capacity has changed
@@ -2827,21 +2886,23 @@ func getSizeFromAnnotations(sourcePvc *corev1.PersistentVolumeClaim) (int64, boo
 func (r *DatavolumeReconciler) getSizeFromPod(sourcePvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (int64, error) {
 	// The pod should not be created until the source PVC has finished the import process
 	if !isPVCComplete(sourcePvc) {
-		return 0, ErrImportPVCNotReady
+		r.recorder.Event(dv, corev1.EventTypeNormal, ImportPVCNotReady, MessageImportPVCNotReady)
+		return 0, nil
 	}
 
-	pod, err := r.createSizeDetectionPod(sourcePvc, dv)
+	pod, err := r.getOrCreateSizeDetectionPod(sourcePvc, dv)
 	if err != nil {
 		return 0, err
 	} else if !isPodComplete(pod) {
-		return 0, ErrSizeDetectionPodNotReady
+		r.recorder.Event(dv, corev1.EventTypeNormal, SizeDetectionPodNotReady, MessageSizeDetectionPodNotReady)
+		return 0, nil
 	}
 
 	// Parse raw image size from the pod's termination message
 	if pod.Status.ContainerStatuses == nil ||
 		pod.Status.ContainerStatuses[0].State.Terminated == nil ||
 		pod.Status.ContainerStatuses[0].State.Terminated.ExitCode > 0 {
-		return 0, ErrNonValidTermMsg
+		return 0, r.handleSizeDetectionError(pod, dv, sourcePvc)
 	}
 	termMsg := pod.Status.ContainerStatuses[0].State.Terminated.Message
 	imgSize, _ := strconv.ParseInt(termMsg, 10, 64)
@@ -2850,16 +2911,18 @@ func (r *DatavolumeReconciler) getSizeFromPod(sourcePvc *corev1.PersistentVolume
 		return imgSize, err
 	}
 	// Finally, detelete the pod
-	err = r.client.Delete(context.TODO(), pod)
-	if err != nil && !k8serrors.IsNotFound(err) {
-		return imgSize, err
+	if shouldDeletePod(sourcePvc) {
+		err = r.client.Delete(context.TODO(), pod)
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return imgSize, err
+		}
 	}
 
 	return imgSize, nil
 }
 
-// createSizeDetectionPod handles the creation of the size-detection pod
-func (r *DatavolumeReconciler) createSizeDetectionPod(
+// getOrCreateSizeDetectionPod gets the size-detection pod if it already exists/creates it if not
+func (r *DatavolumeReconciler) getOrCreateSizeDetectionPod(
 	sourcePvc *corev1.PersistentVolumeClaim,
 	dv *cdiv1.DataVolume) (*corev1.Pod, error) {
 
@@ -2875,15 +2938,7 @@ func (r *DatavolumeReconciler) createSizeDetectionPod(
 		// Generate the pod spec
 		pod = r.makeSizeDetectionPodSpec(sourcePvc, dv)
 		if pod == nil {
-			return nil, errors.Errorf("Size detection pod could not be generated.")
-		}
-		// Get and assign pod's default resource requirements
-		resourceRequirements, err := GetDefaultPodResourceRequirements(r.client)
-		if err != nil {
-			return nil, err
-		}
-		if resourceRequirements != nil {
-			pod.Spec.Containers[0].Resources = *resourceRequirements
+			return nil, errors.Errorf("Size-detection pod spec could not be generated")
 		}
 		// Create the pod
 		if err := r.client.Create(context.TODO(), pod); err != nil {
@@ -2892,7 +2947,8 @@ func (r *DatavolumeReconciler) createSizeDetectionPod(
 			}
 		}
 
-		r.log.V(3).Info("Size-detection pod created\n", "pod.Name", pod.Name, "pod.Namespace", pod.Namespace)
+		r.recorder.Event(dv, corev1.EventTypeNormal, SizeDetectionPodCreated, MessageSizeDetectionPodCreated)
+		r.log.V(3).Info(MessageSizeDetectionPodCreated, "pod.Name", pod.Name, "pod.Namespace", pod.Namespace)
 	}
 
 	return pod, nil
@@ -2908,9 +2964,12 @@ func (r *DatavolumeReconciler) makeSizeDetectionPodSpec(
 		return nil
 	}
 	// Generate individual specs
-	container := makeSizeDetectionContainerSpec(r.importerImage, r.pullPolicy)
-	volume := makeSizeDetectionVolumeSpec(sourcePvc.Name)
 	objectMeta := makeSizeDetectionObjectMeta(sourcePvc, dv)
+	volume := makeSizeDetectionVolumeSpec(sourcePvc.Name)
+	container := r.makeSizeDetectionContainerSpec(volume.Name)
+	if container == nil {
+		return nil
+	}
 	// Assemble the pod
 	pod := &corev1.Pod{
 		ObjectMeta: *objectMeta,
@@ -2952,20 +3011,31 @@ func makeSizeDetectionObjectMeta(sourcePvc *corev1.PersistentVolumeClaim, dataVo
 }
 
 // makeSizeDetectionContainerSpec creates and returns the size-detection pod's Container spec
-func makeSizeDetectionContainerSpec(image, pullPolicy string) *corev1.Container {
-	return &corev1.Container{
+func (r *DatavolumeReconciler) makeSizeDetectionContainerSpec(volName string) *corev1.Container {
+	container := corev1.Container{
 		Name:            "size-detection-volume",
-		Image:           image,
-		ImagePullPolicy: corev1.PullPolicy(pullPolicy),
+		Image:           r.importerImage,
+		ImagePullPolicy: corev1.PullPolicy(r.pullPolicy),
 		Command:         []string{"/usr/bin/cdi-image-size-detection"},
-		Args:            []string{"-image-path", common.ImporterWritePath, "-termination-message-path", corev1.TerminationMessagePathDefault},
+		Args:            []string{"-image-path", common.ImporterWritePath},
 		VolumeMounts: []corev1.VolumeMount{
 			{
-				MountPath: common.ImporterDataDir,
-				Name:      DataVolName,
+				MountPath: common.ImporterVolumePath,
+				Name:      volName,
 			},
 		},
 	}
+
+	// Get and assign container's default resource requirements
+	resourceRequirements, err := GetDefaultPodResourceRequirements(r.client)
+	if err != nil {
+		return nil
+	}
+	if resourceRequirements != nil {
+		container.Resources = *resourceRequirements
+	}
+
+	return &container
 }
 
 // makeSizeDetectionVolumeSpec creates and returns the size-detection pod's Volume spec
@@ -2978,6 +3048,50 @@ func makeSizeDetectionVolumeSpec(pvcName string) *corev1.Volume {
 			},
 		},
 	}
+}
+
+// handleSizeDetectionError handles the termination of the size-detection pod in case of error
+func (r *DatavolumeReconciler) handleSizeDetectionError(pod *corev1.Pod, dv *cdiv1.DataVolume, sourcePvc *corev1.PersistentVolumeClaim) error {
+	var event DataVolumeEvent
+	var exitCode int
+
+	if pod.Status.ContainerStatuses == nil || pod.Status.ContainerStatuses[0].State.Terminated == nil {
+		exitCode = ErrUnknown
+	} else {
+		exitCode = int(pod.Status.ContainerStatuses[0].State.Terminated.ExitCode)
+	}
+
+	// We attempt to delete the pod
+	err := r.client.Delete(context.TODO(), pod)
+	if err != nil && !k8serrors.IsNotFound(err) {
+		return err
+	}
+
+	switch exitCode {
+	case ErrBadArguments:
+		event.eventType = corev1.EventTypeWarning
+		event.reason = "ErrBadArguments"
+		event.message = fmt.Sprintf(MessageSizeDetectionPodFailed, event.reason)
+	case ErrInvalidPath:
+		event.eventType = corev1.EventTypeWarning
+		event.reason = "ErrInvalidPath"
+		event.message = fmt.Sprintf(MessageSizeDetectionPodFailed, event.reason)
+	case ErrInvalidFile:
+		event.eventType = corev1.EventTypeWarning
+		event.reason = "ErrInvalidFile"
+		event.message = fmt.Sprintf(MessageSizeDetectionPodFailed, event.reason)
+	case ErrBadTermFile:
+		event.eventType = corev1.EventTypeWarning
+		event.reason = "ErrBadTermFile"
+		event.message = fmt.Sprintf(MessageSizeDetectionPodFailed, event.reason)
+	default:
+		event.eventType = corev1.EventTypeWarning
+		event.reason = "ErrUnknown"
+		event.message = fmt.Sprintf(MessageSizeDetectionPodFailed, event.reason)
+	}
+
+	r.recorder.Event(dv, event.eventType, event.reason, event.message)
+	return ErrInvalidTermMsg
 }
 
 // updateClonePVCAnnotations updates the clone-related annotations of the source PVC

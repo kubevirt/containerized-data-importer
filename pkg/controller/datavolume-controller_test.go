@@ -1613,7 +1613,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		accessMode := []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}
 		sc := createStorageClassWithProvisioner(scName, map[string]string{
 			AnnDefaultStorageClass: "true",
-		}, "csi-plugin")
+		}, map[string]string{}, "csi-plugin")
 
 		// detectCloneSize tests
 
@@ -1626,8 +1626,10 @@ var _ = Describe("All DataVolume Tests", func() {
 			reconciler := createDatavolumeReconciler(dv, storageProfile, sc)
 			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
-			err = reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
 			Expect(err).To(HaveOccurred())
+			Expect(done).To(BeFalse())
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 		})
 
 		It("Size-detection fails when source PVC is not fully imported", func() {
@@ -1641,9 +1643,19 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
-			err = reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
-			Expect(err).To(HaveOccurred())
-			Expect(err).To(Equal(ErrImportPVCNotReady))
+			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeFalse())
+			By("Checking events recorded")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, ImportPVCNotReady) {
+					found = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(found).To(BeTrue())
 		})
 
 		It("Size-detection fails when Pod is not ready", func() {
@@ -1659,9 +1671,20 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
-			err = reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
-			Expect(err).To(HaveOccurred())
-			Expect(err).To(Equal(ErrSizeDetectionPodNotReady))
+			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeFalse())
+			By("Checking events recorded")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, SizeDetectionPodNotReady) {
+					found = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(found).To(BeTrue())
+
 		})
 
 		It("Size-detection fails when pod's termination message is invalid", func() {
@@ -1684,9 +1707,15 @@ var _ = Describe("All DataVolume Tests", func() {
 			// Checks
 			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
-			err = reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(Equal(ErrNonValidTermMsg))
+			Expect(err).To(Equal(ErrInvalidTermMsg))
+			Expect(done).To(BeFalse())
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pod)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+			By("Checking error event recorded")
+			event := <-reconciler.recorder.(*record.FakeRecorder).Events
+			Expect(event).To(ContainSubstring("Size-detection pod failed due to"))
 		})
 
 		It("Should get the size from the size-detection pod", func() {
@@ -1720,13 +1749,16 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
 			expectedSize, err := inflateSizeWithOverhead(reconciler.client, int64(100), pvcSpec)
+			expectedSizeInt64, _ := expectedSize.AsInt64()
 
 			// Checks
-			err = reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeTrue())
 			Expect(dv.GetAnnotations()[AnnPermissiveClone]).To(Equal("true"))
 			targetSize := pvcSpec.Resources.Requests[corev1.ResourceStorage]
-			Expect(targetSize.Cmp(expectedSize)).To(Equal(0))
+			targetSizeInt64, _ := targetSize.AsInt64()
+			Expect(targetSizeInt64).To(Equal(expectedSizeInt64))
 		})
 
 		It("Should get the size from the source PVC's annotations", func() {
@@ -1746,13 +1778,16 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
 			expectedSize, err := inflateSizeWithOverhead(reconciler.client, int64(100), pvcSpec)
+			expectedSizeInt64, _ := expectedSize.AsInt64()
 
 			// Checks
-			err = reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeTrue())
 			Expect(dv.GetAnnotations()[AnnPermissiveClone]).To(Equal("true"))
 			targetSize := pvcSpec.Resources.Requests[corev1.ResourceStorage]
-			Expect(targetSize.Cmp(expectedSize)).To(Equal(0))
+			targetSizeInt64, _ := targetSize.AsInt64()
+			Expect(targetSizeInt64).To(Equal(expectedSizeInt64))
 		})
 
 		DescribeTable("Should automatically collect the clone size from the source PVC's spec",
@@ -1768,8 +1803,9 @@ var _ = Describe("All DataVolume Tests", func() {
 				pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 				Expect(err).ToNot(HaveOccurred())
 				expectedSize := *pvc.Status.Capacity.Storage()
-				err = reconciler.detectCloneSize(dv, pvcSpec, selectedCloneStrategy)
+				done, err := reconciler.detectCloneSize(dv, pvcSpec, selectedCloneStrategy)
 				Expect(err).ToNot(HaveOccurred())
+				Expect(done).To(BeTrue())
 				Expect(pvc.Spec.Resources.Requests.Storage().Cmp(expectedSize)).To(Equal(0))
 			},
 			Entry("snapshot with empty size and 'Block' volume mode", cdiv1.CloneStrategySnapshot, SmartClone, blockMode),
