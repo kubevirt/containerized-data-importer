@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+script_dir="$(cd "$(dirname "$0")" && pwd -P)"
+source "${script_dir}"/common.sh
+source "${script_dir}"/config.sh
 source ./cluster-up/hack/common.sh
 source ./cluster-up/cluster/ephemeral-provider-common.sh
 
@@ -36,8 +39,8 @@ function setRepo() {
 }
 
 function dockerCleanup() {
-    images=$(docker image ls | grep $REPO | awk '{print $3}')
-    names=$(docker image ls | grep $REPO | awk '{print $1}')
+    images=$(${CDI_CRI} image ls | grep $REPO | awk '{print $3}')
+    names=$(${CDI_CRI} image ls | grep $REPO | awk '{print $1}')
 
     if [ "$images" == "" ]; then
         echo "No matching images for repo "$REPO
@@ -47,7 +50,7 @@ function dockerCleanup() {
     count=0
     arr=($names)
     for image in $images; do
-        docker rmi -f $image >/dev/null 2>&1
+        ${CDI_CRI} rmi -f $image >/dev/null 2>&1
         conditionLog $? "Failed to remove "${arr[$count]} ${arr[$count]}
         count=$count+1
     done

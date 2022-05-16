@@ -27,10 +27,10 @@ BUILDER_TAG=$(date +"%y%m%d%H%M")-$(git rev-parse --short HEAD)
 UNTAGGED_BUILDER_IMAGE=quay.io/kubevirt/cdi-osci-builder
 
 # Build the encapsulated compile and test container
-docker build -f ${BUILDER_SPEC} --tag ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG} .
+${CDI_CONTAINER_BUILDCMD} build -f ${BUILDER_SPEC} --tag ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG} .
 
-DIGEST=$(docker images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
+DIGEST=$(${CDI_CONTAINER_BUILDCMD} images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
 echo "Image: ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}"
 echo "Digest: ${DIGEST}"
 
-docker push ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
+${CDI_CONTAINER_BUILDCMD} push ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
