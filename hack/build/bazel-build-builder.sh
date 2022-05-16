@@ -19,6 +19,18 @@ script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
+if [ "${CDI_CONTAINER_BUILDCMD}" = "$(which buildah)" ]; then
+    if [ -e /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
+        BUILDAH_PLATFORM_FLAG="--platform linux/amd64,linux/arm64"
+    else
+        if [ "$(uname)" = "Linux" ]; then
+            echo "Expecting qemu-user-static to be installed on the host machine, please install it"
+            exit 1
+        fi
+        BUILDAH_PLATFORM_FLAG=""
+    fi
+fi
+
 if ! git diff-index --quiet HEAD~1 hack/build/docker; then
     #Since this only runs during the post-submit job, the PR will have squashed into a single
     #commit and we can use HEAD~1 to compare.
@@ -28,13 +40,19 @@ if ! git diff-index --quiet HEAD~1 hack/build/docker; then
     echo "$DOCKER_PREFIX:$DOCKER_TAG"
 
     #Build the encapsulated compile and test container
-    (cd ${BUILDER_SPEC} && docker build --tag ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG} .)
+    if [ "${CDI_CONTAINER_BUILDCMD}" = "$(which buildah)" ]; then
+        (cd ${BUILDER_SPEC} && buildah build ${BUILDAH_PLATFORM_FLAG} --manifest ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG} .)
+    else
+        (cd ${BUILDER_SPEC} && docker build ${BUILDAH_PLATFORM_FLAG} --tag ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG} .)
+    fi
 
     DIGEST=$(docker images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
     echo "Image: ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}"
     echo "Digest: ${DIGEST}"
 
-    docker push ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
+    if [ "${CDI_CONTAINER_BUILDCMD}" = "$(which buildah)" ]; then
+        buildah manifest push --all ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG} docker://${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
+    else
+        docker push ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
+    fi
 fi
-
-
