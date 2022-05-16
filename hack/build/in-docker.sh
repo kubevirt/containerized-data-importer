@@ -24,7 +24,7 @@ WORK_DIR="/go/src/kubevirt.io/containerized-data-importer"
 
 # Execute the build
 [ -t 1 ] && USE_TTY="-it"
-docker run ${USE_TTY} \
+${CDI_CRI} run ${USE_TTY} \
     --rm \
     -v ${CDI_DIR}:${WORK_DIR}:rw,Z \
     -v ${CACHE_DIR}:/gocache:rw,Z \
