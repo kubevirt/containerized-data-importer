@@ -215,74 +215,31 @@ var _ = Describe("DataVolume Garbage Collection", func() {
 		}, 30*time.Second, time.Second).Should(BeTrue())
 	})
 
-	It("[test_id:8564] Should garbage collect dv after completion when CDIConfig DataVolumeTTLSeconds is set", func() {
-		By("Set DataVolumeTTLSeconds to 0")
-		ttl := int32(0)
-		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-			config.DataVolumeTTLSeconds = &ttl
-		})
-		Expect(err).ToNot(HaveOccurred())
-
-		dv := utils.NewDataVolumeWithHTTPImport("gc-test", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-		err = controllerutil.SetOwnerReference(config, dv, scheme.Scheme)
-		Expect(err).ToNot(HaveOccurred())
-
-		By(fmt.Sprintf("Create new datavolume %s", dv.Name))
-		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, dv)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(dv.Annotations[controller.AnnDeleteAfterCompletion]).To(Equal("true"))
-
-		By("Verify pvc was created")
-		pvc, err := utils.WaitForPVC(f.K8sClient, ns, dv.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
-
+	verifyGC := func(dvName string) {
 		By("Wait for import to be completed")
-		err = utils.WaitForDataVolumePhase(f, ns, cdiv1.Succeeded, dv.Name)
+		err = utils.WaitForDataVolumePhase(f, ns, cdiv1.Succeeded, dvName)
 		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 
 		By("Wait for DV to be garbage collected")
 		Eventually(func() bool {
-			_, err = f.CdiClient.CdiV1beta1().DataVolumes(ns).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+			_, err = f.CdiClient.CdiV1beta1().DataVolumes(ns).Get(context.TODO(), dvName, metav1.GetOptions{})
 			return k8serrors.IsNotFound(err)
 		}, timeout, pollingInterval).Should(BeTrue())
 
 		By("Verify PVC still exists")
-		pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(ns).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+		pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(ns).Get(context.TODO(), dvName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(controller.IsSucceeded(pvc)).To(BeTrue())
+		Expect(pvc.Annotations[controller.AnnDeleteAfterCompletion]).To(Equal("true"))
 
 		By("Verify PVC gets DV original OwnerReferences, and the DV reference is removed")
 		Expect(pvc.OwnerReferences).Should(HaveLen(1))
 		Expect(pvc.OwnerReferences[0].UID).Should(Equal(config.UID))
-	})
+	}
 
-	It("[test_id:8688] Should not garbage collect dv after completion when DeleteAfterCompletion annotation is false", func() {
-		By("Set DataVolumeTTLSeconds to 0")
-		ttl := int32(0)
-		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-			config.DataVolumeTTLSeconds = &ttl
-		})
-		Expect(err).ToNot(HaveOccurred())
-
-		dv := utils.NewDataVolumeWithHTTPImport("gc-test", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-		dv.Annotations[controller.AnnDeleteAfterCompletion] = "false"
-		By(fmt.Sprintf("Create new datavolume %s", dv.Name))
-		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, dv)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(dv.Annotations[controller.AnnDeleteAfterCompletion]).To(Equal("false"))
-
-		By("Verify pvc was created")
-		pvc, err := utils.WaitForPVC(f.K8sClient, ns, dv.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
-
-		By("Wait for import to be completed")
-		err = utils.WaitForDataVolumePhase(f, ns, cdiv1.Succeeded, dv.Name)
-		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
-
+	verifyNoGC := func(dvName string) {
 		By("Verify DV is not garbage collected")
-		matchString := "DataVolume is not garbage collected per annotation\t{\"Datavolume\": \"" + ns + "/" + dv.Name + "\"}"
+		matchString := "DataVolume is not garbage collected per annotation\t{\"Datavolume\": \"" + ns + "/" + dvName + "\"}"
 		fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
 		Eventually(func() string {
 			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
@@ -290,9 +247,47 @@ var _ = Describe("DataVolume Garbage Collection", func() {
 			return log
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 		Expect(err).ToNot(HaveOccurred())
-		_, err = f.CdiClient.CdiV1beta1().DataVolumes(ns).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(ns).Get(context.TODO(), dvName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-	})
+		Expect(dv.Annotations[controller.AnnDeleteAfterCompletion]).To(Equal("false"))
+	}
+
+	DescribeTable("Should", func(annDeleteAfterCompletion string, verifyGCFunc func(dvName string)) {
+		By("Set DataVolumeTTLSeconds to 0")
+		ttl := int32(0)
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			config.DataVolumeTTLSeconds = &ttl
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		dv := utils.NewDataVolumeWithHTTPImport("gc-test", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+		dv.Annotations[controller.AnnDeleteAfterCompletion] = annDeleteAfterCompletion
+		err = controllerutil.SetOwnerReference(config, dv, scheme.Scheme)
+		Expect(err).ToNot(HaveOccurred())
+
+		By(fmt.Sprintf("Create new datavolume %s", dv.Name))
+		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, ns, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		verifyGCFunc(dv.Name)
+
+		By("Verify PVC content")
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(utils.TinyCoreMD5))
+
+		By("Delete verifier pod")
+		err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+		Expect(err).ToNot(HaveOccurred())
+	},
+		Entry("[test_id:8564] garbage collect dv after completion when CDIConfig DataVolumeTTLSeconds is set", "", verifyGC),
+		Entry("[test_id:8688] not garbage collect dv after completion when DeleteAfterCompletion annotation is false", "false", verifyNoGC),
+	)
 })
 
 var _ = Describe("[Istio] Namespace sidecar injection", func() {
