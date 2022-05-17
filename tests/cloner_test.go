@@ -1782,7 +1782,7 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 			spec, err := utils.GetStorageProfileSpec(f.CdiClient, *sourcePVC.Spec.StorageClassName)
 			Expect(err).NotTo(HaveOccurred())
 
-			defaultCloneStrategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)
+			defaultCloneStrategy := cdiv1.CloneStrategySnapshot
 			cloneStrategy := &defaultCloneStrategy
 			if spec.CloneStrategy != nil {
 				cloneStrategy = spec.CloneStrategy
@@ -1792,7 +1792,7 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 			Expect(err).ToNot(HaveOccurred())
 			allowsExpansion := sc.AllowVolumeExpansion != nil && *sc.AllowVolumeExpansion
 
-			if *cloneStrategy == cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot) &&
+			if *cloneStrategy == cdiv1.CloneStrategySnapshot &&
 				sourcePVC.Spec.StorageClassName != nil &&
 				targetPVC.Spec.StorageClassName != nil &&
 				*sourcePVC.Spec.StorageClassName == *targetPVC.Spec.StorageClassName &&
@@ -1800,7 +1800,7 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 				(allowsExpansion || sourcePVC.Status.Capacity.Storage().Cmp(*targetPVC.Status.Capacity.Storage()) == 0) {
 				cloneType = "snapshot"
 			}
-			if *cloneStrategy == cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone) &&
+			if *cloneStrategy == cdiv1.CloneStrategyCsiClone &&
 				sourcePVC.Spec.StorageClassName != nil &&
 				targetPVC.Spec.StorageClassName != nil &&
 				*sourcePVC.Spec.StorageClassName == *targetPVC.Spec.StorageClassName &&

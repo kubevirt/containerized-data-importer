@@ -1562,7 +1562,7 @@ func (r *DatavolumeReconciler) calculateUsableSpace(srcStorageClass *storagev1.S
 }
 
 func (r *DatavolumeReconciler) getCloneStrategy(dataVolume *cdiv1.DataVolume) (*cdiv1.CDICloneStrategy, error) {
-	defaultCloneStrategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)
+	defaultCloneStrategy := cdiv1.CloneStrategySnapshot
 	sourcePvc, err := r.findSourcePvc(dataVolume)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
