@@ -215,7 +215,7 @@ var _ = Describe("DataVolume Garbage Collection", func() {
 		}, 30*time.Second, time.Second).Should(BeTrue())
 	})
 
-	It("[test_id:XXXX] Should garbage collect dv after completion when CDIConfig DataVolumeTTLSeconds is set", func() {
+	It("[test_id:8564] Should garbage collect dv after completion when CDIConfig DataVolumeTTLSeconds is set", func() {
 		By("Set DataVolumeTTLSeconds to 0")
 		ttl := int32(0)
 		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
@@ -237,6 +237,10 @@ var _ = Describe("DataVolume Garbage Collection", func() {
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f, ns, cdiv1.Succeeded, dv.Name)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+
 		By("Wait for DV to be garbage collected")
 		Eventually(func() bool {
 			_, err = f.CdiClient.CdiV1beta1().DataVolumes(ns).Get(context.TODO(), dv.Name, metav1.GetOptions{})
@@ -253,7 +257,7 @@ var _ = Describe("DataVolume Garbage Collection", func() {
 		Expect(pvc.OwnerReferences[0].UID).Should(Equal(config.UID))
 	})
 
-	It("[test_id:XXXX] Should not garbage collect dv after completion when DeleteAfterCompletion annotation is false", func() {
+	It("[test_id:8688] Should not garbage collect dv after completion when DeleteAfterCompletion annotation is false", func() {
 		By("Set DataVolumeTTLSeconds to 0")
 		ttl := int32(0)
 		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
@@ -278,7 +282,14 @@ var _ = Describe("DataVolume Garbage Collection", func() {
 		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 
 		By("Verify DV is not garbage collected")
-		time.Sleep(time.Second * time.Duration(ttl+1))
+		matchString := "DataVolume is not garbage collected per annotation\t{\"Datavolume\": \"" + ns + "/" + dv.Name + "\"}"
+		fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
+		Eventually(func() string {
+			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			Expect(err).NotTo(HaveOccurred())
+			return log
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+		Expect(err).ToNot(HaveOccurred())
 		_, err = f.CdiClient.CdiV1beta1().DataVolumes(ns).Get(context.TODO(), dv.Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 	})

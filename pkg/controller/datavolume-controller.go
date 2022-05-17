@@ -448,7 +448,7 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		}
 
 	} else {
-		res, err := r.garbageCollect(datavolume, pvc)
+		res, err := r.garbageCollect(datavolume, pvc, log)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -2658,7 +2658,7 @@ func newLongTermCloneTokenGenerator(key *rsa.PrivateKey) token.Generator {
 	return token.NewGenerator(common.ExtendedCloneTokenIssuer, key, 10*365*24*time.Hour)
 }
 
-func (r *DatavolumeReconciler) garbageCollect(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (*reconcile.Result, error) {
+func (r *DatavolumeReconciler) garbageCollect(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*reconcile.Result, error) {
 	if dataVolume.Status.Phase != cdiv1.Succeeded {
 		return nil, nil
 	}
@@ -2674,23 +2674,31 @@ func (r *DatavolumeReconciler) garbageCollect(dataVolume *cdiv1.DataVolume, pvc 
 	if delta := getDeltaTTL(dataVolume, *dvTTL); delta > 0 {
 		return &reconcile.Result{RequeueAfter: delta}, nil
 	}
-	if err := r.detachPvcDeleteDv(pvc, dataVolume); err != nil {
+	if err := r.detachPvcDeleteDv(pvc, dataVolume, log); err != nil {
 		return nil, err
 	}
 	return &reconcile.Result{}, nil
 }
 
-func (r *DatavolumeReconciler) detachPvcDeleteDv(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) error {
+func (r *DatavolumeReconciler) detachPvcDeleteDv(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume, log logr.Logger) error {
+	if !IsSucceeded(pvc) {
+		return nil
+	}
 	dvDelete := dv.Annotations[AnnDeleteAfterCompletion]
-	if IsSucceeded(pvc) && dvDelete == "true" {
-		updatePvcOwnerRefs(pvc, dv)
-		delete(pvc.Annotations, AnnPopulatedFor)
-		if err := r.updatePVC(pvc); err != nil {
-			return err
-		}
-		if err := r.client.Delete(context.TODO(), dv); err != nil {
-			return err
-		}
+	if dvDelete == "false" {
+		log.Info("DataVolume is not garbage collected per annotation")
+		return nil
+	}
+	if dvDelete != "true" {
+		return nil
+	}
+	updatePvcOwnerRefs(pvc, dv)
+	delete(pvc.Annotations, AnnPopulatedFor)
+	if err := r.updatePVC(pvc); err != nil {
+		return err
+	}
+	if err := r.client.Delete(context.TODO(), dv); err != nil {
+		return err
 	}
 	return nil
 }
