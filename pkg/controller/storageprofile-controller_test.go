@@ -303,9 +303,9 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
 		Expect(*sp.Status.CloneStrategy).To(Equal(cloneStrategy))
 	},
-		table.Entry("None", cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
-		table.Entry("Snapshot", cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
-		table.Entry("Clone", cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)),
+		table.Entry("None", cdiv1.CloneStrategyHostAssisted),
+		table.Entry("Snapshot", cdiv1.CloneStrategySnapshot),
+		table.Entry("Clone", cdiv1.CloneStrategyCsiClone),
 	)
 
 })

@@ -160,13 +160,13 @@ func (r *StorageProfileReconciler) reconcileCloneStrategy(sc *storagev1.StorageC
 
 	if clonestrategy == nil {
 		if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "copy" {
-			strategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)
+			strategy := cdiv1.CloneStrategyHostAssisted
 			return &strategy
 		} else if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "snapshot" {
-			strategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)
+			strategy := cdiv1.CloneStrategySnapshot
 			return &strategy
 		} else if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "csi-clone" {
-			strategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)
+			strategy := cdiv1.CloneStrategyCsiClone
 			return &strategy
 		} else {
 			return clonestrategy
