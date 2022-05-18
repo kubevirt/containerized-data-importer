@@ -1379,7 +1379,7 @@ func (r *DatavolumeReconciler) expand(log logr.Logger,
 	}
 
 	expansionRequired := actualSize.Cmp(requestedSize) < 0
-	updateRequestSizeRequired := actualSize.Cmp(requestedSize) <= 0 && requestedSize.Cmp(currentSize) > 0
+	updateRequestSizeRequired := actualSize.Cmp(requestedSize) <= 0 && currentSize.Cmp(requestedSize) < 0
 
 	log.V(3).Info("Expand sizes", "req", requestedSize, "cur", currentSize, "act", actualSize, "exp", expansionRequired)
 
