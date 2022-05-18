@@ -65,6 +65,8 @@ type Config struct {
 
 	// FeatureGates may be overridden for a framework
 	FeatureGates []string
+	// DataVolume garbage collection
+	DataVolumeTTLSeconds *int32
 }
 
 // Clients is the struct containing the client-go kubernetes clients
@@ -95,6 +97,16 @@ type Clients struct {
 	DynamicClient dynamic.Interface
 }
 
+// K8s returns Kubernetes Clientset
+func (c *Clients) K8s() *kubernetes.Clientset {
+	return c.K8sClient
+}
+
+// Cdi returns CDI Clientset
+func (c *Clients) Cdi() *cdiClientset.Clientset {
+	return c.CdiClient
+}
+
 // Framework supports common operations used by functional/e2e tests. It holds the k8s and cdi clients,
 // a generated unique namespace, run-time flags, and more fields will be added over time as cdi e2e
 // evolves. Global BeforeEach and AfterEach are called in the Framework constructor.
@@ -122,7 +134,8 @@ type Framework struct {
 // cannot work when called during test tree construction.
 func NewFramework(prefix string, config ...Config) *Framework {
 	cfg := Config{
-		FeatureGates: []string{featuregates.HonorWaitForFirstConsumer},
+		FeatureGates:         []string{featuregates.HonorWaitForFirstConsumer},
+		DataVolumeTTLSeconds: &[]int32{0}[0],
 	}
 	if len(config) > 0 {
 		cfg = config[0]
@@ -164,8 +177,7 @@ func (f *Framework) BeforeEach() {
 		createNFSPVs(f.K8sClient, f.CdiInstallNs)
 	}
 
-	ginkgo.By(fmt.Sprintf("Configuring default FeatureGates %q", f.FeatureGates))
-	f.setFeatureGates(f.FeatureGates)
+	f.updateCDIConfig()
 }
 
 // AfterEach provides a set of operations to run after each test
@@ -671,10 +683,15 @@ func (f *Framework) IsBindingModeWaitForFirstConsumer(storageClassName *string) 
 		*storageClass.VolumeBindingMode == storagev1.VolumeBindingWaitForFirstConsumer
 }
 
-func (f *Framework) setFeatureGates(defaultFeatureGates []string) {
+func (f *Framework) updateCDIConfig() {
+	ginkgo.By(fmt.Sprintf("Configuring default FeatureGates %q", f.FeatureGates))
+	if f.DataVolumeTTLSeconds != nil {
+		ginkgo.By(fmt.Sprintf("Configuring default DataVolumeTTLSeconds %d", *f.DataVolumeTTLSeconds))
+	}
 	gomega.Eventually(func() bool {
 		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-			config.FeatureGates = defaultFeatureGates
+			config.FeatureGates = f.FeatureGates
+			config.DataVolumeTTLSeconds = f.DataVolumeTTLSeconds
 		})
 		return err == nil
 	}, timeout, pollingInterval).Should(gomega.BeTrue())

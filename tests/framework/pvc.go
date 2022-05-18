@@ -65,7 +65,7 @@ func (f *Framework) ForceBindPvcIfDvIsWaitForFirstConsumer(dv *cdiv1.DataVolume)
 	pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred(), "PVC should exist")
 	if f.IsBindingModeWaitForFirstConsumer(pvc.Spec.StorageClassName) {
-		err = utils.WaitForDataVolumePhase(f.CdiClient, dv.Namespace, cdiv1.WaitForFirstConsumer, dv.Name)
+		err = utils.WaitForDataVolumePhase(f, dv.Namespace, cdiv1.WaitForFirstConsumer, dv.Name)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 		createConsumerPod(pvc, f)
 	}

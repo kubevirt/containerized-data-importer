@@ -97,7 +97,7 @@ var _ = Describe("all clone tests", func() {
 			_, err = utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 			By("Wait for target datavolume phase Succeeded")
-			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)
+			utils.WaitForDataVolumePhaseWithTimeout(f, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)
 
 			By("Find cloner source pod after completion")
 			cloner, err := utils.FindPodBySuffixOnce(f.K8sClient, targetDataVolume.Namespace, common.ClonerSourcePodNameSuffix, common.CDILabelSelector)
@@ -143,7 +143,7 @@ var _ = Describe("all clone tests", func() {
 				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
 				Expect(err).ToNot(HaveOccurred())
 				fmt.Fprintf(GinkgoWriter, "INFO: wait for target DV phase Succeeded: %s\n", targetPvc.Name)
-				utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, targetDV.Name, 3*90*time.Second)
+				utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetDV.Name, 3*90*time.Second)
 				sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, pvc, true)
 				fmt.Fprintf(GinkgoWriter, "INFO: %s\n", sourcePvcDiskGroup)
 				Expect(err).ToNot(HaveOccurred())
@@ -183,7 +183,7 @@ var _ = Describe("all clone tests", func() {
 				_, err = utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
 				Expect(err).ToNot(HaveOccurred())
 				By("Wait for target datavolume phase Succeeded")
-				utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, targetDV.Name, 3*90*time.Second)
+				utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetDV.Name, 3*90*time.Second)
 			})
 
 			DescribeTable("[test_id:1355]Should clone data across different namespaces", func(targetSize string) {
@@ -401,7 +401,7 @@ var _ = Describe("all clone tests", func() {
 				By("Wait for target PVC Bound phase")
 				utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
 				By("Wait for target DV Succeeded phase")
-				err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, "target-dv", cloneCompleteTimeout)
+				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, "target-dv", cloneCompleteTimeout)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("Source file system pvc md5summing")
@@ -447,7 +447,7 @@ var _ = Describe("all clone tests", func() {
 				By("Wait for target PVC Bound phase")
 				utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
 				By("Wait for target DV Succeeded phase")
-				err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, "target-dv", cloneCompleteTimeout)
+				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, "target-dv", cloneCompleteTimeout)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("Source block pvc md5summing")
@@ -484,6 +484,7 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				targetDV := utils.NewDataVolumeForImageCloningAndStorageSpec("target-dv", "1Gi", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
+				controller.AddAnnotation(targetDV, controller.AnnDeleteAfterCompletion, "false")
 				tagretDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
 				targetPvc, err := utils.WaitForPVC(f.K8sClient, tagretDataVolume.Namespace, tagretDataVolume.Name)
@@ -494,7 +495,7 @@ var _ = Describe("all clone tests", func() {
 				err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
 				Expect(err).ToNot(HaveOccurred())
 				By("Wait for target DV Succeeded phase")
-				err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, "target-dv", cloneCompleteTimeout)
+				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, "target-dv", cloneCompleteTimeout)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("Source file system pvc md5summing")
@@ -527,7 +528,7 @@ var _ = Describe("all clone tests", func() {
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 				By("Waiting for import to be completed")
-				utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+				utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
 
 				By("Cloning from the source DataVolume to under sized target")
 				targetDv := utils.NewDataVolumeForImageCloningAndStorageSpec("target-dv", "100Mi",
@@ -731,7 +732,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 			By("Waiting for import to be completed")
-			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+			utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
 
 			By("Calculating the md5sum of the source data volume")
 			md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+utils.DefaultImagePath)
@@ -757,7 +758,7 @@ var _ = Describe("all clone tests", func() {
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 				By("Waiting for clone to be completed")
-				err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
+				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
 				Expect(err).ToNot(HaveOccurred())
 				matchFile := filepath.Join(testBaseDir, "disk.img")
 				Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), matchFile, md5sum[:32])).To(BeTrue())
@@ -779,7 +780,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 			By("Waiting for import to be completed")
-			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+			utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
 
 			By("Calculating the md5sum of the source data volume")
 			md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
@@ -809,7 +810,7 @@ var _ = Describe("all clone tests", func() {
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 				By("Waiting for clone to be completed")
-				err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
+				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), testBaseDir, md5sum[:32])).To(BeTrue())
 				err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
@@ -851,7 +852,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 			By("Waiting for import to be completed")
-			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+			utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
 
 			if utils.IsStaticNfsWithInternalClusterServer() {
 				pvDef := framework.NfsPvDef(1, framework.ExtraNfsDiskPrefix, utils.NfsService.Spec.ClusterIP, framework.BiggerNfsPvSize)
@@ -867,7 +868,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv)
 
 			By("Waiting for clone to be completed")
-			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, targetDv.Name, 3*90*time.Second)
+			err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetDv.Name, 3*90*time.Second)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Verify target is bigger")
@@ -927,7 +928,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 			By("Waiting for import to be completed")
-			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+			utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
 
 			By("Calculating the md5sum of the source data volume")
 			md5sum, err := f.GetMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(sourceDv), utils.DefaultImagePath, 0)
@@ -949,7 +950,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv)
 
 			By("Waiting for clone to be completed")
-			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, targetDv.Name, 3*90*time.Second)
+			err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetDv.Name, 3*90*time.Second)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv), utils.DefaultImagePath, md5sum[:32])).To(BeTrue())
 			By("Deleting verifier pod")
@@ -974,7 +975,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 			By("Waiting for import to be completed")
-			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+			utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
 
 			By("Calculating the md5sum of the source data volume")
 			md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
@@ -994,7 +995,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv)
 
 			By("Waiting for clone to be completed")
-			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, targetDv.Name, 3*90*time.Second)
+			err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetDv.Name, 3*90*time.Second)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv), testBaseDir, md5sum[:32])).To(BeTrue())
 			By("Deleting verifier pod")
@@ -1031,7 +1032,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 			By("Waiting for import to be completed")
-			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+			utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
 
 			By("Calculating the md5sum of the source data volume")
 			md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+utils.DefaultImagePath)
@@ -1065,7 +1066,7 @@ var _ = Describe("all clone tests", func() {
 			dvs := []*cdiv1.DataVolume{targetDv1, targetDv2, targetDv3}
 			for _, dv := range dvs {
 				By("Waiting for clone to be completed")
-				err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
+				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
 				Expect(err).ToNot(HaveOccurred())
 			}
 
@@ -1092,7 +1093,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 			By("Waiting for import to be completed")
-			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+			utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
 
 			By("Calculating the md5sum of the source data volume")
 			md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
@@ -1121,7 +1122,7 @@ var _ = Describe("all clone tests", func() {
 			dvs := []*cdiv1.DataVolume{targetDv1, targetDv2, targetDv3}
 			for _, dv := range dvs {
 				By("Waiting for clone to be completed")
-				err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
+				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
 				Expect(err).ToNot(HaveOccurred())
 			}
 
@@ -1161,6 +1162,7 @@ var _ = Describe("all clone tests", func() {
 			f.AddNamespaceToDelete(targetNs)
 
 			targetDV := utils.NewDataVolumeCloneToBlockPV("target-dv", targetSize, sourcePvc.Namespace, sourcePvc.Name, f.BlockSCName)
+			controller.AddAnnotation(targetDV, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -1170,7 +1172,7 @@ var _ = Describe("all clone tests", func() {
 			fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 			utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
 
-			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, targetNs.Name, cdiv1.Succeeded, "target-dv", 3*90*time.Second)
+			err = utils.WaitForDataVolumePhaseWithTimeout(f, targetNs.Name, cdiv1.Succeeded, "target-dv", 3*90*time.Second)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(f.VerifyTargetPVCContentMD5(targetNs, targetPvc, testBaseDir, sourceMD5, ss.Value())).To(BeTrue())
 			By("Deleting verifier pod")
@@ -1831,7 +1833,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 	Expect(cloneAnnotationFound).To(BeTrue())
 
 	By("Verify the clone status is success on the target datavolume")
-	err = utils.WaitForDataVolumePhase(f.CdiClient, targetNs.Name, cdiv1.Succeeded, targetPvc.Name)
+	err = utils.WaitForDataVolumePhase(f, targetNs.Name, cdiv1.Succeeded, targetPvc.Name)
 	Expect(err).ToNot(HaveOccurred())
 
 	By("Verify the content")

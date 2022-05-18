@@ -3,8 +3,9 @@ package tests_test
 import (
 	"context"
 	"fmt"
-	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"time"
+
+	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
@@ -63,6 +64,7 @@ var _ = Describe("DataImportCron", func() {
 		dv := utils.NewDataVolumeWithRegistryImport(dvName, "5Gi", "")
 		dv.Spec.Source.Registry = reg
 		dv.Labels = map[string]string{common.DataImportCronLabel: cronName}
+		dv.Annotations[controller.AnnDeleteAfterCompletion] = "false"
 		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, dv)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -153,7 +155,7 @@ var _ = Describe("DataImportCron", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Wait for import completion")
-			err = utils.WaitForDataVolumePhase(f.CdiClient, ns, cdiv1.Succeeded, currentImportDv)
+			err = utils.WaitForDataVolumePhase(f, ns, cdiv1.Succeeded, currentImportDv)
 			Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 
 			By("Verify DataSource was updated")
@@ -209,7 +211,7 @@ var _ = Describe("DataImportCron", func() {
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "Last imported PVC was not re-created")
 
 			By("Wait for import completion")
-			err = utils.WaitForDataVolumePhase(f.CdiClient, ns, cdiv1.Succeeded, currentImportDv)
+			err = utils.WaitForDataVolumePhase(f, ns, cdiv1.Succeeded, currentImportDv)
 			Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 		}
 		By("Check garbage collection")

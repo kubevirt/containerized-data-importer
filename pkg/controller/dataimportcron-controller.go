@@ -135,7 +135,7 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 			return err
 		}
 	} else if isImageStreamSource(dataImportCron) && dataImportCron.Annotations[AnnNextCronTime] == "" {
-		addAnnotation(dataImportCron, AnnNextCronTime, time.Now().Format(time.RFC3339))
+		AddAnnotation(dataImportCron, AnnNextCronTime, time.Now().Format(time.RFC3339))
 	}
 	return nil
 }
@@ -221,7 +221,7 @@ func (r *DataImportCronReconciler) setNextCronTime(dataImportCron *cdiv1.DataImp
 	nextTime := expr.Next(now)
 	diffSec := time.Duration(nextTime.Sub(now).Seconds()) + 1
 	res := reconcile.Result{Requeue: true, RequeueAfter: diffSec * time.Second}
-	addAnnotation(dataImportCron, AnnNextCronTime, nextTime.Format(time.RFC3339))
+	AddAnnotation(dataImportCron, AnnNextCronTime, nextTime.Format(time.RFC3339))
 	return res, err
 }
 
@@ -368,8 +368,8 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 	}
 	if digest != "" && dataImportCron.Annotations[AnnSourceDesiredDigest] != digest {
 		log.Info("Updating DataImportCron", "digest", digest)
-		addAnnotation(dataImportCron, AnnSourceDesiredDigest, digest)
-		addAnnotation(dataImportCron, AnnImageStreamDockerRef, dockerRef)
+		AddAnnotation(dataImportCron, AnnSourceDesiredDigest, digest)
+		AddAnnotation(dataImportCron, AnnImageStreamDockerRef, dockerRef)
 	}
 	return nil
 }
@@ -818,6 +818,7 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	r.setDataImportCronResourceLabels(cron, dv)
 	passCronAnnotationToDv(cron, dv, AnnImmediateBinding)
 	passCronAnnotationToDv(cron, dv, AnnPodRetainAfterCompletion)
+	AddAnnotation(dv, AnnDeleteAfterCompletion, "false")
 	return dv
 }
 
@@ -847,7 +848,7 @@ func untagDigestedDockerURL(dockerURL string) string {
 
 func passCronAnnotationToDv(cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume, ann string) {
 	if val := cron.Annotations[ann]; val != "" {
-		addAnnotation(dv, ann, val)
+		AddAnnotation(dv, ann, val)
 	}
 }
 

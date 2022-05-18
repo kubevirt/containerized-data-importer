@@ -56,6 +56,7 @@ var _ = Describe("DataSource", func() {
 	createDv := func(pvcName, url string) {
 		By(fmt.Sprintf("creating DataVolume %s %s", pvcName, url))
 		dv := utils.NewDataVolumeWithHTTPImport(pvcName, "1Gi", url)
+		dv.Annotations[controller.AnnDeleteAfterCompletion] = "false"
 		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 		By("verifying pvc was created")

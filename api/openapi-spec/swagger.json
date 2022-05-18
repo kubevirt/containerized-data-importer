@@ -4887,6 +4887,11 @@
     "description": "CDIConfigSpec defines specification for user configuration",
     "type": "object",
     "properties": {
+     "dataVolumeTTLSeconds": {
+      "description": "dataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected.",
+      "type": "integer",
+      "format": "int32"
+     },
      "featureGates": {
       "description": "FeatureGates are a list of specific enabled feature gates",
       "type": "array",

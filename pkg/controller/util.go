@@ -67,7 +67,10 @@ const (
 	AnnPrePopulated = AnnAPIGroup + "/storage.prePopulated"
 	// AnnPriorityClassName is PVC annotation to indicate the priority class name for importer, cloner and uploader pod
 	AnnPriorityClassName = AnnAPIGroup + "/storage.pod.priorityclassname"
-	// AnnPodRetainAfterCompletion is PVC annotation for retaining transfer pods after completion)
+	// AnnDeleteAfterCompletion is PVC annotation for deleting DV after completion
+	AnnDeleteAfterCompletion = AnnAPIGroup + "/storage.deleteAfterCompletion"
+
+	// AnnPodRetainAfterCompletion is PVC annotation for retaining transfer pods after completion
 	AnnPodRetainAfterCompletion = AnnAPIGroup + "/storage.pod.retainAfterCompletion"
 
 	// AnnPreviousCheckpoint provides a const to indicate the previous snapshot for a multistage import
@@ -534,7 +537,7 @@ func podPhaseFromPVC(pvc *v1.PersistentVolumeClaim) v1.PodPhase {
 }
 
 func podSucceededFromPVC(pvc *v1.PersistentVolumeClaim) bool {
-	return (podPhaseFromPVC(pvc) == v1.PodSucceeded)
+	return podPhaseFromPVC(pvc) == v1.PodSucceeded
 }
 
 func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, prefix string) {
@@ -716,6 +719,11 @@ func IsPopulated(pvc *v1.PersistentVolumeClaim, c client.Client) (bool, error) {
 	})
 }
 
+// IsSucceeded returns if the passed in PVC import/clone/upload succeeded (even if DV was already deleted) and no current checkpoint
+func IsSucceeded(pvc *v1.PersistentVolumeClaim) bool {
+	return podSucceededFromPVC(pvc) && pvc.Annotations[AnnCurrentCheckpoint] == ""
+}
+
 // SetPodPvcAnnotations applies PVC annotations on the pod
 func SetPodPvcAnnotations(pod *v1.Pod, pvc *v1.PersistentVolumeClaim) {
 	allowedAnnotations := map[string]string{
@@ -888,7 +896,8 @@ func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNa
 	return nil
 }
 
-func addAnnotation(obj metav1.Object, key, value string) {
+// AddAnnotation adds an annotation to an object
+func AddAnnotation(obj metav1.Object, key, value string) {
 	if obj.GetAnnotations() == nil {
 		obj.SetAnnotations(make(map[string]string))
 	}

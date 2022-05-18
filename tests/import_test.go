@@ -19,6 +19,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -27,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes/scheme"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -146,7 +148,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		By("Wait for import to be completed")
-		err = utils.WaitForDataVolumePhase(f.CdiClient, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 
 		By("Find importer pod after completion")
@@ -169,7 +171,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		By("Wait for import to be completed")
-		err = utils.WaitForDataVolumePhase(f.CdiClient, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 
 		By("Find importer pods after completion")
@@ -182,6 +184,110 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		}
 	})
 
+})
+
+var _ = Describe("DataVolume Garbage Collection", func() {
+	var (
+		f        = framework.NewFramework(namespacePrefix)
+		ns       string
+		err      error
+		config   *cdiv1.CDIConfig
+		origSpec *cdiv1.CDIConfigSpec
+	)
+
+	BeforeEach(func() {
+		ns = f.Namespace.Name
+		config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		origSpec = config.Spec.DeepCopy()
+	})
+
+	AfterEach(func() {
+		By("Restoring CDIConfig to original state")
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			origSpec.DeepCopyInto(config)
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() bool {
+			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return reflect.DeepEqual(config.Spec, *origSpec)
+		}, 30*time.Second, time.Second).Should(BeTrue())
+	})
+
+	verifyGC := func(dvName string) {
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f, ns, cdiv1.Succeeded, dvName)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+
+		By("Wait for DV to be garbage collected")
+		Eventually(func() bool {
+			_, err = f.CdiClient.CdiV1beta1().DataVolumes(ns).Get(context.TODO(), dvName, metav1.GetOptions{})
+			return k8serrors.IsNotFound(err)
+		}, timeout, pollingInterval).Should(BeTrue())
+
+		By("Verify PVC still exists")
+		pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(ns).Get(context.TODO(), dvName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(controller.IsSucceeded(pvc)).To(BeTrue())
+		Expect(pvc.Annotations[controller.AnnDeleteAfterCompletion]).To(Equal("true"))
+
+		By("Verify PVC gets DV original OwnerReferences, and the DV reference is removed")
+		Expect(pvc.OwnerReferences).Should(HaveLen(1))
+		Expect(pvc.OwnerReferences[0].UID).Should(Equal(config.UID))
+	}
+
+	verifyNoGC := func(dvName string) {
+		By("Verify DV is not garbage collected")
+		matchString := "DataVolume is not garbage collected per annotation\t{\"Datavolume\": \"" + ns + "/" + dvName + "\"}"
+		fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
+		Eventually(func() string {
+			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			Expect(err).NotTo(HaveOccurred())
+			return log
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+		Expect(err).ToNot(HaveOccurred())
+		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(ns).Get(context.TODO(), dvName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Annotations[controller.AnnDeleteAfterCompletion]).To(Equal("false"))
+	}
+
+	DescribeTable("Should", func(annDeleteAfterCompletion string, verifyGCFunc func(dvName string)) {
+		By("Set DataVolumeTTLSeconds to 0")
+		ttl := int32(0)
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			config.DataVolumeTTLSeconds = &ttl
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		dv := utils.NewDataVolumeWithHTTPImport("gc-test", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+		dv.Annotations[controller.AnnDeleteAfterCompletion] = annDeleteAfterCompletion
+		err = controllerutil.SetOwnerReference(config, dv, scheme.Scheme)
+		Expect(err).ToNot(HaveOccurred())
+
+		By(fmt.Sprintf("Create new datavolume %s", dv.Name))
+		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, ns, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		verifyGCFunc(dv.Name)
+
+		By("Verify PVC content")
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(utils.TinyCoreMD5))
+
+		By("Delete verifier pod")
+		err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+		Expect(err).ToNot(HaveOccurred())
+	},
+		Entry("[test_id:8564] garbage collect dv after completion when CDIConfig DataVolumeTTLSeconds is set", "", verifyGC),
+		Entry("[test_id:8688] not garbage collect dv after completion when DeleteAfterCompletion annotation is false", "false", verifyNoGC),
+	)
 })
 
 var _ = Describe("[Istio] Namespace sidecar injection", func() {
@@ -257,7 +363,7 @@ var _ = Describe("[Istio] Namespace sidecar injection", func() {
 		}, timeout, pollingInterval).Should(BeTrue())
 
 		By("Wait for import to be completed")
-		err = utils.WaitForDataVolumePhase(f.CdiClient, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 	})
 })
@@ -498,7 +604,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		By("Waiting for import to be completed")
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
 		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 
 		By("Verifying a message was printed to indicate a request for a blank disk on a block device")
@@ -544,7 +650,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
 		zero := int64(0)
 		err = utils.DeletePodByName(f.K8sClient, fmt.Sprintf("%s-%s", common.ImporterPodName, dataVolume.Name), f.Namespace.Name, &zero)
@@ -827,6 +933,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		dvName := "import-dv"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
 		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", tinyCoreIsoURL())
+		dv.Annotations[controller.AnnDeleteAfterCompletion] = "false"
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -837,7 +944,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 		if err != nil {
 			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			if dverr != nil {
@@ -873,7 +980,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		phase := cdiv1.ImportInProgress
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 		if err != nil {
 			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			if dverr != nil {
@@ -967,7 +1074,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 		if err != nil {
 			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			if dverr != nil {
@@ -994,7 +1101,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 		if err != nil {
 			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			if dverr != nil {
@@ -1022,7 +1129,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 		if err != nil {
 			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			if dverr != nil {
@@ -1095,7 +1202,7 @@ var _ = Describe("Preallocation", func() {
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
 
 		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
@@ -1127,7 +1234,7 @@ var _ = Describe("Preallocation", func() {
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
 
 		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
@@ -1159,7 +1266,7 @@ var _ = Describe("Preallocation", func() {
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 		if err != nil {
 			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			if dverr != nil {
