@@ -1454,7 +1454,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		)
 
 		DescribeTable("After smart clone", func(actualSize resource.Quantity, currentSize resource.Quantity, expectedDvPhase cdiv1.DataVolumePhase) {
-			strategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)
+			strategy := cdiv1.CloneStrategySnapshot
 			controller := true
 
 			dv := newCloneDataVolume("test-dv")
