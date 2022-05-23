@@ -1405,7 +1405,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			scName := "testsc"
 			sc := createStorageClassWithProvisioner(scName, map[string]string{
 				AnnDefaultStorageClass: "true",
-			}, map[string]string{}, "csi-plugin")
+			}, "csi-plugin")
 			accessMode := []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}
 			storageProfile := createStorageProfileWithCloneStrategy(scName,
 				[]cdiv1.ClaimPropertySet{{AccessModes: accessMode, VolumeMode: &blockMode}},
