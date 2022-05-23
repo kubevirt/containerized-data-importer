@@ -1503,6 +1503,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 		},
 			Entry("Should expand pvc when actual and current differ then the requested size", resource.MustParse("500M"), resource.MustParse("500M"), cdiv1.ExpansionInProgress),
+			Entry("Should update request size when current size differ then the requested size and actual size is bigger then both", resource.MustParse("2G"), resource.MustParse("500M"), cdiv1.ExpansionInProgress),
 			Entry("Should update request size when current size differ from requested size", resource.MustParse("1G"), resource.MustParse("500M"), cdiv1.ExpansionInProgress),
 			Entry("Should complete clone in case all sizes match", resource.MustParse("1G"), resource.MustParse("1G"), cdiv1.Succeeded),
 		)
