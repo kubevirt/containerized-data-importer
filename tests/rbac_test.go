@@ -141,7 +141,7 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		spec := &storageProfile.Spec
-		cs := cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)
+		cs := cdiv1.CloneStrategyCsiClone
 		spec.CloneStrategy = &cs
 		err = utils.UpdateStorageProfile(crClient, profileName, *spec)
 		Expect(err).To(HaveOccurred())
@@ -203,7 +203,7 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		spec := &storageProfile.Spec
-		cs := cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)
+		cs := cdiv1.CloneStrategyCsiClone
 		spec.CloneStrategy = &cs
 		err = utils.UpdateStorageProfile(crClient, profileName, *spec)
 		Expect(err).To(HaveOccurred())
