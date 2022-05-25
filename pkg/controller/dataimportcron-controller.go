@@ -247,9 +247,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	log := r.log.WithName("update")
 	res := reconcile.Result{}
 
-	now := metav1.Now()
-	dataImportCron.Status.LastExecutionTimestamp = &now
-
+	dataImportCronCopy := dataImportCron.DeepCopy()
 	importSucceeded := false
 	imports := dataImportCron.Status.CurrentImports
 	dataVolume := &cdiv1.DataVolume{}
@@ -324,8 +322,10 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "No source digest", noDigest)
 	}
 
-	if err := r.client.Update(ctx, dataImportCron); err != nil {
-		return res, err
+	if !reflect.DeepEqual(dataImportCron, dataImportCronCopy) {
+		if err := r.client.Update(ctx, dataImportCron); err != nil {
+			return res, err
+		}
 	}
 	return res, nil
 }
@@ -358,6 +358,7 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 	if regSource.ImageStream == nil {
 		return nil
 	}
+	now := metav1.Now()
 	imageStream, imageStreamTag, err := r.getImageStream(ctx, *regSource.ImageStream, dataImportCron.Namespace)
 	if err != nil {
 		return err
@@ -366,6 +367,7 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 	if err != nil {
 		return err
 	}
+	dataImportCron.Status.LastExecutionTimestamp = &now
 	if digest != "" && dataImportCron.Annotations[AnnSourceDesiredDigest] != digest {
 		log.Info("Updating DataImportCron", "digest", digest)
 		AddAnnotation(dataImportCron, AnnSourceDesiredDigest, digest)
