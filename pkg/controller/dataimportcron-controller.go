@@ -95,6 +95,8 @@ const (
 	AnnImageStreamDockerRef = AnnAPIGroup + "/storage.import.imageStreamDockerRef"
 	// AnnNextCronTime is the next time stamp which satisfies the cron expression
 	AnnNextCronTime = AnnAPIGroup + "/storage.import.nextCronTime"
+	// AnnLastCronTime is the cron last execution time stamp
+	AnnLastCronTime = AnnAPIGroup + "/storage.import.lastCronTime"
 
 	dataImportControllerName    = "dataimportcron-controller"
 	digestPrefix                = "sha256:"
@@ -268,7 +270,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		switch dataVolume.Status.Phase {
 		case cdiv1.Succeeded:
 			importSucceeded = true
-			if err := r.updateDataImportCronOnSuccess(ctx, dataImportCron); err != nil {
+			if err := updateDataImportCronOnSuccess(dataImportCron); err != nil {
 				return res, err
 			}
 			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "No current import", noImport)
@@ -322,6 +324,10 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "No source digest", noDigest)
 	}
 
+	if err := updateLastExecutionTimestamp(dataImportCron); err != nil {
+		return res, err
+	}
+
 	if !reflect.DeepEqual(dataImportCron, dataImportCronCopy) {
 		if err := r.client.Update(ctx, dataImportCron); err != nil {
 			return res, err
@@ -358,7 +364,6 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 	if regSource.ImageStream == nil {
 		return nil
 	}
-	now := metav1.Now()
 	imageStream, imageStreamTag, err := r.getImageStream(ctx, *regSource.ImageStream, dataImportCron.Namespace)
 	if err != nil {
 		return err
@@ -367,7 +372,7 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 	if err != nil {
 		return err
 	}
-	dataImportCron.Status.LastExecutionTimestamp = &now
+	AddAnnotation(dataImportCron, AnnLastCronTime, time.Now().Format(time.RFC3339))
 	if digest != "" && dataImportCron.Annotations[AnnSourceDesiredDigest] != digest {
 		log.Info("Updating DataImportCron", "digest", digest)
 		addAnnotation(dataImportCron, AnnSourceDesiredDigest, digest)
@@ -410,7 +415,7 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 	return nil
 }
 
-func (r *DataImportCronReconciler) updateDataImportCronOnSuccess(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+func updateDataImportCronOnSuccess(dataImportCron *cdiv1.DataImportCron) error {
 	if dataImportCron.Status.CurrentImports == nil {
 		return errors.Errorf("No CurrentImports in cron %s", dataImportCron.Name)
 	}
@@ -422,6 +427,21 @@ func (r *DataImportCronReconciler) updateDataImportCronOnSuccess(ctx context.Con
 		dataImportCron.Status.LastImportedPVC = sourcePVC
 		now := metav1.Now()
 		dataImportCron.Status.LastImportTimestamp = &now
+	}
+	return nil
+}
+
+func updateLastExecutionTimestamp(cron *cdiv1.DataImportCron) error {
+	lastTimeStr := cron.Annotations[AnnLastCronTime]
+	if lastTimeStr == "" {
+		return nil
+	}
+	lastTime, err := time.Parse(time.RFC3339, lastTimeStr)
+	if err != nil {
+		return err
+	}
+	if ts := cron.Status.LastExecutionTimestamp; ts == nil || ts.Time != lastTime {
+		cron.Status.LastExecutionTimestamp = &metav1.Time{lastTime}
 	}
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
@@ -47,7 +48,6 @@ func init() {
 }
 
 func main() {
-	now := metav1.Now()
 	digest, err := importer.GetImageDigest(url, accessKey, secretKey, certDir, insecureTLS)
 	if err != nil {
 		os.Exit(1)
@@ -67,15 +67,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed getting DataImportCron %s/%s: %v", cronNamespace, cronName, err)
 	}
-	dataImportCron.Status.LastExecutionTimestamp = &now
+	controller.AddAnnotation(dataImportCron, controller.AnnLastCronTime, time.Now().Format(time.RFC3339))
 
 	imports := dataImportCron.Status.CurrentImports
 	if digest != "" && (imports == nil || digest != imports[0].Digest) &&
 		digest != dataImportCron.Annotations[controller.AnnSourceDesiredDigest] {
-		if dataImportCron.Annotations == nil {
-			dataImportCron.Annotations = make(map[string]string)
-		}
-		dataImportCron.Annotations[controller.AnnSourceDesiredDigest] = digest
+		controller.AddAnnotation(dataImportCron, controller.AnnSourceDesiredDigest, digest)
 		fmt.Println("Digest updated")
 	} else {
 		fmt.Println("No digest update")
