@@ -53,6 +53,9 @@ void *fakevddk_open(int readonly) {
     return (void *) &fd;
 }
 
+// Avoid requiring glibc 2.33 by using the older fstat
+extern int __fxstat(int, int, struct stat *);
+#define fstat(fd, buf) __fxstat(1, fd, buf)
 int64_t fakevddk_get_size(void *handle) {
     struct stat info;
     fstat(*((int *) handle), &info);
