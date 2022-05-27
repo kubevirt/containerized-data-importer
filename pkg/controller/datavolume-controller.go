@@ -602,7 +602,14 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 		if err != nil {
 			return reconcile.Result{}, err
 		} else if !done {
-			return r.reconcileSizelessClone(datavolume, selectedCloneStrategy)
+			// Check if the source PVC is ready to be cloned
+			if readyToClone, err := r.isSourceReadyToClone(datavolume, selectedCloneStrategy); err != nil {
+				return reconcile.Result{}, err
+			} else if !readyToClone {
+				return reconcile.Result{Requeue: true},
+					r.updateCloneStatusPhase(cdiv1.CloneScheduled, datavolume, nil, selectedCloneStrategy)
+			}
+			return reconcile.Result{}, nil
 		}
 	}
 
@@ -817,15 +824,10 @@ func (r *DatavolumeReconciler) reconcileCsiClonePvc(log logr.Logger,
 		return reconcile.Result{}, err
 	}
 
-	inUse, err := r.sourceInUse(datavolume, CSICloneSourceInUse)
-	if err != nil {
+	// Check if the source PVC is ready to be cloned
+	if readyToClone, err := r.isSourceReadyToClone(datavolume, CsiClone); err != nil {
 		return reconcile.Result{}, err
-	}
-	populated, err := r.isSourcePVCPopulated(datavolume)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-	if inUse || !populated {
+	} else if !readyToClone {
 		return reconcile.Result{Requeue: true},
 			r.updateCloneStatusPhase(cdiv1.CloneScheduled, datavolume, nil, CsiClone)
 	}
@@ -975,40 +977,6 @@ func cloneStrategyToCloneType(selectedCloneStrategy cloneStrategy) string {
 	return ""
 }
 
-// reconcileSizelessClone handles the reconciling process if the size-detection mechanism is not able to obtain the img size
-func (r *DatavolumeReconciler) reconcileSizelessClone(
-	datavolume *cdiv1.DataVolume,
-	selectedCloneStrategy cloneStrategy) (reconcile.Result, error) {
-
-	var eventReason string
-
-	switch selectedCloneStrategy {
-	case SmartClone:
-		eventReason = SmartCloneSourceInUse
-	case CsiClone:
-		eventReason = CSICloneSourceInUse
-	case HostAssistedClone:
-		eventReason = HostAssistedCloneSourceInUse
-	}
-	// Check if any pods are using the source PVC
-	inUse, err := r.sourceInUse(datavolume, eventReason)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-	// Check if the source PVC is fully populated
-	populated, err := r.isSourcePVCPopulated(datavolume)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	if inUse || !populated {
-		return reconcile.Result{Requeue: true},
-			r.updateCloneStatusPhase(cdiv1.CloneScheduled, datavolume, nil, selectedCloneStrategy)
-	}
-
-	return reconcile.Result{}, nil
-}
-
 func (r *DatavolumeReconciler) reconcileSmartClonePvc(log logr.Logger,
 	datavolume *cdiv1.DataVolume,
 	pvcSpec *corev1.PersistentVolumeClaimSpec,
@@ -1045,15 +1013,10 @@ func (r *DatavolumeReconciler) reconcileSmartClonePvc(log logr.Logger,
 			return reconcile.Result{}, err
 		}
 
-		inUse, err := r.sourceInUse(datavolume, SmartCloneSourceInUse)
-		if err != nil {
+		// Check if the source PVC is ready to be cloned
+		if readyToClone, err := r.isSourceReadyToClone(datavolume, SmartClone); err != nil {
 			return reconcile.Result{}, err
-		}
-		populated, err := r.isSourcePVCPopulated(datavolume)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-		if inUse || !populated {
+		} else if !readyToClone {
 			return reconcile.Result{Requeue: true},
 				r.updateCloneStatusPhase(cdiv1.CloneScheduled, datavolume, nil, SmartClone)
 		}
@@ -2816,13 +2779,46 @@ func getDeltaTTL(dv *cdiv1.DataVolume, ttl int32) time.Duration {
 	return delta
 }
 
+// isSourceReadyToClone handles the reconciling process of a clone when the source PVC is not ready
+func (r *DatavolumeReconciler) isSourceReadyToClone(
+	datavolume *cdiv1.DataVolume,
+	selectedCloneStrategy cloneStrategy) (bool, error) {
+
+	var eventReason string
+
+	switch selectedCloneStrategy {
+	case SmartClone:
+		eventReason = SmartCloneSourceInUse
+	case CsiClone:
+		eventReason = CSICloneSourceInUse
+	case HostAssistedClone:
+		eventReason = HostAssistedCloneSourceInUse
+	}
+	// Check if any pods are using the source PVC
+	inUse, err := r.sourceInUse(datavolume, eventReason)
+	if err != nil {
+		return false, err
+	}
+	// Check if the source PVC is fully populated
+	populated, err := r.isSourcePVCPopulated(datavolume)
+	if err != nil {
+		return false, err
+	}
+
+	if inUse || !populated {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 // detectCloneSize obtains and assigns the original PVC's size when cloning using an empty storage value
 func (r *DatavolumeReconciler) detectCloneSize(
 	dv *cdiv1.DataVolume,
 	pvcSpec *corev1.PersistentVolumeClaimSpec,
 	cloneType cloneStrategy) (bool, error) {
 
-	var targetSize resource.Quantity
+	var targetSize int64
 	sourcePvc, err := r.findSourcePvc(dv)
 	if err != nil {
 		return false, err
@@ -2837,31 +2833,33 @@ func (r *DatavolumeReconciler) detectCloneSize(
 	if cloneType == HostAssistedClone &&
 		getVolumeMode(sourcePvc) == corev1.PersistentVolumeFilesystem &&
 		GetContentType(sourcePvc) == string(cdiv1.DataVolumeKubeVirt) {
+		var available bool
 		// If available, we first try to get the virtual size from previous iterations
-		imgSize, available := getSizeFromAnnotations(sourcePvc)
+		targetSize, available = getSizeFromAnnotations(sourcePvc)
 		if !available {
-			imgSize, err = r.getSizeFromPod(sourcePvc, dv)
+			targetSize, err = r.getSizeFromPod(sourcePvc, dv)
 			if err != nil {
 				return false, err
-			} else if imgSize == 0 {
+			} else if targetSize == 0 {
 				return false, nil
 			}
 		}
 		// Allow the clone-controller to skip the size comparison requirement
 		// if the source's size ends up being larger due to overhead differences
-		if sourceSize.CmpInt64(imgSize) == 1 {
+		if sourceSize.CmpInt64(targetSize) == 1 {
 			dv.Annotations[AnnPermissiveClone] = "true"
 		}
-		// If needed, inflate size with filesystem overhead
-		targetSize, err = inflateSizeWithOverhead(r.client, imgSize, pvcSpec)
-		if err != nil {
-			return false, err
-		}
 	} else {
-		targetSize = *sourceSize
+		targetSize, _ = sourceSize.AsInt64()
 	}
 
-	pvcSpec.Resources.Requests[corev1.ResourceStorage] = targetSize
+	// Parse size into a 'Quantity' struct and, if needed, inflate it with filesystem overhead
+	targetCapacity, err := inflateSizeWithOverhead(r.client, targetSize, pvcSpec)
+	if err != nil {
+		return false, err
+	}
+
+	pvcSpec.Resources.Requests[corev1.ResourceStorage] = targetCapacity
 	return true, nil
 }
 

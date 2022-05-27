@@ -597,11 +597,6 @@ var _ = Describe("all clone tests", func() {
 						if !f.IsBlockVolumeStorageClassAvailable() {
 							Skip("Storage Class for block volume is not available")
 						}
-						// TODO: This case seems to fail due to a pre-existing, unrelated bug. This 'Skip'
-						// should be removed once the bug is fixed
-						if targetVolumeMode == v1.PersistentVolumeFilesystem {
-							Skip("VolumeMode combination doesn't currently work when using the same size")
-						}
 						sourceSCName = f.BlockSCName
 						sourceDiskImagePath = testBaseDir
 					}
@@ -615,7 +610,7 @@ var _ = Describe("all clone tests", func() {
 					}
 
 					// Create the source DV
-					dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "200Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+					dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 					dataVolume.Spec.Storage.VolumeMode = &sourceVolumeMode
 					if sourceSCName != "" {
 						dataVolume.Spec.Storage.StorageClassName = &sourceSCName
