@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
@@ -64,21 +65,25 @@ func main() {
 
 	dataImportCron, err := cdiClient.CdiV1beta1().DataImportCrons(cronNamespace).Get(context.TODO(), cronName, metav1.GetOptions{})
 	if err != nil {
-		log.Fatalf("Failed getting DataImportCron, cronNamespace %s cronName %s: %v", cronNamespace, cronName, err)
+		log.Fatalf("Failed getting DataImportCron %s/%s: %v", cronNamespace, cronName, err)
 	}
+
+	if dataImportCron.Annotations == nil {
+		dataImportCron.Annotations = make(map[string]string)
+	}
+	dataImportCron.Annotations[controller.AnnLastCronTime] = time.Now().Format(time.RFC3339)
+
 	imports := dataImportCron.Status.CurrentImports
 	if digest != "" && (imports == nil || digest != imports[0].Digest) &&
 		digest != dataImportCron.Annotations[controller.AnnSourceDesiredDigest] {
-		if dataImportCron.Annotations == nil {
-			dataImportCron.Annotations = make(map[string]string)
-		}
 		dataImportCron.Annotations[controller.AnnSourceDesiredDigest] = digest
-		dataImportCron, err = cdiClient.CdiV1beta1().DataImportCrons(cronNamespace).Update(context.TODO(), dataImportCron, metav1.UpdateOptions{})
-		if err != nil {
-			log.Fatalf("Failed updating DataImportCron, cronNamespace %s cronName %s: %v", cronNamespace, cronName, err)
-		}
-		fmt.Println("Updated DataImportCron", dataImportCron.Name)
+		fmt.Println("Digest updated")
 	} else {
-		fmt.Println("No update to DataImportCron", dataImportCron.Name)
+		fmt.Println("No digest update")
+	}
+
+	_, err = cdiClient.CdiV1beta1().DataImportCrons(cronNamespace).Update(context.TODO(), dataImportCron, metav1.UpdateOptions{})
+	if err != nil {
+		log.Fatalf("Failed updating DataImportCron %s/%s: %v", cronNamespace, cronName, err)
 	}
 }

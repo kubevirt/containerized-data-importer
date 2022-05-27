@@ -195,7 +195,6 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
 			verifyConditions("Import in progress", true, false, false, inProgress, inProgress, noPvc)
-			Expect(cron.Status.LastExecutionTimestamp).ToNot(BeNil())
 
 			dv.Status.Phase = cdiv1.Succeeded
 			err = reconciler.client.Update(context.TODO(), dv)
