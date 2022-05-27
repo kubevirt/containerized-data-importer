@@ -409,12 +409,10 @@ func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.Ad
 func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.DataVolumeSourcePVC, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) *metav1.StatusCause {
 	sourcePVC, err := wh.k8sClient.CoreV1().PersistentVolumeClaims(PVC.Namespace).Get(context.TODO(), PVC.Name, metav1.GetOptions{})
 	if err != nil {
+		// We should enable the creation of a clone even when the source PVC doesn't exists.
+		// This check will later be used when the source PVC is created.
 		if k8serrors.IsNotFound(err) {
-			return &metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueNotFound,
-				Message: fmt.Sprintf("Source PVC %s/%s not found", PVC.Namespace, PVC.Name),
-				Field:   field.String(),
-			}
+			return nil
 		}
 		return &metav1.StatusCause{
 			Message: err.Error(),
