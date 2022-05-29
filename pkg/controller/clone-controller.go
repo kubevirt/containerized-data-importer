@@ -36,6 +36,10 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 )
 
+var (
+	retryWithoutReadonlyThreshold = time.Minute
+)
+
 const (
 	//AnnCloneRequest sets our expected annotation for a CloneRequest
 	AnnCloneRequest = "k8s.io/CloneRequest"
@@ -45,6 +49,8 @@ const (
 	AnnCloneToken = "cdi.kubevirt.io/storage.clone.token"
 	// AnnExtendedCloneToken is the annotation containing the long term clone token
 	AnnExtendedCloneToken = "cdi.kubevirt.io/storage.extended.clone.token"
+	// AnnRetryWithoutReadonly is the annotation telling us to retry without having source PVC as readonly
+	AnnRetryWithoutReadonly = "cdi.kubevirt.io/storage.clone.retryNoReadonly"
 
 	//CloneUniqueID is used as a special label to be used when we search for the pod
 	CloneUniqueID = "cdi.kubevirt.io/storage.clone.cloneUniqeId"
@@ -248,45 +254,70 @@ func (r *CloneReconciler) Reconcile(_ context.Context, req reconcile.Request) (r
 }
 
 func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *corev1.PersistentVolumeClaim, log logr.Logger) (time.Duration, error) {
-	if sourcePod == nil {
-		sourcePvc, err := r.getCloneRequestSourcePVC(targetPvc)
-		if err != nil {
-			return 0, err
+	if sourcePod != nil {
+		if sourcePod.Status.Phase != corev1.PodPending {
+			return 0, nil
 		}
 
-		sourcePopulated, err := IsPopulated(sourcePvc, r.client)
-		if err != nil {
-			return 0, err
-		}
-		if !sourcePopulated {
-			return 2 * time.Second, nil
-		}
-
-		if err := r.validateSourceAndTarget(sourcePvc, targetPvc); err != nil {
-			return 0, err
-		}
-
-		pods, err := GetPodsUsingPVCs(r.client, sourcePvc.Namespace, sets.NewString(sourcePvc.Name), true)
-		if err != nil {
-			return 0, err
-		}
-
-		if len(pods) > 0 {
-			for _, pod := range pods {
-				r.log.V(1).Info("can't create clone source pod, pvc in use by other pod",
-					"namespace", sourcePvc.Namespace, "name", sourcePvc.Name, "pod", pod.Name)
-				r.recorder.Eventf(targetPvc, corev1.EventTypeWarning, CloneSourceInUse,
-					"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, sourcePvc.Name)
+		t1 := time.Now().Unix()
+		t2 := sourcePod.GetCreationTimestamp().Unix()
+		if diff := time.Duration(t1 - t2); diff >= retryWithoutReadonlyThreshold {
+			// Source pod pending for a while, possibly because storage driver does not allow readonly
+			// Delete and recreate without readonly: true
+			annCopy := util.MergeLabels(targetPvc.GetAnnotations(), map[string]string{})
+			targetPvc.GetAnnotations()[AnnRetryWithoutReadonly] = "true"
+			if !reflect.DeepEqual(annCopy, targetPvc.GetAnnotations()) {
+				if err := r.updatePVC(targetPvc); err != nil {
+					return 0, errors.Wrap(err, "source pod annotation retryNoReadonly update errored")
+				}
 			}
-			return 2 * time.Second, nil
+			if err := r.client.Delete(context.TODO(), sourcePod); err != nil {
+				return 0, errors.Wrap(err, "source pod API delete errored")
+			}
+
+			return time.Second, nil
 		}
 
-		sourcePod, err := r.CreateCloneSourcePod(r.image, r.pullPolicy, targetPvc, log)
-		if err != nil {
-			return 0, err
-		}
-		log.V(3).Info("Created source pod ", "sourcePod.Namespace", sourcePod.Namespace, "sourcePod.Name", sourcePod.Name)
+		return 0, nil
 	}
+
+	sourcePvc, err := r.getCloneRequestSourcePVC(targetPvc)
+	if err != nil {
+		return 0, err
+	}
+
+	sourcePopulated, err := IsPopulated(sourcePvc, r.client)
+	if err != nil {
+		return 0, err
+	}
+	if !sourcePopulated {
+		return 2 * time.Second, nil
+	}
+
+	if err := r.validateSourceAndTarget(sourcePvc, targetPvc); err != nil {
+		return 0, err
+	}
+
+	pods, err := GetPodsUsingPVCs(r.client, sourcePvc.Namespace, sets.NewString(sourcePvc.Name), true)
+	if err != nil {
+		return 0, err
+	}
+	if len(pods) > 0 {
+		for _, pod := range pods {
+			r.log.V(1).Info("can't create clone source pod, pvc in use by other pod",
+				"namespace", sourcePvc.Namespace, "name", sourcePvc.Name, "pod", pod.Name)
+			r.recorder.Eventf(targetPvc, corev1.EventTypeWarning, CloneSourceInUse,
+				"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, sourcePvc.Name)
+		}
+		return 2 * time.Second, nil
+	}
+
+	sourcePod, err = r.CreateCloneSourcePod(r.image, r.pullPolicy, targetPvc, log)
+	if err != nil {
+		return 0, err
+	}
+	log.V(3).Info("Created source pod ", "sourcePod.Namespace", sourcePod.Namespace, "sourcePod.Name", sourcePod.Name)
+
 	return 0, nil
 }
 
@@ -534,7 +565,11 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 		sourceVolumeMode = corev1.PersistentVolumeFilesystem
 	}
 
-	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerKey, serverCABundle, pvc, podResourceRequirements, workloadNodePlacement)
+	readOnly := true
+	if _, ok := pvc.GetAnnotations()[AnnRetryWithoutReadonly]; ok {
+		readOnly = false
+	}
+	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerKey, serverCABundle, pvc, podResourceRequirements, workloadNodePlacement, readOnly)
 	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 
 	if err := r.client.Create(context.TODO(), pod); err != nil {
@@ -553,7 +588,7 @@ func createCloneSourcePodName(targetPvc *corev1.PersistentVolumeClaim) string {
 // MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
 func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerRefAnno string,
 	serverCACert []byte, targetPvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements,
-	workloadNodePlacement *sdkapi.NodePlacement) *corev1.Pod {
+	workloadNodePlacement *sdkapi.NodePlacement, readOnly bool) *corev1.Pod {
 
 	var ownerID string
 	cloneSourcePodName := targetPvc.Annotations[AnnCloneSourcePod]
@@ -657,7 +692,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 							ClaimName: sourcePvcName,
-							ReadOnly:  true,
+							ReadOnly:  readOnly,
 						},
 					},
 				},
