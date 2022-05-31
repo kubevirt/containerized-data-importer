@@ -974,7 +974,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 		}
 	}
 
-	requestedVolumeSize, err := volumeSize(client, storage, pvcSpec.VolumeMode)
+	requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, pvcSpec)
 	if err != nil {
 		return nil, err
 	}
@@ -1090,24 +1090,58 @@ func getDefaultAccessModes(c client.Client, storageClass *storagev1.StorageClass
 	return nil, errors.Errorf("no accessMode defined on StorageProfile for %s StorageClass", storageClass.Name)
 }
 
-func volumeSize(c client.Client, storage *cdiv1.StorageSpec, volumeMode *v1.PersistentVolumeMode) (*resource.Quantity, error) {
+func resolveVolumeSize(c client.Client, dvSpec cdiv1.DataVolumeSpec, pvcSpec *v1.PersistentVolumeClaimSpec) (*resource.Quantity, error) {
 	// resources.requests[storage] - just copy it to pvc,
-	requestedSize, found := storage.Resources.Requests[v1.ResourceStorage]
+	requestedSize, found := dvSpec.Storage.Resources.Requests[v1.ResourceStorage]
+
 	if !found {
+		// Storage size can be empty when cloning
+		isClone := dvSpec.Source.PVC != nil
+		if isClone {
+			return &requestedSize, nil
+		}
 		return nil, errors.Errorf("Datavolume Spec is not valid - missing storage size")
 	}
 
 	// disk or image size, inflate it with overhead
-	if util.ResolveVolumeMode(volumeMode) == v1.PersistentVolumeFilesystem {
-		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, storage.StorageClassName)
-		if err != nil {
-			return nil, err
-		}
-		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
-		requiredSpace := GetRequiredSpace(fsOverheadFloat, requestedSize.Value())
+	requestedSize, err := inflateSizeWithOverhead(c, requestedSize.Value(), pvcSpec)
 
-		return resource.NewScaledQuantity(requiredSpace, 0), nil
+	return &requestedSize, err
+}
+
+// inflateSizeWithOverhead inflates a storage size with proper overhead calculations
+func inflateSizeWithOverhead(c client.Client, imgSize int64, pvcSpec *v1.PersistentVolumeClaimSpec) (resource.Quantity, error) {
+	var returnSize resource.Quantity
+
+	if util.ResolveVolumeMode(pvcSpec.VolumeMode) == v1.PersistentVolumeFilesystem {
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, pvcSpec.StorageClassName)
+		if err != nil {
+			return resource.Quantity{}, err
+		}
+		// Parse filesystem overhead (percentage) into a 64-bit float
+		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
+
+		// Merge the previous values into a 'resource.Quantity' struct
+		requiredSpace := GetRequiredSpace(fsOverheadFloat, imgSize)
+		returnSize = *resource.NewScaledQuantity(requiredSpace, 0)
+	} else {
+		// Inflation is not needed with 'Block' mode
+		returnSize = *resource.NewScaledQuantity(imgSize, 0)
 	}
 
-	return &requestedSize, nil
+	return returnSize, nil
+}
+
+// isPVCComplete returns true if a PVC is in 'Succeeded' phase, false if not
+func isPVCComplete(pvc *v1.PersistentVolumeClaim) bool {
+	if pvc != nil {
+		phase, exists := pvc.ObjectMeta.Annotations[AnnPodPhase]
+		return exists && (phase == string(v1.PodSucceeded))
+	}
+	return false
+}
+
+// isPodComplete returns true if a pod is in 'Succeeded' phase, false if not
+func isPodComplete(pod *v1.Pod) bool {
+	return pod != nil && pod.Status.Phase == v1.PodSucceeded
 }

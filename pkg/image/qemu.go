@@ -194,7 +194,7 @@ func Info(url *url.URL) (*ImgInfo, error) {
 }
 
 func (o *qemuOperations) Info(url *url.URL) (*ImgInfo, error) {
-	if len(url.Scheme) > 0 && url.Scheme != "nbd+unix" {
+	if len(url.Scheme) > 0 && url.Scheme != "nbd+unix" && url.Scheme != "file" {
 		return nil, fmt.Errorf("not valid schema %s", url.Scheme)
 	}
 	output, err := qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", url.String())

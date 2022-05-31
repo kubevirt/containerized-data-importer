@@ -445,7 +445,7 @@ func (r *CloneReconciler) validateSourceAndTarget(sourcePvc, targetPvc *corev1.P
 	if err != nil {
 		return err
 	}
-	err = ValidateCanCloneSourceAndTargetSpec(&sourcePvc.Spec, &targetPvc.Spec, contentType)
+	err = ValidateCanCloneSourceAndTargetSpec(sourcePvc, targetPvc, contentType)
 	if err == nil {
 		// Validation complete, put source PVC bound status in annotation
 		setBoundConditionFromPVC(targetPvc.GetAnnotations(), AnnBoundCondition, sourcePvc)
@@ -768,14 +768,19 @@ func ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc *corev1.Per
 }
 
 // ValidateCanCloneSourceAndTargetSpec validates the specs passed in are compatible for cloning.
-func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *corev1.PersistentVolumeClaimSpec, contentType cdiv1.DataVolumeContentType) error {
-	err := ValidateCloneSize(sourceSpec.Resources, targetSpec.Resources)
-	if err != nil {
+func ValidateCanCloneSourceAndTargetSpec(sourcePvc, targetPvc *corev1.PersistentVolumeClaim, contentType cdiv1.DataVolumeContentType) error {
+	err := ValidateCloneSize(sourcePvc.Spec.Resources, targetPvc.Spec.Resources)
+	_, available := targetPvc.Annotations[AnnPermissiveClone]
+	// Due to filesystem overhead differences, the target's size can sometimes be smaller
+	// than the source's one when obtaining said value with the size-detection pod.
+	// In those cases, we use the 'AnnPermissiveClone' annotation to skip the size validation.
+	if !available && err != nil {
 		return err
 	}
+
 	// Allow different source and target volume modes only on KubeVirt content type
-	sourceVolumeMode := util.ResolveVolumeMode(sourceSpec.VolumeMode)
-	targetVolumeMode := util.ResolveVolumeMode(targetSpec.VolumeMode)
+	sourceVolumeMode := util.ResolveVolumeMode(sourcePvc.Spec.VolumeMode)
+	targetVolumeMode := util.ResolveVolumeMode(targetPvc.Spec.VolumeMode)
 	if sourceVolumeMode != targetVolumeMode && contentType != cdiv1.DataVolumeKubeVirt {
 		return fmt.Errorf("source volumeMode (%s) and target volumeMode (%s) do not match, contentType (%s)",
 			sourceVolumeMode, targetVolumeMode, contentType)

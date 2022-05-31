@@ -504,6 +504,34 @@ func NewDataVolumeForImageCloningAndStorageSpec(dataVolumeName, size, namespace,
 	return dv
 }
 
+// NewDataVolumeForCloningWithEmptySize initializes a DataVolume struct with empty storage size to test the size-detection mechanism when cloning
+func NewDataVolumeForCloningWithEmptySize(dataVolumeName, namespace, pvcName string, storageClassName *string, volumeMode *k8sv1.PersistentVolumeMode) *cdiv1.DataVolume {
+	dv := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        dataVolumeName,
+			Annotations: map[string]string{},
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Namespace: namespace,
+					Name:      pvcName,
+				},
+			},
+			Storage: &cdiv1.StorageSpec{
+				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+			},
+		},
+	}
+	if volumeMode != nil {
+		dv.Spec.Storage.VolumeMode = volumeMode
+	}
+	if storageClassName != nil {
+		dv.Spec.Storage.StorageClassName = storageClassName
+	}
+	return dv
+}
+
 // NewDataVolumeWithRegistryImport initializes a DataVolume struct with registry annotations
 func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registryURL string) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{

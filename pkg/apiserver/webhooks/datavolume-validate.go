@@ -102,12 +102,14 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 		})
 		return causes
 	}
+
+	cause, valid := validateStorageSize(spec, field)
+	if !valid {
+		causes = append(causes, *cause)
+		return causes
+	}
+
 	if spec.PVC != nil {
-		cause, valid := validateStorageSize(spec.PVC.Resources, field, "PVC")
-		if !valid {
-			causes = append(causes, *cause)
-			return causes
-		}
 		accessModes := spec.PVC.AccessModes
 		if len(accessModes) == 0 {
 			causes = append(causes, metav1.StatusCause{
@@ -135,11 +137,6 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 			return causes
 		}
 	} else if spec.Storage != nil {
-		cause, valid := validateStorageSize(spec.Storage.Resources, field, "Storage")
-		if !valid {
-			causes = append(causes, *cause)
-			return causes
-		}
 		// here in storage spec we allow empty access mode and AccessModes with more than one entry
 		accessModes := spec.Storage.AccessModes
 		for _, mode := range accessModes {
@@ -434,16 +431,22 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.Da
 	}
 	var targetResources v1.ResourceRequirements
 
+	isSizelessClone := false
 	explicitPvcRequest := spec.PVC != nil
 	if explicitPvcRequest {
 		targetResources = spec.PVC.Resources
 	} else {
 		targetResources = spec.Storage.Resources
+		// The storage size in the target DV can be empty
+		// when cloning using the 'Storage' API
+		if _, ok := targetResources.Requests["storage"]; !ok {
+			isSizelessClone = true
+		}
 	}
 
 	// TODO: Spec.Storage API needs a better more complex check to validate clone size - to account for fsOverhead
 	// simple size comparison will not work here
-	if controller.GetVolumeMode(sourcePVC) == v1.PersistentVolumeBlock || explicitPvcRequest {
+	if (!isSizelessClone && controller.GetVolumeMode(sourcePVC) == v1.PersistentVolumeBlock) || explicitPvcRequest {
 		if err = controller.ValidateCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
 			return &metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueInvalid,
@@ -456,7 +459,21 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.Da
 	return nil
 }
 
-func validateStorageSize(resources v1.ResourceRequirements, field *k8sfield.Path, name string) (*metav1.StatusCause, bool) {
+func validateStorageSize(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) (*metav1.StatusCause, bool) {
+	var name string
+	var resources v1.ResourceRequirements
+
+	if spec.PVC != nil {
+		resources = spec.PVC.Resources
+		name = "PVC"
+	} else if spec.Storage != nil {
+		resources = spec.Storage.Resources
+		name = "Storage"
+	}
+
+	// The storage size of a DataVolume can only be empty when two conditios are met:
+	//	1. The 'Storage' spec API is used, which allows for additional logic in CDI.
+	//	2. The 'PVC' source is used, so the original size can be extracted from the source.
 	if pvcSize, ok := resources.Requests["storage"]; ok {
 		if pvcSize.IsZero() || pvcSize.Value() < 0 {
 			cause := metav1.StatusCause{
@@ -466,7 +483,7 @@ func validateStorageSize(resources v1.ResourceRequirements, field *k8sfield.Path
 			}
 			return &cause, false
 		}
-	} else {
+	} else if spec.Storage == nil || spec.Source.PVC == nil {
 		cause := metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: fmt.Sprintf("%s size is missing", name),

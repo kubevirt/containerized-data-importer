@@ -1608,6 +1608,215 @@ var _ = Describe("All DataVolume Tests", func() {
 			Entry("should default to snapshot", nil, nil, cdiv1.CloneStrategySnapshot),
 		)
 	})
+
+	var _ = Describe("Clone with empty storage size", func() {
+		scName := "testsc"
+		accessMode := []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}
+		sc := createStorageClassWithProvisioner(scName, map[string]string{
+			AnnDefaultStorageClass: "true",
+		}, map[string]string{}, "csi-plugin")
+
+		// detectCloneSize tests
+
+		It("Size-detection fails when source PVC is not attainable", func() {
+			dv := newCloneDataVolumeWithEmptyStorage("test-dv", "default")
+			cloneStrategy := cdiv1.CloneStrategyHostAssisted
+			storageProfile := createStorageProfileWithCloneStrategy(scName, []cdiv1.ClaimPropertySet{
+				{AccessModes: accessMode, VolumeMode: &blockMode}}, &cloneStrategy)
+
+			reconciler := createDatavolumeReconciler(dv, storageProfile, sc)
+			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
+			Expect(err).ToNot(HaveOccurred())
+			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			Expect(err).To(HaveOccurred())
+			Expect(done).To(BeFalse())
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+		})
+
+		It("Size-detection fails when source PVC is not fully imported", func() {
+			dv := newCloneDataVolumeWithEmptyStorage("test-dv", "default")
+			cloneStrategy := cdiv1.CloneStrategyHostAssisted
+			storageProfile := createStorageProfileWithCloneStrategy(scName, []cdiv1.ClaimPropertySet{
+				{AccessModes: accessMode, VolumeMode: &blockMode}}, &cloneStrategy)
+
+			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			reconciler := createDatavolumeReconciler(dv, pvc, storageProfile, sc)
+
+			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
+			Expect(err).ToNot(HaveOccurred())
+			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeFalse())
+			By("Checking events recorded")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, ImportPVCNotReady) {
+					found = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(found).To(BeTrue())
+		})
+
+		It("Size-detection fails when Pod is not ready", func() {
+			dv := newCloneDataVolumeWithEmptyStorage("test-dv", "default")
+			cloneStrategy := cdiv1.CloneStrategyHostAssisted
+			storageProfile := createStorageProfileWithCloneStrategy(scName, []cdiv1.ClaimPropertySet{
+				{AccessModes: accessMode, VolumeMode: &blockMode}}, &cloneStrategy)
+
+			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			pvc.SetAnnotations(make(map[string]string))
+			pvc.GetAnnotations()[AnnPodPhase] = string(corev1.PodSucceeded)
+			reconciler := createDatavolumeReconciler(dv, pvc, storageProfile, sc)
+
+			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
+			Expect(err).ToNot(HaveOccurred())
+			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeFalse())
+			By("Checking events recorded")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, SizeDetectionPodNotReady) {
+					found = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(found).To(BeTrue())
+
+		})
+
+		It("Size-detection fails when pod's termination message is invalid", func() {
+			dv := newCloneDataVolumeWithEmptyStorage("test-dv", "default")
+			cloneStrategy := cdiv1.CloneStrategyHostAssisted
+			storageProfile := createStorageProfileWithCloneStrategy(scName, []cdiv1.ClaimPropertySet{
+				{AccessModes: accessMode, VolumeMode: &blockMode}}, &cloneStrategy)
+
+			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			pvc.SetAnnotations(make(map[string]string))
+			pvc.GetAnnotations()[AnnPodPhase] = string(corev1.PodSucceeded)
+			reconciler := createDatavolumeReconciler(dv, pvc, storageProfile, sc)
+
+			// Prepare the size-detection Pod with the required information
+			pod := reconciler.makeSizeDetectionPodSpec(pvc, dv)
+			pod.Status.Phase = corev1.PodSucceeded
+			err := reconciler.client.Create(context.TODO(), pod)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Checks
+			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
+			Expect(err).ToNot(HaveOccurred())
+			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(Equal(ErrInvalidTermMsg))
+			Expect(done).To(BeFalse())
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pod)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+			By("Checking error event recorded")
+			event := <-reconciler.recorder.(*record.FakeRecorder).Events
+			Expect(event).To(ContainSubstring("Size-detection pod failed due to"))
+		})
+
+		It("Should get the size from the size-detection pod", func() {
+			dv := newCloneDataVolumeWithEmptyStorage("test-dv", "default")
+			cloneStrategy := cdiv1.CloneStrategyHostAssisted
+			storageProfile := createStorageProfileWithCloneStrategy(scName, []cdiv1.ClaimPropertySet{
+				{AccessModes: accessMode, VolumeMode: &blockMode}}, &cloneStrategy)
+
+			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			pvc.SetAnnotations(make(map[string]string))
+			pvc.GetAnnotations()[AnnPodPhase] = string(corev1.PodSucceeded)
+			reconciler := createDatavolumeReconciler(dv, pvc, storageProfile, sc)
+
+			// Prepare the size-detection Pod with the required information
+			pod := reconciler.makeSizeDetectionPodSpec(pvc, dv)
+			pod.Status.Phase = corev1.PodSucceeded
+			pod.Status.ContainerStatuses = []corev1.ContainerStatus{
+				{
+					State: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{
+							ExitCode: 0,
+							Message:  "100", // Mock value
+						},
+					},
+				},
+			}
+			err := reconciler.client.Create(context.TODO(), pod)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Get the expected value
+			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
+			Expect(err).ToNot(HaveOccurred())
+			expectedSize, err := inflateSizeWithOverhead(reconciler.client, int64(100), pvcSpec)
+			expectedSizeInt64, _ := expectedSize.AsInt64()
+
+			// Checks
+			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeTrue())
+			Expect(dv.GetAnnotations()[AnnPermissiveClone]).To(Equal("true"))
+			targetSize := pvcSpec.Resources.Requests[corev1.ResourceStorage]
+			targetSizeInt64, _ := targetSize.AsInt64()
+			Expect(targetSizeInt64).To(Equal(expectedSizeInt64))
+		})
+
+		It("Should get the size from the source PVC's annotations", func() {
+			dv := newCloneDataVolumeWithEmptyStorage("test-dv", "default")
+			cloneStrategy := cdiv1.CloneStrategyHostAssisted
+			storageProfile := createStorageProfileWithCloneStrategy(scName, []cdiv1.ClaimPropertySet{
+				{AccessModes: accessMode, VolumeMode: &blockMode}}, &cloneStrategy)
+
+			// Prepare the source PVC with the required annotations
+			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			pvc.SetAnnotations(make(map[string]string))
+			pvc.GetAnnotations()[AnnVirtualImageSize] = "100" // Mock value
+			pvc.GetAnnotations()[AnnSourceCapacity] = string(pvc.Status.Capacity.Storage().String())
+			reconciler := createDatavolumeReconciler(dv, pvc, storageProfile, sc)
+
+			// Get the expected value
+			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
+			Expect(err).ToNot(HaveOccurred())
+			expectedSize, err := inflateSizeWithOverhead(reconciler.client, int64(100), pvcSpec)
+			expectedSizeInt64, _ := expectedSize.AsInt64()
+
+			// Checks
+			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeTrue())
+			Expect(dv.GetAnnotations()[AnnPermissiveClone]).To(Equal("true"))
+			targetSize := pvcSpec.Resources.Requests[corev1.ResourceStorage]
+			targetSizeInt64, _ := targetSize.AsInt64()
+			Expect(targetSizeInt64).To(Equal(expectedSizeInt64))
+		})
+
+		DescribeTable("Should automatically collect the clone size from the source PVC's spec",
+			func(cloneStrategy cdiv1.CDICloneStrategy, selectedCloneStrategy cloneStrategy, volumeMode corev1.PersistentVolumeMode) {
+				dv := newCloneDataVolumeWithEmptyStorage("test-dv", "default")
+				storageProfile := createStorageProfileWithCloneStrategy(scName, []cdiv1.ClaimPropertySet{
+					{AccessModes: accessMode, VolumeMode: &volumeMode}}, &cloneStrategy)
+
+				pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+				pvc.Spec.VolumeMode = &volumeMode
+				reconciler := createDatavolumeReconciler(dv, pvc, storageProfile, sc)
+
+				pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
+				Expect(err).ToNot(HaveOccurred())
+				expectedSize := *pvc.Status.Capacity.Storage()
+				done, err := reconciler.detectCloneSize(dv, pvcSpec, selectedCloneStrategy)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(done).To(BeTrue())
+				Expect(pvc.Spec.Resources.Requests.Storage().Cmp(expectedSize)).To(Equal(0))
+			},
+			Entry("snapshot with empty size and 'Block' volume mode", cdiv1.CloneStrategySnapshot, SmartClone, blockMode),
+			Entry("csiClone with empty size and 'Block' volume mode", cdiv1.CloneStrategyCsiClone, CsiClone, blockMode),
+			Entry("hostAssited with empty size and 'Block' volume mode", cdiv1.CloneStrategyHostAssisted, HostAssistedClone, blockMode),
+			Entry("snapshot with empty size and 'Filesystem' volume mode", cdiv1.CloneStrategySnapshot, SmartClone, filesystemMode),
+			Entry("csiClone with empty size and 'Filesystem' volume mode", cdiv1.CloneStrategyCsiClone, CsiClone, filesystemMode),
+		)
+	})
+
 	var _ = Describe("Get Pod from PVC", func() {
 		var (
 			pvc *corev1.PersistentVolumeClaim
@@ -2011,6 +2220,30 @@ func newCloneDataVolumeWithPVCNS(name string, pvcNamespace string) *cdiv1.DataVo
 					},
 				},
 			},
+		},
+	}
+}
+
+func newCloneDataVolumeWithEmptyStorage(name string, pvcNamespace string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: metav1.NamespaceDefault,
+			Annotations: map[string]string{
+				AnnCloneToken: "foobar",
+			},
+			UID: types.UID("uid"),
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Name:      "test",
+					Namespace: pvcNamespace,
+				},
+			},
+			PriorityClassName: "p0-clone",
+			Storage:           &cdiv1.StorageSpec{},
 		},
 	}
 }

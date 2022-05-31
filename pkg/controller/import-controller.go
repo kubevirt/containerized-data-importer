@@ -228,11 +228,6 @@ func (r *ImportReconciler) shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim,
 		nil
 }
 
-func isPVCComplete(pvc *corev1.PersistentVolumeClaim) bool {
-	phase, exists := pvc.ObjectMeta.Annotations[AnnPodPhase]
-	return exists && (phase == string(corev1.PodSucceeded))
-}
-
 func isImageStream(pvc *corev1.PersistentVolumeClaim) bool {
 	return pvc.Annotations[AnnRegistryImageStream] == "true"
 }
