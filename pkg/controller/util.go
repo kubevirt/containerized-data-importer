@@ -25,13 +25,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	cdiv1utils "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1/utils"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	cdiv1utils "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1/utils"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -510,14 +510,15 @@ func MakePodOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 
 // IsCsiCrdsDeployed checks whether the CSI snapshotter CRD are deployed
 func IsCsiCrdsDeployed(c client.Client, log logr.Logger) bool {
+	versionbeta := "v1beta1"
 	version := "v1"
 	vsClass := "volumesnapshotclasses." + snapshotv1.GroupName
 	vsContent := "volumesnapshotcontents." + snapshotv1.GroupName
 	vs := "volumesnapshots." + snapshotv1.GroupName
 
-	return isCrdDeployed(c, vsClass, version, log) &&
-		isCrdDeployed(c, vsContent, version, log) &&
-		isCrdDeployed(c, vs, version, log)
+	return (isCrdDeployed(c, vsClass, version, log) || isCrdDeployed(c, vsClass, versionbeta, log)) &&
+		(isCrdDeployed(c, vsContent, version, log) || isCrdDeployed(c, vsContent, versionbeta, log)) &&
+		(isCrdDeployed(c, vs, version, log) || isCrdDeployed(c, vs, versionbeta, log))
 }
 
 func isCrdDeployed(c client.Client, name, version string, log logr.Logger) bool {

@@ -37,6 +37,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -340,6 +341,9 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 	if err := snapshotv1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
+	if err := extv1.AddToScheme(mgr.GetScheme()); err != nil {
+		return err
+	}
 
 	// Setup watches
 	if err := datavolumeController.Watch(&source.Kind{Type: &cdiv1.DataVolume{}}, &handler.EnqueueRequestForObject{}); err != nil {
@@ -554,7 +558,6 @@ func (r *DatavolumeReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume,
 			return SmartClone, nil
 		}
 	}
-
 	return NoClone, nil
 }
 

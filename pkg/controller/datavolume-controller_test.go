@@ -1265,7 +1265,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			targetPvc.SetAnnotations(make(map[string]string))
 			targetPvc.GetAnnotations()[AnnCloneOf] = "true"
 
-			reconciler := createDatavolumeReconciler(dv, srcPvc, targetPvc, storageProfile, sc, snapClass)
+			reconciler := createDatavolumeReconciler(dv, srcPvc, targetPvc, storageProfile, sc, snapClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 
 			By("Reconcile")
 			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})

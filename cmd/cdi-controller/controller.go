@@ -11,7 +11,6 @@ import (
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/pkg/errors"
-	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -128,11 +127,6 @@ func start(ctx context.Context, cfg *rest.Config) {
 		klog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
 	}
 
-	extClient, err := extclientset.NewForConfig(cfg)
-	if err != nil {
-		klog.Fatalf("Error building extClient: %s", err.Error())
-	}
-
 	mgr, err := manager.New(config.GetConfigOrDie(), manager.Options{})
 	if err != nil {
 		klog.Errorf("Unable to setup controller manager: %v", err)
@@ -164,7 +158,7 @@ func start(ctx context.Context, cfg *rest.Config) {
 	}
 
 	// TODO: Current DV controller had threadiness 3, should we do the same here, defaults to one thread.
-	if _, err := controller.NewDatavolumeController(mgr, extClient, log, clonerImage, pullPolicy, getAPIServerPublicKey(), installerLabels); err != nil {
+	if _, err := controller.NewDatavolumeController(ctx, mgr, log, clonerImage, pullPolicy, getAPIServerPublicKey(), installerLabels); err != nil {
 		klog.Errorf("Unable to setup datavolume controller: %v", err)
 		os.Exit(1)
 	}
