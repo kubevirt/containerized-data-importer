@@ -273,6 +273,42 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(len(dvList.Items)).To(Equal(0))
 		})
 
+		It("Should reconcile only if DataSource is not labeled by another existing DIC", func() {
+			cron = newDataImportCron(cronName)
+			reconciler = createDataImportCronReconciler(cron)
+
+			shouldReconcile, err := reconciler.shouldReconcileCron(context.TODO(), cron)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(shouldReconcile).To(Equal(true))
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			dataSource = &cdiv1.DataSource{}
+			err = reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dataSource.Labels[common.DataImportCronLabel]).To(Equal(cron.Name))
+
+			cron1 := newDataImportCron(cronName + "1")
+			shouldReconcile, err = reconciler.shouldReconcileCron(context.TODO(), cron1)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(shouldReconcile).To(Equal(false))
+
+			dataSource.Labels[common.DataImportCronLabel] = "nosuchdic"
+			err = reconciler.client.Update(context.TODO(), dataSource)
+			Expect(err).ToNot(HaveOccurred())
+			shouldReconcile, err = reconciler.shouldReconcileCron(context.TODO(), cron1)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(shouldReconcile).To(Equal(true))
+
+			dataSource.Labels[common.DataImportCronLabel] = ""
+			err = reconciler.client.Update(context.TODO(), dataSource)
+			Expect(err).ToNot(HaveOccurred())
+			shouldReconcile, err = reconciler.shouldReconcileCron(context.TODO(), cron1)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(shouldReconcile).To(Equal(true))
+		})
+
 		DescribeTable("Should fail when digest", func(digest, errorString string) {
 			cron = newDataImportCron(cronName)
 			cron.Annotations[AnnSourceDesiredDigest] = digest

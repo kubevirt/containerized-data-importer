@@ -60,6 +60,11 @@ import (
 )
 
 const (
+	// ErrDataSourceAlreadyManaged provides a const to indicate DataSource already managed error
+	ErrDataSourceAlreadyManaged = "ErrDataSourceAlreadyManaged"
+	// MessageDataSourceAlreadyManaged provides a const to form DataSource already managed error message
+	MessageDataSourceAlreadyManaged = "DataSource %s is already managed by DataImportCron %s"
+
 	prometheusNsLabel       = "ns"
 	prometheusCronNameLabel = "cron_name"
 )
@@ -114,10 +119,41 @@ func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.
 		err := r.cleanup(ctx, req.NamespacedName)
 		return reconcile.Result{}, err
 	}
+	shouldReconcile, err := r.shouldReconcileCron(ctx, dataImportCron)
+	if !shouldReconcile || err != nil {
+		return reconcile.Result{}, err
+	}
 	if err := r.initCron(ctx, dataImportCron); err != nil {
 		return reconcile.Result{}, err
 	}
 	return r.update(ctx, dataImportCron)
+}
+
+func (r *DataImportCronReconciler) shouldReconcileCron(ctx context.Context, cron *cdiv1.DataImportCron) (bool, error) {
+	dataSource := &cdiv1.DataSource{}
+	if err := r.client.Get(ctx, types.NamespacedName{Namespace: cron.Namespace, Name: cron.Spec.ManagedDataSource}, dataSource); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	}
+	dataSourceCronLabel := dataSource.Labels[common.DataImportCronLabel]
+	if dataSourceCronLabel == cron.Name || dataSourceCronLabel == "" {
+		return true, nil
+	}
+	otherCron := &cdiv1.DataImportCron{}
+	if err := r.client.Get(ctx, types.NamespacedName{Namespace: cron.Namespace, Name: dataSourceCronLabel}, otherCron); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	}
+	if otherCron.Spec.ManagedDataSource == dataSource.Name {
+		msg := fmt.Sprintf(MessageDataSourceAlreadyManaged, dataSource.Name, otherCron.Name)
+		r.recorder.Event(cron, corev1.EventTypeWarning, ErrDataSourceAlreadyManaged, msg)
+		return false, nil
+	}
+	return true, nil
 }
 
 func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
