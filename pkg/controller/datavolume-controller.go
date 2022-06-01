@@ -197,6 +197,9 @@ const (
 	// AnnPermissiveClone annotation allows the clone-controller to skip the clone size validation
 	AnnPermissiveClone = "cdi.Kubevirt.io/permissiveClone"
 
+	// AnnNoSourceClone annotation indicates that the clone has not source PVC
+	AnnNoSourceClone = "cdi.kubevirt.io/noSourceClone"
+
 	annOwnedByDataVolume = "cdi.kubevirt.io/ownedByDataVolume"
 
 	annOwnerUID = "cdi.kubevirt.io/ownerUID"
@@ -722,8 +725,13 @@ func (r *DatavolumeReconciler) ensureExtendedToken(pvc *corev1.PersistentVolumeC
 }
 
 func (r *DatavolumeReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec) (cloneStrategy, error) {
-	if datavolume.Spec.Source.PVC == nil {
+	isClone := datavolume.Spec.Source.PVC != nil
+	if !isClone {
 		return NoClone, nil
+	}
+
+	if err := r.handleCloneWithoutSource(datavolume); err != nil {
+		return NoClone, err
 	}
 
 	preferredCloneStrategy, err := r.getCloneStrategy(datavolume)
@@ -2777,6 +2785,35 @@ func getDeltaTTL(dv *cdiv1.DataVolume, ttl int32) time.Duration {
 		delta -= time.Now().Sub(cond.LastTransitionTime.Time)
 	}
 	return delta
+}
+
+// handleCloneWithoutSource does error handling and validation of clones without source PVC
+func (r *DatavolumeReconciler) handleCloneWithoutSource(datavolume *cdiv1.DataVolume) error {
+	sourcePvc, err := r.findSourcePvc(datavolume)
+	if err != nil {
+		// Clone without source
+		if k8serrors.IsNotFound(err) {
+			datavolume.Annotations[AnnNoSourceClone] = "true"
+			r.updateDataVolume(datavolume)
+		}
+		return err
+	}
+
+	noSource, available := datavolume.Annotations[AnnNoSourceClone]
+	if available && noSource == "true" {
+		// Since the admission webhook couldn't validate the clone against its source PVC
+		// when creating the DV, we do the validation now
+		err := ValidateClone(sourcePvc, &datavolume.Spec)
+		if err != nil {
+			return err
+		}
+
+		// The clone has a source now
+		datavolume.Annotations[AnnNoSourceClone] = ""
+		r.updateDataVolume(datavolume)
+	}
+
+	return nil
 }
 
 // isSourceReadyToClone handles the reconciling process of a clone when the source PVC is not ready

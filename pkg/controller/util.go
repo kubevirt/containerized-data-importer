@@ -896,6 +896,50 @@ func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNa
 	return nil
 }
 
+// validateContentTypes compares the content type of a clone DV against its source PVC's one
+func validateContentTypes(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
+	sourceContentType := cdiv1.DataVolumeContentType(GetContentType(sourcePVC))
+	targetContentType := spec.ContentType
+	if targetContentType == "" {
+		targetContentType = cdiv1.DataVolumeKubeVirt
+	}
+	return sourceContentType == targetContentType, sourceContentType, targetContentType
+}
+
+// ValidateClone compares a clone spec against its source PVC to validate its creation
+func ValidateClone(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) error {
+	var targetResources v1.ResourceRequirements
+
+	valid, sourceContentType, targetContentType := validateContentTypes(sourcePVC, spec)
+	if !valid {
+		msg := fmt.Sprintf("Source contentType (%s) and target contentType (%s) do not match", sourceContentType, targetContentType)
+		return errors.New(msg)
+	}
+
+	isSizelessClone := false
+	explicitPvcRequest := spec.PVC != nil
+	if explicitPvcRequest {
+		targetResources = spec.PVC.Resources
+	} else {
+		targetResources = spec.Storage.Resources
+		// The storage size in the target DV can be empty
+		// when cloning using the 'Storage' API
+		if _, ok := targetResources.Requests["storage"]; !ok {
+			isSizelessClone = true
+		}
+	}
+
+	// TODO: Spec.Storage API needs a better more complex check to validate clone size - to account for fsOverhead
+	// simple size comparison will not work here
+	if (!isSizelessClone && GetVolumeMode(sourcePVC) == v1.PersistentVolumeBlock) || explicitPvcRequest {
+		if err := ValidateCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // AddAnnotation adds an annotation to an object
 func AddAnnotation(obj metav1.Object, key, value string) {
 	if obj.GetAnnotations() == nil {
