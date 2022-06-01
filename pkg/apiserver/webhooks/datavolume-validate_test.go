@@ -182,10 +182,10 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(true))
 		})
 
-		It("should reject DataVolume with PVC source on create if PVC does not exist", func() {
+		It("should accept DataVolume with PVC source on create if PVC does not exist", func() {
 			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(Equal(true))
 		})
 
 		It("should reject invalid DataVolume source PVC namespace on create", func() {
@@ -526,7 +526,7 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(false))
 		})
 
-		It("should reject DataVolume with SourceRef on create if DataSource exists but PVC does not exist", func() {
+		It("should accept DataVolume with SourceRef on create if DataSource exists but PVC does not exist", func() {
 			dataVolume := newDataSourceDataVolume("testDV", &testNamespace, "test")
 			dataSource := &cdiv1.DataSource{
 				ObjectMeta: metav1.ObjectMeta{
@@ -543,7 +543,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource})
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(Equal(true))
 		})
 
 		It("should reject DataVolume with empty SourceRef name on create", func() {
