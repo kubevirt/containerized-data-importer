@@ -771,7 +771,7 @@ var _ = Describe("ALL Operator tests", func() {
 
 				Eventually(func() bool {
 					var result map[string]interface{}
-					resp := tests.MakePrometheusHTTPRequest(f, "query?query="+endpoint)
+					resp := f.MakePrometheusHTTPRequest("query?query=" + endpoint)
 					defer resp.Body.Close()
 					bodyBytes, err := ioutil.ReadAll(resp.Body)
 					if err != nil {
@@ -815,7 +815,7 @@ var _ = Describe("ALL Operator tests", func() {
 			}
 
 			It("[test_id:7962] CDIOperatorDown alert firing when operator scaled down", func() {
-				if !tests.IsPrometheusAvailable(f.ExtClient) {
+				if !f.IsPrometheusAvailable() {
 					Skip("This test depends on prometheus infra being available")
 				}
 
@@ -859,7 +859,7 @@ var _ = Describe("ALL Operator tests", func() {
 				By("Let's see that alert fires")
 				Eventually(func() bool {
 					var result map[string]interface{}
-					resp := tests.MakePrometheusHTTPRequest(f, "alerts")
+					resp := f.MakePrometheusHTTPRequest("alerts")
 					defer resp.Body.Close()
 					// Make sure alert appears and is firing
 					bodyBytes, err := ioutil.ReadAll(resp.Body)
@@ -893,7 +893,7 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("[test_id:7963] CDI ready metric value as expected when ready to use", func() {
-				if !tests.IsPrometheusAvailable(f.ExtClient) {
+				if !f.IsPrometheusAvailable() {
 					Skip("This test depends on prometheus infra being available")
 				}
 
@@ -903,7 +903,7 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("[test_id:7965] StorageProfile incomplete metric expected value when creating an incomplete profile", func() {
-				if !tests.IsPrometheusAvailable(f.ExtClient) {
+				if !f.IsPrometheusAvailable() {
 					Skip("This test depends on prometheus infra being available")
 				}
 
@@ -940,7 +940,7 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("[test_id:7964] DataImportCron failing metric expected value when patching DesiredDigest annotation with junk sha256 value", func() {
-				if !tests.IsPrometheusAvailable(f.ExtClient) {
+				if !f.IsPrometheusAvailable() {
 					Skip("This test depends on prometheus infra being available")
 				}
 				numCrons := 2

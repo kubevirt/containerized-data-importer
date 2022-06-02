@@ -7,6 +7,7 @@ go_library(
         "framework.go",
         "nfs-utils.go",
         "pod.go",
+        "prometheus.go",
         "pv.go",
         "pvc.go",
     ],

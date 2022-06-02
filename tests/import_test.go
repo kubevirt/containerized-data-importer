@@ -994,11 +994,11 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			return restarts
 		}, timeout, pollingInterval).Should(BeNumerically(">", common.UnusualRestartCountThreshold))
 
-		if tests.IsPrometheusAvailable(f.ExtClient) {
+		if f.IsPrometheusAvailable() {
 			By("Test metric for unusual restart count")
 			Eventually(func() bool {
 				var result map[string]interface{}
-				resp := tests.MakePrometheusHTTPRequest(f, "query?query=kubevirt_cdi_import_dv_unusual_restartcount_total>0")
+				resp := f.MakePrometheusHTTPRequest("query?query=kubevirt_cdi_import_dv_unusual_restartcount_total>0")
 				defer resp.Body.Close()
 				bodyBytes, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
