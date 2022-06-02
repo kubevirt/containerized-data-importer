@@ -293,6 +293,8 @@ var _ = Describe("All DataImportCron Tests", func() {
 			shouldReconcile, err = reconciler.shouldReconcileCron(context.TODO(), cron1)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(shouldReconcile).To(Equal(false))
+			event := <-reconciler.recorder.(*record.FakeRecorder).Events
+			Expect(event).To(ContainSubstring(fmt.Sprintf(MessageDataSourceAlreadyManaged, dataSource.Name, cron.Name)))
 
 			dataSource.Labels[common.DataImportCronLabel] = "nosuchdic"
 			err = reconciler.client.Update(context.TODO(), dataSource)

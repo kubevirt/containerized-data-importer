@@ -151,6 +151,7 @@ func (r *DataImportCronReconciler) shouldReconcileCron(ctx context.Context, cron
 	if otherCron.Spec.ManagedDataSource == dataSource.Name {
 		msg := fmt.Sprintf(MessageDataSourceAlreadyManaged, dataSource.Name, otherCron.Name)
 		r.recorder.Event(cron, corev1.EventTypeWarning, ErrDataSourceAlreadyManaged, msg)
+		r.log.V(3).Info(msg)
 		return false, nil
 	}
 	return true, nil
