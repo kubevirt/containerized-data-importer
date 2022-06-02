@@ -304,7 +304,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				waitForDvPhase(args.phase, dataVolume, f)
 
 				By("Verifying the DV has the correct conditions and messages for those conditions")
-				WaitForConditions(f, dataVolume.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
+				utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
 
 				// verify PVC was created
 				By("verifying pvc was created")
@@ -378,7 +378,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 			waitForDvPhase(expectedPhase, dataVolume, f)
 			expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.ErrExceededQuota))
-			WaitForConditions(f, dataVolume.Name, timeout, pollingInterval, boundCondition, readyCondition)
+			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
 
 			By("Increase quota")
 			err = f.UpdateStorageQuota(int64(2), int64(2*1024*1024*1024))
@@ -388,7 +388,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			waitForDvPhase(args.phase, dataVolume, f)
 
 			By("Verifying the DV has the correct conditions and messages for those conditions")
-			WaitForConditions(f, dataVolume.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
+			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
 
 			// verify PVC was created
 			By("verifying pvc was created")

@@ -118,7 +118,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 			Message: "",
 			Reason:  controller.ErrExceededQuota,
 		}
-		WaitForConditions(f, dataVolume.Name, timeout, pollingInterval, boundCondition, readyCondition)
+		utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
 
 		By("Increase quota")
 		err = f.UpdateStorageQuota(int64(2), int64(2*1024*1024*1024))

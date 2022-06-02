@@ -80,7 +80,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			Message: "DataVolume too small to contain image",
 			Reason:  "Error",
 		}
-		tests.WaitForConditions(f, dv.Name, controllerSkipPVCCompleteTimeout, assertionPollInterval, runningCondition)
+		utils.WaitForConditions(f, dv.Name, f.Namespace.Name, controllerSkipPVCCompleteTimeout, assertionPollInterval, runningCondition)
 	},
 		Entry("fail given a large virtual size RAW XZ file", utils.LargeVirtualDiskXz),
 		Entry("fail given a large virtual size QCOW2 file", utils.LargeVirtualDiskQcow),
