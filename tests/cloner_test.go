@@ -2286,7 +2286,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			annValue, preallocationAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetDataVolume.Namespace, targetPvc, controller.AnnPreallocationRequested)
 			if err != nil {
-				PrintControllerLog(f)
+				f.PrintControllerLog()
 			}
 			Expect(err).ToNot(HaveOccurred())
 			Expect(preallocationAnnotationFound).To(BeTrue())
@@ -2296,7 +2296,7 @@ var _ = Describe("all clone tests", func() {
 
 			annValue, preallocationAnnotationFound, err = utils.WaitForPVCAnnotation(f.K8sClient, targetDataVolume.Namespace, targetPvc, controller.AnnPreallocationApplied)
 			if err != nil {
-				PrintControllerLog(f)
+				f.PrintControllerLog()
 			}
 			Expect(err).ToNot(HaveOccurred())
 			Expect(preallocationAnnotationFound).To(BeTrue())
@@ -2390,7 +2390,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 	By("Verify the clone annotation is on the target PVC")
 	_, cloneAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnCloneOf)
 	if err != nil {
-		PrintControllerLog(f)
+		f.PrintControllerLog()
 	}
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cloneAnnotationFound).To(BeTrue())

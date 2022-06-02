@@ -4,16 +4,12 @@ load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
 
 go_library(
     name = "go_default_library",
-    srcs = [
-        "imageio-inventory.go",
-        "utils.go",
-    ],
+    srcs = ["imageio-inventory.go"],
     importpath = "kubevirt.io/containerized-data-importer/tests",
     visibility = ["//visibility:public"],
     deps = [
         "//tests/framework:go_default_library",
         "//tests/utils:go_default_library",
-        "//vendor/github.com/onsi/ginkgo:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
     ],

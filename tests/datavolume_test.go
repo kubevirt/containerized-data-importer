@@ -1259,7 +1259,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
 			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 			if err != nil {
-				PrintControllerLog(f)
+				f.PrintControllerLog()
 				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				if dverr != nil {
 					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
@@ -2164,7 +2164,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
 			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
 			if err != nil {
-				PrintControllerLog(f)
+				f.PrintControllerLog()
 				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				if dverr != nil {
 					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
