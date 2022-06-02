@@ -37,7 +37,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -204,7 +204,6 @@ type DataVolumeEvent struct {
 // DatavolumeReconciler members
 type DatavolumeReconciler struct {
 	client          client.Client
-	extClientSet    extclientset.Interface
 	recorder        record.EventRecorder
 	scheme          *runtime.Scheme
 	log             logr.Logger
@@ -213,6 +212,41 @@ type DatavolumeReconciler struct {
 	pullPolicy      string
 	tokenValidator  token.Validator
 	installerLabels map[string]string
+	sccs            controllerStarter
+}
+
+type controllerStarter interface {
+	Start(ctx context.Context) error
+	StartController()
+}
+type smartCloneControllerStarter struct {
+	log                       logr.Logger
+	installerLabels           map[string]string
+	startSmartCloneController chan struct{}
+	mgr                       manager.Manager
+}
+
+func (sccs *smartCloneControllerStarter) Start(ctx context.Context) error {
+	started := false
+	for {
+		select {
+		case <-sccs.startSmartCloneController:
+			if !started {
+				sccs.log.Info("Starting smart clone controller as CSI snapshot CRDs are detected")
+				if _, err := NewSmartCloneController(sccs.mgr, sccs.log, sccs.installerLabels); err != nil {
+					sccs.log.Error(err, "Unable to setup smart clone controller: %v")
+				} else {
+					started = true
+				}
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (sccs *smartCloneControllerStarter) StartController() {
+	sccs.startSmartCloneController <- struct{}{}
 }
 
 func hasAnnOwnedByDataVolume(obj metav1.Object) bool {
@@ -256,18 +290,23 @@ func GetDataVolumeClaimName(dv *cdiv1.DataVolume) string {
 
 // NewDatavolumeController creates a new instance of the datavolume controller.
 func NewDatavolumeController(
+	ctx context.Context,
 	mgr manager.Manager,
-	extClientSet extclientset.Interface,
 	log logr.Logger,
 	image, pullPolicy string,
 	apiServerKey *rsa.PublicKey,
 	installerLabels map[string]string,
 ) (controller.Controller, error) {
 	client := mgr.GetClient()
+	sccs := &smartCloneControllerStarter{
+		log:                       log,
+		installerLabels:           installerLabels,
+		startSmartCloneController: make(chan struct{}, 1),
+		mgr:                       mgr,
+	}
 	reconciler := &DatavolumeReconciler{
 		client:          client,
 		scheme:          mgr.GetScheme(),
-		extClientSet:    extClientSet,
 		log:             log.WithName("datavolume-controller"),
 		recorder:        mgr.GetEventRecorderFor("datavolume-controller"),
 		featureGates:    featuregates.NewFeatureGates(client),
@@ -275,6 +314,7 @@ func NewDatavolumeController(
 		pullPolicy:      pullPolicy,
 		tokenValidator:  newCloneTokenValidator(apiServerKey),
 		installerLabels: installerLabels,
+		sccs:            sccs,
 	}
 	datavolumeController, err := controller.New("datavolume-controller", mgr, controller.Options{
 		Reconciler: reconciler,
@@ -285,6 +325,8 @@ func NewDatavolumeController(
 	if err := addDatavolumeControllerWatches(mgr, datavolumeController); err != nil {
 		return nil, err
 	}
+
+	mgr.Add(sccs)
 	return datavolumeController, nil
 }
 
@@ -297,6 +339,9 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 		return err
 	}
 	if err := snapshotv1.AddToScheme(mgr.GetScheme()); err != nil {
+		return err
+	}
+	if err := extv1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
 
@@ -406,6 +451,9 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+	if selectedCloneStrategy == SmartClone {
+		r.sccs.StartController()
+	}
 
 	if !pvcExists {
 		if selectedCloneStrategy == SmartClone {
@@ -510,7 +558,6 @@ func (r *DatavolumeReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume,
 			return SmartClone, nil
 		}
 	}
-
 	return NoClone, nil
 }
 
@@ -1395,7 +1442,7 @@ func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVol
 func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.DataVolume, targetStorageSpec *corev1.PersistentVolumeClaimSpec) (string, error) {
 	log := r.log.WithName("getSnapshotClassForSmartClone").V(3)
 	// Check if relevant CRDs are available
-	if !IsCsiCrdsDeployed(r.extClientSet) {
+	if !IsCsiCrdsDeployed(r.client, r.log) {
 		log.Info("Missing CSI snapshotter CRDs, falling back to host assisted clone")
 		return "", nil
 	}
