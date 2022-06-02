@@ -1557,46 +1557,74 @@ var _ = Describe("All DataVolume Tests", func() {
 
 	})
 
+	var _ = Describe("Clone without source", func() {
+		scName := "testsc"
+		sc := createStorageClassWithProvisioner(scName, map[string]string{
+			AnnDefaultStorageClass: "true",
+		}, map[string]string{}, "csi-plugin")
+
+		It("Clone without source PVC", func() {
+			dv := newCloneDataVolume("test-dv")
+			storageProfile := createStorageProfile(scName, nil, filesystemMode)
+			reconciler = createDatavolumeReconciler(dv, storageProfile, sc)
+
+			done, err := reconciler.handleCloneWithoutSource(dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeFalse())
+			Expect(dv.Annotations[AnnNoSourceClone]).To(Equal("true"))
+		})
+
+		It("Create source PVC after clone without source", func() {
+			dv := newCloneDataVolume("test-dv")
+			storageProfile := createStorageProfile(scName, nil, filesystemMode)
+			reconciler = createDatavolumeReconciler(dv, storageProfile, sc)
+
+			done, err := reconciler.handleCloneWithoutSource(dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeFalse())
+			Expect(dv.Annotations[AnnNoSourceClone]).To(Equal("true"))
+
+			// We create the source PVC after creating the clone
+			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			err = reconciler.client.Create(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			done, err = reconciler.handleCloneWithoutSource(dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeTrue())
+			Expect(dv.Annotations[AnnNoSourceClone]).To(Equal(""))
+		})
+
+		It("Validation mechanism rejects clone after creating incompatible source PVC", func() {
+			dv := newCloneDataVolume("test-dv")
+			// We add an incompatible content type
+			dv.Spec.ContentType = cdiv1.DataVolumeArchive
+			storageProfile := createStorageProfile(scName, nil, filesystemMode)
+			reconciler = createDatavolumeReconciler(dv, storageProfile, sc)
+
+			done, err := reconciler.handleCloneWithoutSource(dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeFalse())
+			Expect(dv.Annotations[AnnNoSourceClone]).To(Equal("true"))
+
+			// We create the source PVC after creating the clone
+			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			err = reconciler.client.Create(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			done, err = reconciler.handleCloneWithoutSource(dv)
+			Expect(err).To(HaveOccurred())
+			Expect(done).To(BeFalse())
+			Expect(dv.Annotations[AnnNoSourceClone]).To(Equal("true"))
+		})
+	})
+
 	var _ = Describe("Clone strategy", func() {
 		var (
 			hostAssisted = cdiv1.CloneStrategyHostAssisted
 			snapshot     = cdiv1.CloneStrategySnapshot
 			csiClone     = cdiv1.CloneStrategyCsiClone
 		)
-
-		It("Clone without source PVC", func() {
-			dv := newCloneDataVolume("test-dv")
-			scName := "testsc"
-			sc := createStorageClassWithProvisioner(scName, map[string]string{
-				AnnDefaultStorageClass: "true",
-			}, map[string]string{}, "csi-plugin")
-			storageProfile := createStorageProfile(scName, nil, filesystemMode)
-
-			reconciler = createDatavolumeReconciler(dv, storageProfile, sc)
-
-			cr := &cdiv1.CDI{}
-			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cr)
-			Expect(err).ToNot(HaveOccurred())
-			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
-			Expect(err).ToNot(HaveOccurred())
-
-			_, err = reconciler.selectCloneStrategy(dv, pvcSpec)
-
-			Expect(err).To(HaveOccurred())
-			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
-			Expect(dv.Annotations[AnnNoSourceClone]).To(Equal("true"))
-
-			// We create the source PVC after creating the clone
-			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
-			err = reconciler.client.Create(context.TODO(), pvc)
-			err = reconciler.client.Update(context.TODO(), dv)
-			Expect(err).ToNot(HaveOccurred())
-
-			cloneStrategy, err := reconciler.selectCloneStrategy(dv, pvcSpec)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(cloneStrategy).ToNot(Equal(NoClone))
-			Expect(dv.Annotations[AnnNoSourceClone]).To(Equal(""))
-		})
 
 		DescribeTable("Setting clone strategy affects the output of getCloneStrategy",
 			func(override, preferredCloneStrategy *cdiv1.CDICloneStrategy, expectedCloneStrategy cdiv1.CDICloneStrategy) {

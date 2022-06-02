@@ -49,8 +49,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -184,6 +186,18 @@ const (
 	ImportPVCNotReady = "ImportPVCNotReady"
 	// MessageImportPVCNotReady reports that it's not yet possible to access the source PVC (message)
 	MessageImportPVCNotReady = "The source PVC is not fully imported"
+	// CloneValidationFailed reports that a clone wasn't admitted by our validation mechanism (reason)
+	CloneValidationFailed = "CloneValidationFailed"
+	// MessageCloneValidationFailed reports that a clone wasn't admitted by our validation mechanism (message)
+	MessageCloneValidationFailed = "The clone doesn't meet the validation requirements"
+	// SourcePVCFound reports that the source PVC of a clone created without source has been found (reason)
+	SourcePVCFound = "SourcePVCFound"
+	// MessageSourcePVCFound reports that the source PVC of a clone created without source has been found (message)
+	MessageSourcePVCFound = "Source PVC found"
+	// CloneWithoutSource reports that the source PVC of a clone doesn't exists yet (reason)
+	CloneWithoutSource = "CloneWithoutSource"
+	// MessageCloneWithoutSource reports that the source PVC of a clone doesn't exists yet (message)
+	MessageCloneWithoutSource = "The source PVC doesn't exists yet"
 
 	// AnnCSICloneRequest annotation associates object with CSI Clone Request
 	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"
@@ -456,6 +470,56 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 		return err
 	}
 
+	// Watch for PVCs to reconcile clones created without source
+	if err := addCloneWithoutSourceWatch(mgr, datavolumeController); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// addCloneWithoutSourceWatch reconciles clones created without source once the matching PVC is created
+func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController controller.Controller) error {
+	const sourcePvcField = "spec.source.pvc"
+
+	getKey := func(namespace, name string) string {
+		return namespace + "/" + name
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, sourcePvcField, func(obj client.Object) []string {
+		if obj.(*cdiv1.DataVolume).Spec.Source != nil {
+			if pvc := obj.(*cdiv1.DataVolume).Spec.Source.PVC; pvc != nil {
+				ns := getNamespace(pvc.Namespace, obj.GetNamespace())
+				return []string{getKey(ns, pvc.Name)}
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	mapToDV := func(obj client.Object) (reqs []reconcile.Request) {
+		dvList := &cdiv1.DataVolumeList{}
+		matchingFields := client.MatchingFields{sourcePvcField: getKey(obj.GetNamespace(), obj.GetName())}
+		if err := mgr.GetClient().List(context.TODO(), dvList, matchingFields); err != nil {
+			return
+		}
+		for _, dv := range dvList.Items {
+			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
+		}
+		return
+	}
+
+	if err := datavolumeController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}},
+		handler.EnqueueRequestsFromMapFunc(mapToDV),
+		predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool { return true },
+			DeleteFunc: func(e event.DeleteEvent) bool { return false },
+			UpdateFunc: func(e event.UpdateEvent) bool { return false },
+		}); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -533,10 +597,21 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, err
 	}
 
-	selectedCloneStrategy, err := r.selectCloneStrategy(datavolume, pvcSpec)
-	if err != nil {
-		return reconcile.Result{}, err
+	selectedCloneStrategy := NoClone
+	if isClone := datavolume.Spec.Source.PVC != nil; isClone {
+		// Reconcile without error if the DV is a clone without source PVC
+		if done, err := r.handleCloneWithoutSource(datavolume); err != nil {
+			return reconcile.Result{}, err
+		} else if !done {
+			return reconcile.Result{}, nil
+		}
+		// Get the most appropiate clone strategy
+		selectedCloneStrategy, err = r.selectCloneStrategy(datavolume, pvcSpec)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 	}
+
 	if selectedCloneStrategy == SmartClone {
 		r.sccs.StartController()
 	}
@@ -725,15 +800,6 @@ func (r *DatavolumeReconciler) ensureExtendedToken(pvc *corev1.PersistentVolumeC
 }
 
 func (r *DatavolumeReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec) (cloneStrategy, error) {
-	isClone := datavolume.Spec.Source.PVC != nil
-	if !isClone {
-		return NoClone, nil
-	}
-
-	if err := r.handleCloneWithoutSource(datavolume); err != nil {
-		return NoClone, err
-	}
-
 	preferredCloneStrategy, err := r.getCloneStrategy(datavolume)
 	if err != nil {
 		return NoClone, err
@@ -2788,15 +2854,21 @@ func getDeltaTTL(dv *cdiv1.DataVolume, ttl int32) time.Duration {
 }
 
 // handleCloneWithoutSource does error handling and validation of clones without source PVC
-func (r *DatavolumeReconciler) handleCloneWithoutSource(datavolume *cdiv1.DataVolume) error {
+func (r *DatavolumeReconciler) handleCloneWithoutSource(datavolume *cdiv1.DataVolume) (bool, error) {
 	sourcePvc, err := r.findSourcePvc(datavolume)
 	if err != nil {
 		// Clone without source
 		if k8serrors.IsNotFound(err) {
 			datavolume.Annotations[AnnNoSourceClone] = "true"
-			r.updateDataVolume(datavolume)
+			r.updateDataVolumeStatusPhaseWithEvent(datavolume.Status.Phase, datavolume, nil, NoClone,
+				DataVolumeEvent{
+					eventType: corev1.EventTypeWarning,
+					reason:    CloneWithoutSource,
+					message:   MessageCloneWithoutSource,
+				})
+			return false, nil
 		}
-		return err
+		return false, err
 	}
 
 	noSource, available := datavolume.Annotations[AnnNoSourceClone]
@@ -2805,15 +2877,17 @@ func (r *DatavolumeReconciler) handleCloneWithoutSource(datavolume *cdiv1.DataVo
 		// when creating the DV, we do the validation now
 		err := ValidateClone(sourcePvc, &datavolume.Spec)
 		if err != nil {
-			return err
+			r.recorder.Event(datavolume, corev1.EventTypeWarning, CloneValidationFailed, MessageCloneValidationFailed)
+			return false, err
 		}
 
-		// The clone has a source now
+		// The clone's source PVC has been created
 		datavolume.Annotations[AnnNoSourceClone] = ""
 		r.updateDataVolume(datavolume)
+		r.recorder.Event(datavolume, corev1.EventTypeNormal, SourcePVCFound, MessageSourcePVCFound)
 	}
 
-	return nil
+	return true, nil
 }
 
 // isSourceReadyToClone handles the reconciling process of a clone when the source PVC is not ready
