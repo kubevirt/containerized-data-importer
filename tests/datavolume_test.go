@@ -155,7 +155,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	}
 
 	createVddkWarmImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
-		return CreateVddkWarmImportDataVolume(f, dataVolumeName, size, url)
+		return f.CreateVddkWarmImportDataVolume(dataVolumeName, size, url)
 	}
 
 	createImageIoDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {

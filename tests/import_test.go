@@ -159,7 +159,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	It("[test_id:6688] Should retain all multi-stage importer pods after completion with dv annotation cdi.kubevirt.io/storage.pod.retainAfterCompletion=true", func() {
 		vcenterURL := fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
-		dataVolume := tests.CreateVddkWarmImportDataVolume(f, "import-pod-retain-test", "100Mi", vcenterURL)
+		dataVolume := f.CreateVddkWarmImportDataVolume("import-pod-retain-test", "100Mi", vcenterURL)
 		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
 		dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
