@@ -3,27 +3,16 @@ package tests
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"runtime"
 	"strings"
 	"time"
-
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/tests/framework"
-)
-
-var (
-	nodeSelectorTestValue = map[string]string{"kubernetes.io/arch": runtime.GOARCH}
-	tolerationsTestValue  = []v1.Toleration{{Key: "test", Value: "123"}}
-	affinityTestValue     = &v1.Affinity{}
 )
 
 //PrintControllerLog ...
@@ -39,54 +28,6 @@ func PrintPodLog(f *framework.Framework, podName, namespace string) {
 	} else {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Unable to get pod log, %s\n", err.Error())
 	}
-}
-
-// TestNodePlacementValues returns a pre-defined set of node placement values for testing purposes.
-// The values chosen are valid, but the pod will likely not be schedulable.
-func TestNodePlacementValues(f *framework.Framework) sdkapi.NodePlacement {
-	nodes, _ := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
-	affinityTestValue = &v1.Affinity{
-		NodeAffinity: &v1.NodeAffinity{
-			RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
-				NodeSelectorTerms: []v1.NodeSelectorTerm{
-					{
-						MatchExpressions: []v1.NodeSelectorRequirement{
-							{Key: "kubernetes.io/hostname", Operator: v1.NodeSelectorOpIn, Values: []string{nodes.Items[0].Name}},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	return sdkapi.NodePlacement{
-		NodeSelector: nodeSelectorTestValue,
-		Affinity:     affinityTestValue,
-		Tolerations:  tolerationsTestValue,
-	}
-}
-
-// PodSpecHasTestNodePlacementValues compares if the pod spec has the set of node placement values defined for testing purposes
-func PodSpecHasTestNodePlacementValues(f *framework.Framework, podSpec v1.PodSpec) bool {
-	if !reflect.DeepEqual(podSpec.NodeSelector, nodeSelectorTestValue) {
-		fmt.Printf("mismatched nodeSelectors, podSpec:\n%v\nExpected:\n%v\n", podSpec.NodeSelector, nodeSelectorTestValue)
-		return false
-	}
-	if !reflect.DeepEqual(podSpec.Affinity, affinityTestValue) {
-		fmt.Printf("mismatched affinity, podSpec:\n%v\nExpected:\n%v\n", *podSpec.Affinity, affinityTestValue)
-		return false
-	}
-	foundMatchingTolerations := false
-	for _, toleration := range podSpec.Tolerations {
-		if toleration == tolerationsTestValue[0] {
-			foundMatchingTolerations = true
-		}
-	}
-	if !foundMatchingTolerations {
-		fmt.Printf("no matching tolerations found. podSpec:\n%v\nExpected:\n%v\n", podSpec.Tolerations, tolerationsTestValue)
-		return false
-	}
-	return true
 }
 
 // WaitForConditions waits until the data volume conditions match the expected conditions

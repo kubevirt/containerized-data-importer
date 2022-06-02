@@ -7,6 +7,7 @@ go_library(
         "framework.go",
         "kubectl.go",
         "nfs-utils.go",
+        "nodeplacement.go",
         "pod.go",
         "prometheus.go",
         "pv.go",
@@ -47,6 +48,7 @@ go_library(
         "//vendor/k8s.io/client-go/tools/clientcmd:go_default_library",
         "//vendor/k8s.io/client-go/tools/remotecommand:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
+        "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/api:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client:go_default_library",
     ],
 )

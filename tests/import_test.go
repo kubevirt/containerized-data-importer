@@ -395,7 +395,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", fu
 	})
 
 	It("[test_id:4783] Should create import pod with node placement", func() {
-		cr.Spec.Workloads = tests.TestNodePlacementValues(f)
+		cr.Spec.Workloads = f.TestNodePlacementValues()
 		_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -418,7 +418,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", fu
 		Expect(err).NotTo(HaveOccurred(), "Unable to get importer pod")
 
 		By("Verify the import pod has nodeSelector")
-		match := tests.PodSpecHasTestNodePlacementValues(f, importer.Spec)
+		match := f.PodSpecHasTestNodePlacementValues(importer.Spec)
 		Expect(match).To(BeTrue(), fmt.Sprintf("node placement in pod spec\n%v\n differs from node placement values in CDI CR\n%v\n", importer.Spec, cr.Spec.Workloads))
 	})
 })

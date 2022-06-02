@@ -34,7 +34,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
-	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
@@ -586,7 +585,7 @@ var _ = Describe("ALL Operator tests", func() {
 			It("[test_id:4782] Should install CDI infrastructure pods with node placement", func() {
 				By("Creating modified CDI CR, with infra nodePlacement")
 				localSpec := restoreCdiCr.Spec.DeepCopy()
-				localSpec.Infra = tests.TestNodePlacementValues(f)
+				localSpec.Infra = f.TestNodePlacementValues()
 
 				tempCdiCr := &cdiv1.CDI{
 					ObjectMeta: metav1.ObjectMeta{
@@ -602,7 +601,7 @@ var _ = Describe("ALL Operator tests", func() {
 					deployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
 
-					match := tests.PodSpecHasTestNodePlacementValues(f, deployment.Spec.Template.Spec)
+					match := f.PodSpecHasTestNodePlacementValues(deployment.Spec.Template.Spec)
 					Expect(match).To(BeTrue(), fmt.Sprintf("node placement in pod spec\n%v\n differs from node placement values in CDI CR\n%v\n", deployment.Spec.Template.Spec, localSpec.Infra))
 				}
 			})
