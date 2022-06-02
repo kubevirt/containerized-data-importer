@@ -349,7 +349,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 		By("Verify size error in logs")
 		Eventually(func() bool {
-			log, _ := tests.RunKubectlCommand(f, "logs", uploadPod.Name, "-n", uploadPod.Namespace)
+			log, _ := f.RunKubectlCommand("logs", uploadPod.Name, "-n", uploadPod.Namespace)
 			if strings.Contains(log, "is larger than the reported available") {
 				return true
 			}
@@ -407,7 +407,7 @@ func startUploadProxyPortForward(f *framework.Framework) (string, *exec.Cmd, err
 	pm := lp + ":443"
 	url := "https://127.0.0.1:" + lp
 
-	cmd := tests.CreateKubectlCommand(f, "-n", f.CdiInstallNs, "port-forward", "svc/cdi-uploadproxy", pm)
+	cmd := f.CreateKubectlCommand("-n", f.CdiInstallNs, "port-forward", "svc/cdi-uploadproxy", pm)
 	err := cmd.Start()
 	if err != nil {
 		return "", nil, err
@@ -765,7 +765,7 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		By("Verify Quota was exceeded in logs")
 		matchString := "pods \\\"cdi-upload-upload-test\\\" is forbidden: exceeded quota: test-quota, requested"
 		Eventually(func() string {
-			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 			Expect(err).NotTo(HaveOccurred())
 			return log
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
@@ -783,7 +783,7 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		By("Verify Quota was exceeded in logs")
 		matchString := "pods \\\"cdi-upload-upload-test\\\" is forbidden: exceeded quota: test-quota, requested"
 		Eventually(func() string {
-			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 			Expect(err).NotTo(HaveOccurred())
 			return log
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))

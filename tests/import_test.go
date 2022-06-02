@@ -96,7 +96,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		matchString := "PVC annotation not found, skipping pvc\t{\"PVC\": \"" + ns + "/" + pvc.Name + "\", \"annotation\": \"" + controller.AnnEndpoint + "\"}"
 		fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
 		Eventually(func() string {
-			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 			Expect(err).NotTo(HaveOccurred())
 			return log
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
@@ -321,7 +321,7 @@ var _ = Describe("[Istio] Namespace sidecar injection", func() {
 
 		By("Verify HTTP request error in importer log")
 		Eventually(func() bool {
-			log, _ := tests.RunKubectlCommand(f, "logs", importer.Name, "-n", importer.Namespace)
+			log, _ := f.RunKubectlCommand("logs", importer.Name, "-n", importer.Namespace)
 			if strings.Contains(log, "HTTP request errored") {
 				return true
 			}
@@ -519,7 +519,7 @@ func startPrometheusPortForward(f *framework.Framework) (string, *exec.Cmd, erro
 	pm := lp + ":8443"
 	url := "https://127.0.0.1:" + lp
 
-	cmd := tests.CreateKubectlCommand(f, "-n", f.Namespace.Name, "port-forward", "svc/kubevirt-prometheus-metrics", pm)
+	cmd := f.CreateKubectlCommand("-n", f.Namespace.Name, "port-forward", "svc/kubevirt-prometheus-metrics", pm)
 	err := cmd.Start()
 	if err != nil {
 		return "", nil, err
@@ -596,7 +596,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 
 		By("Verifying a message was printed to indicate a request for a blank disk on a block device")
 		Eventually(func() bool {
-			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 			Expect(err).NotTo(HaveOccurred())
 			return strings.Contains(log, "attempting to create blank disk for block mode")
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
@@ -623,7 +623,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 
 		By("Verify fsync() syscall was made")
 		Eventually(func() bool {
-			log, err := tests.RunKubectlCommand(f, "logs", importer.Name, "-n", importer.Namespace)
+			log, err := f.RunKubectlCommand("logs", importer.Name, "-n", importer.Namespace)
 			if err != nil {
 				return false
 			}
@@ -804,7 +804,7 @@ var _ = Describe("Namespace with quota", func() {
 		By("Verify Quota was exceeded in logs")
 		matchString := strings.Trim(fmt.Sprintf(`"name": "import-image-to-pvc", "namespace": "%s", "error": "pods \"importer-import-image-to-pvc\" is forbidden: exceeded quota: test-quota`, f.Namespace.Name), " ")
 		Eventually(func() string {
-			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 			Expect(err).NotTo(HaveOccurred())
 			return strings.Trim(log, " ")
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
@@ -833,7 +833,7 @@ var _ = Describe("Namespace with quota", func() {
 		By("Verify Quota was exceeded in logs")
 		matchString := strings.Trim(fmt.Sprintf(`"name": "import-image-to-pvc", "namespace": "%s", "error": "pods \"importer-import-image-to-pvc\" is forbidden: exceeded quota: test-quota`, f.Namespace.Name), " ")
 		Eventually(func() string {
-			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 			Expect(err).NotTo(HaveOccurred())
 			return strings.Trim(log, " ")
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
@@ -1364,13 +1364,13 @@ var _ = Describe("Preallocation", func() {
 			Expect(pod).ToNot(BeNil())
 
 			// Get test VM UUID
-			id, err := tests.RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
+			id, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
 			Expect(err).To(BeNil())
 			vmid, err := uuid.Parse(strings.TrimSpace(id))
 			Expect(err).To(BeNil())
 
 			// Get disk name
-			disk, err := tests.RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
+			disk, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
 			Expect(err).To(BeNil())
 			disk = strings.TrimSpace(disk)
 			Expect(err).To(BeNil())

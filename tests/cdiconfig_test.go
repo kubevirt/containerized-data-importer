@@ -22,7 +22,6 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
-	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -269,7 +268,7 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 	})
 
 	AfterEach(func() {
-		tests.RunKubectlCommand(f, "delete", "-f", manifestFile, "-n", f.CdiInstallNs)
+		f.RunKubectlCommand("delete", "-f", manifestFile, "-n", f.CdiInstallNs)
 
 		matchingVals := []string{defaultUrl}
 		if origUploadProxyOverride != nil {
@@ -293,7 +292,7 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 
 	It("[test_id:4949]Should properly react to network ingress", func() {
 		manifestFile = "manifests/ingressNetworkApigroup.yaml"
-		out, err := tests.RunKubectlCommand(f, "create", "-f", manifestFile, "-n", f.CdiInstallNs)
+		out, err := f.RunKubectlCommand("create", "-f", manifestFile, "-n", f.CdiInstallNs)
 		fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
 		Expect(err).ToNot(HaveOccurred())
 		Eventually(func() string {
@@ -312,7 +311,7 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		currentRestarts := controllerPod.Status.ContainerStatuses[0].RestartCount
 		fmt.Fprintf(GinkgoWriter, "INFO: Current number of restarts: %d\n", currentRestarts)
-		out, err := tests.RunKubectlCommand(f, "create", "-f", manifestFile, "-n", f.CdiInstallNs)
+		out, err := f.RunKubectlCommand("create", "-f", manifestFile, "-n", f.CdiInstallNs)
 		fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
 		Expect(err).ToNot(HaveOccurred())
 		Eventually(func() string {

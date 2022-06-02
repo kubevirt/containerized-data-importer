@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "exec_util.go",
         "framework.go",
+        "kubectl.go",
         "nfs-utils.go",
         "pod.go",
         "prometheus.go",

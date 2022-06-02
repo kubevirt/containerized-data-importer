@@ -13,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 )
 
@@ -24,7 +23,7 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	Context("[test_id:1348]CDI service account should exist", func() {
 		It("Should succeed", func() {
-			result, err := tests.RunKubectlCommand(f, "get", "sa", "cdi-sa", "-n", f.CdiInstallNs)
+			result, err := f.RunKubectlCommand("get", "sa", "cdi-sa", "-n", f.CdiInstallNs)
 			Expect(err).To(BeNil())
 			Expect(result).To(ContainSubstring("cdi-sa"))
 		})
@@ -32,7 +31,7 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	Context("[test_id:1349]CDI Cluster role should exist", func() {
 		It("Should succeed", func() {
-			result, err := tests.RunKubectlCommand(f, "get", "clusterrole", "cdi")
+			result, err := f.RunKubectlCommand("get", "clusterrole", "cdi")
 			Expect(err).To(BeNil())
 			Expect(result).To(ContainSubstring("cdi"))
 		})
@@ -40,7 +39,7 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	Context("[test_id:1350]CDI Cluster role binding should exist", func() {
 		It("Should succeed", func() {
-			result, err := tests.RunKubectlCommand(f, "get", "clusterrolebinding", "cdi-sa")
+			result, err := f.RunKubectlCommand("get", "clusterrolebinding", "cdi-sa")
 			Expect(err).To(BeNil())
 			Expect(result).To(ContainSubstring("cdi-sa"))
 		})
@@ -48,12 +47,12 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	Context("CDI deployment should exist", func() {
 		It("[test_id:1351]Should succeed", func() {
-			result, err := tests.RunKubectlCommand(f, "get", "deployment", "cdi-deployment", "-n", f.CdiInstallNs)
+			result, err := f.RunKubectlCommand("get", "deployment", "cdi-deployment", "-n", f.CdiInstallNs)
 			Expect(err).To(BeNil())
 			Expect(result).To(ContainSubstring("cdi-deployment"))
 		})
 		It("[test_id:1352]There should be 1 replica", func() {
-			result, err := tests.RunKubectlCommand(f, "get", "deployment", "cdi-deployment", "-o", "jsonpath={.spec.replicas}", "-n", f.CdiInstallNs)
+			result, err := f.RunKubectlCommand("get", "deployment", "cdi-deployment", "-o", "jsonpath={.spec.replicas}", "-n", f.CdiInstallNs)
 			Expect(err).To(BeNil())
 			Expect(result).To(ContainSubstring("1"))
 		})
@@ -138,7 +137,7 @@ func ValidateRBACForResource(f *framework.Framework, expectedResults map[string]
 	for verb, expectedRes := range expectedResults {
 		By(fmt.Sprintf("verifying cdi-sa "+resource+" rules, for verb %s", verb))
 
-		result, err := tests.RunKubectlCommand(f, "auth", "can-i", "--as", sa, verb, resource, "--namespace", f.Namespace.Name)
+		result, err := f.RunKubectlCommand("auth", "can-i", "--as", sa, verb, resource, "--namespace", f.Namespace.Name)
 		if expectedRes != "no" {
 			Expect(err).ToNot(HaveOccurred())
 		}

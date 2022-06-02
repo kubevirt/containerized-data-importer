@@ -1,11 +1,8 @@
 package tests
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
 	"reflect"
 	"runtime"
 	"strings"
@@ -32,36 +29,6 @@ var (
 	affinityTestValue     = &v1.Affinity{}
 )
 
-//RunKubectlCommand runs a kubectl Cmd and returns output and err
-func RunKubectlCommand(f *framework.Framework, args ...string) (string, error) {
-	var errb bytes.Buffer
-	cmd := CreateKubectlCommand(f, args...)
-
-	cmd.Stderr = &errb
-	stdOutBytes, err := cmd.Output()
-	if err != nil {
-		if len(errb.String()) > 0 {
-			return errb.String(), err
-		}
-		// err will not always be nil calling kubectl, this is expected on no results for instance.
-		// still return the value and let the called decide what to do.
-		return string(stdOutBytes), err
-	}
-	return string(stdOutBytes), nil
-}
-
-// CreateKubectlCommand returns the Cmd to execute kubectl
-func CreateKubectlCommand(f *framework.Framework, args ...string) *exec.Cmd {
-	kubeconfig := f.KubeConfig
-	path := f.KubectlPath
-
-	cmd := exec.Command(path, args...)
-	kubeconfEnv := fmt.Sprintf("KUBECONFIG=%s", kubeconfig)
-	cmd.Env = append(os.Environ(), kubeconfEnv)
-
-	return cmd
-}
-
 //PrintControllerLog ...
 func PrintControllerLog(f *framework.Framework) {
 	PrintPodLog(f, f.ControllerPod.Name, f.CdiInstallNs)
@@ -69,7 +36,7 @@ func PrintControllerLog(f *framework.Framework) {
 
 //PrintPodLog ...
 func PrintPodLog(f *framework.Framework, podName, namespace string) {
-	log, err := RunKubectlCommand(f, "logs", podName, "-n", namespace)
+	log, err := f.RunKubectlCommand("logs", podName, "-n", namespace)
 	if err == nil {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Pod log\n%s\n", log)
 	} else {
@@ -175,25 +142,25 @@ func CreateVddkWarmImportDataVolume(f *framework.Framework, dataVolumeName, size
 	gomega.Expect(pod).ToNot(gomega.BeNil())
 
 	// Get test VM UUID
-	id, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
+	id, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
 	gomega.Expect(err).To(gomega.BeNil())
 	vmid, err := uuid.Parse(strings.TrimSpace(id))
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Get snapshot 1 ID
-	previousCheckpoint, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmsnapshot1")
+	previousCheckpoint, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmsnapshot1")
 	gomega.Expect(err).To(gomega.BeNil())
 	previousCheckpoint = strings.TrimSpace(previousCheckpoint)
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Get snapshot 2 ID
-	currentCheckpoint, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmsnapshot2")
+	currentCheckpoint, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmsnapshot2")
 	gomega.Expect(err).To(gomega.BeNil())
 	currentCheckpoint = strings.TrimSpace(currentCheckpoint)
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Get disk name
-	disk, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
+	disk, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
 	gomega.Expect(err).To(gomega.BeNil())
 	disk = strings.TrimSpace(disk)
 	gomega.Expect(err).To(gomega.BeNil())

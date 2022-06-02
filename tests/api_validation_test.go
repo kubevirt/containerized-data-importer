@@ -92,7 +92,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 
 				By("Verifying kubectl create")
 				Eventually(func() bool {
-					_, err := RunKubectlCommand(f, "create", "-f", destinationFile, "-n", f.Namespace.Name)
+					_, err := f.RunKubectlCommand("create", "-f", destinationFile, "-n", f.Namespace.Name)
 					if err != nil {
 						return true
 					}
@@ -129,7 +129,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 
 				By("Verifying kubectl create")
 				Eventually(func() bool {
-					out, err := RunKubectlCommand(f, "create", "-f", destinationFile, "-n", f.Namespace.Name)
+					out, err := f.RunKubectlCommand("create", "-f", destinationFile, "-n", f.Namespace.Name)
 					By("out: " + out)
 					if err != nil {
 						return true
@@ -156,7 +156,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 
 				By("Verifying kubectl apply")
 				Eventually(func() bool {
-					_, err := RunKubectlCommand(f, "create", "-f", destinationFile, "-n", f.Namespace.Name)
+					_, err := f.RunKubectlCommand("create", "-f", destinationFile, "-n", f.Namespace.Name)
 					if err != nil {
 						return true
 					}
@@ -187,7 +187,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			By("Verifying kubectl create")
 			Eventually(func() bool {
 
-				_, err := RunKubectlCommand(f, "create", "-f", datavolumeTestFile, "-n", f.Namespace.Name)
+				_, err := f.RunKubectlCommand("create", "-f", datavolumeTestFile, "-n", f.Namespace.Name)
 				if err != nil {
 					return true
 				}
@@ -215,7 +215,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			By("Verifying kubectl create")
 			Eventually(func() bool {
 
-				_, err := RunKubectlCommand(f, "create", "-f", datavolumeTestFile, "-n", f.Namespace.Name)
+				_, err := f.RunKubectlCommand("create", "-f", datavolumeTestFile, "-n", f.Namespace.Name)
 				if err != nil {
 					return true
 				}
@@ -241,7 +241,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			By("Verifying kubectl create")
 			Eventually(func() bool {
 
-				_, err := RunKubectlCommand(f, "create", "-f", "manifests/dvImageio.yaml", "-n", f.Namespace.Name)
+				_, err := f.RunKubectlCommand("create", "-f", "manifests/dvImageio.yaml", "-n", f.Namespace.Name)
 				if err != nil {
 					return true
 				}
@@ -267,7 +267,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			By("Verifying kubectl create")
 			Eventually(func() bool {
 
-				_, err := RunKubectlCommand(f, "create", "-f", "manifests/dvVddk.yaml", "-n", f.Namespace.Name)
+				_, err := f.RunKubectlCommand("create", "-f", "manifests/dvVddk.yaml", "-n", f.Namespace.Name)
 				if err != nil {
 					return true
 				}
@@ -280,7 +280,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 	Context("when creating data volumes from manual manifests", func() {
 		table.DescribeTable("with manifests Datavolume should", func(destinationFile string, expectError bool, errorContains ...string) {
 			By("Verifying kubectl apply")
-			out, err := RunKubectlCommand(f, "create", "-f", destinationFile, "-n", f.Namespace.Name)
+			out, err := f.RunKubectlCommand("create", "-f", destinationFile, "-n", f.Namespace.Name)
 			fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
 			if expectError {
 				Expect(err).To(HaveOccurred())
@@ -325,7 +325,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 
 		It("[test_id:4895][posneg:positive]report progress while importing 1024Mi PVC", func() {
 			By("Verifying kubectl create")
-			out, err := RunKubectlCommand(f, "create", "-f", "manifests/out/dv1024MiPVC.yaml", "-n", f.Namespace.Name)
+			out, err := f.RunKubectlCommand("create", "-f", "manifests/out/dv1024MiPVC.yaml", "-n", f.Namespace.Name)
 			fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
 			Expect(err).ToNot(HaveOccurred())
 

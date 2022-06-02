@@ -130,13 +130,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		Expect(pod).ToNot(BeNil())
 
 		// Get test VM UUID
-		id, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
+		id, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
 		Expect(err).To(BeNil())
 		vmid, err := uuid.Parse(strings.TrimSpace(id))
 		Expect(err).To(BeNil())
 
 		// Get disk name
-		disk, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
+		disk, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
 		Expect(err).To(BeNil())
 		disk = strings.TrimSpace(disk)
 		Expect(err).To(BeNil())
@@ -314,7 +314,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				By("Verifying event occurred")
 				Eventually(func() bool {
 					// Only find DV events, we know the PVC gets the same events
-					events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+					events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 					if err == nil {
 						fmt.Fprintf(GinkgoWriter, "%s", events)
 						return strings.Contains(events, args.eventReason) && strings.Contains(events, args.errorMessage)
@@ -398,7 +398,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("Verifying event occurred")
 			Eventually(func() bool {
 				// Only find DV events, we know the PVC gets the same events
-				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
 					return strings.Contains(events, args.eventReason) && strings.Contains(events, args.errorMessage)
@@ -1274,7 +1274,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Verifying event occurred")
 			Eventually(func() bool {
-				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
+				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace)
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
 					return strings.Contains(events, eventReason)
@@ -1785,7 +1785,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("verifying event occurred")
 			Eventually(func() bool {
 				// Only find DV events, we know the PVC gets the same events
-				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
 					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume.storage spec is missing accessMode and volumeMode, cannot get access mode from StorageProfile")
@@ -1815,7 +1815,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("verifying event occurred")
 			Eventually(func() bool {
 				// Only find DV events, we know the PVC gets the same events
-				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
 					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume.storage spec is missing accessMode and no storageClass to choose profile")
@@ -1862,7 +1862,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("verifying event occurred")
 			Eventually(func() bool {
 				// Only find DV events, we know the PVC gets the same events
-				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
 					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume.storage spec is missing accessMode and volumeMode, cannot get access mode from StorageProfile")
