@@ -11,7 +11,6 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
-	"github.com/coreos/go-semver/semver"
 	route1client "github.com/openshift/client-go/route/clientset/versioned"
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -229,11 +228,6 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 	)
 
 	BeforeEach(func() {
-		version := *semver.New(tests.GetKubeVersion(f))
-		minVersion := *semver.New("1.14.0")
-		if version.LessThan(minVersion) {
-			Skip(fmt.Sprintf("kubernetes version %s, doesn't support network ingress", version.String()))
-		}
 		cfg, err := clientcmd.BuildConfigFromFlags(f.KubeURL, f.KubeConfig)
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking if a route exists, we set that as default")
