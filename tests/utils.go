@@ -36,14 +36,6 @@ var (
 	affinityTestValue     = &v1.Affinity{}
 )
 
-// CDIFailHandler call ginkgo.Fail with printing the additional information
-func CDIFailHandler(message string, callerSkip ...int) {
-	if len(callerSkip) > 0 {
-		callerSkip[0]++
-	}
-	ginkgo.Fail(message, callerSkip...)
-}
-
 //RunKubectlCommand runs a kubectl Cmd and returns output and err
 func RunKubectlCommand(f *framework.Framework, args ...string) (string, error) {
 	var errb bytes.Buffer
@@ -74,8 +66,8 @@ func CreateKubectlCommand(f *framework.Framework, args ...string) *exec.Cmd {
 	return cmd
 }
 
-//RunGoCLICommand runs a gocli Cmd and returns output and err
-func RunGoCLICommand(f *framework.Framework, args ...string) (string, error) {
+//runGoCLICommand runs a gocli Cmd and returns output and err
+func runGoCLICommand(f *framework.Framework, args ...string) (string, error) {
 	var errb bytes.Buffer
 	path := f.GoCLIPath
 	cmd := exec.Command(path, args...)
@@ -90,10 +82,10 @@ func RunGoCLICommand(f *framework.Framework, args ...string) (string, error) {
 	return string(stdOutBytes), nil
 }
 
-//RunOcCommand runs an oc Cmd and returns output and err
-func RunOcCommand(f *framework.Framework, args ...string) (string, error) {
+//runOcCommand runs an oc Cmd and returns output and err
+func runOcCommand(f *framework.Framework, args ...string) (string, error) {
 	var errb bytes.Buffer
-	cmd := CreateOcCommand(f, args...)
+	cmd := createOcCommand(f, args...)
 
 	cmd.Stderr = &errb
 	stdOutBytes, err := cmd.Output()
@@ -108,8 +100,8 @@ func RunOcCommand(f *framework.Framework, args ...string) (string, error) {
 	return string(stdOutBytes), nil
 }
 
-// CreateOcCommand returns the Cmd to execute oc
-func CreateOcCommand(f *framework.Framework, args ...string) *exec.Cmd {
+// createOcCommand returns the Cmd to execute oc
+func createOcCommand(f *framework.Framework, args ...string) *exec.Cmd {
 	kubeconfig := f.KubeConfig
 	path := f.OcPath
 
@@ -274,7 +266,7 @@ func getPrometheusURL(f *framework.Framework) string {
 
 	if utils.IsOpenshift(f.K8sClient) {
 		gomega.Eventually(func() bool {
-			host, err = RunOcCommand(f, "-n", "openshift-monitoring", "get", "route", "prometheus-k8s", "--template", "{{.spec.host}}")
+			host, err = runOcCommand(f, "-n", "openshift-monitoring", "get", "route", "prometheus-k8s", "--template", "{{.spec.host}}")
 			if err != nil {
 				return false
 			}
@@ -283,7 +275,7 @@ func getPrometheusURL(f *framework.Framework) string {
 		url = fmt.Sprintf("https://%s", host)
 	} else {
 		gomega.Eventually(func() bool {
-			port, err = RunGoCLICommand(f, "ports", "prometheus")
+			port, err = runGoCLICommand(f, "ports", "prometheus")
 			if err != nil {
 				return false
 			}
