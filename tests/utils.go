@@ -139,13 +139,6 @@ func PrintPodLog(f *framework.Framework, podName, namespace string) {
 	}
 }
 
-//PanicOnError ...
-func PanicOnError(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
 // GetKubeVersion returns the version returned by the kubectl version command as a semver compatible string
 func GetKubeVersion(f *framework.Framework) string {
 	// Check non json version output.
