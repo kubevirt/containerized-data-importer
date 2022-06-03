@@ -1568,10 +1568,9 @@ var _ = Describe("All DataVolume Tests", func() {
 			storageProfile := createStorageProfile(scName, nil, filesystemMode)
 			reconciler = createDatavolumeReconciler(dv, storageProfile, sc)
 
-			done, err := reconciler.handleCloneWithoutSource(dv)
+			done, err := reconciler.validateCloneAndSourcePVC(dv)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeFalse())
-			Expect(dv.Annotations[AnnNoSourceClone]).To(Equal("true"))
 		})
 
 		It("Create source PVC after clone without source", func() {
@@ -1579,20 +1578,18 @@ var _ = Describe("All DataVolume Tests", func() {
 			storageProfile := createStorageProfile(scName, nil, filesystemMode)
 			reconciler = createDatavolumeReconciler(dv, storageProfile, sc)
 
-			done, err := reconciler.handleCloneWithoutSource(dv)
+			done, err := reconciler.validateCloneAndSourcePVC(dv)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeFalse())
-			Expect(dv.Annotations[AnnNoSourceClone]).To(Equal("true"))
 
 			// We create the source PVC after creating the clone
 			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			err = reconciler.client.Create(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 
-			done, err = reconciler.handleCloneWithoutSource(dv)
+			done, err = reconciler.validateCloneAndSourcePVC(dv)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeTrue())
-			Expect(dv.Annotations[AnnNoSourceClone]).To(Equal(""))
 		})
 
 		It("Validation mechanism rejects clone after creating incompatible source PVC", func() {
@@ -1602,20 +1599,18 @@ var _ = Describe("All DataVolume Tests", func() {
 			storageProfile := createStorageProfile(scName, nil, filesystemMode)
 			reconciler = createDatavolumeReconciler(dv, storageProfile, sc)
 
-			done, err := reconciler.handleCloneWithoutSource(dv)
+			done, err := reconciler.validateCloneAndSourcePVC(dv)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeFalse())
-			Expect(dv.Annotations[AnnNoSourceClone]).To(Equal("true"))
 
 			// We create the source PVC after creating the clone
 			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			err = reconciler.client.Create(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 
-			done, err = reconciler.handleCloneWithoutSource(dv)
+			done, err = reconciler.validateCloneAndSourcePVC(dv)
 			Expect(err).To(HaveOccurred())
 			Expect(done).To(BeFalse())
-			Expect(dv.Annotations[AnnNoSourceClone]).To(Equal("true"))
 		})
 	})
 

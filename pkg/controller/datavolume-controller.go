@@ -190,14 +190,10 @@ const (
 	CloneValidationFailed = "CloneValidationFailed"
 	// MessageCloneValidationFailed reports that a clone wasn't admitted by our validation mechanism (message)
 	MessageCloneValidationFailed = "The clone doesn't meet the validation requirements"
-	// SourcePVCFound reports that the source PVC of a clone created without source has been found (reason)
-	SourcePVCFound = "SourcePVCFound"
-	// MessageSourcePVCFound reports that the source PVC of a clone created without source has been found (message)
-	MessageSourcePVCFound = "Source PVC found"
 	// CloneWithoutSource reports that the source PVC of a clone doesn't exists yet (reason)
 	CloneWithoutSource = "CloneWithoutSource"
 	// MessageCloneWithoutSource reports that the source PVC of a clone doesn't exists yet (message)
-	MessageCloneWithoutSource = "The source PVC doesn't exists yet"
+	MessageCloneWithoutSource = "The source PVC doesn't exist yet"
 
 	// AnnCSICloneRequest annotation associates object with CSI Clone Request
 	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"
@@ -210,9 +206,6 @@ const (
 
 	// AnnPermissiveClone annotation allows the clone-controller to skip the clone size validation
 	AnnPermissiveClone = "cdi.Kubevirt.io/permissiveClone"
-
-	// AnnNoSourceClone annotation indicates that the clone has not source PVC
-	AnnNoSourceClone = "cdi.kubevirt.io/noSourceClone"
 
 	annOwnedByDataVolume = "cdi.kubevirt.io/ownedByDataVolume"
 
@@ -597,29 +590,10 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, err
 	}
 
-	selectedCloneStrategy := NoClone
-	if isClone := datavolume.Spec.Source.PVC != nil; isClone {
-		// Reconcile without error if the DV is a clone without source PVC
-		if done, err := r.handleCloneWithoutSource(datavolume); err != nil {
-			return reconcile.Result{}, err
-		} else if !done {
-			return reconcile.Result{}, nil
-		}
-		// Get the most appropiate clone strategy
-		selectedCloneStrategy, err = r.selectCloneStrategy(datavolume, pvcSpec)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-	}
-
-	if selectedCloneStrategy == SmartClone {
-		r.sccs.StartController()
-	}
-
 	_, dvPrePopulated := datavolume.Annotations[AnnPrePopulated]
 
-	if selectedCloneStrategy != NoClone {
-		return r.reconcileClone(log, datavolume, pvc, pvcSpec, transferName, dvPrePopulated, pvcPopulated, selectedCloneStrategy)
+	if isClone := datavolume.Spec.Source.PVC != nil; isClone {
+		return r.reconcileClone(log, datavolume, pvc, pvcSpec, transferName, dvPrePopulated, pvcPopulated)
 	}
 
 	if !dvPrePopulated {
@@ -627,7 +601,7 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 			newPvc, err := r.createPvcForDatavolume(log, datavolume, pvcSpec)
 			if err != nil {
 				if errQuotaExceeded(err) {
-					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, datavolume, nil, selectedCloneStrategy,
+					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, datavolume, nil, NoClone,
 						DataVolumeEvent{
 							eventType: corev1.EventTypeWarning,
 							reason:    ErrExceededQuota,
@@ -660,7 +634,7 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 
 	// Finally, we update the status block of the DataVolume resource to reflect the
 	// current state of the world
-	return r.reconcileDataVolumeStatus(datavolume, pvc, selectedCloneStrategy)
+	return r.reconcileDataVolumeStatus(datavolume, pvc, NoClone)
 }
 
 func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
@@ -669,11 +643,26 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 	pvcSpec *corev1.PersistentVolumeClaimSpec,
 	transferName string,
 	prePopulated bool,
-	pvcPopulated bool,
-	selectedCloneStrategy cloneStrategy) (reconcile.Result, error) {
+	pvcPopulated bool) (reconcile.Result, error) {
 
-	// When cloning a PVC, if the target's size is not specified,
-	// said value can be attainable from the source PVC
+	// Check if source PVC exists and do proper validation before attempting to clone
+	if done, err := r.validateCloneAndSourcePVC(datavolume); err != nil {
+		return reconcile.Result{}, err
+	} else if !done {
+		return reconcile.Result{}, nil
+	}
+
+	// Get the most appropiate clone strategy
+	selectedCloneStrategy, err := r.selectCloneStrategy(datavolume, pvcSpec)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if selectedCloneStrategy == SmartClone {
+		r.sccs.StartController()
+	}
+
+	// If the target's size is not specified, we can extract that value from the source PVC
 	targetRequest, hasTargetRequest := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 	if !hasTargetRequest || targetRequest.IsZero() {
 		done, err := r.detectCloneSize(datavolume, pvcSpec, selectedCloneStrategy)
@@ -2853,13 +2842,12 @@ func getDeltaTTL(dv *cdiv1.DataVolume, ttl int32) time.Duration {
 	return delta
 }
 
-// handleCloneWithoutSource does error handling and validation of clones without source PVC
-func (r *DatavolumeReconciler) handleCloneWithoutSource(datavolume *cdiv1.DataVolume) (bool, error) {
+// validateCloneAndSourcePVC checks if the source PVC of a clone exists and does proper validation
+func (r *DatavolumeReconciler) validateCloneAndSourcePVC(datavolume *cdiv1.DataVolume) (bool, error) {
 	sourcePvc, err := r.findSourcePvc(datavolume)
 	if err != nil {
 		// Clone without source
 		if k8serrors.IsNotFound(err) {
-			datavolume.Annotations[AnnNoSourceClone] = "true"
 			r.updateDataVolumeStatusPhaseWithEvent(datavolume.Status.Phase, datavolume, nil, NoClone,
 				DataVolumeEvent{
 					eventType: corev1.EventTypeWarning,
@@ -2871,20 +2859,10 @@ func (r *DatavolumeReconciler) handleCloneWithoutSource(datavolume *cdiv1.DataVo
 		return false, err
 	}
 
-	noSource, available := datavolume.Annotations[AnnNoSourceClone]
-	if available && noSource == "true" {
-		// Since the admission webhook couldn't validate the clone against its source PVC
-		// when creating the DV, we do the validation now
-		err := ValidateClone(sourcePvc, &datavolume.Spec)
-		if err != nil {
-			r.recorder.Event(datavolume, corev1.EventTypeWarning, CloneValidationFailed, MessageCloneValidationFailed)
-			return false, err
-		}
-
-		// The clone's source PVC has been created
-		datavolume.Annotations[AnnNoSourceClone] = ""
-		r.updateDataVolume(datavolume)
-		r.recorder.Event(datavolume, corev1.EventTypeNormal, SourcePVCFound, MessageSourcePVCFound)
+	err = ValidateClone(sourcePvc, &datavolume.Spec)
+	if err != nil {
+		r.recorder.Event(datavolume, corev1.EventTypeWarning, CloneValidationFailed, MessageCloneValidationFailed)
+		return false, err
 	}
 
 	return true, nil

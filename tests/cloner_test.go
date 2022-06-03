@@ -1061,11 +1061,7 @@ var _ = Describe("all clone tests", func() {
 				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec("clone-dv", "1Gi", f.Namespace.Name, dataVolumeName, nil, &fsVM)
 				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				// Check if the NoSourceClone annotation exists in target PVC
-				By("Check expected annotations")
-				cloneDV, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), cloneDV.Name, metav1.GetOptions{})
-				_, available := cloneDV.Annotations[controller.AnnNoSourceClone]
-				Expect(available).To(Equal(false))
-
+				By("Check the expected event")
 				expectEvent(f, f.Namespace.Name).Should(ContainSubstring(controller.CloneWithoutSource))
 
 				By("Create source PVC")
@@ -1080,8 +1076,6 @@ var _ = Describe("all clone tests", func() {
 				clonePvc, err := utils.WaitForPVC(f.K8sClient, cloneDV.Namespace, cloneDV.Name)
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(cloneDV)
-
-				expectEvent(f, f.Namespace.Name).Should(ContainSubstring(controller.SourcePVCFound))
 
 				By("Wait for clone PVC Bound phase")
 				err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, cloneDV.Name)
@@ -1103,11 +1097,7 @@ var _ = Describe("all clone tests", func() {
 				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec("clone-dv", "1Mi", f.Namespace.Name, dataVolumeName, nil, &blockVM)
 				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				// Check if the NoSourceClone annotation exists in target PVC
-				By("Check expected annotations")
-				cloneDV, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), cloneDV.Name, metav1.GetOptions{})
-				_, available := cloneDV.Annotations[controller.AnnNoSourceClone]
-				Expect(available).To(Equal(false))
-
+				By("Check the expected event")
 				expectEvent(f, f.Namespace.Name).Should(ContainSubstring(controller.CloneWithoutSource))
 
 				By("Create source PVC")
