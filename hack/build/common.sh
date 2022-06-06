@@ -28,10 +28,6 @@ determine_cri_bin() {
     fi
 }
 
-determine_container_buildcmd() {
-    which buildah 2>/dev/null || which docker 2>/dev/null || echo "false"
-}
-
 CDI_DIR="$(cd $(dirname $0)/../../ && pwd -P)"
 CDI_GO_PACKAGE=kubevirt.io/containerized-data-importer
 BIN_DIR=${CDI_DIR}/bin
@@ -48,4 +44,8 @@ VENDOR_DIR=${CDI_DIR}/vendor
 ARCHITECTURE="${BUILD_ARCH:-$(uname -m)}"
 HOST_ARCHITECTURE="$(uname -m)"
 CDI_CRI="$(determine_cri_bin)"
-CDI_CONTAINER_BUILDCMD="$(determine_container_buildcmd)"
+if [ "${CDI_CRI}" = "docker" ]; then
+   CDI_CONTAINER_BUILDCMD="docker"
+else
+   CDI_CONTAINER_BUILDCMD="buildah"
+fi
