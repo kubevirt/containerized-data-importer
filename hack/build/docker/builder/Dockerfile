@@ -52,9 +52,9 @@ RUN \
 
 ENV BAZEL_VERSION 3.7.2
 
-COPY output-arch.sh /output-arch.sh
+COPY output-bazel-arch.sh /output-bazel-arch.sh
 
-RUN curl -L -o /usr/bin/bazel https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-$(sh /output-arch.sh)  && chmod u+x /usr/bin/bazel
+RUN curl -L -o /usr/bin/bazel https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-$(sh /output-bazel-arch.sh) && chmod u+x /usr/bin/bazel
 
 # Until we use a version including the fix for this Bazel issue:
 # https://github.com/bazelbuild/bazel/issues/11554
