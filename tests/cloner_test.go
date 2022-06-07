@@ -664,9 +664,9 @@ var _ = Describe("all clone tests", func() {
 					By("Checksum comparison")
 					Expect(sourceMD5).To(Equal(targetMD5))
 				},
-				Entry("Block to block (empty storage size)", v1.PersistentVolumeBlock, v1.PersistentVolumeBlock),
-				Entry("Block to filesystem (empty storage size)", v1.PersistentVolumeBlock, v1.PersistentVolumeFilesystem),
-				Entry("Filesystem to filesystem(empty storage size)", v1.PersistentVolumeFilesystem, v1.PersistentVolumeFilesystem),
+				Entry("[test_id:8492]Block to block (empty storage size)", v1.PersistentVolumeBlock, v1.PersistentVolumeBlock),
+				Entry("[test_id:8491]Block to filesystem (empty storage size)", v1.PersistentVolumeBlock, v1.PersistentVolumeFilesystem),
+				Entry("[test_id:8490]Filesystem to filesystem(empty storage size)", v1.PersistentVolumeFilesystem, v1.PersistentVolumeFilesystem),
 			)
 		}
 
@@ -823,11 +823,11 @@ var _ = Describe("all clone tests", func() {
 				_, available := targetPvc.Annotations[controller.AnnPermissiveClone]
 				Expect(available).To(Equal(true))
 			},
-				Entry("Smaller overhead in source than in target", "0.50", "0.30"),
-				Entry("Bigger overhead in source than in target", "0.30", "0.50"),
+				Entry("[test_id:8666]Smaller overhead in source than in target", "0.50", "0.30"),
+				Entry("[test_id:8665]Bigger overhead in source than in target", "0.30", "0.50"),
 			)
 
-			It("Should only use size-detection pod when cloning a PVC for the first time", func() {
+			It("[test_id:8498]Should only use size-detection pod when cloning a PVC for the first time", func() {
 				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "200Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				dataVolume.Spec.Storage.VolumeMode = &volumeMode
 				controller.AddAnnotation(dataVolume, controller.AnnPodRetainAfterCompletion, "true")
@@ -891,7 +891,7 @@ var _ = Describe("all clone tests", func() {
 				compareCloneWithSource(sourcePvc, secondTargetPvc, diskImagePath, diskImagePath)
 			})
 
-			It("Should use size-detection pod when cloning if the source PVC has changed its original capacity", func() {
+			It("[test_id:8762]Should use size-detection pod when cloning if the source PVC has changed its original capacity", func() {
 				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				dataVolume.Spec.Storage.VolumeMode = &volumeMode
 				controller.AddAnnotation(dataVolume, controller.AnnPodRetainAfterCompletion, "true")
