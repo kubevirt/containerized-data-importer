@@ -158,23 +158,32 @@ func (r *DataImportCronReconciler) shouldReconcileCron(ctx context.Context, cron
 }
 
 func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	if isURLSource(dataImportCron) && !r.cronJobExists(ctx, dataImportCron) {
-		cronJob, err := r.newCronJob(dataImportCron)
-		if err != nil {
-			return err
+	if isImageStreamSource(dataImportCron) {
+		if dataImportCron.Annotations[AnnNextCronTime] == "" {
+			AddAnnotation(dataImportCron, AnnNextCronTime, time.Now().Format(time.RFC3339))
 		}
-		if err := r.client.Create(ctx, cronJob); err != nil {
-			return err
-		}
-		job, err := r.newInitialJob(dataImportCron, cronJob)
-		if err != nil {
-			return err
-		}
-		if err := r.client.Create(ctx, job); err != nil {
-			return err
-		}
-	} else if isImageStreamSource(dataImportCron) && dataImportCron.Annotations[AnnNextCronTime] == "" {
-		AddAnnotation(dataImportCron, AnnNextCronTime, time.Now().Format(time.RFC3339))
+		return nil
+	}
+	if !isURLSource(dataImportCron) {
+		return nil
+	}
+	exists, err := r.cronJobExistsAndUpdated(ctx, dataImportCron)
+	if exists || err != nil {
+		return err
+	}
+	cronJob, err := r.newCronJob(dataImportCron)
+	if err != nil {
+		return err
+	}
+	if err := r.client.Create(ctx, cronJob); err != nil {
+		return err
+	}
+	job, err := r.newInitialJob(dataImportCron, cronJob)
+	if err != nil {
+		return err
+	}
+	if err := r.client.Create(ctx, job); err != nil {
+		return err
 	}
 	return nil
 }
@@ -702,10 +711,19 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 	return nil
 }
 
-func (r *DataImportCronReconciler) cronJobExists(ctx context.Context, cron *cdiv1.DataImportCron) bool {
+func (r *DataImportCronReconciler) cronJobExistsAndUpdated(ctx context.Context, cron *cdiv1.DataImportCron) (bool, error) {
 	var cronJob batchv1.CronJob
 	cronJobNamespacedName := types.NamespacedName{Namespace: r.cdiNamespace, Name: GetCronJobName(cron)}
-	return r.uncachedClient.Get(ctx, cronJobNamespacedName, &cronJob) == nil
+	err := r.uncachedClient.Get(ctx, cronJobNamespacedName, &cronJob)
+	podSpec := &cronJob.Spec.JobTemplate.Spec.Template.Spec
+	if err == nil && len(podSpec.Containers) > 0 && podSpec.Containers[0].Image != r.image {
+		podSpec.Containers[0].Image = r.image
+		err = r.uncachedClient.Update(ctx, &cronJob)
+	}
+	if err == nil || k8serrors.IsNotFound(err) {
+		return err == nil, nil
+	}
+	return false, err
 }
 
 func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batchv1.CronJob, error) {
