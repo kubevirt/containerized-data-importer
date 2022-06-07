@@ -56,11 +56,7 @@ function finish() {
 }
 trap finish EXIT
 
-if [ "$CDI_CRI" = "docker" ]; then
-    RSYNCD_PORT=$(${CDI_CRI} port $RSYNC_CID_CDI 873 | cut -d':' -f2)
-else
-    RSYNCD_PORT=$(${CDI_CRI} port $RSYNC_CID_CDI | cut -d':' -f2)
-fi
+RSYNCD_PORT=$(${CDI_CRI} port $RSYNC_CID_CDI | cut -d':' -f2)
 
 rsynch_fail_count=0
 
