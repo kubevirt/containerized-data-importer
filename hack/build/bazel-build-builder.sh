@@ -23,10 +23,7 @@ if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
     if [ -e /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
         BUILDAH_PLATFORM_FLAG="--platform linux/amd64,linux/arm64"
     else
-        if [ "$(uname)" = "Linux" ]; then
-            echo "Expecting qemu-user-static to be installed on the host machine, please install it"
-            exit 1
-        fi
+        echo "No qemu-user-static on host machine, building only native container"
         BUILDAH_PLATFORM_FLAG=""
     fi
 fi
