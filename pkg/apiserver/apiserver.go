@@ -52,6 +52,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/openapi"
+	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 )
 
 const (
@@ -97,8 +98,9 @@ type cdiAPIApp struct {
 
 	container *restful.Container
 
-	authorizer        CdiAPIAuthorizer
-	authConfigWatcher AuthConfigWatcher
+	authorizer          CdiAPIAuthorizer
+	authConfigWatcher   AuthConfigWatcher
+	cdiConfigTLSWatcher cryptowatch.CdiConfigTLSWatcher
 
 	certWarcher CertWatcher
 
@@ -122,19 +124,21 @@ func NewCdiAPIServer(bindAddress string,
 	cdiClient cdiclient.Interface,
 	authorizor CdiAPIAuthorizer,
 	authConfigWatcher AuthConfigWatcher,
+	cdiConfigTLSWatcher cryptowatch.CdiConfigTLSWatcher,
 	certWatcher CertWatcher,
 	installerLabels map[string]string) (CdiAPIServer, error) {
 	var err error
 	app := &cdiAPIApp{
-		bindAddress:       bindAddress,
-		bindPort:          bindPort,
-		client:            client,
-		aggregatorClient:  aggregatorClient,
-		cdiClient:         cdiClient,
-		authorizer:        authorizor,
-		authConfigWatcher: authConfigWatcher,
-		certWarcher:       certWatcher,
-		installerLabels:   installerLabels,
+		bindAddress:         bindAddress,
+		bindPort:            bindPort,
+		client:              client,
+		aggregatorClient:    aggregatorClient,
+		cdiClient:           cdiClient,
+		authorizer:          authorizor,
+		authConfigWatcher:   authConfigWatcher,
+		cdiConfigTLSWatcher: cdiConfigTLSWatcher,
+		certWarcher:         certWatcher,
+		installerLabels:     installerLabels,
 	}
 
 	err = app.getKeysAndCerts()
@@ -218,6 +222,7 @@ func (app *cdiAPIApp) getKeysAndCerts() error {
 
 func (app *cdiAPIApp) getTLSConfig() (*tls.Config, error) {
 	authConfig := app.authConfigWatcher.GetAuthConfig()
+	cryptoConfig := app.cdiConfigTLSWatcher.GetCdiTLSConfig()
 
 	cert, err := app.certWarcher.GetCertificate(nil)
 	if err != nil {
@@ -226,8 +231,10 @@ func (app *cdiAPIApp) getTLSConfig() (*tls.Config, error) {
 
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{*cert},
+		CipherSuites: cryptoConfig.CipherSuites,
 		ClientCAs:    authConfig.CertPool,
 		ClientAuth:   tls.VerifyClientCertIfGiven,
+		MinVersion:   cryptoConfig.MinVersion,
 		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 			if len(verifiedChains) == 0 {
 				return nil

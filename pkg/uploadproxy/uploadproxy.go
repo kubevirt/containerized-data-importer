@@ -28,6 +28,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
+	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 )
 
 const (
@@ -65,6 +66,8 @@ type uploadProxyApp struct {
 
 	client kubernetes.Interface
 
+	cdiConfigTLSWatcher cryptowatch.CdiConfigTLSWatcher
+
 	certWatcher CertWatcher
 
 	clientCreator ClientCreator
@@ -89,19 +92,21 @@ var authHeaderMatcher = regexp.MustCompile(`(?i)^Bearer\s+([A-Za-z0-9\-\._~\+\/]
 func NewUploadProxy(bindAddress string,
 	bindPort uint,
 	apiServerPublicKey string,
+	cdiConfigTLSWatcher cryptowatch.CdiConfigTLSWatcher,
 	certWatcher CertWatcher,
 	clientCertFetcher fetcher.CertFetcher,
 	serverCAFetcher fetcher.CertBundleFetcher,
 	client kubernetes.Interface) (Server, error) {
 	var err error
 	app := &uploadProxyApp{
-		bindAddress:    bindAddress,
-		bindPort:       bindPort,
-		certWatcher:    certWatcher,
-		clientCreator:  &clientCreator{certFetcher: clientCertFetcher, bundleFetcher: serverCAFetcher},
-		client:         client,
-		urlResolver:    controller.GetUploadServerURL,
-		uploadPossible: controller.UploadPossibleForPVC,
+		bindAddress:         bindAddress,
+		bindPort:            bindPort,
+		cdiConfigTLSWatcher: cdiConfigTLSWatcher,
+		certWatcher:         certWatcher,
+		clientCreator:       &clientCreator{certFetcher: clientCertFetcher, bundleFetcher: serverCAFetcher},
+		client:              client,
+		urlResolver:         controller.GetUploadServerURL,
+		uploadPossible:      controller.UploadPossibleForPVC,
 	}
 	// retrieve RSA key used by apiserver to sign tokens
 	err = app.getSigningKey(apiServerPublicKey)
@@ -308,6 +313,18 @@ func (app *uploadProxyApp) Start() error {
 	return app.startTLS()
 }
 
+func (app *uploadProxyApp) getTLSConfig() *tls.Config {
+	cryptoConfig := app.cdiConfigTLSWatcher.GetCdiTLSConfig()
+
+	tlsConfig := &tls.Config{
+		GetCertificate: app.certWatcher.GetCertificate,
+		CipherSuites:   cryptoConfig.CipherSuites,
+		MinVersion:     cryptoConfig.MinVersion,
+	}
+
+	return tlsConfig
+}
+
 func (app *uploadProxyApp) startTLS() error {
 	var serveFunc func() error
 	bindAddr := fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort)
@@ -318,9 +335,13 @@ func (app *uploadProxyApp) startTLS() error {
 	}
 
 	if app.certWatcher != nil {
-		server.TLSConfig = &tls.Config{
-			GetCertificate: app.certWatcher.GetCertificate,
+		tlsConfig := app.getTLSConfig()
+		tlsConfig.GetConfigForClient = func(_ *tls.ClientHelloInfo) (*tls.Config, error) {
+			klog.V(3).Info("Getting TLS config")
+			config := app.getTLSConfig()
+			return config, nil
 		}
+		server.TLSConfig = tlsConfig
 
 		serveFunc = func() error {
 			return server.ListenAndServeTLS("", "")
