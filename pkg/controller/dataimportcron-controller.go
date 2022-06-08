@@ -57,6 +57,8 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
+
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 )
 
 const (
@@ -102,6 +104,8 @@ const (
 	AnnNextCronTime = AnnAPIGroup + "/storage.import.nextCronTime"
 	// AnnLastCronTime is the cron last execution time stamp
 	AnnLastCronTime = AnnAPIGroup + "/storage.import.lastCronTime"
+	// AnnLastAppliedConfig is the cron last applied configuration
+	AnnLastAppliedConfig = AnnAPIGroup + "/lastAppliedConfiguration"
 
 	dataImportControllerName    = "dataimportcron-controller"
 	digestPrefix                = "sha256:"
@@ -714,16 +718,30 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 func (r *DataImportCronReconciler) cronJobExistsAndUpdated(ctx context.Context, cron *cdiv1.DataImportCron) (bool, error) {
 	var cronJob batchv1.CronJob
 	cronJobNamespacedName := types.NamespacedName{Namespace: r.cdiNamespace, Name: GetCronJobName(cron)}
-	err := r.uncachedClient.Get(ctx, cronJobNamespacedName, &cronJob)
-	podSpec := &cronJob.Spec.JobTemplate.Spec.Template.Spec
-	if err == nil && len(podSpec.Containers) > 0 && podSpec.Containers[0].Image != r.image {
-		podSpec.Containers[0].Image = r.image
-		err = r.uncachedClient.Update(ctx, &cronJob)
+	if err := r.client.Get(ctx, cronJobNamespacedName, &cronJob); err != nil {
+		return false, IgnoreNotFound(err)
 	}
-	if err == nil || k8serrors.IsNotFound(err) {
-		return err == nil, nil
+	desired, err := r.newCronJob(cron)
+	if err != nil {
+		return false, err
 	}
-	return false, err
+	current, err := sdk.StripStatusFromObject(&cronJob)
+	if err != nil {
+		return false, err
+	}
+	sdk.MergeLabelsAndAnnotations(desired, current)
+	merged, err := sdk.MergeObject(desired, current, AnnLastAppliedConfig)
+	if err != nil {
+		return false, err
+	}
+	if reflect.DeepEqual(current, merged) {
+		return true, nil
+	}
+	r.log.Info("Updating CronJob", "name", merged.GetName())
+	if err := r.client.Update(ctx, merged); err != nil {
+		return false, IgnoreNotFound(err)
+	}
+	return true, nil
 }
 
 func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batchv1.CronJob, error) {
@@ -751,7 +769,9 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 			"-cron", cron.Name,
 			"-url", *regSource.URL,
 		},
-		ImagePullPolicy: corev1.PullPolicy(r.pullPolicy),
+		ImagePullPolicy:          corev1.PullPolicy(r.pullPolicy),
+		TerminationMessagePath:   corev1.TerminationMessagePathDefault,
+		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
 	}
 
 	hasCertConfigMap := regSource.CertConfigMap != nil && *regSource.CertConfigMap != ""
@@ -849,6 +869,9 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 	}
 
 	if err := r.setJobCommon(cron, cronJob); err != nil {
+		return nil, err
+	}
+	if err := sdk.SetLastAppliedConfiguration(cronJob, AnnLastAppliedConfig); err != nil {
 		return nil, err
 	}
 	return cronJob, nil
