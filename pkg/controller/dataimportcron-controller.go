@@ -57,6 +57,8 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
+
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 )
 
 const (
@@ -102,6 +104,8 @@ const (
 	AnnNextCronTime = AnnAPIGroup + "/storage.import.nextCronTime"
 	// AnnLastCronTime is the cron last execution time stamp
 	AnnLastCronTime = AnnAPIGroup + "/storage.import.lastCronTime"
+	// AnnLastAppliedConfig is the cron last applied configuration
+	AnnLastAppliedConfig = AnnAPIGroup + "/lastAppliedConfiguration"
 
 	dataImportControllerName    = "dataimportcron-controller"
 	digestPrefix                = "sha256:"
@@ -158,23 +162,32 @@ func (r *DataImportCronReconciler) shouldReconcileCron(ctx context.Context, cron
 }
 
 func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	if isURLSource(dataImportCron) && !r.cronJobExists(ctx, dataImportCron) {
-		cronJob, err := r.newCronJob(dataImportCron)
-		if err != nil {
-			return err
+	if isImageStreamSource(dataImportCron) {
+		if dataImportCron.Annotations[AnnNextCronTime] == "" {
+			addAnnotation(dataImportCron, AnnNextCronTime, time.Now().Format(time.RFC3339))
 		}
-		if err := r.client.Create(ctx, cronJob); err != nil {
-			return err
-		}
-		job, err := r.newInitialJob(dataImportCron, cronJob)
-		if err != nil {
-			return err
-		}
-		if err := r.client.Create(ctx, job); err != nil {
-			return err
-		}
-	} else if isImageStreamSource(dataImportCron) && dataImportCron.Annotations[AnnNextCronTime] == "" {
-		addAnnotation(dataImportCron, AnnNextCronTime, time.Now().Format(time.RFC3339))
+		return nil
+	}
+	if !isURLSource(dataImportCron) {
+		return nil
+	}
+	exists, err := r.cronJobExistsAndUpdated(ctx, dataImportCron)
+	if exists || err != nil {
+		return err
+	}
+	cronJob, err := r.newCronJob(dataImportCron)
+	if err != nil {
+		return err
+	}
+	if err := r.client.Create(ctx, cronJob); err != nil {
+		return err
+	}
+	job, err := r.newInitialJob(dataImportCron, cronJob)
+	if err != nil {
+		return err
+	}
+	if err := r.client.Create(ctx, job); err != nil {
+		return err
 	}
 	return nil
 }
@@ -702,10 +715,33 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 	return nil
 }
 
-func (r *DataImportCronReconciler) cronJobExists(ctx context.Context, cron *cdiv1.DataImportCron) bool {
+func (r *DataImportCronReconciler) cronJobExistsAndUpdated(ctx context.Context, cron *cdiv1.DataImportCron) (bool, error) {
 	var cronJob batchv1.CronJob
 	cronJobNamespacedName := types.NamespacedName{Namespace: r.cdiNamespace, Name: GetCronJobName(cron)}
-	return r.uncachedClient.Get(ctx, cronJobNamespacedName, &cronJob) == nil
+	if err := r.client.Get(ctx, cronJobNamespacedName, &cronJob); err != nil {
+		return false, IgnoreNotFound(err)
+	}
+	desired, err := r.newCronJob(cron)
+	if err != nil {
+		return false, err
+	}
+	current, err := sdk.StripStatusFromObject(&cronJob)
+	if err != nil {
+		return false, err
+	}
+	sdk.MergeLabelsAndAnnotations(desired, current)
+	merged, err := sdk.MergeObject(desired, current, AnnLastAppliedConfig)
+	if err != nil {
+		return false, err
+	}
+	if reflect.DeepEqual(current, merged) {
+		return true, nil
+	}
+	r.log.Info("Updating CronJob", "name", merged.GetName())
+	if err := r.client.Update(ctx, merged); err != nil {
+		return false, IgnoreNotFound(err)
+	}
+	return true, nil
 }
 
 func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batchv1.CronJob, error) {
@@ -733,7 +769,9 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 			"-cron", cron.Name,
 			"-url", *regSource.URL,
 		},
-		ImagePullPolicy: corev1.PullPolicy(r.pullPolicy),
+		ImagePullPolicy:          corev1.PullPolicy(r.pullPolicy),
+		TerminationMessagePath:   corev1.TerminationMessagePathDefault,
+		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
 	}
 
 	hasCertConfigMap := regSource.CertConfigMap != nil && *regSource.CertConfigMap != ""
@@ -831,6 +869,9 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 	}
 
 	if err := r.setJobCommon(cron, cronJob); err != nil {
+		return nil, err
+	}
+	if err := sdk.SetLastAppliedConfiguration(cronJob, AnnLastAppliedConfig); err != nil {
 		return nil, err
 	}
 	return cronJob, nil
