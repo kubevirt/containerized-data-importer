@@ -12,6 +12,22 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
+determine_cri_bin() {
+    if [ "${KUBEVIRTCI_RUNTIME-}" = "podman" ]; then
+        echo "podman --remote --url=unix://${XDG_RUNTIME_DIR-}/podman/podman.sock"
+    elif [ "${KUBEVIRTCI_RUNTIME-}" = "docker" ]; then
+        echo docker
+    else
+        if curl --unix-socket "${XDG_RUNTIME_DIR-}/podman/podman.sock" http://d/v3.0.0/libpod/info >/dev/null 2>&1; then
+            echo "podman --remote --url=unix://${XDG_RUNTIME_DIR-}/podman/podman.sock"
+        elif docker ps >/dev/null 2>&1; then
+            echo docker
+        else
+            echo ""
+        fi
+    fi
+}
+
 CDI_DIR="$(cd $(dirname $0)/../../ && pwd -P)"
 CDI_GO_PACKAGE=kubevirt.io/containerized-data-importer
 BIN_DIR=${CDI_DIR}/bin
@@ -27,3 +43,9 @@ CACHE_DIR=${OUT_DIR}/gocache
 VENDOR_DIR=${CDI_DIR}/vendor
 ARCHITECTURE="${BUILD_ARCH:-$(uname -m)}"
 HOST_ARCHITECTURE="$(uname -m)"
+CDI_CRI="$(determine_cri_bin)"
+if [ "${CDI_CRI}" = "docker" ]; then
+   CDI_CONTAINER_BUILDCMD="docker"
+else
+   CDI_CONTAINER_BUILDCMD="buildah"
+fi

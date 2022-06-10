@@ -20,16 +20,17 @@ source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
 BUILDER_SPEC="hack/ci/Dockerfile.ci"
+BUILDER_TAG=$(date +"%y%m%d%H%M")-$(git rev-parse --short HEAD)
 
 # When building and pushing a new image we do not provide the sha hash
 # because docker assigns that for us.
 UNTAGGED_BUILDER_IMAGE=quay.io/kubevirt/cdi-osci-builder
 
 # Build the encapsulated compile and test container
-docker build -f ${BUILDER_SPEC} --tag ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG} .
+${CDI_CONTAINER_BUILDCMD} build -f ${BUILDER_SPEC} --tag ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG} .
 
-DIGEST=$(docker images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
+DIGEST=$(${CDI_CONTAINER_BUILDCMD} images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
 echo "Image: ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}"
 echo "Digest: ${DIGEST}"
 
-docker push ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
+${CDI_CONTAINER_BUILDCMD} push ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
