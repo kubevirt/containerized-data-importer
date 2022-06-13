@@ -202,6 +202,28 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
+		It("Should update CronJob on reconcile", func() {
+			cron = newDataImportCron(cronName)
+			reconciler = createDataImportCronReconciler(cron)
+
+			verifyCronJobContainerImage := func(image string) {
+				reconciler.image = image
+				_, err := reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+
+				cronjob := &batchv1.CronJob{}
+				err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+				Expect(err).ToNot(HaveOccurred())
+
+				containers := cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers
+				Expect(len(containers)).ToNot(BeZero())
+				Expect(containers[0].Image).To(Equal(image))
+			}
+
+			verifyCronJobContainerImage("old-image")
+			verifyCronJobContainerImage("new-image")
+		})
+
 		It("Should create DataVolume on AnnSourceDesiredDigest annotation update, and update DataImportCron and DataSource on DataVolume Succeeded", func() {
 			cron = newDataImportCron(cronName)
 			dataSource = nil
