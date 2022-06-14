@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"reflect"
 	"strconv"
 	"strings"
@@ -445,7 +446,7 @@ func (r *CloneReconciler) validateSourceAndTarget(sourcePvc, targetPvc *corev1.P
 	if err != nil {
 		return err
 	}
-	err = ValidateCanCloneSourceAndTargetSpec(sourcePvc, targetPvc, contentType)
+	err = ValidateCanCloneSourceAndTargetSpec(r.client, sourcePvc, targetPvc, contentType)
 	if err == nil {
 		// Validation complete, put source PVC bound status in annotation
 		setBoundConditionFromPVC(targetPvc.GetAnnotations(), AnnBoundCondition, sourcePvc)
@@ -768,15 +769,10 @@ func ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc *corev1.Per
 }
 
 // ValidateCanCloneSourceAndTargetSpec validates the specs passed in are compatible for cloning.
-func ValidateCanCloneSourceAndTargetSpec(sourcePvc, targetPvc *corev1.PersistentVolumeClaim, contentType cdiv1.DataVolumeContentType) error {
-	err := ValidateCloneSize(sourcePvc.Spec.Resources, targetPvc.Spec.Resources)
-	_, available := targetPvc.Annotations[AnnPermissiveClone]
-	// Due to filesystem overhead differences, the target's size can sometimes be smaller
-	// than the source's one when obtaining said value with the size-detection pod.
-	// In those cases, we use the 'AnnPermissiveClone' annotation to skip the size validation.
-	if !available && err != nil {
-		return err
-	}
+func ValidateCanCloneSourceAndTargetSpec(c client.Client, sourcePvc, targetPvc *corev1.PersistentVolumeClaim, contentType cdiv1.DataVolumeContentType) error {
+	// This annotation is only needed for some specific cases, when the target size is actually calculated by
+	// the size detection pod, and there are some differences in fs overhead between src and target volumes
+	_, permissive := targetPvc.Annotations[AnnPermissiveClone]
 
 	// Allow different source and target volume modes only on KubeVirt content type
 	sourceVolumeMode := util.ResolveVolumeMode(sourcePvc.Spec.VolumeMode)
@@ -785,12 +781,45 @@ func ValidateCanCloneSourceAndTargetSpec(sourcePvc, targetPvc *corev1.Persistent
 		return fmt.Errorf("source volumeMode (%s) and target volumeMode (%s) do not match, contentType (%s)",
 			sourceVolumeMode, targetVolumeMode, contentType)
 	}
+
+	// TODO: use detection pod here, then permissive should not be needed
+	sourceUsableSpace, err := getUsableSpace(c, sourcePvc)
+	if err != nil {
+		return err
+	}
+	targetUsableSpace, err := getUsableSpace(c, targetPvc)
+	if err != nil {
+		return err
+	}
+
+	if !permissive && sourceUsableSpace.Cmp(targetUsableSpace) > 0 {
+		return errors.New("target resources requests storage size is smaller than the source")
+	}
+
 	// Can clone.
 	return nil
 }
 
-// ValidateCloneSize validates the clone size requirements
-func ValidateCloneSize(sourceResources corev1.ResourceRequirements, targetResources corev1.ResourceRequirements) error {
+func getUsableSpace(c client.Client, pvc *corev1.PersistentVolumeClaim) (resource.Quantity, error) {
+	sizeRequest := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+	volumeMode := util.ResolveVolumeMode(pvc.Spec.VolumeMode)
+
+	if volumeMode == corev1.PersistentVolumeFilesystem {
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, pvc.Spec.StorageClassName)
+		if err != nil {
+			return resource.Quantity{}, err
+		}
+		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
+		usableSpaceRaw := util.GetUsableSpace(fsOverheadFloat, sizeRequest.Value())
+
+		return *resource.NewScaledQuantity(usableSpaceRaw, 0), nil
+	}
+
+	return sizeRequest, nil
+}
+
+// ValidateRequestedCloneSize validates the clone size requirements on block
+func ValidateRequestedCloneSize(sourceResources corev1.ResourceRequirements, targetResources corev1.ResourceRequirements) error {
 	sourceRequest := sourceResources.Requests[corev1.ResourceStorage]
 	targetRequest := targetResources.Requests[corev1.ResourceStorage]
 	// Verify that the target PVC size is equal or larger than the source.
