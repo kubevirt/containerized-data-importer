@@ -463,7 +463,7 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 		return err
 	}
 
-	// Watch for PVCs to reconcile clones created without source
+	// Watch to reconcile clones created without source
 	if err := addCloneWithoutSourceWatch(mgr, datavolumeController); err != nil {
 		return err
 	}
@@ -491,9 +491,11 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 		return err
 	}
 
-	mapToDV := func(obj client.Object) (reqs []reconcile.Request) {
+	// Function to reconcile DVs that match the selected fields
+	dataVolumeMapper := func(obj client.Object) (reqs []reconcile.Request) {
 		dvList := &cdiv1.DataVolumeList{}
-		matchingFields := client.MatchingFields{sourcePvcField: getKey(obj.GetNamespace(), obj.GetName())}
+		namespacedName := types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}
+		matchingFields := client.MatchingFields{sourcePvcField: namespacedName.String()}
 		if err := mgr.GetClient().List(context.TODO(), dvList, matchingFields); err != nil {
 			return
 		}
@@ -504,7 +506,7 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 	}
 
 	if err := datavolumeController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}},
-		handler.EnqueueRequestsFromMapFunc(mapToDV),
+		handler.EnqueueRequestsFromMapFunc(dataVolumeMapper),
 		predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool { return true },
 			DeleteFunc: func(e event.DeleteEvent) bool { return false },

@@ -400,8 +400,8 @@ func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.Ad
 func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.DataVolumeSourcePVC, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) *metav1.StatusCause {
 	sourcePVC, err := wh.k8sClient.CoreV1().PersistentVolumeClaims(PVC.Namespace).Get(context.TODO(), PVC.Name, metav1.GetOptions{})
 	if err != nil {
-		// We allow the creation of a clone even when the source PVC doesn't exists.
-		// The validation will be checked later once the source PVC is created.
+		// We allow the creation of a clone DV even if the source PVC doesn't exist.
+		// The validation will be completed once the source PVC is created.
 		if k8serrors.IsNotFound(err) {
 			return nil
 		}

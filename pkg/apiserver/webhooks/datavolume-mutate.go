@@ -127,6 +127,11 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 		sourceNamespace = targetNamespace
 	}
 
+	_, err = wh.k8sClient.CoreV1().Namespaces().Get(context.TODO(), sourceNamespace, metav1.GetOptions{})
+	if err != nil {
+		return toAdmissionResponseError(err)
+	}
+
 	if ar.Request.Operation == admissionv1.Update {
 		if err := json.Unmarshal(ar.Request.OldObject.Raw, &oldDataVolume); err != nil {
 			return toAdmissionResponseError(err)
