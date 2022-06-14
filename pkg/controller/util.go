@@ -897,6 +897,45 @@ func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNa
 	return nil
 }
 
+// validateContentTypes compares the content type of a clone DV against its source PVC's one
+func validateContentTypes(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
+	sourceContentType := cdiv1.DataVolumeContentType(GetContentType(sourcePVC))
+	targetContentType := spec.ContentType
+	if targetContentType == "" {
+		targetContentType = cdiv1.DataVolumeKubeVirt
+	}
+	return sourceContentType == targetContentType, sourceContentType, targetContentType
+}
+
+// ValidateClone compares a clone spec against its source PVC to validate its creation
+func ValidateClone(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) error {
+	var targetResources v1.ResourceRequirements
+
+	valid, sourceContentType, targetContentType := validateContentTypes(sourcePVC, spec)
+	if !valid {
+		msg := fmt.Sprintf("Source contentType (%s) and target contentType (%s) do not match", sourceContentType, targetContentType)
+		return errors.New(msg)
+	}
+
+	explicitPvcRequest := spec.PVC != nil
+	if explicitPvcRequest {
+		targetResources = spec.PVC.Resources
+	} else {
+		targetResources = spec.Storage.Resources
+	}
+
+	// TODO: Spec.Storage API needs a better more complex check to validate clone size - to account for fsOverhead
+	// simple size comparison will not work here
+	if GetVolumeMode(sourcePVC) == v1.PersistentVolumeBlock || explicitPvcRequest {
+		if err := ValidateRequestedCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// AddAnnotation adds an annotation to an object
 func addAnnotation(obj metav1.Object, key, value string) {
 	if obj.GetAnnotations() == nil {
 		obj.SetAnnotations(make(map[string]string))
@@ -974,7 +1013,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 		}
 	}
 
-	requestedVolumeSize, err := volumeSize(client, storage, pvcSpec.VolumeMode)
+	requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, pvcSpec)
 	if err != nil {
 		return nil, err
 	}
@@ -1090,24 +1129,39 @@ func getDefaultAccessModes(c client.Client, storageClass *storagev1.StorageClass
 	return nil, errors.Errorf("no accessMode defined on StorageProfile for %s StorageClass", storageClass.Name)
 }
 
-func volumeSize(c client.Client, storage *cdiv1.StorageSpec, volumeMode *v1.PersistentVolumeMode) (*resource.Quantity, error) {
+func resolveVolumeSize(c client.Client, dvSpec cdiv1.DataVolumeSpec, pvcSpec *v1.PersistentVolumeClaimSpec) (*resource.Quantity, error) {
 	// resources.requests[storage] - just copy it to pvc,
-	requestedSize, found := storage.Resources.Requests[v1.ResourceStorage]
+	requestedSize, found := dvSpec.Storage.Resources.Requests[v1.ResourceStorage]
+
 	if !found {
 		return nil, errors.Errorf("Datavolume Spec is not valid - missing storage size")
 	}
 
 	// disk or image size, inflate it with overhead
-	if resolveVolumeMode(volumeMode) == v1.PersistentVolumeFilesystem {
-		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, storage.StorageClassName)
-		if err != nil {
-			return nil, err
-		}
-		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
-		requiredSpace := GetRequiredSpace(fsOverheadFloat, requestedSize.Value())
+	requestedSize, err := inflateSizeWithOverhead(c, requestedSize.Value(), pvcSpec)
 
-		return resource.NewScaledQuantity(requiredSpace, 0), nil
+	return &requestedSize, err
+}
+
+// inflateSizeWithOverhead inflates a storage size with proper overhead calculations
+func inflateSizeWithOverhead(c client.Client, imgSize int64, pvcSpec *v1.PersistentVolumeClaimSpec) (resource.Quantity, error) {
+	var returnSize resource.Quantity
+
+	if resolveVolumeMode(pvcSpec.VolumeMode) == v1.PersistentVolumeFilesystem {
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, pvcSpec.StorageClassName)
+		if err != nil {
+			return resource.Quantity{}, err
+		}
+		// Parse filesystem overhead (percentage) into a 64-bit float
+		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
+
+		// Merge the previous values into a 'resource.Quantity' struct
+		requiredSpace := GetRequiredSpace(fsOverheadFloat, imgSize)
+		returnSize = *resource.NewScaledQuantity(requiredSpace, 0)
+	} else {
+		// Inflation is not needed with 'Block' mode
+		returnSize = *resource.NewScaledQuantity(imgSize, 0)
 	}
 
-	return &requestedSize, nil
+	return returnSize, nil
 }

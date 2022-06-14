@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"reflect"
 	"strconv"
 	"strings"
@@ -445,7 +446,7 @@ func (r *CloneReconciler) validateSourceAndTarget(sourcePvc, targetPvc *corev1.P
 	if err != nil {
 		return err
 	}
-	err = ValidateCanCloneSourceAndTargetSpec(&sourcePvc.Spec, &targetPvc.Spec, contentType)
+	err = ValidateCanCloneSourceAndTargetSpec(r.client, sourcePvc, targetPvc, contentType)
 	if err == nil {
 		// Validation complete, put source PVC bound status in annotation
 		setBoundConditionFromPVC(targetPvc.GetAnnotations(), AnnBoundCondition, sourcePvc)
@@ -768,24 +769,52 @@ func ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc *corev1.Per
 }
 
 // ValidateCanCloneSourceAndTargetSpec validates the specs passed in are compatible for cloning.
-func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *corev1.PersistentVolumeClaimSpec, contentType cdiv1.DataVolumeContentType) error {
-	err := ValidateCloneSize(sourceSpec.Resources, targetSpec.Resources)
-	if err != nil {
-		return err
-	}
+func ValidateCanCloneSourceAndTargetSpec(c client.Client, sourcePvc, targetPvc *corev1.PersistentVolumeClaim, contentType cdiv1.DataVolumeContentType) error {
 	// Allow different source and target volume modes only on KubeVirt content type
-	sourceVolumeMode := resolveVolumeMode(sourceSpec.VolumeMode)
-	targetVolumeMode := resolveVolumeMode(targetSpec.VolumeMode)
+	sourceVolumeMode := resolveVolumeMode(sourcePvc.Spec.VolumeMode)
+	targetVolumeMode := resolveVolumeMode(targetPvc.Spec.VolumeMode)
 	if sourceVolumeMode != targetVolumeMode && contentType != cdiv1.DataVolumeKubeVirt {
 		return fmt.Errorf("source volumeMode (%s) and target volumeMode (%s) do not match, contentType (%s)",
 			sourceVolumeMode, targetVolumeMode, contentType)
 	}
+
+	sourceUsableSpace, err := getUsableSpace(c, sourcePvc)
+	if err != nil {
+		return err
+	}
+	targetUsableSpace, err := getUsableSpace(c, targetPvc)
+	if err != nil {
+		return err
+	}
+
+	if sourceUsableSpace.Cmp(targetUsableSpace) > 0 {
+		return errors.New("target resources requests storage size is smaller than the source")
+	}
+
 	// Can clone.
 	return nil
 }
 
-// ValidateCloneSize validates the clone size requirements
-func ValidateCloneSize(sourceResources corev1.ResourceRequirements, targetResources corev1.ResourceRequirements) error {
+func getUsableSpace(c client.Client, pvc *corev1.PersistentVolumeClaim) (resource.Quantity, error) {
+	sizeRequest := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+	volumeMode := resolveVolumeMode(pvc.Spec.VolumeMode)
+
+	if volumeMode == corev1.PersistentVolumeFilesystem {
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, pvc.Spec.StorageClassName)
+		if err != nil {
+			return resource.Quantity{}, err
+		}
+		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
+		usableSpaceRaw := util.GetUsableSpace(fsOverheadFloat, sizeRequest.Value())
+
+		return *resource.NewScaledQuantity(usableSpaceRaw, 0), nil
+	}
+
+	return sizeRequest, nil
+}
+
+// ValidateRequestedCloneSize validates the clone size requirements on block
+func ValidateRequestedCloneSize(sourceResources corev1.ResourceRequirements, targetResources corev1.ResourceRequirements) error {
 	sourceRequest := sourceResources.Requests[corev1.ResourceStorage]
 	targetRequest := targetResources.Requests[corev1.ResourceStorage]
 	// Verify that the target PVC size is equal or larger than the source.
