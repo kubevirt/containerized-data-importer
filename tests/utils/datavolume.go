@@ -640,8 +640,8 @@ func WaitForDataVolumePhaseWithTimeout(ci ClientsIface, namespace string, phase 
 		if err != nil {
 			return err
 		}
-		if cfg.Spec.DataVolumeTTLSeconds != nil {
-			return WaitForDvGcPvcSucceeded(ci, namespace, dataVolumeName, dataVolumePhaseTime)
+		if ttl := cfg.Spec.DataVolumeTTLSeconds; ttl != nil {
+			return WaitForDataVolumeGC(ci, namespace, dataVolumeName, *ttl, dataVolumePhaseTime)
 		}
 	}
 	err := wait.PollImmediate(dataVolumePollInterval, timeout, func() (bool, error) {
@@ -658,18 +658,31 @@ func WaitForDataVolumePhaseWithTimeout(ci ClientsIface, namespace string, phase 
 	return nil
 }
 
-// WaitForDvGcPvcSucceeded waits for DV garbage collected and PVC succeeded
-func WaitForDvGcPvcSucceeded(ci ClientsIface, namespace string, pvcName string, timeout time.Duration) error {
-	var actualPhase cdiv1.DataVolumePhase
-	var retain bool
+// WaitForDataVolumeGC waits for DataVolume garbage collected
+func WaitForDataVolumeGC(ci ClientsIface, namespace string, pvcName string, ttl int32, timeout time.Duration) error {
+	var (
+		actualPhase cdiv1.DataVolumePhase
+		retain      bool
+	)
 
 	err := wait.PollImmediate(dataVolumePollInterval, timeout, func() (bool, error) {
 		dv, err := ci.Cdi().CdiV1beta1().DataVolumes(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{})
 		if err == nil {
 			retain = dv.Annotations[controller.AnnDeleteAfterCompletion] == "false"
+			actualPhase = dv.Status.Phase
+			if actualPhase != cdiv1.Succeeded {
+				return false, nil
+			}
 			if retain {
-				actualPhase = dv.Status.Phase
-				return actualPhase == cdiv1.Succeeded, nil
+				return true, nil
+			}
+			if ttl > 1 {
+				// Check only once DV is retained for ttl/2 and GC'ed too early
+				time.Sleep(time.Duration(ttl/2) * time.Second)
+				if _, err = ci.Cdi().CdiV1beta1().DataVolumes(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{}); err != nil {
+					return false, fmt.Errorf("DataVolume %s was not retained for ttl, err %s", pvcName, err.Error())
+				}
+				ttl = 0
 			}
 			return false, nil
 		}
@@ -690,12 +703,8 @@ func WaitForDvGcPvcSucceeded(ci ClientsIface, namespace string, pvcName string, 
 	if err != nil {
 		return fmt.Errorf("DataVolume %s was not garbage collected within %v err %s", pvcName, timeout, err.Error())
 	}
-	pvc, err := ci.K8s().CoreV1().PersistentVolumeClaims(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{})
-	if err != nil {
+	if _, err := ci.K8s().CoreV1().PersistentVolumeClaims(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{}); err != nil {
 		return err
-	}
-	if phase := pvc.Annotations[controller.AnnPodPhase]; phase != string(corev1.PodSucceeded) {
-		return fmt.Errorf("PVC %s is not in phase Succeeded although DataVolume garbage collected, actual phase=%s", pvcName, phase)
 	}
 	return nil
 }

@@ -2790,6 +2790,7 @@ func (r *DatavolumeReconciler) garbageCollect(dataVolume *cdiv1.DataVolume, pvc 
 	}
 	dvTTL := cdiConfig.Spec.DataVolumeTTLSeconds
 	if dvTTL == nil || *dvTTL < 0 {
+		log.Info("Garbage Collection is disabled")
 		return nil, nil
 	}
 	// Current DV still has TTL, so reconcile will return with the needed RequeueAfter
@@ -2803,15 +2804,12 @@ func (r *DatavolumeReconciler) garbageCollect(dataVolume *cdiv1.DataVolume, pvc 
 }
 
 func (r *DatavolumeReconciler) detachPvcDeleteDv(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume, log logr.Logger) error {
-	if !IsSucceeded(pvc) {
+	if dv.Status.Phase != cdiv1.Succeeded {
 		return nil
 	}
 	dvDelete := dv.Annotations[AnnDeleteAfterCompletion]
-	if dvDelete == "false" {
-		log.Info("DataVolume is not garbage collected per annotation")
-		return nil
-	}
 	if dvDelete != "true" {
+		log.Info("DataVolume is not annotated to be garbage collected")
 		return nil
 	}
 	updatePvcOwnerRefs(pvc, dv)

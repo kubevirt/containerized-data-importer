@@ -719,11 +719,6 @@ func IsPopulated(pvc *v1.PersistentVolumeClaim, c client.Client) (bool, error) {
 	})
 }
 
-// IsSucceeded returns if the passed in PVC import/clone/upload succeeded (even if DV was already deleted) and no current checkpoint
-func IsSucceeded(pvc *v1.PersistentVolumeClaim) bool {
-	return podSucceededFromPVC(pvc) && pvc.Annotations[AnnCurrentCheckpoint] == ""
-}
-
 // SetPodPvcAnnotations applies PVC annotations on the pod
 func SetPodPvcAnnotations(pod *v1.Pod, pvc *v1.PersistentVolumeClaim) {
 	allowedAnnotations := map[string]string{
