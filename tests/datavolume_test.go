@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"reflect"
 	"regexp"
 	"strings"
@@ -1114,6 +1115,45 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[test_id:8044]for upload DataVolume", createUploadDataVolume, tinyCoreIsoURL()),
 			table.Entry("[test_id:8045]for clone DataVolume", createCloneDataVolume, fillCommand),
 		)
+
+		It("Should handle a pre populated DV", func() {
+			By(fmt.Sprintf("initializing dataVolume marked as prePopulated %s", dataVolumeName))
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", cirrosURL())
+			dataVolume.Annotations["cdi.kubevirt.io/storage.prePopulated"] = dataVolumeName
+
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verifying Pending without PVC")
+			Eventually(func() cdiv1.DataVolumePhase {
+				dv, _ := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				return dv.Status.Phase
+			}, timeout, pollingInterval).Should(Equal(cdiv1.Pending))
+
+			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue(), "PVC Should not exist")
+
+			By("Create PVC")
+			annotations := map[string]string{"cdi.kubevirt.io/storage.populatedFor": dataVolumeName}
+			pvcDef := utils.NewPVCDefinition(dataVolumeName, "100m", annotations, nil)
+			pvcDef.OwnerReferences = append(pvcDef.OwnerReferences,
+				*metav1.NewControllerRef(dataVolume, schema.GroupVersionKind{
+					Group:   cdiv1.SchemeGroupVersion.Group,
+					Version: cdiv1.SchemeGroupVersion.Version,
+					Kind:    "DataVolume",
+				}))
+			_, err = f.CreateBoundPVCFromDefinition(pvcDef)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verifying Succeed with PVC Bound")
+			Eventually(func() cdiv1.DataVolumePhase {
+				dv, _ := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				return dv.Status.Phase
+			}, timeout, pollingInterval).Should(Equal(cdiv1.Succeeded))
+
+		})
 
 		It("[test_id:4961]should handle a pre populated PVC", func() {
 			By(fmt.Sprintf("initializing source PVC %s", dataVolumeName))
