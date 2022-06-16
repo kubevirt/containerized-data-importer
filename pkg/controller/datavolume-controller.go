@@ -436,6 +436,7 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, err
 	}
 
+	pvcPopulated := false
 	// Get the pvc with the name specified in DataVolume.spec
 	pvc := &corev1.PersistentVolumeClaim{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: datavolume.Namespace, Name: datavolume.Name}, pvc); err != nil {
@@ -449,8 +450,9 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 	} else {
 		// If the PVC is not controlled by this DataVolume resource, we should log
 		// a warning to the event recorder and return
+		pvcPopulated = pvcIsPopulated(pvc, datavolume)
 		if !metav1.IsControlledBy(pvc, datavolume) {
-			if pvcIsPopulated(pvc, datavolume) {
+			if pvcPopulated {
 				if err := r.addOwnerRef(pvc, datavolume); err != nil {
 					return reconcile.Result{}, err
 				}
@@ -481,13 +483,13 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		r.sccs.StartController()
 	}
 
-	_, prePopulated := datavolume.Annotations[AnnPrePopulated]
+	_, dvPrePopulated := datavolume.Annotations[AnnPrePopulated]
 
 	if selectedCloneStrategy != NoClone {
-		return r.reconcileClone(log, datavolume, pvc, pvcSpec, transferName, prePopulated, selectedCloneStrategy)
+		return r.reconcileClone(log, datavolume, pvc, pvcSpec, transferName, dvPrePopulated, pvcPopulated, selectedCloneStrategy)
 	}
 
-	if !prePopulated {
+	if !dvPrePopulated {
 		if pvc == nil {
 			newPvc, err := r.createPvcForDatavolume(log, datavolume, pvcSpec)
 			if err != nil {
@@ -525,7 +527,7 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 
 	// Finally, we update the status block of the DataVolume resource to reflect the
 	// current state of the world
-	return r.reconcileDataVolumeStatus(datavolume, pvc)
+	return r.reconcileDataVolumeStatus(datavolume, pvc, selectedCloneStrategy)
 }
 
 func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
@@ -534,9 +536,10 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 	pvcSpec *corev1.PersistentVolumeClaimSpec,
 	transferName string,
 	prePopulated bool,
+	pvcPopulated bool,
 	selectedCloneStrategy cloneStrategy) (reconcile.Result, error) {
 
-	if !prePopulated {
+	if !prePopulated && !pvcPopulated {
 		if pvc == nil {
 			if selectedCloneStrategy == SmartClone {
 				snapshotClassName, _ := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
@@ -606,7 +609,7 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 
 	// Finally, we update the status block of the DataVolume resource to reflect the
 	// current state of the world
-	return r.reconcileDataVolumeStatus(datavolume, pvc)
+	return r.reconcileDataVolumeStatus(datavolume, pvc, selectedCloneStrategy)
 }
 
 func (r *DatavolumeReconciler) ensureExtendedToken(pvc *corev1.PersistentVolumeClaim) error {
@@ -2084,7 +2087,7 @@ func (r *DatavolumeReconciler) updateUploadStatusPhase(pvc *corev1.PersistentVol
 	}
 }
 
-func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
+func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, selectedCloneStrategy cloneStrategy) (reconcile.Result, error) {
 	dataVolumeCopy := dataVolume.DeepCopy()
 	var event DataVolumeEvent
 	result := reconcile.Result{}
@@ -2222,9 +2225,8 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		}
 	}
 
-	if dataVolumeCopy.Spec.Source.PVC != nil {
-		// XXX should probably be is status
-		addAnnotation(dataVolumeCopy, annCloneType, "network")
+	if selectedCloneStrategy != NoClone {
+		addAnnotation(dataVolumeCopy, annCloneType, cloneStrategyToCloneType(selectedCloneStrategy))
 	}
 
 	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))
