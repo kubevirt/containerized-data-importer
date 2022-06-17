@@ -190,10 +190,10 @@ const (
 	CloneValidationFailed = "CloneValidationFailed"
 	// MessageCloneValidationFailed reports that a clone wasn't admitted by our validation mechanism (message)
 	MessageCloneValidationFailed = "The clone doesn't meet the validation requirements"
-	// CloneWithoutSource reports that the source PVC of a clone doesn't exists yet (reason)
+	// CloneWithoutSource reports that the source PVC of a clone doesn't exists (reason)
 	CloneWithoutSource = "CloneWithoutSource"
-	// MessageCloneWithoutSource reports that the source PVC of a clone doesn't exists yet (message)
-	MessageCloneWithoutSource = "The source PVC doesn't exist yet"
+	// MessageCloneWithoutSource reports that the source PVC of a clone doesn't exists (message)
+	MessageCloneWithoutSource = "The source PVC doesn't exist"
 
 	// AnnCSICloneRequest annotation associates object with CSI Clone Request
 	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"

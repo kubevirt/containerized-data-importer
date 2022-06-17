@@ -1043,17 +1043,19 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 			}
 
+			getAndHandleMD5 := func(pvc *v1.PersistentVolumeClaim, imgPath string) string {
+				defer deleteAndWaitForVerifierPod()
+				md5, err := f.GetMD5(f.Namespace, pvc, imgPath, crossVolumeModeCloneMD5NumBytes)
+				Expect(err).ToNot(HaveOccurred())
+				return md5
+			}
+
 			compareCloneWithSource := func(sourcePvc, targetPvc *v1.PersistentVolumeClaim, sourceImgPath, targetImgPath string) {
 				By("Source file system pvc md5summing")
-				sourceMD5, err := f.GetMD5(f.Namespace, sourcePvc, sourceImgPath, crossVolumeModeCloneMD5NumBytes)
-				Expect(err).ToNot(HaveOccurred())
-				deleteAndWaitForVerifierPod()
-
+				sourceMD5 := getAndHandleMD5(sourcePvc, sourceImgPath)
 				By("Target file system pvc md5summing")
-				targetMD5, err := f.GetMD5(f.Namespace, targetPvc, targetImgPath, crossVolumeModeCloneMD5NumBytes)
-				Expect(err).ToNot(HaveOccurred())
+				targetMD5 := getAndHandleMD5(targetPvc, targetImgPath)
 				Expect(sourceMD5).To(Equal(targetMD5))
-				deleteAndWaitForVerifierPod()
 			}
 
 			It("Should finish the clone after creating the source PVC", func() {
@@ -1101,6 +1103,7 @@ var _ = Describe("all clone tests", func() {
 				expectEvent(f, f.Namespace.Name).Should(ContainSubstring(controller.CloneWithoutSource))
 
 				By("Create source PVC")
+				// We use a larger size in the source PVC so the validation fails
 				sourceDV := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				sourceDV.Spec.Storage.VolumeMode = &blockVM
 				sourceDV, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDV)
