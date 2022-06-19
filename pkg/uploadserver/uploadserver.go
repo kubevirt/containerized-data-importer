@@ -43,6 +43,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 )
 
 const (
@@ -64,6 +65,7 @@ type uploadServerApp struct {
 	tlsCert              string
 	clientCert           string
 	clientName           string
+	cryptoConfig         cryptowatch.CryptoConfig
 	keyFile              string
 	certFile             string
 	imageSize            string
@@ -114,7 +116,7 @@ func formReadCloser(r *http.Request) (io.ReadCloser, error) {
 }
 
 // NewUploadServer returns a new instance of uploadServerApp
-func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsCert, clientCert, clientName, imageSize string, filesystemOverhead float64, preallocation bool) UploadServer {
+func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsCert, clientCert, clientName, imageSize string, filesystemOverhead float64, preallocation bool, cryptoConfig cryptowatch.CryptoConfig) UploadServer {
 	server := &uploadServerApp{
 		bindAddress:        bindAddress,
 		bindPort:           bindPort,
@@ -123,6 +125,7 @@ func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsC
 		tlsCert:            tlsCert,
 		clientCert:         clientCert,
 		clientName:         clientName,
+		cryptoConfig:       cryptoConfig,
 		filesystemOverhead: filesystemOverhead,
 		preallocation:      preallocation,
 		imageSize:          imageSize,
@@ -238,8 +241,10 @@ func (app *uploadServerApp) createUploadServer() (*http.Server, error) {
 		}
 
 		server.TLSConfig = &tls.Config{
-			ClientCAs:  caCertPool,
-			ClientAuth: tls.RequireAndVerifyClientCert,
+			CipherSuites: app.cryptoConfig.CipherSuites,
+			ClientCAs:    caCertPool,
+			ClientAuth:   tls.RequireAndVerifyClientCert,
+			MinVersion:   app.cryptoConfig.MinVersion,
 		}
 	}
 
