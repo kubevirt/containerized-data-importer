@@ -686,12 +686,12 @@ var _ = Describe("ALL Operator tests", func() {
 				}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 			})
 
-			It("[test_id:5576]ServiceAccount secrets restored on deletion attempt", func() {
+			It("[test_id:5576]ServiceAccount values restored on update attempt", func() {
 				serviceAccount, err := f.K8sClient.CoreV1().ServiceAccounts(f.CdiInstallNs).Get(context.TODO(), common.ControllerServiceAccountName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
-				By("Remove secrets from ServiceAccount")
-				serviceAccount.Secrets = []corev1.ObjectReference{}
+				By("Change one of ServiceAccount labels")
+				serviceAccount.Labels[common.CDIComponentLabel] = "somebadvalue"
 
 				_, err = f.K8sClient.CoreV1().ServiceAccounts(f.CdiInstallNs).Update(context.TODO(), serviceAccount, metav1.UpdateOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -699,8 +699,8 @@ var _ = Describe("ALL Operator tests", func() {
 				Eventually(func() bool {
 					sa, err := f.K8sClient.CoreV1().ServiceAccounts(f.CdiInstallNs).Get(context.TODO(), common.ControllerServiceAccountName, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
-					By("Waiting until secrets are repopulated")
-					return len(sa.Secrets) != 0
+					By("Waiting until label value restored")
+					return sa.Labels[common.CDIComponentLabel] == ""
 				}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 			})
 

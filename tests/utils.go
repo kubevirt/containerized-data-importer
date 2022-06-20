@@ -279,27 +279,8 @@ func MakePrometheusHTTPRequest(f *framework.Framework, endpoint string) *http.Re
 
 	url = getPrometheusURL(f)
 	monitoringNs = getMonitoringNs(f)
-	gomega.Eventually(func() bool {
-		var secretName string
-		sa, err := f.K8sClient.CoreV1().ServiceAccounts(monitoringNs).Get(context.TODO(), "prometheus-k8s", metav1.GetOptions{})
-		if err != nil {
-			return false
-		}
-		for _, secret := range sa.Secrets {
-			if strings.HasPrefix(secret.Name, "prometheus-k8s-token") {
-				secretName = secret.Name
-			}
-		}
-		secret, err := f.K8sClient.CoreV1().Secrets(monitoringNs).Get(context.TODO(), secretName, metav1.GetOptions{})
-		if err != nil {
-			return false
-		}
-		if _, ok := secret.Data["token"]; !ok {
-			return false
-		}
-		token = string(secret.Data["token"])
-		return true
-	}, 10*time.Second, time.Second).Should(gomega.BeTrue())
+	token, err := f.GetTokenForServiceAccount(monitoringNs, "prometheus-k8s")
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	client := &http.Client{
 		Transport: &http.Transport{
