@@ -19,6 +19,7 @@ import (
 
 	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	authenticationv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -314,35 +315,9 @@ func (c *Clients) GetCrClient() (crclient.Client, error) {
 
 // GetRESTConfigForServiceAccount returns a RESTConfig for SA
 func (f *Framework) GetRESTConfigForServiceAccount(namespace, name string) (*rest.Config, error) {
-	var secretName string
-
-	sl, err := f.K8sClient.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{})
+	token, err := f.GetTokenForServiceAccount(namespace, name)
 	if err != nil {
 		return nil, err
-	}
-
-	for _, s := range sl.Items {
-		if s.Type == v1.SecretTypeServiceAccountToken {
-			n := s.Name
-			if len(n) > 12 && n[0:len(n)-12] == name {
-				secretName = s.Name
-				break
-			}
-		}
-	}
-
-	if len(secretName) == 0 {
-		return nil, fmt.Errorf("couldn't find service account secret")
-	}
-
-	secret, err := f.K8sClient.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	token, ok := secret.Data["token"]
-	if !ok {
-		return nil, fmt.Errorf("no token key")
 	}
 
 	return &rest.Config{
@@ -353,6 +328,25 @@ func (f *Framework) GetRESTConfigForServiceAccount(namespace, name string) (*res
 			Insecure: true,
 		},
 	}, nil
+}
+
+// GetTokenForServiceAccount returns a token for a given SA
+func (f *Framework) GetTokenForServiceAccount(namespace, name string) (string, error) {
+	token, err := f.K8sClient.CoreV1().ServiceAccounts(namespace).
+		CreateToken(
+			context.TODO(),
+			name,
+			&authenticationv1.TokenRequest{
+				Spec: authenticationv1.TokenRequestSpec{},
+			},
+			metav1.CreateOptions{},
+		)
+	if err != nil {
+		return "", err
+	}
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Token created for SA: %+v\n", token.Status)
+
+	return token.Status.Token, nil
 }
 
 // GetCdiClientForServiceAccount returns a cdi client for a service account
