@@ -518,7 +518,7 @@ func uploadForm(portForwardURL, token string, expectedStatus int) error {
 }
 
 func uploadFormAsync(portForwardURL, token string, expectedStatus int) error {
-	return uploadFileNameToPath(formRequestFunc, utils.UploadFile, portForwardURL, syncFormPath, token, expectedStatus)
+	return uploadFileNameToPath(formRequestFunc, utils.UploadFile, portForwardURL, asyncFormPath, token, expectedStatus)
 }
 
 func uploadFileNameToPath(requestFunc uploadFileNameRequestCreator, fileName, portForwardURL, path, token string, expectedStatus int) error {
