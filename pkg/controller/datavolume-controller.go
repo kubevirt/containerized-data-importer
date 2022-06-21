@@ -48,8 +48,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -167,6 +169,14 @@ const (
 	NamespaceTransferInProgress = "NamespaceTransferInProgress"
 	// MessageNamespaceTransferInProgress is a const for reporting target transfer
 	MessageNamespaceTransferInProgress = "Transferring PersistentVolumeClaim for DataVolume %s/%s"
+	// CloneValidationFailed reports that a clone wasn't admitted by our validation mechanism (reason)
+	CloneValidationFailed = "CloneValidationFailed"
+	// MessageCloneValidationFailed reports that a clone wasn't admitted by our validation mechanism (message)
+	MessageCloneValidationFailed = "The clone doesn't meet the validation requirements"
+	// CloneWithoutSource reports that the source PVC of a clone doesn't exists (reason)
+	CloneWithoutSource = "CloneWithoutSource"
+	// MessageCloneWithoutSource reports that the source PVC of a clone doesn't exists (message)
+	MessageCloneWithoutSource = "The source PVC doesn't exist"
 
 	// AnnCSICloneRequest annotation associates object with CSI Clone Request
 	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"
@@ -405,6 +415,58 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 		return err
 	}
 
+	// Watch to reconcile clones created without source
+	if err := addCloneWithoutSourceWatch(mgr, datavolumeController); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// addCloneWithoutSourceWatch reconciles clones created without source once the matching PVC is created
+func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController controller.Controller) error {
+	const sourcePvcField = "spec.source.pvc"
+
+	getKey := func(namespace, name string) string {
+		return namespace + "/" + name
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, sourcePvcField, func(obj client.Object) []string {
+		if obj.(*cdiv1.DataVolume).Spec.Source != nil {
+			if pvc := obj.(*cdiv1.DataVolume).Spec.Source.PVC; pvc != nil {
+				ns := getNamespace(pvc.Namespace, obj.GetNamespace())
+				return []string{getKey(ns, pvc.Name)}
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	// Function to reconcile DVs that match the selected fields
+	dataVolumeMapper := func(obj client.Object) (reqs []reconcile.Request) {
+		dvList := &cdiv1.DataVolumeList{}
+		namespacedName := types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}
+		matchingFields := client.MatchingFields{sourcePvcField: namespacedName.String()}
+		if err := mgr.GetClient().List(context.TODO(), dvList, matchingFields); err != nil {
+			return
+		}
+		for _, dv := range dvList.Items {
+			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
+		}
+		return
+	}
+
+	if err := datavolumeController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}},
+		handler.EnqueueRequestsFromMapFunc(dataVolumeMapper),
+		predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool { return true },
+			DeleteFunc: func(e event.DeleteEvent) bool { return false },
+			UpdateFunc: func(e event.UpdateEvent) bool { return false },
+		}); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -480,18 +542,10 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, err
 	}
 
-	selectedCloneStrategy, err := r.selectCloneStrategy(datavolume, pvcSpec)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-	if selectedCloneStrategy == SmartClone {
-		r.sccs.StartController()
-	}
-
 	_, dvPrePopulated := datavolume.Annotations[AnnPrePopulated]
 
-	if selectedCloneStrategy != NoClone {
-		return r.reconcileClone(log, datavolume, pvc, pvcSpec, transferName, dvPrePopulated, pvcPopulated, selectedCloneStrategy)
+	if isClone := datavolume.Spec.Source.PVC != nil; isClone {
+		return r.reconcileClone(log, datavolume, pvc, pvcSpec, transferName, dvPrePopulated, pvcPopulated)
 	}
 
 	if !dvPrePopulated {
@@ -499,7 +553,7 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 			newPvc, err := r.createPvcForDatavolume(log, datavolume, pvcSpec)
 			if err != nil {
 				if errQuotaExceeded(err) {
-					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, datavolume, nil, selectedCloneStrategy,
+					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, datavolume, nil, NoClone,
 						DataVolumeEvent{
 							eventType: corev1.EventTypeWarning,
 							reason:    ErrExceededQuota,
@@ -532,7 +586,7 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 
 	// Finally, we update the status block of the DataVolume resource to reflect the
 	// current state of the world
-	return r.reconcileDataVolumeStatus(datavolume, pvc, selectedCloneStrategy)
+	return r.reconcileDataVolumeStatus(datavolume, pvc, NoClone)
 }
 
 func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
@@ -541,10 +595,26 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 	pvcSpec *corev1.PersistentVolumeClaimSpec,
 	transferName string,
 	prePopulated bool,
-	pvcPopulated bool,
-	selectedCloneStrategy cloneStrategy) (reconcile.Result, error) {
+	pvcPopulated bool) (reconcile.Result, error) {
 
-	if !prePopulated {
+	// Check if source PVC exists and do proper validation before attempting to clone
+	if done, err := r.validateCloneAndSourcePVC(datavolume); err != nil {
+		return reconcile.Result{}, err
+	} else if !done {
+		return reconcile.Result{}, nil
+	}
+
+	// Get the most appropiate clone strategy
+	selectedCloneStrategy, err := r.selectCloneStrategy(datavolume, pvcSpec)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if selectedCloneStrategy == SmartClone {
+		r.sccs.StartController()
+	}
+
+	if !prePopulated && !pvcPopulated {
 		if pvc == nil {
 			if selectedCloneStrategy == SmartClone {
 				snapshotClassName, _ := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
@@ -657,10 +727,6 @@ func (r *DatavolumeReconciler) ensureExtendedToken(pvc *corev1.PersistentVolumeC
 }
 
 func (r *DatavolumeReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec) (cloneStrategy, error) {
-	if datavolume.Spec.Source.PVC == nil {
-		return NoClone, nil
-	}
-
 	preferredCloneStrategy, err := r.getCloneStrategy(datavolume)
 	if err != nil {
 		return NoClone, err
@@ -2621,4 +2687,30 @@ func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
 
 func newLongTermCloneTokenGenerator(key *rsa.PrivateKey) token.Generator {
 	return token.NewGenerator(common.ExtendedCloneTokenIssuer, key, 10*365*24*time.Hour)
+}
+
+// validateCloneAndSourcePVC checks if the source PVC of a clone exists and does proper validation
+func (r *DatavolumeReconciler) validateCloneAndSourcePVC(datavolume *cdiv1.DataVolume) (bool, error) {
+	sourcePvc, err := r.findSourcePvc(datavolume)
+	if err != nil {
+		// Clone without source
+		if k8serrors.IsNotFound(err) {
+			r.updateDataVolumeStatusPhaseWithEvent(datavolume.Status.Phase, datavolume, nil, NoClone,
+				DataVolumeEvent{
+					eventType: corev1.EventTypeWarning,
+					reason:    CloneWithoutSource,
+					message:   MessageCloneWithoutSource,
+				})
+			return false, nil
+		}
+		return false, err
+	}
+
+	err = ValidateClone(sourcePvc, &datavolume.Spec)
+	if err != nil {
+		r.recorder.Event(datavolume, corev1.EventTypeWarning, CloneValidationFailed, MessageCloneValidationFailed)
+		return false, err
+	}
+
+	return true, nil
 }
