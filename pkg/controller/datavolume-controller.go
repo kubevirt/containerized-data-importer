@@ -1876,15 +1876,11 @@ func (r *DatavolumeReconciler) validateAdvancedCloneSizeCompatible(
 	if srcCapacity.Cmp(targetRequest) < 0 && !allowExpansion {
 		return false, nil
 	}
-	// todo: need to check for pvc - storage, storage-pvc, pvc-pvc and storage-storage combinations.
-	usableSpace, err := r.calculateUsableSpace(srcStorageClass, sourcePvc.Spec.VolumeMode, srcRequest)
-	if err != nil {
-		return false, err
-	}
-	if usableSpace.Cmp(targetRequest) > 0 && !targetRequest.IsZero() {
-		message := "target resources requested storage size is smaller than the source requested size"
-		r.recorder.Event(dataVolume, corev1.EventTypeWarning, ErrIncompatiblePVC, message)
-		return false, errors.New(message)
+
+	// cannot clone if the source is bigger than what user requests for target?
+	// TODO: use capacity or request or maybe drop this check?
+	if srcRequest.Cmp(targetRequest) > 0 && !targetRequest.IsZero() {
+		return false, nil
 	}
 
 	return true, nil
