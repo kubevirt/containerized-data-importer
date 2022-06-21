@@ -776,6 +776,93 @@ var _ = Describe("all clone tests", func() {
 				Expect(utils.GetCloneType(f.CdiClient, dataVolume)).To(Equal("csivolumeclone"))
 			})
 		})
+
+		Context("Clone without a source PVC", func() {
+			diskImagePath := filepath.Join(testBaseDir, testFile)
+			fsVM := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+			blockVM := v1.PersistentVolumeMode(v1.PersistentVolumeBlock)
+
+			deleteAndWaitForVerifierPod := func() {
+				By("Deleting verifier pod")
+				err := utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
+				Expect(err).ToNot(HaveOccurred())
+			}
+
+			getAndHandleMD5 := func(pvc *v1.PersistentVolumeClaim, imgPath string) string {
+				defer deleteAndWaitForVerifierPod()
+				md5, err := f.GetMD5(f.Namespace, pvc, imgPath, crossVolumeModeCloneMD5NumBytes)
+				Expect(err).ToNot(HaveOccurred())
+				return md5
+			}
+
+			compareCloneWithSource := func(sourcePvc, targetPvc *v1.PersistentVolumeClaim, sourceImgPath, targetImgPath string) {
+				By("Source file system pvc md5summing")
+				sourceMD5 := getAndHandleMD5(sourcePvc, sourceImgPath)
+				By("Target file system pvc md5summing")
+				targetMD5 := getAndHandleMD5(targetPvc, targetImgPath)
+				Expect(sourceMD5).To(Equal(targetMD5))
+			}
+
+			It("Should finish the clone after creating the source PVC", func() {
+				By("Create the clone before the source PVC")
+				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec("clone-dv", "1Gi", f.Namespace.Name, dataVolumeName, nil, &fsVM)
+				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
+				// Check if the NoSourceClone annotation exists in target PVC
+				By("Check the expected event")
+				verifyEvent(controller.CloneWithoutSource, f.Namespace.Name, f)
+
+				By("Create source PVC")
+				sourceDV := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+				sourceDV.Spec.Storage.VolumeMode = &fsVM
+				sourceDV, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDV)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDV)
+				sourcePvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(sourceDV.Namespace).Get(context.TODO(), sourceDV.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				clonePvc, err := utils.WaitForPVC(f.K8sClient, cloneDV.Namespace, cloneDV.Name)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(cloneDV)
+
+				By("Wait for clone PVC Bound phase")
+				err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, cloneDV.Name)
+				Expect(err).ToNot(HaveOccurred())
+				By("Wait for clone DV Succeeded phase")
+				err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, "clone-dv", cloneCompleteTimeout)
+				Expect(err).ToNot(HaveOccurred())
+
+				// Compare the two clones to see if they have the same hash
+				compareCloneWithSource(sourcePvc, clonePvc, diskImagePath, diskImagePath)
+			})
+
+			It("Should reject the clone after creating the source PVC if the validation fails ", func() {
+				if !f.IsBlockVolumeStorageClassAvailable() {
+					Skip("Storage Class for block volume is not available")
+				}
+
+				By("Create the clone before the source PVC")
+				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec("clone-dv", "1Mi", f.Namespace.Name, dataVolumeName, nil, &blockVM)
+				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
+				// Check if the NoSourceClone annotation exists in target PVC
+				By("Check the expected event")
+				verifyEvent(controller.CloneWithoutSource, f.Namespace.Name, f)
+
+				By("Create source PVC")
+				// We use a larger size in the source PVC so the validation fails
+				sourceDV := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+				sourceDV.Spec.Storage.VolumeMode = &blockVM
+				sourceDV, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDV)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDV)
+				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourceDV.Namespace).Get(context.TODO(), sourceDV.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("The clone should fail")
+				verifyEvent(controller.CloneValidationFailed, f.Namespace.Name, f)
+			})
+		})
 	})
 
 	var _ = Describe("Validate creating multiple clones of same source Data Volume", func() {

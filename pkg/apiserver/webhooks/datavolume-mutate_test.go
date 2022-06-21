@@ -32,6 +32,7 @@ import (
 	"github.com/appscode/jsonpatch"
 	admissionv1 "k8s.io/api/admission/v1"
 	authorization "k8s.io/api/authorization/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
@@ -196,6 +197,28 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			Expect(resp.Patch).To(BeNil())
 		})
 
+		It("should reject a clone if the source PVC's namespace doesn't exist", func() {
+			dataVolume := newPVCDataVolume("testDV", "noNamespace", "test")
+			dvBytes, _ := json.Marshal(&dataVolume)
+
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1.SchemeGroupVersion.Group,
+						Version:  cdicorev1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+
+			resp := mutateDVs(key, ar, false)
+			Expect(resp.Allowed).To(BeFalse())
+			Expect(resp.Patch).To(BeNil())
+		})
+
 		DescribeTable("should", func(srcNamespace string) {
 			dataVolume := newPVCDataVolume("testDV", srcNamespace, "test")
 			dvBytes, _ := json.Marshal(&dataVolume)
@@ -237,7 +260,9 @@ func mutateDVs(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthorize
 }
 
 func mutateDVsEx(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthorized bool, cdiObjects []runtime.Object) *admissionv1.AdmissionResponse {
-	client := fakeclient.NewSimpleClientset()
+	defaultNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}}
+	testNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "testNamespace"}}
+	client := fakeclient.NewSimpleClientset(&defaultNs, &testNs)
 	client.PrependReactor("create", "subjectaccessreviews", func(action k8stesting.Action) (bool, runtime.Object, error) {
 		if action.GetResource().Resource != "subjectaccessreviews" {
 			return false, nil, nil
