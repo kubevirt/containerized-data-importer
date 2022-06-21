@@ -1557,6 +1557,78 @@ var _ = Describe("All DataVolume Tests", func() {
 
 	})
 
+	var _ = Describe("Clone without source", func() {
+		scName := "testsc"
+		sc := createStorageClassWithProvisioner(scName, map[string]string{
+			AnnDefaultStorageClass: "true",
+		}, map[string]string{}, "csi-plugin")
+
+		It("Validate clone without source as feasible, but not done", func() {
+			dv := newCloneDataVolume("test-dv")
+			storageProfile := createStorageProfile(scName, nil, filesystemMode)
+			reconciler = createDatavolumeReconciler(dv, storageProfile, sc)
+
+			done, err := reconciler.validateCloneAndSourcePVC(dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeFalse())
+		})
+
+		It("Validate that clone without source completes after PVC is created", func() {
+			dv := newCloneDataVolume("test-dv")
+			storageProfile := createStorageProfile(scName, nil, filesystemMode)
+			reconciler = createDatavolumeReconciler(dv, storageProfile, sc)
+
+			done, err := reconciler.validateCloneAndSourcePVC(dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeFalse())
+
+			// We create the source PVC after creating the clone
+			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			err = reconciler.client.Create(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			done, err = reconciler.validateCloneAndSourcePVC(dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(done).To(BeTrue())
+		})
+
+		DescribeTable("Validation mechanism rejects or accepts the clone depending on the contentType combination",
+			func(sourceContentType, targetContentType string, expectedResult bool) {
+				dv := newCloneDataVolume("test-dv")
+				dv.Spec.ContentType = cdiv1.DataVolumeContentType(targetContentType)
+				storageProfile := createStorageProfile(scName, nil, filesystemMode)
+				reconciler = createDatavolumeReconciler(dv, storageProfile, sc)
+
+				done, err := reconciler.validateCloneAndSourcePVC(dv)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(done).To(BeFalse())
+
+				// We create the source PVC after creating the clone
+				pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, map[string]string{
+					AnnContentType: sourceContentType}, nil, corev1.ClaimBound)
+				err = reconciler.client.Create(context.TODO(), pvc)
+				Expect(err).ToNot(HaveOccurred())
+
+				done, err = reconciler.validateCloneAndSourcePVC(dv)
+				Expect(done).To(Equal(expectedResult))
+				if expectedResult == false {
+					Expect(err).To(HaveOccurred())
+				} else {
+					Expect(err).ToNot(HaveOccurred())
+				}
+			},
+			Entry("Archive in source and target", string(cdiv1.DataVolumeArchive), string(cdiv1.DataVolumeArchive), true),
+			Entry("Archive in source and KubeVirt in target", string(cdiv1.DataVolumeArchive), string(cdiv1.DataVolumeKubeVirt), false),
+			Entry("KubeVirt in source and archive in target", string(cdiv1.DataVolumeKubeVirt), string(cdiv1.DataVolumeArchive), false),
+			Entry("KubeVirt in source and target", string(cdiv1.DataVolumeKubeVirt), string(cdiv1.DataVolumeKubeVirt), true),
+			Entry("Empty (KubeVirt by default) in source and target", "", "", true),
+			Entry("Empty (KubeVirt by default) in source and KubeVirt (explicit) in target", "", string(cdiv1.DataVolumeKubeVirt), true),
+			Entry("KubeVirt (explicit) in source and empty (KubeVirt by default) in target", string(cdiv1.DataVolumeKubeVirt), "", true),
+			Entry("Empty (kubeVirt by default) in source and archive in target", "", string(cdiv1.DataVolumeArchive), false),
+			Entry("Archive in source and empty (KubeVirt by default) in target", string(cdiv1.DataVolumeArchive), "", false),
+		)
+	})
+
 	var _ = Describe("Clone strategy", func() {
 		var (
 			hostAssisted = cdiv1.CloneStrategyHostAssisted

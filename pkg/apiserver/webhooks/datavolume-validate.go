@@ -72,15 +72,6 @@ func validateNameLength(name string, maxLen int) []metav1.StatusCause {
 	return causes
 }
 
-func validateContentTypes(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
-	sourceContentType := cdiv1.DataVolumeContentType(controller.GetContentType(sourcePVC))
-	targetContentType := spec.ContentType
-	if targetContentType == "" {
-		targetContentType = cdiv1.DataVolumeKubeVirt
-	}
-	return sourceContentType == targetContentType, sourceContentType, targetContentType
-}
-
 func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admissionv1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec, namespace *string) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 	var url string
@@ -409,50 +400,22 @@ func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.Ad
 func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.DataVolumeSourcePVC, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) *metav1.StatusCause {
 	sourcePVC, err := wh.k8sClient.CoreV1().PersistentVolumeClaims(PVC.Namespace).Get(context.TODO(), PVC.Name, metav1.GetOptions{})
 	if err != nil {
+		// We allow the creation of a clone DV even if the source PVC doesn't exist.
+		// The validation will be completed once the source PVC is created.
 		if k8serrors.IsNotFound(err) {
-			return &metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueNotFound,
-				Message: fmt.Sprintf("Source PVC %s/%s not found", PVC.Namespace, PVC.Name),
-				Field:   field.String(),
-			}
+			return nil
 		}
 		return &metav1.StatusCause{
 			Message: err.Error(),
 			Field:   field.String(),
 		}
 	}
-	valid, sourceContentType, targetContentType := validateContentTypes(sourcePVC, spec)
-	if !valid {
+
+	if err := controller.ValidateClone(sourcePVC, spec); err != nil {
 		return &metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Source contentType (%s) and target contentType (%s) do not match", sourceContentType, targetContentType),
+			Message: err.Error(),
 			Field:   field.String(),
-		}
-	}
-	var targetResources v1.ResourceRequirements
-
-	isSizelessClone := false
-	explicitPvcRequest := spec.PVC != nil
-	if explicitPvcRequest {
-		targetResources = spec.PVC.Resources
-	} else {
-		targetResources = spec.Storage.Resources
-		// The storage size in the target DV can be empty
-		// when cloning using the 'Storage' API
-		if _, ok := targetResources.Requests["storage"]; !ok {
-			isSizelessClone = true
-		}
-	}
-
-	// TODO: Spec.Storage API needs a better more complex check to validate clone size - to account for fsOverhead
-	// simple size comparison will not work here
-	if (!isSizelessClone && controller.GetVolumeMode(sourcePVC) == v1.PersistentVolumeBlock) || explicitPvcRequest {
-		if err = controller.ValidateCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
-			return &metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: err.Error(),
-				Field:   field.String(),
-			}
 		}
 	}
 
