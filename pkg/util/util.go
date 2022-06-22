@@ -211,7 +211,7 @@ func UnArchiveTar(reader io.Reader, destDir string, arg ...string) error {
 		args = arg[1:]
 	}
 	options := fmt.Sprintf("-%s%s", tarOptions, "xvC")
-	untar := exec.Command("/usr/bin/tar", options, destDir, strings.Join(args, ""))
+	untar := exec.Command("/usr/bin/tar", "--no-same-owner", options, destDir, strings.Join(args, ""))
 	untar.Stdin = reader
 	var errBuf bytes.Buffer
 	untar.Stderr = &errBuf

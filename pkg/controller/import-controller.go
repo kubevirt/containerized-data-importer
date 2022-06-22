@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -989,6 +990,14 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 							Name:      "shared-volume",
 						},
 					},
+					SecurityContext: &corev1.SecurityContext{
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{
+								"ALL",
+							},
+						},
+						AllowPrivilegeEscalation: pointer.BoolPtr(false),
+					},
 				},
 			},
 			Containers: []corev1.Container{
@@ -1003,6 +1012,14 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 							MountPath: "/shared",
 							Name:      "shared-volume",
 						},
+					},
+					SecurityContext: &corev1.SecurityContext{
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{
+								"ALL",
+							},
+						},
+						AllowPrivilegeEscalation: pointer.BoolPtr(false),
 					},
 				},
 			},
@@ -1257,6 +1274,14 @@ func makeImporterContainerSpec(image, verbose, pullPolicy string) *corev1.Contai
 				ContainerPort: 8443,
 				Protocol:      corev1.ProtocolTCP,
 			},
+		},
+		SecurityContext: &corev1.SecurityContext{
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{
+					"ALL",
+				},
+			},
+			AllowPrivilegeEscalation: pointer.BoolPtr(false),
 		},
 	}
 }

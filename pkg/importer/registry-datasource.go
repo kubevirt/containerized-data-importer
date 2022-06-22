@@ -57,6 +57,7 @@ type RegistryDataSource struct {
 func NewRegistryDataSource(endpoint, accessKey, secKey, certDir string, insecureTLS bool) *RegistryDataSource {
 	allCertDir, err := createCertificateDir(certDir)
 	if err != nil {
+		klog.Infof("Error creating allCertDir %v", err)
 		if allCertDir != "/" {
 			err = os.RemoveAll(allCertDir)
 			if err != nil {
@@ -165,14 +166,20 @@ func getImageFileName(dir string) (string, error) {
 }
 
 func createCertificateDir(registryCertDir string) (string, error) {
-	allCerts := "/all_certs"
-	err := os.MkdirAll(allCerts, 0777)
+	allCerts := "/tmp/all_certs"
+	err := os.MkdirAll(allCerts, 0700)
 	if err != nil {
 		return allCerts, err
 	}
 	klog.Info("Copying proxy certs")
-	directory, _ := os.Open(common.ImporterProxyCertDir)
+	directory, err := os.Open(common.ImporterProxyCertDir)
+	if err != nil {
+		return "", err
+	}
 	objects, err := directory.Readdir(-1)
+	if err != nil {
+		return "", err
+	}
 	for _, obj := range objects {
 		if strings.HasSuffix(obj.Name(), ".crt") {
 			err = util.LinkFile(filepath.Join(common.ImporterProxyCertDir, obj.Name()), filepath.Join(allCerts, fmt.Sprintf("proxy-%s", obj.Name())))
@@ -184,6 +191,9 @@ func createCertificateDir(registryCertDir string) (string, error) {
 	klog.Info("Copying registry certs")
 	directory, _ = os.Open(registryCertDir)
 	objects, err = directory.Readdir(-1)
+	if err != nil {
+		return "", err
+	}
 	for _, obj := range objects {
 		if strings.HasSuffix(obj.Name(), ".crt") {
 			err = util.LinkFile(filepath.Join(registryCertDir, obj.Name()), filepath.Join(allCerts, obj.Name()))
