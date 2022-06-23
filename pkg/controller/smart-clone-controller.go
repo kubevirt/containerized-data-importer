@@ -191,6 +191,10 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 		WithValues("snapshot.Namespace", snapshot.Namespace).
 		Info("Reconciling snapshot")
 
+	if snapshot.DeletionTimestamp != nil {
+		return reconcile.Result{}, nil
+	}
+
 	dataVolume, err := r.getDataVolume(snapshot)
 	if err != nil {
 		return reconcile.Result{}, err
