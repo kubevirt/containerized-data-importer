@@ -72,6 +72,9 @@ func (r *ReconcileCDI) checkSanity(cr client.Object, reqLogger logr.Logger) (*re
 // sync syncs certificates used by CDU
 func (r *ReconcileCDI) sync(cr client.Object, logger logr.Logger) error {
 	cdi := cr.(*cdiv1.CDI)
+	if cdi.DeletionTimestamp != nil {
+		return nil
+	}
 	return r.certManager.Sync(r.getCertificateDefinitions(cdi))
 }
 
