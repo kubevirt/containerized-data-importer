@@ -19,6 +19,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	ocpconfigv1 "github.com/openshift/api/config/v1"
 
 	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -556,6 +557,34 @@ func uploadFileNameToPath(requestFunc uploadFileNameRequestCreator, fileName, po
 	return nil
 }
 
+func uploadFileNameToPathWithClient(client *http.Client, requestFunc uploadFileNameRequestCreator, fileName, portForwardURL, path, token string, expectedStatus int) error {
+	url := portForwardURL + path
+
+	req, err := requestFunc(url, fileName)
+	if err != nil {
+		return err
+	}
+	defer req.Body.Close()
+
+	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Add("Origin", "foo.bar.com")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != expectedStatus {
+		return fmt.Errorf("Unexpected return value %d expected %d, Response: %s", resp.StatusCode, expectedStatus, resp.Body)
+	}
+
+	if resp.Header.Get("Access-Control-Allow-Origin") != "*" {
+		return fmt.Errorf("Auth response header missing")
+	}
+
+	return nil
+}
+
 func findProxyURLCdiConfig(f *framework.Framework) string {
 	config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
@@ -820,6 +849,56 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(token).ToNot(BeEmpty())
+	})
+
+	It("Should fail upload when TLS profile requires minimal TLS version higher than our client's", func() {
+		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			config.TLSSecurityProfile = &ocpconfigv1.TLSSecurityProfile{
+				// Modern profile requires TLS 1.3
+				// https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility
+				Type:   ocpconfigv1.TLSProfileModernType,
+				Modern: &ocpconfigv1.ModernTLSProfile{},
+			}
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		dv := utils.NewDataVolumeForUpload("upload-dv-fail-on-low-tls-ver", "1Gi")
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		By("verifying pvc was created, force bind if needed")
+		pvc, err := utils.WaitForPVC(f.K8sClient, pvc.Namespace, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		phase := cdiv1.UploadReady
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Get an upload token")
+		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+		client := &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+					MinVersion:         tls.VersionTLS12,
+					MaxVersion:         tls.VersionTLS12,
+				},
+			},
+		}
+
+		Eventually(func() string {
+			By("Should get TLS protocol version error")
+			err := uploadFileNameToPathWithClient(client, binaryRequestFunc, utils.UploadFile, uploadProxyURL, syncUploadPath, token, http.StatusOK)
+			if err != nil {
+				return err.Error()
+			}
+			return ""
+		}, 10*time.Second, 1*time.Second).Should(ContainSubstring("protocol version not supported"))
 	})
 
 })
