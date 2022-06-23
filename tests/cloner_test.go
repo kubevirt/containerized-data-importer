@@ -2183,18 +2183,36 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 
 	validateCloneType(f, dv)
 
+	sns := dv.Spec.Source.PVC.Namespace
+	if sns == "" {
+		sns = dv.Namespace
+	}
+
 	switch utils.GetCloneType(f.CdiClient, dv) {
 	case "snapshot":
-		sns := dv.Spec.Source.PVC.Namespace
-		if sns == "" {
-			sns = dv.Namespace
-		}
-
 		snapshots := &snapshotv1.VolumeSnapshotList{}
 		err = f.CrClient.List(context.TODO(), snapshots, &client.ListOptions{Namespace: sns})
 		Expect(err).ToNot(HaveOccurred())
 		for _, s := range snapshots.Items {
 			Expect(s.DeletionTimestamp).ToNot(BeNil())
+		}
+		fallthrough
+	case "csivolumeclone":
+		if sns != dv.Namespace {
+			tmpName := fmt.Sprintf("cdi-tmp-%s", dv.UID)
+			tmpPvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(sns).Get(context.TODO(), tmpName, metav1.GetOptions{})
+			if err != nil {
+				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+			} else {
+				Expect(tmpPvc.DeletionTimestamp).ToNot(BeNil())
+			}
+
+			ot, err := f.CdiClient.CdiV1beta1().ObjectTransfers().Get(context.TODO(), tmpName, metav1.GetOptions{})
+			if err != nil {
+				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+			} else {
+				Expect(ot.DeletionTimestamp).ToNot(BeNil())
+			}
 		}
 	case "network":
 		s, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(context.TODO(), "cdi-api-signing-key", metav1.GetOptions{})

@@ -613,7 +613,7 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 		}
 	}
 
-	if !prePopulated && !pvcPopulated {
+	if !prePopulated {
 		if pvc == nil {
 			if selectedCloneStrategy == SmartClone {
 				snapshotClassName, _ := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
@@ -655,8 +655,10 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 
 		switch selectedCloneStrategy {
 		case HostAssistedClone:
-			if err := r.ensureExtendedToken(pvc); err != nil {
-				return reconcile.Result{}, err
+			if !pvcPopulated {
+				if err := r.ensureExtendedToken(pvc); err != nil {
+					return reconcile.Result{}, err
+				}
 			}
 		case CsiClone:
 			switch pvc.Status.Phase {
@@ -677,7 +679,15 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 			}
 			fallthrough
 		case SmartClone:
-			return r.finishClone(log, datavolume, pvc, pvcSpec, transferName, selectedCloneStrategy)
+			if !pvcPopulated && datavolume.Status.Phase != cdiv1.Succeeded {
+				return r.finishClone(log, datavolume, pvc, pvcSpec, transferName, selectedCloneStrategy)
+			}
+
+			if isCrossNamespaceClone(datavolume) && datavolume.Status.Phase == cdiv1.Succeeded {
+				if err := r.cleanupTransfer(log, datavolume, transferName); err != nil {
+					return reconcile.Result{}, err
+				}
+			}
 		}
 	}
 
@@ -882,15 +892,6 @@ func (r *DatavolumeReconciler) finishClone(log logr.Logger,
 	pvcSpec *corev1.PersistentVolumeClaimSpec,
 	transferName string,
 	selectedCloneStrategy cloneStrategy) (reconcile.Result, error) {
-
-	if isCrossNamespaceClone(datavolume) && datavolume.Status.Phase == cdiv1.Succeeded {
-		if err := r.cleanupTransfer(log, datavolume, transferName); err != nil {
-			return reconcile.Result{}, err
-		}
-
-		// done, done
-		return reconcile.Result{}, nil
-	}
 
 	//DO Nothing, not yet ready
 	if pvc.Annotations[AnnCloneOf] != "true" {
@@ -1355,7 +1356,7 @@ func (r *DatavolumeReconciler) cleanupTransfer(log logr.Logger, dv *cdiv1.DataVo
 		return nil
 	}
 
-	log.Info("Doing cleanup")
+	log.V(3).Info("Doing cleanup")
 
 	if dv.DeletionTimestamp != nil && dv.Status.Phase != cdiv1.Succeeded {
 		// delete all potential PVCs that may not have owner refs
