@@ -55,8 +55,28 @@ var _ = Describe("all clone tests", func() {
 		var cloneStorageClassName string
 		var sourcePvc *v1.PersistentVolumeClaim
 		var targetPvc *v1.PersistentVolumeClaim
+		var origSpec *cdiv1.CDIConfigSpec
+
+		BeforeEach(func() {
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			origSpec = config.Spec.DeepCopy()
+		})
 
 		AfterEach(func() {
+			// Needs better cleanup, in the tests that actually change the overhead
+			By("Restoring CDIConfig to original state")
+			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+				origSpec.DeepCopyInto(config)
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				return reflect.DeepEqual(config.Spec, *origSpec)
+			}, 30*time.Second, time.Second).Should(BeTrue())
+
 			if sourcePvc != nil {
 				By("[AfterEach] Clean up source PVC")
 				err := f.DeletePVC(sourcePvc)
@@ -67,6 +87,7 @@ var _ = Describe("all clone tests", func() {
 				err := f.DeletePVC(targetPvc)
 				Expect(err).ToNot(HaveOccurred())
 			}
+
 		})
 		It("[test_id:6693]Should clone imported data and retain transfer pods after completion", func() {
 			smartApplicable := f.IsSnapshotStorageClassAvailable()
