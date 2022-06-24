@@ -144,6 +144,11 @@ const (
 
 	// SecretExtraHeadersVolumeName is the format string that specifies where extra HTTP header secrets will be mounted
 	SecretExtraHeadersVolumeName = "cdi-secret-extra-headers-vol-%d"
+
+	// ErrStartingPod provides a const to indicate that a pod wasn't able to start without providing sensitive information (reason)
+	ErrStartingPod = "ErrStartingPod"
+	// MessageErrStartingPod provides a const to indicate that a pod wasn't able to start without providing sensitive information (message)
+	MessageErrStartingPod = "Error starting pod '%s': For more information, request access to cdi-deploy logs to your sysadmin"
 )
 
 const (
@@ -1169,6 +1174,27 @@ func inflateSizeWithOverhead(c client.Client, imgSize int64, pvcSpec *v1.Persist
 	}
 
 	return returnSize, nil
+}
+
+// handleFailedPod handles pod-creation errors and updates the pod's PVC without providing sensitive information
+func handleFailedPod(err error, podName string, pvc *v1.PersistentVolumeClaim, recorder record.EventRecorder, c client.Client) error {
+	// Generic reason and msg to avoid providing sensitive information
+	reason := ErrStartingPod
+	msg := fmt.Sprintf(MessageErrStartingPod, podName)
+
+	// Error handling to fine-tune the event with pertinent info
+	if errQuotaExceeded(err) {
+		reason = ErrExceededQuota
+	} // TODO: Add more error cases
+
+	recorder.Event(pvc, v1.EventTypeWarning, reason, msg)
+
+	AddAnnotation(pvc, AnnPodPhase, string(v1.PodFailed))
+	if err := c.Update(context.TODO(), pvc); err != nil {
+		return err
+	}
+
+	return err
 }
 
 // isPVCComplete returns true if a PVC is in 'Succeeded' phase, false if not

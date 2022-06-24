@@ -529,7 +529,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 
 	pod, err := createImporterPod(r.log, r.client, podArgs, r.installerLabels)
 	if err != nil {
-		return err
+		return handleFailedPod(err, pvc.Annotations[AnnImportPod], pvc, r.recorder, r.client)
 	}
 	r.log.V(1).Info("Created POD", "pod.Name", pod.Name)
 

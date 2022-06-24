@@ -1556,7 +1556,7 @@ func (r *DatavolumeReconciler) expand(log logr.Logger,
 		var err error
 		pod, err = r.createExpansionPod(pvc, dv, podName)
 		if err != nil {
-			return false, err
+			return false, handleFailedPod(err, podName, pvc, r.recorder, r.client)
 		}
 	}
 
@@ -2959,7 +2959,7 @@ func (r *DatavolumeReconciler) getSizeFromPod(sourcePvc *corev1.PersistentVolume
 
 	pod, err := r.getOrCreateSizeDetectionPod(sourcePvc, dv)
 	if err != nil {
-		return 0, err
+		return 0, handleFailedPod(err, sizeDetectionPodName(sourcePvc), sourcePvc, r.recorder, r.client)
 	} else if !isPodComplete(pod) {
 		r.recorder.Event(dv, corev1.EventTypeNormal, SizeDetectionPodNotReady, MessageSizeDetectionPodNotReady)
 		return 0, nil

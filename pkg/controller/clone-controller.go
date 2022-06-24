@@ -539,7 +539,8 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 
 	if err := r.client.Create(context.TODO(), pod); err != nil {
-		return nil, errors.Wrap(err, "source pod API create errored")
+		err = errors.Wrap(err, "source pod API create errored")
+		return nil, handleFailedPod(err, createCloneSourcePodName(pvc), sourcePvc, r.recorder, r.client)
 	}
 
 	log.V(1).Info("cloning source pod (image) created\n", "pod.Namespace", pod.Namespace, "pod.Name", pod.Name, "image", image)
