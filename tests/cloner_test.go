@@ -16,6 +16,7 @@ import (
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -1922,18 +1923,38 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 
 	validateCloneType(f, dv)
 
+	sns := dv.Spec.Source.PVC.Namespace
+	if sns == "" {
+		sns = dv.Namespace
+	}
+
 	switch utils.GetCloneType(f.CdiClient, dv) {
 	case "snapshot":
-		sns := dv.Spec.Source.PVC.Namespace
-		if sns == "" {
-			sns = dv.Namespace
-		}
-
 		snapshots := &snapshotv1.VolumeSnapshotList{}
 		err = f.CrClient.List(context.TODO(), snapshots, &client.ListOptions{Namespace: sns})
 		Expect(err).ToNot(HaveOccurred())
 		for _, s := range snapshots.Items {
 			Expect(s.DeletionTimestamp).ToNot(BeNil())
+		}
+		fallthrough
+	case "csivolumeclone":
+		if sns != dv.Namespace {
+			tmpName := fmt.Sprintf("cdi-tmp-%s", dv.UID)
+			tmpPvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(sns).Get(context.TODO(), tmpName, metav1.GetOptions{})
+			if err != nil {
+				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+			} else {
+				Expect(tmpPvc.DeletionTimestamp).ToNot(BeNil())
+			}
+
+			Eventually(func() bool {
+				ot, err := f.CdiClient.CdiV1beta1().ObjectTransfers().Get(context.TODO(), tmpName, metav1.GetOptions{})
+				if err != nil {
+					Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+					return true
+				}
+				return ot.DeletionTimestamp != nil
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
 		}
 	case "network":
 		s, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(context.TODO(), "cdi-api-signing-key", metav1.GetOptions{})
