@@ -430,6 +430,12 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, nil
 	}
 
+	if isCrossNamespaceClone(datavolume) && datavolume.Status.Phase == cdiv1.Succeeded {
+		if err := r.cleanupTransfer(log, datavolume, transferName); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
 	if err := r.populateSourceIfSourceRef(datavolume); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -605,14 +611,8 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 			}
 			fallthrough
 		case SmartClone:
-			if !pvcPopulated && datavolume.Status.Phase != cdiv1.Succeeded {
+			if !pvcPopulated {
 				return r.finishClone(log, datavolume, pvc, pvcSpec, transferName, selectedCloneStrategy)
-			}
-
-			if isCrossNamespaceClone(datavolume) && datavolume.Status.Phase == cdiv1.Succeeded {
-				if err := r.cleanupTransfer(log, datavolume, transferName); err != nil {
-					return reconcile.Result{}, err
-				}
 			}
 		}
 	}
@@ -1284,7 +1284,7 @@ func (r *DatavolumeReconciler) cleanupTransfer(log logr.Logger, dv *cdiv1.DataVo
 		return nil
 	}
 
-	log.V(3).Info("Doing cleanup")
+	log.V(1).Info("Doing cleanup")
 
 	if dv.DeletionTimestamp != nil && dv.Status.Phase != cdiv1.Succeeded {
 		// delete all potential PVCs that may not have owner refs
