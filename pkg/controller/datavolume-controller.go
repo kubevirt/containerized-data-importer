@@ -431,14 +431,14 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, nil
 	}
 
+	if err := r.populateSourceIfSourceRef(datavolume); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	if isCrossNamespaceClone(datavolume) && datavolume.Status.Phase == cdiv1.Succeeded {
 		if err := r.cleanupTransfer(log, datavolume, transferName); err != nil {
 			return reconcile.Result{}, err
 		}
-	}
-
-	if err := r.populateSourceIfSourceRef(datavolume); err != nil {
-		return reconcile.Result{}, err
 	}
 
 	pvcPopulated := false
