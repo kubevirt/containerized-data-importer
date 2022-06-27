@@ -932,7 +932,7 @@ func ValidateClone(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSp
 	// TODO: Spec.Storage API needs a better more complex check to validate clone size - to account for fsOverhead
 	// simple size comparison will not work here
 	if (!isSizelessClone && GetVolumeMode(sourcePVC) == v1.PersistentVolumeBlock) || explicitPvcRequest {
-		if err := ValidateCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
+		if err := ValidateRequestedCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
 			return err
 		}
 	}

@@ -1876,36 +1876,12 @@ func (r *DatavolumeReconciler) validateAdvancedCloneSizeCompatible(
 	if srcCapacity.Cmp(targetRequest) < 0 && !allowExpansion {
 		return false, nil
 	}
-	// todo: need to check for pvc - storage, storage-pvc, pvc-pvc and storage-storage combinations.
-	usableSpace, err := r.calculateUsableSpace(srcStorageClass, sourcePvc.Spec.VolumeMode, srcRequest)
-	if err != nil {
-		return false, err
-	}
-	if usableSpace.Cmp(targetRequest) > 0 && !targetRequest.IsZero() {
-		message := "target resources requested storage size is smaller than the source requested size"
-		r.recorder.Event(dataVolume, corev1.EventTypeWarning, ErrIncompatiblePVC, message)
-		return false, errors.New(message)
+
+	if srcRequest.Cmp(targetRequest) > 0 && !targetRequest.IsZero() {
+		return false, nil
 	}
 
 	return true, nil
-}
-
-func (r *DatavolumeReconciler) calculateUsableSpace(srcStorageClass *storagev1.StorageClass,
-	mode *corev1.PersistentVolumeMode,
-	srcRequest resource.Quantity) (resource.Quantity, error) {
-
-	if util.ResolveVolumeMode(mode) == corev1.PersistentVolumeFilesystem {
-		fsOverhead, err := GetFilesystemOverheadForStorageClass(r.client, &srcStorageClass.Name)
-		if err != nil {
-			return resource.Quantity{}, err
-		}
-		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
-		usableSpace := util.GetUsableSpace(fsOverheadFloat, srcRequest.Value())
-
-		return *resource.NewScaledQuantity(usableSpace, 0), nil
-	}
-
-	return srcRequest, nil
 }
 
 func (r *DatavolumeReconciler) getCloneStrategy(dataVolume *cdiv1.DataVolume) (*cdiv1.CDICloneStrategy, error) {
@@ -2914,7 +2890,7 @@ func (r *DatavolumeReconciler) detectCloneSize(
 	if err != nil {
 		return false, err
 	}
-	sourceSize := sourcePvc.Status.Capacity.Storage()
+	sourceCapacity := sourcePvc.Status.Capacity.Storage()
 
 	// Due to possible filesystem overhead complications when cloning
 	// using host-assisted strategy, we create a pod that automatically
@@ -2935,13 +2911,16 @@ func (r *DatavolumeReconciler) detectCloneSize(
 				return false, nil
 			}
 		}
-		// Allow the clone-controller to skip the size comparison requirement
-		// if the source's size ends up being larger due to overhead differences
-		if sourceSize.CmpInt64(targetSize) == 1 {
-			dv.Annotations[AnnPermissiveClone] = "true"
-		}
+
 	} else {
-		targetSize, _ = sourceSize.AsInt64()
+		targetSize, _ = sourceCapacity.AsInt64()
+	}
+
+	// Allow the clone-controller to skip the size comparison requirement
+	// if the source's size ends up being larger due to overhead differences
+	// TODO: Fix this in next PR that uses actual size also in validation
+	if sourceCapacity.CmpInt64(targetSize) == 1 {
+		dv.Annotations[AnnPermissiveClone] = "true"
 	}
 
 	// Parse size into a 'Quantity' struct and, if needed, inflate it with filesystem overhead
