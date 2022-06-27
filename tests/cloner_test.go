@@ -1946,6 +1946,12 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 				Expect(tmpPvc.DeletionTimestamp).ToNot(BeNil())
 			}
 
+			Eventually(func() []string {
+				tmp, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				return tmp.Finalizers
+			}, 90*time.Second, 2*time.Second).Should(BeEmpty())
+
 			Eventually(func() bool {
 				ot, err := f.CdiClient.CdiV1beta1().ObjectTransfers().Get(context.TODO(), tmpName, metav1.GetOptions{})
 				if err != nil {
@@ -1953,7 +1959,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 					return true
 				}
 				return ot.DeletionTimestamp != nil
-			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+			}, 90*time.Second, 2*time.Second).Should(BeTrue())
 		}
 	case "network":
 		s, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(context.TODO(), "cdi-api-signing-key", metav1.GetOptions{})
