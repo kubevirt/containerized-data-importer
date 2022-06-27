@@ -989,7 +989,7 @@ var _ = Describe("ALL Operator tests", func() {
 				}
 			})
 
-			It("[test_id:8259] Alerts runbooks should have available URLs", func() {
+			It("[test_id:8259] Alerts should have all the requried annotations", func() {
 				promRule := &promv1.PrometheusRule{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "prometheus-cdi-rules",
@@ -1001,13 +1001,33 @@ var _ = Describe("ALL Operator tests", func() {
 				for _, group := range promRule.Spec.Groups {
 					if group.Name == "cdi.rules" {
 						for _, rule := range group.Rules {
-							if len(rule.Alert) > 0 {
+							if rule.Alert != "" {
 								Expect(rule.Annotations).ToNot(BeNil())
-								url, ok := rule.Annotations["runbook_url"]
-								Expect(ok).To(BeTrue())
-								resp, err := http.Head(url)
-								Expect(err).ToNot(HaveOccurred())
-								Expect(resp.StatusCode).Should(Equal(http.StatusOK))
+								checkForRunbookURL(rule)
+								checkForSummary(rule)
+							}
+						}
+					}
+				}
+			})
+
+			It("[test_id:8812] Alerts should have all the requried labels", func() {
+				promRule := &promv1.PrometheusRule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "prometheus-cdi-rules",
+						Namespace: f.CdiInstallNs,
+					},
+				}
+				err := f.CrClient.Get(context.TODO(), crclient.ObjectKeyFromObject(promRule), promRule)
+				Expect(err).ToNot(HaveOccurred())
+				for _, group := range promRule.Spec.Groups {
+					if group.Name == "cdi.rules" {
+						for _, rule := range group.Rules {
+							if rule.Alert != "" {
+								Expect(rule.Labels).ToNot(BeNil())
+								checkForSeverityLabel(rule)
+								checkForPartOfLabel(rule)
+								checkForComponentLabel(rule)
 							}
 						}
 					}
@@ -1348,4 +1368,36 @@ func updateUninstallStrategy(client cdiClientset.Interface, strategy *cdiv1.CDIU
 	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 
 	return result
+}
+
+func checkForRunbookURL(rule promv1.Rule) {
+	url, ok := rule.Annotations["runbook_url"]
+	ExpectWithOffset(1, ok).To(BeTrue(), fmt.Sprintf("%s does not have runbook_url annotation", rule.Alert))
+	resp, err := http.Head(url)
+	ExpectWithOffset(1, err).ToNot(HaveOccurred(), fmt.Sprintf("%s runbook is not available", rule.Alert))
+	ExpectWithOffset(1, resp.StatusCode).Should(Equal(http.StatusOK), fmt.Sprintf("%s runbook is not available", rule.Alert))
+}
+
+func checkForSummary(rule promv1.Rule) {
+	summary, ok := rule.Annotations["summary"]
+	ExpectWithOffset(1, ok).To(BeTrue(), fmt.Sprintf("%s does not have summary annotation", rule.Alert))
+	ExpectWithOffset(1, summary).ToNot(BeEmpty(), fmt.Sprintf("%s has an empty summary", rule.Alert))
+}
+
+func checkForSeverityLabel(rule promv1.Rule) {
+	severity, ok := rule.Labels["severity"]
+	ExpectWithOffset(1, ok).To(BeTrue(), fmt.Sprintf("%s does not have severity label", rule.Alert))
+	ExpectWithOffset(1, severity).To(BeElementOf("info", "warning", "critical"), fmt.Sprintf("%s severity label is not valid", rule.Alert))
+}
+
+func checkForPartOfLabel(rule promv1.Rule) {
+	kubernetesOperatorPartOf, ok := rule.Labels["kubernetes_operator_part_of"]
+	ExpectWithOffset(1, ok).To(BeTrue(), fmt.Sprintf("%s does not have kubernetes_operator_part_of label", rule.Alert))
+	ExpectWithOffset(1, kubernetesOperatorPartOf).To(Equal("kubevirt"), fmt.Sprintf("%s kubernetes_operator_part_of label is not valid", rule.Alert))
+}
+
+func checkForComponentLabel(rule promv1.Rule) {
+	kubernetesOperatorComponent, ok := rule.Labels["kubernetes_operator_component"]
+	ExpectWithOffset(1, ok).To(BeTrue(), fmt.Sprintf("%s does not have kubernetes_operator_component label", rule.Alert))
+	ExpectWithOffset(1, kubernetesOperatorComponent).To(Equal("containerized-data-importer"), fmt.Sprintf("%s kubernetes_operator_component label is not valid", rule.Alert))
 }
