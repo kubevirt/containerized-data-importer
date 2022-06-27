@@ -860,8 +860,6 @@ var _ = Describe("all clone tests", func() {
 			AfterEach(func() {
 				By("[AfterEach] Restore the profile")
 				utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)
-				//fsOverhead := "0.055" // The default value
-				//SetFilesystemOverhead(f, fsOverhead, fsOverhead)
 			})
 
 			DescribeTable("Should clone with different overheads in target and source", func(sourceOverHead, targetOverHead string) {

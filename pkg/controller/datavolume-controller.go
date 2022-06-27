@@ -1877,8 +1877,6 @@ func (r *DatavolumeReconciler) validateAdvancedCloneSizeCompatible(
 		return false, nil
 	}
 
-	// cannot clone if the source is bigger than what user requests for target?
-	// TODO: use capacity or request or maybe drop this check?
 	if srcRequest.Cmp(targetRequest) > 0 && !targetRequest.IsZero() {
 		return false, nil
 	}

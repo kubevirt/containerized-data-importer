@@ -343,7 +343,7 @@ func NewDataVolumeCloneToBlockPV(dataVolumeName string, size string, srcNamespac
 
 // NewDataVolumeCloneToBlockPVStorageAPI initializes a DataVolume for block cloning with Storage API
 func NewDataVolumeCloneToBlockPVStorageAPI(dataVolumeName string, size string, srcNamespace, srcName, storageClassName string) *cdiv1.DataVolume {
-	volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock)
+	volumeMode := corev1.PersistentVolumeBlock
 	dataVolume := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
