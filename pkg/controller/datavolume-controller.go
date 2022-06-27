@@ -30,11 +30,10 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -1747,36 +1746,12 @@ func (r *DatavolumeReconciler) validateAdvancedCloneSizeCompatible(
 	if srcCapacity.Cmp(targetRequest) < 0 && !allowExpansion {
 		return false, nil
 	}
-	// todo: need to check for pvc - storage, storage-pvc, pvc-pvc and storage-storage combinations.
-	usableSpace, err := r.calculateUsableSpace(srcStorageClass, sourcePvc.Spec.VolumeMode, srcRequest)
-	if err != nil {
-		return false, err
-	}
-	if usableSpace.Cmp(targetRequest) > 0 {
-		message := "target resources requested storage size is smaller than the source requested size"
-		r.recorder.Event(dataVolume, corev1.EventTypeWarning, ErrIncompatiblePVC, message)
-		return false, errors.New(message)
+
+	if srcRequest.Cmp(targetRequest) > 0 && !targetRequest.IsZero() {
+		return false, nil
 	}
 
 	return true, nil
-}
-
-func (r *DatavolumeReconciler) calculateUsableSpace(srcStorageClass *storagev1.StorageClass,
-	mode *corev1.PersistentVolumeMode,
-	srcRequest resource.Quantity) (resource.Quantity, error) {
-
-	if util.ResolveVolumeMode(mode) == corev1.PersistentVolumeFilesystem {
-		fsOverhead, err := GetFilesystemOverheadForStorageClass(r.client, &srcStorageClass.Name)
-		if err != nil {
-			return resource.Quantity{}, err
-		}
-		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
-		usableSpace := util.GetUsableSpace(fsOverheadFloat, srcRequest.Value())
-
-		return *resource.NewScaledQuantity(usableSpace, 0), nil
-	}
-
-	return srcRequest, nil
 }
 
 func (r *DatavolumeReconciler) getCloneStrategy(dataVolume *cdiv1.DataVolume) (*cdiv1.CDICloneStrategy, error) {

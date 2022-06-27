@@ -339,6 +339,35 @@ func NewDataVolumeCloneToBlockPV(dataVolumeName string, size string, srcNamespac
 	return dataVolume
 }
 
+// NewDataVolumeCloneToBlockPVStorageAPI initializes a DataVolume for block cloning with Storage API
+func NewDataVolumeCloneToBlockPVStorageAPI(dataVolumeName string, size string, srcNamespace, srcName, storageClassName string) *cdiv1.DataVolume {
+	volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock)
+	dataVolume := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dataVolumeName,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Name:      srcName,
+					Namespace: srcNamespace,
+				},
+			},
+			Storage: &cdiv1.StorageSpec{
+				VolumeMode:       &volumeMode,
+				StorageClassName: &storageClassName,
+				AccessModes:      []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+	return dataVolume
+}
+
 // NewDataVolumeForUpload initializes a DataVolume struct with Upload annotations
 func NewDataVolumeForUpload(dataVolumeName string, size string) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{

@@ -412,8 +412,12 @@ var _ = Describe("Clone controller reconcile loop", func() {
 				return createBlockPvc("source", "default", map[string]string{}, nil)
 			},
 			func() *corev1.PersistentVolumeClaim {
-				return createPvc("testPvc1", "default", map[string]string{
+				pvc := createPvc("testPvc1", "default", map[string]string{
 					AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient"}, nil)
+				oneGigWithFilesystemOverhead := "1060Mi"
+				pvc.Spec.Resources.Requests = corev1.ResourceList{corev1.ResourceStorage: resource.MustParse(oneGigWithFilesystemOverhead)}
+
+				return pvc
 			},
 		),
 		Entry("filesystem -> block",
