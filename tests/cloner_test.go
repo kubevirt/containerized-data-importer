@@ -344,16 +344,16 @@ var _ = Describe("all clone tests", func() {
 
 				actualCloneType := utils.GetCloneType(f.CdiClient, dataVolume)
 				if actualCloneType == "snapshot" {
-					expectEvent(f, targetNamespaceName).Should(ContainSubstring(controller.SmartCloneSourceInUse))
+					f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(controller.SmartCloneSourceInUse))
 				} else if actualCloneType == "csivolumeclone" {
-					expectEvent(f, targetNamespaceName).Should(ContainSubstring(controller.CSICloneSourceInUse))
+					f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(controller.CSICloneSourceInUse))
 				} else {
 					Fail(fmt.Sprintf("Unknown clonetype %s", actualCloneType))
 				}
 				err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				//verify event
-				expectEvent(f, targetNamespaceName).Should(ContainSubstring(controller.ErrResourceExists))
+				f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(controller.ErrResourceExists))
 			})
 
 			It("[test_id:1356]Should not clone anything when CloneOf annotation exists", func() {
@@ -693,7 +693,7 @@ var _ = Describe("all clone tests", func() {
 					f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv)
 				}
 
-				expectEvent(f, f.Namespace.Name).Should(ContainSubstring(controller.ErrIncompatiblePVC))
+				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.ErrIncompatiblePVC))
 			})
 
 			It("should handle a pre populated PVC during clone", func() {
@@ -1214,7 +1214,7 @@ var _ = Describe("all clone tests", func() {
 				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				// Check if the NoSourceClone annotation exists in target PVC
 				By("Check the expected event")
-				expectEvent(f, f.Namespace.Name).Should(ContainSubstring(controller.CloneWithoutSource))
+				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.CloneWithoutSource))
 
 				By("Create source PVC")
 				sourceDV := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
@@ -1250,7 +1250,7 @@ var _ = Describe("all clone tests", func() {
 				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				// Check if the NoSourceClone annotation exists in target PVC
 				By("Check the expected event")
-				expectEvent(f, f.Namespace.Name).Should(ContainSubstring(controller.CloneWithoutSource))
+				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.CloneWithoutSource))
 
 				By("Create source PVC")
 				// We use a larger size in the source PVC so the validation fails
@@ -1263,7 +1263,7 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				By("The clone should fail")
-				expectEvent(f, f.Namespace.Name).Should(ContainSubstring(controller.CloneValidationFailed))
+				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.CloneValidationFailed))
 			})
 		})
 	})
@@ -1844,6 +1844,15 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).NotTo(HaveOccurred())
 				return log
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+
+			By("Verify target DV is in failed phase")
+			err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Failed, "target-dv", 3*90*time.Second)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Check the expected event")
+			msg := fmt.Sprintf(controller.MessageErrStartingPod, "cdi-upload-target-dv")
+			f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(msg))
+			f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.ErrExceededQuota))
 		})
 
 		It("[test_id:4958]Should fail to clone in namespace with quota when pods have higher requirements, then succeed when quota increased", func() {
@@ -1878,6 +1887,16 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).NotTo(HaveOccurred())
 				return log
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+
+			By("Verify target DV is in failed phase")
+			err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Failed, "target-dv", 3*90*time.Second)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Check the expected event")
+			msg := fmt.Sprintf(controller.MessageErrStartingPod, "cdi-upload-target-dv")
+			f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(msg))
+			f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.ErrExceededQuota))
+
 			err = f.UpdateQuotaInNs(int64(1), int64(512*1024*1024), int64(4), int64(512*1024*1024))
 			Expect(err).NotTo(HaveOccurred())
 			utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetDV.Name)
@@ -2356,11 +2375,11 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
-		expectEvent(f, targetNs.Name).Should(ContainSubstring(controller.CloneSourceInUse))
+		f.ExpectEvent(targetNs.Name).Should(ContainSubstring(controller.CloneSourceInUse))
 		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 	} else if cloneType == "snapshot" {
-		expectEvent(f, targetNs.Name).Should(ContainSubstring(controller.SmartCloneSourceInUse))
+		f.ExpectEvent(targetNs.Name).Should(ContainSubstring(controller.SmartCloneSourceInUse))
 		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -2368,7 +2387,7 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 	} else {
-		expectEvent(f, targetNs.Name).Should(ContainSubstring(controller.CSICloneSourceInUse))
+		f.ExpectEvent(targetNs.Name).Should(ContainSubstring(controller.CSICloneSourceInUse))
 		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 

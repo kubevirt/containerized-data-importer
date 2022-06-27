@@ -377,7 +377,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				readyCondition.Reason = controller.SnapshotForSmartCloneInProgress
 			}
 			waitForDvPhase(expectedPhase, dataVolume, f)
-			expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.ErrExceededQuota))
+			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.ErrExceededQuota))
 			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
 
 			By("Increase quota")

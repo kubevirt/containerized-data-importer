@@ -808,6 +808,11 @@ var _ = Describe("Namespace with quota", func() {
 			Expect(err).NotTo(HaveOccurred())
 			return strings.Trim(log, " ")
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+
+		By("Check the expected event")
+		msg := fmt.Sprintf(controller.MessageErrStartingPod, "importer-import-image-to-pvc")
+		f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(msg))
+		f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.ErrExceededQuota))
 	})
 
 	It("[test_id:4983]Should fail to create import pod in namespace with quota, then succeed once the quota is large enough", func() {
@@ -837,6 +842,11 @@ var _ = Describe("Namespace with quota", func() {
 			Expect(err).NotTo(HaveOccurred())
 			return strings.Trim(log, " ")
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+
+		By("Check the expected event")
+		msg := fmt.Sprintf(controller.MessageErrStartingPod, "importer-import-image-to-pvc")
+		f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(msg))
+		f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.ErrExceededQuota))
 
 		err = f.UpdateQuotaInNs(int64(2), int64(512*1024*1024), int64(2), int64(512*1024*1024))
 		Expect(err).ToNot(HaveOccurred())

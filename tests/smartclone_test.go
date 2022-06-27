@@ -57,10 +57,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests th
 		Expect(err).ToNot(HaveOccurred())
 
 		dataVolume, expectedMd5 := createDataVolume("dv-smart-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.CloneInProgress))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneInProgress))
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 		// Verify PVC's content
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, expectedMd5)
 
@@ -83,11 +83,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 			Skip("Smart Clone is not applicable")
 		}
 		dataVolume, expectedMd5 := createDataVolume("dv-smart-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.SmartClonePVCInProgress))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SmartClonePVCInProgress))
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 		// Verify PVC's content
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, expectedMd5)
 	})
@@ -97,11 +97,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 			Skip("Smart Clone is not applicable")
 		}
 		dataVolume, expectedMd5 := createDataVolume("dv-smart-clone-test-1", utils.DefaultPvcMountPath, v1.PersistentVolumeBlock, f.SnapshotSCName, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.SmartClonePVCInProgress))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SmartClonePVCInProgress))
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 		// Verify PVC's content
 		verifyPVC(dataVolume, f, utils.DefaultPvcMountPath, expectedMd5)
 	})
@@ -130,15 +130,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
 
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.SmartCloneSourceInUse))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SmartCloneSourceInUse))
 		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.SmartClonePVCInProgress))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SmartClonePVCInProgress))
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 		// Verify PVC's content
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, utils.UploadFileMD5)
 	})
@@ -157,7 +157,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 
 		events, _ := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace)
 		Expect(strings.Contains(events, controller.SnapshotForSmartCloneInProgress)).To(BeFalse())
@@ -234,16 +234,4 @@ func createDataVolume(dataVolumeName, testPath string, volumeMode v1.PersistentV
 	f.ForceBindIfWaitForFirstConsumer(pvc)
 
 	return dataVolume, md5
-}
-
-func expectEvent(f *framework.Framework, dataVolumeNamespace string) AsyncAssertion {
-	return Eventually(func() string {
-		events, err := f.RunKubectlCommand("get", "events", "-n", dataVolumeNamespace)
-		if err == nil {
-			fmt.Fprintf(GinkgoWriter, "%s", events)
-			return events
-		}
-		fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
-		return ""
-	}, timeout, pollingInterval)
 }
