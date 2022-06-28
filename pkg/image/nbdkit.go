@@ -48,10 +48,10 @@ const (
 
 // Nbdkit filters
 const (
-	NbdkitXzFilter    NbdkitFilter = "xz"
-	NbdkitTarFilter   NbdkitFilter = "tar"
-	NbdkitGzipFilter  NbdkitFilter = "gzip"
-	NbdkitRetryFilter NbdkitFilter = "retry"
+	NbdkitXzFilter           NbdkitFilter = "xz"
+	NbdkitTarFilter          NbdkitFilter = "tar"
+	NbdkitGzipFilter         NbdkitFilter = "gzip"
+	NbdkitRetryFilter        NbdkitFilter = "retry"
 	NbdkitCacheExtentsFilter NbdkitFilter = "cacheextents"
 )
 
