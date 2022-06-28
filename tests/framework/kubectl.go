@@ -1,7 +1,6 @@
 package framework
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,20 +8,10 @@ import (
 
 //RunKubectlCommand runs a kubectl Cmd and returns output and err
 func (f *Framework) RunKubectlCommand(args ...string) (string, error) {
-	var errb bytes.Buffer
 	cmd := f.CreateKubectlCommand(args...)
+	outBytes, err := cmd.CombinedOutput()
 
-	cmd.Stderr = &errb
-	stdOutBytes, err := cmd.Output()
-	if err != nil {
-		if len(errb.String()) > 0 {
-			return errb.String(), err
-		}
-		// err will not always be nil calling kubectl, this is expected on no results for instance.
-		// still return the value and let the caller decide what to do.
-		return string(stdOutBytes), err
-	}
-	return string(stdOutBytes), nil
+	return string(outBytes), err
 }
 
 // CreateKubectlCommand returns the Cmd to execute kubectl
