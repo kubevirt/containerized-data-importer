@@ -52,6 +52,7 @@ const (
 	NbdkitTarFilter   NbdkitFilter = "tar"
 	NbdkitGzipFilter  NbdkitFilter = "gzip"
 	NbdkitRetryFilter NbdkitFilter = "retry"
+	NbdkitCacheExtentsFilter NbdkitFilter = "cacheextents"
 )
 
 // Nbdkit represents struct for an nbdkit instance
@@ -142,6 +143,7 @@ func NewNbdkitVddk(nbdkitPidFile, socket, server, username, password, thumbprint
 	}
 
 	n.AddFilter(NbdkitRetryFilter)
+	n.AddFilter(NbdkitCacheExtentsFilter)
 	if err := n.validatePlugin(); err != nil {
 		return nil, err
 	}
