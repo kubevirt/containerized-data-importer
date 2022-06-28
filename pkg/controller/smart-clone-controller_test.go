@@ -164,6 +164,20 @@ var _ = Describe("All smart clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
+		It("Should do nothing if snapshot deleted", func() {
+			reconciler := createSmartCloneReconciler()
+			snapshot := createSnapshotVolume("test-dv", metav1.NamespaceDefault, nil)
+			ts := metav1.Now()
+			snapshot.DeletionTimestamp = &ts
+			_, err := reconciler.reconcileSnapshot(reconciler.log, snapshot)
+			Expect(err).ToNot(HaveOccurred())
+
+			nn := types.NamespacedName{Namespace: snapshot.Namespace, Name: snapshot.Name}
+			err = reconciler.client.Get(context.TODO(), nn, &corev1.PersistentVolumeClaim{})
+			Expect(err).To(HaveOccurred())
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+		})
+
 		It("Should delete snapshot if DataVolume deleted", func() {
 			dv := newCloneDataVolume("test-dv")
 			ts := metav1.Now()
