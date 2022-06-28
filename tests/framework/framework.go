@@ -65,8 +65,6 @@ type Config struct {
 
 	// FeatureGates may be overridden for a framework
 	FeatureGates []string
-	// DataVolume garbage collection
-	DataVolumeTTLSeconds *int32
 }
 
 // Clients is the struct containing the client-go kubernetes clients
@@ -134,8 +132,7 @@ type Framework struct {
 // cannot work when called during test tree construction.
 func NewFramework(prefix string, config ...Config) *Framework {
 	cfg := Config{
-		FeatureGates:         []string{featuregates.HonorWaitForFirstConsumer},
-		DataVolumeTTLSeconds: &[]int32{0}[0],
+		FeatureGates: []string{featuregates.HonorWaitForFirstConsumer},
 	}
 	if len(config) > 0 {
 		cfg = config[0]
@@ -685,13 +682,9 @@ func (f *Framework) IsBindingModeWaitForFirstConsumer(storageClassName *string) 
 
 func (f *Framework) updateCDIConfig() {
 	ginkgo.By(fmt.Sprintf("Configuring default FeatureGates %q", f.FeatureGates))
-	if f.DataVolumeTTLSeconds != nil {
-		ginkgo.By(fmt.Sprintf("Configuring default DataVolumeTTLSeconds %d", *f.DataVolumeTTLSeconds))
-	}
 	gomega.Eventually(func() bool {
 		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 			config.FeatureGates = f.FeatureGates
-			config.DataVolumeTTLSeconds = f.DataVolumeTTLSeconds
 		})
 		return err == nil
 	}, timeout, pollingInterval).Should(gomega.BeTrue())
