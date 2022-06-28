@@ -19,7 +19,7 @@ func (f *Framework) RunKubectlCommand(args ...string) (string, error) {
 			return errb.String(), err
 		}
 		// err will not always be nil calling kubectl, this is expected on no results for instance.
-		// still return the value and let the called decide what to do.
+		// still return the value and let the caller decide what to do.
 		return string(stdOutBytes), err
 	}
 	return string(stdOutBytes), nil
