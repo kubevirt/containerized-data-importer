@@ -237,6 +237,7 @@ rpmtree(
         "@readline-0__8.1-4.el9.x86_64//rpm",
         "@sed-0__4.8-9.el9.x86_64//rpm",
         "@setup-0__2.13.7-6.el9.x86_64//rpm",
+        "@sqlite-libs-0__3.34.1-5.el9.x86_64//rpm",
         "@systemd-libs-0__250-4.el9.x86_64//rpm",
         "@tar-2__1.34-3.el9.x86_64//rpm",
         "@tzdata-0__2021e-1.el9.x86_64//rpm",
