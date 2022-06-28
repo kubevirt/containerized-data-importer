@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	nbdVddkLibraryPath    = "/opt/vmware-vix-disklib-distrib/lib64"
+	nbdVddkLibraryPath    = "/opt/vmware-vix-disklib-distrib"
 	startupTimeoutSeconds = 15
 )
 
@@ -141,7 +141,6 @@ func NewNbdkitVddk(nbdkitPidFile, socket, server, username, password, thumbprint
 		Socket:     socket,
 	}
 
-	n.AddEnvVariable("LD_LIBRARY_PATH=" + nbdVddkLibraryPath)
 	n.AddFilter(NbdkitRetryFilter)
 	if err := n.validatePlugin(); err != nil {
 		return nil, err
