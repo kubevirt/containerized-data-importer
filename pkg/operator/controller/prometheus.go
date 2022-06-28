@@ -53,7 +53,6 @@ const (
 	partOfAlertLabelValue    = "kubevirt"
 	componentAlertLabelKey   = "kubernetes_operator_component"
 	componentAlertLabelValue = common.CDILabelValue
-	infraAlertLabelKey       = "infra_alert"
 )
 
 func ensurePrometheusResourcesExist(c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
@@ -154,7 +153,6 @@ func getAlertRules() []promv1.Rule {
 				severityAlertLabelKey:  "warning",
 				partOfAlertLabelKey:    partOfAlertLabelValue,
 				componentAlertLabelKey: componentAlertLabelValue,
-				infraAlertLabelKey:     "true",
 			},
 		),
 		generateAlertRule(
@@ -169,7 +167,6 @@ func getAlertRules() []promv1.Rule {
 				severityAlertLabelKey:  "warning",
 				partOfAlertLabelKey:    partOfAlertLabelValue,
 				componentAlertLabelKey: componentAlertLabelValue,
-				infraAlertLabelKey:     "true",
 			},
 		),
 		generateAlertRule(
@@ -184,7 +181,6 @@ func getAlertRules() []promv1.Rule {
 				severityAlertLabelKey:  "warning",
 				partOfAlertLabelKey:    partOfAlertLabelValue,
 				componentAlertLabelKey: componentAlertLabelValue,
-				infraAlertLabelKey:     "true",
 			},
 		),
 		generateAlertRule(
@@ -199,7 +195,6 @@ func getAlertRules() []promv1.Rule {
 				severityAlertLabelKey:  "info",
 				partOfAlertLabelKey:    partOfAlertLabelValue,
 				componentAlertLabelKey: componentAlertLabelValue,
-				infraAlertLabelKey:     "true",
 			},
 		),
 		generateAlertRule(
@@ -214,7 +209,6 @@ func getAlertRules() []promv1.Rule {
 				severityAlertLabelKey:  "info",
 				partOfAlertLabelKey:    partOfAlertLabelValue,
 				componentAlertLabelKey: componentAlertLabelValue,
-				infraAlertLabelKey:     "true",
 			},
 		),
 	}
