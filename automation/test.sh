@@ -112,5 +112,9 @@ if [[ -n "$CDI_E2E_SKIP" ]]; then
   ginko_params="${ginko_params} --ginkgo.skip=${CDI_E2E_SKIP}"
 fi
 
+if [[ -n "$CDI_DV_GC" ]]; then
+    kubectl patch cdi $CDI_NAMESPACE --type merge -p '{"spec": {"config": {"dataVolumeTTLSeconds": '$CDI_DV_GC'}}}'
+fi
+
 # Run functional tests
 TEST_ARGS=$ginko_params make test-functional
