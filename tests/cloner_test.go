@@ -16,6 +16,7 @@ import (
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -130,6 +131,80 @@ var _ = Describe("all clone tests", func() {
 			uploader, err := utils.FindPodByPrefixOnce(f.K8sClient, targetDataVolume.Namespace, "cdi-upload-", common.CDILabelSelector)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(uploader.DeletionTimestamp).To(BeNil())
+		})
+
+		Context("DataVolume Garbage Collection", func() {
+			var (
+				ns       string
+				err      error
+				config   *cdiv1.CDIConfig
+				origSpec *cdiv1.CDIConfigSpec
+			)
+
+			BeforeEach(func() {
+				ns = f.Namespace.Name
+				config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				origSpec = config.Spec.DeepCopy()
+			})
+
+			AfterEach(func() {
+				By("Restoring CDIConfig to original state")
+				err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+					origSpec.DeepCopyInto(config)
+				})
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(func() bool {
+					config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					return reflect.DeepEqual(config.Spec, *origSpec)
+				}, 30*time.Second, time.Second).Should(BeTrue())
+			})
+
+			verifyGC := func(dvName string) {
+				VerifyGC(f, dvName, ns, false, nil)
+			}
+			verifyDisabledGC := func(dvName string) {
+				VerifyDisabledGC(f, dvName, ns)
+			}
+			enableGcAndAnnotateLegacyDv := func(dvName string) {
+				EnableGcAndAnnotateLegacyDv(f, dvName, ns)
+			}
+
+			DescribeTable("Should", func(ttl *int32, verifyGCFunc, additionalTestFunc func(dvName string)) {
+				SetConfigTTL(f, ttl)
+
+				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+				By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
+				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+				verifyGCFunc(dataVolume.Name)
+
+				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvc)
+				delete(targetDV.Annotations, controller.AnnDeleteAfterCompletion)
+				By(fmt.Sprintf("Create new target datavolume %s", targetDV.Name))
+				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, targetDV)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
+
+				By("Wait for clone to be completed")
+				_, err = utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+				By("Wait for target datavolume phase Succeeded")
+				utils.WaitForDataVolumePhaseWithTimeout(f, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)
+				verifyGCFunc(targetDV.Name)
+
+				if additionalTestFunc != nil {
+					additionalTestFunc(dataVolume.Name)
+					additionalTestFunc(targetDV.Name)
+				}
+			},
+				Entry("[test_id:8565] garbage collect dvs after completion when TTL is 0", &[]int32{0}[0], verifyGC, nil),
+				Entry("[test_id:8569] Add DeleteAfterCompletion annotation to a legacy DV", nil, verifyDisabledGC, enableGcAndAnnotateLegacyDv),
+			)
 		})
 
 		ClonerBehavior := func(storageClass string, cloneType string) {
@@ -2477,4 +2552,95 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 	}
 
 	Expect(utils.GetCloneType(f.CdiClient, dv)).To(Equal(cloneType))
+}
+
+// VerifyGC verifies DV is garbage collected
+func VerifyGC(f *framework.Framework, dvName, dvNamespace string, checkOwnerRefs bool, config *cdiv1.CDIConfig) {
+	By("Wait for DV to be in phase succeeded")
+	err := utils.WaitForDataVolumePhase(f, dvNamespace, cdiv1.Succeeded, dvName)
+	Expect(err).ToNot(HaveOccurred(), "DV is not in phase succeeded in time")
+
+	By("Wait for DV to be garbage collected")
+	Eventually(func() bool {
+		_, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
+		return k8serrors.IsNotFound(err)
+	}, timeout, pollingInterval).Should(BeTrue())
+
+	By("Verify PVC still exists")
+	pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+
+	if checkOwnerRefs && config != nil {
+		By("Verify PVC gets DV original OwnerReferences, and the DV reference is removed")
+		Expect(pvc.OwnerReferences).Should(HaveLen(1))
+		Expect(pvc.OwnerReferences[0].UID).Should(Equal(config.UID))
+	}
+}
+
+// VerifyNoGC verifies DV is not garbage collected
+func VerifyNoGC(f *framework.Framework, dvName, dvNamespace string) {
+	By("Verify DV is not garbage collected")
+	matchString := "DataVolume is not annotated to be garbage collected\t{\"Datavolume\": \"" + dvNamespace + "/" + dvName + "\"}"
+	fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
+	Eventually(func() string {
+		log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+		Expect(err).NotTo(HaveOccurred())
+		return log
+	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+	dv, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	Expect(dv.Annotations[controller.AnnDeleteAfterCompletion]).ToNot(Equal("true"))
+}
+
+// VerifyDisabledGC verifies DV is not deleted when garbage collection is disabled
+func VerifyDisabledGC(f *framework.Framework, dvName, dvNamespace string) {
+	By("Verify DV is not deleted when garbage collection is disabled")
+	matchString := "Garbage Collection is disabled\t{\"Datavolume\": \"" + dvNamespace + "/" + dvName + "\"}"
+	fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
+	Eventually(func() string {
+		log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+		Expect(err).NotTo(HaveOccurred())
+		return log
+	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+	_, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+}
+
+// EnableGcAndAnnotateLegacyDv enables garbage collection, annotates the DV and verifies it is garbage collected
+func EnableGcAndAnnotateLegacyDv(f *framework.Framework, dvName, dvNamespace string) {
+	By("Enable Garbage Collection")
+	err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+		config.DataVolumeTTLSeconds = &[]int32{0}[0]
+	})
+	Expect(err).ToNot(HaveOccurred())
+
+	dv, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	_, ok := dv.Annotations[controller.AnnDeleteAfterCompletion]
+	Expect(ok).To(BeFalse())
+
+	By("Add empty DeleteAfterCompletion annotation to DV for reconcile")
+	controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "")
+	dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	VerifyNoGC(f, dvName, dvNamespace)
+
+	By("Add true DeleteAfterCompletion annotation to DV")
+	controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "true")
+	dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	VerifyGC(f, dvName, dvNamespace, false, nil)
+}
+
+// SetConfigTTL set CDIConfig DataVolumeTTLSeconds
+func SetConfigTTL(f *framework.Framework, ttl *int32) {
+	ttlStr := "nil"
+	if ttl != nil {
+		ttlStr = strconv.Itoa(int(*ttl))
+	}
+	By("Set DataVolumeTTLSeconds to " + ttlStr)
+	err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+		config.DataVolumeTTLSeconds = ttl
+	})
+	Expect(err).ToNot(HaveOccurred())
 }

@@ -101,17 +101,20 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 	modifiedDataVolume := dataVolume.DeepCopy()
 	modified := false
 
-	config, err := wh.cdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-	if err != nil {
-		return toAdmissionResponseError(err)
-	}
-	if config.Spec.DataVolumeTTLSeconds != nil &&
-		modifiedDataVolume.Annotations[controller.AnnDeleteAfterCompletion] != "false" {
-		if modifiedDataVolume.Annotations == nil {
-			modifiedDataVolume.Annotations = make(map[string]string)
+	if ar.Request.Operation == admissionv1.Create {
+		config, err := wh.cdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		if err != nil {
+			return toAdmissionResponseError(err)
 		}
-		modifiedDataVolume.Annotations[controller.AnnDeleteAfterCompletion] = "true"
-		modified = true
+		if config.Spec.DataVolumeTTLSeconds != nil {
+			if modifiedDataVolume.Annotations == nil {
+				modifiedDataVolume.Annotations = make(map[string]string)
+			}
+			if modifiedDataVolume.Annotations[controller.AnnDeleteAfterCompletion] != "false" {
+				modifiedDataVolume.Annotations[controller.AnnDeleteAfterCompletion] = "true"
+				modified = true
+			}
+		}
 	}
 
 	if pvcSource == nil {
@@ -127,7 +130,7 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 		sourceNamespace = targetNamespace
 	}
 
-	_, err = wh.k8sClient.CoreV1().Namespaces().Get(context.TODO(), sourceNamespace, metav1.GetOptions{})
+	_, err := wh.k8sClient.CoreV1().Namespaces().Get(context.TODO(), sourceNamespace, metav1.GetOptions{})
 	if err != nil {
 		return toAdmissionResponseError(err)
 	}

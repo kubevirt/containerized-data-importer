@@ -260,6 +260,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 
 			ar := &admissionv1.AdmissionReview{
 				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdicorev1.SchemeGroupVersion.Group,
 						Version:  cdicorev1.SchemeGroupVersion.Version,
