@@ -51,6 +51,7 @@ qemu-img
 
 cdi_importer_extra_x86_64="
 nbdkit-vddk-plugin
+sqlite-libs
 "
 
 cdi_uploadserver="
