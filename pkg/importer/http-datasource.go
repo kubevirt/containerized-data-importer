@@ -102,9 +102,6 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		return nil, err
 	}
 
-	if accessKey != "" && secKey != "" {
-		ep.User = url.UserPassword(accessKey, secKey)
-	}
 	httpSource := &HTTPDataSource{
 		ctx:              ctx,
 		cancel:           cancel,
@@ -115,7 +112,7 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		brokenForQemuImg: brokenForQemuImg,
 		contentLength:    contentLength,
 	}
-	httpSource.n = createNbdkitCurl(nbdkitPid, certDir, nbdkitSocket, extraHeaders, secretExtraHeaders)
+	httpSource.n = createNbdkitCurl(nbdkitPid, accessKey, secKey, certDir, nbdkitSocket, extraHeaders, secretExtraHeaders)
 	// We know this is a counting reader, so no need to check.
 	countingReader := httpReader.(*util.CountingReader)
 	go httpSource.pollProgress(countingReader, 10*time.Minute, time.Second)

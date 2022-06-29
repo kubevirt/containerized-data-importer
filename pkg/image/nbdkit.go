@@ -85,10 +85,16 @@ func NewNbdkit(plugin NbdkitPlugin, nbdkitPidFile string) *Nbdkit {
 }
 
 // NewNbdkitCurl creates a new Nbdkit instance with the curl plugin
-func NewNbdkitCurl(nbdkitPidFile, certDir, socket string, extraHeaders, secretExtraHeaders []string) NbdkitOperation {
+func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraHeaders, secretExtraHeaders []string) NbdkitOperation {
 	var pluginArgs []string
 	var redactArgs []string
 	args := []string{"-r"}
+	if user != "" {
+		pluginArgs = append(pluginArgs, "user="+user)
+	}
+	if password != "" {
+		pluginArgs = append(pluginArgs, "password="+password)
+	}
 	if certDir != "" {
 		pluginArgs = append(pluginArgs, fmt.Sprintf("cainfo=%s/%s", certDir, "tls.crt"))
 	}
@@ -384,7 +390,7 @@ func (n *Nbdkit) validatePlugin() error {
 type mockNbdkit struct{}
 
 // NewMockNbdkitCurl creates a mock nbdkit curl plugin for testing
-func NewMockNbdkitCurl(nbdkitPidFile, certDir, socket string, extraHeaders, secretExtraHeaders []string) NbdkitOperation {
+func NewMockNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraHeaders, secretExtraHeaders []string) NbdkitOperation {
 	return &mockNbdkit{}
 }
 

@@ -78,17 +78,6 @@ var _ = Describe("Http data source", func() {
 		Expect(strings.Contains(err.Error(), "unable to parse endpoint")).To(BeTrue())
 	})
 
-	It("endpoint User object should be set when accessKey and secKey are not blank", func() {
-		image := ts.URL + "/" + cirrosFileName
-		dp, err = NewHTTPDataSource(image, "user", "password", "", cdiv1.DataVolumeKubeVirt)
-		Expect(err).NotTo(HaveOccurred())
-		user := dp.endpoint.User
-		Expect("user").To(Equal(user.Username()))
-		pw, set := user.Password()
-		Expect("password").To(Equal(pw))
-		Expect(set).To(BeTrue())
-	})
-
 	It("NewHTTPDataSource should fail when called with an invalid certdir", func() {
 		image := ts.URL + "/" + cirrosFileName
 		_, err = NewHTTPDataSource(image, "", "", "/invaliddir", cdiv1.DataVolumeKubeVirt)
