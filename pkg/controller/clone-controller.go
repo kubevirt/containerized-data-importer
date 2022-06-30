@@ -283,9 +283,11 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 		}
 
 		sourcePod, err := r.CreateCloneSourcePod(r.image, r.pullPolicy, targetPvc, log)
-		if err != nil {
-			return 0, err
+		// Check if pod has failed and, in that case, record an event with the error
+		if podErr := handleFailedPod(err, createCloneSourcePodName(targetPvc), sourcePvc, r.recorder, r.client); podErr != nil {
+			return 0, podErr
 		}
+
 		log.V(3).Info("Created source pod ", "sourcePod.Namespace", sourcePod.Namespace, "sourcePod.Name", sourcePod.Name)
 	}
 	return 0, nil
@@ -539,8 +541,7 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 
 	if err := r.client.Create(context.TODO(), pod); err != nil {
-		err = errors.Wrap(err, "source pod API create errored")
-		return nil, handleFailedPod(err, createCloneSourcePodName(pvc), sourcePvc, r.recorder, r.client)
+		return nil, errors.Wrap(err, "source pod API create errored")
 	}
 
 	log.V(1).Info("cloning source pod (image) created\n", "pod.Namespace", pod.Namespace, "pod.Name", pod.Name, "image", image)

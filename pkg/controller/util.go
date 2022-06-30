@@ -148,7 +148,7 @@ const (
 	// ErrStartingPod provides a const to indicate that a pod wasn't able to start without providing sensitive information (reason)
 	ErrStartingPod = "ErrStartingPod"
 	// MessageErrStartingPod provides a const to indicate that a pod wasn't able to start without providing sensitive information (message)
-	MessageErrStartingPod = "Error starting pod '%s': For more information, request access to cdi-deploy logs to your sysadmin"
+	MessageErrStartingPod = "Error starting pod '%s': For more information, request access to cdi-deploy logs from your sysadmin"
 )
 
 const (
@@ -1178,6 +1178,9 @@ func inflateSizeWithOverhead(c client.Client, imgSize int64, pvcSpec *v1.Persist
 
 // handleFailedPod handles pod-creation errors and updates the pod's PVC without providing sensitive information
 func handleFailedPod(err error, podName string, pvc *v1.PersistentVolumeClaim, recorder record.EventRecorder, c client.Client) error {
+	if err == nil {
+		return nil
+	}
 	// Generic reason and msg to avoid providing sensitive information
 	reason := ErrStartingPod
 	msg := fmt.Sprintf(MessageErrStartingPod, podName)
