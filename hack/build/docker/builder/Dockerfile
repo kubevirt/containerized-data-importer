@@ -1,5 +1,5 @@
 FROM quay.io/centos/centos:stream9
-MAINTAINER "The KubeVirt Project" <kubevirt-dev@googlegroups.com>
+LABEL maintainer="The KubeVirt Project <kubevirt-dev@googlegroups.com>"
 
 RUN 	dnf -y install dnf-plugins-core && \
 	dnf config-manager --set-enable crb && dnf update -y && \
@@ -33,7 +33,7 @@ RUN pip3 install --upgrade j2cli operator-courier==2.1.11 && \
 	ln -s /opt/gradle/gradle-6.6/bin/gradle /usr/local/bin/gradle && \
 	rm gradle-6.6-bin.zip
 
-ENV GIMME_GO_VERSION=1.17.10 GOPATH="/go" GO111MODULE="on"
+ENV GIMME_GO_VERSION=1.18.3 GOPATH="/go" GO111MODULE="on"
 
 RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
 
@@ -46,11 +46,11 @@ RUN \
 	go install github.com/mattn/goveralls@latest && \
 	go install golang.org/x/lint/golint@latest && \
 	go install github.com/rmohr/go-swagger-utils/swagger-doc@latest && \
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.7.0 && \
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.9.2 && \
 	go install github.com/securego/gosec/v2/cmd/gosec@0ce48a5 && \
 	rm -rf "${GOPATH}/pkg"
 
-ENV BAZEL_VERSION 3.7.2
+ENV BAZEL_VERSION 5.2.0
 
 COPY output-bazel-arch.sh /output-bazel-arch.sh
 
