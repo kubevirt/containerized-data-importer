@@ -14,7 +14,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 )
 
@@ -140,7 +139,7 @@ func startServicePortForward(f *framework.Framework, serviceName string) (string
 	pm := lp + ":443"
 	hostPort := "127.0.0.1:" + lp
 
-	cmd := tests.CreateKubectlCommand(f, "-n", f.CdiInstallNs, "port-forward", "svc/"+serviceName, pm)
+	cmd := f.CreateKubectlCommand("-n", f.CdiInstallNs, "port-forward", "svc/"+serviceName, pm)
 	err := cmd.Start()
 	if err != nil {
 		return "", nil, err

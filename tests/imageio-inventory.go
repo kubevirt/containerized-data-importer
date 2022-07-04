@@ -64,7 +64,7 @@ func ResetImageIoInventory(f *framework.Framework, configurators ...string) {
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	gomega.Expect(pod).ToNot(gomega.BeNil())
 
-	_, err = RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "-c", "fakeovirt", "--", "/usr/bin/curl", "-s", "--cacert", "/app/imageio.crt", "-X", "POST", reset)
+	_, err = f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "-c", "fakeovirt", "--", "/usr/bin/curl", "-s", "--cacert", "/app/imageio.crt", "-X", "POST", reset)
 	gomega.Expect(err).To(gomega.BeNil())
 }
 
@@ -438,7 +438,7 @@ func createResponseSequences(data *imageIoInventoryData) *bytes.Buffer {
 func postInventoryStubs(f *framework.Framework, pod *v1.Pod, stubs *bytes.Buffer) {
 	imageioRootURL := fmt.Sprintf(utils.ImageioRootURL, f.CdiInstallNs)
 	stub := imageioRootURL + "/stub"
-	command := CreateKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "-c", "fakeovirt", "-i", "--", "/usr/bin/curl", "-s", "--cacert", "/app/imageio.crt", "-X", "POST", "-d", "@-", stub)
+	command := f.CreateKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "-c", "fakeovirt", "-i", "--", "/usr/bin/curl", "-s", "--cacert", "/app/imageio.crt", "-X", "POST", "-d", "@-", stub)
 	command.Stdin = stubs
 	command.Stdout = os.Stdout
 	command.Stderr = command.Stdout
@@ -450,7 +450,7 @@ func postInventoryStubs(f *framework.Framework, pod *v1.Pod, stubs *bytes.Buffer
 func copyDiskImage(f *framework.Framework, pod *v1.Pod, name string) {
 	path := getSnapshotPath(name)
 	dest := fmt.Sprintf("%s:/images/%s", pod.Name, name)
-	out, err := RunKubectlCommand(f, "cp", "-n", pod.Namespace, "-c", "imageiotest", path, dest)
+	out, err := f.RunKubectlCommand("cp", "-n", pod.Namespace, "-c", "imageiotest", path, dest)
 	gomega.Expect(err).To(gomega.BeNil(), fmt.Sprintf("%s", out))
 }
 
@@ -474,7 +474,7 @@ func addTicket(f *framework.Framework, pod *v1.Pod, snapshot imageIoDiskSnapshot
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Post to API in imageiotest container
-	command := CreateKubectlCommand(f, "exec", "-i", "-n", pod.Namespace, pod.Name, "-c", "imageiotest", "--", "/usr/bin/curl", "-s", "--unix-socket", "/tmp/daemon.sock", "-X", "PUT", "-d", "@-", fmt.Sprintf("http://localhost:12345/tickets/%s", snapshot.SnapshotID))
+	command := f.CreateKubectlCommand("exec", "-i", "-n", pod.Namespace, pod.Name, "-c", "imageiotest", "--", "/usr/bin/curl", "-s", "--unix-socket", "/tmp/daemon.sock", "-X", "PUT", "-d", "@-", fmt.Sprintf("http://localhost:12345/tickets/%s", snapshot.SnapshotID))
 	command.Stdin = ticketBytes
 	command.Stdout = os.Stdout
 	command.Stderr = command.Stdout

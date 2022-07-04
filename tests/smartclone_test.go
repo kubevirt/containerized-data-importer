@@ -64,7 +64,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests th
 		// Verify PVC's content
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, expectedMd5)
 
-		events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
+		events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace)
 		Expect(err).ToNot(HaveOccurred())
 		if strings.Contains(events, controller.SnapshotForSmartCloneInProgress) {
 			Fail(fmt.Sprintf("seen event SmartClonePVCInProgress. Events: %s", events))
@@ -159,7 +159,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 
-		events, _ := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
+		events, _ := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace)
 		Expect(strings.Contains(events, controller.SnapshotForSmartCloneInProgress)).To(BeFalse())
 		// Verify PVC's content
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, expectedMd5)
@@ -179,7 +179,7 @@ func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f
 	By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
 	err := utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 	if err != nil {
-		PrintControllerLog(f)
+		f.PrintControllerLog()
 		dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 		if dverr != nil {
 			Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
@@ -238,7 +238,7 @@ func createDataVolume(dataVolumeName, testPath string, volumeMode v1.PersistentV
 
 func expectEvent(f *framework.Framework, dataVolumeNamespace string) AsyncAssertion {
 	return Eventually(func() string {
-		events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolumeNamespace)
+		events, err := f.RunKubectlCommand("get", "events", "-n", dataVolumeNamespace)
 		if err == nil {
 			fmt.Fprintf(GinkgoWriter, "%s", events)
 			return events

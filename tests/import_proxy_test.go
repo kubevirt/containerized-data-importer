@@ -448,7 +448,7 @@ func getProxyLog(f *framework.Framework, since time.Time) string {
 	proxyPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, proxyServerName, fmt.Sprintf("name=%s", proxyServerName))
 	Expect(err).ToNot(HaveOccurred())
 	fmt.Fprintf(GinkgoWriter, "INFO: Analyzing the proxy pod %s logs\n", proxyPod.Name)
-	log, err := RunKubectlCommand(f, "logs", proxyPod.Name, "-n", proxyPod.Namespace, fmt.Sprintf("--since-time=%s", since.Format(time.RFC3339)))
+	log, err := f.RunKubectlCommand("logs", proxyPod.Name, "-n", proxyPod.Namespace, fmt.Sprintf("--since-time=%s", since.Format(time.RFC3339)))
 	Expect(err).To(BeNil())
 	return log
 }

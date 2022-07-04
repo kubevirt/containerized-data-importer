@@ -11,7 +11,6 @@ import (
 
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -29,7 +28,7 @@ var _ = Describe("Alpha API tests", func() {
 
 		It("[test_id:4945]should", func() {
 			By("create a upload DataVolume")
-			out, err := tests.RunKubectlCommand(f, "create", "-f", "manifests/dvAlphaUpload.yaml", "-n", f.Namespace.Name)
+			out, err := f.RunKubectlCommand("create", "-f", "manifests/dvAlphaUpload.yaml", "-n", f.Namespace.Name)
 			fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -38,7 +37,7 @@ var _ = Describe("Alpha API tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("create a upload token")
-			out, err = tests.RunKubectlCommand(f, "create", "-f", "manifests/tokenAlpha.yaml", "-n", f.Namespace.Name)
+			out, err = f.RunKubectlCommand("create", "-f", "manifests/tokenAlpha.yaml", "-n", f.Namespace.Name)
 			fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
 			Expect(err).ToNot(HaveOccurred())
 		})
@@ -68,7 +67,7 @@ var _ = Describe("Alpha API tests", func() {
 
 		It("[test_id:4947]should not", func() {
 			By("create a upload DataVolume")
-			out, err := tests.RunKubectlCommand(f, "create", "-f", "manifests/dvAlphaMissingAccessModes.yaml", "-n", f.Namespace.Name)
+			out, err := f.RunKubectlCommand("create", "-f", "manifests/dvAlphaMissingAccessModes.yaml", "-n", f.Namespace.Name)
 			fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
 			Expect(out).Should(ContainSubstring("at least 1 access mode is required"))
 			Expect(err).To(HaveOccurred())
@@ -88,7 +87,7 @@ var _ = Describe("Alpha API tests", func() {
 
 			It("[test_id:4948]should block cdi delete", func() {
 				By("create a upload DataVolume")
-				out, err := tests.RunKubectlCommand(f, "create", "-f", "manifests/dvAlphaUpload.yaml", "-n", f.Namespace.Name)
+				out, err := f.RunKubectlCommand("create", "-f", "manifests/dvAlphaUpload.yaml", "-n", f.Namespace.Name)
 				fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
 				Expect(err).ToNot(HaveOccurred())
 

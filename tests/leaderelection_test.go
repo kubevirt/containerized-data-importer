@@ -16,7 +16,6 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
-	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -134,7 +133,7 @@ var _ = Describe("[rfe_id:1250][crit:high][test_id:1889][vendor:cnv-qe@redhat.co
 			}, timeout, pollingInterval).Should(BeTrue())
 
 			Eventually(func() bool {
-				log, err := tests.RunKubectlCommand(f, "logs", importer.Name, "-n", f.Namespace.Name)
+				log, err := f.RunKubectlCommand("logs", importer.Name, "-n", f.Namespace.Name)
 				Expect(err).NotTo(HaveOccurred())
 				return checkLogForRegEx(logImporterStarting, log)
 			}, timeout, pollingInterval).Should(BeTrue())
@@ -167,7 +166,7 @@ var _ = Describe("[rfe_id:1250][crit:high][test_id:1889][vendor:cnv-qe@redhat.co
 
 			By("Verifying imported pod has progressed without issue")
 			Eventually(func() bool {
-				log, err := tests.RunKubectlCommand(f, "logs", importer.Name, "-n", f.Namespace.Name)
+				log, err := f.RunKubectlCommand("logs", importer.Name, "-n", f.Namespace.Name)
 				Expect(err).NotTo(HaveOccurred())
 				return checkLogForRegEx(logImporterCompleted, log)
 			}, timeout, pollingInterval).Should(BeTrue())
@@ -268,7 +267,7 @@ func getPods(f *framework.Framework) *v1.PodList {
 }
 
 func getLog(f *framework.Framework, name string) string {
-	log, err := tests.RunKubectlCommand(f, "logs", "--since=0", name, "-n", f.CdiInstallNs)
+	log, err := f.RunKubectlCommand("logs", "--since=0", name, "-n", f.CdiInstallNs)
 	Expect(err).ToNot(HaveOccurred())
 	return log
 }

@@ -34,7 +34,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
-	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
@@ -586,7 +585,7 @@ var _ = Describe("ALL Operator tests", func() {
 			It("[test_id:4782] Should install CDI infrastructure pods with node placement", func() {
 				By("Creating modified CDI CR, with infra nodePlacement")
 				localSpec := restoreCdiCr.Spec.DeepCopy()
-				localSpec.Infra = tests.TestNodePlacementValues(f)
+				localSpec.Infra = f.TestNodePlacementValues()
 
 				tempCdiCr := &cdiv1.CDI{
 					ObjectMeta: metav1.ObjectMeta{
@@ -602,7 +601,7 @@ var _ = Describe("ALL Operator tests", func() {
 					deployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
 
-					match := tests.PodSpecHasTestNodePlacementValues(f, deployment.Spec.Template.Spec)
+					match := f.PodSpecHasTestNodePlacementValues(deployment.Spec.Template.Spec)
 					Expect(match).To(BeTrue(), fmt.Sprintf("node placement in pod spec\n%v\n differs from node placement values in CDI CR\n%v\n", deployment.Spec.Template.Spec, localSpec.Infra))
 				}
 			})
@@ -771,7 +770,7 @@ var _ = Describe("ALL Operator tests", func() {
 
 				Eventually(func() bool {
 					var result map[string]interface{}
-					resp := tests.MakePrometheusHTTPRequest(f, "query?query="+endpoint)
+					resp := f.MakePrometheusHTTPRequest("query?query=" + endpoint)
 					defer resp.Body.Close()
 					bodyBytes, err := ioutil.ReadAll(resp.Body)
 					if err != nil {
@@ -815,7 +814,7 @@ var _ = Describe("ALL Operator tests", func() {
 			}
 
 			It("[test_id:7962] CDIOperatorDown alert firing when operator scaled down", func() {
-				if !tests.IsPrometheusAvailable(f.ExtClient) {
+				if !f.IsPrometheusAvailable() {
 					Skip("This test depends on prometheus infra being available")
 				}
 
@@ -859,7 +858,7 @@ var _ = Describe("ALL Operator tests", func() {
 				By("Let's see that alert fires")
 				Eventually(func() bool {
 					var result map[string]interface{}
-					resp := tests.MakePrometheusHTTPRequest(f, "alerts")
+					resp := f.MakePrometheusHTTPRequest("alerts")
 					defer resp.Body.Close()
 					// Make sure alert appears and is firing
 					bodyBytes, err := ioutil.ReadAll(resp.Body)
@@ -893,7 +892,7 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("[test_id:7963] CDI ready metric value as expected when ready to use", func() {
-				if !tests.IsPrometheusAvailable(f.ExtClient) {
+				if !f.IsPrometheusAvailable() {
 					Skip("This test depends on prometheus infra being available")
 				}
 
@@ -903,7 +902,7 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("[test_id:7965] StorageProfile incomplete metric expected value when creating an incomplete profile", func() {
-				if !tests.IsPrometheusAvailable(f.ExtClient) {
+				if !f.IsPrometheusAvailable() {
 					Skip("This test depends on prometheus infra being available")
 				}
 
@@ -940,7 +939,7 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("[test_id:7964] DataImportCron failing metric expected value when patching DesiredDigest annotation with junk sha256 value", func() {
-				if !tests.IsPrometheusAvailable(f.ExtClient) {
+				if !f.IsPrometheusAvailable() {
 					Skip("This test depends on prometheus infra being available")
 				}
 				numCrons := 2

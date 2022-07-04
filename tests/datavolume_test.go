@@ -130,13 +130,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		Expect(pod).ToNot(BeNil())
 
 		// Get test VM UUID
-		id, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
+		id, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
 		Expect(err).To(BeNil())
 		vmid, err := uuid.Parse(strings.TrimSpace(id))
 		Expect(err).To(BeNil())
 
 		// Get disk name
-		disk, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
+		disk, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
 		Expect(err).To(BeNil())
 		disk = strings.TrimSpace(disk)
 		Expect(err).To(BeNil())
@@ -155,7 +155,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	}
 
 	createVddkWarmImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
-		return CreateVddkWarmImportDataVolume(f, dataVolumeName, size, url)
+		return f.CreateVddkWarmImportDataVolume(dataVolumeName, size, url)
 	}
 
 	createImageIoDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
@@ -304,7 +304,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				waitForDvPhase(args.phase, dataVolume, f)
 
 				By("Verifying the DV has the correct conditions and messages for those conditions")
-				WaitForConditions(f, dataVolume.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
+				utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
 
 				// verify PVC was created
 				By("verifying pvc was created")
@@ -314,7 +314,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				By("Verifying event occurred")
 				Eventually(func() bool {
 					// Only find DV events, we know the PVC gets the same events
-					events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+					events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 					if err == nil {
 						fmt.Fprintf(GinkgoWriter, "%s", events)
 						return strings.Contains(events, args.eventReason) && strings.Contains(events, args.errorMessage)
@@ -378,7 +378,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 			waitForDvPhase(expectedPhase, dataVolume, f)
 			expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.ErrExceededQuota))
-			WaitForConditions(f, dataVolume.Name, timeout, pollingInterval, boundCondition, readyCondition)
+			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
 
 			By("Increase quota")
 			err = f.UpdateStorageQuota(int64(2), int64(2*1024*1024*1024))
@@ -388,7 +388,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			waitForDvPhase(args.phase, dataVolume, f)
 
 			By("Verifying the DV has the correct conditions and messages for those conditions")
-			WaitForConditions(f, dataVolume.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
+			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
 
 			// verify PVC was created
 			By("verifying pvc was created")
@@ -398,7 +398,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("Verifying event occurred")
 			Eventually(func() bool {
 				// Only find DV events, we know the PVC gets the same events
-				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
 					return strings.Contains(events, args.eventReason) && strings.Contains(events, args.errorMessage)
@@ -1259,7 +1259,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
 			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 			if err != nil {
-				PrintControllerLog(f)
+				f.PrintControllerLog()
 				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				if dverr != nil {
 					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
@@ -1274,7 +1274,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Verifying event occurred")
 			Eventually(func() bool {
-				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
+				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace)
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
 					return strings.Contains(events, eventReason)
@@ -1785,7 +1785,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("verifying event occurred")
 			Eventually(func() bool {
 				// Only find DV events, we know the PVC gets the same events
-				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
 					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume.storage spec is missing accessMode and volumeMode, cannot get access mode from StorageProfile")
@@ -1815,7 +1815,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("verifying event occurred")
 			Eventually(func() bool {
 				// Only find DV events, we know the PVC gets the same events
-				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
 					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume.storage spec is missing accessMode and no storageClass to choose profile")
@@ -1862,7 +1862,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("verifying event occurred")
 			Eventually(func() bool {
 				// Only find DV events, we know the PVC gets the same events
-				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
 					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume.storage spec is missing accessMode and volumeMode, cannot get access mode from StorageProfile")
@@ -2164,7 +2164,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
 			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
 			if err != nil {
-				PrintControllerLog(f)
+				f.PrintControllerLog()
 				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				if dverr != nil {
 					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))

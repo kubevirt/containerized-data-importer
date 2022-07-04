@@ -1840,7 +1840,7 @@ var _ = Describe("all clone tests", func() {
 			By("Verify Quota was exceeded in logs")
 			matchString := "\\\"cdi-upload-target-dv\\\" is forbidden: exceeded quota: test-quota, requested"
 			Eventually(func() string {
-				log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+				log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 				Expect(err).NotTo(HaveOccurred())
 				return log
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
@@ -1874,7 +1874,7 @@ var _ = Describe("all clone tests", func() {
 			By("Verify Quota was exceeded in logs")
 			matchString := "\\\"cdi-upload-target-dv\\\" is forbidden: exceeded quota: test-quota, requested"
 			Eventually(func() string {
-				log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+				log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 				Expect(err).NotTo(HaveOccurred())
 				return log
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
@@ -1938,7 +1938,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			matchString := fmt.Sprintf("\\\"%s-source-pod\\\" is forbidden: exceeded quota: test-quota, requested", targetPvc.GetUID())
 			Eventually(func() string {
-				log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+				log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 				Expect(err).NotTo(HaveOccurred())
 				return log
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
@@ -1972,7 +1972,7 @@ var _ = Describe("all clone tests", func() {
 			By("Verify Quota was exceeded in logs")
 			matchString := strings.Trim(fmt.Sprintf("\"namespace\": \"%s\", \"error\": \"pods \\\"cdi-upload-target-dv\\\" is forbidden: exceeded quota: test-quota, requested", targetNs.Name), " ")
 			Eventually(func() string {
-				log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+				log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 				Expect(err).NotTo(HaveOccurred())
 				return strings.Trim(log, " ")
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
@@ -2286,7 +2286,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			annValue, preallocationAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetDataVolume.Namespace, targetPvc, controller.AnnPreallocationRequested)
 			if err != nil {
-				PrintControllerLog(f)
+				f.PrintControllerLog()
 			}
 			Expect(err).ToNot(HaveOccurred())
 			Expect(preallocationAnnotationFound).To(BeTrue())
@@ -2296,7 +2296,7 @@ var _ = Describe("all clone tests", func() {
 
 			annValue, preallocationAnnotationFound, err = utils.WaitForPVCAnnotation(f.K8sClient, targetDataVolume.Namespace, targetPvc, controller.AnnPreallocationApplied)
 			if err != nil {
-				PrintControllerLog(f)
+				f.PrintControllerLog()
 			}
 			Expect(err).ToNot(HaveOccurred())
 			Expect(preallocationAnnotationFound).To(BeTrue())
@@ -2390,7 +2390,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 	By("Verify the clone annotation is on the target PVC")
 	_, cloneAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnCloneOf)
 	if err != nil {
-		PrintControllerLog(f)
+		f.PrintControllerLog()
 	}
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cloneAnnotationFound).To(BeTrue())
@@ -2503,7 +2503,7 @@ func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string
 
 	matchString := fmt.Sprintf("{\"PVC\": \"%s/target-pvc\", \"isUpload\": false, \"isCloneTarget\": true, \"isBound\": true, \"podSucceededFromPVC\": true, \"deletionTimeStamp set?\": false}", f.Namespace.Name)
 	Eventually(func() bool {
-		log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 		Expect(err).NotTo(HaveOccurred())
 		return strings.Contains(log, matchString)
 	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
@@ -2511,7 +2511,7 @@ func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string
 
 	By("Checking logs explicitly skips PVC")
 	Eventually(func() bool {
-		log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 		Expect(err).NotTo(HaveOccurred())
 		return strings.Contains(log, fmt.Sprintf("{\"PVC\": \"%s/%s\", \"checkPVC(AnnCloneRequest)\": true, \"NOT has annotation(AnnCloneOf)\": false, \"isBound\": true, \"has finalizer?\": false}", targetNamespaceName, "target-pvc"))
 	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
@@ -2609,7 +2609,7 @@ func VerifyNoGC(f *framework.Framework, dvName, dvNamespace string) {
 	matchString := "DataVolume is not annotated to be garbage collected\t{\"Datavolume\": \"" + dvNamespace + "/" + dvName + "\"}"
 	fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
 	Eventually(func() string {
-		log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 		Expect(err).NotTo(HaveOccurred())
 		return log
 	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
@@ -2624,7 +2624,7 @@ func VerifyDisabledGC(f *framework.Framework, dvName, dvNamespace string) {
 	matchString := "Garbage Collection is disabled\t{\"Datavolume\": \"" + dvNamespace + "/" + dvName + "\"}"
 	fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
 	Eventually(func() string {
-		log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 		Expect(err).NotTo(HaveOccurred())
 		return log
 	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))

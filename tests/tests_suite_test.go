@@ -12,7 +12,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/reporters"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -37,9 +36,17 @@ var (
 	dockerTag      = flag.String("docker-tag", "", "The docker tag")
 )
 
+// cdiFailHandler call ginkgo.Fail with printing the additional information
+func cdiFailHandler(message string, callerSkip ...int) {
+	if len(callerSkip) > 0 {
+		callerSkip[0]++
+	}
+	ginkgo.Fail(message, callerSkip...)
+}
+
 func TestTests(t *testing.T) {
 	defer GinkgoRecover()
-	RegisterFailHandler(tests.CDIFailHandler)
+	RegisterFailHandler(cdiFailHandler)
 	BuildTestSuite()
 	RunSpecsWithDefaultAndCustomReporters(t, "Tests Suite", reporters.NewReporters())
 }

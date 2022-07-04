@@ -3,8 +3,10 @@ package utils
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
@@ -800,4 +802,46 @@ func GetCloneType(clientSet *cdiclientset.Clientset, dataVolume *cdiv1.DataVolum
 		return ok
 	}, 90*time.Second, 2*time.Second).Should(gomega.BeTrue())
 	return cloneType
+}
+
+// WaitForConditions waits until the data volume conditions match the expected conditions
+func WaitForConditions(ci ClientsIface, dataVolumeName, namespace string, timeout, pollingInterval time.Duration, expectedConditions ...*cdiv1.DataVolumeCondition) {
+	gomega.Eventually(func() bool {
+		resultDv, dverr := ci.Cdi().CdiV1beta1().DataVolumes(namespace).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
+		gomega.Expect(dverr).ToNot(gomega.HaveOccurred())
+		return verifyConditions(resultDv.Status.Conditions, expectedConditions)
+	}, timeout, pollingInterval).Should(gomega.BeTrue())
+}
+
+// verifyConditions checks if the conditions match testConditions
+func verifyConditions(actualConditions []cdiv1.DataVolumeCondition, testConditions []*cdiv1.DataVolumeCondition) bool {
+	for _, condition := range testConditions {
+		if condition != nil {
+			actualCondition := findConditionByType(condition.Type, actualConditions)
+			if actualCondition != nil {
+				if actualCondition.Status != condition.Status {
+					fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Status does not match for type: %s, status expected: [%s], status found: [%s]\n", condition.Type, condition.Status, actualCondition.Status)
+					return false
+				}
+				if strings.Compare(actualCondition.Reason, condition.Reason) != 0 {
+					fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Reason does not match for type: %s, reason expected [%s], reason found: [%s]\n", condition.Type, condition.Reason, actualCondition.Reason)
+					return false
+				}
+				if !strings.Contains(actualCondition.Message, condition.Message) {
+					fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Message does not match for type: %s, message expected: [%s],  message found: [%s]\n", condition.Type, condition.Message, actualCondition.Message)
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions []cdiv1.DataVolumeCondition) *cdiv1.DataVolumeCondition {
+	for i, condition := range conditions {
+		if condition.Type == conditionType {
+			return &conditions[i]
+		}
+	}
+	return nil
 }
