@@ -20,6 +20,7 @@ import (
 const (
 	nbdVddkLibraryPath    = "/opt/vmware-vix-disklib-distrib"
 	startupTimeoutSeconds = 15
+	defaultUserAgent      = "cdi-nbdkit-importer"
 )
 
 type nbdkitOperations struct {
@@ -90,6 +91,7 @@ func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraH
 	var pluginArgs []string
 	var redactArgs []string
 	args := []string{"-r"}
+	pluginArgs = append(pluginArgs, fmt.Sprintf("header=User-Agent: %s", defaultUserAgent))
 	if user != "" {
 		pluginArgs = append(pluginArgs, "user="+user)
 	}

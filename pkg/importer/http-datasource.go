@@ -45,9 +45,10 @@ import (
 )
 
 const (
-	tempFile     = "tmpimage"
-	nbdkitPid    = "/var/run/nbdkit.pid"
-	nbdkitSocket = "/var/run/nbdkit.sock"
+	tempFile         = "tmpimage"
+	nbdkitPid        = "/var/run/nbdkit.pid"
+	nbdkitSocket     = "/var/run/nbdkit.sock"
+	defaultUserAgent = "cdi-golang-importer"
 )
 
 // HTTPDataSource is the data provider for http(s) endpoints.
@@ -127,33 +128,21 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 		klog.Errorf("Error creating readers: %v", err)
 		return ProcessingPhaseError, err
 	}
-	hs.url, _ = url.Parse(fmt.Sprintf("nbd+unix:///?socket=%s", nbdkitSocket))
-	if hs.readers.ArchiveGz {
-		hs.n.AddFilter(image.NbdkitGzipFilter)
-		klog.V(2).Infof("Added nbdkit gzip filter")
-	}
-	if hs.readers.ArchiveXz {
-		hs.n.AddFilter(image.NbdkitXzFilter)
-		klog.V(2).Infof("Added nbdkit xz filter")
-	}
-	if err = hs.n.StartNbdkit(hs.endpoint.String()); err != nil {
-		return ProcessingPhaseError, err
-	}
 	if hs.contentType == cdiv1.DataVolumeArchive {
 		return ProcessingPhaseTransferDataDir, nil
 	}
-	if hs.brokenForQemuImg || (hs.readers.ArchiveGz && hs.readers.Convert) {
-		// Either broken for qemu-img, so we have to download first OR we are converting
-		// a qcow2 that is gzipped (which means we have to download the image anyway)
-		return ProcessingPhaseTransferScratch, nil
+	if hs.readers.Convert {
+		if hs.brokenForQemuImg || hs.readers.Archived || hs.customCA != "" {
+			return ProcessingPhaseTransferScratch, nil
+		}
+	} else {
+		if hs.readers.Archived || hs.customCA != "" {
+			return ProcessingPhaseTransferDataFile, nil
+		}
 	}
-	if hs.customCA != "" {
-		klog.V(1).Infof("Custom CA requested, using scratch space")
-		return ProcessingPhaseTransferScratch, nil
-	}
-	if !hs.readers.Archived && hs.readers.Convert {
-		// We can pass straight to conversion from the endpoint
-		return ProcessingPhaseConvert, nil
+	hs.url, _ = url.Parse(fmt.Sprintf("nbd+unix:///?socket=%s", nbdkitSocket))
+	if err = hs.n.StartNbdkit(hs.endpoint.String()); err != nil {
+		return ProcessingPhaseError, err
 	}
 	return ProcessingPhaseConvert, nil
 }
@@ -281,6 +270,11 @@ func createHTTPClient(certDir string) (*http.Client, error) {
 	transport.TLSClientConfig = &tls.Config{
 		RootCAs: certPool,
 	}
+	transport.GetProxyConnectHeader = func(ctx context.Context, proxyURL *url.URL, target string) (http.Header, error) {
+		h := http.Header{}
+		h.Add("User-Agent", defaultUserAgent)
+		return h, nil
+	}
 	client.Transport = transport
 
 	return client, nil
@@ -293,6 +287,7 @@ func addExtraheaders(req *http.Request, extraHeaders []string) {
 			req.Header.Add(parts[0], parts[1])
 		}
 	}
+	req.Header.Add("User-Agent", defaultUserAgent)
 }
 
 func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string, extraHeaders, secretExtraHeaders []string) (io.ReadCloser, uint64, bool, error) {
