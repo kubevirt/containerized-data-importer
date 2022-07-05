@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"reflect"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -48,6 +47,9 @@ const (
 	port                     = ":80"
 	trustedCaProxyConfigName = "user-ca-bundle"
 	cdiProxyCaConfigMapName  = "cdi-test-proxy-certs"
+	nbdKitUserAgent          = "cdi-nbdkit-importer"
+	golangUserAgent          = "cdi-golang-importer"
+	registryUserAgent        = "Go-http-client/1.1"
 )
 
 var _ = Describe("Import Proxy tests", func() {
@@ -65,6 +67,7 @@ var _ = Describe("Import Proxy tests", func() {
 		size          string
 		noProxy       string
 		imgName       string
+		userAgent     string
 		isHTTPS       bool
 		withBasicAuth bool
 		expected      func() types.GomegaMatcher
@@ -149,7 +152,7 @@ var _ = Describe("Import Proxy tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Checking the importer pod information in the proxy log to verify if the requests were proxied")
-			verifyImporterPodInfoInProxyLogs(f, dataVolume, imgURL, args.isHTTPS, now, args.expected)
+			verifyImporterPodInfoInProxyLogs(f, dataVolume, imgURL, args.userAgent, now, args.expected)
 		},
 			Entry("succeed creating import dv with a proxied server (http)", importProxyTestArguments{
 				name:          "dv-import-http-proxy",
@@ -158,6 +161,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreQcow2,
 				isHTTPS:       false,
 				withBasicAuth: false,
+				userAgent:     nbdKitUserAgent,
 				expected:      BeTrue}),
 			Entry("succeed creating iso import dv with a proxied server (http)", importProxyTestArguments{
 				name:          "dv-import-http-proxy",
@@ -166,6 +170,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreIso,
 				isHTTPS:       false,
 				withBasicAuth: false,
+				userAgent:     nbdKitUserAgent,
 				expected:      BeTrue}),
 			Entry("succeed creating iso.gz import dv with a proxied server (http)", importProxyTestArguments{
 				name:          "dv-import-http-proxy",
@@ -174,6 +179,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreIsoGz,
 				isHTTPS:       false,
 				withBasicAuth: false,
+				userAgent:     golangUserAgent,
 				expected:      BeTrue}),
 			Entry("succeed creating import dv with a proxied server (http) with basic autentication", importProxyTestArguments{
 				name:          "dv-import-http-proxy-auth",
@@ -182,6 +188,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreQcow2,
 				isHTTPS:       false,
 				withBasicAuth: true,
+				userAgent:     nbdKitUserAgent,
 				expected:      BeTrue}),
 			Entry("succeed creating iso import dv with a proxied server (http) with basic autentication", importProxyTestArguments{
 				name:          "dv-import-http-proxy-auth",
@@ -190,6 +197,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreIso,
 				isHTTPS:       false,
 				withBasicAuth: true,
+				userAgent:     nbdKitUserAgent,
 				expected:      BeTrue}),
 			Entry("succeed creating iso.gz import dv with a proxied server (http) with basic autentication", importProxyTestArguments{
 				name:          "dv-import-http-proxy-auth",
@@ -198,6 +206,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreIsoGz,
 				isHTTPS:       false,
 				withBasicAuth: true,
+				userAgent:     golangUserAgent,
 				expected:      BeTrue}),
 			Entry("succeed creating import dv with a proxied server (https) with the target server with tls", importProxyTestArguments{
 				name:          "dv-import-https-proxy",
@@ -206,6 +215,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreQcow2,
 				isHTTPS:       true,
 				withBasicAuth: false,
+				userAgent:     golangUserAgent,
 				expected:      BeTrue}),
 			Entry("succeed creating iso import dv with a proxied server (https) with the target server with tls", importProxyTestArguments{
 				name:          "dv-import-https-proxy",
@@ -214,6 +224,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreIso,
 				isHTTPS:       true,
 				withBasicAuth: false,
+				userAgent:     golangUserAgent,
 				expected:      BeTrue}),
 			Entry("succeed creating iso.gz import dv with a proxied server (https) with the target server with tls", importProxyTestArguments{
 				name:          "dv-import-https-proxy",
@@ -222,6 +233,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreIsoGz,
 				isHTTPS:       true,
 				withBasicAuth: false,
+				userAgent:     golangUserAgent,
 				expected:      BeTrue}),
 			Entry("succeed creating import dv with a proxied server (https) with basic autentication and the target server with tls", importProxyTestArguments{
 				name:          "dv-import-https-proxy-auth",
@@ -230,6 +242,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreQcow2,
 				isHTTPS:       true,
 				withBasicAuth: true,
+				userAgent:     golangUserAgent,
 				expected:      BeTrue}),
 			Entry("succeed creating iso import dv with a proxied server (https) with basic autentication and the target server with tls", importProxyTestArguments{
 				name:          "dv-import-https-proxy-auth",
@@ -238,6 +251,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreIso,
 				isHTTPS:       true,
 				withBasicAuth: true,
+				userAgent:     golangUserAgent,
 				expected:      BeTrue}),
 			Entry("succeed creating iso import dv with a proxied server (https) with basic autentication and the target server with tls", importProxyTestArguments{
 				name:          "dv-import-https-proxy-auth",
@@ -246,6 +260,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreIsoGz,
 				isHTTPS:       true,
 				withBasicAuth: true,
+				userAgent:     golangUserAgent,
 				expected:      BeTrue}),
 			Entry("succeed creating import dv with a proxied server (http) but bypassing the proxy", importProxyTestArguments{
 				name:          "dv-import-noproxy",
@@ -254,6 +269,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreQcow2,
 				isHTTPS:       false,
 				withBasicAuth: false,
+				userAgent:     nbdKitUserAgent,
 				expected:      BeFalse}),
 			Entry("succeed creating import dv with a proxied server (http) but bypassing the proxy", importProxyTestArguments{
 				name:          "dv-import-noproxy",
@@ -262,6 +278,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreIso,
 				isHTTPS:       false,
 				withBasicAuth: false,
+				userAgent:     nbdKitUserAgent,
 				expected:      BeFalse}),
 		)
 
@@ -288,7 +305,7 @@ var _ = Describe("Import Proxy tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Checking the importer pod information in the proxy log to verify if the requests were proxied")
-			verifyImporterPodInfoInProxyLogs(f, dv, tinyCoreQcow2, true, now, BeTrue)
+			verifyImporterPodInfoInProxyLogs(f, dv, *dv.Spec.Source.Registry.URL, registryUserAgent, now, BeTrue)
 		},
 			Entry("with http proxy, no auth", false, false),
 			Entry("with http proxy, auth", false, true),
@@ -423,10 +440,10 @@ func updateClusterWideProxyObj(ocpClient *configclient.Clientset, HTTPProxy, HTT
 }
 
 // verifyImporterPodInfoInProxyLogs verifiy if the importer pod request (method, url and impoter pod IP) appears in the proxy log
-func verifyImporterPodInfoInProxyLogs(f *framework.Framework, dataVolume *cdiv1.DataVolume, imgURL string, isHTTPS bool, since time.Time, expected func() types.GomegaMatcher) {
+func verifyImporterPodInfoInProxyLogs(f *framework.Framework, dataVolume *cdiv1.DataVolume, imgURL, userAgent string, since time.Time, expected func() types.GomegaMatcher) {
 	podIP := getImporterPodIP(f)
 	Eventually(func() bool {
-		return wasPodProxied(imgURL, podIP, getProxyLog(f, since), isHTTPS)
+		return wasPodProxied(imgURL, podIP, userAgent, getProxyLog(f, since))
 	}, time.Second*60, time.Second).Should(expected())
 }
 
@@ -453,32 +470,23 @@ func getProxyLog(f *framework.Framework, since time.Time) string {
 	return log
 }
 
-func wasPodProxied(imgURL, podIP, proxyLog string, isHTTPS bool) bool {
-	lineMatcher := regexp.MustCompile("URL:(.*) SRC IP:(.*) BYTES:(\\d+)")
-	httpMatcher := regexp.MustCompile("Content-Range\\[bytes (\\d+)\\-(\\d+)\\/(\\d+)\\]")
+func wasPodProxied(imgURL, podIP, userAgent, proxyLog string) bool {
+	lineMatcher := regexp.MustCompile(`METHOD:(GET|CONNECT) URL:(\S+) SRC IP:(\S+) .* USER AGENT:(\S*)`)
 	u, _ := url.Parse(imgURL)
 	res := false
 	for _, line := range strings.Split(strings.TrimSuffix(proxyLog, "\n"), "\n") {
 		matched := lineMatcher.FindStringSubmatch(line)
-		matchedHost := ""
-		matchedSrc := ""
-		matchedBytes := 0
 		if len(matched) > 1 {
-			matchedHost = matched[1]
-			matchedSrc = matched[2]
-			matchedBytes, _ = strconv.Atoi(matched[3])
-			if strings.Contains(matchedHost, u.Host) && strings.Contains(matchedSrc, podIP) && matchedBytes > 1024 {
-				fmt.Fprintf(GinkgoWriter, "INFO: Matched: %s, %s, %s, %s, [%s]\n", matchedHost, u.Host, matchedSrc, podIP, line)
+			matchedUrl, _ := url.Parse(matched[2])
+			matchedSrc := matched[3]
+			matchedUserAgent := matched[4]
+			if matchedUrl.Hostname() == u.Hostname() &&
+				strings.HasPrefix(matchedSrc, podIP+":") &&
+				matchedUserAgent == userAgent {
+				fmt.Fprintf(GinkgoWriter, "INFO: Matched: %q, %q, %q, %q, %q, %q [%s]\n",
+					matchedUrl, imgURL, matchedSrc, podIP, matchedUserAgent, userAgent, line)
 				res = true
-			}
-		} else {
-			matched = httpMatcher.FindStringSubmatch(line)
-			if len(matched) > 1 {
-				matchedBytes, _ = strconv.Atoi(matched[1])
-			}
-			if matchedBytes > 1024 {
-				fmt.Fprintf(GinkgoWriter, "INFO: Matched line: [%s]\n", line)
-				res = true
+				break
 			}
 		}
 	}
