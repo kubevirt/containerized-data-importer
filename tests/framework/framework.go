@@ -676,12 +676,11 @@ func (f *Framework) IsBindingModeWaitForFirstConsumer(storageClassName *string) 
 
 func (f *Framework) updateCDIConfig() {
 	ginkgo.By(fmt.Sprintf("Configuring default FeatureGates %q", f.FeatureGates))
-	gomega.Eventually(func() bool {
-		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+	gomega.Eventually(func() error {
+		return utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 			config.FeatureGates = f.FeatureGates
 		})
-		return err == nil
-	}, timeout, pollingInterval).Should(gomega.BeTrue())
+	}, timeout, pollingInterval).Should(gomega.BeNil())
 }
 
 func getMaxFailsFromEnv() int {
