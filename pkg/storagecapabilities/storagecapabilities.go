@@ -4,6 +4,7 @@ package storagecapabilities
 
 import (
 	"context"
+
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -31,6 +32,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// ceph-fs
 	"cephfs.csi.ceph.com":                   {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"openshift-storage.cephfs.csi.ceph.com": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
+	// dell-unity-csi
+	"csi-unity.dellemc.com": createDellUnityCapabilities(),
 	// storageos
 	"kubernetes.io/storageos": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"storageos":               {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
@@ -157,5 +160,18 @@ func createRbdCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
 		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
 		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}}
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
+	}
+}
+
+func createDellUnityCapabilities() []StorageCapabilities {
+	return []StorageCapabilities{
+		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
+		{AccessMode: v1.ReadOnlyMany, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadOnlyMany, VolumeMode: v1.PersistentVolumeFilesystem},
+		{AccessMode: v1.ReadWriteOncePod, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOncePod, VolumeMode: v1.PersistentVolumeFilesystem},
+	}
 }
