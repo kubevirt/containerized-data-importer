@@ -6,7 +6,7 @@ var CDICRDs map[string]string = map[string]string{
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
   name: cdis.cdi.kubevirt.io
 spec:
@@ -144,10 +144,10 @@ spec:
                           is consumed by the import controller that is resposible
                           for coping it to a config map named trusted-ca-proxy-bundle-cm
                           in the cdi namespace. Here is an example of the ConfigMap
-                          (in yaml): \n apiVersion: v1 kind: ConfigMap metadata:   name:
-                          trusted-ca-proxy-bundle-cm   namespace: cdi data:   ca.pem:
-                          |     -----BEGIN CERTIFICATE----- \t   ... <base64 encoded
-                          cert> ... \t   -----END CERTIFICATE-----"
+                          (in yaml): \n apiVersion: v1 kind: ConfigMap metadata: name:
+                          trusted-ca-proxy-bundle-cm namespace: cdi data: ca.pem:
+                          | -----BEGIN CERTIFICATE----- ... <base64 encoded cert>
+                          ... -----END CERTIFICATE-----"
                         type: string
                     type: object
                   insecureRegistries:
@@ -320,6 +320,7 @@ spec:
                                         type: object
                                       type: array
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 weight:
                                   description: Weight associated with matching the
                                     corresponding nodeSelectorTerm, in the range 1-100.
@@ -425,10 +426,12 @@ spec:
                                         type: object
                                       type: array
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 type: array
                             required:
                             - nodeSelectorTerms
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       podAffinity:
                         description: Describes pod affinity scheduling rules (e.g.
@@ -509,6 +512,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaceSelector:
                                       description: A label query over the set of namespaces
                                         that the term applies to. The term is applied
@@ -568,6 +572,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaces:
                                       description: namespaces specifies a static list
                                         of namespace names that the term applies to.
@@ -672,6 +677,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaceSelector:
                                   description: A label query over the set of namespaces
                                     that the term applies to. The term is applied
@@ -730,6 +736,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaces:
                                   description: namespaces specifies a static list
                                     of namespace names that the term applies to. The
@@ -833,6 +840,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaceSelector:
                                       description: A label query over the set of namespaces
                                         that the term applies to. The term is applied
@@ -892,6 +900,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaces:
                                       description: namespaces specifies a static list
                                         of namespace names that the term applies to.
@@ -996,6 +1005,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaceSelector:
                                   description: A label query over the set of namespaces
                                     that the term applies to. The term is applied
@@ -1054,6 +1064,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaces:
                                   description: namespaces specifies a static list
                                     of namespace names that the term applies to. The
@@ -1252,6 +1263,7 @@ spec:
                                         type: object
                                       type: array
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 weight:
                                   description: Weight associated with matching the
                                     corresponding nodeSelectorTerm, in the range 1-100.
@@ -1357,10 +1369,12 @@ spec:
                                         type: object
                                       type: array
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 type: array
                             required:
                             - nodeSelectorTerms
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       podAffinity:
                         description: Describes pod affinity scheduling rules (e.g.
@@ -1441,6 +1455,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaceSelector:
                                       description: A label query over the set of namespaces
                                         that the term applies to. The term is applied
@@ -1500,6 +1515,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaces:
                                       description: namespaces specifies a static list
                                         of namespace names that the term applies to.
@@ -1604,6 +1620,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaceSelector:
                                   description: A label query over the set of namespaces
                                     that the term applies to. The term is applied
@@ -1662,6 +1679,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaces:
                                   description: namespaces specifies a static list
                                     of namespace names that the term applies to. The
@@ -1765,6 +1783,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaceSelector:
                                       description: A label query over the set of namespaces
                                         that the term applies to. The term is applied
@@ -1824,6 +1843,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaces:
                                       description: namespaces specifies a static list
                                         of namespace names that the term applies to.
@@ -1928,6 +1948,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaceSelector:
                                   description: A label query over the set of namespaces
                                     that the term applies to. The term is applied
@@ -1986,6 +2007,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaces:
                                   description: namespaces specifies a static list
                                     of namespace names that the term applies to. The
@@ -2243,10 +2265,10 @@ spec:
                           is consumed by the import controller that is resposible
                           for coping it to a config map named trusted-ca-proxy-bundle-cm
                           in the cdi namespace. Here is an example of the ConfigMap
-                          (in yaml): \n apiVersion: v1 kind: ConfigMap metadata:   name:
-                          trusted-ca-proxy-bundle-cm   namespace: cdi data:   ca.pem:
-                          |     -----BEGIN CERTIFICATE----- \t   ... <base64 encoded
-                          cert> ... \t   -----END CERTIFICATE-----"
+                          (in yaml): \n apiVersion: v1 kind: ConfigMap metadata: name:
+                          trusted-ca-proxy-bundle-cm namespace: cdi data: ca.pem:
+                          | -----BEGIN CERTIFICATE----- ... <base64 encoded cert>
+                          ... -----END CERTIFICATE-----"
                         type: string
                     type: object
                   insecureRegistries:
@@ -2419,6 +2441,7 @@ spec:
                                         type: object
                                       type: array
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 weight:
                                   description: Weight associated with matching the
                                     corresponding nodeSelectorTerm, in the range 1-100.
@@ -2524,10 +2547,12 @@ spec:
                                         type: object
                                       type: array
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 type: array
                             required:
                             - nodeSelectorTerms
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       podAffinity:
                         description: Describes pod affinity scheduling rules (e.g.
@@ -2608,6 +2633,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaceSelector:
                                       description: A label query over the set of namespaces
                                         that the term applies to. The term is applied
@@ -2667,6 +2693,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaces:
                                       description: namespaces specifies a static list
                                         of namespace names that the term applies to.
@@ -2771,6 +2798,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaceSelector:
                                   description: A label query over the set of namespaces
                                     that the term applies to. The term is applied
@@ -2829,6 +2857,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaces:
                                   description: namespaces specifies a static list
                                     of namespace names that the term applies to. The
@@ -2932,6 +2961,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaceSelector:
                                       description: A label query over the set of namespaces
                                         that the term applies to. The term is applied
@@ -2991,6 +3021,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaces:
                                       description: namespaces specifies a static list
                                         of namespace names that the term applies to.
@@ -3095,6 +3126,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaceSelector:
                                   description: A label query over the set of namespaces
                                     that the term applies to. The term is applied
@@ -3153,6 +3185,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaces:
                                   description: namespaces specifies a static list
                                     of namespace names that the term applies to. The
@@ -3354,6 +3387,7 @@ spec:
                                         type: object
                                       type: array
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 weight:
                                   description: Weight associated with matching the
                                     corresponding nodeSelectorTerm, in the range 1-100.
@@ -3459,10 +3493,12 @@ spec:
                                         type: object
                                       type: array
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 type: array
                             required:
                             - nodeSelectorTerms
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       podAffinity:
                         description: Describes pod affinity scheduling rules (e.g.
@@ -3543,6 +3579,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaceSelector:
                                       description: A label query over the set of namespaces
                                         that the term applies to. The term is applied
@@ -3602,6 +3639,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaces:
                                       description: namespaces specifies a static list
                                         of namespace names that the term applies to.
@@ -3706,6 +3744,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaceSelector:
                                   description: A label query over the set of namespaces
                                     that the term applies to. The term is applied
@@ -3764,6 +3803,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaces:
                                   description: namespaces specifies a static list
                                     of namespace names that the term applies to. The
@@ -3867,6 +3907,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaceSelector:
                                       description: A label query over the set of namespaces
                                         that the term applies to. The term is applied
@@ -3926,6 +3967,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                     namespaces:
                                       description: namespaces specifies a static list
                                         of namespace names that the term applies to.
@@ -4030,6 +4072,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaceSelector:
                                   description: A label query over the set of namespaces
                                     that the term applies to. The term is applied
@@ -4088,6 +4131,7 @@ spec:
                                         The requirements are ANDed.
                                       type: object
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 namespaces:
                                   description: namespaces specifies a static list
                                     of namespace names that the term applies to. The
@@ -4228,7 +4272,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
   name: cdiconfigs.cdi.kubevirt.io
 spec:
@@ -4314,9 +4358,9 @@ spec:
                       by the import controller that is resposible for coping it to
                       a config map named trusted-ca-proxy-bundle-cm in the cdi namespace.
                       Here is an example of the ConfigMap (in yaml): \n apiVersion:
-                      v1 kind: ConfigMap metadata:   name: trusted-ca-proxy-bundle-cm
-                      \  namespace: cdi data:   ca.pem: |     -----BEGIN CERTIFICATE-----
-                      \t   ... <base64 encoded cert> ... \t   -----END CERTIFICATE-----"
+                      v1 kind: ConfigMap metadata: name: trusted-ca-proxy-bundle-cm
+                      namespace: cdi data: ca.pem: | -----BEGIN CERTIFICATE----- ...
+                      <base64 encoded cert> ... -----END CERTIFICATE-----"
                     type: string
                 type: object
               insecureRegistries:
@@ -4446,9 +4490,9 @@ spec:
                       by the import controller that is resposible for coping it to
                       a config map named trusted-ca-proxy-bundle-cm in the cdi namespace.
                       Here is an example of the ConfigMap (in yaml): \n apiVersion:
-                      v1 kind: ConfigMap metadata:   name: trusted-ca-proxy-bundle-cm
-                      \  namespace: cdi data:   ca.pem: |     -----BEGIN CERTIFICATE-----
-                      \t   ... <base64 encoded cert> ... \t   -----END CERTIFICATE-----"
+                      v1 kind: ConfigMap metadata: name: trusted-ca-proxy-bundle-cm
+                      namespace: cdi data: ca.pem: | -----BEGIN CERTIFICATE----- ...
+                      <base64 encoded cert> ... -----END CERTIFICATE-----"
                     type: string
                 type: object
               preallocation:
@@ -4546,9 +4590,9 @@ spec:
                       by the import controller that is resposible for coping it to
                       a config map named trusted-ca-proxy-bundle-cm in the cdi namespace.
                       Here is an example of the ConfigMap (in yaml): \n apiVersion:
-                      v1 kind: ConfigMap metadata:   name: trusted-ca-proxy-bundle-cm
-                      \  namespace: cdi data:   ca.pem: |     -----BEGIN CERTIFICATE-----
-                      \t   ... <base64 encoded cert> ... \t   -----END CERTIFICATE-----"
+                      v1 kind: ConfigMap metadata: name: trusted-ca-proxy-bundle-cm
+                      namespace: cdi data: ca.pem: | -----BEGIN CERTIFICATE----- ...
+                      <base64 encoded cert> ... -----END CERTIFICATE-----"
                     type: string
                 type: object
               insecureRegistries:
@@ -4678,9 +4722,9 @@ spec:
                       by the import controller that is resposible for coping it to
                       a config map named trusted-ca-proxy-bundle-cm in the cdi namespace.
                       Here is an example of the ConfigMap (in yaml): \n apiVersion:
-                      v1 kind: ConfigMap metadata:   name: trusted-ca-proxy-bundle-cm
-                      \  namespace: cdi data:   ca.pem: |     -----BEGIN CERTIFICATE-----
-                      \t   ... <base64 encoded cert> ... \t   -----END CERTIFICATE-----"
+                      v1 kind: ConfigMap metadata: name: trusted-ca-proxy-bundle-cm
+                      namespace: cdi data: ca.pem: | -----BEGIN CERTIFICATE----- ...
+                      <base64 encoded cert> ... -----END CERTIFICATE-----"
                     type: string
                 type: object
               preallocation:
@@ -4710,7 +4754,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
   name: dataimportcrons.cdi.kubevirt.io
 spec:
@@ -4865,6 +4909,7 @@ spec:
                             - kind
                             - name
                             type: object
+                            x-kubernetes-map-type: atomic
                           dataSourceRef:
                             description: 'Specifies the object from which to populate
                               the volume with data, if a non-empty volume is desired.
@@ -4881,11 +4926,11 @@ spec:
                               and the other is non-empty. There are two important
                               differences between DataSource and DataSourceRef: *
                               While DataSource only allows two specific types of objects,
-                              DataSourceRef   allows any non-core object, as well
-                              as PersistentVolumeClaim objects. * While DataSource
-                              ignores disallowed values (dropping them), DataSourceRef   preserves
+                              DataSourceRef allows any non-core object, as well as
+                              PersistentVolumeClaim objects. * While DataSource ignores
+                              disallowed values (dropping them), DataSourceRef preserves
                               all values, and generates an error if a disallowed value
-                              is   specified. (Alpha) Using this field requires the
+                              is specified. (Alpha) Using this field requires the
                               AnyVolumeDataSource feature gate to be enabled.'
                             properties:
                               apiGroup:
@@ -4904,6 +4949,7 @@ spec:
                             - kind
                             - name
                             type: object
+                            x-kubernetes-map-type: atomic
                           resources:
                             description: 'Resources represents the minimum resources
                               the volume should have. If RecoverVolumeExpansionFailure
@@ -4982,6 +5028,7 @@ spec:
                                   contains only "value". The requirements are ANDed.
                                 type: object
                             type: object
+                            x-kubernetes-map-type: atomic
                           storageClassName:
                             description: 'Name of the StorageClass required by the
                               claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
@@ -5211,6 +5258,7 @@ spec:
                             - kind
                             - name
                             type: object
+                            x-kubernetes-map-type: atomic
                           resources:
                             description: 'Resources represents the minimum resources
                               the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
@@ -5285,6 +5333,7 @@ spec:
                                   contains only "value". The requirements are ANDed.
                                 type: object
                             type: object
+                            x-kubernetes-map-type: atomic
                           storageClassName:
                             description: 'Name of the StorageClass required by the
                               claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
@@ -5442,7 +5491,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
   name: datasources.cdi.kubevirt.io
 spec:
@@ -5546,7 +5595,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
   name: datavolumes.cdi.kubevirt.io
 spec:
@@ -5672,6 +5721,7 @@ spec:
                     - kind
                     - name
                     type: object
+                    x-kubernetes-map-type: atomic
                   dataSourceRef:
                     description: 'Specifies the object from which to populate the
                       volume with data, if a non-empty volume is desired. This may
@@ -5686,10 +5736,10 @@ spec:
                       if one of them is empty and the other is non-empty. There are
                       two important differences between DataSource and DataSourceRef:
                       * While DataSource only allows two specific types of objects,
-                      DataSourceRef   allows any non-core object, as well as PersistentVolumeClaim
+                      DataSourceRef allows any non-core object, as well as PersistentVolumeClaim
                       objects. * While DataSource ignores disallowed values (dropping
-                      them), DataSourceRef   preserves all values, and generates an
-                      error if a disallowed value is   specified. (Alpha) Using this
+                      them), DataSourceRef preserves all values, and generates an
+                      error if a disallowed value is specified. (Alpha) Using this
                       field requires the AnyVolumeDataSource feature gate to be enabled.'
                     properties:
                       apiGroup:
@@ -5708,6 +5758,7 @@ spec:
                     - kind
                     - name
                     type: object
+                    x-kubernetes-map-type: atomic
                   resources:
                     description: 'Resources represents the minimum resources the volume
                       should have. If RecoverVolumeExpansionFailure feature is enabled
@@ -5782,6 +5833,7 @@ spec:
                           "value". The requirements are ANDed.
                         type: object
                     type: object
+                    x-kubernetes-map-type: atomic
                   storageClassName:
                     description: 'Name of the StorageClass required by the claim.
                       More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
@@ -5981,6 +6033,7 @@ spec:
                     - kind
                     - name
                     type: object
+                    x-kubernetes-map-type: atomic
                   resources:
                     description: 'Resources represents the minimum resources the volume
                       should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
@@ -6052,6 +6105,7 @@ spec:
                           "value". The requirements are ANDed.
                         type: object
                     type: object
+                    x-kubernetes-map-type: atomic
                   storageClassName:
                     description: 'Name of the StorageClass required by the claim.
                       More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
@@ -6231,6 +6285,7 @@ spec:
                     - kind
                     - name
                     type: object
+                    x-kubernetes-map-type: atomic
                   dataSourceRef:
                     description: 'Specifies the object from which to populate the
                       volume with data, if a non-empty volume is desired. This may
@@ -6245,10 +6300,10 @@ spec:
                       if one of them is empty and the other is non-empty. There are
                       two important differences between DataSource and DataSourceRef:
                       * While DataSource only allows two specific types of objects,
-                      DataSourceRef   allows any non-core object, as well as PersistentVolumeClaim
+                      DataSourceRef allows any non-core object, as well as PersistentVolumeClaim
                       objects. * While DataSource ignores disallowed values (dropping
-                      them), DataSourceRef   preserves all values, and generates an
-                      error if a disallowed value is   specified. (Alpha) Using this
+                      them), DataSourceRef preserves all values, and generates an
+                      error if a disallowed value is specified. (Alpha) Using this
                       field requires the AnyVolumeDataSource feature gate to be enabled.'
                     properties:
                       apiGroup:
@@ -6267,6 +6322,7 @@ spec:
                     - kind
                     - name
                     type: object
+                    x-kubernetes-map-type: atomic
                   resources:
                     description: 'Resources represents the minimum resources the volume
                       should have. If RecoverVolumeExpansionFailure feature is enabled
@@ -6341,6 +6397,7 @@ spec:
                           "value". The requirements are ANDed.
                         type: object
                     type: object
+                    x-kubernetes-map-type: atomic
                   storageClassName:
                     description: 'Name of the StorageClass required by the claim.
                       More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
@@ -6565,6 +6622,7 @@ spec:
                     - kind
                     - name
                     type: object
+                    x-kubernetes-map-type: atomic
                   resources:
                     description: 'Resources represents the minimum resources the volume
                       should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
@@ -6636,6 +6694,7 @@ spec:
                           "value". The requirements are ANDed.
                         type: object
                     type: object
+                    x-kubernetes-map-type: atomic
                   storageClassName:
                     description: 'Name of the StorageClass required by the claim.
                       More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
@@ -6715,7 +6774,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
   name: objecttransfers.cdi.kubevirt.io
 spec:
@@ -6847,7 +6906,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
   name: storageprofiles.cdi.kubevirt.io
 spec:
