@@ -296,7 +296,6 @@ var _ = Describe("Controller", func() {
 						"severity":                      "warning",
 						"kubernetes_operator_part_of":   "kubevirt",
 						"kubernetes_operator_component": "containerized-data-importer",
-						"infra_alert":                   "true",
 					},
 				}
 
