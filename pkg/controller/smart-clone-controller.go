@@ -84,6 +84,25 @@ func addSmartCloneControllerWatches(mgr manager.Manager, smartCloneController co
 		return err
 	}
 
+	if err := smartCloneController.Watch(&source.Kind{Type: &cdiv1.DataVolume{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			dv := obj.(*cdiv1.DataVolume)
+			if hasAnnTriggerSmartCloneFromExistingSnapshot(dv) {
+				return []reconcile.Request{
+					{
+						NamespacedName: types.NamespacedName{
+							Namespace: dv.Namespace,
+							Name:      dv.Name,
+						},
+					},
+				}
+			}
+			return nil
+		},
+	)); err != nil {
+		return err
+	}
+
 	// check if volume snapshots exist
 	err := mgr.GetClient().List(context.TODO(), &snapshotv1.VolumeSnapshotList{})
 	if meta.IsNoMatchError(err) {
@@ -130,20 +149,40 @@ func shouldReconcilePvc(pvc *corev1.PersistentVolumeClaim) bool {
 func (r *SmartCloneReconciler) Reconcile(_ context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("VolumeSnapshot/PersistentVolumeClaim", req.NamespacedName)
 	log.Info("reconciling smart clone")
+
 	pvc := &corev1.PersistentVolumeClaim{}
 	if err := r.client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {
-		if k8serrors.IsNotFound(err) {
-			// PVC not found, look up smart clone.
-			snapshot := &snapshotv1.VolumeSnapshot{}
-			if err := r.client.Get(context.TODO(), req.NamespacedName, snapshot); err != nil {
-				if k8serrors.IsNotFound(err) {
-					return reconcile.Result{}, nil
-				}
+		if !k8serrors.IsNotFound(err) {
+			return reconcile.Result{}, err
+		}
+		// PVC not found, look up smart clone.
+		snapshot := &snapshotv1.VolumeSnapshot{}
+		// Either existing snapshot or we have to create temp one
+		dataVolume := &cdiv1.DataVolume{}
+		if err := r.client.Get(context.TODO(), req.NamespacedName, dataVolume); err != nil {
+			if !k8serrors.IsNotFound(err) {
 				return reconcile.Result{}, err
 			}
-			return r.reconcileSnapshot(log, snapshot)
+			// Not a dataVolume triggered reconcile, continue temp snapshot flow
+			dataVolume = nil
 		}
-		return reconcile.Result{}, err
+		snapNamespacedName := req.NamespacedName
+		if dataVolume != nil {
+			if val, ok := dataVolume.Annotations["cdi.kubevirt.io/smartCloneFromExistingSnapshot"]; ok {
+				namespace, name, err := cache.SplitMetaNamespaceKey(val)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+				snapNamespacedName = client.ObjectKey{Namespace: namespace, Name: name}
+			}
+		}
+		if err := r.client.Get(context.TODO(), snapNamespacedName, snapshot); err != nil {
+			if k8serrors.IsNotFound(err) {
+				return reconcile.Result{}, nil
+			}
+			return reconcile.Result{}, err
+		}
+		return r.reconcileSnapshot(log, snapshot, dataVolume)
 	}
 	return r.reconcilePvc(log, pvc)
 }
@@ -179,7 +218,9 @@ func (r *SmartCloneReconciler) reconcilePvc(log logr.Logger, pvc *corev1.Persist
 	return reconcile.Result{}, nil
 }
 
-func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snapshotv1.VolumeSnapshot) (reconcile.Result, error) {
+func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snapshotv1.VolumeSnapshot, dataVolume *cdiv1.DataVolume) (reconcile.Result, error) {
+	var err error
+
 	log.WithValues("snapshot.Name", snapshot.Name).
 		WithValues("snapshot.Namespace", snapshot.Namespace).
 		Info("Reconciling snapshot")
@@ -188,9 +229,11 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 		return reconcile.Result{}, nil
 	}
 
-	dataVolume, err := r.getDataVolume(snapshot)
-	if err != nil {
-		return reconcile.Result{}, err
+	if dataVolume == nil {
+		dataVolume, err = r.getDataVolumeFromSnapshot(snapshot)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	if dataVolume == nil || dataVolume.DeletionTimestamp != nil {
@@ -220,7 +263,7 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	newPvc, err := newPvcFromSnapshot(snapshot, targetPvcSpec)
+	newPvc, err := newPvcFromSnapshot(snapshot, targetPvcSpec, dataVolume)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -278,6 +321,11 @@ func (r *SmartCloneReconciler) deleteSnapshot(log logr.Logger, namespace, name s
 		return nil
 	}
 
+	if _, ok := snapshotToDelete.Labels[common.CDIComponentLabel]; !ok {
+		// Not a CDI snapshot, don't delete
+		return nil
+	}
+
 	if err := r.client.Delete(context.TODO(), snapshotToDelete); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			log.Error(err, "error deleting snapshot for smart-clone")
@@ -295,7 +343,7 @@ func (r *SmartCloneReconciler) emitEvent(snapshot *snapshotv1.VolumeSnapshot, ev
 	}
 }
 
-func (r *SmartCloneReconciler) getDataVolume(snapshot *snapshotv1.VolumeSnapshot) (*cdiv1.DataVolume, error) {
+func (r *SmartCloneReconciler) getDataVolumeFromSnapshot(snapshot *snapshotv1.VolumeSnapshot) (*cdiv1.DataVolume, error) {
 	namespace, name, err := getAnnOwnedByDataVolume(snapshot)
 	if err != nil {
 		return nil, err
@@ -329,7 +377,7 @@ func (r *SmartCloneReconciler) getTargetPVC(dataVolume *cdiv1.DataVolume) (*core
 	return pvc, nil
 }
 
-func newPvcFromSnapshot(snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
+func newPvcFromSnapshot(snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec, dataVolume *cdiv1.DataVolume) (*corev1.PersistentVolumeClaim, error) {
 	restoreSize := snapshot.Status.RestoreSize
 	if restoreSize == nil {
 		return nil, fmt.Errorf("snapshot has no RestoreSize")
@@ -348,10 +396,14 @@ func newPvcFromSnapshot(snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *core
 	if util.ResolveVolumeMode(targetPvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
 		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
 	}
+	pvcName := snapshot.Name
+	if _, ok := dataVolume.Annotations["cdi.kubevirt.io/smartCloneFromExistingSnapshot"]; ok {
+		pvcName = fmt.Sprintf("cdi-tmp-%s", dataVolume.UID)
+	}
 
 	target := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      snapshot.Name,
+			Name:      pvcName,
 			Namespace: snapshot.Namespace,
 			Labels:    labels,
 			Annotations: map[string]string{

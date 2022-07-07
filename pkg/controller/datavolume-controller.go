@@ -308,6 +308,11 @@ func hasAnnOwnedByDataVolume(obj metav1.Object) bool {
 	return ok
 }
 
+func hasAnnTriggerSmartCloneFromExistingSnapshot(obj metav1.Object) bool {
+	_, ok := obj.GetAnnotations()["cdi.kubevirt.io/triggerSmartCloneFromExistingSnapshot"]
+	return ok
+}
+
 func getAnnOwnedByDataVolume(obj metav1.Object) (string, string, error) {
 	val := obj.GetAnnotations()[annOwnedByDataVolume]
 	return cache.SplitMetaNamespaceKey(val)
@@ -1096,9 +1101,10 @@ func (r *DatavolumeReconciler) reconcileSmartClonePvc(log logr.Logger,
 		return reconcile.Result{}, nil
 	}
 
-	r.log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class",
+	r.log.V(1).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class",
 		"snapshotClassName", snapshotClassName)
 
+	currentSnapshot := &snapshotv1.VolumeSnapshot{}
 	newSnapshot := newSnapshot(datavolume, pvcName, snapshotClassName)
 	util.SetRecommendedLabels(newSnapshot, r.installerLabels, "cdi-controller")
 
@@ -1107,7 +1113,15 @@ func (r *DatavolumeReconciler) reconcileSmartClonePvc(log logr.Logger,
 	}
 
 	nn := client.ObjectKeyFromObject(newSnapshot)
-	if err := r.client.Get(context.TODO(), nn, newSnapshot.DeepCopy()); err != nil {
+	if val, ok := datavolume.Annotations["cdi.kubevirt.io/smartCloneFromExistingSnapshot"]; ok {
+		namespace, name, err := cache.SplitMetaNamespaceKey(val)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		nn = client.ObjectKey{Namespace: namespace, Name: name}
+	}
+
+	if err := r.client.Get(context.TODO(), nn, currentSnapshot); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			return reconcile.Result{}, err
 		}
@@ -1132,6 +1146,17 @@ func (r *DatavolumeReconciler) reconcileSmartClonePvc(log logr.Logger,
 				}
 			} else {
 				r.log.V(1).Info("snapshot created successfully", "snapshot.Namespace", newSnapshot.Namespace, "snapshot.Name", newSnapshot.Name)
+			}
+		}
+	} else {
+		if _, ok := datavolume.Annotations["cdi.kubevirt.io/smartCloneFromExistingSnapshot"]; ok {
+			// Trigger reconcile in smart clone controller by adding relevant annotation
+			if datavolume.Annotations == nil {
+				datavolume.Annotations = make(map[string]string)
+			}
+			datavolume.Annotations["cdi.kubevirt.io/triggerSmartCloneFromExistingSnapshot"] = "true"
+			if err := r.client.Update(context.TODO(), datavolume); err != nil {
+				return reconcile.Result{}, err
 			}
 		}
 	}

@@ -160,7 +160,7 @@ var _ = Describe("All smart clone tests", func() {
 
 		It("Okay if no matching DV can be found", func() {
 			reconciler := createSmartCloneReconciler()
-			_, err := reconciler.reconcileSnapshot(reconciler.log, createSnapshotVolume("test-dv", metav1.NamespaceDefault, nil))
+			_, err := reconciler.reconcileSnapshot(reconciler.log, createSnapshotVolume("test-dv", metav1.NamespaceDefault, nil), nil)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -169,7 +169,7 @@ var _ = Describe("All smart clone tests", func() {
 			snapshot := createSnapshotVolume("test-dv", metav1.NamespaceDefault, nil)
 			ts := metav1.Now()
 			snapshot.DeletionTimestamp = &ts
-			_, err := reconciler.reconcileSnapshot(reconciler.log, snapshot)
+			_, err := reconciler.reconcileSnapshot(reconciler.log, snapshot, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			nn := types.NamespacedName{Namespace: snapshot.Namespace, Name: snapshot.Name}
@@ -186,7 +186,7 @@ var _ = Describe("All smart clone tests", func() {
 			setAnnOwnedByDataVolume(snapshot, dv)
 
 			reconciler := createSmartCloneReconciler(dv, snapshot)
-			_, err := reconciler.reconcileSnapshot(reconciler.log, snapshot)
+			_, err := reconciler.reconcileSnapshot(reconciler.log, snapshot, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			nn := types.NamespacedName{Namespace: snapshot.Namespace, Name: snapshot.Name}
@@ -204,7 +204,7 @@ var _ = Describe("All smart clone tests", func() {
 			setAnnOwnedByDataVolume(snapshot, dv)
 
 			reconciler := createSmartCloneReconciler(dv, snapshot)
-			_, err := reconciler.reconcileSnapshot(reconciler.log, snapshot)
+			_, err := reconciler.reconcileSnapshot(reconciler.log, snapshot, nil)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -224,7 +224,7 @@ var _ = Describe("All smart clone tests", func() {
 			setAnnOwnedByDataVolume(snapshot, dv)
 
 			reconciler := createSmartCloneReconciler(dv, snapshot)
-			_, err := reconciler.reconcileSnapshot(reconciler.log, snapshot)
+			_, err := reconciler.reconcileSnapshot(reconciler.log, snapshot, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			pvc := &corev1.PersistentVolumeClaim{}
@@ -297,6 +297,10 @@ func createSnapshotVolume(name, namespace string, owner *metav1.OwnerReference) 
 			Name:            name,
 			Namespace:       namespace,
 			OwnerReferences: ownerRefs,
+			Labels: map[string]string{
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: common.SmartClonerCDILabel,
+			},
 		},
 	}
 }

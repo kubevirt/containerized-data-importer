@@ -46,3 +46,64 @@ To enable smart cloning again:
 ```bash
 kubectl patch cdi cdi --type merge -p '{"spec":{"cloneStrategyOverride":"snapshot"}}'
 ```
+
+### Smart clone from existing snapshot
+Today each smart clone will create a temporary VolumeSnapshot.  
+Some storage systems may be designed to scale better with a 1:N method where a single snapshot of the source PVC is used to create multiple clones.  
+This is currently possibly (with some limitations described below) using an annotation on the DataVolume.
+
+A suggested complete flow:
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: golden-snap-source
+  namespace: golden-ns
+spec:
+  source:
+      http:
+         url: http://<SERVER>/Fedora-Cloud-Base-34-1.2.x86_64.qcow2
+  pvc:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 8Gi
+```
+
+```yaml
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: golden-volumesnapshot
+  namespace: golden-ns
+spec:
+  volumeSnapshotClassName: csi-rbdplugin-snapclass
+  source:
+    persistentVolumeClaimName: golden-snap-source
+```
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  annotations:
+    cdi.kubevirt.io/smartCloneFromExistingSnapshot: golden-ns/golden-volumesnapshot
+  name: cloned-datavolume
+  namespace: default
+spec:
+  source:
+    pvc:
+      namespace: golden-ns
+      name: golden-snap-source
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 8Gi
+```
+
+#### Known limitations
+- Only cross-namespace (same namespace not supported)
+- Spec.Source.PVC has to exist as a dummy PVC and must have a name that is not equal to the smartCloneFromExistingSnapshot
