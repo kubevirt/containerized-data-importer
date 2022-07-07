@@ -44,10 +44,11 @@ clean:
 update-codegen:
 	${DO_BAZ} "./hack/update-codegen.sh"
 
-generate: update-codegen bazel-generate
+generate: update-codegen bazel-generate generate-doc
 
-generate-verify:
+generate-verify: generate-doc
 	${DO_BAZ} "./hack/verify-codegen.sh"
+	git difftool -y --trust-exit-code --extcmd=./hack/diff-csv.sh
 
 gomod-update:
 	${DO_BAZ} "./hack/build/dep-update.sh"
@@ -151,10 +152,10 @@ openshift-ci-image-push:
 	./hack/build/osci-image-builder.sh
 
 generate-doc: build-docgen
-	_out/metricsdocs > doc/metrics.md
+	_out/tools/metricsdocs//metricsdocs > doc/metrics.md
 
 build-docgen:
-	go build -ldflags="-s -w" -o _out/metricsdocs ./tools/metricsdocs
+	./hack/build/bazel-build-metricsdocs.sh
 
 help:
 	@echo "Usage: make [Targets ...]"
