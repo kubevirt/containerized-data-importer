@@ -194,6 +194,10 @@ const (
 	CloneWithoutSource = "CloneWithoutSource"
 	// MessageCloneWithoutSource reports that the source PVC of a clone doesn't exists (message)
 	MessageCloneWithoutSource = "The source PVC doesn't exist"
+	// RunningConditionToFalse reports that a DataVolume's running condition changed to false without specifying more information (reason)
+	RunningConditionToFalse = "RunningConditionToFalse"
+	// MessageRunningConditionToFalse reports that a DataVolume's running condition changed to false without specifying more information (message)
+	MessageRunningConditionToFalse = "Running condition changed to false: For more information, check events in the DataVolume's PVC or request access to cdi-deploy logs from your sysadmin"
 
 	// AnnCSICloneRequest annotation associates object with CSI Clone Request
 	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"
@@ -673,7 +677,7 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 	// If the target's size is not specified, we can extract that value from the source PVC
 	targetRequest, hasTargetRequest := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 	if !hasTargetRequest || targetRequest.IsZero() {
-		done, err := r.detectCloneSize(datavolume, pvcSpec, selectedCloneStrategy)
+		done, err := r.detectCloneSize(datavolume, pvc, pvcSpec, selectedCloneStrategy)
 		if err != nil {
 			return reconcile.Result{}, err
 		} else if !done {
@@ -2053,7 +2057,6 @@ func (r *DatavolumeReconciler) updateImportStatusPhase(pvc *corev1.PersistentVol
 		event.reason = ImportInProgress
 		event.message = fmt.Sprintf(MessageImportInProgress, pvc.Name)
 	case string(corev1.PodFailed):
-		dataVolumeCopy.Status.Phase = cdiv1.Failed
 		event.eventType = corev1.EventTypeWarning
 		event.reason = ImportFailed
 		event.message = fmt.Sprintf(MessageImportFailed, pvc.Name)
@@ -2151,7 +2154,6 @@ func (r *DatavolumeReconciler) updateNetworkCloneStatusPhase(pvc *corev1.Persist
 		event.reason = CloneInProgress
 		event.message = fmt.Sprintf(MessageCloneInProgress, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
 	case string(corev1.PodFailed):
-		dataVolumeCopy.Status.Phase = cdiv1.Failed
 		event.eventType = corev1.EventTypeWarning
 		event.reason = CloneFailed
 		event.message = fmt.Sprintf(MessageCloneFailed, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
@@ -2186,7 +2188,6 @@ func (r *DatavolumeReconciler) updateUploadStatusPhase(pvc *corev1.PersistentVol
 			event.message = fmt.Sprintf(MessageUploadReady, pvc.Name)
 		}
 	case string(corev1.PodFailed):
-		dataVolumeCopy.Status.Phase = cdiv1.Failed
 		event.eventType = corev1.EventTypeWarning
 		event.reason = UploadFailed
 		event.message = fmt.Sprintf(MessageUploadFailed, pvc.Name)
@@ -2882,6 +2883,7 @@ func (r *DatavolumeReconciler) isSourceReadyToClone(
 // detectCloneSize obtains and assigns the original PVC's size when cloning using an empty storage value
 func (r *DatavolumeReconciler) detectCloneSize(
 	dv *cdiv1.DataVolume,
+	targetPvc *corev1.PersistentVolumeClaim,
 	pvcSpec *corev1.PersistentVolumeClaimSpec,
 	cloneType cloneStrategy) (bool, error) {
 
@@ -2904,7 +2906,7 @@ func (r *DatavolumeReconciler) detectCloneSize(
 		// If available, we first try to get the virtual size from previous iterations
 		targetSize, available = getSizeFromAnnotations(sourcePvc)
 		if !available {
-			targetSize, err = r.getSizeFromPod(sourcePvc, dv)
+			targetSize, err = r.getSizeFromPod(targetPvc, sourcePvc, dv)
 			if err != nil {
 				return false, err
 			} else if targetSize == 0 {
@@ -2951,7 +2953,7 @@ func getSizeFromAnnotations(sourcePvc *corev1.PersistentVolumeClaim) (int64, boo
 }
 
 // getSizeFromPod attempts to get the image size from a pod that directly obtains said value from the source PVC
-func (r *DatavolumeReconciler) getSizeFromPod(sourcePvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (int64, error) {
+func (r *DatavolumeReconciler) getSizeFromPod(targetPvc, sourcePvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (int64, error) {
 	// The pod should not be created until the source PVC has finished the import process
 	if !isPVCComplete(sourcePvc) {
 		r.recorder.Event(dv, corev1.EventTypeNormal, ImportPVCNotReady, MessageImportPVCNotReady)
@@ -2960,7 +2962,7 @@ func (r *DatavolumeReconciler) getSizeFromPod(sourcePvc *corev1.PersistentVolume
 
 	pod, err := r.getOrCreateSizeDetectionPod(sourcePvc, dv)
 	// Check if pod has failed and, in that case, record an event with the error
-	if podErr := handleFailedPod(err, sizeDetectionPodName(sourcePvc), sourcePvc, r.recorder, r.client); podErr != nil {
+	if podErr := handleFailedPod(err, sizeDetectionPodName(sourcePvc), targetPvc, r.recorder, r.client); podErr != nil {
 		return 0, podErr
 	} else if !isPodComplete(pod) {
 		r.recorder.Event(dv, corev1.EventTypeNormal, SizeDetectionPodNotReady, MessageSizeDetectionPodNotReady)

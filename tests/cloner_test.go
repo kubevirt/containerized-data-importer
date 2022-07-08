@@ -1845,9 +1845,8 @@ var _ = Describe("all clone tests", func() {
 				return log
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 
-			By("Verify target DV is in failed phase")
-			err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Failed, "target-dv", 3*90*time.Second)
-			Expect(err).ToNot(HaveOccurred())
+			By("Verify target DV has 'false' as running condition")
+			utils.WaitForConditions(f, targetDV.Name, f.Namespace.Name, timeout, pollingInterval, &cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: v1.ConditionFalse})
 
 			By("Check the expected event")
 			msg := fmt.Sprintf(controller.MessageErrStartingPod, "cdi-upload-target-dv")
@@ -1888,9 +1887,8 @@ var _ = Describe("all clone tests", func() {
 				return log
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 
-			By("Verify target DV is in failed phase")
-			err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Failed, "target-dv", 3*90*time.Second)
-			Expect(err).ToNot(HaveOccurred())
+			By("Verify target DV has 'false' as running condition")
+			utils.WaitForConditions(f, targetDV.Name, f.Namespace.Name, timeout, pollingInterval, &cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: v1.ConditionFalse})
 
 			By("Check the expected event")
 			msg := fmt.Sprintf(controller.MessageErrStartingPod, "cdi-upload-target-dv")

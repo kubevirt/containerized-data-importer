@@ -1239,23 +1239,23 @@ var _ = Describe("All DataVolume Tests", func() {
 			Entry("should switch to bound for import", newImportDataVolume("test-dv"), cdiv1.Unknown, cdiv1.PVCBound, corev1.ClaimBound, corev1.PodPending, "invalid", "PVC test-dv Bound", AnnPriorityClassName, "p0"),
 			Entry("should switch to scheduled for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportScheduled, corev1.ClaimBound, corev1.PodPending, AnnImportPod, "Import into test-dv scheduled", AnnPriorityClassName, "p0"),
 			Entry("should switch to inprogress for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportInProgress, corev1.ClaimBound, corev1.PodRunning, AnnImportPod, "Import into test-dv in progress", AnnPriorityClassName, "p0"),
-			Entry("should switch to failed for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnImportPod, "Failed to import into PVC test-dv", AnnPriorityClassName, "p0"),
+			Entry("should stay the same for import after pod fails", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportScheduled, corev1.ClaimBound, corev1.PodFailed, AnnImportPod, "Failed to import into PVC test-dv", AnnPriorityClassName, "p0"),
 			Entry("should switch to failed on claim lost for impot", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnImportPod, "PVC test-dv lost", AnnPriorityClassName, "p0"),
 			Entry("should switch to succeeded for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnImportPod, "Successfully imported into PVC test-dv", AnnPriorityClassName, "p0"),
 			Entry("should switch to scheduled for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneScheduled, corev1.ClaimBound, corev1.PodPending, AnnCloneRequest, "Cloning from default/test into default/test-dv scheduled", AnnPriorityClassName, "p0-clone"),
 			Entry("should switch to clone in progress for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneInProgress, corev1.ClaimBound, corev1.PodRunning, AnnCloneRequest, "Cloning from default/test into default/test-dv in progress", AnnPriorityClassName, "p0-clone"),
-			Entry("should switch to failed for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnCloneRequest, "Cloning from default/test into default/test-dv failed", AnnPriorityClassName, "p0-clone"),
+			Entry("should stay the same for clone after pod fails", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneScheduled, corev1.ClaimBound, corev1.PodFailed, AnnCloneRequest, "Cloning from default/test into default/test-dv failed", AnnPriorityClassName, "p0-clone"),
 			Entry("should switch to failed on claim lost for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnCloneRequest, "PVC test-dv lost", AnnPriorityClassName, "p0-clone"),
 			Entry("should switch to succeeded for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnCloneRequest, "Successfully cloned from default/test into default/test-dv", AnnPriorityClassName, "p0-clone"),
 
 			Entry("should switch to scheduled for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.UploadScheduled, corev1.ClaimBound, corev1.PodPending, AnnUploadRequest, "Upload into test-dv scheduled", AnnPriorityClassName, "p0-upload"),
 			Entry("should switch to uploadready for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.UploadReady, corev1.ClaimBound, corev1.PodRunning, AnnUploadRequest, "Upload into test-dv ready", AnnPodReady, "true", AnnPriorityClassName, "p0-upload"),
-			Entry("should switch to failed for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnUploadRequest, "Upload into test-dv failed", AnnPriorityClassName, "p0-upload"),
+			Entry("should stay the same for upload after pod fails", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.UploadScheduled, corev1.ClaimBound, corev1.PodFailed, AnnUploadRequest, "Upload into test-dv failed", AnnPriorityClassName, "p0-upload"),
 			Entry("should switch to failed on claim lost for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnUploadRequest, "PVC test-dv lost", AnnPriorityClassName, "p0-upload"),
 			Entry("should switch to succeeded for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnUploadRequest, "Successfully uploaded into test-dv", AnnPriorityClassName, "p0-upload"),
 			Entry("should switch to scheduled for blank", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportScheduled, corev1.ClaimBound, corev1.PodPending, AnnImportPod, "Import into test-dv scheduled", AnnPriorityClassName, "p0-upload"),
 			Entry("should switch to inprogress for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportInProgress, corev1.ClaimBound, corev1.PodRunning, AnnImportPod, "Import into test-dv in progress"),
-			Entry("should switch to failed for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnImportPod, "Failed to import into PVC test-dv"),
+			Entry("should stay the same for blank after pod fails", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportScheduled, corev1.ClaimBound, corev1.PodFailed, AnnImportPod, "Failed to import into PVC test-dv"),
 			Entry("should switch to failed on claim lost for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnImportPod, "PVC test-dv lost"),
 			Entry("should switch to succeeded for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnImportPod, "Successfully imported into PVC test-dv"),
 		)
@@ -1693,13 +1693,14 @@ var _ = Describe("All DataVolume Tests", func() {
 		It("Size-detection fails when source PVC is not attainable", func() {
 			dv := newCloneDataVolumeWithEmptyStorage("test-dv", "default")
 			cloneStrategy := cdiv1.CloneStrategyHostAssisted
+			targetPvc := &corev1.PersistentVolumeClaim{}
 			storageProfile := createStorageProfileWithCloneStrategy(scName, []cdiv1.ClaimPropertySet{
 				{AccessModes: accessMode, VolumeMode: &blockMode}}, &cloneStrategy)
 
 			reconciler := createDatavolumeReconciler(dv, storageProfile, sc)
 			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
-			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			done, err := reconciler.detectCloneSize(dv, targetPvc, pvcSpec, HostAssistedClone)
 			Expect(err).To(HaveOccurred())
 			Expect(done).To(BeFalse())
 			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
@@ -1716,7 +1717,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
-			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			done, err := reconciler.detectCloneSize(dv, pvc, pvcSpec, HostAssistedClone)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeFalse())
 			By("Checking events recorded")
@@ -1744,7 +1745,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
-			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			done, err := reconciler.detectCloneSize(dv, pvc, pvcSpec, HostAssistedClone)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeFalse())
 			By("Checking events recorded")
@@ -1780,7 +1781,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			// Checks
 			pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
-			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			done, err := reconciler.detectCloneSize(dv, pvc, pvcSpec, HostAssistedClone)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(Equal(ErrInvalidTermMsg))
 			Expect(done).To(BeFalse())
@@ -1825,7 +1826,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			expectedSizeInt64, _ := expectedSize.AsInt64()
 
 			// Checks
-			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			done, err := reconciler.detectCloneSize(dv, pvc, pvcSpec, HostAssistedClone)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeTrue())
 			Expect(dv.GetAnnotations()[AnnPermissiveClone]).To(Equal("true"))
@@ -1854,7 +1855,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			expectedSizeInt64, _ := expectedSize.AsInt64()
 
 			// Checks
-			done, err := reconciler.detectCloneSize(dv, pvcSpec, HostAssistedClone)
+			done, err := reconciler.detectCloneSize(dv, pvc, pvcSpec, HostAssistedClone)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeTrue())
 			Expect(dv.GetAnnotations()[AnnPermissiveClone]).To(Equal("true"))
@@ -1876,7 +1877,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				pvcSpec, err := RenderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 				Expect(err).ToNot(HaveOccurred())
 				expectedSize := *pvc.Status.Capacity.Storage()
-				done, err := reconciler.detectCloneSize(dv, pvcSpec, selectedCloneStrategy)
+				done, err := reconciler.detectCloneSize(dv, pvc, pvcSpec, selectedCloneStrategy)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(done).To(BeTrue())
 				Expect(pvc.Spec.Resources.Requests.Storage().Cmp(expectedSize)).To(Equal(0))

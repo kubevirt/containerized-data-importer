@@ -4,11 +4,12 @@ import (
 	"context"
 	"crypto/rsa"
 	"fmt"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 
@@ -284,7 +285,7 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 
 		sourcePod, err := r.CreateCloneSourcePod(r.image, r.pullPolicy, targetPvc, log)
 		// Check if pod has failed and, in that case, record an event with the error
-		if podErr := handleFailedPod(err, createCloneSourcePodName(targetPvc), sourcePvc, r.recorder, r.client); podErr != nil {
+		if podErr := handleFailedPod(err, createCloneSourcePodName(targetPvc), targetPvc, r.recorder, r.client); podErr != nil {
 			return 0, podErr
 		}
 
