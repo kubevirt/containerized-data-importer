@@ -477,14 +477,14 @@ func wasPodProxied(imgURL, podIP, userAgent, proxyLog string) bool {
 	for _, line := range strings.Split(strings.TrimSuffix(proxyLog, "\n"), "\n") {
 		matched := lineMatcher.FindStringSubmatch(line)
 		if len(matched) > 1 {
-			matchedUrl, _ := url.Parse(matched[2])
+			matchedURL, _ := url.Parse(matched[2])
 			matchedSrc := matched[3]
 			matchedUserAgent := matched[4]
-			if matchedUrl.Hostname() == u.Hostname() &&
+			if matchedURL.Hostname() == u.Hostname() &&
 				strings.HasPrefix(matchedSrc, podIP+":") &&
 				matchedUserAgent == userAgent {
 				fmt.Fprintf(GinkgoWriter, "INFO: Matched: %q, %q, %q, %q, %q, %q [%s]\n",
-					matchedUrl, imgURL, matchedSrc, podIP, matchedUserAgent, userAgent, line)
+					matchedURL, imgURL, matchedSrc, podIP, matchedUserAgent, userAgent, line)
 				res = true
 				break
 			}
