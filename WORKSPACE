@@ -34,6 +34,7 @@ http_archive(
     urls = [
         "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.33.0/rules_go-v0.33.0.zip",
         "https://github.com/bazelbuild/rules_go/releases/download/v0.33.0/rules_go-v0.33.0.zip",
+        "https://storage.googleapis.com/builddeps/685052b498b6ddfe562ca7a97736741d87916fe536623afb7da2824c0211c369",
     ],
 )
 
