@@ -24,12 +24,14 @@ import (
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
 	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	ocpconfigv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -442,6 +444,48 @@ var _ = Describe("reconcilePVC loop", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, secret)
 			Expect(err).ToNot(HaveOccurred())
 		})
+
+		table.DescribeTable("should pass correct crypto config to created pod", func(profile *ocpconfigv1.TLSSecurityProfile) {
+			testPvc := createPvc(testPvcName, "default", map[string]string{AnnUploadRequest: "", AnnUploadPod: uploadResourceName}, nil)
+			reconciler := createUploadReconciler(testPvc)
+			cdiConfig := &cdiv1.CDIConfig{}
+			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+			Expect(err).ToNot(HaveOccurred())
+			profileType := ocpconfigv1.TLSProfileIntermediateType
+			if profile != nil {
+				profileType = profile.Type
+				cdiConfig.Spec.TLSSecurityProfile = profile
+				err = reconciler.client.Update(context.TODO(), cdiConfig)
+			}
+
+			_, err = reconciler.reconcilePVC(reconciler.log, testPvc, isClone)
+			Expect(err).ToNot(HaveOccurred())
+			By("Verifying the pod exists and holds our env vars")
+			uploadPod := &corev1.Pod{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadPod)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(uploadPod.Name).To(Equal(uploadResourceName))
+
+			foundMinVersionEnvVar := false
+			for _, envVar := range uploadPod.Spec.Containers[0].Env {
+				if envVar.Name == common.MinVersionTLSVar {
+					Expect(envVar.Value).To(Equal(string(ocpconfigv1.TLSProfiles[profileType].MinTLSVersion)))
+					foundMinVersionEnvVar = true
+				}
+			}
+			Expect(foundMinVersionEnvVar).To(BeTrue())
+			foundCiphersEnvVar := false
+			for _, envVar := range uploadPod.Spec.Containers[0].Env {
+				if envVar.Name == common.CiphersTLSVar {
+					Expect(envVar.Value).To(Equal(strings.Join(ocpconfigv1.TLSProfiles[profileType].Ciphers, ",")))
+					foundCiphersEnvVar = true
+				}
+			}
+			Expect(foundCiphersEnvVar).To(BeTrue())
+		},
+			table.Entry("no profile set", nil),
+			table.Entry("'Old' profile set", &ocpconfigv1.TLSSecurityProfile{Type: ocpconfigv1.TLSProfileOldType, Old: &ocpconfigv1.OldTLSProfile{}}),
+		)
 	})
 })
 

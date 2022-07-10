@@ -12,10 +12,12 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 
+	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/uploadproxy"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	certfetcher "kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	certwatcher "kubevirt.io/containerized-data-importer/pkg/util/cert/watcher"
+	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 )
 
 const (
@@ -81,10 +83,16 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
 	}
+	cdiClient := cdiclient.NewForConfigOrDie(cfg)
+
+	ctx := signals.SetupSignalHandler()
+
 	apiServerPublicKey, err := getAPIServerPublicKey()
 	if err != nil {
 		klog.Fatalf("Unable to get apiserver public key %v\n", errors.WithStack(err))
 	}
+
+	cdiConfigTLSWatcher := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
 	certWatcher, err := certwatcher.New(uploadProxyEnvs.ServerCertFile, uploadProxyEnvs.ServerKeyFile)
 	if err != nil {
 		klog.Fatalf("Unable to create certwatcher: %v\n", errors.WithStack(err))
@@ -99,6 +107,7 @@ func main() {
 	uploadProxy, err := uploadproxy.NewUploadProxy(defaultHost,
 		defaultPort,
 		apiServerPublicKey,
+		cdiConfigTLSWatcher,
 		certWatcher,
 		clientCertFetcher,
 		serverCAFetcher,
@@ -107,7 +116,7 @@ func main() {
 		klog.Fatalf("UploadProxy failed to initialize: %v\n", errors.WithStack(err))
 	}
 
-	go certWatcher.Start(signals.SetupSignalHandler().Done())
+	go certWatcher.Start(ctx.Done())
 
 	err = uploadProxy.Start()
 	if err != nil {

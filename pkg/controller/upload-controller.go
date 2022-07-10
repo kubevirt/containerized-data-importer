@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
@@ -52,6 +53,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
+	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 )
 
 const (
@@ -102,6 +104,13 @@ type UploadPodArgs struct {
 	FilesystemOverhead              string
 	ServerCert, ServerKey, ClientCA []byte
 	Preallocation                   string
+	CryptoEnvVars                   CryptoEnvVars
+}
+
+// CryptoEnvVars holds the TLS crypto-related configurables for the upload server
+type CryptoEnvVars struct {
+	Ciphers       string
+	MinTLSVersion string
 }
 
 // Reconcile the reconcile loop for the CDIConfig object.
@@ -371,6 +380,16 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 		preallocationRequested = preallocation
 	}
 
+	config := &cdiv1.CDIConfig{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, config); err != nil {
+		return nil, err
+	}
+	ciphers, minTLSVersion := cryptowatch.SelectCipherSuitesAndMinTLSVersion(config.Spec.TLSSecurityProfile)
+	cryptoVars := CryptoEnvVars{
+		Ciphers:       strings.Join(ciphers, ","),
+		MinTLSVersion: string(minTLSVersion),
+	}
+
 	args := UploadPodArgs{
 		Name:               podName,
 		PVC:                pvc,
@@ -381,6 +400,7 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 		ServerKey:          serverKey,
 		ClientCA:           clientCA,
 		Preallocation:      strconv.FormatBool(preallocationRequested),
+		CryptoEnvVars:      cryptoVars,
 	}
 
 	r.log.V(3).Info("Creating upload pod")
@@ -762,6 +782,14 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 						{
 							Name:  common.Preallocation,
 							Value: args.Preallocation,
+						},
+						{
+							Name:  common.CiphersTLSVar,
+							Value: args.CryptoEnvVars.Ciphers,
+						},
+						{
+							Name:  common.MinVersionTLSVar,
+							Value: args.CryptoEnvVars.MinTLSVersion,
 						},
 					},
 					Args: []string{"-v=" + r.verbose},

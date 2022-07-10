@@ -31,6 +31,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	ocpconfigv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,11 +40,13 @@ import (
 	k8scert "k8s.io/client-go/util/cert"
 	aggregatorapifake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
+	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 )
 
 func generateCACert() string {
@@ -123,12 +126,13 @@ var _ = Describe("Auth config tests", func() {
 		cdiClient := cdiclientfake.NewSimpleClientset()
 		authorizer := &testAuthorizer{}
 		authConfigWatcher := NewAuthConfigWatcher(ctx, client)
+		cdiConfigTLSWatcher := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
 
 		installerLabels := map[string]string{
 			common.AppKubernetesPartOfLabel:  "testing",
 			common.AppKubernetesVersionLabel: "v0.0.0-tests",
 		}
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, authConfigWatcher, nil, installerLabels)
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, authConfigWatcher, cdiConfigTLSWatcher, nil, installerLabels)
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)
@@ -161,7 +165,7 @@ var _ = Describe("Auth config tests", func() {
 		authorizer := &testAuthorizer{}
 		acw := NewAuthConfigWatcher(ctx, client).(*authConfigWatcher)
 
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, nil, map[string]string{})
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, nil, nil, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)
@@ -180,6 +184,55 @@ var _ = Describe("Auth config tests", func() {
 		verifyAuthConfig(cm, app.authConfigWatcher.GetAuthConfig())
 	})
 
+	It("Crypto config update", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		intermediateType := ocpconfigv1.TLSProfileIntermediateType
+		oldType := ocpconfigv1.TLSProfileOldType
+		cdiConfig := &cdiv1.CDIConfig{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "CDIConfig",
+				APIVersion: "cdi.kubevirt.io/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: common.ConfigName,
+			},
+			Spec: cdiv1.CDIConfigSpec{
+				TLSSecurityProfile: &ocpconfigv1.TLSSecurityProfile{
+					Type: oldType,
+					Old:  &ocpconfigv1.OldTLSProfile{},
+				},
+			},
+		}
+
+		client := k8sfake.NewSimpleClientset()
+		aggregatorClient := aggregatorapifake.NewSimpleClientset()
+		cdiClient := cdiclientfake.NewSimpleClientset(cdiConfig)
+		authorizer := &testAuthorizer{}
+		acw := NewAuthConfigWatcher(ctx, client).(*authConfigWatcher)
+		ctw := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
+
+		_, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, ctw, nil, map[string]string{})
+		Expect(err).ToNot(HaveOccurred())
+
+		// 'Old' has TLS 1.0 as min version
+		Expect(int(ctw.GetCdiTLSConfig().MinVersion)).To(Equal(tls.VersionTLS10))
+		Expect(ctw.GetCdiTLSConfig().CipherSuites).To(Equal(cryptowatch.CipherSuitesIDs(ocpconfigv1.TLSProfiles[oldType].Ciphers)))
+
+		cdiConfig.Spec.TLSSecurityProfile = nil
+		// Should roll us back to 'Intermediate' profile (default) instead of the initial 'Old'
+		cdiConfig, err = cdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), cdiConfig, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		// behavior of this changed in 16.4 used to wait then check so now explicitly waiting
+		time.Sleep(100 * time.Millisecond)
+		cache.WaitForCacheSync(ctx.Done(), ctw.GetInformer().HasSynced)
+
+		// verify back to TLS 1.2 ('Intermediate' spec)
+		Expect(int(ctw.GetCdiTLSConfig().MinVersion)).To(Equal(tls.VersionTLS12))
+		Expect(ctw.GetCdiTLSConfig().CipherSuites).To(Equal(cryptowatch.CipherSuitesIDs(ocpconfigv1.TLSProfiles[intermediateType].Ciphers)))
+	})
+
 	It("Get TLS config", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -192,9 +245,10 @@ var _ = Describe("Auth config tests", func() {
 		cdiClient := cdiclientfake.NewSimpleClientset()
 		authorizer := &testAuthorizer{}
 		acw := NewAuthConfigWatcher(ctx, client).(*authConfigWatcher)
+		ctw := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
 		certWatcher := NewFakeCertWatcher()
 
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, certWatcher, map[string]string{})
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, ctw, certWatcher, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)
@@ -204,6 +258,13 @@ var _ = Describe("Auth config tests", func() {
 
 		if !reflect.DeepEqual(tlsConfig.ClientCAs, acw.GetAuthConfig().CertPool) {
 			Fail("Client cert pools do not match")
+		}
+
+		cdiTLSConfig := ctw.GetCdiTLSConfig()
+		Expect(cdiTLSConfig.CipherSuites).ToNot(BeEmpty())
+		Expect(tlsConfig.CipherSuites).ToNot(BeEmpty())
+		if !reflect.DeepEqual(tlsConfig.CipherSuites, cdiTLSConfig.CipherSuites) {
+			Fail("Cipher Suites do not match")
 		}
 	})
 

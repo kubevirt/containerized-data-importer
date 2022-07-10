@@ -568,7 +568,10 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		}
 		//get the CDIConfig to extract the proxy configuration to be used to import an image
 		cdiConfig := &cdiv1.CDIConfig{}
-		r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		if err != nil {
+			return nil, err
+		}
 		podEnvVar.certConfigMap, err = r.getCertConfigMap(pvc)
 		if err != nil {
 			return nil, err

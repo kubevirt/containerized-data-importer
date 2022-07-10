@@ -3,6 +3,7 @@ module kubevirt.io/containerized-data-importer-api
 go 1.18
 
 require (
+	github.com/openshift/api v0.0.0-20211217221424-8779abfbd571
 	k8s.io/api v0.23.5
 	k8s.io/apimachinery v0.23.5
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90

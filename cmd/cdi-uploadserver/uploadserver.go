@@ -23,12 +23,15 @@ import (
 	"flag"
 	"os"
 	"strconv"
+	"strings"
 
+	ocpcrypto "github.com/openshift/library-go/pkg/crypto"
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 )
 
 const (
@@ -48,6 +51,7 @@ func main() {
 
 	listenAddress, listenPort := getListenAddressAndPort()
 
+	cryptoConfig := getCryptoConfig()
 	destination := getDestination()
 
 	filesystemOverhead, _ := strconv.ParseFloat(os.Getenv(common.FilesystemOverheadVar), 64)
@@ -64,6 +68,7 @@ func main() {
 		os.Getenv(common.UploadImageSize),
 		filesystemOverhead,
 		preallocation,
+		cryptoConfig,
 	)
 
 	klog.Infof("Running server on %s:%d", listenAddress, listenPort)
@@ -74,7 +79,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Check if cloning or uploading based on the existance of the scratch space. Clone won't have scratch space
+	// Check if cloning or uploading based on the existence of the scratch space. Clone won't have scratch space
 	clone := false
 	_, err = os.OpenFile(common.ScratchDataDir, os.O_RDONLY, 0600)
 	if err != nil {
@@ -115,6 +120,17 @@ func getListenAddressAndPort() (string, int) {
 	}
 
 	return addr, port
+}
+
+func getCryptoConfig() cryptowatch.CryptoConfig {
+	ciphersNames := strings.Split(os.Getenv(common.CiphersTLSVar), ",")
+	ciphers := cryptowatch.CipherSuitesIDs(ciphersNames)
+	minTLSVersion, _ := ocpcrypto.TLSVersion(os.Getenv(common.MinVersionTLSVar))
+
+	return cryptowatch.CryptoConfig{
+		CipherSuites: ciphers,
+		MinVersion:   minTLSVersion,
+	}
 }
 
 func getDestination() string {

@@ -37,6 +37,7 @@ import (
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	certwatcher "kubevirt.io/containerized-data-importer/pkg/util/cert/watcher"
+	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 	"kubevirt.io/containerized-data-importer/pkg/version/verflag"
 )
 
@@ -118,6 +119,7 @@ func main() {
 	ctx := signals.SetupSignalHandler()
 
 	authConfigWatcher := apiserver.NewAuthConfigWatcher(ctx, client)
+	cdiConfigTLSWatcher := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
 
 	authorizor, err := apiserver.NewAuthorizorFromConfig(cfg, authConfigWatcher)
 	if err != nil {
@@ -129,13 +131,14 @@ func main() {
 		klog.Fatalf("Unable to create certwatcher: %v\n", errors.WithStack(err))
 	}
 
-	uploadApp, err := apiserver.NewCdiAPIServer(defaultHost,
+	cdiAPIApp, err := apiserver.NewCdiAPIServer(defaultHost,
 		defaultPort,
 		client,
 		aggregatorClient,
 		cdiClient,
 		authorizor,
 		authConfigWatcher,
+		cdiConfigTLSWatcher,
 		certWatcher,
 		installerLabels)
 	if err != nil {
@@ -144,7 +147,7 @@ func main() {
 
 	go certWatcher.Start(ctx.Done())
 
-	err = uploadApp.Start(ctx.Done())
+	err = cdiAPIApp.Start(ctx.Done())
 	if err != nil {
 		klog.Fatalf("TLS server failed: %v\n", errors.WithStack(err))
 	}

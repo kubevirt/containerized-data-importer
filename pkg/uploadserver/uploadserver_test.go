@@ -41,10 +41,11 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
+	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 )
 
 func newServer() *uploadServerApp {
-	server := NewUploadServer("127.0.0.1", 0, "disk.img", "", "", "", "", "", 0.055, false)
+	server := NewUploadServer("127.0.0.1", 0, "disk.img", "", "", "", "", "", 0.055, false, *cryptowatch.DefaultCryptoConfig())
 	return server.(*uploadServerApp)
 }
 
@@ -62,7 +63,7 @@ func newTLSServer(clientCertName, expectedName string) (*uploadServerApp, *tripl
 	tlsCert := string(cert.EncodeCertPEM(serverKeyPair.Cert))
 	clientCert := string(cert.EncodeCertPEM(clientCA.Cert))
 
-	server := NewUploadServer("127.0.0.1", 0, "disk.img", tlsKey, tlsCert, clientCert, expectedName, "", 0.055, false).(*uploadServerApp)
+	server := NewUploadServer("127.0.0.1", 0, "disk.img", tlsKey, tlsCert, clientCert, expectedName, "", 0.055, false, *cryptowatch.DefaultCryptoConfig()).(*uploadServerApp)
 
 	clientKeyPair, err := triple.NewClientKeyPair(clientCA, clientCertName, []string{})
 	Expect(err).ToNot(HaveOccurred())
