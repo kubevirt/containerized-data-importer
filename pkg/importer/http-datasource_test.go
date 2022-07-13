@@ -109,12 +109,12 @@ var _ = Describe("Http data source", func() {
 		table.Entry("return TransferTarget with archive content type and archive endpoint ", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, diskimageArchiveData, false),
 	)
 
-	It("calling info with raw image should return TransferDataFile", func() {
+	It("calling info with raw gz image should return TransferDataFile", func() {
 		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
 		Expect(err).NotTo(HaveOccurred())
 		newPhase, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseConvert).To(Equal(newPhase))
+		Expect(ProcessingPhaseTransferDataFile).To(Equal(newPhase))
 	})
 
 	table.DescribeTable("calling transfer should", func(image string, contentType cdiv1.DataVolumeContentType, expectedPhase ProcessingPhase, scratchPath string, want []byte, wantErr bool) {
@@ -160,7 +160,7 @@ var _ = Describe("Http data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		result, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseConvert).To(Equal(result))
+		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
 	})
 
 	It("TransferFile should succeed when writing to valid file and reading raw xz", func() {
@@ -168,7 +168,7 @@ var _ = Describe("Http data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		result, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseConvert).To(Equal(result))
+		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
 	})
 
 	It("should get extra headers on creation of new HTTP data source", func() {
