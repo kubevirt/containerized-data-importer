@@ -152,7 +152,7 @@ openshift-ci-image-push:
 	./hack/build/osci-image-builder.sh
 
 generate-doc: build-docgen
-	_out/tools/metricsdocs//metricsdocs > doc/metrics.md
+	_out/tools/metricsdocs/metricsdocs > doc/metrics.md
 
 build-docgen:
 	./hack/build/bazel-build-metricsdocs.sh
