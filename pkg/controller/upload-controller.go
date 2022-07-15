@@ -405,8 +405,9 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 
 	r.log.V(3).Info("Creating upload pod")
 	pod, err := r.createUploadPod(args)
-	if err != nil {
-		return nil, err
+	// Check if pod has failed and, in that case, record an event with the error
+	if podErr := handleFailedPod(err, podName, pvc, r.recorder, r.client); podErr != nil {
+		return nil, podErr
 	}
 
 	if err := r.ensureCertSecret(args, pod); err != nil {

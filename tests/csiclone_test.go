@@ -49,10 +49,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone)
 
 		dataVolume, md5 := createDataVolume("dv-csi-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, f.CsiCloneSCName, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(string(cdiv1.CSICloneInProgress)))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(string(cdiv1.CSICloneInProgress)))
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 		// Verify PVC's content
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, md5)
 	})
@@ -66,10 +66,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone)
 
 		dataVolume, expectedMd5 := createDataVolume("dv-csi-clone-test-1", utils.DefaultPvcMountPath, v1.PersistentVolumeBlock, f.CsiCloneSCName, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.CSICloneInProgress))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CSICloneInProgress))
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 		// Verify PVC's content
 		verifyPVC(dataVolume, f, utils.DefaultPvcMountPath, expectedMd5)
 	})
@@ -87,7 +87,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 
 		dataVolume, _ := createDataVolumeDontWait("dv-csi-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, cloneStorageClassName, f)
 		waitForDvPhase(cdiv1.CloneScheduled, dataVolume, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.ErrUnableToClone))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.ErrUnableToClone))
 	})
 
 	It("[test_id:7736] Should fail to create pvc in namespace with storage quota, then succeed once the quota is large enough", func() {
@@ -105,7 +105,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		dataVolume, md5 := createDataVolumeDontWait("dv-csi-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, f.CsiCloneSCName, f)
 		By("Verify Quota was exceeded in events and dv conditions")
 		waitForDvPhase(cdiv1.Pending, dataVolume, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.ErrExceededQuota))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.ErrExceededQuota))
 		boundCondition := &cdiv1.DataVolumeCondition{
 			Type:    cdiv1.DataVolumeBound,
 			Status:  v1.ConditionUnknown,
@@ -125,10 +125,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify clone completed after quota increase")
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(string(cdiv1.CSICloneInProgress)))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(string(cdiv1.CSICloneInProgress)))
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
-		expectEvent(f, dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 		// Verify PVC's content
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, md5)
 

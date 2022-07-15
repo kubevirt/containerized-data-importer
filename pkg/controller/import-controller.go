@@ -529,9 +529,11 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 	}
 
 	pod, err := createImporterPod(r.log, r.client, podArgs, r.installerLabels)
-	if err != nil {
-		return err
+	// Check if pod has failed and, in that case, record an event with the error
+	if podErr := handleFailedPod(err, pvc.Annotations[AnnImportPod], pvc, r.recorder, r.client); podErr != nil {
+		return podErr
 	}
+
 	r.log.V(1).Info("Created POD", "pod.Name", pod.Name)
 
 	// If importing from image stream, add finalizer. Note we don't watch the importer pod in this case,

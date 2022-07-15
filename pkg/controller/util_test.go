@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -22,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -612,6 +614,54 @@ var _ = Describe("ValidateClone", func() {
 
 		err := ValidateClone(sourcePvc, dvSpec)
 		Expect(err).ToNot(HaveOccurred())
+	})
+})
+
+var _ = Describe("handleFailedPod", func() {
+	pvc := createPvc("test-pvc", "test-ns", nil, nil)
+	podName := "test-pod"
+
+	table.DescribeTable("Should record an event with pertinent information if pod fails due to", func(errMsg, reason string) {
+		// Create a mock reconciler to record the events
+		cl := createClient(pvc)
+		rec := record.NewFakeRecorder(10)
+		r := &DatavolumeReconciler{
+			client:   cl,
+			recorder: rec,
+		}
+
+		err := handleFailedPod(errors.New(errMsg), podName, pvc, r.recorder, r.client)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(errMsg))
+
+		By("Checking error event recorded")
+		msg := fmt.Sprintf(MessageErrStartingPod, podName)
+		event := <-r.recorder.(*record.FakeRecorder).Events
+		Expect(event).To(ContainSubstring(msg))
+		Expect(event).To(ContainSubstring(reason))
+	},
+		table.Entry("generic error", "test error", ErrStartingPod),
+		table.Entry("quota error", "exceeded quota:", ErrExceededQuota),
+	)
+
+	It("Should return a different error if the PVC isn't able to update, but still record the event", func() {
+		// Create a mock reconciler to record the events
+		cl := createClient()
+		rec := record.NewFakeRecorder(10)
+		r := &DatavolumeReconciler{
+			client:   cl,
+			recorder: rec,
+		}
+
+		err := handleFailedPod(errors.New("test error"), podName, pvc, r.recorder, r.client)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("persistentvolumeclaims \"test-pvc\" not found"))
+
+		By("Checking error event recorded")
+		msg := fmt.Sprintf(MessageErrStartingPod, podName)
+		event := <-r.recorder.(*record.FakeRecorder).Events
+		Expect(event).To(ContainSubstring(msg))
+		Expect(event).To(ContainSubstring(ErrStartingPod))
 	})
 })
 

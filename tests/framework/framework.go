@@ -593,6 +593,19 @@ func (f *Framework) UpdateCdiConfigResourceLimits(resourceCPU, resourceMemory, l
 	})
 }
 
+// ExpectEvent polls and fetches events during a defined period of time
+func (f *Framework) ExpectEvent(dataVolumeNamespace string) gomega.AsyncAssertion {
+	return gomega.Eventually(func() string {
+		events, err := f.runKubectlCommand("get", "events", "-n", dataVolumeNamespace)
+		if err == nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "%s", events)
+			return events
+		}
+		fmt.Fprintf(ginkgo.GinkgoWriter, "ERROR: %s\n", err.Error())
+		return ""
+	}, timeout, pollingInterval)
+}
+
 //runKubectlCommand ...
 func (f *Framework) runKubectlCommand(args ...string) (string, error) {
 	var errb bytes.Buffer

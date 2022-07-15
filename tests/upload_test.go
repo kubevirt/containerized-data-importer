@@ -798,6 +798,11 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 			Expect(err).NotTo(HaveOccurred())
 			return log
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+
+		By("Check the expected event")
+		msg := fmt.Sprintf(controller.MessageErrStartingPod, utils.UploadPodName(pvc))
+		f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(msg))
+		f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.ErrExceededQuota))
 	})
 
 	It("[test_id:4992]Should fail to create upload pod in namespace with quota, and recover when quota fixed", func() {
@@ -816,6 +821,12 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 			Expect(err).NotTo(HaveOccurred())
 			return log
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+
+		By("Check the expected event")
+		msg := fmt.Sprintf(controller.MessageErrStartingPod, utils.UploadPodName(pvc))
+		f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(msg))
+		f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.ErrExceededQuota))
+
 		By("Updating the quota to be enough")
 		err = f.UpdateQuotaInNs(int64(2), int64(512*1024*1024), int64(2), int64(1024*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
