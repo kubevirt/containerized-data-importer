@@ -4,6 +4,7 @@ package storagecapabilities
 
 import (
 	"context"
+	"strings"
 
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -147,9 +148,10 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 	"csi.trident.netapp.io": func(sc *storagev1.StorageClass) string {
 		//https://netapp-trident.readthedocs.io/en/stable-v20.04/kubernetes/concepts/objects.html#kubernetes-storageclass-objects
 		val := sc.Parameters["backendType"]
-		if val == "ontap-nas" {
+		if strings.HasPrefix(val, "ontap-nas") {
 			return "csi.trident.netapp.io/ontap-nas"
-		} else if val == "ontap-san" {
+		}
+		if strings.HasPrefix(val, "ontap-san") {
 			return "csi.trident.netapp.io/ontap-san"
 		}
 		return "UNKNOWN"
