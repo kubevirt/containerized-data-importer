@@ -155,7 +155,7 @@ generate-doc: build-docgen
 	_out/tools/metricsdocs/metricsdocs > doc/metrics.md
 
 build-docgen:
-	./hack/build/bazel-build-metricsdocs.sh
+	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-build-metricsdocs.sh"
 
 help:
 	@echo "Usage: make [Targets ...]"
