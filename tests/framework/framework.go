@@ -547,6 +547,17 @@ func (f *Framework) DeleteStorageQuota() error {
 	})
 }
 
+// CreateWFFCVariationOfStorageClass creates a WFFC variation of a storage class
+func (f *Framework) CreateWFFCVariationOfStorageClass(sc *storagev1.StorageClass) (*storagev1.StorageClass, error) {
+	wffc := storagev1.VolumeBindingWaitForFirstConsumer
+	sc.ObjectMeta = metav1.ObjectMeta{
+		Name: fmt.Sprintf("%s-temp-wffc", sc.Name),
+	}
+	sc.VolumeBindingMode = &wffc
+
+	return f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
+}
+
 // UpdateCdiConfigResourceLimits sets the limits in the CDIConfig object
 func (f *Framework) UpdateCdiConfigResourceLimits(resourceCPU, resourceMemory, limitsCPU, limitsMemory int64) error {
 	err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
