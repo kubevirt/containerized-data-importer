@@ -836,7 +836,8 @@ func ValidateRequestedCloneSize(sourceResources corev1.ResourceRequirements, tar
 	targetRequest := targetResources.Requests[corev1.ResourceStorage]
 	// Verify that the target PVC size is equal or larger than the source.
 	if sourceRequest.Value() > targetRequest.Value() {
-		return errors.New("target resources requests storage size is smaller than the source")
+		return errors.New("target resources requests storage size (%d) is smaller than the source size (%d)",
+			targetRequest.Value(), sourceRequest.Value())
 	}
 	return nil
 }
