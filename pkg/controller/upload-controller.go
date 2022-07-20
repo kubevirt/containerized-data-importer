@@ -246,11 +246,10 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		return reconcile.Result{}, err
 	}
 
-	podPhase := pod.Status.Phase
-	anno[AnnPodPhase] = string(podPhase)
-	anno[AnnPodReady] = strconv.FormatBool(isPodReady(pod))
-
-	setAnnotationsFromPodWithPrefix(anno, pod, AnnRunningCondition)
+	// Update the annotations in the PVC to reflect the current state of the upload
+	if err := r.updateUploadAnnotations(pvc, anno, pod, isCloneTarget); err != nil {
+		return reconcile.Result{}, err
+	}
 
 	if !reflect.DeepEqual(pvc, pvcCopy) {
 		if err := r.updatePVC(pvcCopy); err != nil {
@@ -480,6 +479,58 @@ func (r *UploadReconciler) deleteService(namespace, serviceName string) error {
 		}
 	}
 
+	return nil
+}
+
+// checkIfCloneFailed inspects clone-related annotations and pods to diagnose if the cloning process has failed
+func (r *UploadReconciler) checkIfCloneFailed(pvc *corev1.PersistentVolumeClaim, isCloneTarget bool) (bool, error) {
+	isCloneRequest, sourceNamespace, _ := ParseCloneRequestAnnotation(pvc)
+	if !isCloneRequest || !isCloneTarget {
+		return false, nil
+	}
+
+	// Clone finished succesfully
+	if pvc.Annotations[AnnCloneOf] == "true" {
+		return false, nil
+	}
+	// Clone source pod not ready
+	sourcePodName, ok := pvc.Annotations[AnnCloneSourcePod]
+	if !ok {
+		return false, nil
+	}
+
+	pod := &corev1.Pod{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: sourcePodName, Namespace: sourceNamespace}, pod); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return true, err
+		}
+		// We assume the clone has failed when the pod doesn't exist, the cloning process hasn't finished and the PVC's running condition is false
+		if pvc.Annotations[AnnRunningCondition] == "false" {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// updateUploadAnnotations updates annotations without overwritting previous conditions or states
+func (r *UploadReconciler) updateUploadAnnotations(pvc *corev1.PersistentVolumeClaim, anno map[string]string, pod *v1.Pod, isCloneTarget bool) error {
+	// First we check if the clone failed to avoid changing the running condition back to true
+	cloneFailed, err := r.checkIfCloneFailed(pvc, isCloneTarget)
+	if err != nil {
+		return err
+	}
+
+	if cloneFailed {
+		return nil
+	}
+
+	// Update PVC with upload annotations
+	podPhase := pod.Status.Phase
+	anno[AnnPodPhase] = string(podPhase)
+	anno[AnnPodReady] = strconv.FormatBool(isPodReady(pod))
+
+	setAnnotationsFromPodWithPrefix(anno, pod, AnnRunningCondition)
 	return nil
 }
 

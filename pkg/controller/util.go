@@ -1193,6 +1193,8 @@ func handleFailedPod(err error, podName string, pvc *v1.PersistentVolumeClaim, r
 	recorder.Event(pvc, v1.EventTypeWarning, reason, msg)
 
 	AddAnnotation(pvc, AnnRunningCondition, "false")
+	AddAnnotation(pvc, AnnRunningConditionReason, "")
+	AddAnnotation(pvc, AnnRunningConditionMessage, "")
 	AddAnnotation(pvc, AnnPodPhase, string(v1.PodFailed))
 	if err := c.Update(context.TODO(), pvc); err != nil {
 		return err
