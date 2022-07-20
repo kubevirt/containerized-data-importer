@@ -1959,6 +1959,15 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).NotTo(HaveOccurred())
 				return log
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+
+			By("Verify target DV has 'false' as running condition")
+			utils.WaitForConditions(f, targetDV.Name, targetNs.Name, timeout, pollingInterval, &cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: v1.ConditionFalse})
+
+			By("Check the expected event")
+			podName := fmt.Sprintf("%s-source-pod", targetPvc.GetUID())
+			msg := fmt.Sprintf(controller.MessageErrStartingPod, podName)
+			f.ExpectEvent(targetNs.Name).Should(ContainSubstring(msg))
+			f.ExpectEvent(targetNs.Name).Should(ContainSubstring(controller.ErrExceededQuota))
 		})
 
 		It("Should fail clone data across namespaces, if target namespace doesn't have enough quota", func() {
@@ -1993,6 +2002,14 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).NotTo(HaveOccurred())
 				return strings.Trim(log, " ")
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+
+			By("Verify target DV has 'false' as running condition")
+			utils.WaitForConditions(f, targetDV.Name, targetNs.Name, timeout, pollingInterval, &cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: v1.ConditionFalse})
+
+			By("Check the expected event")
+			msg := fmt.Sprintf(controller.MessageErrStartingPod, "cdi-upload-target-dv")
+			f.ExpectEvent(targetNs.Name).Should(ContainSubstring(msg))
+			f.ExpectEvent(targetNs.Name).Should(ContainSubstring(controller.ErrExceededQuota))
 		})
 	})
 
