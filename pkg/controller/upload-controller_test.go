@@ -573,6 +573,82 @@ var _ = Describe("Update PVC", func() {
 	})
 })
 
+var _ = Describe("updateUploadAnnotations", func() {
+	It("Should not update the annotations if the clone has failed", func() {
+		testPvc := createPvc("testPvc", "default", map[string]string{}, nil)
+		// Add annotations to mock the failed clone
+		testPvc.Annotations[cloneRequestAnnotation] = "default/sourcePvc"
+		testPvc.Annotations[AnnRunningCondition] = "false"
+		testPvc.Annotations[AnnCloneSourcePod] = ""
+		reconciler := createUploadReconciler(testPvc)
+
+		pvcCopy := testPvc.DeepCopy()
+
+		err := reconciler.updateUploadAnnotations(testPvc, pvcCopy.Annotations, nil, true)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(testPvc.Annotations).To(Equal(pvcCopy.Annotations))
+	})
+
+	It("Should update the annotations if the clone has succeeded / is in progress", func() {
+		testPvc := createPvc("testPvc", "default", map[string]string{}, nil)
+		// Add annotations to mock the succeeded clone
+		testPvc.Annotations[cloneRequestAnnotation] = "default/sourcePvc"
+		testPvc.Annotations[AnnCloneOf] = "true"
+		pod := createUploadPod(testPvc)
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					RestartCount: 2,
+					LastTerminationState: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{
+							ExitCode: 1,
+							Message:  "I went poof",
+							Reason:   "Explosion",
+						},
+					},
+				},
+			},
+		}
+		reconciler := createUploadReconciler(testPvc, pod)
+
+		pvcCopy := testPvc.DeepCopy()
+
+		err := reconciler.updateUploadAnnotations(testPvc, pvcCopy.Annotations, pod, true)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvcCopy.Annotations[AnnPodRestarts]).To(Equal("2"))
+		Expect(pvcCopy.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
+		Expect(pvcCopy.GetAnnotations()[AnnRunningConditionMessage]).To(BeEmpty())
+		Expect(pvcCopy.GetAnnotations()[AnnRunningConditionReason]).To(BeEmpty())
+	})
+
+	It("Should update the annotations if the PVC is not clone target", func() {
+		testPvc := createPvc("testPvc", "default", map[string]string{}, nil)
+		pod := createUploadPod(testPvc)
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					RestartCount: 1,
+					State: corev1.ContainerState{
+						Running: &corev1.ContainerStateRunning{},
+					},
+				},
+			},
+		}
+		reconciler := createUploadReconciler(testPvc, pod)
+
+		pvcCopy := testPvc.DeepCopy()
+
+		err := reconciler.updateUploadAnnotations(testPvc, pvcCopy.Annotations, pod, false)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvcCopy.Annotations[AnnPodRestarts]).To(Equal("1"))
+		Expect(pvcCopy.GetAnnotations()[AnnRunningCondition]).To(Equal("true"))
+		Expect(pvcCopy.GetAnnotations()[AnnRunningConditionMessage]).To(Equal(""))
+		Expect(pvcCopy.GetAnnotations()[AnnRunningConditionReason]).To(Equal(podRunningReason))
+	})
+})
+
 func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)
