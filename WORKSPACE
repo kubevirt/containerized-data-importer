@@ -1847,100 +1847,67 @@ rpm(
 rpm(
     name = "nbdkit-basic-filters-0__1.30.1-2.el9.aarch64",
     sha256 = "38e603ca2272c2d4839b05555df85082aa9aee10bca02913a4d4906d72c48d49",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-basic-filters-1.30.1-2.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/38e603ca2272c2d4839b05555df85082aa9aee10bca02913a4d4906d72c48d49",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/38e603ca2272c2d4839b05555df85082aa9aee10bca02913a4d4906d72c48d49"],
 )
 
 rpm(
     name = "nbdkit-basic-filters-0__1.30.1-2.el9.x86_64",
     sha256 = "a48949f07b3b216da2ec315eea0371326af7065a6481b0015b1975ebf5617c08",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-basic-filters-1.30.1-2.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/a48949f07b3b216da2ec315eea0371326af7065a6481b0015b1975ebf5617c08",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/a48949f07b3b216da2ec315eea0371326af7065a6481b0015b1975ebf5617c08"],
 )
 
 rpm(
     name = "nbdkit-curl-plugin-0__1.30.1-2.el9.aarch64",
     sha256 = "cab28966e1a42c9ad1e258ad8ca6f82ffd3d7f9d2797b36d55699daee2dc552b",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-curl-plugin-1.30.1-2.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/cab28966e1a42c9ad1e258ad8ca6f82ffd3d7f9d2797b36d55699daee2dc552b",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/cab28966e1a42c9ad1e258ad8ca6f82ffd3d7f9d2797b36d55699daee2dc552b"],
 )
 
 rpm(
     name = "nbdkit-curl-plugin-0__1.30.1-2.el9.x86_64",
     sha256 = "87dbe46ebce06e20216ff7efd3207347ec3404e832094805c21e83f9d34039c2",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-curl-plugin-1.30.1-2.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/87dbe46ebce06e20216ff7efd3207347ec3404e832094805c21e83f9d34039c2",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/87dbe46ebce06e20216ff7efd3207347ec3404e832094805c21e83f9d34039c2"],
 )
 
 rpm(
     name = "nbdkit-gzip-filter-0__1.30.1-2.el9.aarch64",
     sha256 = "00e25f543a8f7dc26393a01a94f43b7dc688e063377bc9220ff4a48fa5a785b9",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-gzip-filter-1.30.1-2.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/00e25f543a8f7dc26393a01a94f43b7dc688e063377bc9220ff4a48fa5a785b9",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/00e25f543a8f7dc26393a01a94f43b7dc688e063377bc9220ff4a48fa5a785b9"],
 )
 
 rpm(
     name = "nbdkit-gzip-filter-0__1.30.1-2.el9.x86_64",
     sha256 = "809d15266a1a243326b65425d5e1c3b1072fe5127e6131d1edde1be702c1d1c4",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-gzip-filter-1.30.1-2.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/809d15266a1a243326b65425d5e1c3b1072fe5127e6131d1edde1be702c1d1c4",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/809d15266a1a243326b65425d5e1c3b1072fe5127e6131d1edde1be702c1d1c4"],
 )
 
 rpm(
     name = "nbdkit-server-0__1.30.1-2.el9.aarch64",
     sha256 = "66a465ea8d131491fb581082ec7c5044c3918e6d2016db361796cd76cb4286ee",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-server-1.30.1-2.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/66a465ea8d131491fb581082ec7c5044c3918e6d2016db361796cd76cb4286ee",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/66a465ea8d131491fb581082ec7c5044c3918e6d2016db361796cd76cb4286ee"],
 )
 
 rpm(
     name = "nbdkit-server-0__1.30.1-2.el9.x86_64",
     sha256 = "3e677a5613e9fea1bc27503e282222b7131db4f177d9222948313c912c57b610",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-server-1.30.1-2.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/3e677a5613e9fea1bc27503e282222b7131db4f177d9222948313c912c57b610",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/3e677a5613e9fea1bc27503e282222b7131db4f177d9222948313c912c57b610"],
 )
 
 rpm(
     name = "nbdkit-vddk-plugin-0__1.30.1-2.el9.x86_64",
     sha256 = "04a2e9f046d8f63628cfdd42ab7cc16a92e0f4610172b9c73ec9d19c768cc95e",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-vddk-plugin-1.30.1-2.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/04a2e9f046d8f63628cfdd42ab7cc16a92e0f4610172b9c73ec9d19c768cc95e",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/04a2e9f046d8f63628cfdd42ab7cc16a92e0f4610172b9c73ec9d19c768cc95e"],
 )
 
 rpm(
     name = "nbdkit-xz-filter-0__1.30.1-2.el9.aarch64",
     sha256 = "59fe2df30e34d32b1083bbeeadb71a1112967e44d6d6529217aee0fa0084a955",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-xz-filter-1.30.1-2.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/59fe2df30e34d32b1083bbeeadb71a1112967e44d6d6529217aee0fa0084a955",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/59fe2df30e34d32b1083bbeeadb71a1112967e44d6d6529217aee0fa0084a955"],
 )
 
 rpm(
     name = "nbdkit-xz-filter-0__1.30.1-2.el9.x86_64",
     sha256 = "f4e7b9ea8bd7fd73e58c9ad24846a7467a9b36d9a98d851341cfded8e14ca59e",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-xz-filter-1.30.1-2.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/f4e7b9ea8bd7fd73e58c9ad24846a7467a9b36d9a98d851341cfded8e14ca59e",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/f4e7b9ea8bd7fd73e58c9ad24846a7467a9b36d9a98d851341cfded8e14ca59e"],
 )
 
 rpm(
@@ -2072,37 +2039,25 @@ rpm(
 rpm(
     name = "openssl-1__3.0.1-18.el9.aarch64",
     sha256 = "43245613d72d721a23f5ff4825596afb93ec81484f9ea8229a5f99b583e50f55",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/openssl-3.0.1-18.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/43245613d72d721a23f5ff4825596afb93ec81484f9ea8229a5f99b583e50f55",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/43245613d72d721a23f5ff4825596afb93ec81484f9ea8229a5f99b583e50f55"],
 )
 
 rpm(
     name = "openssl-1__3.0.1-18.el9.x86_64",
     sha256 = "19d7e2bfbff078bdb3781bee6bf2895aa263fe5ada3d2b0f39f9e4dffe6f5fd2",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/openssl-3.0.1-18.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/19d7e2bfbff078bdb3781bee6bf2895aa263fe5ada3d2b0f39f9e4dffe6f5fd2",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/19d7e2bfbff078bdb3781bee6bf2895aa263fe5ada3d2b0f39f9e4dffe6f5fd2"],
 )
 
 rpm(
     name = "openssl-libs-1__3.0.1-18.el9.aarch64",
     sha256 = "a69db31e7748b0e23c98520d632d6a76f2f3ea1bff4f7b71cde60adaed470c96",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/openssl-libs-3.0.1-18.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/a69db31e7748b0e23c98520d632d6a76f2f3ea1bff4f7b71cde60adaed470c96",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/a69db31e7748b0e23c98520d632d6a76f2f3ea1bff4f7b71cde60adaed470c96"],
 )
 
 rpm(
     name = "openssl-libs-1__3.0.1-18.el9.x86_64",
     sha256 = "cbe97622a4d4dbd00e2264a5f96087805af03717dfb842dbb6b6412be8f24e99",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/openssl-libs-3.0.1-18.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/cbe97622a4d4dbd00e2264a5f96087805af03717dfb842dbb6b6412be8f24e99",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/cbe97622a4d4dbd00e2264a5f96087805af03717dfb842dbb6b6412be8f24e99"],
 )
 
 rpm(
