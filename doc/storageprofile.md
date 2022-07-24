@@ -101,7 +101,7 @@ The `storage` field is the direct replacement of the `pvc` field.
 
 `cat dv.yaml`
 ```yaml
-apiVersion: cdi.kubevirt.io/v1alpha1
+apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
 metadata:
   name: blank-dv

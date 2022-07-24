@@ -72,5 +72,5 @@ oc delete pod -n cdi -l cdi.kubevirt.io=cdi-uploadproxy
 Assuming you completed the steps in [Upload document](upload.md) execute the following to upload the image:
 
 ```bash
-curl -v -H "Authorization: Bearer $TOKEN" --data-binary @tests/images/cirros-qcow2.img https://cdi-uploadproxy.example.com/v1alpha1/upload
+curl -v -H "Authorization: Bearer $TOKEN" --data-binary @tests/images/cirros-qcow2.img https://cdi-uploadproxy.example.com/v1beta1/upload
 ```
