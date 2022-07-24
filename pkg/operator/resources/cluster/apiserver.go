@@ -28,7 +28,6 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	cdicorev1alpha1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1"
 	cdicorev1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiuploadv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
@@ -49,7 +48,6 @@ func createStaticAPIServerResources(args *FactoryArgs) []client.Object {
 func createDynamicAPIServerResources(args *FactoryArgs) []client.Object {
 	return []client.Object{
 		createAPIService("v1beta1", args.Namespace, args.Client, args.Logger),
-		createAPIService("v1alpha1", args.Namespace, args.Client, args.Logger),
 		createDataVolumeValidatingWebhook(args.Namespace, args.Client, args.Logger),
 		createDataVolumeMutatingWebhook(args.Namespace, args.Client, args.Logger),
 		createCDIValidatingWebhook(args.Namespace, args.Client, args.Logger),
@@ -218,13 +216,10 @@ func createDataImportCronValidatingWebhook(namespace string, c client.Client, l 
 						admissionregistrationv1.Update, //FIXME: Update and Delete needed?
 					},
 					Rule: admissionregistrationv1.Rule{
-						APIGroups: []string{cdicorev1.SchemeGroupVersion.Group},
-						APIVersions: []string{
-							cdicorev1.SchemeGroupVersion.Version,
-							cdicorev1alpha1.SchemeGroupVersion.Version,
-						},
-						Resources: []string{"dataimportcrons"},
-						Scope:     &allScopes,
+						APIGroups:   []string{cdicorev1.SchemeGroupVersion.Group},
+						APIVersions: []string{cdicorev1.SchemeGroupVersion.Version},
+						Resources:   []string{"dataimportcrons"},
+						Scope:       &allScopes,
 					},
 				}},
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
@@ -288,13 +283,10 @@ func createDataVolumeValidatingWebhook(namespace string, c client.Client, l logr
 						admissionregistrationv1.Update,
 					},
 					Rule: admissionregistrationv1.Rule{
-						APIGroups: []string{cdicorev1.SchemeGroupVersion.Group},
-						APIVersions: []string{
-							cdicorev1.SchemeGroupVersion.Version,
-							cdicorev1alpha1.SchemeGroupVersion.Version,
-						},
-						Resources: []string{"datavolumes"},
-						Scope:     &allScopes,
+						APIGroups:   []string{cdicorev1.SchemeGroupVersion.Group},
+						APIVersions: []string{cdicorev1.SchemeGroupVersion.Version},
+						Resources:   []string{"datavolumes"},
+						Scope:       &allScopes,
 					},
 				}},
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
@@ -357,13 +349,10 @@ func createCDIValidatingWebhook(namespace string, c client.Client, l logr.Logger
 						admissionregistrationv1.Delete,
 					},
 					Rule: admissionregistrationv1.Rule{
-						APIGroups: []string{cdicorev1.SchemeGroupVersion.Group},
-						APIVersions: []string{
-							cdicorev1.SchemeGroupVersion.Version,
-							cdicorev1alpha1.SchemeGroupVersion.Version,
-						},
-						Resources: []string{"cdis"},
-						Scope:     &allScopes,
+						APIGroups:   []string{cdicorev1.SchemeGroupVersion.Group},
+						APIVersions: []string{cdicorev1.SchemeGroupVersion.Version},
+						Resources:   []string{"cdis"},
+						Scope:       &allScopes,
 					},
 				}},
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
@@ -503,13 +492,10 @@ func createDataVolumeMutatingWebhook(namespace string, c client.Client, l logr.L
 						admissionregistrationv1.Update,
 					},
 					Rule: admissionregistrationv1.Rule{
-						APIGroups: []string{cdicorev1.SchemeGroupVersion.Group},
-						APIVersions: []string{
-							cdicorev1.SchemeGroupVersion.Version,
-							cdicorev1alpha1.SchemeGroupVersion.Version,
-						},
-						Resources: []string{"datavolumes"},
-						Scope:     &allScopes,
+						APIGroups:   []string{cdicorev1.SchemeGroupVersion.Group},
+						APIVersions: []string{cdicorev1.SchemeGroupVersion.Version},
+						Resources:   []string{"datavolumes"},
+						Scope:       &allScopes,
 					},
 				}},
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
