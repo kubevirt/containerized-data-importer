@@ -862,7 +862,7 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		Expect(token).ToNot(BeEmpty())
 	})
 
-	It("Should fail upload when TLS profile requires minimal TLS version higher than our client's", func() {
+	It("[test_id:9063]Should fail upload when TLS profile requires minimal TLS version higher than our client's", func() {
 		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 			config.TLSSecurityProfile = &ocpconfigv1.TLSSecurityProfile{
 				// Modern profile requires TLS 1.3
@@ -901,15 +901,36 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 				},
 			},
 		}
-
-		Eventually(func() string {
-			By("Should get TLS protocol version error")
+		uploadFunc := func() string {
 			err := uploadFileNameToPathWithClient(client, binaryRequestFunc, utils.UploadFile, uploadProxyURL, syncUploadPath, token, http.StatusOK)
 			if err != nil {
 				return err.Error()
 			}
-			return ""
-		}, 10*time.Second, 1*time.Second).Should(ContainSubstring("protocol version not supported"))
+			return "success"
+		}
+		Eventually(uploadFunc, 10*time.Second, 1*time.Second).Should(ContainSubstring("protocol version not supported"))
+
+		// Change to intermediate, which is fine with 1.2, expect success
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			config.TLSSecurityProfile = &ocpconfigv1.TLSSecurityProfile{
+				// Intermediate profile requires TLS 1.2
+				// https://wiki.mozilla.org/Security/Server_Side_TLS#Intermediate_compatibility_.28recommended.29
+				Type:         ocpconfigv1.TLSProfileIntermediateType,
+				Intermediate: &ocpconfigv1.IntermediateTLSProfile{},
+			}
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Eventually(uploadFunc, timeout, 1*time.Second).Should(Equal("success"))
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC status annotation says succeeded")
+		found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5100kbytes, 100000)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(same).To(BeTrue(), "MD5 does not match")
 	})
 
 })

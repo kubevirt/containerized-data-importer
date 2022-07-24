@@ -85,7 +85,7 @@ var _ = Describe("cdi-apiserver tests", func() {
 			}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig status not restored by config controller")
 		})
 
-		It("should fail reaching server when TLS profile requires minimal TLS version higher than our client's", func() {
+		It("[test_id:9062]should fail reaching server when TLS profile requires minimal TLS version higher than our client's", func() {
 			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 				config.TLSSecurityProfile = &ocpconfigv1.TLSSecurityProfile{
 					// Modern profile requires TLS 1.3
@@ -112,19 +112,33 @@ var _ = Describe("cdi-apiserver tests", func() {
 					},
 				},
 			}
-
-			Eventually(func() string {
-				By("Should get TLS protocol version error")
+			requestFunc := func() string {
 				req, err := http.NewRequest("GET", url, nil)
 				if err != nil {
 					return err.Error()
 				}
-				_, err = client.Do(req)
+				resp, err := client.Do(req)
 				if err != nil {
 					return err.Error()
 				}
-				return ""
-			}, 10*time.Second, 1*time.Second).Should(ContainSubstring("protocol version not supported"))
+				if resp.StatusCode != http.StatusOK {
+					return fmt.Sprintf("Unexpected status code %d", resp.StatusCode)
+				}
+				return "success"
+			}
+			Eventually(requestFunc, 10*time.Second, 1*time.Second).Should(ContainSubstring("protocol version not supported"))
+
+			// Change to intermediate, which is fine with 1.2, expect success
+			err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+				config.TLSSecurityProfile = &ocpconfigv1.TLSSecurityProfile{
+					// Intermediate profile requires TLS 1.2
+					// https://wiki.mozilla.org/Security/Server_Side_TLS#Intermediate_compatibility_.28recommended.29
+					Type:         ocpconfigv1.TLSProfileIntermediateType,
+					Intermediate: &ocpconfigv1.IntermediateTLSProfile{},
+				}
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(requestFunc, 10*time.Second, 1*time.Second).Should(Equal("success"))
 		})
 	})
 })
