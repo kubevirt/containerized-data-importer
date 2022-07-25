@@ -127,6 +127,32 @@ func createControllerRole() *rbacv1.Role {
 				"*",
 			},
 		},
+		{
+			APIGroups: []string{
+				"networking.k8s.io",
+			},
+			Resources: []string{
+				"ingresses",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
+				"route.openshift.io",
+			},
+			Resources: []string{
+				"routes",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
 	}
 	return utils.ResourceBuilder.CreateRole(controllerResourceName, rules)
 }

@@ -132,7 +132,7 @@ func NewCloneController(mgr manager.Manager,
 	return cloneController, nil
 }
 
-// addConfigControllerWatches sets up the watches used by the config controller.
+// addCloneControllerWatches sets up the watches used by the clone controller.
 func addCloneControllerWatches(mgr manager.Manager, cloneController controller.Controller) error {
 	// Setup watches
 	if err := cloneController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, &handler.EnqueueRequestForObject{}); err != nil {
