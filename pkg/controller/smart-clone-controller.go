@@ -64,14 +64,6 @@ func NewSmartCloneController(mgr manager.Manager, log logr.Logger, installerLabe
 }
 
 func addSmartCloneControllerWatches(mgr manager.Manager, smartCloneController controller.Controller) error {
-	// Add schemes.
-	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-	if err := snapshotv1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-
 	if err := smartCloneController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, handler.EnqueueRequestsFromMapFunc(
 		func(obj client.Object) []reconcile.Request {
 			pvc := obj.(*corev1.PersistentVolumeClaim)

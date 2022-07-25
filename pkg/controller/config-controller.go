@@ -472,23 +472,6 @@ func NewConfigController(mgr manager.Manager, log logr.Logger, uploadProxyServic
 
 // addConfigControllerWatches sets up the watches used by the config controller.
 func addConfigControllerWatches(mgr manager.Manager, configController controller.Controller, cdiNamespace, configName, uploadProxyServiceName string, log logr.Logger) error {
-	// Add schemes.
-	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-	if err := storagev1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-	if err := networkingv1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-	if err := routev1.Install(mgr.GetScheme()); err != nil {
-		return err
-	}
-	if err := ocpconfigv1.Install(mgr.GetScheme()); err != nil {
-		return err
-	}
-
 	// Setup watches
 	if err := watchCDIConfig(configController, configName); err != nil {
 		return err

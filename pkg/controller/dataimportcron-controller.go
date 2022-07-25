@@ -34,7 +34,6 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -671,15 +670,6 @@ func NewDataImportCronController(mgr manager.Manager, log logr.Logger, importerI
 }
 
 func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
-	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-	if err := imagev1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-	if err := extv1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
 	if err := c.Watch(&source.Kind{Type: &cdiv1.DataImportCron{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}

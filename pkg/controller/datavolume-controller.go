@@ -394,17 +394,6 @@ func NewDatavolumeController(
 }
 
 func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController controller.Controller) error {
-	// Add schemes.
-	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-	if err := storagev1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-	if err := snapshotv1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-
 	// Setup watches
 	if err := datavolumeController.Watch(&source.Kind{Type: &cdiv1.DataVolume{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
