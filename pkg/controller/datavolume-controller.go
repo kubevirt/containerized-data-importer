@@ -350,10 +350,31 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 	if err := datavolumeController.Watch(&source.Kind{Type: &cdiv1.DataVolume{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
-	if err := datavolumeController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, &handler.EnqueueRequestForOwner{
-		OwnerType:    &cdiv1.DataVolume{},
-		IsController: true,
-	}); err != nil {
+	if err := datavolumeController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			var result []reconcile.Request
+			owner := metav1.GetControllerOf(obj)
+			if owner != nil && owner.Kind == "DataVolume" {
+				result = append(result, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: obj.GetNamespace(),
+						Name:      owner.Name,
+					},
+				})
+			}
+			populatedFor := obj.GetAnnotations()[AnnPopulatedFor]
+			if populatedFor != "" {
+				result = append(result, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: obj.GetNamespace(),
+						Name:      populatedFor,
+					},
+				})
+			}
+			// it is okay if result contains the same entry twice, will be deduplicated by caller
+			return result
+		},
+	)); err != nil {
 		return err
 	}
 	for _, k := range []client.Object{&corev1.PersistentVolumeClaim{}, &corev1.Pod{}, &cdiv1.ObjectTransfer{}} {
