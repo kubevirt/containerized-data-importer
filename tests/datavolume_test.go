@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -1133,7 +1131,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Verifying Pending without PVC")
 			Eventually(func() cdiv1.DataVolumePhase {
-				dv, _ := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				return dv.Status.Phase
 			}, timeout, pollingInterval).Should(Equal(cdiv1.Pending))
@@ -1143,19 +1141,21 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Create PVC")
 			annotations := map[string]string{"cdi.kubevirt.io/storage.populatedFor": dataVolumeName}
-			pvcDef := utils.NewPVCDefinition(dataVolumeName, "100m", annotations, nil)
-			pvcDef.OwnerReferences = append(pvcDef.OwnerReferences,
-				*metav1.NewControllerRef(dataVolume, schema.GroupVersionKind{
-					Group:   cdiv1.SchemeGroupVersion.Group,
-					Version: cdiv1.SchemeGroupVersion.Version,
-					Kind:    "DataVolume",
-				}))
-			_, err = f.CreateBoundPVCFromDefinition(pvcDef)
+			pvc := utils.NewPVCDefinition(dataVolumeName, "100m", annotations, nil)
+			pvc, err = f.CreateBoundPVCFromDefinition(pvc)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Verifying Succeed with PVC Bound")
 			err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
+
+			By("Verifying PVC owned by DV")
+			Eventually(func() bool {
+				pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				pvcOwner := metav1.GetControllerOf(pvc)
+				return pvcOwner != nil && pvcOwner.Kind == "DataVolume" && pvcOwner.Name == dataVolume.Name
+			}, timeout, pollingInterval).Should(BeTrue())
 		})
 
 		It("[test_id:4961]should handle a pre populated PVC", func() {
