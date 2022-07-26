@@ -89,8 +89,9 @@ func ensureUploadProxyRouteExists(logger logr.Logger, c client.Client, scheme *r
 				Name: uploadProxyServiceName,
 			},
 			TLS: &routev1.TLSConfig{
-				Termination:              routev1.TLSTerminationReencrypt,
-				DestinationCACertificate: string(cert),
+				Termination:                   routev1.TLSTerminationReencrypt,
+				InsecureEdgeTerminationPolicy: routev1.InsecureEdgeTerminationPolicyRedirect,
+				DestinationCACertificate:      string(cert),
 			},
 		},
 	}
