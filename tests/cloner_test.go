@@ -20,6 +20,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -1354,6 +1355,28 @@ var _ = Describe("all clone tests", func() {
 				By("The clone should fail")
 				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.CloneValidationFailed))
 			})
+
+			It("Should not clone when PopulatedFor annotation exists", func() {
+				targetName := "target" + rand.String(12)
+
+				By(fmt.Sprintf("Creating target pvc: %s/%s", f.Namespace.Name, targetName))
+				targetPvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name,
+					utils.NewPVCDefinition(targetName, "1Gi", map[string]string{controller.AnnPopulatedFor: targetName}, nil))
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindIfWaitForFirstConsumer(targetPvc)
+				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec(targetName, "1Gi", f.Namespace.Name, "non-existing-source", nil, &fsVM)
+				controller.AddAnnotation(cloneDV, controller.AnnDeleteAfterCompletion, "false")
+				_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
+				Expect(err).ToNot(HaveOccurred())
+				By("Wait for clone DV Succeeded phase")
+				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetName, cloneCompleteTimeout)
+				Expect(err).ToNot(HaveOccurred())
+				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), targetName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				_, ok := dv.Annotations["cdi.kubevirt.io/cloneType"]
+				Expect(ok).To(BeFalse())
+			})
+
 		})
 	})
 
