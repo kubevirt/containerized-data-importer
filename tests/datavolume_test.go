@@ -1149,6 +1149,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 
+			cdi, err := controller.GetActiveCDI(f.CrClient)
+			Expect(err).ToNot(HaveOccurred())
+
+			if cdi.Spec.Config.DataVolumeTTLSeconds != nil {
+				return
+			}
+
 			By("Verifying PVC owned by DV")
 			Eventually(func() bool {
 				pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
