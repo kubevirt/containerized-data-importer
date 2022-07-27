@@ -1845,8 +1845,15 @@ var _ = Describe("all clone tests", func() {
 				return log
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 
+			expectedCondition := &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeRunning,
+				Status:  v1.ConditionFalse,
+				Message: fmt.Sprintf(controller.MessageErrStartingPod, "cdi-upload-target-dv"),
+				Reason:  controller.ErrExceededQuota,
+			}
+
 			By("Verify target DV has 'false' as running condition")
-			utils.WaitForConditions(f, targetDV.Name, f.Namespace.Name, timeout, pollingInterval, &cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: v1.ConditionFalse})
+			utils.WaitForConditions(f, targetDV.Name, f.Namespace.Name, timeout, pollingInterval, expectedCondition)
 
 			By("Check the expected event")
 			msg := fmt.Sprintf(controller.MessageErrStartingPod, "cdi-upload-target-dv")
@@ -1887,8 +1894,15 @@ var _ = Describe("all clone tests", func() {
 				return log
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 
+			expectedCondition := &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeRunning,
+				Status:  v1.ConditionFalse,
+				Message: fmt.Sprintf(controller.MessageErrStartingPod, "cdi-upload-target-dv"),
+				Reason:  controller.ErrExceededQuota,
+			}
+
 			By("Verify target DV has 'false' as running condition")
-			utils.WaitForConditions(f, targetDV.Name, f.Namespace.Name, timeout, pollingInterval, &cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: v1.ConditionFalse})
+			utils.WaitForConditions(f, targetDV.Name, f.Namespace.Name, timeout, pollingInterval, expectedCondition)
 
 			By("Check the expected event")
 			msg := fmt.Sprintf(controller.MessageErrStartingPod, "cdi-upload-target-dv")
@@ -1960,17 +1974,24 @@ var _ = Describe("all clone tests", func() {
 				return log
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 
+			podName := fmt.Sprintf("%s-source-pod", targetPvc.GetUID())
+			expectedCondition := &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeRunning,
+				Status:  v1.ConditionFalse,
+				Message: fmt.Sprintf(controller.MessageErrStartingPod, podName),
+				Reason:  controller.ErrExceededQuota,
+			}
+
 			By("Verify target DV has 'false' as running condition")
-			utils.WaitForConditions(f, targetDV.Name, targetNs.Name, timeout, pollingInterval, &cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: v1.ConditionFalse})
+			utils.WaitForConditions(f, targetDV.Name, targetNs.Name, timeout, pollingInterval, expectedCondition)
 
 			By("Check the expected event")
-			podName := fmt.Sprintf("%s-source-pod", targetPvc.GetUID())
 			msg := fmt.Sprintf(controller.MessageErrStartingPod, podName)
 			f.ExpectEvent(targetNs.Name).Should(ContainSubstring(msg))
 			f.ExpectEvent(targetNs.Name).Should(ContainSubstring(controller.ErrExceededQuota))
 		})
 
-		It("Should fail clone data across namespaces, if target namespace doesn't have enough quota", func() {
+		It("[test_id:9076]Should fail clone data across namespaces, if target namespace doesn't have enough quota", func() {
 			err := f.UpdateCdiConfigResourceLimits(int64(0), int64(512*1024*1024), int64(1), int64(512*1024*1024))
 			Expect(err).NotTo(HaveOccurred())
 			pvcDef := utils.NewPVCDefinition(sourcePVCName, "500M", nil, nil)
@@ -2003,8 +2024,15 @@ var _ = Describe("all clone tests", func() {
 				return strings.Trim(log, " ")
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 
+			expectedCondition := &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeRunning,
+				Status:  v1.ConditionFalse,
+				Message: fmt.Sprintf(controller.MessageErrStartingPod, "cdi-upload-target-dv"),
+				Reason:  controller.ErrExceededQuota,
+			}
+
 			By("Verify target DV has 'false' as running condition")
-			utils.WaitForConditions(f, targetDV.Name, targetNs.Name, timeout, pollingInterval, &cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: v1.ConditionFalse})
+			utils.WaitForConditions(f, targetDV.Name, targetNs.Name, timeout, pollingInterval, expectedCondition)
 
 			By("Check the expected event")
 			msg := fmt.Sprintf(controller.MessageErrStartingPod, "cdi-upload-target-dv")
