@@ -22,23 +22,15 @@ func printFiles(dir string) error {
 	})
 }
 
-func renameImageFile(dir, newName string) error {
+func getImageFilename(dir string) (string, error) {
 	entries, err := ioutil.ReadDir(dir)
 	if err != nil {
-		return err
+		return "", err
 	}
-
 	if len(entries) != 1 || entries[0].IsDir() {
-		return errors.Errorf("Invalid container image")
+		return "", errors.Errorf("Invalid container image")
 	}
-
-	src := filepath.Join(dir, entries[0].Name())
-	target := filepath.Join(dir, newName)
-
-	if err := os.Rename(src, target); err != nil {
-		return err
-	}
-	return nil
+	return entries[0].Name(), nil
 }
 
 func main() {
@@ -46,14 +38,14 @@ func main() {
 	directory := flag.String("image-dir", ".", "directory to serve")
 	readyFile := flag.String("ready-file", "/shared/ready", "file to create when ready for connections")
 	doneFile := flag.String("done-file", "/shared/done", "file created when the client is done")
-	imageName := flag.String("image-name", "disk.img", "name of the image to serve up")
 	flag.Parse()
 
 	if err := printFiles(*directory); err != nil {
 		log.Fatalf("Failed walking the directory %s: %v", *directory, err)
 	}
-	if err := renameImageFile(*directory, *imageName); err != nil {
-		log.Fatalf("Failed renaming image file %s, directory %s: %v", *imageName, *directory, err)
+	imageFilename, err := getImageFilename(*directory)
+	if err != nil {
+		log.Fatalf("Failed get image filename in %s: %v", *directory, err)
 	}
 	server := &http.Server{
 		Handler: http.FileServer(http.Dir(*directory)),
@@ -64,12 +56,10 @@ func main() {
 		log.Fatalf("Failed listening on %s err: %v", addr, err)
 	}
 
-	f, err := os.OpenFile(*readyFile, os.O_CREATE|os.O_EXCL, 0666)
-	if err != nil {
+	if err := ioutil.WriteFile(*readyFile, []byte(imageFilename), 0666); err != nil {
 		log.Fatalf("Failed creating \"ready\" file: %v", err)
 	}
 	defer os.Remove(*readyFile)
-	f.Close()
 
 	go func() {
 		log.Printf("Serving %s on HTTP port: %d\n", *directory, *port)
