@@ -112,11 +112,6 @@ func watchPVs(mgr manager.Manager, ctrl controller.Controller) error {
 }
 
 func addObjectTransferControllerWatches(mgr manager.Manager, ctrl controller.Controller) error {
-	// Add schemes.
-	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-
 	if err := watchObjectTransfers(ctrl); err != nil {
 		return err
 	}

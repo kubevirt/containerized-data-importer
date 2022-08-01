@@ -118,7 +118,7 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 	DescribeTable("Should set proxyURL to override if ingress or route exists", func(authority bool) {
 		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace),
 			createIngressList(
-				*createIngress("test-ingress", "test-ns", testServiceName, testURL),
+				*createIngress("test-ingress", testNamespace, testServiceName, testURL),
 			),
 		)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
@@ -161,7 +161,7 @@ var _ = Describe("Controller ingress reconcile loop", func() {
 
 	It("Should set uploadProxyUrl correctly if ingress with correct serviceName exists", func() {
 		reconciler, cdiConfig := createConfigReconciler(createIngressList(
-			*createIngress("test-ingress", "test-ns", testServiceName, testURL),
+			*createIngress("test-ingress", testNamespace, testServiceName, testURL),
 		))
 		reconciler.uploadProxyServiceName = testServiceName
 		err := reconciler.reconcileIngress(cdiConfig)
@@ -171,7 +171,7 @@ var _ = Describe("Controller ingress reconcile loop", func() {
 
 	It("Should not set uploadProxyUrl if ingress with incorrect serviceName exists", func() {
 		reconciler, cdiConfig := createConfigReconciler(createIngressList(
-			*createIngress("test-ingress", "test-ns", "incorrect", testURL),
+			*createIngress("test-ingress", testNamespace, "incorrect", testURL),
 		))
 		reconciler.uploadProxyServiceName = testServiceName
 		err := reconciler.reconcileIngress(cdiConfig)
@@ -181,10 +181,10 @@ var _ = Describe("Controller ingress reconcile loop", func() {
 
 	It("Should set uploadProxyUrl correctly if multiple ingresses exist with one correct serviceName exists", func() {
 		reconciler, cdiConfig := createConfigReconciler(createIngressList(
-			*createIngress("test-ingress1", "test-ns", "service1", "invalidurl"),
-			*createIngress("test-ingress2", "test-ns", "service2", "invalidurl2"),
-			*createIngress("test-ingress3", "test-ns", testServiceName, testURL),
-			*createIngress("test-ingress4", "test-ns", "service3", "invalidurl3"),
+			*createIngress("test-ingress1", testNamespace, "service1", "invalidurl"),
+			*createIngress("test-ingress2", testNamespace, "service2", "invalidurl2"),
+			*createIngress("test-ingress3", testNamespace, testServiceName, testURL),
+			*createIngress("test-ingress4", testNamespace, "service3", "invalidurl3"),
 		))
 		reconciler.uploadProxyServiceName = testServiceName
 		err := reconciler.reconcileIngress(cdiConfig)
@@ -194,7 +194,7 @@ var _ = Describe("Controller ingress reconcile loop", func() {
 
 	DescribeTable("Should not set proxyURL if invalid ingress exists", func(createIngress func(name, ns, service, url string) *networkingv1.Ingress) {
 		reconciler, cdiConfig := createConfigReconciler(createIngressList(
-			*createIngress("test-ingress", "test-ns", "service", testURL),
+			*createIngress("test-ingress", testNamespace, "service", testURL),
 		))
 		reconciler.uploadProxyServiceName = testServiceName
 		err := reconciler.reconcileIngress(cdiConfig)
@@ -219,7 +219,7 @@ var _ = Describe("Controller route reconcile loop", func() {
 
 	It("Should set uploadProxyUrl correctly if route with correct serviceName exists", func() {
 		reconciler, cdiConfig := createConfigReconciler(createRouteList(
-			*createRoute("test-ingress", "test-ns", testServiceName),
+			*createRoute("test-ingress", testNamespace, testServiceName),
 		))
 		reconciler.uploadProxyServiceName = testServiceName
 		err := reconciler.reconcileRoute(cdiConfig)
@@ -229,7 +229,7 @@ var _ = Describe("Controller route reconcile loop", func() {
 
 	It("Should not set uploadProxyUrl if ingress with incorrect serviceName exists", func() {
 		reconciler, cdiConfig := createConfigReconciler(createRouteList(
-			*createRoute("test-ingress", "test-ns", "incorrect"),
+			*createRoute("test-ingress", testNamespace, "incorrect"),
 		))
 		reconciler.uploadProxyServiceName = testServiceName
 		err := reconciler.reconcileRoute(cdiConfig)
@@ -239,10 +239,10 @@ var _ = Describe("Controller route reconcile loop", func() {
 
 	It("Should set uploadProxyUrl correctly if multiple ingresses exist with one correct serviceName exists", func() {
 		reconciler, cdiConfig := createConfigReconciler(createRouteList(
-			*createRoute("test-ingress1", "test-ns", "service1"),
-			*createRoute("test-ingress2", "test-ns", "service2"),
-			*createRoute("test-ingress3", "test-ns", testServiceName),
-			*createRoute("test-ingress4", "test-ns", "service3"),
+			*createRoute("test-ingress1", testNamespace, "service1"),
+			*createRoute("test-ingress2", testNamespace, "service2"),
+			*createRoute("test-ingress3", testNamespace, testServiceName),
+			*createRoute("test-ingress4", testNamespace, "service3"),
 		))
 		reconciler.uploadProxyServiceName = testServiceName
 		err := reconciler.reconcileRoute(cdiConfig)

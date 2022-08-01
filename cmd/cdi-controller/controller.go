@@ -10,12 +10,22 @@ import (
 	"strconv"
 
 	"github.com/kelseyhightower/envconfig"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	ocpconfigv1 "github.com/openshift/api/config/v1"
+	imagev1 "github.com/openshift/api/image/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	networkingv1 "k8s.io/api/networking/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -23,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/controller/transfer"
@@ -49,6 +60,15 @@ var (
 	installerLabels        map[string]string
 	log                    = logf.Log.WithName("controller")
 	controllerEnvs         ControllerEnvs
+	resourcesSchemeFuncs   = []func(*apiruntime.Scheme) error{
+		clientgoscheme.AddToScheme,
+		cdiv1.AddToScheme,
+		extv1.AddToScheme,
+		snapshotv1.AddToScheme,
+		imagev1.Install,
+		ocpconfigv1.Install,
+		routev1.Install,
+	}
 )
 
 // ControllerEnvs contains environment variables read for setting custom cert paths
@@ -134,11 +154,23 @@ func start(ctx context.Context, cfg *rest.Config) {
 		klog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
 	}
 
+	// Setup scheme for all resources
+	scheme := apiruntime.NewScheme()
+	for _, f := range resourcesSchemeFuncs {
+		err := f(scheme)
+		if err != nil {
+			klog.Errorf("Failed to add to scheme: %v", err)
+			os.Exit(1)
+		}
+	}
+
 	opts := manager.Options{
 		LeaderElection:             true,
 		LeaderElectionNamespace:    namespace,
 		LeaderElectionID:           "cdi-controller-leader-election-helper",
 		LeaderElectionResourceLock: "leases",
+		NewCache:                   getNewManagerCache(namespace),
+		Scheme:                     scheme,
 	}
 
 	mgr, err := manager.New(config.GetConfigOrDie(), opts)
@@ -304,4 +336,25 @@ func getTokenPrivateKey() *rsa.PrivateKey {
 func registerMetrics() {
 	metrics.Registry.MustRegister(controller.IncompleteProfileGauge)
 	metrics.Registry.MustRegister(controller.DataImportCronOutdatedGauge)
+}
+
+// Restricts some types in the cache's ListWatch to specific fields/labels per GVK at the specified object,
+// other types will continue working normally.
+// Note: objects you read once with the controller runtime client are cached.
+// TODO: Make our watches way more specific using labels, for example,
+// at the point of writing this, we don't care about VolumeSnapshots without the CDI label
+func getNewManagerCache(cdiNamespace string) cache.NewCacheFunc {
+	namespaceSelector := fields.Set{"metadata.namespace": cdiNamespace}.AsSelector()
+	return cache.BuilderWithOptions(
+		cache.Options{
+			SelectorsByObject: cache.SelectorsByObject{
+				&networkingv1.Ingress{}: {
+					Field: namespaceSelector,
+				},
+				&routev1.Route{}: {
+					Field: namespaceSelector,
+				},
+			},
+		},
+	)
 }

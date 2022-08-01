@@ -162,7 +162,7 @@ func (r *CDIConfigReconciler) reconcileUploadProxyURL(config *cdiv1.CDIConfig) e
 func (r *CDIConfigReconciler) reconcileIngress(config *cdiv1.CDIConfig) error {
 	log := r.log.WithName("CDIconfig").WithName("IngressReconcile")
 	ingressList := &networkingv1.IngressList{}
-	if err := r.client.List(context.TODO(), ingressList, &client.ListOptions{}); IgnoreIsNoMatchError(err) != nil {
+	if err := r.client.List(context.TODO(), ingressList, &client.ListOptions{Namespace: r.cdiNamespace}); IgnoreIsNoMatchError(err) != nil {
 		return err
 	}
 	for _, ingress := range ingressList.Items {
@@ -181,7 +181,7 @@ func (r *CDIConfigReconciler) reconcileIngress(config *cdiv1.CDIConfig) error {
 func (r *CDIConfigReconciler) reconcileRoute(config *cdiv1.CDIConfig) error {
 	log := r.log.WithName("CDIconfig").WithName("RouteReconcile")
 	routeList := &routev1.RouteList{}
-	if err := r.client.List(context.TODO(), routeList, &client.ListOptions{}); IgnoreIsNoMatchError(err) != nil {
+	if err := r.client.List(context.TODO(), routeList, &client.ListOptions{Namespace: r.cdiNamespace}); IgnoreIsNoMatchError(err) != nil {
 		return err
 	}
 	for _, route := range routeList.Items {
@@ -472,23 +472,6 @@ func NewConfigController(mgr manager.Manager, log logr.Logger, uploadProxyServic
 
 // addConfigControllerWatches sets up the watches used by the config controller.
 func addConfigControllerWatches(mgr manager.Manager, configController controller.Controller, cdiNamespace, configName, uploadProxyServiceName string, log logr.Logger) error {
-	// Add schemes.
-	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-	if err := storagev1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-	if err := networkingv1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-	if err := routev1.Install(mgr.GetScheme()); err != nil {
-		return err
-	}
-	if err := ocpconfigv1.Install(mgr.GetScheme()); err != nil {
-		return err
-	}
-
 	// Setup watches
 	if err := watchCDIConfig(configController, configName); err != nil {
 		return err
@@ -558,7 +541,7 @@ func watchIngress(configController controller.Controller, cdiNamespace, configNa
 
 // we only watch the route obj if they exist, i.e., if it is an OpenShift cluster
 func watchRoutes(mgr manager.Manager, configController controller.Controller, cdiNamespace, configName, uploadProxyServiceName string) error {
-	err := mgr.GetClient().List(context.TODO(), &routev1.RouteList{})
+	err := mgr.GetClient().List(context.TODO(), &routev1.RouteList{}, &client.ListOptions{Namespace: cdiNamespace})
 	if !meta.IsNoMatchError(err) {
 		if err == nil || isErrCacheNotStarted(err) {
 			err := configController.Watch(&source.Kind{Type: &routev1.Route{}}, handler.EnqueueRequestsFromMapFunc(

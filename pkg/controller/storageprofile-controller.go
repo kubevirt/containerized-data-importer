@@ -275,14 +275,6 @@ func NewStorageProfileController(mgr manager.Manager, log logr.Logger, installer
 }
 
 func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
-	// Add schemes.
-	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-	if err := storagev1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
-
 	if err := c.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}

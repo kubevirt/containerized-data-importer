@@ -137,9 +137,6 @@ func NewDataSourceController(mgr manager.Manager, log logr.Logger, installerLabe
 }
 
 func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
-	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
-		return err
-	}
 	if err := c.Watch(&source.Kind{Type: &cdiv1.DataSource{}}, &handler.EnqueueRequestForObject{},
 		predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool { return true },
