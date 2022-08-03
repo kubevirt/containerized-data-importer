@@ -1188,11 +1188,20 @@ func handleFailedPod(err error, podName string, pvc *v1.PersistentVolumeClaim, r
 	// Error handling to fine-tune the event with pertinent info
 	if errQuotaExceeded(err) {
 		reason = ErrExceededQuota
-	} // TODO: Add more error cases
+	}
 
 	recorder.Event(pvc, v1.EventTypeWarning, reason, msg)
 
-	AddAnnotation(pvc, AnnRunningCondition, "false")
+	if isCloneSourcePod := createCloneSourcePodName(pvc) == podName; isCloneSourcePod {
+		AddAnnotation(pvc, AnnSourceRunningCondition, "false")
+		AddAnnotation(pvc, AnnSourceRunningConditionReason, reason)
+		AddAnnotation(pvc, AnnSourceRunningConditionMessage, msg)
+	} else {
+		AddAnnotation(pvc, AnnRunningCondition, "false")
+		AddAnnotation(pvc, AnnRunningConditionReason, reason)
+		AddAnnotation(pvc, AnnRunningConditionMessage, msg)
+	}
+
 	AddAnnotation(pvc, AnnPodPhase, string(v1.PodFailed))
 	if err := c.Update(context.TODO(), pvc); err != nil {
 		return err

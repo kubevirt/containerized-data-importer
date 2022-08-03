@@ -246,11 +246,8 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		return reconcile.Result{}, err
 	}
 
-	podPhase := pod.Status.Phase
-	anno[AnnPodPhase] = string(podPhase)
-	anno[AnnPodReady] = strconv.FormatBool(isPodReady(pod))
-
-	setAnnotationsFromPodWithPrefix(anno, pod, AnnRunningCondition)
+	// Update the annotations in the PVC to reflect the current state of the upload
+	updateUploadAnnotations(pvc, anno, pod, isCloneTarget)
 
 	if !reflect.DeepEqual(pvc, pvcCopy) {
 		if err := r.updatePVC(pvcCopy); err != nil {
@@ -481,6 +478,15 @@ func (r *UploadReconciler) deleteService(namespace, serviceName string) error {
 	}
 
 	return nil
+}
+
+// updateUploadAnnotations updates annotations to reflect the current state of the upload
+func updateUploadAnnotations(pvc *corev1.PersistentVolumeClaim, anno map[string]string, pod *v1.Pod, isCloneTarget bool) {
+	podPhase := pod.Status.Phase
+	anno[AnnPodPhase] = string(podPhase)
+	anno[AnnPodReady] = strconv.FormatBool(isPodReady(pod))
+
+	setAnnotationsFromPodWithPrefix(anno, pod, AnnRunningCondition)
 }
 
 // createUploadService creates upload service service manifest and sends to server

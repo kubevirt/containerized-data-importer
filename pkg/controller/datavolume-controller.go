@@ -195,10 +195,6 @@ const (
 	CloneWithoutSource = "CloneWithoutSource"
 	// MessageCloneWithoutSource reports that the source PVC of a clone doesn't exists (message)
 	MessageCloneWithoutSource = "The source PVC doesn't exist"
-	// RunningConditionToFalse reports that a DataVolume's running condition changed to false without specifying more information (reason)
-	RunningConditionToFalse = "RunningConditionToFalse"
-	// MessageRunningConditionToFalse reports that a DataVolume's running condition changed to false without specifying more information (message)
-	MessageRunningConditionToFalse = "Running condition changed to false: For more information, check events in the DataVolume's PVC or request access to cdi-deploy logs from your sysadmin"
 
 	// AnnCSICloneRequest annotation associates object with CSI Clone Request
 	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"

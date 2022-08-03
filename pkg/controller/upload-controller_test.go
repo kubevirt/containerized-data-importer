@@ -573,6 +573,32 @@ var _ = Describe("Update PVC", func() {
 	})
 })
 
+var _ = Describe("updateUploadAnnotations", func() {
+	It("Should update the annotations", func() {
+		testPvc := createPvc("testPvc", "default", map[string]string{}, nil)
+		pod := createUploadPod(testPvc)
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					RestartCount: 1,
+					State: corev1.ContainerState{
+						Running: &corev1.ContainerStateRunning{},
+					},
+				},
+			},
+		}
+
+		pvcCopy := testPvc.DeepCopy()
+
+		updateUploadAnnotations(testPvc, pvcCopy.Annotations, pod, false)
+		Expect(pvcCopy.Annotations[AnnPodRestarts]).To(Equal("1"))
+		Expect(pvcCopy.GetAnnotations()[AnnRunningCondition]).To(Equal("true"))
+		Expect(pvcCopy.GetAnnotations()[AnnRunningConditionMessage]).To(Equal(""))
+		Expect(pvcCopy.GetAnnotations()[AnnRunningConditionReason]).To(Equal(podRunningReason))
+	})
+})
+
 func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)
