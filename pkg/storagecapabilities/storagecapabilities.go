@@ -51,11 +51,14 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// GCE Persistent Disk
 	"kubernetes.io/gce-pd":  {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
 	"pd.csi.storage.gke.io": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
-	// portworx
+	// Portworx in-tree CSI
 	"kubernetes.io/portworx-volume/shared": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
-	"pxd.openstorage.org/shared":           {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"kubernetes.io/portworx-volume":        {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
-	"pxd.openstorage.org":                  {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
+	// Portworx CSI
+	"pxd.openstorage.org/shared": createOpenStorageSharedVolumeCapabilities(),
+	"pxd.openstorage.org":        createOpenStorageVolumeCapabilities(),
+	"pxd.portworx.com/shared":    createOpenStorageSharedVolumeCapabilities(),
+	"pxd.portworx.com":           createOpenStorageVolumeCapabilities(),
 	// Trident
 	"csi.trident.netapp.io/ontap-nas": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"csi.trident.netapp.io/ontap-san": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
@@ -145,6 +148,14 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		}
 		return "kubernetes.io/portworx-volume"
 	},
+	"pxd.portworx.com": func(sc *storagev1.StorageClass) string {
+		//https://docs.portworx.com/portworx-install-with-kubernetes/storage-operations/csi/volumelifecycle/#create-shared-csi-enabled-volumes
+		val := sc.Parameters["shared"]
+		if val == "true" {
+			return "pxd.portworx.com/shared"
+		}
+		return "pxd.portworx.com"
+	},
 	"csi.trident.netapp.io": func(sc *storagev1.StorageClass) string {
 		//https://netapp-trident.readthedocs.io/en/stable-v20.04/kubernetes/concepts/objects.html#kubernetes-storageclass-objects
 		val := sc.Parameters["backendType"]
@@ -175,5 +186,19 @@ func createDellUnityCapabilities() []StorageCapabilities {
 		{AccessMode: v1.ReadOnlyMany, VolumeMode: v1.PersistentVolumeFilesystem},
 		{AccessMode: v1.ReadWriteOncePod, VolumeMode: v1.PersistentVolumeBlock},
 		{AccessMode: v1.ReadWriteOncePod, VolumeMode: v1.PersistentVolumeFilesystem},
+	}
+}
+
+func createOpenStorageVolumeCapabilities() []StorageCapabilities {
+	return []StorageCapabilities{
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
+	}
+}
+
+func createOpenStorageSharedVolumeCapabilities() []StorageCapabilities {
+	return []StorageCapabilities{
+		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
 	}
 }
