@@ -62,12 +62,22 @@ func waitForReadyFile() {
 
 func getHTTPEp(ep string) string {
 	readyFile, err := util.ParseEnvVar(common.ImporterReadyFile, false)
-	if err == nil && len(readyFile) > 0 {
-		if imageName, err := ioutil.ReadFile(readyFile); err == nil && len(imageName) > 0 {
-			return strings.TrimSuffix(ep, common.DiskImageName) + string(imageName)
-		}
+	if err != nil {
+		klog.Errorf("Failed parsing env var %s: %+v", common.ImporterReadyFile, err)
+		os.Exit(1)
 	}
-	return ep
+	if len(readyFile) == 0 {
+		return ep
+	}
+	imageName, err := ioutil.ReadFile(readyFile)
+	if err != nil {
+		klog.Errorf("Failed reading file %s: %+v", readyFile, err)
+		os.Exit(1)
+	}
+	if len(imageName) == 0 {
+		return ep
+	}
+	return strings.TrimSuffix(ep, common.DiskImageName) + string(imageName)
 }
 
 func touchDoneFile() {
