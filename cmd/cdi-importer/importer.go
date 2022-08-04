@@ -18,6 +18,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -57,6 +58,26 @@ func waitForReadyFile() {
 		klog.Errorf("%+v", err)
 	}
 	os.Exit(1)
+}
+
+func getHTTPEp(ep string) string {
+	readyFile, err := util.ParseEnvVar(common.ImporterReadyFile, false)
+	if err != nil {
+		klog.Errorf("Failed parsing env var %s: %+v", common.ImporterReadyFile, err)
+		os.Exit(1)
+	}
+	if len(readyFile) == 0 {
+		return ep
+	}
+	imageName, err := ioutil.ReadFile(readyFile)
+	if err != nil {
+		klog.Errorf("Failed reading file %s: %+v", readyFile, err)
+		os.Exit(1)
+	}
+	if len(imageName) == 0 {
+		return ep
+	}
+	return strings.TrimSuffix(ep, common.DiskImageName) + string(imageName)
 }
 
 func touchDoneFile() {
@@ -231,7 +252,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 
 	switch source {
 	case controller.SourceHTTP:
-		ds, err := importer.NewHTTPDataSource(ep, acc, sec, certDir, cdiv1.DataVolumeContentType(contentType))
+		ds, err := importer.NewHTTPDataSource(getHTTPEp(ep), acc, sec, certDir, cdiv1.DataVolumeContentType(contentType))
 		if err != nil {
 			errorCannotConnectDataSource(err, "http")
 		}

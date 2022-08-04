@@ -124,6 +124,7 @@ exports_files(
 pkg_tar(
     name = "tinycore-tar",
     srcs = [":images/tinyCore.iso"],
+    owner = "107.107",
     package_dir = "/disk",
     strip_prefix = "/tests/images",
 )
