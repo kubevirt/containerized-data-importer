@@ -81,6 +81,10 @@ func (r *DataSourceReconciler) update(ctx context.Context, dataSource *cdiv1.Dat
 				return err
 			}
 		} else if dv.Status.Phase == cdiv1.Succeeded {
+			// Force updating DataSourceReady LastTransitionTime when succeeded Source.PVC is updated with a new succeeded one
+			if cond := FindDataSourceConditionByType(dataSource, cdiv1.DataSourceReady); cond != nil {
+				cond.Status = corev1.ConditionFalse
+			}
 			updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionTrue, "DataSource is ready to be consumed", ready)
 		} else {
 			updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, fmt.Sprintf("Import DataVolume phase %s", dv.Status.Phase), string(dv.Status.Phase))

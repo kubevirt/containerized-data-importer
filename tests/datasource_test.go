@@ -130,4 +130,27 @@ var _ = Describe("DataSource", func() {
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionFalse, "NotFound")
 		ds2 = waitForReadyCondition(ds2, corev1.ConditionFalse, "NotFound")
 	})
+
+	It("status conditions timestamp should be updated when DataSource referred pvc is updated, although condition status does not change", func() {
+		createDv(pvc1Name, testUrl())
+		ds := createDs(ds1Name, pvc1Name)
+		ds = waitForReadyCondition(ds, corev1.ConditionTrue, "Ready")
+		cond := controller.FindDataSourceConditionByType(ds, cdiv1.DataSourceReady)
+		Expect(cond).ToNot(BeNil())
+		ts := cond.LastTransitionTime
+
+		createDv(pvc2Name, testUrl())
+		err := utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, pvc2Name)
+		Expect(err).ToNot(HaveOccurred())
+		updateDsPvc(ds, pvc2Name)
+
+		Eventually(func() metav1.Time {
+			ds, err = f.CdiClient.CdiV1beta1().DataSources(ds.Namespace).Get(context.TODO(), ds.Name, metav1.GetOptions{})
+			Expect(ds.Spec.Source.PVC.Name).To(Equal(pvc2Name))
+			cond = controller.FindDataSourceConditionByType(ds, cdiv1.DataSourceReady)
+			Expect(cond).ToNot(BeNil())
+			Expect(cond.Status).To(Equal(corev1.ConditionTrue))
+			return cond.LastTransitionTime
+		}, 60*time.Second, pollingInterval).ShouldNot(Equal(ts))
+	})
 })
