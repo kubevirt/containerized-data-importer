@@ -21,11 +21,13 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 
 	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
+	"go.uber.org/zap/zapcore"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -49,11 +51,26 @@ func printVersion() {
 func main() {
 	flag.Parse()
 
+	defVerbose := fmt.Sprintf("%d", 1) // note flag values are strings
+	verbose := defVerbose
+	// visit actual flags passed in and if passed check -v and set verbose
+	if verboseEnvVarVal := os.Getenv("VERBOSITY"); verboseEnvVarVal != "" {
+		verbose = verboseEnvVarVal
+	}
+	if verbose == defVerbose {
+		log.V(1).Info(fmt.Sprintf("Note: increase the -v level in the controller deployment for more detailed logging, eg. -v=%d or -v=%d\n", 2, 3))
+	}
+	verbosityLevel, err := strconv.Atoi(verbose)
+	debug := false
+	if err == nil && verbosityLevel > 1 {
+		debug = true
+	}
+
 	// The logger instantiated here can be changed to any logger
 	// implementing the logr.Logger interface. This logger will
 	// be propagated through the whole operator, generating
 	// uniform and structured logs.
-	logf.SetLogger(zap.New(zap.UseDevMode(false)))
+	logf.SetLogger(zap.New(zap.Level(zapcore.Level(-1*verbosityLevel)), zap.UseDevMode(debug)))
 
 	printVersion()
 
