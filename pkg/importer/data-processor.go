@@ -402,7 +402,7 @@ func (dp *DataProcessor) calculateTargetSize() int64 {
 		targetQuantity = &minQuantity
 	}
 	klog.V(1).Infof("Target size %s.\n", targetQuantity.String())
-	targetSize, _ := targetQuantity.AsInt64()
+	targetSize := targetQuantity.Value()
 	return targetSize
 }
 
