@@ -2,10 +2,24 @@ v1.43.1:
 BugFix: Backport DataImportCron fixes
 BugFix: KubePersistentVolumeFillingUp Firing for VM disk Filesystem PVCs
 
-v.1.43.2:
+v1.43.2:
 BugFix: Clone with volume mode file system using Storage API fails
 BugFix: Set http(s)_proxy to lower case env variable
 BugFix: Fix CRDs deletion in operator deletion
 Enhancement: Add DataImportCron ImageStream tag support
 Enhancement: Allow optional per-DataVolume VDDK image
 BugFix: Get rid of DataImportCron finalizer
+
+v1.43.3:
+BugFix: Do not factor fs overhead into available space during validation (#2198)
+BugFix: Reconcile DVs waiting for default SC (#2206)
+BugFix: Fix interaction between multi-stage import and retainAfterCompletion. (#2214)
+BugFix: Delete erroneous DVs on DataImportCron digest update (#2220)
+BugFix: Fix DataImportCron watch race (#2239)
+BugFix: tighten sync between smart clone and transfer controllers (#2244)
+BugFix: Expose all CDI CRDs to cluster-readers (#2246)
+BugFix: Start smart clone controller from datavolume controller when needed (#2265) (#2271)
+BugFix: Fix smart clone request size update (#2289)
+BugFix: Improve handling prePopulated DV (#2322)
+BugFix: Bugfix - Correctly handle populated PVC  (#2325)
+
