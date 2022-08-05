@@ -5754,6 +5754,27 @@ spec:
                   - type
                   type: object
                 type: array
+              source:
+                description: Source is the current source of the data referenced by
+                  the DataSource
+                properties:
+                  pvc:
+                    description: DataVolumeSourcePVC provides the parameters to create
+                      a Data Volume from an existing PVC
+                    properties:
+                      name:
+                        description: The name of the source PVC
+                        type: string
+                      namespace:
+                        description: The namespace of the source PVC
+                        type: string
+                    required:
+                    - name
+                    - namespace
+                    type: object
+                type: object
+            required:
+            - source
             type: object
         required:
         - spec
