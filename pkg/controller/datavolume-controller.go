@@ -572,7 +572,6 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		} else if err != nil {
 			return reconcile.Result{}, err
 		}
-
 	} else {
 		res, err := r.garbageCollect(datavolume, pvc, log)
 		if err != nil {
@@ -739,6 +738,11 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 			pvc = newPvc
 		}
 
+		shouldBeMarkedWaitForFirstConsumer, err := r.shouldBeMarkedWaitForFirstConsumer(pvc)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
 		switch selectedCloneStrategy {
 		case HostAssistedClone:
 			if !pvcPopulated {
@@ -753,7 +757,10 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 					return reconcile.Result{}, err
 				}
 			case corev1.ClaimPending:
-				return reconcile.Result{}, r.updateCloneStatusPhase(cdiv1.CSICloneInProgress, datavolume, pvc, selectedCloneStrategy)
+				r.log.V(3).Info("ClaimPending CSIClone")
+				if !shouldBeMarkedWaitForFirstConsumer {
+					return reconcile.Result{}, r.updateCloneStatusPhase(cdiv1.CSICloneInProgress, datavolume, pvc, selectedCloneStrategy)
+				}
 			case corev1.ClaimLost:
 				return reconcile.Result{},
 					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Failed, datavolume, pvc, selectedCloneStrategy,
@@ -765,7 +772,7 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 			}
 			fallthrough
 		case SmartClone:
-			if !pvcPopulated {
+			if !pvcPopulated && !shouldBeMarkedWaitForFirstConsumer {
 				return r.finishClone(log, datavolume, pvc, pvcSpec, transferName, selectedCloneStrategy)
 			}
 		}
@@ -879,6 +886,7 @@ func (r *DatavolumeReconciler) reconcileCsiClonePvc(log logr.Logger,
 	pvcSpec *corev1.PersistentVolumeClaimSpec,
 	transferName string) (reconcile.Result, error) {
 
+	log = log.WithName("reconcileCsiClonePvc")
 	pvcName := datavolume.Name
 
 	if isCrossNamespaceClone(datavolume) {
@@ -898,7 +906,7 @@ func (r *DatavolumeReconciler) reconcileCsiClonePvc(log logr.Logger,
 	if sourcePvcNs == "" {
 		sourcePvcNs = datavolume.Namespace
 	}
-	r.log.V(3).Info("CSI-Clone is available")
+	log.V(3).Info("CSI-Clone is available")
 
 	// Get source pvc
 	sourcePvc := &corev1.PersistentVolumeClaim{}
@@ -2217,14 +2225,11 @@ func (r *DatavolumeReconciler) updateUploadStatusPhase(pvc *corev1.PersistentVol
 func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, selectedCloneStrategy cloneStrategy) (reconcile.Result, error) {
 	dataVolumeCopy := dataVolume.DeepCopy()
 	var event DataVolumeEvent
+	var err error
 	result := reconcile.Result{}
 
 	curPhase := dataVolumeCopy.Status.Phase
 	if pvc != nil {
-		storageClassBindingMode, err := r.getStorageClassBindingMode(pvc.Spec.StorageClassName)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
 		dataVolumeCopy.Status.ClaimName = pvc.Name
 
 		// the following check is for a case where the request is to create a blank disk for a block device.
@@ -2276,19 +2281,17 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 					}
 				} else {
 					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
-
 				}
 				r.updateImportStatusPhase(pvc, dataVolumeCopy, &event)
 			}
 		} else {
 			switch pvc.Status.Phase {
 			case corev1.ClaimPending:
-				honorWaitForFirstConsumerEnabled, err := r.featureGates.HonorWaitForFirstConsumerEnabled()
+				shouldBeMarkedWaitForFirstConsumer, err := r.shouldBeMarkedWaitForFirstConsumer(pvc)
 				if err != nil {
 					return reconcile.Result{}, err
 				}
-				if honorWaitForFirstConsumerEnabled &&
-					*storageClassBindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
+				if shouldBeMarkedWaitForFirstConsumer {
 					dataVolumeCopy.Status.Phase = cdiv1.WaitForFirstConsumer
 				} else {
 					dataVolumeCopy.Status.Phase = cdiv1.Pending
@@ -2893,6 +2896,25 @@ func (r *DatavolumeReconciler) isSourceReadyToClone(
 	}
 
 	return true, nil
+}
+
+// shouldBeMarkedWaitForFirstConsumer decided whether we should mark DV as WFFC
+func (r *DatavolumeReconciler) shouldBeMarkedWaitForFirstConsumer(pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	storageClassBindingMode, err := r.getStorageClassBindingMode(pvc.Spec.StorageClassName)
+	if err != nil {
+		return false, err
+	}
+
+	honorWaitForFirstConsumerEnabled, err := r.featureGates.HonorWaitForFirstConsumerEnabled()
+	if err != nil {
+		return false, err
+	}
+
+	res := honorWaitForFirstConsumerEnabled &&
+		storageClassBindingMode != nil && *storageClassBindingMode == storagev1.VolumeBindingWaitForFirstConsumer &&
+		pvc.Status.Phase == corev1.ClaimPending
+
+	return res, nil
 }
 
 // detectCloneSize obtains and assigns the original PVC's size when cloning using an empty storage value
