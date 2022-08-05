@@ -23805,6 +23805,13 @@ func schema_pkg_apis_core_v1beta1_DataSourceStatus(ref common.ReferenceCallback)
 				Description: "DataSourceStatus provides the most recently observed status of the DataSource",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"source": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Source is the current source of the data referenced by the DataSource",
+							Default:     map[string]interface{}{},
+							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSourceSource"),
+						},
+					},
 					"conditions": {
 						SchemaProps: spec.SchemaProps{
 							Type: []string{"array"},
@@ -23819,10 +23826,11 @@ func schema_pkg_apis_core_v1beta1_DataSourceStatus(ref common.ReferenceCallback)
 						},
 					},
 				},
+				Required: []string{"source"},
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSourceCondition"},
+			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSourceCondition", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataSourceSource"},
 	}
 }
 

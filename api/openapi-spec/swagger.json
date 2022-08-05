@@ -5439,6 +5439,9 @@
    "v1beta1.DataSourceStatus": {
     "description": "DataSourceStatus provides the most recently observed status of the DataSource",
     "type": "object",
+    "required": [
+     "source"
+    ],
     "properties": {
      "conditions": {
       "type": "array",
@@ -5446,6 +5449,11 @@
        "default": {},
        "$ref": "#/definitions/v1beta1.DataSourceCondition"
       }
+     },
+     "source": {
+      "description": "Source is the current source of the data referenced by the DataSource",
+      "default": {},
+      "$ref": "#/definitions/v1beta1.DataSourceSource"
      }
     }
    },

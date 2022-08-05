@@ -68,6 +68,10 @@ func (r *DataSourceReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 }
 
 func (r *DataSourceReconciler) update(ctx context.Context, dataSource *cdiv1.DataSource) error {
+	if !reflect.DeepEqual(dataSource.Status.Source, dataSource.Spec.Source) {
+		dataSource.Spec.Source.DeepCopyInto(&dataSource.Status.Source)
+		dataSource.Status.Conditions = nil
+	}
 	dataSourceCopy := dataSource.DeepCopy()
 	sourcePVC := dataSource.Spec.Source.PVC
 	if sourcePVC != nil {
