@@ -23826,7 +23826,6 @@ func schema_pkg_apis_core_v1beta1_DataSourceStatus(ref common.ReferenceCallback)
 						},
 					},
 				},
-				Required: []string{"source"},
 			},
 		},
 		Dependencies: []string{

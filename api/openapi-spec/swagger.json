@@ -5439,9 +5439,6 @@
    "v1beta1.DataSourceStatus": {
     "description": "DataSourceStatus provides the most recently observed status of the DataSource",
     "type": "object",
-    "required": [
-     "source"
-    ],
     "properties": {
      "conditions": {
       "type": "array",
