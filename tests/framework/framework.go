@@ -208,7 +208,7 @@ func (f *Framework) AfterEach() {
 		}
 	}()
 
-	if ginkgo.CurrentGinkgoTestDescription().Failed {
+	if ginkgo.CurrentGinkgoTestDescription().Failed || strings.Contains(ginkgo.CurrentGinkgoTestDescription().TestText, "[test_id:4960]") {
 		f.reporter.FailureCount++
 		f.reporter.Dump(f.K8sClient, f.CdiClient, ginkgo.CurrentGinkgoTestDescription().Duration)
 	}

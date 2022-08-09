@@ -2028,7 +2028,7 @@ var _ = Describe("all clone tests", func() {
 			doFileBasedCloneTest(f, pvcDef, f.Namespace, "target-dv")
 		})
 
-		It("[test_id:4960]Should fail clone data across namespaces, if source namespace doesn't have enough quota", func() {
+		FIt("[test_id:4960]Should fail clone data across namespaces, if source namespace doesn't have enough quota", func() {
 			err := f.UpdateCdiConfigResourceLimits(int64(0), int64(512*1024*1024), int64(1), int64(512*1024*1024))
 			Expect(err).NotTo(HaveOccurred())
 			err = f.CreateQuotaInNs(int64(1), int64(256*1024*1024), int64(2), int64(256*1024*1024))

@@ -104,13 +104,13 @@ kubectl version
 
 ginko_params="--test-args=--ginkgo.noColor --junit-output=${ARTIFACTS_PATH}/junit.functest.xml"
 
-if [[ -n "$CDI_E2E_FOCUS" ]]; then
-  ginko_params="${ginko_params} --ginkgo.focus=${CDI_E2E_FOCUS}"
-fi
+# if [[ -n "$CDI_E2E_FOCUS" ]]; then
+#   ginko_params="${ginko_params} --ginkgo.focus=${CDI_E2E_FOCUS}"
+# fi
 
-if [[ -n "$CDI_E2E_SKIP" ]]; then
-  ginko_params="${ginko_params} --ginkgo.skip=${CDI_E2E_SKIP}"
-fi
+# if [[ -n "$CDI_E2E_SKIP" ]]; then
+#   ginko_params="${ginko_params} --ginkgo.skip=${CDI_E2E_SKIP}"
+# fi
 
 if [[ -n "$CDI_DV_GC" ]]; then
     kubectl patch cdi $CDI_NAMESPACE --type merge -p '{"spec": {"config": {"dataVolumeTTLSeconds": '$CDI_DV_GC'}}}'
