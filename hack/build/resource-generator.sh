@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "$0")" && pwd -P)"
+script_dir=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 

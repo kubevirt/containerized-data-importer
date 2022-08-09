@@ -14,13 +14,13 @@
 
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "$0")" && pwd -P)"
+script_dir=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
 generator="${BIN_DIR}/manifest-generator"
 
-(cd "${CDI_DIR}/tools/manifest-generator/" && GO111MODULE=off go build -o "${generator}" ./...)
+(cd "${CDI_DIR}/tools/manifest-generator/" && GO111MODULE=${GO111MODULE:-off} go build -o "${generator}" ./...)
 
 echo "DOCKER_PREFIX=${DOCKER_PREFIX}"
 echo "DOCKER_TAG=${DOCKER_TAG}"

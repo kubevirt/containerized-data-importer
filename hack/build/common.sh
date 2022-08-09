@@ -28,7 +28,8 @@ determine_cri_bin() {
     fi
 }
 
-CDI_DIR="$(cd $(dirname $0)/../../ && pwd -P)"
+SCRIPT_DIR=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
+CDI_DIR=$(cd "$SCRIPT_DIR/../../" && pwd -P)
 CDI_GO_PACKAGE=kubevirt.io/containerized-data-importer
 BIN_DIR=${CDI_DIR}/bin
 OUT_DIR=${CDI_DIR}/_out
