@@ -334,6 +334,15 @@ var _ = Describe("all clone tests", func() {
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNamespaceName, targetDV)
 				Expect(err).ToNot(HaveOccurred())
 
+				actualCloneType := utils.GetCloneType(f.CdiClient, dataVolume)
+				if actualCloneType == "snapshot" {
+					f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(controller.SmartCloneSourceInUse))
+				} else if actualCloneType == "csivolumeclone" {
+					f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(controller.CSICloneSourceInUse))
+				} else {
+					Fail(fmt.Sprintf("Unknown clonetype %s", actualCloneType))
+				}
+
 				// 3. Knowing that clone cannot yet advance, Create targetPvc with a "conflicting name"
 				By(fmt.Sprintf("Creating target pvc: %s/target-pvc", targetNamespaceName))
 				annotations := map[string]string{"cdi.kubevirt.io/conflicting-pvc": dataVolumeName}
@@ -343,14 +352,6 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindIfWaitForFirstConsumer(targetPvc)
 
-				actualCloneType := utils.GetCloneType(f.CdiClient, dataVolume)
-				if actualCloneType == "snapshot" {
-					f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(controller.SmartCloneSourceInUse))
-				} else if actualCloneType == "csivolumeclone" {
-					f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(controller.CSICloneSourceInUse))
-				} else {
-					Fail(fmt.Sprintf("Unknown clonetype %s", actualCloneType))
-				}
 				err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				//verify event
