@@ -194,7 +194,7 @@ const (
 	// CloneWithoutSource reports that the source PVC of a clone doesn't exists (reason)
 	CloneWithoutSource = "CloneWithoutSource"
 	// MessageCloneWithoutSource reports that the source PVC of a clone doesn't exists (message)
-	MessageCloneWithoutSource = "The source PVC doesn't exist"
+	MessageCloneWithoutSource = "The source PVC %s doesn't exist"
 
 	// AnnCSICloneRequest annotation associates object with CSI Clone Request
 	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"
@@ -663,17 +663,21 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 	prePopulated bool,
 	pvcPopulated bool) (reconcile.Result, error) {
 
+	// Get the most appropiate clone strategy
+	selectedCloneStrategy, err := r.selectCloneStrategy(datavolume, pvcSpec)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if pvcPopulated || prePopulated {
+		return r.reconcileDataVolumeStatus(datavolume, pvc, selectedCloneStrategy)
+	}
+
 	// Check if source PVC exists and do proper validation before attempting to clone
 	if done, err := r.validateCloneAndSourcePVC(datavolume); err != nil {
 		return reconcile.Result{}, err
 	} else if !done {
 		return reconcile.Result{}, nil
-	}
-
-	// Get the most appropiate clone strategy
-	selectedCloneStrategy, err := r.selectCloneStrategy(datavolume, pvcSpec)
-	if err != nil {
-		return reconcile.Result{}, err
 	}
 
 	if selectedCloneStrategy == SmartClone {
@@ -698,83 +702,79 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 		}
 	}
 
-	if !prePopulated {
-		if pvc == nil {
-			if selectedCloneStrategy == SmartClone {
-				snapshotClassName, _ := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
-				return r.reconcileSmartClonePvc(log, datavolume, pvcSpec, transferName, snapshotClassName)
-			}
-			if selectedCloneStrategy == CsiClone {
-				csiDriverAvailable, err := r.storageClassCSIDriverExists(pvcSpec.StorageClassName)
-				if err != nil && !k8serrors.IsNotFound(err) {
-					return reconcile.Result{}, err
-				}
-				if !csiDriverAvailable {
-					// err csi clone not possible
-					return reconcile.Result{},
-						r.updateDataVolumeStatusPhaseWithEvent(cdiv1.CloneScheduled, datavolume, pvc, selectedCloneStrategy,
-							DataVolumeEvent{
-								eventType: corev1.EventTypeWarning,
-								reason:    ErrUnableToClone,
-								message:   fmt.Sprintf("CSI Clone configured, but no CSIDriver available for %s", *pvcSpec.StorageClassName),
-							})
-				}
-
-				return r.reconcileCsiClonePvc(log, datavolume, pvcSpec, transferName)
-			}
-
-			newPvc, err := r.createPvcForDatavolume(log, datavolume, pvcSpec)
-			if err != nil {
-				if errQuotaExceeded(err) {
-					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, datavolume, nil, selectedCloneStrategy,
-						DataVolumeEvent{
-							eventType: corev1.EventTypeWarning,
-							reason:    ErrExceededQuota,
-							message:   err.Error(),
-						})
-				}
+	if pvc == nil {
+		if selectedCloneStrategy == SmartClone {
+			snapshotClassName, _ := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
+			return r.reconcileSmartClonePvc(log, datavolume, pvcSpec, transferName, snapshotClassName)
+		}
+		if selectedCloneStrategy == CsiClone {
+			csiDriverAvailable, err := r.storageClassCSIDriverExists(pvcSpec.StorageClassName)
+			if err != nil && !k8serrors.IsNotFound(err) {
 				return reconcile.Result{}, err
 			}
-			pvc = newPvc
-		}
-
-		shouldBeMarkedWaitForFirstConsumer, err := r.shouldBeMarkedWaitForFirstConsumer(pvc)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-
-		switch selectedCloneStrategy {
-		case HostAssistedClone:
-			if !pvcPopulated {
-				if err := r.ensureExtendedToken(pvc); err != nil {
-					return reconcile.Result{}, err
-				}
-			}
-		case CsiClone:
-			switch pvc.Status.Phase {
-			case corev1.ClaimBound:
-				if err := r.setCloneOfOnPvc(pvc); err != nil {
-					return reconcile.Result{}, err
-				}
-			case corev1.ClaimPending:
-				r.log.V(3).Info("ClaimPending CSIClone")
-				if !shouldBeMarkedWaitForFirstConsumer {
-					return reconcile.Result{}, r.updateCloneStatusPhase(cdiv1.CSICloneInProgress, datavolume, pvc, selectedCloneStrategy)
-				}
-			case corev1.ClaimLost:
+			if !csiDriverAvailable {
+				// err csi clone not possible
 				return reconcile.Result{},
-					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Failed, datavolume, pvc, selectedCloneStrategy,
+					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.CloneScheduled, datavolume, pvc, selectedCloneStrategy,
 						DataVolumeEvent{
 							eventType: corev1.EventTypeWarning,
-							reason:    ErrClaimLost,
-							message:   fmt.Sprintf(MessageErrClaimLost, pvc.Name),
+							reason:    ErrUnableToClone,
+							message:   fmt.Sprintf("CSI Clone configured, but no CSIDriver available for %s", *pvcSpec.StorageClassName),
 						})
 			}
-			fallthrough
-		case SmartClone:
-			if !pvcPopulated && !shouldBeMarkedWaitForFirstConsumer {
-				return r.finishClone(log, datavolume, pvc, pvcSpec, transferName, selectedCloneStrategy)
+
+			return r.reconcileCsiClonePvc(log, datavolume, pvcSpec, transferName)
+		}
+
+		newPvc, err := r.createPvcForDatavolume(log, datavolume, pvcSpec)
+		if err != nil {
+			if errQuotaExceeded(err) {
+				r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, datavolume, nil, selectedCloneStrategy,
+					DataVolumeEvent{
+						eventType: corev1.EventTypeWarning,
+						reason:    ErrExceededQuota,
+						message:   err.Error(),
+					})
 			}
+			return reconcile.Result{}, err
+		}
+		pvc = newPvc
+	}
+
+	shouldBeMarkedWaitForFirstConsumer, err := r.shouldBeMarkedWaitForFirstConsumer(pvc)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	switch selectedCloneStrategy {
+	case HostAssistedClone:
+		if err := r.ensureExtendedToken(pvc); err != nil {
+			return reconcile.Result{}, err
+		}
+	case CsiClone:
+		switch pvc.Status.Phase {
+		case corev1.ClaimBound:
+			if err := r.setCloneOfOnPvc(pvc); err != nil {
+				return reconcile.Result{}, err
+			}
+		case corev1.ClaimPending:
+			r.log.V(3).Info("ClaimPending CSIClone")
+			if !shouldBeMarkedWaitForFirstConsumer {
+				return reconcile.Result{}, r.updateCloneStatusPhase(cdiv1.CSICloneInProgress, datavolume, pvc, selectedCloneStrategy)
+			}
+		case corev1.ClaimLost:
+			return reconcile.Result{},
+				r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Failed, datavolume, pvc, selectedCloneStrategy,
+					DataVolumeEvent{
+						eventType: corev1.EventTypeWarning,
+						reason:    ErrClaimLost,
+						message:   fmt.Sprintf(MessageErrClaimLost, pvc.Name),
+					})
+		}
+		fallthrough
+	case SmartClone:
+		if !shouldBeMarkedWaitForFirstConsumer {
+			return r.finishClone(log, datavolume, pvc, pvcSpec, transferName, selectedCloneStrategy)
 		}
 	}
 
@@ -821,6 +821,9 @@ func (r *DatavolumeReconciler) ensureExtendedToken(pvc *corev1.PersistentVolumeC
 func (r *DatavolumeReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec) (cloneStrategy, error) {
 	preferredCloneStrategy, err := r.getCloneStrategy(datavolume)
 	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return NoClone, nil
+		}
 		return NoClone, err
 	}
 
@@ -1917,9 +1920,6 @@ func (r *DatavolumeReconciler) getCloneStrategy(dataVolume *cdiv1.DataVolume) (*
 	defaultCloneStrategy := cdiv1.CloneStrategySnapshot
 	sourcePvc, err := r.findSourcePvc(dataVolume)
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			r.recorder.Eventf(dataVolume, corev1.EventTypeWarning, ErrUnableToClone, "Source pvc %s not found", dataVolume.Spec.Source.PVC.Name)
-		}
 		return nil, err
 	}
 	storageClass, err := GetStorageClassByName(r.client, sourcePvc.Spec.StorageClassName)
@@ -2849,7 +2849,7 @@ func (r *DatavolumeReconciler) validateCloneAndSourcePVC(datavolume *cdiv1.DataV
 				DataVolumeEvent{
 					eventType: corev1.EventTypeWarning,
 					reason:    CloneWithoutSource,
-					message:   MessageCloneWithoutSource,
+					message:   fmt.Sprintf(MessageCloneWithoutSource, datavolume.Spec.Source.PVC.Name),
 				})
 			return false, nil
 		}
