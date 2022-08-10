@@ -324,16 +324,14 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 				return reconcile.Result{Requeue: true}, nil
 			}
 
-			if _, ok := pvc.Annotations[AnnImportPod]; ok {
-				// Create importer pod, make sure the PVC owns it.
-				if err := r.createImporterPod(pvc); err != nil {
-					return reconcile.Result{}, err
-				}
-			} else {
-				// Create importer pod name annotation and store in PVC
-				if err := r.initPvcAnnotations(pvc, log); err != nil {
-					return reconcile.Result{}, err
-				}
+			// Create importer pod name annotation and store in PVC
+			if err := r.initPvcAnnotations(pvc, log); err != nil {
+				return reconcile.Result{}, err
+			}
+
+			// Create importer pod, make sure the PVC owns it.
+			if err := r.createImporterPod(pvc); err != nil {
+				return reconcile.Result{}, err
 			}
 		}
 	} else {
