@@ -24,6 +24,7 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -55,6 +56,29 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			resp := mutateDVs(key, ar, true)
 			Expect(resp.Allowed).To(BeFalse())
 			Expect(resp.Result.Message).Should(Equal("AdmissionReview.Request is nil"))
+		})
+
+		It("should always allow mutate when dv is marked for deletion", func() {
+			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
+			dataVolume.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
+			dvBytes, _ := json.Marshal(&dataVolume)
+
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1.SchemeGroupVersion.Group,
+						Version:  cdicorev1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+
+			resp := mutateDVs(key, ar, true)
+			Expect(resp.Allowed).To(BeTrue())
+			Expect(resp.Patch).To(BeNil())
 		})
 
 		It("should allow a DataVolume with HTTP source", func() {
