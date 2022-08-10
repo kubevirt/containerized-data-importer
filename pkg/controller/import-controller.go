@@ -330,8 +330,8 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 					return reconcile.Result{}, err
 				}
 			} else {
-				// Create importer pod Name and store in PVC?
-				if err := r.initPvcPodName(pvc, log); err != nil {
+				// Create importer pod name annotation and store in PVC
+				if err := r.initPvcAnnotations(pvc, log); err != nil {
 					return reconcile.Result{}, err
 				}
 			}
@@ -359,7 +359,7 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 	return reconcile.Result{}, nil
 }
 
-func (r *ImportReconciler) initPvcPodName(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
+func (r *ImportReconciler) initPvcAnnotations(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
 	currentPvcCopy := pvc.DeepCopyObject()
 
 	log.V(1).Info("Init pod name on PVC")
