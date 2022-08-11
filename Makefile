@@ -20,7 +20,8 @@
 		format \
 		goveralls \
 		release-description \
-		bazel-generate bazel-build bazel-build-images bazel-push-images
+		bazel-generate bazel-build bazel-build-images bazel-push-images \
+		fossa
 
 DOCKER?=1
 ifeq (${DOCKER}, 1)
@@ -156,6 +157,9 @@ generate-doc: build-docgen
 
 build-docgen:
 	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-build-metricsdocs.sh"
+
+fossa:
+	${DO_BAZ} "FOSSA_TOKEN_FILE=${FOSSA_TOKEN_FILE} ./hack/fossa.sh"
 
 help:
 	@echo "Usage: make [Targets ...]"
