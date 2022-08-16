@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
@@ -228,7 +229,14 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 	if err := setAnnOwnedByDataVolume(newPvc, dataVolume); err != nil {
 		return reconcile.Result{}, err
 	}
-
+	//passing annotations from the target DV to the matching target PVC
+	if len(dataVolume.GetAnnotations()) > 0 {
+		for k, v := range dataVolume.GetAnnotations() {
+			if !strings.Contains(k, common.CDIAnnKey) {
+				newPvc.Annotations[k] = v
+			}
+		}
+	}
 	if snapshot.Spec.Source.PersistentVolumeClaimName != nil {
 		event := &DataVolumeEvent{
 			eventType: corev1.EventTypeNormal,
