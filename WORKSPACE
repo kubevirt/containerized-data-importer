@@ -1424,19 +1424,13 @@ rpm(
 rpm(
     name = "libnbd-0__1.12.2-1.el9.aarch64",
     sha256 = "9c15ca579e08d8df7a6950a8d63ceafcdd724bbef54ca8c4bc299eb7a4d9b608",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/libnbd-1.12.2-1.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/9c15ca579e08d8df7a6950a8d63ceafcdd724bbef54ca8c4bc299eb7a4d9b608",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/9c15ca579e08d8df7a6950a8d63ceafcdd724bbef54ca8c4bc299eb7a4d9b608"],
 )
 
 rpm(
     name = "libnbd-0__1.12.2-1.el9.x86_64",
     sha256 = "8516de690d958c8cab488a5961f5eecaa641e4f4af2d989b411c760853d18827",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/libnbd-1.12.2-1.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/8516de690d958c8cab488a5961f5eecaa641e4f4af2d989b411c760853d18827",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/8516de690d958c8cab488a5961f5eecaa641e4f4af2d989b411c760853d18827"],
 )
 
 rpm(
