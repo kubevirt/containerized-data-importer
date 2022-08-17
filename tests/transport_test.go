@@ -98,13 +98,8 @@ var _ = Describe("Transport Tests", func() {
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", pvcAnn[controller.AnnEndpoint]))
-		pvc, err := utils.CreatePVCFromDefinition(f.K8sClient, ns, utils.NewPVCDefinition("transport-e2e", "400Mi", pvcAnn, nil))
+		pvc, err := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition("transport-e2e", "400Mi", pvcAnn, nil))
 		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
-
-		By("Verifying pvc was created")
-		pvc, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, pvc.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		if shouldSucceed {
 			By("Verify PVC status annotation says succeeded")

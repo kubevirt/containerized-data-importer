@@ -1351,10 +1351,9 @@ var _ = Describe("all clone tests", func() {
 				targetName := "target" + rand.String(12)
 
 				By(fmt.Sprintf("Creating target pvc: %s/%s", f.Namespace.Name, targetName))
-				targetPvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name,
+				_, err := f.CreateBoundPVCFromDefinition(
 					utils.NewPVCDefinition(targetName, "1Gi", map[string]string{controller.AnnPopulatedFor: targetName}, nil))
 				Expect(err).ToNot(HaveOccurred())
-				f.ForceBindIfWaitForFirstConsumer(targetPvc)
 				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec(targetName, "1Gi", f.Namespace.Name, "non-existing-source", nil, &fsVM)
 				controller.AddAnnotation(cloneDV, controller.AnnDeleteAfterCompletion, "false")
 				_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
