@@ -20,7 +20,7 @@ source "${script_dir}"/config.sh
 
 generator="${BIN_DIR}/manifest-generator"
 
-(cd "${CDI_DIR}/tools/manifest-generator/" && GO111MODULE=off go build -o "${generator}" ./...)
+(cd "${CDI_DIR}/tools/manifest-generator/" && GO111MODULE=${GO111MODULE:-off} go build -o "${generator}" ./...)
 
 echo "DOCKER_PREFIX=${DOCKER_PREFIX}"
 echo "DOCKER_TAG=${DOCKER_TAG}"
