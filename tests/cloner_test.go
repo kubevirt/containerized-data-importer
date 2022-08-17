@@ -118,9 +118,6 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
 
-			By("Wait for clone to be completed")
-			_, err = utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
 			By("Wait for target datavolume phase Succeeded")
 			utils.WaitForDataVolumePhaseWithTimeout(f, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)
 
@@ -192,9 +189,6 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
 
-				By("Wait for clone to be completed")
-				_, err = utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
-				Expect(err).ToNot(HaveOccurred())
 				By("Wait for target datavolume phase Succeeded")
 				utils.WaitForDataVolumePhaseWithTimeout(f, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)
 				verifyGCFunc(targetDV.Name)
@@ -278,9 +272,6 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
 
-				By("Wait for clone to be completed")
-				_, err = utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
-				Expect(err).ToNot(HaveOccurred())
 				By("Wait for target datavolume phase Succeeded")
 				utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetDV.Name, 3*90*time.Second)
 			})
