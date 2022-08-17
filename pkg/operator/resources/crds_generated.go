@@ -5773,8 +5773,6 @@ spec:
                     - namespace
                     type: object
                 type: object
-            required:
-            - source
             type: object
         required:
         - spec
