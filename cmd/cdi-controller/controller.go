@@ -16,6 +16,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap/zapcore"
 	networkingv1 "k8s.io/api/networking/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -250,15 +251,16 @@ func start(ctx context.Context, cfg *rest.Config) {
 func main() {
 	defer klog.Flush()
 	debug := false
-	if i, err := strconv.Atoi(verbose); err == nil && i > 1 {
+	verbosityLevel, err := strconv.Atoi(verbose)
+	if err == nil && verbosityLevel > 1 {
 		debug = true
 	}
-	err := envconfig.Process("", &controllerEnvs)
+	err = envconfig.Process("", &controllerEnvs)
 	if err != nil {
 		klog.Fatalf("Unable to get environment variables: %v\n", errors.WithStack(err))
 	}
 
-	logf.SetLogger(zap.New(zap.UseDevMode(debug)))
+	logf.SetLogger(zap.New(zap.Level(zapcore.Level(-1*verbosityLevel)), zap.UseDevMode(debug)))
 	logf.Log.WithName("main").Info("Verbosity level", "verbose", verbose, "debug", debug)
 
 	cfg, err := clientcmd.BuildConfigFromFlags(kubeURL, kubeconfig)
