@@ -75,6 +75,11 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 		return toAdmissionResponseError(err)
 	}
 
+	if dataVolume.GetDeletionTimestamp() != nil {
+		// No point continuing if DV is flagged for deletion
+		return allowedAdmissionResponse()
+	}
+
 	if dataVolume.Spec.Source != nil {
 		pvcSource = dataVolume.Spec.Source.PVC
 	} else if dataVolume.Spec.SourceRef != nil && dataVolume.Spec.SourceRef.Kind == cdiv1.DataVolumeDataSource {
