@@ -1,0 +1,5 @@
+v1.53.1:
+BugFix: Add omitempty to DataSourceStatus.source
+BugFix: Check for pvc populated before doing any clone validations and action
+BugFix: Status reporting for CSI & Smart clones with WFFC storage
+
