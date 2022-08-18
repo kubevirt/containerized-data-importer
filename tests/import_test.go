@@ -109,12 +109,11 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	})
 
 	It("[test_id:4969]Should create import pod for blank raw image", func() {
-		pvc, err := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition(
+		pvc := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition(
 			"create-image",
 			"1Gi",
 			map[string]string{controller.AnnSource: controller.SourceNone, controller.AnnContentType: string(cdiv1.DataVolumeKubeVirt)},
 			nil))
-		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify the pod status is succeeded on the target PVC")
 		found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
@@ -459,8 +458,7 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.qcow2"))
-		pvc, err := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition("import-e2e", "40Mi", pvcAnn, nil))
-		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
+		pvc := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition("import-e2e", "40Mi", pvcAnn, nil))
 
 		importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
@@ -551,13 +549,12 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
 
-		pvc, err = f.CreateBoundPVCFromDefinition(utils.NewBlockPVCDefinition(
+		pvc = f.CreateBoundPVCFromDefinition(utils.NewBlockPVCDefinition(
 			"import-image-to-block-pvc",
 			"500Mi",
 			pvcAnn,
 			nil,
 			f.BlockSCName))
-		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify the pod status is succeeded on the target PVC")
 		Eventually(func() string {
@@ -663,8 +660,7 @@ var _ = Describe("[rfe_id:1947][crit:high][test_id:2145][vendor:cnv-qe@redhat.co
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/archive.tar"))
-		pvc, err := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition("import-archive", "100Mi", pvcAnn, nil))
-		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
+		pvc := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition("import-archive", "100Mi", pvcAnn, nil))
 
 		By("Verify the pod status is succeeded on the target PVC")
 		found, err := utils.WaitPVCPodStatusSucceeded(c, pvc)
@@ -690,8 +686,7 @@ var _ = Describe("PVC import phase matches pod phase", func() {
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/invaliddoesntexist"))
-		pvc, err := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition("import-archive", "100Mi", pvcAnn, nil))
-		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
+		pvc := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition("import-archive", "100Mi", pvcAnn, nil))
 
 		By("Verify the pod status is succeeded on the target PVC")
 		found, err := utils.WaitPVCPodStatusRunning(c, pvc)
@@ -750,12 +745,11 @@ var _ = Describe("Namespace with quota", func() {
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
 
-		pvc, err := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition(
+		pvc := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition(
 			"import-image-to-pvc",
 			"500Mi",
 			pvcAnn,
 			nil))
-		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify the pod status is succeeded on the target PVC")
 		Eventually(func() string {
@@ -786,12 +780,11 @@ var _ = Describe("Namespace with quota", func() {
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
 
-		_, err = f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition(
+		f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition(
 			"import-image-to-pvc",
 			"500Mi",
 			pvcAnn,
 			nil))
-		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify Quota was exceeded in logs")
 		matchString := strings.Trim(fmt.Sprintf(`"name": "import-image-to-pvc", "namespace": "%s", "error": "pods \"importer-import-image-to-pvc\" is forbidden: exceeded quota: test-quota`, f.Namespace.Name), " ")
@@ -819,12 +812,11 @@ var _ = Describe("Namespace with quota", func() {
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
 
-		pvc, err := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition(
+		pvc := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition(
 			"import-image-to-pvc",
 			"500Mi",
 			pvcAnn,
 			nil))
-		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify Quota was exceeded in logs")
 		matchString := strings.Trim(fmt.Sprintf(`"name": "import-image-to-pvc", "namespace": "%s", "error": "pods \"importer-import-image-to-pvc\" is forbidden: exceeded quota: test-quota`, f.Namespace.Name), " ")
@@ -870,12 +862,11 @@ var _ = Describe("Namespace with quota", func() {
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
 
-		pvc, err := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition(
+		pvc := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition(
 			"import-image-to-block-pvc",
 			"500Mi",
 			pvcAnn,
 			nil))
-		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify the pod status is succeeded on the target PVC")
 		Eventually(func() string {

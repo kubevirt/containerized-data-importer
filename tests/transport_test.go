@@ -98,8 +98,7 @@ var _ = Describe("Transport Tests", func() {
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", pvcAnn[controller.AnnEndpoint]))
-		pvc, err := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition("transport-e2e", "400Mi", pvcAnn, nil))
-		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
+		pvc := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition("transport-e2e", "400Mi", pvcAnn, nil))
 
 		if shouldSucceed {
 			By("Verify PVC status annotation says succeeded")

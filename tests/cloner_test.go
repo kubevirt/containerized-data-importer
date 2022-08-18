@@ -1351,12 +1351,11 @@ var _ = Describe("all clone tests", func() {
 				targetName := "target" + rand.String(12)
 
 				By(fmt.Sprintf("Creating target pvc: %s/%s", f.Namespace.Name, targetName))
-				_, err := f.CreateBoundPVCFromDefinition(
+				f.CreateBoundPVCFromDefinition(
 					utils.NewPVCDefinition(targetName, "1Gi", map[string]string{controller.AnnPopulatedFor: targetName}, nil))
-				Expect(err).ToNot(HaveOccurred())
 				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec(targetName, "1Gi", f.Namespace.Name, "non-existing-source", nil, &fsVM)
 				controller.AddAnnotation(cloneDV, controller.AnnDeleteAfterCompletion, "false")
-				_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
+				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				Expect(err).ToNot(HaveOccurred())
 				By("Wait for clone DV Succeeded phase")
 				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetName, cloneCompleteTimeout)
