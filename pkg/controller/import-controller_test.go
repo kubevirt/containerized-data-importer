@@ -619,8 +619,8 @@ var _ = Describe("Update PVC from POD", func() {
 	It("Should mark PVC as waiting for VDDK configmap, if not already present", func() {
 		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "testpod", AnnSource: SourceVDDK}, nil, corev1.ClaimPending)
 		reconciler = createImportReconciler(pvc)
-		err := reconciler.createImporterPod(pvc)
-		By("Checking importer pod creation returned an error")
+		err := reconciler.initPvcAnnotations(pvc, reconciler.log)
+		By("Checking pvc annotation initialization returned an error")
 		Expect(err).To(HaveOccurred())
 		By("Checking pvc annotations have been updated")
 		resPvc := &corev1.PersistentVolumeClaim{}

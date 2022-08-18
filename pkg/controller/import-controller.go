@@ -370,6 +370,23 @@ func (r *ImportReconciler) initPvcAnnotations(pvc *corev1.PersistentVolumeClaim,
 		anno[AnnRequiresScratch] = "true"
 	}
 
+	if getSource(pvc) == SourceVDDK {
+		r.log.V(1).Info("Pod requires VDDK sidecar for VMware transfer")
+		vddkImageName, err := r.getVddkImageName(pvc)
+		if err != nil {
+			r.log.V(1).Error(err, "failed to get VDDK image name from configmap or annotation")
+			message := fmt.Sprintf("waiting for %s configmap or %s annotation for VDDK image", common.VddkConfigMap, AnnVddkInitImageURL)
+			anno[AnnBoundCondition] = "false"
+			anno[AnnBoundConditionMessage] = message
+			anno[AnnBoundConditionReason] = common.AwaitingVDDK
+			if err := r.updatePVC(pvc, r.log); err != nil {
+				return err
+			}
+			return errors.New(message)
+		}
+		anno[AnnVddkInitImageURL] = vddkImageName
+	}
+
 	if !reflect.DeepEqual(currentPvcCopy, pvc) {
 		if err := r.updatePVC(pvc, log); err != nil {
 			return err
@@ -489,24 +506,8 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 	}
 
 	if getSource(pvc) == SourceVDDK {
-		r.log.V(1).Info("Pod requires VDDK sidecar for VMware transfer")
-		anno := pvc.GetAnnotations()
-		if imageName, ok := anno[AnnVddkInitImageURL]; ok {
+		if imageName, err := r.getVddkImageName(pvc); err == nil {
 			vddkImageName = &imageName
-		} else {
-			if vddkImageName, err = r.getVddkImageName(); err != nil {
-				r.log.V(1).Error(err, "failed to get VDDK image name from configmap")
-			}
-		}
-		if vddkImageName == nil {
-			message := fmt.Sprintf("waiting for %s configmap or %s annotation for VDDK image", common.VddkConfigMap, AnnVddkInitImageURL)
-			anno[AnnBoundCondition] = "false"
-			anno[AnnBoundConditionMessage] = message
-			anno[AnnBoundConditionReason] = common.AwaitingVDDK
-			if err := r.updatePVC(pvc, r.log); err != nil {
-				return err
-			}
-			return errors.New(message)
 		}
 	}
 
@@ -788,23 +789,26 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 }
 
 // Get path to VDDK image from 'v2v-vmware' ConfigMap
-func (r *ImportReconciler) getVddkImageName() (*string, error) {
+func (r *ImportReconciler) getVddkImageName(pvc *corev1.PersistentVolumeClaim) (string, error) {
+	if imageName, ok := pvc.GetAnnotations()[AnnVddkInitImageURL]; ok {
+		return imageName, nil
+	}
 	namespace := util.GetNamespace()
 
 	cm := &corev1.ConfigMap{}
 	err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: common.VddkConfigMap, Namespace: namespace}, cm)
 	if k8serrors.IsNotFound(err) {
-		return nil, errors.Errorf("No %s ConfigMap present in namespace %s", common.VddkConfigMap, namespace)
+		return "", errors.Errorf("No %s ConfigMap present in namespace %s", common.VddkConfigMap, namespace)
 	}
 
 	image, found := cm.Data[common.VddkConfigDataKey]
 	if found {
 		msg := fmt.Sprintf("Found %s ConfigMap in namespace %s, VDDK image path is: ", common.VddkConfigMap, namespace)
 		r.log.V(1).Info(msg, common.VddkConfigDataKey, image)
-		return &image, nil
+		return image, nil
 	}
 
-	return nil, errors.Errorf("Found %s ConfigMap in namespace %s, but it does not contain a '%s' entry.", common.VddkConfigMap, namespace, common.VddkConfigDataKey)
+	return "", errors.Errorf("Found %s ConfigMap in namespace %s, but it does not contain a '%s' entry.", common.VddkConfigMap, namespace, common.VddkConfigDataKey)
 }
 
 // returns the source string which determines the type of source. If no source or invalid source found, default to http
