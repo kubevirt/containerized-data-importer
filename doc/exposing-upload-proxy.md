@@ -25,8 +25,9 @@ metadata:
   namespace: cdi
   annotations:
     nginx.org/ssl-services: "cdi-uploadproxy"
-    ingress.kubernetes.io/ssl-passthrough: "true"
-    nginx.ingress.kubernetes.io/secure-backends: "true"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
     nginx.ingress.kubernetes.io/proxy-body-size: "0"
 spec:
   rules:
