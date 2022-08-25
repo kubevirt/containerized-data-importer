@@ -188,22 +188,6 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(false))
 		})
 
-		It("should accept DataVolume with PVC source on create if source PVC does not exist, but target pvc exists and populated", func() {
-			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
-			targetPVC := &corev1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      dataVolume.Name,
-					Namespace: dataVolume.Namespace,
-					Annotations: map[string]string{
-						"cdi.kubevirt.io/storage.populatedFor": dataVolume.Name,
-					},
-				},
-				Spec: *dataVolume.Spec.PVC,
-			}
-			resp := validateDataVolumeCreate(dataVolume, targetPVC)
-			Expect(resp.Allowed).To(Equal(true))
-		})
-
 		It("should reject invalid DataVolume source PVC namespace on create", func() {
 			dataVolume := newPVCDataVolume("testDV", "", "test")
 			resp := validateDataVolumeCreate(dataVolume)
@@ -519,36 +503,6 @@ var _ = Describe("Validating Webhook", func() {
 			}
 			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource})
 			Expect(resp.Allowed).To(Equal(false))
-		})
-
-		It("should accept DataVolume with SourceRef on create if DataSource exists, source PVC does not exist, but target pvc exists and populated", func() {
-			dataVolume := newDataSourceDataVolume("testDV", &testNamespace, "test")
-			dataSource := &cdiv1.DataSource{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      dataVolume.Spec.SourceRef.Name,
-					Namespace: testNamespace,
-				},
-				Spec: cdiv1.DataSourceSpec{
-					Source: cdiv1.DataSourceSource{
-						PVC: &cdiv1.DataVolumeSourcePVC{
-							Name:      "testPVC",
-							Namespace: testNamespace,
-						},
-					},
-				},
-			}
-			targetPVC := &corev1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      dataVolume.Name,
-					Namespace: dataVolume.Namespace,
-					Annotations: map[string]string{
-						"cdi.kubevirt.io/storage.populatedFor": dataVolume.Name,
-					},
-				},
-				Spec: *dataVolume.Spec.PVC,
-			}
-			resp := validateDataVolumeCreateEx(dataVolume, []runtime.Object{targetPVC}, []runtime.Object{dataSource})
-			Expect(resp.Allowed).To(Equal(true))
 		})
 
 		It("should reject DataVolume with empty SourceRef name on create", func() {

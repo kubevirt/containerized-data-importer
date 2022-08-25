@@ -109,7 +109,7 @@ func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *a
 		return causes
 	}
 
-	causes = wh.validateDataVolumeSpec(request, k8sfield.NewPath("Template"), &spec.Template.Spec, nil, "")
+	causes = wh.validateDataVolumeSpec(request, k8sfield.NewPath("Template"), &spec.Template.Spec, nil)
 	if len(causes) > 0 {
 		return causes
 	}
