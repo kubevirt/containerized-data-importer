@@ -2582,14 +2582,12 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 	}
 
 	annotations[AnnPodRestarts] = "0"
+	annotations[AnnContentType] = string(getContentType(dataVolume))
+
 	if dataVolume.Spec.Source.HTTP != nil {
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.HTTP.URL
 		annotations[AnnSource] = SourceHTTP
-		if dataVolume.Spec.ContentType == cdiv1.DataVolumeArchive {
-			annotations[AnnContentType] = string(cdiv1.DataVolumeArchive)
-		} else {
-			annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
-		}
+
 		if dataVolume.Spec.Source.HTTP.SecretRef != "" {
 			annotations[AnnSecret] = dataVolume.Spec.Source.HTTP.SecretRef
 		}
@@ -2627,7 +2625,6 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 				annotations[AnnRegistryImageStream] = "true"
 			}
 		}
-		annotations[AnnContentType] = string(dataVolume.Spec.ContentType)
 		secretRef := dataVolume.Spec.Source.Registry.SecretRef
 		if secretRef != nil && *secretRef != "" {
 			annotations[AnnSecret] = *secretRef
@@ -2649,10 +2646,8 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 		annotations[AnnCloneRequest] = sourceNamespace + "/" + dataVolume.Spec.Source.PVC.Name
 	} else if dataVolume.Spec.Source.Upload != nil {
 		annotations[AnnUploadRequest] = ""
-		annotations[AnnContentType] = string(dataVolume.Spec.ContentType)
 	} else if dataVolume.Spec.Source.Blank != nil {
 		annotations[AnnSource] = SourceNone
-		annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
 	} else if dataVolume.Spec.Source.Imageio != nil {
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.Imageio.URL
 		annotations[AnnSource] = SourceImageio
@@ -2703,6 +2698,13 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 	}
 
 	return pvc, nil
+}
+
+func getContentType(dv *cdiv1.DataVolume) cdiv1.DataVolumeContentType {
+	if dv.Spec.ContentType == cdiv1.DataVolumeArchive {
+		return cdiv1.DataVolumeArchive
+	}
+	return cdiv1.DataVolumeKubeVirt
 }
 
 // If sourceRef is set, populate spec.Source with data from the DataSource
