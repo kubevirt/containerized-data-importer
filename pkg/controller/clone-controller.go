@@ -593,7 +593,6 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 		},
 		Spec: corev1.PodSpec{
 			SecurityContext: &corev1.PodSecurityContext{
-				RunAsUser: &[]int64{0}[0],
 				SELinuxOptions: &corev1.SELinuxOptions{
 					User:  "system_u",
 					Role:  "system_r",

@@ -1247,9 +1247,6 @@ func setImporterPodCommons(pod *corev1.Pod, podEnvVar *importPodEnvVar, pvc *cor
 
 	if getVolumeMode(pvc) == corev1.PersistentVolumeBlock {
 		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
-		pod.Spec.SecurityContext = &corev1.PodSecurityContext{
-			RunAsUser: &[]int64{0}[0],
-		}
 	} else {
 		pod.Spec.Containers[0].VolumeMounts = addImportVolumeMounts()
 	}

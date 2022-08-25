@@ -739,9 +739,6 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			},
 		},
 		Spec: v1.PodSpec{
-			SecurityContext: &v1.PodSecurityContext{
-				RunAsUser: &[]int64{0}[0],
-			},
 			Containers: []v1.Container{
 				{
 					Name:            common.UploadServerPodname,
@@ -843,6 +840,9 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 	}
 
 	if !checkPVC(args.PVC, AnnCloneRequest, r.log.WithValues("Name", args.PVC.Name, "Namspace", args.PVC.Namespace)) {
+		if pod.Spec.SecurityContext == nil {
+			pod.Spec.SecurityContext = &v1.PodSecurityContext{}
+		}
 		pod.Spec.SecurityContext.FSGroup = &fsGroup
 	}
 

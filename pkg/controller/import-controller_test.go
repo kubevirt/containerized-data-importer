@@ -785,7 +785,6 @@ var _ = Describe("Create Importer Pod", func() {
 		if getVolumeMode(pvc) == corev1.PersistentVolumeBlock {
 			Expect(pod.Spec.Containers[0].VolumeDevices[0].Name).To(Equal(DataVolName))
 			Expect(pod.Spec.Containers[0].VolumeDevices[0].DevicePath).To(Equal(common.WriteBlockPath))
-			Expect(pod.Spec.SecurityContext.RunAsUser).To(Equal(&[]int64{0}[0]))
 			if scratchPvcName != nil {
 				By("Verifying scratch space is set if available")
 				Expect(len(pod.Spec.Containers[0].VolumeMounts)).To(Equal(1))
@@ -1299,9 +1298,6 @@ func createImporterTestPod(pvc *corev1.PersistentVolumeClaim, dvname string, scr
 	pod.Spec.Containers[0].Env = env
 	if volumeMode == corev1.PersistentVolumeBlock {
 		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
-		pod.Spec.SecurityContext = &corev1.PodSecurityContext{
-			RunAsUser: &[]int64{0}[0],
-		}
 	} else {
 		pod.Spec.Containers[0].VolumeMounts = addImportVolumeMounts()
 	}

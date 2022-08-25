@@ -840,9 +840,6 @@ func createSourcePod(pvc *corev1.PersistentVolumeClaim, pvcUID string) *corev1.P
 			},
 		},
 		Spec: corev1.PodSpec{
-			SecurityContext: &corev1.PodSecurityContext{
-				RunAsUser: &[]int64{0}[0],
-			},
 			Containers: []corev1.Container{
 				{
 					Name:            common.ClonerSourcePodName,
@@ -928,9 +925,6 @@ func createSourcePod(pvc *corev1.PersistentVolumeClaim, pvcUID string) *corev1.P
 				Name:  "MOUNT_POINT",
 				Value: common.WriteBlockPath,
 			},
-		}
-		pod.Spec.SecurityContext = &corev1.PodSecurityContext{
-			RunAsUser: &[]int64{0}[0],
 		}
 	} else {
 		pod.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
