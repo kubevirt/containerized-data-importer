@@ -16,8 +16,8 @@ CDI configuration in specified by administrators in the `spec.config` of the `CD
 | preallocation            | nil           | Preallocation setting to use unless a per-dataVolume value is set                                                                                                                                                            |
 | importProxy              | nil           | The proxy configuration to be used by the importer pod when accessing a http data source. When the ImportProxy is empty, the Cluster Wide-Proxy (Openshift) configurations are used. ImportProxy has four parameters: `ImportProxy.HTTPProxy` that defines the proxy http url, the `ImportProxy.HTTPSProxy` that determines the roxy https url, and the `ImportProxy.NoProxy` which enforce that a list of hostnames and/or CIDRs will be not proxied, and finally, the `ImportProxy.TrustedCAProxy`, the ConfigMap name of an user-provided trusted certificate authority (CA) bundle to be added to the importer pod CA bundle. |
 | insecureRegistries       | nil           | List of TLS disabled registries. |
-
-
+| dataVolumeTTLSeconds     | nil           | Time after DataVolume completion it can be garbage collected. |
+| tlsSecurityProfile       | nil           | Used by operators to apply cluster-wide TLS security settings to operands. |
 
 filesystemOverhead configuration:
  - `global` - default value is `"0.055"` - The amount to reserve for a Filesystem volume unless a per-storageClass value is chosen.                                                                                                                                     
