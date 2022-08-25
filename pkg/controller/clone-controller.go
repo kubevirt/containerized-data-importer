@@ -592,14 +592,6 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 			},
 		},
 		Spec: corev1.PodSpec{
-			SecurityContext: &corev1.PodSecurityContext{
-				SELinuxOptions: &corev1.SELinuxOptions{
-					User:  "system_u",
-					Role:  "system_r",
-					Type:  "spc_t",
-					Level: "s0",
-				},
-			},
 			Containers: []corev1.Container{
 				{
 					Name:            common.ClonerSourcePodName,
@@ -669,7 +661,6 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 							ClaimName: sourcePvcName,
-							ReadOnly:  true,
 						},
 					},
 				},
@@ -732,6 +723,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 			{
 				Name:      DataVolName,
 				MountPath: common.ClonerMountPath,
+				ReadOnly:  true,
 			},
 		}
 		addVars = []corev1.EnvVar{

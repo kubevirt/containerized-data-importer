@@ -665,10 +665,31 @@ func GetPodsUsingPVCs(c client.Client, namespace string, names sets.String, allo
 		}
 		for _, volume := range pod.Spec.Volumes {
 			if volume.VolumeSource.PersistentVolumeClaim != nil &&
-				names.Has(volume.PersistentVolumeClaim.ClaimName) &&
-				(!allowReadOnly || !volume.PersistentVolumeClaim.ReadOnly) {
-				pods = append(pods, pod)
-				break
+				names.Has(volume.PersistentVolumeClaim.ClaimName) {
+				addPod := true
+				if allowReadOnly {
+					if !volume.VolumeSource.PersistentVolumeClaim.ReadOnly {
+						onlyReadOnly := true
+						for _, c := range pod.Spec.Containers {
+							for _, vm := range c.VolumeMounts {
+								if vm.Name == volume.Name && !vm.ReadOnly {
+									onlyReadOnly = false
+								}
+							}
+						}
+						if onlyReadOnly {
+							// no rw mounts
+							addPod = false
+						}
+					} else {
+						// all mounts must be ro
+						addPod = false
+					}
+				}
+				if addPod {
+					pods = append(pods, pod)
+					break
+				}
 			}
 		}
 	}
