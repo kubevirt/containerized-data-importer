@@ -1,9 +1,23 @@
 # Data Volumes
 
 ## Introduction
-Data Volumes(DV) are an abstraction on top of Persistent Volume Claims(PVC) and the Containerized Data Importer(CDI). The DV will monitor and orchestrate the upload/import of the data into the PVC. Once the process is completed, the DV will be in a consistent state that allow consumers to make certain assumptions about the DV in order to progress their own orchestration.
+Data Volumes(DV) are an abstraction on top of Persistent Volume Claims(PVC) and the Containerized Data Importer(CDI). The DV will monitor and orchestrate the import/upload/clone of the data into the PVC.
 
 Why is this an improvement over simply looking at the state annotation created and managed by CDI? Data Volumes provide a versioned API that other projects like [Kubevirt](https://github.com/kubevirt/kubevirt) can integrate with. This way those projects can rely on an API staying the same for a particular version and have guarantees about what that API will look like. Any changes to the API will result in a new version of the API.
+
+### Garbage collection of successfully completed DataVolumes
+Once the PVC population process is completed, its corresponding DV has no use, so it is better garbage collected.
+
+Some GC motivations:
+* Keeping the DV around after the fact sometimes confuses users, thinking they should modify the DV to have the matching PVC react. For example, resizing PVC seems to confuse users because they see the DV.
+* When user deletes a PVC that is owned by a DV, she is confused when the PVC is re-created.
+* Restore a backed up VM without the need to recreate the DataVolume is much simpler.
+* Replicate a workload to another cluster without the need to mutate the PVC and DV with special annotations in order for them to behave as expected in the new cluster.
+
+GC can be dynamically configured in [CDIConfig](cdi-config.md), so we recommend users not to assume the DV exists after completion. When the desired PVC exists, but its DV does not exist, it means that the PVC was successfully populated and the DV was garbage collected. To prevent a DV from being garbage collected, it should be annotated with:
+```yaml
+cdi.kubevirt.io/storage.deleteAfterCompletion: "false"
+```
 
 ### Status phases
 The following statuses are possible.
