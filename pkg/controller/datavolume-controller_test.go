@@ -1552,6 +1552,38 @@ var _ = Describe("All DataVolume Tests", func() {
 			Entry("should default to snapshot", nil, nil, cdiv1.CloneStrategySnapshot),
 		)
 	})
+
+	var _ = Describe("Clone without source", func() {
+		scName := "testsc"
+		sc := createStorageClassWithProvisioner(scName, map[string]string{
+			AnnDefaultStorageClass: "true",
+		}, "csi-plugin")
+
+		It("Validate clone already populated without source completes", func() {
+			dv := newCloneDataVolume("test-dv")
+			storageProfile := createStorageProfile(scName, nil, filesystemMode)
+			pvcAnnotations := make(map[string]string)
+			pvcAnnotations[AnnPopulatedFor] = "test-dv"
+			pvc := createPvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			pvc.SetAnnotations(make(map[string]string))
+			pvc.GetAnnotations()[AnnPopulatedFor] = "test-dv"
+			reconciler = createDatavolumeReconciler(dv, pvc, storageProfile, sc)
+
+			prePopulated := false
+			pvcPopulated := true
+			result, err := reconciler.reconcileClone(reconciler.log, dv, pvc, dv.Spec.PVC.DeepCopy(), "", prePopulated, pvcPopulated)
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.ClaimName).To(Equal("test-dv"))
+			Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
+			Expect(dv.Annotations[AnnPrePopulated]).To(Equal("test-dv"))
+			Expect(dv.Annotations[annCloneType]).To(BeEmpty())
+			Expect(result).To(Equal(reconcile.Result{}))
+		})
+
+	})
+
 	var _ = Describe("Get Pod from PVC", func() {
 		var (
 			pvc *corev1.PersistentVolumeClaim
