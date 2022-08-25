@@ -473,18 +473,10 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, err
 	}
 
-	selectedCloneStrategy, err := r.selectCloneStrategy(datavolume, pvcSpec)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-	if selectedCloneStrategy == SmartClone {
-		r.sccs.StartController()
-	}
-
 	_, dvPrePopulated := datavolume.Annotations[AnnPrePopulated]
 
-	if selectedCloneStrategy != NoClone {
-		return r.reconcileClone(log, datavolume, pvc, pvcSpec, transferName, dvPrePopulated, pvcPopulated, selectedCloneStrategy)
+	if isClone := datavolume.Spec.Source.PVC != nil; isClone {
+		return r.reconcileClone(log, datavolume, pvc, pvcSpec, transferName, dvPrePopulated, pvcPopulated)
 	}
 
 	if !dvPrePopulated {
@@ -492,7 +484,7 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 			newPvc, err := r.createPvcForDatavolume(log, datavolume, pvcSpec)
 			if err != nil {
 				if errQuotaExceeded(err) {
-					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, datavolume, nil, selectedCloneStrategy,
+					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, datavolume, nil, NoClone,
 						DataVolumeEvent{
 							eventType: corev1.EventTypeWarning,
 							reason:    ErrExceededQuota,
@@ -525,7 +517,7 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 
 	// Finally, we update the status block of the DataVolume resource to reflect the
 	// current state of the world
-	return r.reconcileDataVolumeStatus(datavolume, pvc, selectedCloneStrategy)
+	return r.reconcileDataVolumeStatus(datavolume, pvc, NoClone)
 }
 
 func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
@@ -534,10 +526,20 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 	pvcSpec *corev1.PersistentVolumeClaimSpec,
 	transferName string,
 	prePopulated bool,
-	pvcPopulated bool,
-	selectedCloneStrategy cloneStrategy) (reconcile.Result, error) {
+	pvcPopulated bool) (reconcile.Result, error) {
 
+	var err error
+	selectedCloneStrategy := NoClone
 	if !prePopulated && !pvcPopulated {
+		selectedCloneStrategy, err = r.selectCloneStrategy(datavolume, pvcSpec)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		if selectedCloneStrategy == SmartClone {
+			r.sccs.StartController()
+		}
+
 		if pvc == nil {
 			if selectedCloneStrategy == SmartClone {
 				snapshotClassName, _ := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
@@ -646,10 +648,6 @@ func (r *DatavolumeReconciler) ensureExtendedToken(pvc *corev1.PersistentVolumeC
 }
 
 func (r *DatavolumeReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec) (cloneStrategy, error) {
-	if datavolume.Spec.Source.PVC == nil {
-		return NoClone, nil
-	}
-
 	preferredCloneStrategy, err := r.getCloneStrategy(datavolume)
 	if err != nil {
 		return NoClone, err
