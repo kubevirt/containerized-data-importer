@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
@@ -41,8 +42,10 @@ const (
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", func() {
 
 	var sourcePvc *v1.PersistentVolumeClaim
+	var targetPvc *v1.PersistentVolumeClaim
 
 	fillData := "123456789012345678901234567890123456789012345678901234567890"
+	fillDataFSMD5sum := "fabc176de7eb1b6ca90b3aa4c7e035f3"
 	testFile := utils.DefaultPvcMountPath + "/source.txt"
 	fillCommand := "echo \"" + fillData + "\" >> " + testFile
 
@@ -200,10 +203,20 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	AfterEach(func() {
 		if sourcePvc != nil {
-			By("[AfterEach] Clean up target PVC")
+			By("[AfterEach] Clean up sourcePvc PVC")
 			err := f.DeletePVC(sourcePvc)
-			Expect(err).ToNot(HaveOccurred())
+			if err != nil {
+				fmt.Fprintf(GinkgoWriter, "Err: %s\n", err)
+			}
 			sourcePvc = nil
+		}
+		if targetPvc != nil {
+			By("[AfterEach] Clean up targetPvc PVC")
+			err := f.DeletePVC(targetPvc)
+			if err != nil {
+				fmt.Fprintf(GinkgoWriter, "Err: %s\n", err)
+			}
+			targetPvc = nil
 		}
 	})
 
@@ -1165,15 +1178,16 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, timeout, pollingInterval).Should(BeTrue())
 		})
 
-		It("[test_id:4961]should handle a pre populated PVC", func() {
-			By(fmt.Sprintf("initializing source PVC %s", dataVolumeName))
-			sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
-			annotations := map[string]string{"cdi.kubevirt.io/storage.populatedFor": dataVolumeName}
-			pvcDef := utils.NewPVCDefinition(dataVolumeName, "1G", annotations, nil)
-			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand)
+		It("[test_id:4961] should handle a pre populated PVC during import", func() {
+			By(fmt.Sprintf("initializing target PVC %s", dataVolumeName))
+			targetPodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
+			annotations := map[string]string{controller.AnnPopulatedFor: dataVolumeName}
+			targetPvcDef := utils.NewPVCDefinition(dataVolumeName, "1G", annotations, nil)
+			targetPvc = f.CreateAndPopulateSourcePVC(targetPvcDef, targetPodFillerName, fillCommand)
+
+			By(fmt.Sprintf("creating new populated datavolume %s", dataVolumeName))
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", cirrosURL())
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
-			By(fmt.Sprintf("creating new populated datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -1181,10 +1195,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				pvcName := dv.Annotations["cdi.kubevirt.io/storage.prePopulated"]
-				return pvcName == pvcDef.Name &&
+				return pvcName == targetPvcDef.Name &&
 					dv.Status.Phase == cdiv1.Succeeded &&
 					string(dv.Status.Progress) == "N/A"
 			}, timeout, pollingInterval).Should(BeTrue())
+
+			By("Verify no import - the contents of prepopulated volume did not change")
+			md5Match, err := f.VerifyTargetPVCContentMD5(f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum)
+			Expect(err).To(BeNil())
+			Expect(md5Match).To(BeTrue())
 		})
 
 	})
