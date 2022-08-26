@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
@@ -1178,7 +1177,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, timeout, pollingInterval).Should(BeTrue())
 		})
 
-		It("[test_id:4961] should handle a pre populated PVC during import", func() {
+		It("[test_id:4961] should handle a pre populated PVC for import DV", func() {
 			By(fmt.Sprintf("initializing target PVC %s", dataVolumeName))
 			targetPodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
 			annotations := map[string]string{controller.AnnPopulatedFor: dataVolumeName}
@@ -1201,11 +1200,38 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, timeout, pollingInterval).Should(BeTrue())
 
 			By("Verify no import - the contents of prepopulated volume did not change")
-			md5Match, err := f.VerifyTargetPVCContentMD5(f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum)
+			md5Match, err := f.VerifyTargetPVCContentMD5(f.Namespace, targetPvc, testFile, fillDataFSMD5sum)
 			Expect(err).To(BeNil())
 			Expect(md5Match).To(BeTrue())
 		})
 
+		It("should handle a pre populated PVC for upload DV", func() {
+			By(fmt.Sprintf("initializing target PVC %s", dataVolumeName))
+			targetPodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
+			annotations := map[string]string{controller.AnnPopulatedFor: dataVolumeName}
+			targetPvcDef := utils.NewPVCDefinition(dataVolumeName, "1G", annotations, nil)
+			targetPvc = f.CreateAndPopulateSourcePVC(targetPvcDef, targetPodFillerName, fillCommand)
+
+			By(fmt.Sprintf("creating new populated datavolume %s", dataVolumeName))
+			dataVolume := utils.NewDataVolumeForUpload(dataVolumeName, "1Gi")
+			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				pvcName := dv.Annotations["cdi.kubevirt.io/storage.prePopulated"]
+				return pvcName == targetPvcDef.Name &&
+					dv.Status.Phase == cdiv1.Succeeded &&
+					string(dv.Status.Progress) == "N/A"
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			By("Verify no upload - the contents of prepopulated volume did not change")
+			md5Match, err := f.VerifyTargetPVCContentMD5(f.Namespace, targetPvc, testFile, fillDataFSMD5sum)
+			Expect(err).To(BeNil())
+			Expect(md5Match).To(BeTrue())
+		})
 	})
 
 	Describe("[rfe_id:1111][test_id:2001][crit:low][vendor:cnv-qe@redhat.com][level:component]Verify multiple blank disk creations in parallel", func() {
