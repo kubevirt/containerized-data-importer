@@ -702,13 +702,17 @@ var _ = Describe("all clone tests", func() {
 
 			It("should handle a pre populated PVC during clone", func() {
 				By(fmt.Sprintf("initializing target PVC %s", dataVolumeName))
-				sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
-				annotations := map[string]string{"cdi.kubevirt.io/storage.populatedFor": dataVolumeName}
-				pvcDef := utils.NewPVCDefinition(dataVolumeName, "1G", annotations, nil)
-				_ = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
+				targetPodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
+				annotations := map[string]string{controller.AnnPopulatedFor: dataVolumeName}
+				targetPvcDef := utils.NewPVCDefinition(dataVolumeName, "1G", annotations, nil)
+				targetPvc = f.CreateAndPopulateSourcePVC(targetPvcDef, targetPodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 
-				srcPpvcDef := utils.NewPVCDefinition("sourcepvcempty", "1G", nil, nil)
-				sourcePvc := f.CreateAndPopulateSourcePVC(srcPpvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
+				By(fmt.Sprintf("initializing source PVC %s witg different data", dataVolumeName))
+				alternativeFillData := "987654321"
+				alternativeFillCommand := "echo \"" + alternativeFillData + "\" >> " + testBaseDir
+				sourcePodFillerName := fmt.Sprintf("%s-filler-pod", "sourcepvcempty")
+				srcPvcDef := utils.NewPVCDefinition("sourcepvcempty", "1G", nil, nil)
+				sourcePvc := f.CreateAndPopulateSourcePVC(srcPvcDef, sourcePodFillerName, alternativeFillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 
 				dataVolume := utils.NewDataVolumeForImageCloning(dataVolumeName, "1G",
 					sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
@@ -722,10 +726,15 @@ var _ = Describe("all clone tests", func() {
 					dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
 					pvcName := dv.Annotations["cdi.kubevirt.io/storage.prePopulated"]
-					return pvcName == pvcDef.Name &&
+					return pvcName == targetPvcDef.Name &&
 						dv.Status.Phase == cdiv1.Succeeded &&
 						string(dv.Status.Progress) == "N/A"
 				}, timeout, pollingInterval).Should(BeTrue(), "DV Should succeed with storage.prePopulated==pvcName")
+
+				By("Verify no clone - the contents of prepopulated volume did not change")
+				md5Match, err := f.VerifyTargetPVCContentMD5(f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum)
+				Expect(err).To(BeNil())
+				Expect(md5Match).To(BeTrue())
 			})
 
 			DescribeTable("Should clone with empty volume size without using size-detection pod",
@@ -1357,6 +1366,7 @@ var _ = Describe("all clone tests", func() {
 				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.CloneValidationFailed))
 			})
 
+			// TODO: check if this test is a duplicate of It("should handle a pre populated PVC during clone", func()
 			It("Should not clone when PopulatedFor annotation exists", func() {
 				targetName := "target" + rand.String(12)
 
