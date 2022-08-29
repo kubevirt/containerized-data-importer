@@ -111,6 +111,7 @@ var _ = Describe("[rfe_id:1250][crit:high][test_id:1889][vendor:cnv-qe@redhat.co
 		It("Should not not interrupt an import while switching leaders", func() {
 			Expect(leaderPodName).ShouldNot(BeEmpty())
 			var importer *v1.Pod
+			var err error
 
 			newPodName := locateNewPod(f, leaderPodName)
 			Expect(newPodName).ShouldNot(BeEmpty())
@@ -122,9 +123,7 @@ var _ = Describe("[rfe_id:1250][crit:high][test_id:1889][vendor:cnv-qe@redhat.co
 				controller.AnnSecret:   "",
 			}
 
-			pvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, utils.NewPVCDefinition("import-e2e", "40Mi", pvcAnn, nil))
-			Expect(err).NotTo(HaveOccurred())
-			f.ForceBindIfWaitForFirstConsumer(pvc)
+			f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition("import-e2e", "40Mi", pvcAnn, nil))
 
 			Eventually(func() bool {
 				importer, err = utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)

@@ -74,8 +74,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			}, timeout, pollingInterval).Should(BeTrue())
 		}
 		By("Creating PVC with upload target annotation")
-		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
-		Expect(err).ToNot(HaveOccurred())
+		pvc = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 
 		uploadProxyURL = findProxyURLCdiConfig(f)
 		if uploadProxyURL == "" {
@@ -225,8 +224,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		}
 
 		By("Creating PVC with upload target annotation and archive content-type")
-		archivePVC, err = f.CreateBoundPVCFromDefinition(utils.UploadArchivePVCDefinition())
-		Expect(err).ToNot(HaveOccurred())
+		archivePVC = f.CreateBoundPVCFromDefinition(utils.UploadArchivePVCDefinition())
 
 		By("Verify PVC annotation says ready")
 		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, archivePVC)
@@ -627,8 +625,7 @@ var _ = Describe("Block PV upload Test", func() {
 		}
 
 		By("Creating PVC with upload target annotation")
-		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadBlockPVCDefinition(f.BlockSCName))
-		Expect(err).ToNot(HaveOccurred())
+		pvc = f.CreateBoundPVCFromDefinition(utils.UploadBlockPVCDefinition(f.BlockSCName))
 
 		uploadProxyURL = findProxyURLCdiConfig(f)
 		if uploadProxyURL == "" {
@@ -768,8 +765,7 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		err := f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		By("Creating PVC with upload target annotation")
-		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
-		Expect(err).ToNot(HaveOccurred())
+		pvc = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 
 		By("Verify PVC annotation says ready")
 		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
@@ -788,8 +784,7 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		By("Creating PVC with upload target annotation")
-		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
-		Expect(err).ToNot(HaveOccurred())
+		pvc = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 
 		By("Verify Quota was exceeded in logs")
 		matchString := "pods \\\"cdi-upload-upload-test\\\" is forbidden: exceeded quota: test-quota, requested"
@@ -811,8 +806,7 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		err = f.CreateQuotaInNs(int64(1), int64(256*1024*1024), int64(2), int64(256*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		By("Creating PVC with upload target annotation")
-		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
-		Expect(err).ToNot(HaveOccurred())
+		pvc = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 
 		By("Verify Quota was exceeded in logs")
 		matchString := "pods \\\"cdi-upload-upload-test\\\" is forbidden: exceeded quota: test-quota, requested"
@@ -848,8 +842,7 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		By("Creating PVC with upload target annotation")
-		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
-		Expect(err).ToNot(HaveOccurred())
+		pvc = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 
 		By("Verify PVC annotation says ready")
 		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)

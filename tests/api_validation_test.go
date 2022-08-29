@@ -199,9 +199,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 
 	Context("DataVolume destination PVC", func() {
 		BeforeEach(func() {
-			pvc := utils.NewPVCDefinition(dataVolumeName, "50Mi", nil, nil)
-
-			_, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, pvc)
+			_, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(dataVolumeName, "50Mi", nil, nil))
 			Expect(err).ToNot(HaveOccurred())
 		})
 

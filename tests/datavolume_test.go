@@ -1142,8 +1142,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("Create PVC")
 			annotations := map[string]string{"cdi.kubevirt.io/storage.populatedFor": dataVolumeName}
 			pvc := utils.NewPVCDefinition(dataVolumeName, "100m", annotations, nil)
-			pvc, err = f.CreateBoundPVCFromDefinition(pvc)
-			Expect(err).ToNot(HaveOccurred())
+			pvc = f.CreateBoundPVCFromDefinition(pvc)
 
 			By("Verifying Succeed with PVC Bound")
 			err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)

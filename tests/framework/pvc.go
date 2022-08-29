@@ -33,14 +33,14 @@ func (f *Framework) CreatePVCFromDefinition(def *k8sv1.PersistentVolumeClaim) (*
 
 // CreateBoundPVCFromDefinition is a wrapper around utils.CreatePVCFromDefinition that also force binds pvc on
 // on WaitForFirstConsumer storage class by executing f.ForceBindIfWaitForFirstConsumer(pvc)
-func (f *Framework) CreateBoundPVCFromDefinition(def *k8sv1.PersistentVolumeClaim) (*k8sv1.PersistentVolumeClaim, error) {
+func (f *Framework) CreateBoundPVCFromDefinition(def *k8sv1.PersistentVolumeClaim) *k8sv1.PersistentVolumeClaim {
 	pvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, def)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	pvc, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, pvc.Name)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	f.ForceBindIfWaitForFirstConsumer(pvc)
-	return pvc, nil
+	return pvc
 }
 
 // DeletePVC is a wrapper around utils.DeletePVC

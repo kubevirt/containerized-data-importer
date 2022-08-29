@@ -118,9 +118,6 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
 
-			By("Wait for clone to be completed")
-			_, err = utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
 			By("Wait for target datavolume phase Succeeded")
 			utils.WaitForDataVolumePhaseWithTimeout(f, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)
 
@@ -192,9 +189,6 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
 
-				By("Wait for clone to be completed")
-				_, err = utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
-				Expect(err).ToNot(HaveOccurred())
 				By("Wait for target datavolume phase Succeeded")
 				utils.WaitForDataVolumePhaseWithTimeout(f, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)
 				verifyGCFunc(targetDV.Name)
@@ -278,9 +272,6 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
 
-				By("Wait for clone to be completed")
-				_, err = utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
-				Expect(err).ToNot(HaveOccurred())
 				By("Wait for target datavolume phase Succeeded")
 				utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetDV.Name, 3*90*time.Second)
 			})
@@ -1361,13 +1352,11 @@ var _ = Describe("all clone tests", func() {
 				targetName := "target" + rand.String(12)
 
 				By(fmt.Sprintf("Creating target pvc: %s/%s", f.Namespace.Name, targetName))
-				targetPvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name,
+				f.CreateBoundPVCFromDefinition(
 					utils.NewPVCDefinition(targetName, "1Gi", map[string]string{controller.AnnPopulatedFor: targetName}, nil))
-				Expect(err).ToNot(HaveOccurred())
-				f.ForceBindIfWaitForFirstConsumer(targetPvc)
 				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec(targetName, "1Gi", f.Namespace.Name, "non-existing-source", nil, &fsVM)
 				controller.AddAnnotation(cloneDV, controller.AnnDeleteAfterCompletion, "false")
-				_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
+				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				Expect(err).ToNot(HaveOccurred())
 				By("Wait for clone DV Succeeded phase")
 				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetName, cloneCompleteTimeout)
