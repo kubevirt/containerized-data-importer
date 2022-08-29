@@ -81,7 +81,7 @@ func validateContentTypes(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataV
 	return sourceContentType == targetContentType, sourceContentType, targetContentType
 }
 
-func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admissionv1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec, namespace *string) []metav1.StatusCause {
+func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admissionv1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec, namespace *string, name string) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 	var url string
 	var sourceType string
@@ -163,7 +163,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 		return causes
 	}
 	if spec.SourceRef != nil {
-		cause := wh.validateSourceRef(request, spec, field, namespace)
+		cause := wh.validateSourceRef(request, spec, field, namespace, name)
 		if cause != nil {
 			causes = append(causes, *cause)
 		}
@@ -290,7 +290,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 			return causes
 		}
 		if request.Operation == admissionv1.Create {
-			cause := wh.validateDataVolumeSourcePVC(spec.Source.PVC, field.Child("source", "PVC"), spec)
+			cause := wh.validateDataVolumeSourcePVC(spec.Source.PVC, field.Child("source", "PVC"), spec, namespace, name)
 			if cause != nil {
 				causes = append(causes, *cause)
 			}
@@ -363,7 +363,7 @@ func validateDataVolumeSourceRegistry(sourceRegistry *cdiv1.DataVolumeSourceRegi
 	return causes
 }
 
-func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.AdmissionRequest, spec *cdiv1.DataVolumeSpec, field *k8sfield.Path, namespace *string) *metav1.StatusCause {
+func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.AdmissionRequest, spec *cdiv1.DataVolumeSpec, field *k8sfield.Path, namespace *string, name string) *metav1.StatusCause {
 	if spec.SourceRef.Kind == "" {
 		return &metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
@@ -406,13 +406,29 @@ func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.Ad
 			Field:   field.Child("sourceRef").String(),
 		}
 	}
-	return wh.validateDataVolumeSourcePVC(dataSource.Spec.Source.PVC, field.Child("sourceRef"), spec)
+	return wh.validateDataVolumeSourcePVC(dataSource.Spec.Source.PVC, field.Child("sourceRef"), spec, namespace, name)
 }
 
-func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.DataVolumeSourcePVC, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) *metav1.StatusCause {
+func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.DataVolumeSourcePVC, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec, namespace *string, name string) *metav1.StatusCause {
 	sourcePVC, err := wh.k8sClient.CoreV1().PersistentVolumeClaims(PVC.Namespace).Get(context.TODO(), PVC.Name, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
+			if namespace != nil {
+				// If the target PVC is already populated we don't need the source PVC to exists
+				targetPVC, err := wh.k8sClient.CoreV1().PersistentVolumeClaims(*namespace).Get(context.TODO(), name, metav1.GetOptions{})
+				if err == nil {
+					populatedFor, ok := targetPVC.Annotations[controller.AnnPopulatedFor]
+					if ok && populatedFor == name {
+						return nil
+					}
+				} else if !k8serrors.IsNotFound(err) {
+					return &metav1.StatusCause{
+						Message: err.Error(),
+						Field:   field.String(),
+					}
+				}
+			}
+
 			return &metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueNotFound,
 				Message: fmt.Sprintf("Source PVC %s/%s not found", PVC.Namespace, PVC.Name),
@@ -541,7 +557,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 		}
 	}
 
-	causes = wh.validateDataVolumeSpec(ar.Request, k8sfield.NewPath("spec"), &dv.Spec, &dv.Namespace)
+	causes = wh.validateDataVolumeSpec(ar.Request, k8sfield.NewPath("spec"), &dv.Spec, &dv.Namespace, dv.Name)
 	if len(causes) > 0 {
 		klog.Infof("rejected DataVolume admission %s", causes)
 		return toRejectedAdmissionResponse(causes)
