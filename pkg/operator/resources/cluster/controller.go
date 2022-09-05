@@ -234,6 +234,17 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"watch",
 			},
 		},
+		{
+			APIGroups: []string{
+				"kubevirt.io",
+			},
+			Resources: []string{
+				"virtualmachines/finalizers",
+			},
+			Verbs: []string{
+				"update",
+			},
+		},
 	}
 }
 

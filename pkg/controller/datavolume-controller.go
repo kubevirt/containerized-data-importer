@@ -34,6 +34,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
 
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -2783,6 +2784,10 @@ func (r *DatavolumeReconciler) garbageCollect(dataVolume *cdiv1.DataVolume, pvc 
 	if dataVolume.Status.Phase != cdiv1.Succeeded {
 		return nil, nil
 	}
+	if allowed, err := r.isGarbageCollectionAllowed(dataVolume); !allowed || err != nil {
+		log.Info("Garbage Collection is not allowed, due to owner finalizers update RBAC")
+		return nil, err
+	}
 	cdiConfig := &cdiv1.CDIConfig{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
 		return nil, err
@@ -2800,6 +2805,41 @@ func (r *DatavolumeReconciler) garbageCollect(dataVolume *cdiv1.DataVolume, pvc 
 		return nil, err
 	}
 	return &reconcile.Result{}, nil
+}
+
+func (r *DatavolumeReconciler) isGarbageCollectionAllowed(dv *cdiv1.DataVolume) (bool, error) {
+	for _, ref := range dv.OwnerReferences {
+		if ref.BlockOwnerDeletion == nil || *ref.BlockOwnerDeletion == false {
+			continue
+		}
+		if allowed, err := r.canUpdateFinalizers(ref); !allowed || err != nil {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+func (r *DatavolumeReconciler) canUpdateFinalizers(ownerRef metav1.OwnerReference) (bool, error) {
+	gvk := schema.FromAPIVersionAndKind(ownerRef.APIVersion, ownerRef.Kind)
+	mapping, err := r.client.RESTMapper().RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return false, err
+	}
+	ssar := &authorizationv1.SelfSubjectAccessReview{
+		Spec: authorizationv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
+				Group:       gvk.Group,
+				Version:     gvk.Version,
+				Resource:    mapping.Resource.Resource,
+				Subresource: "finalizers",
+				Verb:        "update",
+			},
+		},
+	}
+	if err := r.client.Create(context.TODO(), ssar); err != nil {
+		return false, err
+	}
+	return ssar.Status.Allowed, nil
 }
 
 func (r *DatavolumeReconciler) detachPvcDeleteDv(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume, log logr.Logger) error {
@@ -2824,13 +2864,24 @@ func (r *DatavolumeReconciler) detachPvcDeleteDv(pvc *corev1.PersistentVolumeCla
 
 func updatePvcOwnerRefs(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) {
 	refs := pvc.OwnerReferences
-	for i, r := range refs {
-		if r.UID == dv.UID {
-			pvc.OwnerReferences = append(refs[:i], refs[i+1:]...)
-			break
+	if i := findOwnerRef(refs, dv.UID); i >= 0 {
+		refs = append(refs[:i], refs[i+1:]...)
+	}
+	for _, ref := range dv.OwnerReferences {
+		if findOwnerRef(refs, ref.UID) == -1 {
+			refs = append(refs, ref)
 		}
 	}
-	pvc.OwnerReferences = append(pvc.OwnerReferences, dv.OwnerReferences...)
+	pvc.OwnerReferences = refs
+}
+
+func findOwnerRef(refs []metav1.OwnerReference, uid types.UID) int {
+	for i, ref := range refs {
+		if ref.UID == uid {
+			return i
+		}
+	}
+	return -1
 }
 
 func getDeltaTTL(dv *cdiv1.DataVolume, ttl int32) time.Duration {

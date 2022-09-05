@@ -2101,6 +2101,26 @@ var _ = Describe("All DataVolume Tests", func() {
 		Entry("40Gi virtual size, default overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, defaultOverhead),
 		Entry("40Gi virtual size, large overhead to be 40Gi if <= 40Gi and 41Gi if > 40Gi", 40*Gi, largeOverhead),
 	)
+
+	Describe("DataVolume garbage collection", func() {
+		It("updatePvcOwnerRefs should correctly update PVC owner refs", func() {
+			ref := func(uid string) metav1.OwnerReference {
+				return metav1.OwnerReference{UID: types.UID(uid)}
+			}
+			dv := newImportDataVolume("test-dv")
+			vmOwnerRef := metav1.OwnerReference{Kind: "VirtualMachine", Name: "test-vm", UID: "test-vm-uid"}
+			dv.OwnerReferences = append(dv.OwnerReferences, ref("3"), vmOwnerRef, ref("2"), ref("1"))
+
+			pvc := createPvc("test-dv", metav1.NamespaceDefault, nil, nil)
+			dvOwnerRef := metav1.OwnerReference{Kind: "DataVolume", Name: "test-dv", UID: dv.UID}
+			pvc.OwnerReferences = append(pvc.OwnerReferences, ref("1"), dvOwnerRef, ref("2"))
+
+			updatePvcOwnerRefs(pvc, dv)
+			Expect(pvc.OwnerReferences).To(HaveLen(4))
+			Expect(pvc.OwnerReferences).To(Equal([]metav1.OwnerReference{ref("1"), ref("2"), ref("3"), vmOwnerRef}))
+		})
+	})
+
 })
 
 func createStorageSpec() *cdiv1.StorageSpec {
