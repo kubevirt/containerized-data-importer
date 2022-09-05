@@ -519,7 +519,8 @@ func (f *Framework) UpdateStorageQuota(numPVCs, requestStorage int64) error {
 	return wait.PollImmediate(5*time.Second, nsDeleteTime, func() (bool, error) {
 		quota, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Get(context.TODO(), "test-storage-quota", metav1.GetOptions{})
 		if err != nil {
-			return false, err
+			fmt.Fprintf(ginkgo.GinkgoWriter, "ERROR: GET ResourceQuota failed once, retrying: %v\n", err.Error())
+			return false, nil
 		}
 		requestStorageUpdated := resource.NewQuantity(requestStorage, resource.DecimalSI).Cmp(quota.Status.Hard[v1.ResourceRequestsStorage])
 		numPVCsUpdated := resource.NewQuantity(numPVCs, resource.DecimalSI).Cmp(quota.Status.Hard[v1.ResourcePersistentVolumeClaims])
@@ -531,10 +532,14 @@ func (f *Framework) UpdateStorageQuota(numPVCs, requestStorage int64) error {
 func (f *Framework) DeleteStorageQuota() error {
 	return wait.PollImmediate(3*time.Second, time.Minute, func() (bool, error) {
 		err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Delete(context.TODO(), "test-storage-quota", metav1.DeleteOptions{})
-		if err == nil || apierrs.IsNotFound(err) {
-			return true, nil
+		if err != nil {
+			if apierrs.IsNotFound(err) {
+				return true, nil
+			}
+			fmt.Fprintf(ginkgo.GinkgoWriter, "ERROR: DELETE ResourceQuota failed once, retrying: %v\n", err.Error())
+			return false, nil
 		}
-		return false, err
+		return false, nil
 	})
 }
 
