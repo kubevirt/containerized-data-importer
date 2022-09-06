@@ -45,7 +45,7 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileServiceAccountRead)
 	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileServiceAccounts)
 	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileCreateSCC)
-	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileSELinuxPerms)
+	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileSCC)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCreateRoute)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCreatePrometheusInfra)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileRemainingRelationshipLabels)

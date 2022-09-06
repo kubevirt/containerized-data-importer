@@ -218,6 +218,12 @@ func (f *Framework) AfterEach() {
 
 // CreateNamespace instantiates a new namespace object with a unique name and the passed-in label(s).
 func (f *Framework) CreateNamespace(prefix string, labels map[string]string) (*v1.Namespace, error) {
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	// pod-security.kubernetes.io/<MODE>: <LEVEL>
+	labels["pod-security.kubernetes.io/enforce"] = "restricted"
+
 	ns := &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("cdi-e2e-tests-%s-", prefix),

@@ -16,10 +16,6 @@ OPERATOR_MANIFEST=./_out/manifests/release/cdi-operator.yaml
 LABELS=("operator.cdi.kubevirt.io" "cdi.kubevirt.io" "prometheus.cdi.kubevirt.io")
 NAMESPACES=(default kube-system cdi)
 
-set +e
-_kubectl patch cdi ${CR_NAME} --type=json -p '[{ "op": "remove", "path": "/metadata/finalizers" }]'
-set -e
-
 _kubectl get ot --all-namespaces -o=custom-columns=NAME:.metadata.name,NAMESPACE:.metadata.namespace,FINALIZERS:.metadata.finalizers --no-headers | grep objectTransfer | while read p; do
     arr=($p)
     name="${arr[0]}"
@@ -52,9 +48,13 @@ if [ -f "${OPERATOR_CR_MANIFEST}" ]; then
 	echo "Cleaning CR object ..."
     if _kubectl get crd cdis.cdi.kubevirt.io ; then
         _kubectl delete --ignore-not-found -f "${OPERATOR_CR_MANIFEST}"
-        _kubectl wait cdis.cdi.kubevirt.io/${CR_NAME} --for=delete | echo "this is fine"
+        _kubectl wait cdis.cdi.kubevirt.io/${CR_NAME} --for=delete --timeout=30s | echo "this is fine"
     fi
 fi
+
+set +e
+_kubectl patch cdi ${CR_NAME} --type=json -p '[{ "op": "remove", "path": "/metadata/finalizers" }]' | echo "this is fine"
+set -e
 
 if [ "${CDI_CLEAN}" == "all" ] && [ -f "${OPERATOR_MANIFEST}" ]; then
 	echo "Deleting operator ..."

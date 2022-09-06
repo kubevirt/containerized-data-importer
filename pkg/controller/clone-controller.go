@@ -23,7 +23,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -573,7 +572,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 		}
 	}
 
-	preallocationRequested, _ := targetPvc.Annotations[AnnPreallocationRequested]
+	preallocationRequested := targetPvc.Annotations[AnnPreallocationRequested]
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -643,14 +642,6 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 							ContainerPort: 8443,
 							Protocol:      corev1.ProtocolTCP,
 						},
-					},
-					SecurityContext: &corev1.SecurityContext{
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{
-								"ALL",
-							},
-						},
-						AllowPrivilegeEscalation: pointer.BoolPtr(false),
 					},
 				},
 			},
@@ -740,6 +731,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 
 	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, addVars...)
 	SetPodPvcAnnotations(pod, targetPvc)
+	SetRestrictedSecurityContext(&pod.Spec)
 	return pod
 }
 

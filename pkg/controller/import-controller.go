@@ -19,7 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -943,7 +942,7 @@ func createImporterPod(log logr.Logger, client client.Client, args *importerPodA
 // makeNodeImporterPodSpec creates and returns the node docker cache based importer pod spec based on the passed-in importImage and pvc.
 func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 	// importer pod name contains the pvc name
-	podName, _ := args.pvc.Annotations[AnnImportPod]
+	podName := args.pvc.Annotations[AnnImportPod]
 
 	volumes := []corev1.Volume{
 		{
@@ -995,14 +994,6 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 							Name:      "shared-volume",
 						},
 					},
-					SecurityContext: &corev1.SecurityContext{
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{
-								"ALL",
-							},
-						},
-						AllowPrivilegeEscalation: pointer.BoolPtr(false),
-					},
 				},
 			},
 			Containers: []corev1.Container{
@@ -1017,14 +1008,6 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 							MountPath: "/shared",
 							Name:      "shared-volume",
 						},
-					},
-					SecurityContext: &corev1.SecurityContext{
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{
-								"ALL",
-							},
-						},
-						AllowPrivilegeEscalation: pointer.BoolPtr(false),
 					},
 				},
 			},
@@ -1072,13 +1055,15 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 		Name:      "shared-volume",
 	})
 
+	SetRestrictedSecurityContext(&pod.Spec)
+
 	return pod
 }
 
 // makeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
 func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 	// importer pod name contains the pvc name
-	podName, _ := args.pvc.Annotations[AnnImportPod]
+	podName := args.pvc.Annotations[AnnImportPod]
 
 	blockOwnerDeletion := true
 	isController := true
@@ -1230,6 +1215,8 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
 	}
 
+	SetRestrictedSecurityContext(&pod.Spec)
+
 	return pod
 }
 
@@ -1253,14 +1240,6 @@ func setImporterPodCommons(pod *corev1.Pod, podEnvVar *importPodEnvVar, pvc *cor
 
 	pod.Spec.Containers[0].Env = makeImportEnv(podEnvVar, ownerUID)
 
-	if podEnvVar.contentType == string(cdiv1.DataVolumeKubeVirt) {
-		// Set the fsGroup on the security context to the QemuSubGid
-		if pod.Spec.SecurityContext == nil {
-			pod.Spec.SecurityContext = &corev1.PodSecurityContext{}
-		}
-		fsGroup := common.QemuSubGid
-		pod.Spec.SecurityContext.FSGroup = &fsGroup
-	}
 	SetPodPvcAnnotations(pod, pvc)
 }
 
@@ -1276,14 +1255,6 @@ func makeImporterContainerSpec(image, verbose, pullPolicy string) *corev1.Contai
 				ContainerPort: 8443,
 				Protocol:      corev1.ProtocolTCP,
 			},
-		},
-		SecurityContext: &corev1.SecurityContext{
-			Capabilities: &corev1.Capabilities{
-				Drop: []corev1.Capability{
-					"ALL",
-				},
-			},
-			AllowPrivilegeEscalation: pointer.BoolPtr(false),
 		},
 	}
 }

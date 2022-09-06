@@ -260,8 +260,6 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 			}
 		}
 		Expect(foundEndPoint).To(BeTrue())
-		By("Verifying the fsGroup of the pod is the qemu user")
-		Expect(*pod.Spec.SecurityContext.FSGroup).To(Equal(int64(107)))
 	})
 
 	It("Should create a POD with node placement", func() {
@@ -332,8 +330,6 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 			}
 		}
 		Expect(foundEndPoint).To(BeTrue())
-		By("Verifying the fsGroup of the pod is the qemu user")
-		Expect(*pod.Spec.SecurityContext.FSGroup).To(Equal(int64(107)))
 		By("Verifying the pod is annotated correctly")
 		Expect(pod.GetAnnotations()[AnnPodNetwork]).To(Equal("net1"))
 		Expect(pod.GetAnnotations()[AnnPodSidecarInjection]).To(Equal(AnnPodSidecarInjectionDefault))
@@ -358,27 +354,6 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(foundEndPoint).To(BeTrue())
 		By("Verifying the pod is not annotated with annot")
 		Expect(pod.GetAnnotations()["annot1"]).ToNot(Equal("value1"))
-	})
-
-	It("Should create a POD if a bound PVC with all needed annotations is passed, but not set fsgroup if not kubevirt contenttype", func() {
-		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1", AnnContentType: string(cdiv1.DataVolumeArchive)}, nil)
-		pvc.Status.Phase = v1.ClaimBound
-		reconciler = createImportReconciler(pvc)
-		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
-		Expect(err).ToNot(HaveOccurred())
-		pod := &corev1.Pod{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
-		Expect(err).ToNot(HaveOccurred())
-		foundEndPoint := false
-		for _, envVar := range pod.Spec.Containers[0].Env {
-			if envVar.Name == common.ImporterEndpoint {
-				foundEndPoint = true
-				Expect(envVar.Value).To(Equal(testEndPoint))
-			}
-		}
-		Expect(foundEndPoint).To(BeTrue())
-		By("Verifying the fsGroupis not set")
-		Expect(pod.Spec.SecurityContext).To(BeNil())
 	})
 
 	It("Should error if a POD with the same name exists, but is not owned by the PVC, if a PVC with all needed annotations is passed", func() {

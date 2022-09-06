@@ -52,5 +52,6 @@ container_image(
         ":cdi-cloner",
         ":cloner_startup.sh",
     ],
+    user = "1001",
     visibility = ["//visibility:public"],
 )

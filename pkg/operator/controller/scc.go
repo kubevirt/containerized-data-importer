@@ -37,6 +37,34 @@ import (
 
 const sccName = "containerized-data-importer"
 
+func setSCC(scc *secv1.SecurityContextConstraints) {
+	scc.Priority = &[]int32{10}[0]
+	scc.RunAsUser = secv1.RunAsUserStrategyOptions{
+		Type: secv1.RunAsUserStrategyMustRunAsNonRoot,
+	}
+	scc.SELinuxContext = secv1.SELinuxContextStrategyOptions{
+		Type: secv1.SELinuxStrategyMustRunAs,
+	}
+	scc.SupplementalGroups = secv1.SupplementalGroupsStrategyOptions{
+		Type: secv1.SupplementalGroupsStrategyMustRunAs,
+	}
+	scc.SeccompProfiles = []string{
+		"runtime/default",
+	}
+	scc.DefaultAddCapabilities = nil
+	scc.RequiredDropCapabilities = []corev1.Capability{
+		"ALL",
+	}
+	scc.Volumes = []secv1.FSType{
+		secv1.FSTypeConfigMap,
+		secv1.FSTypeDownwardAPI,
+		secv1.FSTypeEmptyDir,
+		secv1.FSTypePersistentVolumeClaim,
+		secv1.FSProjected,
+		secv1.FSTypeSecret,
+	}
+}
+
 func ensureSCCExists(logger logr.Logger, c client.Client, saNamespace, saName string) error {
 	scc := &secv1.SecurityContextConstraints{}
 	userName := fmt.Sprintf("system:serviceaccount:%s:%s", saNamespace, saName)
@@ -63,34 +91,13 @@ func ensureSCCExists(logger logr.Logger, c client.Client, saNamespace, saName st
 					"cdi.kubevirt.io": "",
 				},
 			},
-			Priority: &[]int32{10}[0],
-			FSGroup: secv1.FSGroupStrategyOptions{
-				Type: secv1.FSGroupStrategyRunAsAny,
-			},
-			RequiredDropCapabilities: []corev1.Capability{
-				"MKNOD",
-			},
-			RunAsUser: secv1.RunAsUserStrategyOptions{
-				Type: secv1.RunAsUserStrategyRunAsAny,
-			},
-			SELinuxContext: secv1.SELinuxContextStrategyOptions{
-				Type: secv1.SELinuxStrategyRunAsAny,
-			},
-			SupplementalGroups: secv1.SupplementalGroupsStrategyOptions{
-				Type: secv1.SupplementalGroupsStrategyRunAsAny,
-			},
-			Volumes: []secv1.FSType{
-				secv1.FSTypeConfigMap,
-				secv1.FSTypeDownwardAPI,
-				secv1.FSTypeEmptyDir,
-				secv1.FSTypePersistentVolumeClaim,
-				secv1.FSProjected,
-				secv1.FSTypeSecret,
-			},
 			Users: []string{
 				userName,
 			},
 		}
+
+		setSCC(scc)
+
 		util.SetRecommendedLabels(scc, installerLabels, "cdi-operator")
 
 		if err = operator.SetOwnerRuntime(c, scc); err != nil {
