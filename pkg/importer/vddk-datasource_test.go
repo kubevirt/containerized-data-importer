@@ -268,7 +268,7 @@ var _ = Describe("VDDK data source", func() {
 		Expect(ds.ChangedBlocks).To(Equal(&changeInfo))
 	})
 
-	DescribeTable("disk name lookup", func(targetDiskName string, diskName string, snapshotDiskName string, expectedSuccess bool) {
+	DescribeTable("disk name lookup", func(targetDiskName, diskName, snapshotDiskName, rootSnapshotParentName string, expectedSuccess bool) {
 		var returnedDiskName string
 
 		newVddkDataSource = createVddkDataSource
@@ -286,6 +286,9 @@ var _ = Describe("VDDK data source", func() {
 				}
 			case *mo.VirtualMachineSnapshot:
 				out.Config = *createVirtualDiskConfig(snapshotDiskName, 123456)
+				disk := out.Config.Hardware.Device[0].(*types.VirtualDisk)
+				parent := disk.Backing.(*types.VirtualDiskFlatVer1BackingInfo).Parent
+				parent.FileName = rootSnapshotParentName
 			}
 			return nil
 		}
@@ -299,9 +302,10 @@ var _ = Describe("VDDK data source", func() {
 			Expect(returnedDiskName).ToNot(Equal(targetDiskName))
 		}
 	},
-		Entry("should find backing file on a VM", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile.vmdk", "", true),
-		Entry("should find backing file on a snapshot", "[teststore] testvm/testfile.vmdk", "wrong disk.vmdk", "[teststore] testvm/testfile.vmdk", true),
-		Entry("should fail if backing file is not found in snapshot tree", "[teststore] testvm/testfile.vmdk", "wrong disk 1.vmdk", "wrong disk 2.vmdk", false),
+		Entry("should find backing file on a VM", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile.vmdk", "", "", true),
+		Entry("should find backing file on a snapshot", "[teststore] testvm/testfile.vmdk", "wrong disk.vmdk", "[teststore] testvm/testfile.vmdk", "", true),
+		Entry("should find base backing file even if not listed as first snapshot", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile-000001.vmdk", "[teststore] testvm/testfile-000002.vmdk", "[teststore] testvm/testfile.vmdk", true),
+		Entry("should fail if backing file is not found in snapshot tree", "[teststore] testvm/testfile.vmdk", "wrong disk 1.vmdk", "wrong disk 2.vmdk", "wrong disk 1.vmdk", false),
 	)
 
 	It("should find two snapshots and get a list of changed blocks", func() {
@@ -638,8 +642,11 @@ func createVirtualDiskConfig(fileName string, key int32) *types.VirtualMachineCo
 					DiskObjectId: "test-1",
 					VirtualDevice: types.VirtualDevice{
 						Key: key,
-						Backing: &types.VirtualDeviceFileBackingInfo{
-							FileName: fileName,
+						Backing: &types.VirtualDiskFlatVer1BackingInfo{
+							VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+								FileName: fileName,
+							},
+							Parent: &types.VirtualDiskFlatVer1BackingInfo{},
 						},
 					},
 				},
