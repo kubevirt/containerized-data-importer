@@ -536,7 +536,7 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 
 	var err error
 	selectedCloneStrategy := NoClone
-	if !prePopulated {
+	if !prePopulated && !pvcPopulated {
 		selectedCloneStrategy, err = r.selectCloneStrategy(datavolume, pvcSpec)
 		if err != nil {
 			return reconcile.Result{}, err
