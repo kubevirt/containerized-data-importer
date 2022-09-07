@@ -346,6 +346,37 @@ func (vmware *VMwareClient) FindDiskInSnapshotTree(snapshots []types.VirtualMach
 	return nil
 }
 
+// FindDiskInRootSnapshotParent checks if the parent of the very first snapshot has the target disk name.
+// There are cases where the first listed disk is a delta, so other search methods can't find the right disk.
+func (vmware *VMwareClient) FindDiskInRootSnapshotParent(snapshots []types.VirtualMachineSnapshotTree, fileName string) *types.VirtualDisk {
+	if len(snapshots) > 0 {
+		first := snapshots[0].Snapshot
+		var snapshot mo.VirtualMachineSnapshot
+		err := vmware.vm.Properties(vmware.context, first, []string{"config.hardware.device"}, &snapshot)
+		if err == nil {
+			for _, device := range snapshot.Config.Hardware.Device {
+				switch disk := device.(type) {
+				case *types.VirtualDisk:
+					var parent *types.VirtualDeviceFileBackingInfo
+					switch disk.Backing.(type) {
+					case *types.VirtualDiskFlatVer1BackingInfo:
+						parent = &disk.Backing.(*types.VirtualDiskFlatVer1BackingInfo).Parent.VirtualDeviceFileBackingInfo
+					case *types.VirtualDiskFlatVer2BackingInfo:
+						parent = &disk.Backing.(*types.VirtualDiskFlatVer2BackingInfo).Parent.VirtualDeviceFileBackingInfo
+					case *types.VirtualDiskRawDiskMappingVer1BackingInfo:
+						parent = &disk.Backing.(*types.VirtualDiskRawDiskMappingVer1BackingInfo).Parent.VirtualDeviceFileBackingInfo
+					}
+					if parent != nil && parent.FileName == fileName {
+						return disk
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // FindDiskFromName finds a disk object with the given file name, usable by QueryChangedDiskAreas.
 // Looks at the current VM disk as well as any snapshots.
 func (vmware *VMwareClient) FindDiskFromName(fileName string) (*types.VirtualDisk, error) {
@@ -377,7 +408,11 @@ func (vmware *VMwareClient) FindDiskFromName(fileName string) (*types.VirtualDis
 		if disk := vmware.FindDiskInSnapshotTree(snapshot.Snapshot.RootSnapshotList, fileName); disk != nil {
 			return disk, nil
 		}
+		if disk := vmware.FindDiskInRootSnapshotParent(snapshot.Snapshot.RootSnapshotList, fileName); disk != nil {
+			return disk, nil
+		}
 	}
+
 	return nil, fmt.Errorf("disk '%s' is not present in VM hardware config or snapshot list", fileName)
 }
 
