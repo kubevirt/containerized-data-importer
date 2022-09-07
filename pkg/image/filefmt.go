@@ -54,13 +54,14 @@ var knownHeaders = Headers{
 	},
 	"vdi": Header{
 		Format:      "vdi",
-		magicNumber: []byte("<<< Oracle VM"),
+		magicNumber: []byte{0x7F, 0x10, 0xDA, 0xBE},
+		mgOffset:    0x40,
 		SizeOff:     0,
 		SizeLen:     0,
 	},
 	"vhd": Header{
 		Format:      "vhd",
-		magicNumber: []byte("connectix"),
+		magicNumber: []byte("conectix"),
 		SizeOff:     0,
 		SizeLen:     0,
 	},

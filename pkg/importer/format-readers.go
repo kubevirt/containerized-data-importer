@@ -25,11 +25,9 @@ import (
 	"strconv"
 
 	"github.com/pkg/errors"
-	"github.com/ulikunitz/xz"
-
-	"k8s.io/klog/v2"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/ulikunitz/xz"
+	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
