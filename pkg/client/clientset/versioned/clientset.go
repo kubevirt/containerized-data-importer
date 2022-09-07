@@ -27,7 +27,6 @@ import (
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/core/v1alpha1"
 	cdiv1beta1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/core/v1beta1"
-	uploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/upload/v1alpha1"
 	uploadv1beta1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/upload/v1beta1"
 )
 
@@ -35,7 +34,6 @@ type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	CdiV1alpha1() cdiv1alpha1.CdiV1alpha1Interface
 	CdiV1beta1() cdiv1beta1.CdiV1beta1Interface
-	UploadV1alpha1() uploadv1alpha1.UploadV1alpha1Interface
 	UploadV1beta1() uploadv1beta1.UploadV1beta1Interface
 }
 
@@ -43,10 +41,9 @@ type Interface interface {
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	cdiV1alpha1    *cdiv1alpha1.CdiV1alpha1Client
-	cdiV1beta1     *cdiv1beta1.CdiV1beta1Client
-	uploadV1alpha1 *uploadv1alpha1.UploadV1alpha1Client
-	uploadV1beta1  *uploadv1beta1.UploadV1beta1Client
+	cdiV1alpha1   *cdiv1alpha1.CdiV1alpha1Client
+	cdiV1beta1    *cdiv1beta1.CdiV1beta1Client
+	uploadV1beta1 *uploadv1beta1.UploadV1beta1Client
 }
 
 // CdiV1alpha1 retrieves the CdiV1alpha1Client
@@ -57,11 +54,6 @@ func (c *Clientset) CdiV1alpha1() cdiv1alpha1.CdiV1alpha1Interface {
 // CdiV1beta1 retrieves the CdiV1beta1Client
 func (c *Clientset) CdiV1beta1() cdiv1beta1.CdiV1beta1Interface {
 	return c.cdiV1beta1
-}
-
-// UploadV1alpha1 retrieves the UploadV1alpha1Client
-func (c *Clientset) UploadV1alpha1() uploadv1alpha1.UploadV1alpha1Interface {
-	return c.uploadV1alpha1
 }
 
 // UploadV1beta1 retrieves the UploadV1beta1Client
@@ -117,10 +109,6 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
-	cs.uploadV1alpha1, err = uploadv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
-	if err != nil {
-		return nil, err
-	}
 	cs.uploadV1beta1, err = uploadv1beta1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -148,7 +136,6 @@ func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.cdiV1alpha1 = cdiv1alpha1.New(c)
 	cs.cdiV1beta1 = cdiv1beta1.New(c)
-	cs.uploadV1alpha1 = uploadv1alpha1.New(c)
 	cs.uploadV1beta1 = uploadv1beta1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)

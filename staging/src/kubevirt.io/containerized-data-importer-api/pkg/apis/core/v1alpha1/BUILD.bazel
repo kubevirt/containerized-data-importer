@@ -7,7 +7,6 @@ go_library(
         "register.go",
         "types.go",
         "types_swagger_generated.go",
-        "utils.go",
         "zz_generated.deepcopy.go",
     ],
     importpath = "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1",

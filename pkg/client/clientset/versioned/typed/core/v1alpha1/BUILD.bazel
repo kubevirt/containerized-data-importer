@@ -6,7 +6,6 @@ go_library(
         "cdi.go",
         "cdiconfig.go",
         "core_client.go",
-        "datavolume.go",
         "doc.go",
         "generated_expansion.go",
     ],
