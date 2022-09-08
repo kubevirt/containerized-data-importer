@@ -161,11 +161,18 @@ func newTarReader(preallocation bool) (io.ReadCloser, error) {
 		return nil, err
 	}
 
+	var tarFiles []string
 	for _, f := range files {
 		if _, ok := excludeMap[f.Name()]; ok {
 			continue
 		}
-		args = append(args, f.Name())
+		tarFiles = append(tarFiles, f.Name())
+	}
+
+	if len(tarFiles) > 0 {
+		args = append(args, tarFiles...)
+	} else {
+		args = append(args, "--files-from", "/dev/null")
 	}
 
 	cmd := exec.Command("/usr/bin/tar", args...)
