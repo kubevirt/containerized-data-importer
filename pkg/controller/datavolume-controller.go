@@ -434,6 +434,12 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, err
 	}
 
+	if isCrossNamespaceClone(datavolume) && datavolume.Status.Phase == cdiv1.Succeeded {
+		if err := r.cleanupTransfer(log, datavolume, transferName); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
 	pvcPopulated := false
 	// Get the pvc with the name specified in DataVolume.spec
 	pvc := &corev1.PersistentVolumeClaim{}
@@ -581,8 +587,10 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 
 		switch selectedCloneStrategy {
 		case HostAssistedClone:
-			if err := r.ensureExtendedToken(pvc); err != nil {
-				return reconcile.Result{}, err
+			if !pvcPopulated {
+				if err := r.ensureExtendedToken(pvc); err != nil {
+					return reconcile.Result{}, err
+				}
 			}
 		case CsiClone:
 			switch pvc.Status.Phase {
@@ -603,7 +611,9 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 			}
 			fallthrough
 		case SmartClone:
-			return r.finishClone(log, datavolume, pvc, pvcSpec, transferName, selectedCloneStrategy)
+			if !pvcPopulated {
+				return r.finishClone(log, datavolume, pvc, pvcSpec, transferName, selectedCloneStrategy)
+			}
 		}
 	}
 
@@ -809,15 +819,6 @@ func (r *DatavolumeReconciler) finishClone(log logr.Logger,
 	pvcSpec *corev1.PersistentVolumeClaimSpec,
 	transferName string,
 	selectedCloneStrategy cloneStrategy) (reconcile.Result, error) {
-
-	if isCrossNamespaceClone(datavolume) && datavolume.Status.Phase == cdiv1.Succeeded {
-		if err := r.cleanupTransfer(log, datavolume, transferName); err != nil {
-			return reconcile.Result{}, err
-		}
-
-		// done, done
-		return reconcile.Result{}, nil
-	}
 
 	//DO Nothing, not yet ready
 	if pvc.Annotations[AnnCloneOf] != "true" {
@@ -1283,7 +1284,7 @@ func (r *DatavolumeReconciler) cleanupTransfer(log logr.Logger, dv *cdiv1.DataVo
 		return nil
 	}
 
-	log.Info("Doing cleanup")
+	log.V(1).Info("Doing cleanup")
 
 	if dv.DeletionTimestamp != nil && dv.Status.Phase != cdiv1.Succeeded {
 		// delete all potential PVCs that may not have owner refs
