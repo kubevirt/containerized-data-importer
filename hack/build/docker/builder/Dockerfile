@@ -61,6 +61,7 @@ RUN curl -L -o /usr/bin/bazel https://github.com/bazelbuild/bazel/releases/downl
 RUN ln -s /usr/bin/python3 /usr/bin/python
 
 ADD entrypoint.sh /entrypoint.sh
+
 ADD entrypoint-bazel.sh /entrypoint-bazel.sh
 
 COPY rsyncd.conf /etc/rsyncd.conf

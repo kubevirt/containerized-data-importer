@@ -45,7 +45,7 @@ ARCHITECTURE="${BUILD_ARCH:-$(uname -m)}"
 HOST_ARCHITECTURE="$(uname -m)"
 CDI_CRI="$(determine_cri_bin)"
 if [ "${CDI_CRI}" = "docker" ]; then
-   CDI_CONTAINER_BUILDCMD="docker"
+   CDI_CONTAINER_BUILDCMD=${CDI_CONTAINER_BUILDCMD:-docker}
 else
-   CDI_CONTAINER_BUILDCMD="buildah"
+   CDI_CONTAINER_BUILDCMD=${CDI_CONTAINER_BUILDCMD:-buildah}
 fi
