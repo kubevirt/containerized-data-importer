@@ -223,6 +223,9 @@ func (f *Framework) CreateNamespace(prefix string, labels map[string]string) (*v
 	}
 	// pod-security.kubernetes.io/<MODE>: <LEVEL>
 	labels["pod-security.kubernetes.io/enforce"] = "restricted"
+	if utils.IsOpenshift(f.K8sClient) {
+		labels["security.openshift.io/scc.podSecurityLabelSync"] = "false"
+	}
 
 	ns := &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{

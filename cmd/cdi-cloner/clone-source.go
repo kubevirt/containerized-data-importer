@@ -150,7 +150,7 @@ func newTarReader(preallocation bool) (io.ReadCloser, error) {
 		"lost+found": struct{}{},
 	}
 
-	args := []string{"cv"}
+	args := []string{"/usr/bin/tar", "cv"}
 	if !preallocation {
 		// -S is used to handle sparse files. It can only be used when preallocation is not requested
 		args = append(args, "-S")
@@ -175,7 +175,9 @@ func newTarReader(preallocation bool) (io.ReadCloser, error) {
 		args = append(args, "--files-from", "/dev/null")
 	}
 
-	cmd := exec.Command("/usr/bin/tar", args...)
+	klog.Infof("Executing %+v", args)
+
+	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Dir = mountPoint
 
 	stdout, err := cmd.StdoutPipe()
