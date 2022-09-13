@@ -23,6 +23,7 @@ import (
 	"github.com/go-logr/logr"
 	secv1 "github.com/openshift/api/security/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -109,9 +110,15 @@ func ensureSCCExists(logger logr.Logger, c client.Client, saNamespace, saName st
 		return err
 	}
 
+	origSCC := scc.DeepCopy()
+
+	setSCC(scc)
+
 	if !sdk.ContainsStringValue(scc.Users, userName) {
 		scc.Users = append(scc.Users, userName)
+	}
 
+	if !apiequality.Semantic.DeepEqual(origSCC, scc) {
 		return c.Update(context.TODO(), scc)
 	}
 

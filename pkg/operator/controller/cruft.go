@@ -27,7 +27,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -195,38 +194,6 @@ func reconcileInitializeCRD(args *callbacks.ReconcileCallbackArgs) error {
 
 	crd := args.CurrentObject.(*extv1.CustomResourceDefinition)
 	crd.Spec.PreserveUnknownFields = false
-
-	return nil
-}
-
-func reconcileSCC(args *callbacks.ReconcileCallbackArgs) error {
-	if args.State != callbacks.ReconcileStatePostRead {
-		return nil
-	}
-
-	sa := args.DesiredObject.(*corev1.ServiceAccount)
-	if sa.Name != common.ControllerServiceAccountName {
-		return nil
-	}
-
-	scc := &secv1.SecurityContextConstraints{}
-	err := args.Client.Get(context.TODO(), client.ObjectKey{Name: sccName}, scc)
-	if err != nil {
-		if meta.IsNoMatchError(err) {
-			return nil
-		}
-
-		return err
-	}
-
-	newSCC := scc.DeepCopy()
-	setSCC(newSCC)
-
-	if !apiequality.Semantic.DeepEqual(newSCC, scc) {
-		if err = args.Client.Update(context.TODO(), newSCC); err != nil {
-			return err
-		}
-	}
 
 	return nil
 }

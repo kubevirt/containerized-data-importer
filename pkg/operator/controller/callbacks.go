@@ -44,7 +44,6 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileDeleteControllerDeployment)
 	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileServiceAccountRead)
 	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileServiceAccounts)
-	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileCreateSCC)
 	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileSCC)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCreateRoute)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCreatePrometheusInfra)
@@ -121,7 +120,7 @@ func reconcileCreateRoute(args *callbacks.ReconcileCallbackArgs) error {
 	return nil
 }
 
-func reconcileCreateSCC(args *callbacks.ReconcileCallbackArgs) error {
+func reconcileSCC(args *callbacks.ReconcileCallbackArgs) error {
 	switch args.State {
 	case callbacks.ReconcileStatePreCreate, callbacks.ReconcileStatePostRead:
 	default:
