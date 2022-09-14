@@ -21,7 +21,7 @@ import (
 
 const oldVersionArtifactsNamespace = "cdi-testing-old-version-artifacts"
 
-var _ = Describe("[Upgrade]", func() {
+var _ = FDescribe("[Upgrade]", func() {
 	f := framework.NewFramework("upgrade-test")
 
 	BeforeEach(func() {
