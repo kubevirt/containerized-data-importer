@@ -19,10 +19,9 @@ import (
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/util/naming"
-
-	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/image"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
@@ -172,7 +171,7 @@ func (f *Framework) GetMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolu
 
 	cmd := "md5sum " + fileName
 	if numBytes > 0 {
-		cmd = fmt.Sprintf("head -c %d %s 1> null && head -c %d %s | md5sum", numBytes, fileName, numBytes, fileName)
+		cmd = fmt.Sprintf("head -c %d %s 1> /dev/null && head -c %d %s | md5sum", numBytes, fileName, numBytes, fileName)
 	}
 
 	var output, stderr string
@@ -350,7 +349,6 @@ func (f *Framework) RunCommandAndCaptureOutput(pvc *k8sv1.PersistentVolumeClaim,
 func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
 	var importerImage string
 	volumeName := naming.GetLabelNameFromResourceName(pvc.GetName())
-	fsGroup := common.QemuSubGid
 	for _, e := range f.ControllerPod.Spec.Containers[0].Env {
 		if e.Name == "IMPORTER_IMAGE" {
 			importerImage = e.Value
@@ -392,9 +390,6 @@ func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolu
 					},
 				},
 			},
-			SecurityContext: &k8sv1.PodSecurityContext{
-				FSGroup: &fsGroup,
-			},
 		},
 	}
 
@@ -404,6 +399,9 @@ func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolu
 	} else {
 		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts(pvc, volumeName)
 	}
+
+	controller.SetRestrictedSecurityContext(&pod.Spec)
+
 	return pod
 }
 

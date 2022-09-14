@@ -22,16 +22,6 @@ import (
 	"fmt"
 	"reflect"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/apiserver"
-	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/operator"
-	"kubevirt.io/containerized-data-importer/pkg/util"
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
-
 	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -39,9 +29,17 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/apiserver"
+	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
 )
 
 const (
@@ -196,38 +194,6 @@ func reconcileInitializeCRD(args *callbacks.ReconcileCallbackArgs) error {
 
 	crd := args.CurrentObject.(*extv1.CustomResourceDefinition)
 	crd.Spec.PreserveUnknownFields = false
-
-	return nil
-}
-
-// delete when we no longer support <= 1.27.0
-func reconcileSELinuxPerms(args *callbacks.ReconcileCallbackArgs) error {
-	if args.State != callbacks.ReconcileStatePostRead {
-		return nil
-	}
-
-	sa := args.DesiredObject.(*corev1.ServiceAccount)
-	if sa.Name != common.ControllerServiceAccountName {
-		return nil
-	}
-
-	scc := &secv1.SecurityContextConstraints{}
-	err := args.Client.Get(context.TODO(), client.ObjectKey{Name: sccName}, scc)
-	if err != nil {
-		if meta.IsNoMatchError(err) {
-			return nil
-		}
-
-		return err
-	}
-
-	if scc.SELinuxContext.Type != secv1.SELinuxStrategyRunAsAny {
-		scc.SELinuxContext.Type = secv1.SELinuxStrategyRunAsAny
-
-		if err = args.Client.Update(context.TODO(), scc); err != nil {
-			return err
-		}
-	}
 
 	return nil
 }

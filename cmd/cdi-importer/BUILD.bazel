@@ -49,6 +49,7 @@ container_image(
         "//tools/cdi-image-size-detection",
         "//tools/cdi-source-update-poller",
     ],
+    user = "1001",
     visibility = ["//visibility:public"],
 )
 

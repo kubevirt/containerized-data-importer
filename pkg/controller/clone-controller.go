@@ -23,7 +23,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -573,7 +572,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 		}
 	}
 
-	preallocationRequested, _ := targetPvc.Annotations[AnnPreallocationRequested]
+	preallocationRequested := targetPvc.Annotations[AnnPreallocationRequested]
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -592,15 +591,6 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 			},
 		},
 		Spec: corev1.PodSpec{
-			SecurityContext: &corev1.PodSecurityContext{
-				RunAsUser: &[]int64{0}[0],
-				SELinuxOptions: &corev1.SELinuxOptions{
-					User:  "system_u",
-					Role:  "system_r",
-					Type:  "spc_t",
-					Level: "s0",
-				},
-			},
 			Containers: []corev1.Container{
 				{
 					Name:            common.ClonerSourcePodName,
@@ -653,14 +643,6 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 							Protocol:      corev1.ProtocolTCP,
 						},
 					},
-					SecurityContext: &corev1.SecurityContext{
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{
-								"ALL",
-							},
-						},
-						AllowPrivilegeEscalation: pointer.BoolPtr(false),
-					},
 				},
 			},
 			RestartPolicy: corev1.RestartPolicyOnFailure,
@@ -670,7 +652,6 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 							ClaimName: sourcePvcName,
-							ReadOnly:  true,
 						},
 					},
 				},
@@ -733,6 +714,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 			{
 				Name:      DataVolName,
 				MountPath: common.ClonerMountPath,
+				ReadOnly:  true,
 			},
 		}
 		addVars = []corev1.EnvVar{
@@ -749,6 +731,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 
 	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, addVars...)
 	SetPodPvcAnnotations(pod, targetPvc)
+	SetRestrictedSecurityContext(&pod.Spec)
 	return pod
 }
 

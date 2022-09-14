@@ -46,8 +46,8 @@ import (
 
 const (
 	tempFile         = "tmpimage"
-	nbdkitPid        = "/var/run/nbdkit.pid"
-	nbdkitSocket     = "/var/run/nbdkit.sock"
+	nbdkitPid        = "/tmp/nbdkit.pid"
+	nbdkitSocket     = "/tmp/nbdkit.sock"
 	defaultUserAgent = "cdi-golang-importer"
 )
 

@@ -38,7 +38,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -720,7 +719,6 @@ func createUploadServiceNameFromPvcName(pvc string) string {
 func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequirements *v1.ResourceRequirements, workloadNodePlacement *sdkapi.NodePlacement) *v1.Pod {
 	requestImageSize, _ := getRequestedImageSize(args.PVC)
 	serviceName := naming.GetServiceNameFromResourceName(args.Name)
-	fsGroup := common.QemuSubGid
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      args.Name,
@@ -739,9 +737,6 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			},
 		},
 		Spec: v1.PodSpec{
-			SecurityContext: &v1.PodSecurityContext{
-				RunAsUser: &[]int64{0}[0],
-			},
 			Containers: []v1.Container{
 				{
 					Name:            common.UploadServerPodname,
@@ -813,14 +808,6 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 						InitialDelaySeconds: 2,
 						PeriodSeconds:       5,
 					},
-					SecurityContext: &corev1.SecurityContext{
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{
-								"ALL",
-							},
-						},
-						AllowPrivilegeEscalation: pointer.BoolPtr(false),
-					},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyOnFailure,
@@ -840,10 +827,6 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			Affinity:          workloadNodePlacement.Affinity,
 			PriorityClassName: getPriorityClass(args.PVC),
 		},
-	}
-
-	if !checkPVC(args.PVC, AnnCloneRequest, r.log.WithValues("Name", args.PVC.Name, "Namspace", args.PVC.Namespace)) {
-		pod.Spec.SecurityContext.FSGroup = &fsGroup
 	}
 
 	if resourceRequirements != nil {
@@ -887,5 +870,6 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 		})
 	}
 	SetPodPvcAnnotations(pod, args.PVC)
+	SetRestrictedSecurityContext(&pod.Spec)
 	return pod
 }

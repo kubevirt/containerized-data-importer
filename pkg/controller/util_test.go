@@ -1115,8 +1115,19 @@ func podUsingPVC(pvc *corev1.PersistentVolumeClaim, readOnly bool) *corev1.Pod {
 			Name:      pvc.Name + "-pod",
 		},
 		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:     "v1",
+							ReadOnly: readOnly,
+						},
+					},
+				},
+			},
 			Volumes: []corev1.Volume{
 				{
+					Name: "v1",
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 							ClaimName: pvc.Name,

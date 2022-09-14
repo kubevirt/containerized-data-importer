@@ -146,12 +146,38 @@ func validateMount() {
 }
 
 func newTarReader(preallocation bool) (io.ReadCloser, error) {
-	args := "cv"
+	excludeMap := map[string]struct{}{
+		"lost+found": struct{}{},
+	}
+
+	args := []string{"/usr/bin/tar", "cv"}
 	if !preallocation {
 		// -S is used to handle sparse files. It can only be used when preallocation is not requested
-		args = "S" + args
+		args = append(args, "-S")
 	}
-	cmd := exec.Command("/usr/bin/tar", args, ".")
+
+	files, err := os.ReadDir(mountPoint)
+	if err != nil {
+		return nil, err
+	}
+
+	var tarFiles []string
+	for _, f := range files {
+		if _, ok := excludeMap[f.Name()]; ok {
+			continue
+		}
+		tarFiles = append(tarFiles, f.Name())
+	}
+
+	if len(tarFiles) > 0 {
+		args = append(args, tarFiles...)
+	} else {
+		args = append(args, "--files-from", "/dev/null")
+	}
+
+	klog.Infof("Executing %+v", args)
+
+	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Dir = mountPoint
 
 	stdout, err := cmd.StdoutPipe()

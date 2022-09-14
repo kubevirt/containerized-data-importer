@@ -680,9 +680,6 @@ func createUploadClonePod(pvc *corev1.PersistentVolumeClaim, clientName string) 
 			},
 		},
 		Spec: corev1.PodSpec{
-			SecurityContext: &corev1.PodSecurityContext{
-				RunAsUser: &[]int64{0}[0],
-			},
 			Containers: []corev1.Container{
 				{
 					Name:            "cdi-upload-server",

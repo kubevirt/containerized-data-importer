@@ -19,6 +19,7 @@ package utils
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/utils/pointer"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -52,12 +53,37 @@ func CreateContainer(name, image, verbosity, pullPolicy string) corev1.Container
 	container.TerminationMessagePolicy = corev1.TerminationMessageReadFile
 	container.TerminationMessagePath = corev1.TerminationMessagePathDefault
 	container.Args = []string{"-v=" + verbosity}
+	container.SecurityContext = &corev1.SecurityContext{
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{
+				"ALL",
+			},
+		},
+		SeccompProfile: &corev1.SeccompProfile{
+			Type: corev1.SeccompProfileTypeRuntimeDefault,
+		},
+		AllowPrivilegeEscalation: pointer.BoolPtr(false),
+		RunAsNonRoot:             pointer.BoolPtr(true),
+	}
 	return *container
 }
 
 // CreatePortsContainer creates container with ports
 func CreatePortsContainer(name, image, pullPolicy string, ports []corev1.ContainerPort) corev1.Container {
-	return *ResourceBuilder.CreatePortsContainer(name, image, pullPolicy, ports)
+	container := ResourceBuilder.CreatePortsContainer(name, image, pullPolicy, ports)
+	container.SecurityContext = &corev1.SecurityContext{
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{
+				"ALL",
+			},
+		},
+		SeccompProfile: &corev1.SeccompProfile{
+			Type: corev1.SeccompProfileTypeRuntimeDefault,
+		},
+		AllowPrivilegeEscalation: pointer.BoolPtr(false),
+		RunAsNonRoot:             pointer.BoolPtr(true),
+	}
+	return *container
 }
 
 // CreateDeployment creates deployment

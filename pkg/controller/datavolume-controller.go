@@ -47,7 +47,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -1630,14 +1629,6 @@ func (r *DatavolumeReconciler) createExpansionPod(pvc *corev1.PersistentVolumeCl
 					ImagePullPolicy: corev1.PullPolicy(r.pullPolicy),
 					Command:         []string{"/bin/bash"},
 					Args:            []string{"-c", "echo", "'hello cdi'"},
-					SecurityContext: &corev1.SecurityContext{
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{
-								"ALL",
-							},
-						},
-						AllowPrivilegeEscalation: pointer.BoolPtr(false),
-					},
 				},
 			},
 			RestartPolicy: corev1.RestartPolicyOnFailure,
@@ -1676,6 +1667,8 @@ func (r *DatavolumeReconciler) createExpansionPod(pvc *corev1.PersistentVolumeCl
 	if err := setAnnOwnedByDataVolume(pod, dv); err != nil {
 		return nil, err
 	}
+
+	SetRestrictedSecurityContext(&pod.Spec)
 
 	if err := r.client.Create(context.TODO(), pod); err != nil {
 		if !k8serrors.IsAlreadyExists(err) {
@@ -3149,6 +3142,8 @@ func (r *DatavolumeReconciler) makeSizeDetectionPodSpec(
 		},
 	}
 
+	SetRestrictedSecurityContext(&pod.Spec)
+
 	return pod
 }
 
@@ -3184,14 +3179,6 @@ func (r *DatavolumeReconciler) makeSizeDetectionContainerSpec(volName string) *c
 				MountPath: common.ImporterVolumePath,
 				Name:      volName,
 			},
-		},
-		SecurityContext: &corev1.SecurityContext{
-			Capabilities: &corev1.Capabilities{
-				Drop: []corev1.Capability{
-					"ALL",
-				},
-			},
-			AllowPrivilegeEscalation: pointer.BoolPtr(false),
 		},
 	}
 

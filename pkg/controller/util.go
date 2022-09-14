@@ -13,6 +13,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -23,6 +24,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
+
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiv1utils "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1/utils"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -665,10 +668,31 @@ func GetPodsUsingPVCs(c client.Client, namespace string, names sets.String, allo
 		}
 		for _, volume := range pod.Spec.Volumes {
 			if volume.VolumeSource.PersistentVolumeClaim != nil &&
-				names.Has(volume.PersistentVolumeClaim.ClaimName) &&
-				(!allowReadOnly || !volume.PersistentVolumeClaim.ReadOnly) {
-				pods = append(pods, pod)
-				break
+				names.Has(volume.PersistentVolumeClaim.ClaimName) {
+				addPod := true
+				if allowReadOnly {
+					if !volume.VolumeSource.PersistentVolumeClaim.ReadOnly {
+						onlyReadOnly := true
+						for _, c := range pod.Spec.Containers {
+							for _, vm := range c.VolumeMounts {
+								if vm.Name == volume.Name && !vm.ReadOnly {
+									onlyReadOnly = false
+								}
+							}
+						}
+						if onlyReadOnly {
+							// no rw mounts
+							addPod = false
+						}
+					} else {
+						// all mounts must be ro
+						addPod = false
+					}
+				}
+				if addPod {
+					pods = append(pods, pod)
+					break
+				}
 			}
 		}
 	}
@@ -1222,4 +1246,39 @@ func isPVCComplete(pvc *v1.PersistentVolumeClaim) bool {
 // isPodComplete returns true if a pod is in 'Succeeded' phase, false if not
 func isPodComplete(pod *v1.Pod) bool {
 	return pod != nil && pod.Status.Phase == v1.PodSucceeded
+}
+
+// SetRestrictedSecurityContext sets the pod security params
+// to be compatible with restricted PSA
+func SetRestrictedSecurityContext(podSpec *v1.PodSpec) {
+	hasVolumeMounts := false
+	for _, containers := range [][]v1.Container{podSpec.InitContainers, podSpec.Containers} {
+		for i := range containers {
+			container := &containers[i]
+			if container.SecurityContext == nil {
+				container.SecurityContext = &v1.SecurityContext{}
+			}
+			container.SecurityContext.Capabilities = &corev1.Capabilities{
+				Drop: []corev1.Capability{
+					"ALL",
+				},
+			}
+			container.SecurityContext.SeccompProfile = &v1.SeccompProfile{
+				Type: v1.SeccompProfileTypeRuntimeDefault,
+			}
+			container.SecurityContext.AllowPrivilegeEscalation = pointer.BoolPtr(false)
+			container.SecurityContext.RunAsNonRoot = pointer.BoolPtr(true)
+			container.SecurityContext.RunAsUser = pointer.Int64(common.QemuSubGid)
+			if len(container.VolumeMounts) > 0 {
+				hasVolumeMounts = true
+			}
+		}
+	}
+
+	if hasVolumeMounts {
+		if podSpec.SecurityContext == nil {
+			podSpec.SecurityContext = &v1.PodSecurityContext{}
+		}
+		podSpec.SecurityContext.FSGroup = pointer.Int64(common.QemuSubGid)
+	}
 }

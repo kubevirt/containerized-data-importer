@@ -201,19 +201,12 @@ func StreamDataToFile(r io.Reader, fileName string) error {
 
 // UnArchiveTar unarchives a tar file and streams its files
 // using the specified io.Reader to the specified destination.
-func UnArchiveTar(reader io.Reader, destDir string, arg ...string) error {
+func UnArchiveTar(reader io.Reader, destDir string) error {
 	klog.V(1).Infof("begin untar to %s...\n", destDir)
-
-	var tarOptions string
-	var args = arg
-	if len(arg) > 0 {
-		tarOptions = arg[0]
-		args = arg[1:]
-	}
-	options := fmt.Sprintf("-%s%s", tarOptions, "xvC")
-	untar := exec.Command("/usr/bin/tar", "--no-same-owner", options, destDir, strings.Join(args, ""))
+	untar := exec.Command("/usr/bin/tar", "--no-same-owner", "-xvC", destDir)
 	untar.Stdin = reader
-	var errBuf bytes.Buffer
+	var outBuf, errBuf bytes.Buffer
+	untar.Stdout = &outBuf
 	untar.Stderr = &errBuf
 	err := untar.Start()
 	if err != nil {
@@ -221,7 +214,8 @@ func UnArchiveTar(reader io.Reader, destDir string, arg ...string) error {
 	}
 	err = untar.Wait()
 	if err != nil {
-		klog.V(3).Infof("%s\n", errBuf.String())
+		klog.V(3).Infof("STDOUT\n%s\n", outBuf.String())
+		klog.V(3).Infof("STDERR\n%s\n", errBuf.String())
 		klog.Errorf("%s\n", err.Error())
 		return err
 	}

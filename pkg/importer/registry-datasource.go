@@ -165,7 +165,7 @@ func getImageFileName(dir string) (string, error) {
 }
 
 func createCertificateDir(registryCertDir string) (string, error) {
-	allCerts := "/var/local/all_certs"
+	allCerts := "/tmp/all_certs"
 	err := os.MkdirAll(allCerts, 0700)
 	if err != nil {
 		return allCerts, err

@@ -39,6 +39,7 @@ container_image(
         "-alsologtostderr",
     ],
     files = [":cdi-uploadserver"],
+    user = "1001",
     visibility = ["//visibility:public"],
 )
 
