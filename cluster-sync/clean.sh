@@ -53,7 +53,7 @@ if [ -f "${OPERATOR_CR_MANIFEST}" ]; then
 fi
 
 set +e
-_kubectl patch cdi ${CR_NAME} --type=json -p '[{ "op": "remove", "path": "/metadata/finalizers" }]' | echo "this is fine"
+_kubectl patch cdi ${CR_NAME} --type=json -p '[{ "op": "remove", "path": "/metadata/finalizers" }]'
 set -e
 
 if [ "${CDI_CLEAN}" == "all" ] && [ -f "${OPERATOR_MANIFEST}" ]; then
