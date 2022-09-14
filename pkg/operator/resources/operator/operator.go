@@ -17,11 +17,12 @@ limitations under the License.
 package operator
 
 import (
-	"encoding/json"
+	"fmt"
 	"strings"
 
-	"github.com/coreos/go-semver/semver"
-	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/blang/semver/v4"
+	"github.com/operator-framework/api/pkg/lib/version"
+	csvv1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -395,21 +396,6 @@ func createPrometheusPorts() []corev1.ContainerPort {
 	}
 }
 
-type csvPermissions struct {
-	ServiceAccountName string              `json:"serviceAccountName"`
-	Rules              []rbacv1.PolicyRule `json:"rules"`
-}
-type csvDeployments struct {
-	Name string                `json:"name"`
-	Spec appsv1.DeploymentSpec `json:"spec,omitempty"`
-}
-
-type csvStrategySpec struct {
-	Permissions        []csvPermissions `json:"permissions"`
-	ClusterPermissions []csvPermissions `json:"clusterPermissions"`
-	Deployments        []csvDeployments `json:"deployments"`
-}
-
 func createClusterServiceVersion(data *ClusterServiceVersionData) (*csvv1.ClusterServiceVersion, error) {
 
 	description := `
@@ -434,20 +420,20 @@ _The CDI Operator does not support updates yet._
 
 	deployment.Spec.Template.Spec.PriorityClassName = utils.CDIPriorityClass
 
-	strategySpec := csvStrategySpec{
-		Permissions: []csvPermissions{
+	strategySpec := csvv1.StrategyDetailsDeployment{
+		Permissions: []csvv1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: serviceAccountName,
 				Rules:              getNamespacedPolicyRules(),
 			},
 		},
-		ClusterPermissions: []csvPermissions{
+		ClusterPermissions: []csvv1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: serviceAccountName,
 				Rules:              getClusterPolicyRules(),
 			},
 		},
-		Deployments: []csvDeployments{
+		DeploymentSpecs: []csvv1.StrategyDeploymentSpec{
 			{
 				Name: "cdi-operator",
 				Spec: deployment.Spec,
@@ -455,9 +441,9 @@ _The CDI Operator does not support updates yet._
 		},
 	}
 
-	strategySpecJSONBytes, err := json.Marshal(strategySpec)
+	csvVersion, err := semver.Parse(data.CsvVersion)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse CSV version: %w", err)
 	}
 
 	return &csvv1.ClusterServiceVersion{
@@ -494,7 +480,7 @@ _The CDI Operator does not support updates yet._
 			DisplayName: "CDI",
 			Description: description,
 			Keywords:    []string{"CDI", "Virtualization", "Storage"},
-			Version:     *semver.New(data.CsvVersion),
+			Version:     version.OperatorVersion{Version: csvVersion},
 			Maturity:    "alpha",
 			Replaces:    data.ReplacesCsvVersion,
 			Maintainers: []csvv1.Maintainer{{
@@ -547,8 +533,8 @@ _The CDI Operator does not support updates yet._
 				},
 			},
 			InstallStrategy: csvv1.NamedInstallStrategy{
-				StrategyName:    "deployment",
-				StrategySpecRaw: json.RawMessage(strategySpecJSONBytes),
+				StrategyName: "deployment",
+				StrategySpec: strategySpec,
 			},
 			CustomResourceDefinitions: csvv1.CustomResourceDefinitions{
 

@@ -5,8 +5,8 @@ go 1.18
 require (
 	github.com/appscode/jsonpatch v1.0.1
 	github.com/aws/aws-sdk-go v1.25.48
+	github.com/blang/semver/v4 v4.0.0
 	github.com/containers/image/v5 v5.19.1
-	github.com/coreos/go-semver v0.3.0
 	github.com/docker/go-units v0.4.0
 	github.com/emicklei/go-restful v2.16.0+incompatible
 	github.com/emicklei/go-restful-openapi v1.2.0
@@ -24,7 +24,7 @@ require (
 	github.com/openshift/client-go v0.0.0
 	github.com/openshift/custom-resource-status v1.1.2
 	github.com/openshift/library-go v0.0.0-20211220195323-eca2c467c492
-	github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190725173916-b56e63a643cc
+	github.com/operator-framework/api v0.11.1
 	github.com/ovirt/go-ovirt v0.0.0-20210809163552-d4276e35d3db
 	github.com/ovirt/go-ovirt-client v0.9.0
 	github.com/ovirt/go-ovirt-client-log-klog v1.0.0
@@ -148,7 +148,6 @@ replace (
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20211217221424-8779abfbd571
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20211209144617-7385dd6338e3
 	github.com/openshift/library-go => github.com/mhenriks/library-go v0.0.0-20211221173158-d6e4bcc60f0a
-	github.com/operator-framework/operator-lifecycle-manager => github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190128024246-5eb7ae5bdb7a
 
 	k8s.io/api => k8s.io/api v0.23.0
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.23.0
