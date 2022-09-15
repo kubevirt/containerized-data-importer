@@ -938,19 +938,13 @@ rpm(
 rpm(
     name = "gnutls-0__3.7.3-9.el9.aarch64",
     sha256 = "0f608bc35b5ec94c3b2512731089d7c8ab416499aa9840093a0ee41b6418f29c",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/gnutls-3.7.3-9.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/0f608bc35b5ec94c3b2512731089d7c8ab416499aa9840093a0ee41b6418f29c",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/0f608bc35b5ec94c3b2512731089d7c8ab416499aa9840093a0ee41b6418f29c"],
 )
 
 rpm(
     name = "gnutls-0__3.7.3-9.el9.x86_64",
     sha256 = "f6781dc8504214040301843ccd95e2e43351208092d5c01587463d3065efc4b3",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/gnutls-3.7.3-9.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/f6781dc8504214040301843ccd95e2e43351208092d5c01587463d3065efc4b3",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/f6781dc8504214040301843ccd95e2e43351208092d5c01587463d3065efc4b3"],
 )
 
 rpm(
