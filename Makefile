@@ -47,14 +47,16 @@ update-codegen:
 
 generate: update-codegen bazel-generate generate-doc
 
-generate-verify: generate-doc
-	${DO_BAZ} "./hack/verify-codegen.sh"
+generate-verify: generate
 	git difftool -y --trust-exit-code --extcmd=./hack/diff-csv.sh
 
 gomod-update:
 	${DO_BAZ} "./hack/build/dep-update.sh"
 
 deps-update: gomod-update bazel-generate
+
+deps-verify: deps-update
+	git difftool -y --trust-exit-code --extcmd=./hack/diff-csv.sh
 
 rpm-deps:
 	${DO_BAZ} "CUSTOM_REPO=${CUSTOM_REPO} ./hack/build/rpm-deps.sh"
