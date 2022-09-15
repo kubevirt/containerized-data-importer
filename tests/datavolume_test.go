@@ -1160,10 +1160,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 
-			cdi, err := controller.GetActiveCDI(f.CrClient)
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-
-			if cdi.Spec.Config.DataVolumeTTLSeconds != nil {
+			if controller.GetDataVolumeTTLSeconds(config) >= 0 {
 				return
 			}
 

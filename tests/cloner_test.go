@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -157,7 +158,7 @@ var _ = Describe("all clone tests", func() {
 					config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
 					return reflect.DeepEqual(config.Spec, *origSpec)
-				}, 30*time.Second, time.Second).Should(BeTrue())
+				}, timeout, pollingInterval).Should(BeTrue())
 			})
 
 			verifyGC := func(dvName string) {
@@ -170,7 +171,7 @@ var _ = Describe("all clone tests", func() {
 				EnableGcAndAnnotateLegacyDv(f, dvName, ns)
 			}
 
-			DescribeTable("Should", func(ttl *int32, verifyGCFunc, additionalTestFunc func(dvName string)) {
+			DescribeTable("Should", func(ttl int, verifyGCFunc, additionalTestFunc func(dvName string)) {
 				SetConfigTTL(f, ttl)
 
 				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
@@ -198,8 +199,8 @@ var _ = Describe("all clone tests", func() {
 					additionalTestFunc(targetDV.Name)
 				}
 			},
-				Entry("[test_id:8565] garbage collect dvs after completion when TTL is 0", &[]int32{0}[0], verifyGC, nil),
-				Entry("[test_id:8569] Add DeleteAfterCompletion annotation to a legacy DV", nil, verifyDisabledGC, enableGcAndAnnotateLegacyDv),
+				Entry("[test_id:8565] garbage collect dvs after completion when TTL is 0", 0, verifyGC, nil),
+				Entry("[test_id:8569] Add DeleteAfterCompletion annotation to a legacy DV", -1, verifyDisabledGC, enableGcAndAnnotateLegacyDv),
 			)
 		})
 
@@ -2786,7 +2787,7 @@ func VerifyNoGC(f *framework.Framework, dvName, dvNamespace string) {
 		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 		Expect(err).NotTo(HaveOccurred())
 		return log
-	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+	}, timeout, pollingInterval).Should(ContainSubstring(matchString))
 	dv, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(dv.Annotations[controller.AnnDeleteAfterCompletion]).ToNot(Equal("true"))
@@ -2801,7 +2802,7 @@ func VerifyDisabledGC(f *framework.Framework, dvName, dvNamespace string) {
 		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 		Expect(err).NotTo(HaveOccurred())
 		return log
-	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+	}, timeout, pollingInterval).Should(ContainSubstring(matchString))
 	_, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 }
@@ -2809,10 +2810,7 @@ func VerifyDisabledGC(f *framework.Framework, dvName, dvNamespace string) {
 // EnableGcAndAnnotateLegacyDv enables garbage collection, annotates the DV and verifies it is garbage collected
 func EnableGcAndAnnotateLegacyDv(f *framework.Framework, dvName, dvNamespace string) {
 	By("Enable Garbage Collection")
-	err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-		config.DataVolumeTTLSeconds = &[]int32{0}[0]
-	})
-	Expect(err).ToNot(HaveOccurred())
+	SetConfigTTL(f, 0)
 
 	dv, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
@@ -2833,14 +2831,10 @@ func EnableGcAndAnnotateLegacyDv(f *framework.Framework, dvName, dvNamespace str
 }
 
 // SetConfigTTL set CDIConfig DataVolumeTTLSeconds
-func SetConfigTTL(f *framework.Framework, ttl *int32) {
-	ttlStr := "nil"
-	if ttl != nil {
-		ttlStr = strconv.Itoa(int(*ttl))
-	}
-	By("Set DataVolumeTTLSeconds to " + ttlStr)
+func SetConfigTTL(f *framework.Framework, ttl int) {
+	By(fmt.Sprintf("Set DataVolumeTTLSeconds to %d", ttl))
 	err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-		config.DataVolumeTTLSeconds = ttl
+		config.DataVolumeTTLSeconds = pointer.Int32(int32(ttl))
 	})
 	Expect(err).ToNot(HaveOccurred())
 }

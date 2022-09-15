@@ -38,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
+	"k8s.io/utils/pointer"
 
 	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -156,7 +157,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 				},
 			}
 
-			resp := mutateDVsEx(key, ar, true, nil, []runtime.Object{dataSource})
+			resp := mutateDVsEx(key, ar, true, 0, []runtime.Object{dataSource})
 			Expect(resp.Allowed).To(BeTrue())
 			Expect(resp.Patch).ToNot(BeNil())
 
@@ -278,7 +279,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			Entry("succeed with empty namespace", ""),
 		)
 
-		DescribeTable("should", func(ttl *int32) {
+		DescribeTable("should", func(ttl int) {
 			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
 			dvBytes, _ := json.Marshal(&dataVolume)
 
@@ -296,10 +297,10 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 				},
 			}
 
-			resp := mutateDVsEx(key, ar, true, ttl, nil)
+			resp := mutateDVsEx(key, ar, true, int32(ttl), nil)
 			Expect(resp.Allowed).To(BeTrue())
 
-			if ttl == nil {
+			if ttl < 0 {
 				Expect(resp.Patch).To(BeNil())
 				return
 			}
@@ -319,18 +320,17 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			Expect(ok).Should(BeTrue())
 			Expect(val).Should(Equal("true"))
 		},
-			Entry("set GC annotation if TTL is set", &[]int32{0}[0]),
-			Entry("not set GC annotation if TTL is not set", nil),
+			Entry("set GC annotation if TTL is set", 0),
+			Entry("not set GC annotation if TTL is disabled", -1),
 		)
-
 	})
 })
 
 func mutateDVs(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthorized bool) *admissionv1.AdmissionResponse {
-	return mutateDVsEx(key, ar, isAuthorized, nil, nil)
+	return mutateDVsEx(key, ar, isAuthorized, 0, nil)
 }
 
-func mutateDVsEx(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthorized bool, ttl *int32, cdiObjects []runtime.Object) *admissionv1.AdmissionResponse {
+func mutateDVsEx(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthorized bool, ttl int32, cdiObjects []runtime.Object) *admissionv1.AdmissionResponse {
 	defaultNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}}
 	testNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "testNamespace"}}
 	client := fakeclient.NewSimpleClientset(&defaultNs, &testNs)
@@ -349,7 +349,7 @@ func mutateDVsEx(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthori
 	})
 
 	cdiConfig := controller.MakeEmptyCDIConfigSpec(common.ConfigName)
-	cdiConfig.Spec.DataVolumeTTLSeconds = ttl
+	cdiConfig.Spec.DataVolumeTTLSeconds = pointer.Int32(ttl)
 	objs := []runtime.Object{cdiConfig}
 	objs = append(objs, cdiObjects...)
 	cdiClient := cdiclientfake.NewSimpleClientset(objs...)

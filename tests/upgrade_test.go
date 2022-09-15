@@ -33,6 +33,11 @@ var _ = Describe("[Upgrade]", func() {
 
 	table.DescribeTable("[rfe_id:5493]DV status.name is populated after upgrade", func(dvName string) {
 		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(oldVersionArtifactsNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
+		if apierrs.IsNotFound(err) {
+			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(oldVersionArtifactsNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return
+		}
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dv.Status.ClaimName).To(Equal(dvName))
 	},

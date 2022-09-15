@@ -191,8 +191,6 @@ var _ = Describe("DataVolume Garbage Collection", func() {
 		err      error
 		config   *cdiv1.CDIConfig
 		origSpec *cdiv1.CDIConfigSpec
-		ttl0     = int32(0)
-		ttl10    = int32(10)
 	)
 
 	BeforeEach(func() {
@@ -231,7 +229,7 @@ var _ = Describe("DataVolume Garbage Collection", func() {
 		tests.EnableGcAndAnnotateLegacyDv(f, dvName, ns)
 	}
 
-	DescribeTable("Should", func(ttl *int32, annDeleteAfterCompletion string, verifyGCFunc, additionalTestFunc func(dvName string), verifyContent bool) {
+	DescribeTable("Should", func(ttl int, annDeleteAfterCompletion string, verifyGCFunc, additionalTestFunc func(dvName string), verifyContent bool) {
 		tests.SetConfigTTL(f, ttl)
 
 		dv := utils.NewDataVolumeWithHTTPImport("gc-test", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
@@ -267,11 +265,11 @@ var _ = Describe("DataVolume Garbage Collection", func() {
 			Expect(err).ToNot(HaveOccurred())
 		}
 	},
-		Entry("[test_id:8562] garbage collect dv after completion when TTL is 0", &ttl0, "", verifyGC, nil, true),
-		Entry("[test_id:8563] not garbage collect dv after completion when TTL is disabled", nil, "", verifyDisabledGC, nil, false),
-		Entry("[test_id:8564] garbage collect dv after completion when TTL is 10s", &ttl10, "", verifyGC, nil, true),
-		Entry("[test_id:8568] Add DeleteAfterCompletion annotation to a legacy DV", nil, "", verifyDisabledGC, enableGcAndAnnotateLegacyDv, true),
-		Entry("[test_id:8688] not garbage collect dv after completion when DeleteAfterCompletion is false", &ttl0, "false", verifyNoGC, nil, false),
+		Entry("[test_id:8562] garbage collect dv after completion when TTL is 0", 0, "", verifyGC, nil, true),
+		Entry("[test_id:8563] not garbage collect dv after completion when TTL is disabled", -1, "", verifyDisabledGC, nil, false),
+		Entry("[test_id:8564] garbage collect dv after completion when TTL is 10s", 10, "", verifyGC, nil, true),
+		Entry("[test_id:8568] Add DeleteAfterCompletion annotation to a legacy DV", -1, "", verifyDisabledGC, enableGcAndAnnotateLegacyDv, true),
+		Entry("[test_id:8688] not garbage collect dv after completion when DeleteAfterCompletion is false", 0, "false", verifyNoGC, nil, false),
 	)
 })
 

@@ -1063,7 +1063,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			tests.EnableGcAndAnnotateLegacyDv(f, dvName, ns)
 		}
 
-		DescribeTable("Should", func(ttl *int32, verifyGCFunc, additionalTestFunc func(dvName string)) {
+		DescribeTable("Should", func(ttl int, verifyGCFunc, additionalTestFunc func(dvName string)) {
 			tests.SetConfigTTL(f, ttl)
 
 			dvName := "upload-dv"
@@ -1115,8 +1115,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				additionalTestFunc(dv.Name)
 			}
 		},
-			Entry("[test_id:8566] garbage collect dvs after completion when TTL is 0", &[]int32{0}[0], verifyGC, nil),
-			Entry("[test_id:8570] Add DeleteAfterCompletion annotation to a legacy DV", nil, verifyDisabledGC, enableGcAndAnnotateLegacyDv),
+			Entry("[test_id:8566] garbage collect dvs after completion when TTL is 0", 0, verifyGC, nil),
+			Entry("[test_id:8570] Add DeleteAfterCompletion annotation to a legacy DV", -1, verifyDisabledGC, enableGcAndAnnotateLegacyDv),
 		)
 	})
 

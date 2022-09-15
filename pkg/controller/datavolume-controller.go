@@ -2777,35 +2777,40 @@ func (r *DatavolumeReconciler) garbageCollect(dataVolume *cdiv1.DataVolume, pvc 
 	if dataVolume.Status.Phase != cdiv1.Succeeded {
 		return nil, nil
 	}
-	if allowed, err := r.isGarbageCollectionAllowed(dataVolume); !allowed || err != nil {
-		log.Info("Garbage Collection is not allowed, due to owner finalizers update RBAC")
-		return nil, err
-	}
 	cdiConfig := &cdiv1.CDIConfig{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
 		return nil, err
 	}
-	dvTTL := cdiConfig.Spec.DataVolumeTTLSeconds
-	if dvTTL == nil || *dvTTL < 0 {
+	dvTTL := GetDataVolumeTTLSeconds(cdiConfig)
+	if dvTTL < 0 {
 		log.Info("Garbage Collection is disabled")
 		return nil, nil
 	}
+	if allowed, err := r.isGarbageCollectionAllowed(dataVolume, log); !allowed || err != nil {
+		return nil, err
+	}
 	// Current DV still has TTL, so reconcile will return with the needed RequeueAfter
-	if delta := getDeltaTTL(dataVolume, *dvTTL); delta > 0 {
+	if delta := getDeltaTTL(dataVolume, dvTTL); delta > 0 {
 		return &reconcile.Result{RequeueAfter: delta}, nil
 	}
-	if err := r.detachPvcDeleteDv(pvc, dataVolume, log); err != nil {
+	if err := r.detachPvcDeleteDv(pvc, dataVolume); err != nil {
 		return nil, err
 	}
 	return &reconcile.Result{}, nil
 }
 
-func (r *DatavolumeReconciler) isGarbageCollectionAllowed(dv *cdiv1.DataVolume) (bool, error) {
+func (r *DatavolumeReconciler) isGarbageCollectionAllowed(dv *cdiv1.DataVolume, log logr.Logger) (bool, error) {
+	dvDelete := dv.Annotations[AnnDeleteAfterCompletion]
+	if dvDelete != "true" {
+		log.Info("DataVolume is not annotated to be garbage collected")
+		return false, nil
+	}
 	for _, ref := range dv.OwnerReferences {
 		if ref.BlockOwnerDeletion == nil || *ref.BlockOwnerDeletion == false {
 			continue
 		}
 		if allowed, err := r.canUpdateFinalizers(ref); !allowed || err != nil {
+			log.Info("DataVolume cannot be garbage collected, due to owner finalizers update RBAC")
 			return false, err
 		}
 	}
@@ -2835,15 +2840,7 @@ func (r *DatavolumeReconciler) canUpdateFinalizers(ownerRef metav1.OwnerReferenc
 	return ssar.Status.Allowed, nil
 }
 
-func (r *DatavolumeReconciler) detachPvcDeleteDv(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume, log logr.Logger) error {
-	if dv.Status.Phase != cdiv1.Succeeded {
-		return nil
-	}
-	dvDelete := dv.Annotations[AnnDeleteAfterCompletion]
-	if dvDelete != "true" {
-		log.Info("DataVolume is not annotated to be garbage collected")
-		return nil
-	}
+func (r *DatavolumeReconciler) detachPvcDeleteDv(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) error {
 	updatePvcOwnerRefs(pvc, dv)
 	delete(pvc.Annotations, AnnPopulatedFor)
 	if err := r.updatePVC(pvc); err != nil {
@@ -2883,6 +2880,15 @@ func getDeltaTTL(dv *cdiv1.DataVolume, ttl int32) time.Duration {
 		delta -= time.Now().Sub(cond.LastTransitionTime.Time)
 	}
 	return delta
+}
+
+// GetDataVolumeTTLSeconds gets the current DataVolume TTL in seconds if GC is enabled, or < 0 if GC is disabled
+func GetDataVolumeTTLSeconds(config *cdiv1.CDIConfig) int32 {
+	const defaultDataVolumeTTLSeconds = 0
+	if config.Spec.DataVolumeTTLSeconds != nil {
+		return *config.Spec.DataVolumeTTLSeconds
+	}
+	return defaultDataVolumeTTLSeconds
 }
 
 // validateCloneAndSourcePVC checks if the source PVC of a clone exists and does proper validation
