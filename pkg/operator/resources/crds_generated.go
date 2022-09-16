@@ -2207,7 +2207,8 @@ spec:
                 properties:
                   dataVolumeTTLSeconds:
                     description: DataVolumeTTLSeconds is the time in seconds after
-                      DataVolume completion it can be garbage collected.
+                      DataVolume completion it can be garbage collected. The default
+                      is 0 sec. To disable GC use -1.
                     format: int32
                     type: integer
                   featureGates:
@@ -4624,7 +4625,8 @@ spec:
             properties:
               dataVolumeTTLSeconds:
                 description: DataVolumeTTLSeconds is the time in seconds after DataVolume
-                  completion it can be garbage collected.
+                  completion it can be garbage collected. The default is 0 sec. To
+                  disable GC use -1.
                 format: int32
                 type: integer
               featureGates:

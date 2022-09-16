@@ -22974,7 +22974,7 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 					},
 					"dataVolumeTTLSeconds": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected.",
+							Description: "DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected. The default is 0 sec. To disable GC use -1.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},

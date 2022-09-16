@@ -671,8 +671,8 @@ func WaitForDataVolumePhaseWithTimeout(ci ClientsIface, namespace string, phase 
 		if err != nil {
 			return err
 		}
-		if ttl := cfg.Spec.DataVolumeTTLSeconds; ttl != nil {
-			return WaitForDataVolumeGC(ci, namespace, dataVolumeName, *ttl, dataVolumePhaseTime)
+		if ttl := controller.GetDataVolumeTTLSeconds(cfg); ttl >= 0 {
+			return WaitForDataVolumeGC(ci, namespace, dataVolumeName, ttl, dataVolumePhaseTime)
 		}
 	}
 	err := wait.PollImmediate(dataVolumePollInterval, timeout, func() (bool, error) {

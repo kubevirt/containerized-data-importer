@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -617,7 +618,7 @@ var _ = Describe("ALL Operator tests", func() {
 				originalReplicaVal := *cdiDeployment.Spec.Replicas
 
 				By("Overwrite number of replicas with originalVal + 1")
-				cdiDeployment.Spec.Replicas = &[]int32{originalReplicaVal + 1}[0]
+				cdiDeployment.Spec.Replicas = pointer.Int32(originalReplicaVal + 1)
 				_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), cdiDeployment, metav1.UpdateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
@@ -823,7 +824,7 @@ var _ = Describe("ALL Operator tests", func() {
 				operatorDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				originalReplicas := operatorDeployment.Spec.Replicas
-				operatorDeployment.Spec.Replicas = &[]int32{0}[0]
+				operatorDeployment.Spec.Replicas = pointer.Int32(0)
 				_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				Eventually(func() bool {

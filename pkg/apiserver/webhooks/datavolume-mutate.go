@@ -111,7 +111,7 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 		if err != nil {
 			return toAdmissionResponseError(err)
 		}
-		if config.Spec.DataVolumeTTLSeconds != nil {
+		if controller.GetDataVolumeTTLSeconds(config) >= 0 {
 			if modifiedDataVolume.Annotations == nil {
 				modifiedDataVolume.Annotations = make(map[string]string)
 			}
