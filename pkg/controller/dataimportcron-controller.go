@@ -103,6 +103,8 @@ const (
 	AnnNextCronTime = AnnAPIGroup + "/storage.import.nextCronTime"
 	// AnnLastCronTime is the cron last execution time stamp
 	AnnLastCronTime = AnnAPIGroup + "/storage.import.lastCronTime"
+	// AnnLastUseTime is the PVC last use time stamp
+	AnnLastUseTime = AnnAPIGroup + "/storage.import.lastUseTime"
 	// AnnLastAppliedConfig is the cron last applied configuration
 	AnnLastAppliedConfig = AnnAPIGroup + "/lastAppliedConfiguration"
 
@@ -304,28 +306,39 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	dataVolume := &cdiv1.DataVolume{}
 	dvFound := false
 	if len(imports) > 0 {
+		dvName := imports[0].DataVolumeName
 		// Get the currently imported DataVolume
-		if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: imports[0].DataVolumeName}, dataVolume); err != nil {
+		if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: dvName}, dataVolume); err != nil {
 			if !k8serrors.IsNotFound(err) {
 				return res, err
 			}
-			log.Info("DataVolume not found, removing from current imports", "name", imports[0].DataVolumeName)
-			dataImportCron.Status.CurrentImports = imports[1:]
+			pvc := &corev1.PersistentVolumeClaim{}
+			if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: dvName}, pvc); err != nil {
+				if !k8serrors.IsNotFound(err) {
+					return res, err
+				}
+				log.Info("PVC not found, removing from current imports", "name", dvName)
+				dataImportCron.Status.CurrentImports = imports[1:]
+			} else {
+				// PVC found, and DV was GCed
+				importSucceeded = true
+				pvcCopy := pvc.DeepCopy()
+				r.setDataImportCronResourceLabels(dataImportCron, pvc)
+				if !reflect.DeepEqual(pvc, pvcCopy) {
+					if err := r.client.Update(ctx, pvc); err != nil {
+						return res, err
+					}
+				}
+			}
 		} else {
 			dvFound = true
 		}
 	}
+
 	if dvFound {
 		switch dataVolume.Status.Phase {
 		case cdiv1.Succeeded:
 			importSucceeded = true
-			if err := updateDataImportCronOnSuccess(dataImportCron); err != nil {
-				return res, err
-			}
-			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "No current import", noImport)
-			if err := r.garbageCollectOldImports(ctx, dataImportCron); err != nil {
-				return res, err
-			}
 		case cdiv1.ImportScheduled:
 			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "Import is scheduled", scheduled)
 		case cdiv1.ImportInProgress:
@@ -336,6 +349,16 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		}
 	} else {
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "No current import", noImport)
+	}
+
+	if importSucceeded {
+		if err := updateDataImportCronOnSuccess(dataImportCron); err != nil {
+			return res, err
+		}
+		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "No current import", noImport)
+		if err := r.garbageCollectOldImports(ctx, dataImportCron); err != nil {
+			return res, err
+		}
 	}
 
 	if err := r.updateDataSource(ctx, dataImportCron); err != nil {
@@ -496,7 +519,6 @@ func updateLastExecutionTimestamp(cron *cdiv1.DataImportCron) error {
 }
 
 func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	log := r.log.WithName("createImportDataVolume")
 	dataSourceName := dataImportCron.Spec.ManagedDataSource
 	digest := dataImportCron.Annotations[AnnSourceDesiredDigest]
 	if digest == "" {
@@ -506,70 +528,59 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 	if err != nil {
 		return err
 	}
-	dv := r.newSourceDataVolume(dataImportCron, dvName)
-	if err := r.client.Create(ctx, dv); err != nil {
-		if !k8serrors.IsAlreadyExists(err) {
+	// If PVC exists don't create DV
+	pvc := &corev1.PersistentVolumeClaim{}
+	if err = r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: dvName}, pvc); err != nil {
+		if !k8serrors.IsNotFound(err) {
 			return err
 		}
-		if err := r.client.Get(ctx, types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}, dv); err != nil {
+		dv := r.newSourceDataVolume(dataImportCron, dvName)
+		if err := r.client.Create(ctx, dv); err != nil && !k8serrors.IsAlreadyExists(err) {
 			return err
 		}
-		// Touch the DV Ready condition heartbeat time, so DV wan't be garbage collected
-		if cond := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions); cond != nil {
-			cond.LastHeartbeatTime = metav1.Now()
-			if err := r.client.Update(ctx, dv); err != nil {
-				return err
-			}
-		}
-		log.Info("DataVolume already exists", "name", dv.Name, "uid", dv.UID)
 	} else {
-		log.Info("DataVolume created", "name", dv.Name, "uid", dv.UID)
+		AddAnnotation(pvc, AnnLastUseTime, time.Now().Format(time.RFC3339))
+		if err := r.client.Update(ctx, pvc); err != nil {
+			return err
+		}
 	}
-	// Update references to current import
 	dataImportCron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: dvName, Digest: digest}}
 	return nil
 }
 
-func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
-	log := r.log.WithName("garbageCollectOldImports")
-	if dataImportCron.Spec.GarbageCollect != nil && *dataImportCron.Spec.GarbageCollect != cdiv1.DataImportCronGarbageCollectOutdated {
+func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context, cron *cdiv1.DataImportCron) error {
+	if cron.Spec.GarbageCollect != nil && *cron.Spec.GarbageCollect != cdiv1.DataImportCronGarbageCollectOutdated {
 		return nil
 	}
-	selector, err := getSelector(map[string]string{common.DataImportCronLabel: dataImportCron.Name})
+	selector, err := getSelector(map[string]string{common.DataImportCronLabel: cron.Name})
 	if err != nil {
 		return err
 	}
-	dvList := &cdiv1.DataVolumeList{}
-	if err := r.client.List(ctx, dvList, &client.ListOptions{Namespace: dataImportCron.Namespace, LabelSelector: selector}); err != nil {
+
+	maxImports := defaultImportsToKeepPerCron
+
+	if cron.Spec.ImportsToKeep != nil && *cron.Spec.ImportsToKeep >= 0 {
+		maxImports = int(*cron.Spec.ImportsToKeep)
+	}
+
+	pvcList := &corev1.PersistentVolumeClaimList{}
+	if err := r.client.List(ctx, pvcList, &client.ListOptions{Namespace: cron.Namespace, LabelSelector: selector}); err != nil {
 		return err
 	}
-	maxDvs := defaultImportsToKeepPerCron
-	importsToKeep := dataImportCron.Spec.ImportsToKeep
-	if importsToKeep != nil && *importsToKeep >= 0 {
-		maxDvs = int(*importsToKeep)
-	}
-	if len(dvList.Items) <= maxDvs {
-		return nil
-	}
-	sort.Slice(dvList.Items, func(i, j int) bool {
-		getDvTimestamp := func(dv cdiv1.DataVolume) time.Time {
-			if cond := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions); cond != nil {
-				return cond.LastHeartbeatTime.Time
+	if len(pvcList.Items) > maxImports {
+		sort.Slice(pvcList.Items, func(i, j int) bool {
+			return pvcList.Items[i].Annotations[AnnLastUseTime] > pvcList.Items[j].Annotations[AnnLastUseTime]
+		})
+		for _, pvc := range pvcList.Items[maxImports:] {
+			dv := cdiv1.DataVolume{ObjectMeta: metav1.ObjectMeta{Name: pvc.Name, Namespace: pvc.Namespace}}
+			if err := r.client.Delete(ctx, &dv); err == nil {
+				continue
+			} else if !k8serrors.IsNotFound(err) {
+				return err
 			}
-			return dv.CreationTimestamp.Time
-		}
-		return getDvTimestamp(dvList.Items[i]).After(getDvTimestamp(dvList.Items[j]))
-	})
-	for _, dv := range dvList.Items[maxDvs:] {
-		logDv := log.WithValues("name", dv.Name).WithValues("uid", dv.UID)
-		if err := r.client.Delete(ctx, &dv); err != nil {
-			if k8serrors.IsNotFound(err) {
-				logDv.Info("DataVolume not found for deletion")
-			} else {
-				logDv.Error(err, "Unable to delete DataVolume")
+			if err := r.client.Delete(ctx, &pvc); err != nil && !k8serrors.IsNotFound(err) {
+				return err
 			}
-		} else {
-			logDv.Info("DataVolume deleted")
 		}
 	}
 	return nil
@@ -581,31 +592,20 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, cron types.Names
 	if err := r.deleteJobs(ctx, cron); err != nil {
 		return err
 	}
-
 	selector, err := getSelector(map[string]string{common.DataImportCronLabel: cron.Name, common.DataImportCronCleanupLabel: "true"})
 	if err != nil {
 		return err
 	}
-	dataSourceList := &cdiv1.DataSourceList{}
-	if err := r.client.List(ctx, dataSourceList, &client.ListOptions{Namespace: cron.Namespace, LabelSelector: selector}); err != nil {
+	opts := &client.DeleteAllOfOptions{ListOptions: client.ListOptions{Namespace: cron.Namespace, LabelSelector: selector}}
+	if err := r.client.DeleteAllOf(ctx, &cdiv1.DataSource{}, opts); err != nil {
 		return err
 	}
-	for _, dataSource := range dataSourceList.Items {
-		if err := r.client.Delete(ctx, &dataSource); IgnoreNotFound(err) != nil {
-			return err
-		}
-	}
-
-	dvList := &cdiv1.DataVolumeList{}
-	if err := r.client.List(ctx, dvList, &client.ListOptions{Namespace: cron.Namespace, LabelSelector: selector}); err != nil {
+	if err := r.client.DeleteAllOf(ctx, &cdiv1.DataVolume{}, opts); err != nil {
 		return err
 	}
-	for _, dv := range dvList.Items {
-		if err := r.client.Delete(ctx, &dv); IgnoreNotFound(err) != nil {
-			return err
-		}
+	if err := r.client.DeleteAllOf(ctx, &corev1.PersistentVolumeClaim{}, opts); err != nil {
+		return err
 	}
-
 	return nil
 }
 
@@ -909,7 +909,6 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	r.setDataImportCronResourceLabels(cron, dv)
 	passCronAnnotationToDv(cron, dv, AnnImmediateBinding)
 	passCronAnnotationToDv(cron, dv, AnnPodRetainAfterCompletion)
-	AddAnnotation(dv, AnnDeleteAfterCompletion, "false")
 	return dv
 }
 

@@ -406,9 +406,6 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
 			verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready)
-			cond := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions)
-			Expect(cond).ToNot(BeNil())
-			condTime := cond.LastHeartbeatTime
 
 			now := metav1.Now()
 			cron.DeletionTimestamp = &now
@@ -448,9 +445,6 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv1)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dv1.Status.Phase).To(Equal(cdiv1.Succeeded))
-			cond = findConditionByType(cdiv1.DataVolumeReady, dv1.Status.Conditions)
-			Expect(cond).ToNot(BeNil())
-			Expect(cond.LastHeartbeatTime.Time).To(BeTemporally(">", condTime.Time))
 		},
 			Entry("has tag", imageStreamName+":"+imageStreamTag, 0),
 			Entry("has no tag", imageStreamName, 1),

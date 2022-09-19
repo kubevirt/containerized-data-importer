@@ -77,21 +77,33 @@ func (r *DataSourceReconciler) update(ctx context.Context, dataSource *cdiv1.Dat
 	if sourcePVC != nil {
 		dv := &cdiv1.DataVolume{}
 		ns := getNamespace(sourcePVC.Namespace, dataSource.Namespace)
+		isReady := false
 		if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: sourcePVC.Name}, dv); err != nil {
-			if k8serrors.IsNotFound(err) {
-				r.log.Info("DataVolume not found", "name", sourcePVC.Name)
-				updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "DataVolume not found", notFound)
-			} else {
+			if !k8serrors.IsNotFound(err) {
 				return err
 			}
+			pvc := &corev1.PersistentVolumeClaim{}
+			if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: sourcePVC.Name}, pvc); err != nil {
+				if !k8serrors.IsNotFound(err) {
+					return err
+				}
+				r.log.Info("PVC not found", "name", sourcePVC.Name)
+				updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "PVC not found", notFound)
+			} else {
+				isReady = true
+			}
 		} else if dv.Status.Phase == cdiv1.Succeeded {
-			updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionTrue, "DataSource is ready to be consumed", ready)
+			isReady = true
 		} else {
 			updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, fmt.Sprintf("Import DataVolume phase %s", dv.Status.Phase), string(dv.Status.Phase))
+		}
+		if isReady {
+			updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionTrue, "DataSource is ready to be consumed", ready)
 		}
 	} else {
 		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "No source PVC set", noPvc)
 	}
+
 	if !reflect.DeepEqual(dataSource, dataSourceCopy) {
 		if err := r.client.Update(ctx, dataSource); err != nil {
 			return err
@@ -195,6 +207,18 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 	); err != nil {
 		return err
 	}
+
+	if err := c.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}},
+		handler.EnqueueRequestsFromMapFunc(mapToDataSource),
+		predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool { return true },
+			DeleteFunc: func(e event.DeleteEvent) bool { return true },
+			UpdateFunc: func(e event.UpdateEvent) bool { return false },
+		},
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
