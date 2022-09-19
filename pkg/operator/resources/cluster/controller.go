@@ -69,6 +69,7 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"create",
 				"update",
 				"delete",
+				"deletecollection",
 			},
 		},
 		{

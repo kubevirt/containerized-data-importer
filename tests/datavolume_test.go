@@ -2566,7 +2566,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
 
 			By(fmt.Sprintf("Deleting PVC %v (id: %v)", pvc.Name, pvcUID))
-			err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvc)
+			err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvc.Name)
 			Expect(err).ToNot(HaveOccurred())
 			deleted, err := f.WaitPVCDeletedByUID(pvc, 30*time.Second)
 			Expect(err).ToNot(HaveOccurred())

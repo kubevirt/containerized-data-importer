@@ -78,9 +78,9 @@ func WaitForPVC(clientSet *kubernetes.Clientset, namespace, name string) (*k8sv1
 }
 
 // DeletePVC deletes the passed in PVC
-func DeletePVC(clientSet *kubernetes.Clientset, namespace string, pvc *k8sv1.PersistentVolumeClaim) error {
+func DeletePVC(clientSet *kubernetes.Clientset, namespace, pvcName string) error {
 	return wait.PollImmediate(pvcPollInterval, pvcDeleteTime, func() (bool, error) {
-		err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Delete(context.TODO(), pvc.GetName(), metav1.DeleteOptions{})
+		err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Delete(context.TODO(), pvcName, metav1.DeleteOptions{})
 		if err == nil || apierrs.IsNotFound(err) {
 			return true, nil
 		}
