@@ -9,6 +9,9 @@ kind: DataVolume
 metadata:
   name: olddv-v1alpha1
   namespace: cdi-testing-old-version-artifacts
+  annotations:
+    cdi.kubevirt.io/storage.bind.immediate.requested: "true"
+    cdi.kubevirt.io/storage.deleteAfterCompletion: "false"
 spec:
   source:
       http:
@@ -25,6 +28,9 @@ kind: DataVolume
 metadata:
   name: olddv-v1beta1
   namespace: cdi-testing-old-version-artifacts
+  annotations:
+    cdi.kubevirt.io/storage.bind.immediate.requested: "true"
+    cdi.kubevirt.io/storage.deleteAfterCompletion: "false"
 spec:
   source:
       http:
