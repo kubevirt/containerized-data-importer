@@ -123,6 +123,16 @@ function wait_cdi_pods_updated {
   fi
 }
 
+function dump_upgrade_info {
+  echo "Dumping upgrade object information"
+  _kubectl get all --namespace cdi-testing-old-version-artifacts
+  _kubectl describe pvc olddv-v1alpha1 --namespace cdi-testing-old-version-artifacts
+  _kubectl describe pvc olddv-v1beta1 --namespace cdi-testing-old-version-artifacts
+  _kubectl get dv --namespace cdi-testing-old-version-artifacts -o yaml
+  _kubectl describe dv --namespace cdi-testing-old-version-artifacts
+  exit 1
+}
+
 # Setup some datavolumes in older version for testing upgrades
 # Done unconditionally to make it easier to write tests.
 function setup_for_upgrade_testing {
@@ -142,7 +152,7 @@ function setup_for_upgrade_testing {
   _kubectl wait pod -n ${CDI_NAMESPACE} --for=condition=Ready --all --timeout=${CDI_AVAILABLE_TIMEOUT}s
   _kubectl apply -f "./_out/manifests/upgrade-testing-artifacts.yaml"
   echo "Waiting for old version artifacts to come up"
-  _kubectl wait dv --namespace cdi-testing-old-version-artifacts --for=condition=Ready --all --timeout=${CDI_AVAILABLE_TIMEOUT}s
+  _kubectl wait dv --namespace cdi-testing-old-version-artifacts --for=condition=Ready --all --timeout=${CDI_AVAILABLE_TIMEOUT}s || dump_upgrade_info
 }
 
 # Start functional test HTTP server.
