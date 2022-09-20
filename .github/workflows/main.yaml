@@ -3,7 +3,7 @@ name: Build x86 and arm Image
 on:
   pull_request:
     branches:
-      - exc-*
+      - ecx-*
   push:
     branches:
       - ecx-*
@@ -61,7 +61,7 @@ jobs:
         run: |
           export DOCKER_TAG=$VERSION-arm64
           export DOCKER_PREFIX=${{ secrets.DOCKER_USERNAME }}
-          export BUILD_ARCH=aarch64
+          export BUILD_ARCH=crossbuild-aarch64
           make bazel-build-images
           make bazel-push-images
   push_manifest_list:
