@@ -611,15 +611,9 @@ var _ = Describe("ALL Operator tests", func() {
 			f := framework.NewFramework("strict-reconciliation-test")
 
 			It("[test_id:5573]cdi-deployment replicas back to original value on attempt to scale", func() {
+				By("Overwrite number of replicas with 10")
 				deploymentName := "cdi-deployment"
-				cdiDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				originalReplicaVal := *cdiDeployment.Spec.Replicas
-
-				By("Overwrite number of replicas with originalVal + 1")
-				cdiDeployment.Spec.Replicas = pointer.Int32(originalReplicaVal + 1)
-				_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), cdiDeployment, metav1.UpdateOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				originalReplicaVal := scaleDeployment(f, deploymentName, 10)
 
 				By("Ensuring original value of replicas restored & extra deployment pod was cleaned up")
 				Eventually(func() bool {
@@ -841,14 +835,9 @@ var _ = Describe("ALL Operator tests", func() {
 					Skip("This test depends on prometheus infra being available")
 				}
 
-				By("Scale down operator so alert will trigger")
 				deploymentName := "cdi-operator"
-				operatorDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				originalReplicas := operatorDeployment.Spec.Replicas
-				operatorDeployment.Spec.Replicas = pointer.Int32(0)
-				_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				By("Scale down operator so alert will trigger")
+				originalReplicas := scaleDeployment(f, deploymentName, 0)
 				Eventually(func() bool {
 					dep, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
@@ -861,7 +850,7 @@ var _ = Describe("ALL Operator tests", func() {
 						Namespace: f.CdiInstallNs,
 					},
 				}
-				err = f.CrClient.Get(context.TODO(), crclient.ObjectKeyFromObject(promRule), promRule)
+				err := f.CrClient.Get(context.TODO(), crclient.ObjectKeyFromObject(promRule), promRule)
 				Expect(err).ToNot(HaveOccurred())
 				for i, group := range promRule.Spec.Groups {
 					if group.Name == "cdi.rules" {
@@ -905,11 +894,7 @@ var _ = Describe("ALL Operator tests", func() {
 				}, 10*time.Minute, 1*time.Second).Should(BeTrue())
 
 				By("Ensuring original value of replicas restored")
-				operatorDeployment, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				operatorDeployment.Spec.Replicas = originalReplicas
-				_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				scaleDeployment(f, deploymentName, originalReplicas)
 				err = utils.WaitForDeploymentReplicasReady(f.K8sClient, f.CdiInstallNs, deploymentName)
 				Expect(err).ToNot(HaveOccurred())
 			})
@@ -1390,6 +1375,16 @@ func updateUninstallStrategy(client cdiClientset.Interface, strategy *cdiv1.CDIU
 	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 
 	return result
+}
+
+func scaleDeployment(f *framework.Framework, deploymentName string, replicas int32) int32 {
+	operatorDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	originalReplicas := *operatorDeployment.Spec.Replicas
+	operatorDeployment.Spec.Replicas = &[]int32{replicas}[0]
+	_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	return originalReplicas
 }
 
 func checkForRunbookURL(rule promv1.Rule) {
