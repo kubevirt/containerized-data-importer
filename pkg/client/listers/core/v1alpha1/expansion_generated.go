@@ -21,7 +21,3 @@ package v1alpha1
 // CDIListerExpansion allows custom methods to be added to
 // CDILister.
 type CDIListerExpansion interface{}
-
-// CDIConfigListerExpansion allows custom methods to be added to
-// CDIConfigLister.
-type CDIConfigListerExpansion interface{}

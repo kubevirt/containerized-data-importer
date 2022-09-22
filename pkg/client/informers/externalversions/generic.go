@@ -57,8 +57,6 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=cdi.kubevirt.io, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("cdis"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1alpha1().CDIs().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("cdiconfigs"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1alpha1().CDIConfigs().Informer()}, nil
 
 		// Group=cdi.kubevirt.io, Version=v1beta1
 	case v1beta1.SchemeGroupVersion.WithResource("cdis"):

@@ -4,7 +4,6 @@ go_library(
     name = "go_default_library",
     srcs = [
         "cdi.go",
-        "cdiconfig.go",
         "core_client.go",
         "doc.go",
         "generated_expansion.go",

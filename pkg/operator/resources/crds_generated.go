@@ -89,6 +89,12 @@ spec:
               config:
                 description: CDIConfig at CDI level
                 properties:
+                  dataVolumeTTLSeconds:
+                    description: DataVolumeTTLSeconds is the time in seconds after
+                      DataVolume completion it can be garbage collected. The default
+                      is 0 sec. To disable GC use -1.
+                    format: int32
+                    type: integer
                   featureGates:
                     description: FeatureGates are a list of specific enabled feature
                       gates
@@ -195,6 +201,97 @@ spec:
                       if no storage class specified, use no storage class for scratch
                       space'
                     type: string
+                  tlsSecurityProfile:
+                    description: TLSSecurityProfile is used by operators to apply
+                      cluster-wide TLS security settings to operands.
+                    properties:
+                      custom:
+                        description: "custom is a user-defined TLS security profile.
+                          Be extremely careful using a custom profile as invalid configurations
+                          can be catastrophic. An example custom profile looks like
+                          this: \n ciphers: - ECDHE-ECDSA-CHACHA20-POLY1305 - ECDHE-RSA-CHACHA20-POLY1305
+                          - ECDHE-RSA-AES128-GCM-SHA256 - ECDHE-ECDSA-AES128-GCM-SHA256
+                          minTLSVersion: TLSv1.1"
+                        nullable: true
+                        properties:
+                          ciphers:
+                            description: "ciphers is used to specify the cipher algorithms
+                              that are negotiated during the TLS handshake.  Operators
+                              may remove entries their operands do not support.  For
+                              example, to use DES-CBC3-SHA  (yaml): \n ciphers: -
+                              DES-CBC3-SHA"
+                            items:
+                              type: string
+                            type: array
+                          minTLSVersion:
+                            description: "minTLSVersion is used to specify the minimal
+                              version of the TLS protocol that is negotiated during
+                              the TLS handshake. For example, to use TLS versions
+                              1.1, 1.2 and 1.3 (yaml): \n minTLSVersion: TLSv1.1 \n
+                              NOTE: currently the highest minTLSVersion allowed is
+                              VersionTLS12"
+                            enum:
+                            - VersionTLS10
+                            - VersionTLS11
+                            - VersionTLS12
+                            - VersionTLS13
+                            type: string
+                        type: object
+                      intermediate:
+                        description: "intermediate is a TLS security profile based
+                          on: \n https://wiki.mozilla.org/Security/Server_Side_TLS#Intermediate_compatibility_.28recommended.29
+                          \n and looks like this (yaml): \n ciphers: - TLS_AES_128_GCM_SHA256
+                          - TLS_AES_256_GCM_SHA384 - TLS_CHACHA20_POLY1305_SHA256
+                          - ECDHE-ECDSA-AES128-GCM-SHA256 - ECDHE-RSA-AES128-GCM-SHA256
+                          - ECDHE-ECDSA-AES256-GCM-SHA384 - ECDHE-RSA-AES256-GCM-SHA384
+                          - ECDHE-ECDSA-CHACHA20-POLY1305 - ECDHE-RSA-CHACHA20-POLY1305
+                          - DHE-RSA-AES128-GCM-SHA256 - DHE-RSA-AES256-GCM-SHA384
+                          minTLSVersion: TLSv1.2"
+                        nullable: true
+                        type: object
+                      modern:
+                        description: "modern is a TLS security profile based on: \n
+                          https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility
+                          \n and looks like this (yaml): \n ciphers: - TLS_AES_128_GCM_SHA256
+                          - TLS_AES_256_GCM_SHA384 - TLS_CHACHA20_POLY1305_SHA256
+                          minTLSVersion: TLSv1.3 \n NOTE: Currently unsupported."
+                        nullable: true
+                        type: object
+                      old:
+                        description: "old is a TLS security profile based on: \n https://wiki.mozilla.org/Security/Server_Side_TLS#Old_backward_compatibility
+                          \n and looks like this (yaml): \n ciphers: - TLS_AES_128_GCM_SHA256
+                          - TLS_AES_256_GCM_SHA384 - TLS_CHACHA20_POLY1305_SHA256
+                          - ECDHE-ECDSA-AES128-GCM-SHA256 - ECDHE-RSA-AES128-GCM-SHA256
+                          - ECDHE-ECDSA-AES256-GCM-SHA384 - ECDHE-RSA-AES256-GCM-SHA384
+                          - ECDHE-ECDSA-CHACHA20-POLY1305 - ECDHE-RSA-CHACHA20-POLY1305
+                          - DHE-RSA-AES128-GCM-SHA256 - DHE-RSA-AES256-GCM-SHA384
+                          - DHE-RSA-CHACHA20-POLY1305 - ECDHE-ECDSA-AES128-SHA256
+                          - ECDHE-RSA-AES128-SHA256 - ECDHE-ECDSA-AES128-SHA - ECDHE-RSA-AES128-SHA
+                          - ECDHE-ECDSA-AES256-SHA384 - ECDHE-RSA-AES256-SHA384 -
+                          ECDHE-ECDSA-AES256-SHA - ECDHE-RSA-AES256-SHA - DHE-RSA-AES128-SHA256
+                          - DHE-RSA-AES256-SHA256 - AES128-GCM-SHA256 - AES256-GCM-SHA384
+                          - AES128-SHA256 - AES256-SHA256 - AES128-SHA - AES256-SHA
+                          - DES-CBC3-SHA minTLSVersion: TLSv1.0"
+                        nullable: true
+                        type: object
+                      type:
+                        description: "type is one of Old, Intermediate, Modern or
+                          Custom. Custom provides the ability to specify individual
+                          TLS security profile parameters. Old, Intermediate and Modern
+                          are TLS security profiles based on: \n https://wiki.mozilla.org/Security/Server_Side_TLS#Recommended_configurations
+                          \n The profiles are intent based, so they may change over
+                          time as new ciphers are developed and existing ciphers are
+                          found to be insecure.  Depending on precisely which ciphers
+                          are available to a process, the list may be reduced. \n
+                          Note that the Modern profile is currently not supported
+                          because it is not yet well adopted by common software libraries."
+                        enum:
+                        - Old
+                        - Intermediate
+                        - Modern
+                        - Custom
+                        type: string
+                    type: object
                   uploadProxyURLOverride:
                     description: Override the URL used when uploading to a DataVolume
                     type: string
@@ -1144,6 +1241,9 @@ spec:
                       type: object
                     type: array
                 type: object
+              priorityClass:
+                description: PriorityClass of the CDI control plane
+                type: string
               uninstallStrategy:
                 description: CDIUninstallStrategy defines the state to leave CDI on
                   uninstall
@@ -4376,233 +4476,6 @@ spec:
     singular: cdiconfig
   scope: Cluster
   versions:
-  - name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: CDIConfig provides a user configuration for CDI
-        properties:
-          apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-            type: string
-          kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: CDIConfigSpec defines specification for user configuration
-            properties:
-              featureGates:
-                description: FeatureGates are a list of specific enabled feature gates
-                items:
-                  type: string
-                type: array
-              filesystemOverhead:
-                description: FilesystemOverhead describes the space reserved for overhead
-                  when using Filesystem volumes. A value is between 0 and 1, if not
-                  defined it is 0.055 (5.5% overhead)
-                properties:
-                  global:
-                    description: Global is how much space of a Filesystem volume should
-                      be reserved for overhead. This value is used unless overridden
-                      by a more specific value (per storageClass)
-                    pattern: ^(0(?:\.\d{1,3})?|1)$
-                    type: string
-                  storageClass:
-                    additionalProperties:
-                      description: 'Percent is a string that can only be a value between
-                        [0,1) (Note: we actually rely on reconcile to reject invalid
-                        values)'
-                      pattern: ^(0(?:\.\d{1,3})?|1)$
-                      type: string
-                    description: StorageClass specifies how much space of a Filesystem
-                      volume should be reserved for safety. The keys are the storageClass
-                      and the values are the overhead. This value overrides the global
-                      value
-                    type: object
-                type: object
-              importProxy:
-                description: ImportProxy contains importer pod proxy configuration.
-                properties:
-                  HTTPProxy:
-                    description: HTTPProxy is the URL http://<username>:<pswd>@<ip>:<port>
-                      of the import proxy for HTTP requests.  Empty means unset and
-                      will not result in the import pod env var.
-                    type: string
-                  HTTPSProxy:
-                    description: HTTPSProxy is the URL https://<username>:<pswd>@<ip>:<port>
-                      of the import proxy for HTTPS requests.  Empty means unset and
-                      will not result in the import pod env var.
-                    type: string
-                  noProxy:
-                    description: NoProxy is a comma-separated list of hostnames and/or
-                      CIDRs for which the proxy should not be used. Empty means unset
-                      and will not result in the import pod env var.
-                    type: string
-                  trustedCAProxy:
-                    description: "TrustedCAProxy is the name of a ConfigMap in the
-                      cdi namespace that contains a user-provided trusted certificate
-                      authority (CA) bundle. The TrustedCAProxy field is consumed
-                      by the import controller that is resposible for coping it to
-                      a config map named trusted-ca-proxy-bundle-cm in the cdi namespace.
-                      Here is an example of the ConfigMap (in yaml): \n apiVersion:
-                      v1 kind: ConfigMap metadata: name: trusted-ca-proxy-bundle-cm
-                      namespace: cdi data: ca.pem: | -----BEGIN CERTIFICATE----- ...
-                      <base64 encoded cert> ... -----END CERTIFICATE-----"
-                    type: string
-                type: object
-              insecureRegistries:
-                description: InsecureRegistries is a list of TLS disabled registries
-                items:
-                  type: string
-                type: array
-              podResourceRequirements:
-                description: ResourceRequirements describes the compute resource requirements.
-                properties:
-                  limits:
-                    additionalProperties:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    description: 'Limits describes the maximum amount of compute resources
-                      allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
-                    type: object
-                  requests:
-                    additionalProperties:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    description: 'Requests describes the minimum amount of compute
-                      resources required. If Requests is omitted for a container,
-                      it defaults to Limits if that is explicitly specified, otherwise
-                      to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
-                    type: object
-                type: object
-              preallocation:
-                description: Preallocation controls whether storage for DataVolumes
-                  should be allocated in advance.
-                type: boolean
-              scratchSpaceStorageClass:
-                description: 'Override the storage class to used for scratch space
-                  during transfer operations. The scratch space storage class is determined
-                  in the following order: 1. value of scratchSpaceStorageClass, if
-                  that doesn''t exist, use the default storage class, if there is
-                  no default storage class, use the storage class of the DataVolume,
-                  if no storage class specified, use no storage class for scratch
-                  space'
-                type: string
-              uploadProxyURLOverride:
-                description: Override the URL used when uploading to a DataVolume
-                type: string
-            type: object
-          status:
-            description: CDIConfigStatus provides the most recently observed status
-              of the CDI Config resource
-            properties:
-              defaultPodResourceRequirements:
-                description: ResourceRequirements describes the compute resource requirements.
-                properties:
-                  limits:
-                    additionalProperties:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    description: 'Limits describes the maximum amount of compute resources
-                      allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
-                    type: object
-                  requests:
-                    additionalProperties:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    description: 'Requests describes the minimum amount of compute
-                      resources required. If Requests is omitted for a container,
-                      it defaults to Limits if that is explicitly specified, otherwise
-                      to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
-                    type: object
-                type: object
-              filesystemOverhead:
-                description: FilesystemOverhead describes the space reserved for overhead
-                  when using Filesystem volumes. A percentage value is between 0 and
-                  1
-                properties:
-                  global:
-                    description: Global is how much space of a Filesystem volume should
-                      be reserved for overhead. This value is used unless overridden
-                      by a more specific value (per storageClass)
-                    pattern: ^(0(?:\.\d{1,3})?|1)$
-                    type: string
-                  storageClass:
-                    additionalProperties:
-                      description: 'Percent is a string that can only be a value between
-                        [0,1) (Note: we actually rely on reconcile to reject invalid
-                        values)'
-                      pattern: ^(0(?:\.\d{1,3})?|1)$
-                      type: string
-                    description: StorageClass specifies how much space of a Filesystem
-                      volume should be reserved for safety. The keys are the storageClass
-                      and the values are the overhead. This value overrides the global
-                      value
-                    type: object
-                type: object
-              importProxy:
-                description: ImportProxy contains importer pod proxy configuration.
-                properties:
-                  HTTPProxy:
-                    description: HTTPProxy is the URL http://<username>:<pswd>@<ip>:<port>
-                      of the import proxy for HTTP requests.  Empty means unset and
-                      will not result in the import pod env var.
-                    type: string
-                  HTTPSProxy:
-                    description: HTTPSProxy is the URL https://<username>:<pswd>@<ip>:<port>
-                      of the import proxy for HTTPS requests.  Empty means unset and
-                      will not result in the import pod env var.
-                    type: string
-                  noProxy:
-                    description: NoProxy is a comma-separated list of hostnames and/or
-                      CIDRs for which the proxy should not be used. Empty means unset
-                      and will not result in the import pod env var.
-                    type: string
-                  trustedCAProxy:
-                    description: "TrustedCAProxy is the name of a ConfigMap in the
-                      cdi namespace that contains a user-provided trusted certificate
-                      authority (CA) bundle. The TrustedCAProxy field is consumed
-                      by the import controller that is resposible for coping it to
-                      a config map named trusted-ca-proxy-bundle-cm in the cdi namespace.
-                      Here is an example of the ConfigMap (in yaml): \n apiVersion:
-                      v1 kind: ConfigMap metadata: name: trusted-ca-proxy-bundle-cm
-                      namespace: cdi data: ca.pem: | -----BEGIN CERTIFICATE----- ...
-                      <base64 encoded cert> ... -----END CERTIFICATE-----"
-                    type: string
-                type: object
-              preallocation:
-                description: Preallocation controls whether storage for DataVolumes
-                  should be allocated in advance.
-                type: boolean
-              scratchSpaceStorageClass:
-                description: The calculated storage class to be used for scratch space
-                type: string
-              uploadProxyURL:
-                description: The calculated upload proxy URL
-                type: string
-            type: object
-        required:
-        - spec
-        type: object
-    served: true
-    storage: false
   - name: v1beta1
     schema:
       openAPIV3Schema:

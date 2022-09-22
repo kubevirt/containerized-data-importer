@@ -26,8 +26,6 @@ import (
 type Interface interface {
 	// CDIs returns a CDIInformer.
 	CDIs() CDIInformer
-	// CDIConfigs returns a CDIConfigInformer.
-	CDIConfigs() CDIConfigInformer
 }
 
 type version struct {
@@ -44,9 +42,4 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // CDIs returns a CDIInformer.
 func (v *version) CDIs() CDIInformer {
 	return &cDIInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// CDIConfigs returns a CDIConfigInformer.
-func (v *version) CDIConfigs() CDIConfigInformer {
-	return &cDIConfigInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
