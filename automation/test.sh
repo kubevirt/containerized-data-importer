@@ -52,7 +52,7 @@ if [ ! -d "cluster-up/cluster/$KUBEVIRT_PROVIDER" ]; then
 fi
 
 if [[ -n "$MULTI_UPGRADE" ]]; then
-  export UPGRADE_FROM="v1.34.2 v1.35.0 v1.37.0 v1.40.0"
+  export UPGRADE_FROM="v1.35.0 v1.37.0 v1.40.0 v1.49.0"
 fi
 
 # Don't upgrade if we are using a random CR name, otherwise the upgrade will fail
