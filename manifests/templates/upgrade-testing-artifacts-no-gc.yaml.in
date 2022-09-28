@@ -11,6 +11,7 @@ metadata:
   namespace: cdi-testing-old-version-artifacts
   annotations:
     cdi.kubevirt.io/storage.bind.immediate.requested: "true"
+    cdi.kubevirt.io/storage.deleteAfterCompletion: "false"
 spec:
   source:
       http:
@@ -29,6 +30,7 @@ metadata:
   namespace: cdi-testing-old-version-artifacts
   annotations:
     cdi.kubevirt.io/storage.bind.immediate.requested: "true"
+    cdi.kubevirt.io/storage.deleteAfterCompletion: "false"
 spec:
   source:
       http:
