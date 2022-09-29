@@ -834,7 +834,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 							RestartPolicy:                 corev1.RestartPolicyNever,
 							TerminationGracePeriodSeconds: &gracePeriodSeconds,
 							Containers:                    []corev1.Container{container},
-							ServiceAccountName:            "cdi-cronjob",
+							ServiceAccountName:            common.CronJobServiceAccountName,
 						},
 					},
 					TTLSecondsAfterFinished: &ttlSecondsAfterFinished,

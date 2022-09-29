@@ -66,9 +66,10 @@ func setSCC(scc *secv1.SecurityContextConstraints) {
 	}
 }
 
-func ensureSCCExists(logger logr.Logger, c client.Client, saNamespace, saName string) error {
+func ensureSCCExists(logger logr.Logger, c client.Client, saNamespace, saName, cronSaName string) error {
 	scc := &secv1.SecurityContextConstraints{}
 	userName := fmt.Sprintf("system:serviceaccount:%s:%s", saNamespace, saName)
+	cronUserName := fmt.Sprintf("system:serviceaccount:%s:%s", saNamespace, cronSaName)
 
 	err := c.Get(context.TODO(), client.ObjectKey{Name: sccName}, scc)
 	if meta.IsNoMatchError(err) {
@@ -94,6 +95,7 @@ func ensureSCCExists(logger logr.Logger, c client.Client, saNamespace, saName st
 			},
 			Users: []string{
 				userName,
+				cronUserName,
 			},
 		}
 
