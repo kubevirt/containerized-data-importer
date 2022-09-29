@@ -119,6 +119,9 @@ func ensureSCCExists(logger logr.Logger, c client.Client, saNamespace, saName, c
 	if !sdk.ContainsStringValue(scc.Users, userName) {
 		scc.Users = append(scc.Users, userName)
 	}
+	if !sdk.ContainsStringValue(scc.Users, cronUserName) {
+		scc.Users = append(scc.Users, cronUserName)
+	}
 
 	if !apiequality.Semantic.DeepEqual(origSCC, scc) {
 		return c.Update(context.TODO(), scc)
