@@ -18,7 +18,6 @@ package namespaced
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
@@ -31,34 +30,9 @@ const (
 func createCronJobResources(args *FactoryArgs) []client.Object {
 	return []client.Object{
 		createCronJobServiceAccount(),
-		createCronJobRoleBinding(),
-		createCronJobRole(),
 	}
 }
 
 func createCronJobServiceAccount() *corev1.ServiceAccount {
 	return utils.ResourceBuilder.CreateServiceAccount(cronJobResourceName)
-}
-
-func createCronJobRoleBinding() *rbacv1.RoleBinding {
-	return utils.ResourceBuilder.CreateRoleBinding(cronJobResourceName, cronJobResourceName, cronJobResourceName, "")
-}
-
-func createCronJobRole() *rbacv1.Role {
-	rules := []rbacv1.PolicyRule{
-		{
-			APIGroups: []string{
-				"cdi.kubevirt.io",
-			},
-			Resources: []string{
-				"dataimportcrons",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"update",
-			},
-		},
-	}
-	return utils.ResourceBuilder.CreateRole(cronJobResourceName, rules)
 }
