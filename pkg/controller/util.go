@@ -1268,8 +1268,8 @@ func SetRestrictedSecurityContext(podSpec *v1.PodSpec) {
 			}
 			container.SecurityContext.AllowPrivilegeEscalation = pointer.BoolPtr(false)
 			container.SecurityContext.RunAsNonRoot = pointer.BoolPtr(true)
-			container.SecurityContext.RunAsUser = pointer.Int64(common.QemuSubGid)
 			if len(container.VolumeMounts) > 0 {
+				container.SecurityContext.RunAsUser = pointer.Int64(common.QemuSubGid)
 				hasVolumeMounts = true
 			}
 		}
