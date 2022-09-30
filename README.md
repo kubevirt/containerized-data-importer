@@ -36,7 +36,7 @@ To upload data to a PVC from a client machine first create a DataVolume with an 
 
 ### Prepare an empty Kubevirt VM disk
 
-The special source `none` can be used to populate a volume with an empty Kubevirt VM disk.  This source is valid only with the `kubevirt` contentType.  CDI will create a VM disk on the PVC which uses all of the available space.  See [here](doc/blank-raw-image.md) for an example.
+The special source `blank` can be used to populate a volume with an empty Kubevirt VM disk.  This source is valid only with the `kubevirt` contentType.  CDI will create a VM disk on the PVC which uses all of the available space.  See [here](doc/blank-raw-image.md) for an example.
 
 ### Import from oVirt
 
