@@ -19,6 +19,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,6 +33,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -56,6 +59,7 @@ const (
 	testTag         = ":12.34_56-7890"
 	testDigest      = "sha256:68b44fc891f3fae6703d4b74bcc9b5f24df8d23f12e642805d1420cbe7a4be70"
 	testDockerRef   = "quay.io/kubevirt/blabla@" + testDigest
+	dataSourceName  = "test-datasource"
 	imageStreamName = "test-imagestream"
 	imageStreamTag  = "test-imagestream-tag"
 	tagWithNoItems  = "tag-with-no-items"
@@ -118,13 +122,25 @@ var _ = Describe("All DataImportCron Tests", func() {
 
 				dv := &cdiv1.DataVolume{}
 				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
-				Expect(err).ToNot(HaveOccurred())
-				err = reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)
-				Expect(err).ToNot(HaveOccurred())
-				dsReconciler = createDataSourceReconciler(dataSource, dv)
-				dsReq := reconcile.Request{NamespacedName: dataSourceKey(cron)}
-				_, err = dsReconciler.Reconcile(context.TODO(), dsReq)
-				Expect(err).ToNot(HaveOccurred())
+				if err == nil {
+					err = reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)
+					Expect(err).ToNot(HaveOccurred())
+					dsReconciler = createDataSourceReconciler(dataSource, dv)
+					dsReq := reconcile.Request{NamespacedName: dataSourceKey(cron)}
+					_, err = dsReconciler.Reconcile(context.TODO(), dsReq)
+					Expect(err).ToNot(HaveOccurred())
+				} else {
+					Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+					pvc := &corev1.PersistentVolumeClaim{}
+					err = reconciler.client.Get(context.TODO(), dvKey(dvName), pvc)
+					Expect(err).ToNot(HaveOccurred())
+					err = reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)
+					Expect(err).ToNot(HaveOccurred())
+					dsReconciler = createDataSourceReconciler(dataSource, pvc)
+					dsReq := reconcile.Request{NamespacedName: dataSourceKey(cron)}
+					_, err = dsReconciler.Reconcile(context.TODO(), dsReq)
+					Expect(err).ToNot(HaveOccurred())
+				}
 
 				err = dsReconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)
 				Expect(err).ToNot(HaveOccurred())
@@ -293,6 +309,89 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.List(context.TODO(), dvList, &client.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(len(dvList.Items)).To(Equal(0))
+		})
+
+		It("Should not create DV if PVC exists on DesiredDigest update; Should update DIC and DAS, and GC LRU PVCs", func() {
+			const nPVCs = 3
+			var (
+				digests [nPVCs]string
+				pvcs    [nPVCs]*corev1.PersistentVolumeClaim
+			)
+
+			cron = newDataImportCron(cronName)
+			dataSource = nil
+			reconciler = createDataImportCronReconciler(cron)
+			verifyConditions("Before DesiredDigest is set", false, false, false, noImport, noDigest, "")
+
+			for i := 0; i < nPVCs; i++ {
+				digest := strings.Repeat(strconv.Itoa(i), 12)
+				digests[i] = "sha256:" + digest
+				pvcs[i] = createPvc(dataSourceName+"-"+digest, cron.Namespace, nil, nil)
+				err := reconciler.client.Create(context.TODO(), pvcs[i])
+				Expect(err).ToNot(HaveOccurred())
+			}
+
+			if cron.Annotations == nil {
+				cron.Annotations = make(map[string]string)
+			}
+
+			pvc := &corev1.PersistentVolumeClaim{}
+			lastTs := ""
+			verifyDigestUpdate := func(idx int) {
+				cron.Annotations[AnnSourceDesiredDigest] = digests[idx]
+				err := reconciler.client.Update(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				dataSource = &cdiv1.DataSource{}
+
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+				verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready)
+
+				imports := cron.Status.CurrentImports
+				Expect(imports).To(HaveLen(1))
+				Expect(imports[0].Digest).To(Equal(digests[idx]))
+				dvName := imports[0].DataVolumeName
+				Expect(dvName).To(Equal(pvcs[idx].Name))
+
+				sourcePVC := cdiv1.DataVolumeSourcePVC{
+					Namespace: cron.Namespace,
+					Name:      dvName,
+				}
+				Expect(dataSource.Spec.Source.PVC).ToNot(BeNil())
+				Expect(*dataSource.Spec.Source.PVC).To(Equal(sourcePVC))
+				Expect(cron.Status.LastImportedPVC).ToNot(BeNil())
+				Expect(*cron.Status.LastImportedPVC).To(Equal(sourcePVC))
+				Expect(cron.Status.LastImportTimestamp).ToNot(BeNil())
+
+				By("Verifying current pvc LastUseTime is later than the previous one")
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), pvc)
+				Expect(err).ToNot(HaveOccurred())
+				ts := pvc.Annotations[AnnLastUseTime]
+				Expect(ts).ToNot(BeEmpty())
+				Expect(ts > lastTs).To(BeTrue())
+				lastTs = ts
+			}
+
+			verifyDigestUpdate(0)
+			verifyDigestUpdate(1)
+			verifyDigestUpdate(0)
+			verifyDigestUpdate(2)
+
+			By("Verifying pvc1 was garbage collected")
+			err := reconciler.client.Get(context.TODO(), dvKey(pvcs[1].Name), pvc)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+			verifyDigestUpdate(0)
+
+			By("Re-create pvc1")
+			pvcs[1].ResourceVersion = ""
+			err = reconciler.client.Create(context.TODO(), pvcs[1])
+			Expect(err).ToNot(HaveOccurred())
+			verifyDigestUpdate(1)
+
+			By("Verifying pvc2 was garbage collected")
+			err = reconciler.client.Get(context.TODO(), dvKey(pvcs[2].Name), pvc)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 		})
 
 		It("Should reconcile only if DataSource is not labeled by another existing DIC", func() {
@@ -547,7 +646,7 @@ func newDataImportCron(name string) *cdiv1.DataImportCron {
 				},
 			},
 			Schedule:          "* * * * *",
-			ManagedDataSource: "test-datasource",
+			ManagedDataSource: dataSourceName,
 			GarbageCollect:    &garbageCollect,
 			ImportsToKeep:     &importsToKeep,
 		},
