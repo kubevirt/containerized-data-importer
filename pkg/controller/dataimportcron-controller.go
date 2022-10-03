@@ -513,7 +513,7 @@ func updateLastExecutionTimestamp(cron *cdiv1.DataImportCron) error {
 		return err
 	}
 	if ts := cron.Status.LastExecutionTimestamp; ts == nil || ts.Time != lastTime {
-		cron.Status.LastExecutionTimestamp = &metav1.Time{lastTime}
+		cron.Status.LastExecutionTimestamp = &metav1.Time{Time: lastTime}
 	}
 	return nil
 }
@@ -539,7 +539,7 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 			return err
 		}
 	} else {
-		AddAnnotation(pvc, AnnLastUseTime, time.Now().Format(time.RFC3339))
+		AddAnnotation(pvc, AnnLastUseTime, time.Now().Format(time.RFC3339Nano))
 		if err := r.client.Update(ctx, pvc); err != nil {
 			return err
 		}
