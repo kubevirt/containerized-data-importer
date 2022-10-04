@@ -50,7 +50,7 @@ ${CDI_CRI} run -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable $D
 
 echo "Starting rsyncd"
 # Start an rsyncd instance and make sure it gets stopped after the script exits
-RSYNC_CID_CDI=$(${CDI_CRI} run -d -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable $DISABLE_SECCOMP --expose 873 -P --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} /usr/bin/rsync --no-detach --daemon --verbose)
+RSYNC_CID_CDI=$(${CDI_CRI} run -d -v "${BUILDER_VOLUME}:/root:rw,z" --restart always --security-opt label=disable $DISABLE_SECCOMP --expose 873 -P --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} /usr/bin/rsync --no-detach --daemon --verbose)
 
 function finish() {
     ${CDI_CRI} stop ${RSYNC_CID_CDI} >/dev/null 2>&1 &
