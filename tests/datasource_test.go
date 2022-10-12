@@ -65,7 +65,7 @@ var _ = Describe("DataSource", func() {
 	}
 
 	// Delete PVC if DV was GCed, otherwise delete both
-	deletePvc := func(pvcName string) {
+	deleteDvPvc := func(pvcName string) {
 		err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, pvcName)
 		Expect(err).ToNot(HaveOccurred())
 		err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvcName)
@@ -87,7 +87,7 @@ var _ = Describe("DataSource", func() {
 		createDv(pvc1Name, testUrl())
 		ds = waitForReadyCondition(ds, corev1.ConditionTrue, "Ready")
 
-		deletePvc(pvc1Name)
+		deleteDvPvc(pvc1Name)
 		ds = waitForReadyCondition(ds, corev1.ConditionFalse, "NotFound")
 
 		ds.Spec.Source.PVC = nil
@@ -120,7 +120,7 @@ var _ = Describe("DataSource", func() {
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionTrue, "Ready")
 		ds2 = waitForReadyCondition(ds2, corev1.ConditionTrue, "Ready")
 
-		deletePvc(pvc1Name)
+		deleteDvPvc(pvc1Name)
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionFalse, "NotFound")
 		ds2 = waitForReadyCondition(ds2, corev1.ConditionFalse, "NotFound")
 
@@ -130,7 +130,7 @@ var _ = Describe("DataSource", func() {
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionFalse, "ImportInProgress")
 		ds2 = waitForReadyCondition(ds2, corev1.ConditionFalse, "ImportInProgress")
 
-		deletePvc(pvc2Name)
+		deleteDvPvc(pvc2Name)
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionFalse, "NotFound")
 		ds2 = waitForReadyCondition(ds2, corev1.ConditionFalse, "NotFound")
 	})
