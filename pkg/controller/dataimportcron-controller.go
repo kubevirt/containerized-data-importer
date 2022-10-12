@@ -297,46 +297,18 @@ func getCronRegistrySource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourceR
 }
 
 func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
-	log := r.log.WithName("update")
 	res := reconcile.Result{}
 
-	dataImportCronCopy := dataImportCron.DeepCopy()
-	importSucceeded := false
-	imports := dataImportCron.Status.CurrentImports
-	dataVolume := &cdiv1.DataVolume{}
-	dvFound := false
-	if len(imports) > 0 {
-		dvName := imports[0].DataVolumeName
-		// Get the currently imported DataVolume
-		if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: dvName}, dataVolume); err != nil {
-			if !k8serrors.IsNotFound(err) {
-				return res, err
-			}
-			pvc := &corev1.PersistentVolumeClaim{}
-			if err := r.client.Get(ctx, types.NamespacedName{Namespace: dataImportCron.Namespace, Name: dvName}, pvc); err != nil {
-				if !k8serrors.IsNotFound(err) {
-					return res, err
-				}
-				log.Info("PVC not found, removing from current imports", "name", dvName)
-				dataImportCron.Status.CurrentImports = imports[1:]
-			} else {
-				// PVC found, and DV was GCed
-				importSucceeded = true
-				pvcCopy := pvc.DeepCopy()
-				r.setDataImportCronResourceLabels(dataImportCron, pvc)
-				if !reflect.DeepEqual(pvc, pvcCopy) {
-					if err := r.client.Update(ctx, pvc); err != nil {
-						return res, err
-					}
-				}
-			}
-		} else {
-			dvFound = true
-		}
+	dv, pvc, err := r.getImportState(ctx, dataImportCron)
+	if err != nil {
+		return res, err
 	}
 
-	if dvFound {
-		switch dataVolume.Status.Phase {
+	dataImportCronCopy := dataImportCron.DeepCopy()
+	imports := dataImportCron.Status.CurrentImports
+	importSucceeded := false
+	if dv != nil {
+		switch dv.Status.Phase {
 		case cdiv1.Succeeded:
 			importSucceeded = true
 		case cdiv1.ImportScheduled:
@@ -344,10 +316,22 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		case cdiv1.ImportInProgress:
 			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionTrue, "Import is progressing", inProgress)
 		default:
-			dvPhase := string(dataVolume.Status.Phase)
+			dvPhase := string(dv.Status.Phase)
 			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, fmt.Sprintf("Import DataVolume phase %s", dvPhase), dvPhase)
 		}
+	} else if pvc != nil {
+		importSucceeded = true
+		pvcCopy := pvc.DeepCopy()
+		r.setDataImportCronResourceLabels(dataImportCron, pvc)
+		if !reflect.DeepEqual(pvc, pvcCopy) {
+			if err := r.client.Update(ctx, pvc); err != nil {
+				return res, err
+			}
+		}
 	} else {
+		if len(imports) > 0 {
+			dataImportCron.Status.CurrentImports = imports[1:]
+		}
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "No current import", noImport)
 	}
 
@@ -366,7 +350,6 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	}
 
 	// We use the poller returned reconcile.Result for RequeueAfter if needed
-	var err error
 	if isImageStreamSource(dataImportCron) {
 		res, err = r.pollImageStreamDigest(ctx, dataImportCron)
 		if err != nil {
@@ -378,8 +361,8 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	digestUpdated := desiredDigest != "" && (len(imports) == 0 || desiredDigest != imports[0].Digest)
 	if digestUpdated {
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Source digest updated since last import", outdated)
-		if dvFound {
-			if err := r.deleteErroneousDataVolume(ctx, dataImportCron, dataVolume); err != nil {
+		if dv != nil {
+			if err := r.deleteErroneousDataVolume(ctx, dataImportCron, dv); err != nil {
 				return res, err
 			}
 		}
@@ -406,6 +389,30 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		}
 	}
 	return res, nil
+}
+
+// Returns the current import DV if exists, otherwise returns the last imported PVC
+func (r *DataImportCronReconciler) getImportState(ctx context.Context, cron *cdiv1.DataImportCron) (*cdiv1.DataVolume, *corev1.PersistentVolumeClaim, error) {
+	imports := cron.Status.CurrentImports
+	if len(imports) == 0 {
+		return nil, nil, nil
+	}
+
+	dvName := imports[0].DataVolumeName
+	dv := &cdiv1.DataVolume{}
+	if err := r.client.Get(ctx, types.NamespacedName{Namespace: cron.Namespace, Name: dvName}, dv); err == nil {
+		return dv, nil, nil
+	} else if !k8serrors.IsNotFound(err) {
+		return nil, nil, err
+	}
+
+	pvc := &corev1.PersistentVolumeClaim{}
+	if err := r.client.Get(ctx, types.NamespacedName{Namespace: cron.Namespace, Name: dvName}, pvc); err == nil {
+		return nil, pvc, nil
+	} else if !k8serrors.IsNotFound(err) {
+		return nil, nil, err
+	}
+	return nil, nil, nil
 }
 
 func (r *DataImportCronReconciler) deleteErroneousDataVolume(ctx context.Context, cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume) error {
