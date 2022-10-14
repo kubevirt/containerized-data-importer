@@ -33,10 +33,10 @@ This will force the scheduling of a CDI worker pod and immediately bind the PVC.
 
 This is useful for use cases that do not require binding to a particular node (like uploading a golden image to the cluster).      
 
-## Configuration - Opt in
+## Configuration
 
 To be fully compatible with any external tools that may already use CDI, this new feature has to be enabled by 
-the feature gate: `HonorWaitForFirstConsumer`. It is available in the `CDI` custom resource, under spec.config (see [cdi-config doc](cdi-config.md)).
+the feature gate: `HonorWaitForFirstConsumer`. In the released `cdi-cr` it is enabled by default. To disable it remove the feature gate in the `CDI` custom resource, under spec.config (see [cdi-config doc](cdi-config.md)).
 
 A Snippet below shows CDI resource with `HonorWaitForFirstConsumer` enabled.
 ```

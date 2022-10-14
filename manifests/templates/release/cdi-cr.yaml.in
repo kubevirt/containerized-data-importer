@@ -3,6 +3,9 @@ kind: CDI
 metadata:
   name: {{.CrName}}
 spec:
+  config:
+    featureGates:
+    - HonorWaitForFirstConsumer
   imagePullPolicy: {{.PullPolicy}}
   infra:
     nodeSelector:
