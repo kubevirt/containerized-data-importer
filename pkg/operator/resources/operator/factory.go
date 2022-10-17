@@ -87,7 +87,7 @@ func CreateAllOperatorResources(args *FactoryArgs) ([]client.Object, error) {
 	return resources, nil
 }
 
-// CreateOperatorResourceGroup creates all cluster resources fr a specific group/component
+// CreateOperatorResourceGroup creates all cluster resources from a specific group/component
 func CreateOperatorResourceGroup(group string, args *FactoryArgs) ([]client.Object, error) {
 	f, ok := operatorFactoryFunctions[group]
 	if !ok {
