@@ -1403,7 +1403,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(snapclass).To(BeEmpty())
 		})
 
-		It("Should not return snapshot class, if storage class does not exist", func() {
+		It("Should not return snapshot class, if storage class exists but snapshot class does not exist", func() {
 			dv := newCloneDataVolume("test-dv")
 			scName := "testsc"
 			sc := createStorageClass(scName, map[string]string{
@@ -1554,6 +1554,30 @@ var _ = Describe("All DataVolume Tests", func() {
 			Entry("Should be failed, if source pvc is ClaimLost", corev1.ClaimLost, cdiv1.Failed),
 			Entry("Should be Succeeded, if source pvc is ClaimBound", corev1.ClaimBound, cdiv1.Succeeded),
 		)
+
+		It("Should not panic if CSI Driver not available and no storage class on PVC spec", func() {
+			strategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)
+
+			dv := newCloneDataVolume("test-dv")
+
+			scName := "testsc"
+			srcPvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			sc := createStorageClassWithProvisioner(scName, map[string]string{
+				AnnDefaultStorageClass: "true",
+			}, map[string]string{}, "csi-plugin")
+
+			accessMode := []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}
+			storageProfile := createStorageProfileWithCloneStrategy(scName,
+				[]cdiv1.ClaimPropertySet{{AccessModes: accessMode, VolumeMode: &blockMode}},
+				&strategy)
+
+			reconciler := createDatavolumeReconciler(dv, srcPvc, storageProfile, sc, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+
+			By("Reconcile")
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result).ToNot(BeNil())
+		})
 
 	})
 

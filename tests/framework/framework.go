@@ -772,6 +772,7 @@ func (r *KubernetesReporter) Dump(kubeCli *kubernetes.Clientset, cdiClient *cdiC
 		return
 	}
 
+	r.logCSIDrivers(kubeCli)
 	r.logDVs(cdiClient)
 	r.logEvents(kubeCli, since)
 	r.logNodes(kubeCli)
@@ -792,7 +793,6 @@ func (r *KubernetesReporter) Cleanup() {
 }
 
 func (r *KubernetesReporter) logPods(kubeCli *kubernetes.Clientset) {
-
 	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_pods.log", r.FailureCount)),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -815,7 +815,6 @@ func (r *KubernetesReporter) logPods(kubeCli *kubernetes.Clientset) {
 }
 
 func (r *KubernetesReporter) logServices(kubeCli *kubernetes.Clientset) {
-
 	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_services.log", r.FailureCount)),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -838,7 +837,6 @@ func (r *KubernetesReporter) logServices(kubeCli *kubernetes.Clientset) {
 }
 
 func (r *KubernetesReporter) logEndpoints(kubeCli *kubernetes.Clientset) {
-
 	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_endpoints.log", r.FailureCount)),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -861,7 +859,6 @@ func (r *KubernetesReporter) logEndpoints(kubeCli *kubernetes.Clientset) {
 }
 
 func (r *KubernetesReporter) logNodes(kubeCli *kubernetes.Clientset) {
-
 	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_nodes.log", r.FailureCount)),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -884,7 +881,6 @@ func (r *KubernetesReporter) logNodes(kubeCli *kubernetes.Clientset) {
 }
 
 func (r *KubernetesReporter) logPVs(kubeCli *kubernetes.Clientset) {
-
 	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_pvs.log", r.FailureCount)),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -907,7 +903,6 @@ func (r *KubernetesReporter) logPVs(kubeCli *kubernetes.Clientset) {
 }
 
 func (r *KubernetesReporter) logPVCs(kubeCli *kubernetes.Clientset) {
-
 	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_pvcs.log", r.FailureCount)),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -951,8 +946,29 @@ func (r *KubernetesReporter) logDVs(cdiClientset *cdiClientset.Clientset) {
 	fmt.Fprintln(f, string(j))
 }
 
-func (r *KubernetesReporter) logLogs(kubeCli *kubernetes.Clientset, since time.Duration) {
+func (r *KubernetesReporter) logCSIDrivers(kubeCli *kubernetes.Clientset) {
+	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_csidrivers.log", r.FailureCount)),
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to open the file: %v\n", err)
+		return
+	}
+	defer f.Close()
 
+	csiDrivers, err := kubeCli.StorageV1().CSIDrivers().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to fetch csidrivers: %v\n", err)
+		return
+	}
+
+	j, err := json.MarshalIndent(csiDrivers, "", "    ")
+	if err != nil {
+		return
+	}
+	fmt.Fprintln(f, string(j))
+}
+
+func (r *KubernetesReporter) logLogs(kubeCli *kubernetes.Clientset, since time.Duration) {
 	logsdir := filepath.Join(r.artifactsDir, "pods")
 
 	if err := os.MkdirAll(logsdir, 0777); err != nil {
@@ -999,7 +1015,6 @@ func (r *KubernetesReporter) logLogs(kubeCli *kubernetes.Clientset, since time.D
 }
 
 func (r *KubernetesReporter) logEvents(kubeCli *kubernetes.Clientset, since time.Duration) {
-
 	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_events.log", r.FailureCount)),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {

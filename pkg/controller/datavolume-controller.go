@@ -704,7 +704,10 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 
 	if pvc == nil {
 		if selectedCloneStrategy == SmartClone {
-			snapshotClassName, _ := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
+			snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
 			return r.reconcileSmartClonePvc(log, datavolume, pvcSpec, transferName, snapshotClassName)
 		}
 		if selectedCloneStrategy == CsiClone {
@@ -714,12 +717,20 @@ func (r *DatavolumeReconciler) reconcileClone(log logr.Logger,
 			}
 			if !csiDriverAvailable {
 				// err csi clone not possible
+				storageClass, err := GetStorageClassByName(r.client, pvcSpec.StorageClassName)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+				noCsiDriverMsg := "CSI Clone configured, failed to look for CSIDriver - target storage class could not be found"
+				if storageClass != nil {
+					noCsiDriverMsg = fmt.Sprintf("CSI Clone configured, but no CSIDriver available for %s", storageClass.Name)
+				}
 				return reconcile.Result{},
 					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.CloneScheduled, datavolume, pvc, selectedCloneStrategy,
 						DataVolumeEvent{
 							eventType: corev1.EventTypeWarning,
 							reason:    ErrUnableToClone,
-							message:   fmt.Sprintf("CSI Clone configured, but no CSIDriver available for %s", *pvcSpec.StorageClassName),
+							message:   noCsiDriverMsg,
 						})
 			}
 
@@ -1504,7 +1515,7 @@ func (r *DatavolumeReconciler) cleanupTransfer(log logr.Logger, dv *cdiv1.DataVo
 	}
 
 	RemoveFinalizer(dv, crossNamespaceFinalizer)
-	if err := r.updateDataVolume(dv); dv != nil {
+	if err := r.updateDataVolume(dv); err != nil {
 		return err
 	}
 
@@ -1886,6 +1897,9 @@ func (r *DatavolumeReconciler) validateAdvancedCloneSizeCompatible(
 	sourcePvc *corev1.PersistentVolumeClaim,
 	targetStorageSpec *corev1.PersistentVolumeClaimSpec) (bool, error) {
 	srcStorageClass := &storagev1.StorageClass{}
+	if sourcePvc.Spec.StorageClassName == nil {
+		return false, fmt.Errorf("Source PVC Storage Class name wasn't populated yet by PVC controller")
+	}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *sourcePvc.Spec.StorageClassName}, srcStorageClass); IgnoreNotFound(err) != nil {
 		return false, err
 	}
