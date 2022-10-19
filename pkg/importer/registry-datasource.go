@@ -54,7 +54,7 @@ type RegistryDataSource struct {
 
 // NewRegistryDataSource creates a new instance of the Registry Data Source.
 func NewRegistryDataSource(endpoint, accessKey, secKey, certDir string, insecureTLS bool) *RegistryDataSource {
-	allCertDir, err := createCertificateDir(certDir)
+	allCertDir, err := CreateCertificateDir(certDir)
 	if err != nil {
 		klog.Infof("Error creating allCertDir %v", err)
 		if allCertDir != "/" {
@@ -164,7 +164,8 @@ func getImageFileName(dir string) (string, error) {
 	return filename, nil
 }
 
-func createCertificateDir(registryCertDir string) (string, error) {
+// CreateCertificateDir creates a common certificate dir
+func CreateCertificateDir(registryCertDir string) (string, error) {
 	allCerts := "/tmp/all_certs"
 	err := os.MkdirAll(allCerts, 0700)
 	if err != nil {

@@ -1171,20 +1171,8 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			Name:      CertVolName,
 			MountPath: common.ImporterCertDir,
 		}
-
-		vol := corev1.Volume{
-			Name: CertVolName,
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: args.podEnvVar.certConfigMap,
-					},
-				},
-			},
-		}
-
 		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
-		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
+		pod.Spec.Volumes = append(pod.Spec.Volumes, createConfigMapVolume(CertVolName, args.podEnvVar.certConfigMap))
 	}
 
 	if args.podEnvVar.certConfigMapProxy != "" {
@@ -1193,7 +1181,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			MountPath: common.ImporterProxyCertDir,
 		}
 		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
-		pod.Spec.Volumes = append(pod.Spec.Volumes, createProxyConfigMapVolume(ProxyCertVolName, args.podEnvVar.certConfigMapProxy))
+		pod.Spec.Volumes = append(pod.Spec.Volumes, createConfigMapVolume(ProxyCertVolName, args.podEnvVar.certConfigMapProxy))
 	}
 
 	for index, header := range args.podEnvVar.secretExtraHeaders {
@@ -1259,7 +1247,7 @@ func makeImporterContainerSpec(image, verbose, pullPolicy string) *corev1.Contai
 	}
 }
 
-func createProxyConfigMapVolume(certVolName, objRef string) corev1.Volume {
+func createConfigMapVolume(certVolName, objRef string) corev1.Volume {
 	return corev1.Volume{
 		Name: certVolName,
 		VolumeSource: corev1.VolumeSource{
