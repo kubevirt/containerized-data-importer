@@ -44,7 +44,7 @@ func (f *Framework) CreateBoundPVCFromDefinition(def *k8sv1.PersistentVolumeClai
 
 // DeletePVC is a wrapper around utils.DeletePVC
 func (f *Framework) DeletePVC(pvc *k8sv1.PersistentVolumeClaim) error {
-	return utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvc)
+	return utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvc.Name)
 }
 
 // WaitForPersistentVolumeClaimPhase is a wrapper around utils.WaitForPersistentVolumeClaimPhase

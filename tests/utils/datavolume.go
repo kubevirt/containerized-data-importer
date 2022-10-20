@@ -658,12 +658,14 @@ func NewDataVolumeWithVddkWarmImport(dataVolumeName string, size string, backing
 	}
 }
 
-// WaitForDataVolumePhase waits for DV's phase to be in a particular phase (Pending, Bound, or Lost)
+// WaitForDataVolumePhase waits for DV to be in a specific phase (Pending, Bound, Succeeded etc.)
+// or garbage collected if the passed in phase is Succeeded
 func WaitForDataVolumePhase(ci ClientsIface, namespace string, phase cdiv1.DataVolumePhase, dataVolumeName string) error {
 	return WaitForDataVolumePhaseWithTimeout(ci, namespace, phase, dataVolumeName, dataVolumePhaseTime)
 }
 
-// WaitForDataVolumePhaseWithTimeout waits for DV's phase to be in a particular phase (Pending, Bound, or Lost) with a specified timeout
+// WaitForDataVolumePhaseWithTimeout waits with timeout for DV to be in a specific phase (Pending, Bound, Succeeded etc.)
+// or garbage collected if the passed in phase is Succeeded
 func WaitForDataVolumePhaseWithTimeout(ci ClientsIface, namespace string, phase cdiv1.DataVolumePhase, dataVolumeName string, timeout time.Duration) error {
 	var actualPhase cdiv1.DataVolumePhase
 	if phase == cdiv1.Succeeded {

@@ -60,13 +60,10 @@ var _ = Describe("DataImportCron", func() {
 		Expect(err).To(BeNil())
 		defer utils.RemoveInsecureRegistry(f.CrClient, *reg.URL)
 
-		By(fmt.Sprintf("Create labeled DatVolume %s for garbage collection test", dvName))
-		dv := utils.NewDataVolumeWithRegistryImport(dvName, "5Gi", "")
-		dv.Spec.Source.Registry = reg
-		dv.Labels = map[string]string{common.DataImportCronLabel: cronName}
-		dv.Annotations[controller.AnnDeleteAfterCompletion] = "false"
-		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, dv)
-		Expect(err).ToNot(HaveOccurred())
+		By(fmt.Sprintf("Create labeled PVC %s for garbage collection test", dvName))
+		labels := map[string]string{common.DataImportCronLabel: cronName}
+		pvc := utils.NewPVCDefinition(dvName, "5Gi", nil, labels)
+		f.CreateBoundPVCFromDefinition(pvc)
 
 		By(fmt.Sprintf("Create new DataImportCron %s, url %s", cronName, *reg.URL))
 		cron = NewDataImportCron(cronName, "5Gi", scheduleEveryMinute, dataSourceName, *reg)
@@ -129,8 +126,8 @@ var _ = Describe("DataImportCron", func() {
 					By("Reset desired digest")
 					retryOnceOnErr(updateDataImportCron(f.CdiClient, ns, cronName, updateDigest(""))).Should(BeNil())
 
-					By("Delete last import DV")
-					err = f.CdiClient.CdiV1beta1().DataVolumes(ns).Delete(context.TODO(), currentImportDv, metav1.DeleteOptions{})
+					By("Delete last import PVC")
+					err := f.K8sClient.CoreV1().PersistentVolumeClaims(ns).Delete(context.TODO(), currentImportDv, metav1.DeleteOptions{})
 					Expect(err).ToNot(HaveOccurred())
 					lastImportDv = ""
 
@@ -216,9 +213,9 @@ var _ = Describe("DataImportCron", func() {
 		}
 		By("Check garbage collection")
 		Eventually(func() int {
-			dvList, err := f.CdiClient.CdiV1beta1().DataVolumes(ns).List(context.TODO(), metav1.ListOptions{})
+			pvcList, err := f.K8sClient.CoreV1().PersistentVolumeClaims(ns).List(context.TODO(), metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			return len(dvList.Items)
+			return len(pvcList.Items)
 		}, dataImportCronTimeout, pollingInterval).Should(Equal(expectedImports), "Garbage collection failed cleaning old imports")
 
 		lastImportedPVC := cron.Status.LastImportedPVC
