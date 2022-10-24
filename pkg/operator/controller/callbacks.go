@@ -133,7 +133,7 @@ func reconcileSCC(args *callbacks.ReconcileCallbackArgs) error {
 	}
 
 	cr := args.Resource.(runtime.Object)
-	if err := ensureSCCExists(args.Logger, args.Client, args.Namespace, common.ControllerServiceAccountName); err != nil {
+	if err := ensureSCCExists(args.Logger, args.Client, args.Namespace, common.ControllerServiceAccountName, common.CronJobServiceAccountName); err != nil {
 		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure SecurityContextConstraint exists, %v", err))
 		return err
 	}
