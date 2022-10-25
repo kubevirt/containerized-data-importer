@@ -9,11 +9,7 @@ source "${KUBEVIRTCI_PATH}/cluster/ephemeral-provider-common.sh"
 #if UNLIMITEDSWAP is set to true - Kubernetes workloads can use as much swap memory as they request, up to the system limit.
 #otherwise Kubernetes workloads can use as much swap memory as they request, up to the system limit by default
 function configure_swap_memory () {
-  if [ "$KUBEVIRT_SWAP_ON" == "true" ] && [[  ($KUBEVIRT_PROVIDER =~ k8s-1\.1.*) ||  ($KUBEVIRT_PROVIDER =~ k8s-1.20) ||  ($KUBEVIRT_PROVIDER =~ k8s-1.21) ]]; then
-      echo "ERROR: swap is not supported on kubevirtci version < 1.22"
-      exit 1
-
-  elif [ "$KUBEVIRT_SWAP_ON" == "true" ] ;then
+  if [ "$KUBEVIRT_SWAP_ON" == "true" ] ;then
 
     for nodeNum in $(seq -f "%02g" 1 $KUBEVIRT_NUM_NODES); do
         if [ ! -z $KUBEVIRT_SWAP_SIZE_IN_GB  ]; then
@@ -62,11 +58,7 @@ function wait_for_cnao_ready() {
 }
 
 function deploy_istio() {
-    if [ "$KUBEVIRT_DEPLOY_ISTIO" == "true" ] && [[ $KUBEVIRT_PROVIDER =~ k8s-1\.1.* ]]; then
-        echo "ERROR: Istio is not supported on kubevirtci version < 1.20"
-        exit 1
-
-    elif [ "$KUBEVIRT_DEPLOY_ISTIO" == "true" ]; then
+    if [ "$KUBEVIRT_DEPLOY_ISTIO" == "true" ]; then
         if [ "$KUBEVIRT_WITH_CNAO" == "true" ]; then
             $kubectl create -f /opt/istio/istio-operator-with-cnao.cr.yaml
         else
@@ -121,22 +113,22 @@ function up() {
     fi
     eval ${_cli:?} run $params
 
-    # Copy k8s config and kubectl
-    # Workaround https://github.com/containers/conmon/issues/315 by not dumping the file to stdout for the time being
-    if [[ ${_cri_bin} = podman* ]]; then
-        ${_cli} scp --prefix ${provider_prefix:?} /usr/bin/kubectl /kubevirtci_config/.kubectl
-        ${_cli} scp --prefix $provider_prefix /etc/kubernetes/admin.conf /kubevirtci_config/.kubeconfig
-    else
-        ${_cli} scp --prefix ${provider_prefix:?} /usr/bin/kubectl - >${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubectl
-        ${_cli} scp --prefix $provider_prefix /etc/kubernetes/admin.conf - >${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubeconfig
-    fi
-
-    chmod u+x ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubectl
+    ${_cli} scp --prefix $provider_prefix /etc/kubernetes/admin.conf - >${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubeconfig
 
     # Set server and disable tls check
     export KUBECONFIG=${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubeconfig
-    ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubectl config set-cluster kubernetes --server="https://$(_main_ip):$(_port k8s)"
-    ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubectl config set-cluster kubernetes --insecure-skip-tls-verify=true
+    kubectl config set-cluster kubernetes --server="https://$(_main_ip):$(_port k8s)"
+    kubectl config set-cluster kubernetes --insecure-skip-tls-verify=true
+
+    # Workaround https://github.com/containers/conmon/issues/315 by not dumping the file to stdout for the time being
+    if [[ ${_cri_bin} = podman* ]]; then
+        k8s_version=$(kubectl get node node01 --no-headers -o=custom-columns=VERSION:.status.nodeInfo.kubeletVersion)
+        curl -Ls "https://dl.k8s.io/release/${k8s_version}/bin/linux/amd64/kubectl" -o ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubectl
+    else
+        ${_cli} scp --prefix ${provider_prefix:?} /usr/bin/kubectl - >${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubectl
+    fi
+
+    chmod u+x ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubectl
 
     # Make sure that local config is correct
     prepare_config
