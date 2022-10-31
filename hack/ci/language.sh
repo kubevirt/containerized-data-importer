@@ -16,6 +16,7 @@ VIOLATIONS=$(git grep -iI -E $PHRASES -- \
     ':!*generated*' \
     ':!*swagger.json*' \
     ':!hack/ci/language.sh' \
+    ':!hack/fossa.sh' \
     "${CDI_DIR}" |
     grep -v \
         -e 'ekalinin/github-markdown-toc' \
