@@ -92,6 +92,15 @@ var _ = Describe("All DataSource Tests", func() {
 			err = reconciler.client.Delete(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
 			verifyConditions("Source DV Deleted", false, notFound)
+
+			pvc := createPvc(pvcName, metav1.NamespaceDefault, nil, nil)
+			err = reconciler.client.Create(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+			verifyConditions("Source PVC exists, but no DV", true, ready)
+
+			err = reconciler.client.Delete(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+			verifyConditions("Source PVC Deleted", false, notFound)
 		})
 	})
 })

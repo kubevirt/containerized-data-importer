@@ -466,9 +466,8 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(pvc).ToNot(BeNil())
 
 				By("Verify dv succeeded")
-				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+				err = utils.WaitForDataVolumePhase(f, pvc.Namespace, cdiv1.Succeeded, pvc.Name)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
 
 				By("Start goroutine creating DataImportCrons")
 				go func() {

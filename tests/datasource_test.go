@@ -56,13 +56,20 @@ var _ = Describe("DataSource", func() {
 	createDv := func(pvcName, url string) {
 		By(fmt.Sprintf("creating DataVolume %s %s", pvcName, url))
 		dv := utils.NewDataVolumeWithHTTPImport(pvcName, "1Gi", url)
-		dv.Annotations[controller.AnnDeleteAfterCompletion] = "false"
 		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 		By("verifying pvc was created")
 		pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindIfWaitForFirstConsumer(pvc)
+	}
+
+	// Delete PVC if DV was GCed, otherwise delete both
+	deleteDvPvc := func(pvcName string) {
+		err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, pvcName)
+		Expect(err).ToNot(HaveOccurred())
+		err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvcName)
+		Expect(err).ToNot(HaveOccurred())
 	}
 
 	It("[test_id:8041]status conditions should be updated on pvc create/update/delete", func() {
@@ -80,8 +87,7 @@ var _ = Describe("DataSource", func() {
 		createDv(pvc1Name, testUrl())
 		ds = waitForReadyCondition(ds, corev1.ConditionTrue, "Ready")
 
-		err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, pvc1Name)
-		Expect(err).ToNot(HaveOccurred())
+		deleteDvPvc(pvc1Name)
 		ds = waitForReadyCondition(ds, corev1.ConditionFalse, "NotFound")
 
 		ds.Spec.Source.PVC = nil
@@ -114,8 +120,7 @@ var _ = Describe("DataSource", func() {
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionTrue, "Ready")
 		ds2 = waitForReadyCondition(ds2, corev1.ConditionTrue, "Ready")
 
-		err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, pvc1Name)
-		Expect(err).ToNot(HaveOccurred())
+		deleteDvPvc(pvc1Name)
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionFalse, "NotFound")
 		ds2 = waitForReadyCondition(ds2, corev1.ConditionFalse, "NotFound")
 
@@ -125,8 +130,7 @@ var _ = Describe("DataSource", func() {
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionFalse, "ImportInProgress")
 		ds2 = waitForReadyCondition(ds2, corev1.ConditionFalse, "ImportInProgress")
 
-		err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, pvc2Name)
-		Expect(err).ToNot(HaveOccurred())
+		deleteDvPvc(pvc2Name)
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionFalse, "NotFound")
 		ds2 = waitForReadyCondition(ds2, corev1.ConditionFalse, "NotFound")
 	})

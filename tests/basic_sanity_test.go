@@ -81,7 +81,7 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			pvcExpectedResult["create"] = "yes"
 			pvcExpectedResult["update"] = "yes"
 			pvcExpectedResult["patch"] = "no"
-			pvcExpectedResult["deletecollection"] = "no"
+			pvcExpectedResult["deletecollection"] = "yes"
 			ValidateRBACForResource(f, pvcExpectedResult, "persistentvolumeclaims", sa)
 			ValidateRBACForResource(f, pvcExpectedResult, "persistentvolumeclaims/finalizers", sa)
 
