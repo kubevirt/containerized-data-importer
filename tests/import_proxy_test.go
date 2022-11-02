@@ -366,6 +366,9 @@ var _ = Describe("Import Proxy tests", func() {
 				return job.Status.Succeeded
 			}, timeout, pollingInterval).Should(Equal(int32(1)), "initial job is not succeeded")
 
+			By("Checking the initial job pod information in the proxy log to verify if the requests were proxied")
+			verifyPodInfoInProxyLogs(f, initialJobName, url, registryUserAgent, now, BeTrue)
+
 			By("Verify cronjob first job succeeded")
 			cronJobName := controller.GetCronJobName(cron)
 			Eventually(func() *metav1.Time {
@@ -380,6 +383,9 @@ var _ = Describe("Import Proxy tests", func() {
 				return cronjob.Status.LastSuccessfulTime
 			}, timeout, pollingInterval).ShouldNot(BeNil())
 
+			By("Checking the first job pod information in the proxy log to verify if the requests were proxied")
+			verifyPodInfoInProxyLogs(f, cronJobName, url, registryUserAgent, now, BeTrue)
+
 			By("Wait for DataImportCron UpToDate")
 			Eventually(func() bool {
 				var err error
@@ -389,21 +395,14 @@ var _ = Describe("Import Proxy tests", func() {
 				return condUpToDate != nil && condUpToDate.Status == corev1.ConditionTrue
 			}, timeout, pollingInterval).Should(BeTrue(), "Timeout waiting for DataImportCron conditions")
 
-			By("Wait for CurrentImports update")
-			dvName := ""
-			Eventually(func() string {
-				cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
-				dvName = cron.Status.CurrentImports[0].DataVolumeName
-				Expect(dvName).ToNot(BeEmpty())
-				return dvName
-			}, timeout, pollingInterval).ShouldNot(BeEmpty())
+			By("Verify CurrentImports is updated")
+			Expect(cron.Status.CurrentImports).To(HaveLen(1))
+			dvName := cron.Status.CurrentImports[0].DataVolumeName
+			Expect(dvName).ToNot(BeEmpty())
 
 			By("Wait for datavolume succeeded")
 			err = utils.WaitForDataVolumePhase(f, ns, cdiv1.Succeeded, dvName)
 			Expect(err).ToNot(HaveOccurred())
-
-			By("Checking the importer pod information in the proxy log to verify if the requests were proxied")
-			verifyImporterPodInfoInProxyLogs(f, url, registryUserAgent, now, BeTrue)
 		},
 			Entry("with http proxy, no auth", false, false),
 			Entry("with http proxy, auth", false, true),
@@ -540,13 +539,17 @@ func updateClusterWideProxyObj(ocpClient *configclient.Clientset, HTTPProxy, HTT
 
 // verifyImporterPodInfoInProxyLogs verifiy if the importer pod request (method, url and impoter pod IP) appears in the proxy log
 func verifyImporterPodInfoInProxyLogs(f *framework.Framework, imgURL, userAgent string, since time.Time, expected func() types.GomegaMatcher) {
-	podIP := getImporterPodIP(f)
+	verifyPodInfoInProxyLogs(f, common.ImporterPodName, imgURL, userAgent, since, expected)
+}
+
+func verifyPodInfoInProxyLogs(f *framework.Framework, podPrefix, imgURL, userAgent string, since time.Time, expected func() types.GomegaMatcher) {
+	podIP := getPodIP(f, podPrefix)
 	Eventually(func() bool {
 		return wasPodProxied(imgURL, podIP, userAgent, getProxyLog(f, since))
 	}, time.Second*60, time.Second).Should(expected())
 }
 
-func getImporterPodIP(f *framework.Framework) string {
+func getPodIP(f *framework.Framework, podPrefix string) string {
 	podIP := ""
 	Eventually(func() string {
 		pod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
