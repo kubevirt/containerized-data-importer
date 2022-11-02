@@ -4,12 +4,13 @@ import (
 	"context"
 	"flag"
 	"log"
+	"net/http"
+	neturl "net/url"
 	"os"
 	"strconv"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
@@ -64,7 +65,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to build config; kubeURL %s configPath %s: %v", kubeURL, configPath, err)
 	}
-	cfg.TLSClientConfig = rest.TLSClientConfig{Insecure: true}
+
+	// Don't proxy k8s api calls
+	cfg.Proxy = func(r *http.Request) (*neturl.URL, error) {
+		return nil, nil
+	}
 
 	cdiClient, err := cdiClientset.NewForConfig(cfg)
 	if err != nil {

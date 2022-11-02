@@ -17,7 +17,6 @@ limitations under the License.
 package importer
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -167,40 +166,37 @@ func getImageFileName(dir string) (string, error) {
 // CreateCertificateDir creates a common certificate dir
 func CreateCertificateDir(registryCertDir string) (string, error) {
 	allCerts := "/tmp/all_certs"
-	err := os.MkdirAll(allCerts, 0700)
-	if err != nil {
+	if err := os.MkdirAll(allCerts, 0700); err != nil {
 		return allCerts, err
 	}
+
 	klog.Info("Copying proxy certs")
-	directory, err := os.Open(common.ImporterProxyCertDir)
+	if err := collectCerts(common.ImporterProxyCertDir, allCerts, "proxy-"); err != nil {
+		return allCerts, err
+	}
+	klog.Info("Copying registry certs")
+	if err := collectCerts(registryCertDir, allCerts, ""); err != nil {
+		return allCerts, err
+	}
+	return allCerts, nil
+}
+
+func collectCerts(certDir, targetDir, targetPrefix string) error {
+	directory, err := os.Open(certDir)
 	if err != nil {
-		return "", err
+		return err
 	}
 	objects, err := directory.Readdir(-1)
 	if err != nil {
-		return "", err
+		return err
 	}
 	for _, obj := range objects {
-		if strings.HasSuffix(obj.Name(), ".crt") {
-			err = util.LinkFile(filepath.Join(common.ImporterProxyCertDir, obj.Name()), filepath.Join(allCerts, fmt.Sprintf("proxy-%s", obj.Name())))
-			if err != nil {
-				return allCerts, err
-			}
+		if !strings.HasSuffix(obj.Name(), ".crt") {
+			continue
+		}
+		if err := util.LinkFile(filepath.Join(certDir, obj.Name()), filepath.Join(targetDir, targetPrefix+obj.Name())); err != nil {
+			return err
 		}
 	}
-	klog.Info("Copying registry certs")
-	directory, _ = os.Open(registryCertDir)
-	objects, err = directory.Readdir(-1)
-	if err != nil {
-		return "", err
-	}
-	for _, obj := range objects {
-		if strings.HasSuffix(obj.Name(), ".crt") {
-			err = util.LinkFile(filepath.Join(registryCertDir, obj.Name()), filepath.Join(allCerts, obj.Name()))
-			if err != nil {
-				return allCerts, err
-			}
-		}
-	}
-	return allCerts, nil
+	return nil
 }

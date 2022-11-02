@@ -820,9 +820,25 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 		)
 	}
 
-	if insecureTLS {
-		container.Env = append(container.Env, corev1.EnvVar{Name: common.InsecureTLSVar, Value: "true"})
+	addEnvVar := func(varName, value string) {
+		container.Env = append(container.Env, corev1.EnvVar{Name: varName, Value: value})
 	}
+
+	if insecureTLS {
+		addEnvVar(common.InsecureTLSVar, "true")
+	}
+
+	addEnvVarFromImportProxyConfig := func(varName string) {
+		if value, err := GetImportProxyConfig(cdiConfig, varName); err == nil {
+			addEnvVar(varName, value)
+		} else {
+			r.log.Info("Missing", varName, err.Error())
+		}
+	}
+
+	addEnvVarFromImportProxyConfig(common.ImportProxyHTTP)
+	addEnvVarFromImportProxyConfig(common.ImportProxyHTTPS)
+	addEnvVarFromImportProxyConfig(common.ImportProxyNoProxy)
 
 	cronJobName := GetCronJobName(cron)
 	cronJob := &batchv1.CronJob{
@@ -834,7 +850,6 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 			Schedule:                   cron.Spec.Schedule,
 			ConcurrencyPolicy:          batchv1.ForbidConcurrent,
 			SuccessfulJobsHistoryLimit: pointer.Int32(1),
-			FailedJobsHistoryLimit:     pointer.Int32(0),
 			JobTemplate: batchv1.JobTemplateSpec{
 				Spec: batchv1.JobSpec{
 					Template: corev1.PodTemplateSpec{
@@ -846,8 +861,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 							Volumes:                       volumes,
 						},
 					},
-					TTLSecondsAfterFinished: pointer.Int32(3),
-					BackoffLimit:            pointer.Int32(2),
+					BackoffLimit: pointer.Int32(2),
 				},
 			},
 		},
