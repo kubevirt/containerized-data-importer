@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/pointer"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -47,8 +48,12 @@ import (
 )
 
 var (
-	cronLog  = logf.Log.WithName("data-import-cron-controller-test")
-	cronName = "test-cron"
+	cronLog        = logf.Log.WithName("data-import-cron-controller-test")
+	cronName       = "test-cron"
+	httpProxy      = "test-http-proxy"
+	httpsProxy     = "test-https-proxy"
+	noProxy        = "test-no-proxy"
+	trustedCAProxy = "test-trusted-ca-proxy"
 )
 
 const (
@@ -178,14 +183,49 @@ var _ = Describe("All DataImportCron Tests", func() {
 		})
 
 		It("Should create and delete CronJob if DataImportCron is created and deleted", func() {
+			cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
+			cdiConfig.Status.ImportProxy = &cdiv1.ImportProxy{
+				HTTPProxy:      &httpProxy,
+				HTTPSProxy:     &httpsProxy,
+				NoProxy:        &noProxy,
+				TrustedCAProxy: &trustedCAProxy,
+			}
+
 			cron = newDataImportCron(cronName)
-			reconciler = createDataImportCronReconciler(cron)
+			reconciler = createDataImportCronReconcilerWithoutConfig(cron, cdiConfig)
 			_, err := reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
 
 			cronjob := &batchv1.CronJob{}
 			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
 			Expect(err).ToNot(HaveOccurred())
+			containers := cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers
+			Expect(containers).To(HaveLen(1))
+
+			env := containers[0].Env
+			Expect(getEnvVar(env, common.ImportProxyHTTP)).To(Equal(httpProxy))
+			Expect(getEnvVar(env, common.ImportProxyHTTPS)).To(Equal(httpsProxy))
+			Expect(getEnvVar(env, common.ImportProxyNoProxy)).To(Equal(noProxy))
+
+			volMounts := containers[0].VolumeMounts
+			Expect(volMounts).To(HaveLen(1))
+			Expect(volMounts[0]).To(Equal(corev1.VolumeMount{
+				Name:      ProxyCertVolName,
+				MountPath: common.ImporterProxyCertDir,
+			}))
+
+			volumes := cronjob.Spec.JobTemplate.Spec.Template.Spec.Volumes
+			Expect(volumes).To(HaveLen(1))
+			Expect(volumes[0]).To(Equal(corev1.Volume{
+				Name: ProxyCertVolName,
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: trustedCAProxy,
+						},
+					},
+				},
+			}))
 
 			err = reconciler.client.Get(context.TODO(), cronKey, cron)
 			Expect(err).ToNot(HaveOccurred())
@@ -200,6 +240,32 @@ var _ = Describe("All DataImportCron Tests", func() {
 
 			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
 			Expect(err).To(HaveOccurred())
+		})
+
+		It("Should verify CronJob container env variables are empty and no extra volume is set when proxy is not configured", func() {
+			cron = newDataImportCron(cronName)
+			reconciler = createDataImportCronReconciler(cron)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			cronjob := &batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(cronjob.Spec.SuccessfulJobsHistoryLimit).To(Equal(pointer.Int32(1)))
+			Expect(cronjob.Spec.FailedJobsHistoryLimit).To(BeNil())
+
+			jobTemplateSpec := cronjob.Spec.JobTemplate.Spec.Template.Spec
+			containers := jobTemplateSpec.Containers
+			Expect(containers).To(HaveLen(1))
+
+			env := containers[0].Env
+			Expect(getEnvVar(env, common.ImportProxyHTTP)).To(BeEmpty())
+			Expect(getEnvVar(env, common.ImportProxyHTTPS)).To(BeEmpty())
+			Expect(getEnvVar(env, common.ImportProxyNoProxy)).To(BeEmpty())
+
+			Expect(containers[0].VolumeMounts).To(HaveLen(0))
+			Expect(jobTemplateSpec.Volumes).To(HaveLen(0))
 		})
 
 		It("Should update CronJob on reconcile", func() {
@@ -469,8 +535,14 @@ var _ = Describe("untagURL", func() {
 
 func createDataImportCronReconciler(objects ...runtime.Object) *DataImportCronReconciler {
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
+	objs := []runtime.Object{cdiConfig}
+	objs = append(objs, objects...)
+	return createDataImportCronReconcilerWithoutConfig(objs...)
+}
+
+func createDataImportCronReconcilerWithoutConfig(objects ...runtime.Object) *DataImportCronReconciler {
 	crd := &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "dataimportcrons.cdi.kubevirt.io"}}
-	objs := []runtime.Object{cdiConfig, crd}
+	objs := []runtime.Object{crd}
 	objs = append(objs, objects...)
 
 	s := scheme.Scheme
@@ -568,4 +640,13 @@ func verifyConditionState(condType string, condState cdiv1.ConditionState, desir
 	}
 	Expect(condState.Status).To(Equal(desiredStatus))
 	Expect(condState.Reason).To(Equal(desiredReason))
+}
+
+func getEnvVar(env []corev1.EnvVar, name string) string {
+	for _, envVar := range env {
+		if envVar.Name == name {
+			return envVar.Value
+		}
+	}
+	return ""
 }

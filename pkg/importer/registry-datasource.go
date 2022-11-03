@@ -17,7 +17,6 @@ limitations under the License.
 package importer
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -54,7 +53,7 @@ type RegistryDataSource struct {
 
 // NewRegistryDataSource creates a new instance of the Registry Data Source.
 func NewRegistryDataSource(endpoint, accessKey, secKey, certDir string, insecureTLS bool) *RegistryDataSource {
-	allCertDir, err := createCertificateDir(certDir)
+	allCertDir, err := CreateCertificateDir(certDir)
 	if err != nil {
 		if allCertDir != "/" {
 			err = os.RemoveAll(allCertDir)
@@ -163,33 +162,39 @@ func getImageFileName(dir string) (string, error) {
 	return filename, nil
 }
 
-func createCertificateDir(registryCertDir string) (string, error) {
-	allCerts := "/all_certs"
-	err := os.MkdirAll(allCerts, 0777)
-	if err != nil {
+// CreateCertificateDir creates a common certificate dir
+func CreateCertificateDir(registryCertDir string) (string, error) {
+	allCerts := "/tmp/all_certs"
+	if err := os.MkdirAll(allCerts, 0700); err != nil {
 		return allCerts, err
 	}
 	klog.Info("Copying proxy certs")
-	directory, _ := os.Open(common.ImporterProxyCertDir)
-	objects, err := directory.Readdir(-1)
-	for _, obj := range objects {
-		if strings.HasSuffix(obj.Name(), ".crt") {
-			err = util.LinkFile(filepath.Join(common.ImporterProxyCertDir, obj.Name()), filepath.Join(allCerts, fmt.Sprintf("proxy-%s", obj.Name())))
-			if err != nil {
-				return allCerts, err
-			}
-		}
+	if err := collectCerts(common.ImporterProxyCertDir, allCerts, "proxy-"); err != nil {
+		return allCerts, err
 	}
 	klog.Info("Copying registry certs")
-	directory, _ = os.Open(registryCertDir)
-	objects, err = directory.Readdir(-1)
-	for _, obj := range objects {
-		if strings.HasSuffix(obj.Name(), ".crt") {
-			err = util.LinkFile(filepath.Join(registryCertDir, obj.Name()), filepath.Join(allCerts, obj.Name()))
-			if err != nil {
-				return allCerts, err
-			}
-		}
+	if err := collectCerts(registryCertDir, allCerts, ""); err != nil {
+		return allCerts, err
 	}
 	return allCerts, nil
+}
+
+func collectCerts(certDir, targetDir, targetPrefix string) error {
+	directory, err := os.Open(certDir)
+	if err != nil {
+		return err
+	}
+	objects, err := directory.Readdir(-1)
+	if err != nil {
+		return err
+	}
+	for _, obj := range objects {
+		if !strings.HasSuffix(obj.Name(), ".crt") {
+			continue
+		}
+		if err := util.LinkFile(filepath.Join(certDir, obj.Name()), filepath.Join(targetDir, targetPrefix+obj.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
 }
