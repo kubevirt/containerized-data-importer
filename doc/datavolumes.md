@@ -435,8 +435,10 @@ Lastly, it is worth mentioning that the detection and automation of  storage par
 for example, using [pvc](#pvc-source) allows to ommit the storage size, while for others is still mandatory. We encourage to check the docs for each individual source for more information.
 
 ### Block Volume Mode
-You can import, clone and upload a disk image to a raw block persistent volume.
-This is done by assigning the value 'Block' to the PVC volumeMode field in the DataVolume yaml.
+You can import, clone and upload a disk image to a raw block persistent volume, though,  
+Some CRIs need manual configuration to allow our rootless workload pods to utilize block devices, see [Configure CRI ownership from security context](block_cri_ownership_config.md).  
+
+Block disk image operations are initiated by assigning the value 'Block' to the PVC volumeMode field in the DataVolume yaml.
 The following is an example to import disk image to a raw block volume:
 ```yaml
 apiVersion: cdi.kubevirt.io/v1beta1
