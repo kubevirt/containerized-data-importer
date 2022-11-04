@@ -41,6 +41,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -771,14 +772,25 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
 	}
 
+	volumes := []corev1.Volume{}
 	hasCertConfigMap := regSource.CertConfigMap != nil && *regSource.CertConfigMap != ""
 	if hasCertConfigMap {
 		vm := corev1.VolumeMount{
 			Name:      CertVolName,
 			MountPath: common.ImporterCertDir,
 		}
-		container.VolumeMounts = []corev1.VolumeMount{vm}
+		container.VolumeMounts = append(container.VolumeMounts, vm)
 		container.Command = append(container.Command, "-certdir", common.ImporterCertDir)
+		volumes = append(volumes, createConfigMapVolume(CertVolName, *regSource.CertConfigMap))
+	}
+
+	if volName, _ := GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName); volName != "" {
+		vm := corev1.VolumeMount{
+			Name:      ProxyCertVolName,
+			MountPath: common.ImporterProxyCertDir,
+		}
+		container.VolumeMounts = append(container.VolumeMounts, vm)
+		volumes = append(volumes, createConfigMapVolume(ProxyCertVolName, volName))
 	}
 
 	if regSource.SecretRef != nil && *regSource.SecretRef != "" {
@@ -808,20 +820,25 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 		)
 	}
 
-	if insecureTLS {
-		container.Env = append(container.Env,
-			corev1.EnvVar{
-				Name:  common.InsecureTLSVar,
-				Value: "true",
-			},
-		)
+	addEnvVar := func(varName, value string) {
+		container.Env = append(container.Env, corev1.EnvVar{Name: varName, Value: value})
 	}
 
-	successfulJobsHistoryLimit := int32(0)
-	failedJobsHistoryLimit := int32(0)
-	ttlSecondsAfterFinished := int32(0)
-	backoffLimit := int32(2)
-	gracePeriodSeconds := int64(0)
+	if insecureTLS {
+		addEnvVar(common.InsecureTLSVar, "true")
+	}
+
+	addEnvVarFromImportProxyConfig := func(varName string) {
+		if value, err := GetImportProxyConfig(cdiConfig, varName); err == nil {
+			addEnvVar(varName, value)
+		} else {
+			r.log.Info("Missing", varName, err.Error())
+		}
+	}
+
+	addEnvVarFromImportProxyConfig(common.ImportProxyHTTP)
+	addEnvVarFromImportProxyConfig(common.ImportProxyHTTPS)
+	addEnvVarFromImportProxyConfig(common.ImportProxyNoProxy)
 
 	cronJobName := GetCronJobName(cron)
 	cronJob := &batchv1.CronJob{
@@ -832,37 +849,22 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 		Spec: batchv1.CronJobSpec{
 			Schedule:                   cron.Spec.Schedule,
 			ConcurrencyPolicy:          batchv1.ForbidConcurrent,
-			SuccessfulJobsHistoryLimit: &successfulJobsHistoryLimit,
-			FailedJobsHistoryLimit:     &failedJobsHistoryLimit,
+			SuccessfulJobsHistoryLimit: pointer.Int32(1),
 			JobTemplate: batchv1.JobTemplateSpec{
 				Spec: batchv1.JobSpec{
 					Template: corev1.PodTemplateSpec{
 						Spec: corev1.PodSpec{
 							RestartPolicy:                 corev1.RestartPolicyNever,
-							TerminationGracePeriodSeconds: &gracePeriodSeconds,
+							TerminationGracePeriodSeconds: pointer.Int64(0),
 							Containers:                    []corev1.Container{container},
 							ServiceAccountName:            common.CronJobServiceAccountName,
+							Volumes:                       volumes,
 						},
 					},
-					TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
-					BackoffLimit:            &backoffLimit,
+					BackoffLimit: pointer.Int32(2),
 				},
 			},
 		},
-	}
-
-	if hasCertConfigMap {
-		vol := corev1.Volume{
-			Name: CertVolName,
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: *regSource.CertConfigMap,
-					},
-				},
-			},
-		}
-		cronJob.Spec.JobTemplate.Spec.Template.Spec.Volumes = []corev1.Volume{vol}
 	}
 
 	if err := r.setJobCommon(cron, cronJob); err != nil {

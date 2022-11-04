@@ -3,8 +3,9 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
+	"net/http"
+	neturl "net/url"
 	"os"
 	"strconv"
 	"time"
@@ -48,19 +49,31 @@ func init() {
 }
 
 func main() {
-	digest, err := importer.GetImageDigest(url, accessKey, secretKey, certDir, insecureTLS)
+	allCertDir, err := importer.CreateCertificateDir(certDir)
 	if err != nil {
-		os.Exit(1)
+		log.Printf("Ignore common certificate dir: %v", err)
+		allCertDir = certDir
 	}
-	fmt.Println("Digest is", digest)
+
+	digest, err := importer.GetImageDigest(url, accessKey, secretKey, allCertDir, insecureTLS)
+	if err != nil {
+		log.Fatalf("Failed to get image digest: %v", err)
+	}
+	log.Printf("Digest is %s", digest)
 
 	cfg, err := clientcmd.BuildConfigFromFlags(kubeURL, configPath)
 	if err != nil {
-		log.Fatalf("Failed BuildConfigFromFlags, kubeURL %s configPath %s: %v", kubeURL, configPath, err)
+		log.Fatalf("Failed to build config; kubeURL %s configPath %s: %v", kubeURL, configPath, err)
 	}
+
+	// Don't proxy k8s api calls
+	cfg.Proxy = func(r *http.Request) (*neturl.URL, error) {
+		return nil, nil
+	}
+
 	cdiClient, err := cdiClientset.NewForConfig(cfg)
 	if err != nil {
-		log.Fatalf("Failed NewForConfig: %v", err)
+		log.Fatalf("Failed to create Clientset: %v", err)
 	}
 
 	dataImportCron, err := cdiClient.CdiV1beta1().DataImportCrons(cronNamespace).Get(context.TODO(), cronName, metav1.GetOptions{})
@@ -73,9 +86,9 @@ func main() {
 	if digest != "" && (imports == nil || digest != imports[0].Digest) &&
 		digest != dataImportCron.Annotations[controller.AnnSourceDesiredDigest] {
 		controller.AddAnnotation(dataImportCron, controller.AnnSourceDesiredDigest, digest)
-		fmt.Println("Digest updated")
+		log.Printf("Digest updated")
 	} else {
-		fmt.Println("No digest update")
+		log.Printf("No digest update")
 	}
 
 	_, err = cdiClient.CdiV1beta1().DataImportCrons(cronNamespace).Update(context.TODO(), dataImportCron, metav1.UpdateOptions{})

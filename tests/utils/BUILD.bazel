@@ -6,6 +6,7 @@ go_library(
         "certs.go",
         "common.go",
         "configmaps.go",
+        "dataimportcron.go",
         "datavolume.go",
         "deployments.go",
         "fileConversion.go",
