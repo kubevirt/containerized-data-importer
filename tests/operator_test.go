@@ -746,6 +746,29 @@ var _ = Describe("ALL Operator tests", func() {
 					return true
 				}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 			})
+
+			It("SCC priority always reset to default", func() {
+				if !utils.IsOpenshift(f.K8sClient) {
+					Skip("This test is OpenShift specific")
+				}
+
+				secClient, err := secclient.NewForConfig(f.RestConfig)
+				Expect(err).ToNot(HaveOccurred())
+
+				scc, err := secClient.SecurityV1().SecurityContextConstraints().Get(context.TODO(), "containerized-data-importer", metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Overwrite priority of SCC")
+				scc.Priority = pointer.Int32(10)
+				_, err = secClient.SecurityV1().SecurityContextConstraints().Update(context.TODO(), scc, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(func() *int32 {
+					scc, err := secClient.SecurityV1().SecurityContextConstraints().Get(context.TODO(), "containerized-data-importer", metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					return scc.Priority
+				}, 2*time.Minute, 1*time.Second).Should(BeNil())
+			})
 		})
 
 		var _ = Describe("[rfe_id:7101][crit:medium][vendor:cnv-qe@redhat.com][level:component]Alert tests", func() {
