@@ -450,7 +450,7 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).To(BeNil())
 
 				By("Create new DataImportCron")
-				cron := NewDataImportCron("cron-test", "5Gi", scheduleEveryMinute, "ds", *reg)
+				cron := utils.NewDataImportCron("cron-test", "5Gi", scheduleEveryMinute, "ds", 1, *reg)
 				cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
@@ -476,7 +476,7 @@ var _ = Describe("ALL Operator tests", func() {
 					var err error
 					for i := 0; i < 100 && err == nil; i++ {
 						cronName := fmt.Sprintf("cron-test-%d", i)
-						cron := NewDataImportCron(cronName, "5Gi", scheduleEveryMinute, "ds", *reg)
+						cron := utils.NewDataImportCron(cronName, "5Gi", scheduleEveryMinute, "ds", 1, *reg)
 						_, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
 					}
 				}()
@@ -952,7 +952,7 @@ var _ = Describe("ALL Operator tests", func() {
 				defer utils.RemoveInsecureRegistry(f.CrClient, *reg.URL)
 
 				for i := 1; i < numCrons+1; i++ {
-					cron := NewDataImportCron(fmt.Sprintf("cron-test-%d", i), "5Gi", scheduleOnceAYear, fmt.Sprintf("datasource-test-%d", i), *reg)
+					cron := utils.NewDataImportCron(fmt.Sprintf("cron-test-%d", i), "5Gi", scheduleOnceAYear, fmt.Sprintf("datasource-test-%d", i), 1, *reg)
 					By(fmt.Sprintf("Create new DataImportCron %s", *reg.URL))
 					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
 					Expect(err).ToNot(HaveOccurred())
