@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -909,17 +910,24 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 
 	importerContainer := makeImporterContainerSpec(args.image, args.verbose, args.pullPolicy)
 
+	annotations := make(map[string]string)
+	annotations[AnnCreatedBy] = "yes"
+	for k, v := range args.pvc.ObjectMeta.Annotations {
+		if strings.Contains(k, AnnAPIGroup) {
+			continue
+		}
+		annotations[k] = v
+	}
+
 	pod := &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      podName,
-			Namespace: args.pvc.Namespace,
-			Annotations: map[string]string{
-				AnnCreatedBy: "yes",
-			},
+			Name:        podName,
+			Namespace:   args.pvc.Namespace,
+			Annotations: annotations,
 			Labels: map[string]string{
 				common.CDILabelKey:        common.CDILabelValue,
 				common.CDIComponentLabel:  common.ImporterPodName,
@@ -1037,17 +1045,24 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 
 	importerContainer := makeImporterContainerSpec(args.image, args.verbose, args.pullPolicy)
 
+	annotations := make(map[string]string)
+	annotations[AnnCreatedBy] = "yes"
+	for k, v := range args.pvc.ObjectMeta.Annotations {
+		if strings.Contains(k, AnnAPIGroup) {
+			continue
+		}
+		annotations[k] = v
+	}
+
 	pod := &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      podName,
-			Namespace: args.pvc.Namespace,
-			Annotations: map[string]string{
-				AnnCreatedBy: "yes",
-			},
+			Name:        podName,
+			Namespace:   args.pvc.Namespace,
+			Annotations: annotations,
 			Labels: map[string]string{
 				common.CDILabelKey:        common.CDILabelValue,
 				common.CDIComponentLabel:  common.ImporterPodName,
