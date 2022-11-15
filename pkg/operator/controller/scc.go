@@ -39,7 +39,8 @@ import (
 const sccName = "containerized-data-importer"
 
 func setSCC(scc *secv1.SecurityContextConstraints) {
-	scc.Priority = &[]int32{10}[0]
+	// Ensure we are just good citizens that don't want to compete against other prioritized SCCs
+	scc.Priority = nil
 	scc.RunAsUser = secv1.RunAsUserStrategyOptions{
 		Type: secv1.RunAsUserStrategyMustRunAsNonRoot,
 	}

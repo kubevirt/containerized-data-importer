@@ -220,6 +220,7 @@ var _ = Describe("Controller", func() {
 				scc, err := getSCC(args.client, scc)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(scc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+				Expect(scc.Priority).To(BeNil())
 
 				for _, eu := range []string{"system:serviceaccount:cdi:cdi-sa"} {
 					found := false
