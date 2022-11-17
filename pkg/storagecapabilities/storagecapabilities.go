@@ -62,6 +62,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// Trident
 	"csi.trident.netapp.io/ontap-nas": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"csi.trident.netapp.io/ontap-san": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
+	// topolvm
+	"topolvm.cybozu.com": createTopoLVMCapabilities(),
 }
 
 // Get finds and returns a predefined StorageCapabilities for a given StorageClass
@@ -184,6 +186,15 @@ func createDellUnityCapabilities() []StorageCapabilities {
 		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
 		{AccessMode: v1.ReadOnlyMany, VolumeMode: v1.PersistentVolumeBlock},
 		{AccessMode: v1.ReadOnlyMany, VolumeMode: v1.PersistentVolumeFilesystem},
+		{AccessMode: v1.ReadWriteOncePod, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOncePod, VolumeMode: v1.PersistentVolumeFilesystem},
+	}
+}
+
+func createTopoLVMCapabilities() []StorageCapabilities {
+	return []StorageCapabilities{
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
 		{AccessMode: v1.ReadWriteOncePod, VolumeMode: v1.PersistentVolumeBlock},
 		{AccessMode: v1.ReadWriteOncePod, VolumeMode: v1.PersistentVolumeFilesystem},
 	}
