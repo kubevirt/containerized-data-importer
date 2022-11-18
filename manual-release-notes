@@ -1,0 +1,7 @@
+v1.55.1:
+BugFix: Add cron-job sa to scc
+BugFix: Adapt DataImportCron and DataSource to DV GC
+BugFix: Add DataImportCron CronJobs Proxy support
+BugFix: Fix SCC priority so our scc doesn't get picked for random pods
+Enhancement: Add topolvm to known provisioners
+
