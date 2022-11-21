@@ -69,6 +69,16 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"cinder.csi.openstack.org": createCinderVolumeCapabilities(),
 }
 
+// ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
+const ProvisionerNoobaa = "openshift-storage.noobaa.io/obc"
+
+// UnsupportedProvisioners is a hash of provisioners which are known not to work with CDI
+var UnsupportedProvisioners = map[string]struct{}{
+	// The following provisioners may be found in Rook/Ceph deployments and are related to object storage
+	"openshift-storage.ceph.rook.io/bucket": {},
+	ProvisionerNoobaa:                       {},
+}
+
 // Get finds and returns a predefined StorageCapabilities for a given StorageClass
 func Get(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
 	provisionerKey := storageProvisionerKey(sc)

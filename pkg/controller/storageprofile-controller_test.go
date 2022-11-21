@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	prometheus "github.com/prometheus/client_golang/prometheus/testutil"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -308,6 +309,22 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		table.Entry("Clone", cdiv1.CloneStrategyCsiClone),
 	)
 
+	table.DescribeTable("Should set the IncompleteProfileGauge correctly", func(provisioner string, count int) {
+		reconciler := createStorageProfileReconciler(createStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner))
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+		storageProfileList := &cdiv1.StorageProfileList{}
+		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(storageProfileList.Items)).To(Equal(1))
+		sp := storageProfileList.Items[0]
+		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
+		Expect(len(sp.Status.ClaimPropertySets)).To(Equal(0))
+		Expect(int(prometheus.ToFloat64(IncompleteProfileGauge))).To(Equal(count))
+	},
+		table.Entry("Noobaa (not supported)", storagecapabilities.ProvisionerNoobaa, 0),
+		table.Entry("Unknown provisioner", "unknown-provisioner", 1),
+	)
 })
 
 func createStorageProfileReconciler(objects ...runtime.Object) *StorageProfileReconciler {
