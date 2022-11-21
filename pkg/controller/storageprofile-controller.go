@@ -216,7 +216,12 @@ func (r *StorageProfileReconciler) checkIncompleteProfiles() error {
 		return err
 	}
 	for _, profile := range storageProfileList.Items {
-		if isIncomplete(profile.Status.ClaimPropertySets) {
+		if profile.Status.Provisioner == nil {
+			continue
+		}
+		// We don't count explicitly unsupported provisioners as incomplete
+		_, found := storagecapabilities.UnsupportedProvisioners[*profile.Status.Provisioner]
+		if !found && isIncomplete(profile.Status.ClaimPropertySets) {
 			numIncomplete++
 		}
 	}
