@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"regexp"
 
@@ -375,54 +376,52 @@ func (r *CDIConfigReconciler) reconcileImportProxy(config *cdiv1.CDIConfig) erro
 		config.Status.ImportProxy.HTTPProxy = &clusterWideProxy.Status.HTTPProxy
 		config.Status.ImportProxy.HTTPSProxy = &clusterWideProxy.Status.HTTPSProxy
 		config.Status.ImportProxy.NoProxy = &clusterWideProxy.Status.NoProxy
-		if clusterWideProxy.Spec.TrustedCA.Name != "" {
-			config.Status.ImportProxy.TrustedCAProxy = &clusterWideProxy.Spec.TrustedCA.Name
-			err = r.reconcileImportProxyCAConfigMap(config, clusterWideProxy)
-			if err != nil {
+		if cmName := clusterWideProxy.Spec.TrustedCA.Name; cmName != "" {
+			if err := r.reconcileImportProxyCAConfigMap(cmName); err != nil {
 				return err
 			}
+			config.Status.ImportProxy.TrustedCAProxy = &cmName
 		}
 	}
 	return nil
 }
 
 // Create/Update a configmap with the CA certificates in the controllor context with the cluster-wide proxy CA certificates to be used by the importer pod
-func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(config *cdiv1.CDIConfig, proxy *ocpconfigv1.Proxy) error {
+func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(cmName string) error {
 	client := r.uncachedClient
-	cmName := proxy.Spec.TrustedCA.Name
-	if cmName == "" {
-		// Using the default cluster-wide proxy CA certificates configmap name
-		cmName = ClusterWideProxyConfigMapName
-	}
 	clusterWideProxyConfigMap := &v1.ConfigMap{}
-	if err := client.Get(context.TODO(), types.NamespacedName{Name: cmName, Namespace: ClusterWideProxyConfigMapNameSpace}, clusterWideProxyConfigMap); err == nil {
-		// Copy the cluster-wide proxy CA certificates to the importer pod proxy CA certificates configMap
-		if certBytes, ok := clusterWideProxyConfigMap.Data[ClusterWideProxyConfigMapKey]; ok {
-			configMap := &v1.ConfigMap{}
-			if err := client.Get(context.TODO(), types.NamespacedName{Name: common.ImportProxyConfigMapName, Namespace: r.cdiNamespace}, configMap); errors.IsNotFound(err) {
-				proxyConfigMap := r.createProxyConfigMap(certBytes)
-				util.SetRecommendedLabels(proxyConfigMap, r.installerLabels, "cdi-controller")
-				if err := client.Create(context.TODO(), proxyConfigMap); err != nil {
-					return err
-				}
-				return nil
-			}
-			if configMap != nil {
-				configMap.Data[common.ImportProxyConfigMapKey] = certBytes
-				util.SetRecommendedLabels(configMap, r.installerLabels, "cdi-controller")
-				if err := client.Update(context.TODO(), configMap); err != nil {
-					return err
-				}
-			}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: cmName, Namespace: ClusterWideProxyConfigMapNameSpace}, clusterWideProxyConfigMap); err != nil {
+		return err
+	}
+	// Copy the cluster-wide proxy CA certificates to the importer pod proxy CA certificates configMap
+	certBytes, ok := clusterWideProxyConfigMap.Data[ClusterWideProxyConfigMapKey]
+	if !ok {
+		return fmt.Errorf("No cluster-wide proxy CA certifiacte")
+	}
+	configMap := &v1.ConfigMap{}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: cmName, Namespace: r.cdiNamespace}, configMap); err != nil {
+		if !errors.IsNotFound(err) {
+			return err
 		}
+		proxyConfigMap := r.createProxyConfigMap(cmName, certBytes)
+		util.SetRecommendedLabels(proxyConfigMap, r.installerLabels, "cdi-controller")
+		if err := client.Create(context.TODO(), proxyConfigMap); err != nil {
+			return err
+		}
+		return nil
+	}
+	configMap.Data[common.ImportProxyConfigMapKey] = certBytes
+	util.SetRecommendedLabels(configMap, r.installerLabels, "cdi-controller")
+	if err := client.Update(context.TODO(), configMap); err != nil {
+		return err
 	}
 	return nil
 }
 
-func (r *CDIConfigReconciler) createProxyConfigMap(certBytes string) *v1.ConfigMap {
+func (r *CDIConfigReconciler) createProxyConfigMap(cmName, certBytes string) *v1.ConfigMap {
 	return &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      common.ImportProxyConfigMapName,
+			Name:      cmName,
 			Namespace: r.cdiNamespace},
 		Data: map[string]string{common.ImportProxyConfigMapKey: certBytes},
 	}
