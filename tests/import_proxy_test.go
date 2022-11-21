@@ -45,7 +45,7 @@ const (
 	tlsAuthPort              = ":444"
 	authPort                 = ":81"
 	port                     = ":80"
-	trustedCaProxyConfigName = "user-ca-bundle"
+	proxyTestCaConfigMapName = "proxy-test-ca"
 	cdiProxyCaConfigMapName  = "cdi-test-proxy-certs"
 	nbdKitUserAgent          = "cdi-nbdkit-importer"
 	golangUserAgent          = "cdi-golang-importer"
@@ -333,8 +333,8 @@ var _ = Describe("Import Proxy tests", func() {
 			ns := f.Namespace.Name
 			updateProxy(f, ns, "", createProxyURL(isHTTPS, hasAuth, f.CdiInstallNs), "", ocpClient)
 
-			// Copy user-ca-bundle also to cdi ns for the cronjobs
-			_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, f.CdiInstallNs, trustedCaProxyConfigName, "")
+			// Clone ConfigMap to the common name for the cronjobs
+			_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, f.CdiInstallNs, proxyTestCaConfigMapName, "")
 			Expect(err).ToNot(HaveOccurred())
 
 			cm, err := utils.CopyRegistryCertConfigMapDestName(f.K8sClient, ns, f.CdiInstallNs, utils.RegistryCertConfigMap)
@@ -416,13 +416,13 @@ var _ = Describe("Import Proxy tests", func() {
 func updateProxy(f *framework.Framework, destNamespace, proxyHTTPURL, proxyHTTPSURL, noProxy string, ocpClient *configclient.Clientset) {
 	By("Updating CDIConfig with ImportProxy configuration")
 	if !utils.IsOpenshift(f.K8sClient) {
-		proxyCAConfigMapName, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, destNamespace, trustedCaProxyConfigName, "")
+		proxyCAConfigMapName, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, destNamespace, proxyTestCaConfigMapName, "")
 		Expect(err).ToNot(HaveOccurred())
 		updateCDIConfigProxy(f, proxyHTTPURL, proxyHTTPSURL, noProxy, proxyCAConfigMapName)
 	} else {
-		_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, f.Namespace.Name, "proxy-test-ca", "")
+		_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, f.Namespace.Name, proxyTestCaConfigMapName, "")
 		Expect(err).ToNot(HaveOccurred())
-		clusterWideProxyCAConfigMapName, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, "openshift-config", "proxy-test-ca", "ca-bundle.crt")
+		clusterWideProxyCAConfigMapName, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, "openshift-config", proxyTestCaConfigMapName, "ca-bundle.crt")
 		Expect(err).ToNot(HaveOccurred())
 		updateCDIConfigByUpdatingTheClusterWideProxy(f, ocpClient, proxyHTTPURL, proxyHTTPSURL, noProxy, clusterWideProxyCAConfigMapName)
 	}

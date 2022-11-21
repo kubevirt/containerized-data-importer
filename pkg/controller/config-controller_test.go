@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -333,7 +333,9 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 	var trustedCAProxy = "user-ca-bundle"
 
 	DescribeTable("Should set ImportProxy correctly if ClusterWideProxy with correct URLs exists", func(proxyHTTPURL string, proxyHTTPSURL string, noProxyDomains string, trustedCAName string, expect string, endpType string) {
-		reconciler, cdiConfig := createConfigReconciler(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAProxy))
+		trustedCAProxyConfigMap := createConfigMap(trustedCAProxy, ClusterWideProxyConfigMapNameSpace)
+		trustedCAProxyConfigMap.Data = map[string]string{ClusterWideProxyConfigMapKey: "fake_cert"}
+		reconciler, cdiConfig := createConfigReconciler(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAProxy), trustedCAProxyConfigMap)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
@@ -387,9 +389,10 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 
 		test := &corev1.ConfigMap{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: ClusterWideProxyConfigMapName, Namespace: ClusterWideProxyConfigMapNameSpace}, test)
+		Expect(err).ToNot(HaveOccurred())
 
 		configMap := &corev1.ConfigMap{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ImportProxyConfigMapName, Namespace: reconciler.cdiNamespace}, configMap)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: ClusterWideProxyConfigMapName, Namespace: reconciler.cdiNamespace}, configMap)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(configMap.Labels[common.AppKubernetesComponentLabel]).To(Equal("storage"))
 
