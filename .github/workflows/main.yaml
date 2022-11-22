@@ -9,7 +9,7 @@ on:
       - ecx-*
 
 env:
-  VERSION: v1.41.0.1
+  VERSION: v1.41.0.3
 
 jobs:
   build_x86:
