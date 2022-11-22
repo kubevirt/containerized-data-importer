@@ -452,19 +452,13 @@ rpm(
 rpm(
     name = "containers-common-2__1-33.el9.aarch64",
     sha256 = "7f98dfd5bf3462c54c838f0884d5faa9890b1852acd654f34691384dbf3c77d0",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/containers-common-1-33.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/7f98dfd5bf3462c54c838f0884d5faa9890b1852acd654f34691384dbf3c77d0",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/7f98dfd5bf3462c54c838f0884d5faa9890b1852acd654f34691384dbf3c77d0"],
 )
 
 rpm(
     name = "containers-common-2__1-33.el9.x86_64",
     sha256 = "5f0590338462b02526f080f23300f011dc447a367e3c95d6cb07c85214661a86",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/containers-common-1-33.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/5f0590338462b02526f080f23300f011dc447a367e3c95d6cb07c85214661a86",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/5f0590338462b02526f080f23300f011dc447a367e3c95d6cb07c85214661a86"],
 )
 
 rpm(
