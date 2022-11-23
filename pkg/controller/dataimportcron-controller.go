@@ -53,6 +53,9 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	cdv "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/monitoring"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -97,17 +100,17 @@ type DataImportCronReconciler struct {
 
 const (
 	// AnnSourceDesiredDigest is the digest of the pending updated image
-	AnnSourceDesiredDigest = AnnAPIGroup + "/storage.import.sourceDesiredDigest"
+	AnnSourceDesiredDigest = cc.AnnAPIGroup + "/storage.import.sourceDesiredDigest"
 	// AnnImageStreamDockerRef is the ImageStream Docker reference
-	AnnImageStreamDockerRef = AnnAPIGroup + "/storage.import.imageStreamDockerRef"
+	AnnImageStreamDockerRef = cc.AnnAPIGroup + "/storage.import.imageStreamDockerRef"
 	// AnnNextCronTime is the next time stamp which satisfies the cron expression
-	AnnNextCronTime = AnnAPIGroup + "/storage.import.nextCronTime"
+	AnnNextCronTime = cc.AnnAPIGroup + "/storage.import.nextCronTime"
 	// AnnLastCronTime is the cron last execution time stamp
-	AnnLastCronTime = AnnAPIGroup + "/storage.import.lastCronTime"
+	AnnLastCronTime = cc.AnnAPIGroup + "/storage.import.lastCronTime"
 	// AnnLastUseTime is the PVC last use time stamp
-	AnnLastUseTime = AnnAPIGroup + "/storage.import.lastUseTime"
+	AnnLastUseTime = cc.AnnAPIGroup + "/storage.import.lastUseTime"
 	// AnnLastAppliedConfig is the cron last applied configuration
-	AnnLastAppliedConfig = AnnAPIGroup + "/lastAppliedConfiguration"
+	AnnLastAppliedConfig = cc.AnnAPIGroup + "/lastAppliedConfiguration"
 
 	dataImportControllerName    = "dataimportcron-controller"
 	digestPrefix                = "sha256:"
@@ -119,7 +122,7 @@ const (
 // Reconcile loop for DataImportCronReconciler
 func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	dataImportCron := &cdiv1.DataImportCron{}
-	if err := r.client.Get(ctx, req.NamespacedName, dataImportCron); IgnoreNotFound(err) != nil {
+	if err := r.client.Get(ctx, req.NamespacedName, dataImportCron); cc.IgnoreNotFound(err) != nil {
 		return reconcile.Result{}, err
 	} else if err != nil || dataImportCron.DeletionTimestamp != nil {
 		err := r.cleanup(ctx, req.NamespacedName)
@@ -166,7 +169,7 @@ func (r *DataImportCronReconciler) shouldReconcileCron(ctx context.Context, cron
 func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
 	if isImageStreamSource(dataImportCron) {
 		if dataImportCron.Annotations[AnnNextCronTime] == "" {
-			AddAnnotation(dataImportCron, AnnNextCronTime, time.Now().Format(time.RFC3339))
+			cc.AddAnnotation(dataImportCron, AnnNextCronTime, time.Now().Format(time.RFC3339))
 		}
 		return nil
 	}
@@ -275,7 +278,7 @@ func (r *DataImportCronReconciler) setNextCronTime(dataImportCron *cdiv1.DataImp
 	nextTime := expr.Next(now)
 	diffSec := time.Duration(nextTime.Sub(now).Seconds()) + 1
 	res := reconcile.Result{Requeue: true, RequeueAfter: diffSec * time.Second}
-	AddAnnotation(dataImportCron, AnnNextCronTime, nextTime.Format(time.RFC3339))
+	cc.AddAnnotation(dataImportCron, AnnNextCronTime, nextTime.Format(time.RFC3339))
 	return res, err
 }
 
@@ -418,15 +421,15 @@ func (r *DataImportCronReconciler) getImportState(ctx context.Context, cron *cdi
 
 func (r *DataImportCronReconciler) deleteErroneousDataVolume(ctx context.Context, cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume) error {
 	log := r.log.WithValues("name", dv.Name).WithValues("uid", dv.UID)
-	if cond := findConditionByType(cdiv1.DataVolumeRunning, dv.Status.Conditions); cond != nil {
+	if cond := cdv.FindConditionByType(cdiv1.DataVolumeRunning, dv.Status.Conditions); cond != nil {
 		if cond.Status == corev1.ConditionFalse && cond.Reason == common.GenericError {
 			log.Info("Delete DataVolume and reset DesiredDigest due to error", "message", cond.Message)
 			// Unlabel the DV before deleting it, to eliminate reconcile before DIC is updated
 			dv.Labels[common.DataImportCronLabel] = ""
-			if err := r.client.Update(ctx, dv); IgnoreNotFound(err) != nil {
+			if err := r.client.Update(ctx, dv); cc.IgnoreNotFound(err) != nil {
 				return err
 			}
-			if err := r.client.Delete(ctx, dv); IgnoreNotFound(err) != nil {
+			if err := r.client.Delete(ctx, dv); cc.IgnoreNotFound(err) != nil {
 				return err
 			}
 			cron.Status.CurrentImports = nil
@@ -452,11 +455,11 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 	if err != nil {
 		return err
 	}
-	AddAnnotation(dataImportCron, AnnLastCronTime, time.Now().Format(time.RFC3339))
+	cc.AddAnnotation(dataImportCron, AnnLastCronTime, time.Now().Format(time.RFC3339))
 	if digest != "" && dataImportCron.Annotations[AnnSourceDesiredDigest] != digest {
 		log.Info("Updating DataImportCron", "digest", digest)
-		AddAnnotation(dataImportCron, AnnSourceDesiredDigest, digest)
-		AddAnnotation(dataImportCron, AnnImageStreamDockerRef, dockerRef)
+		cc.AddAnnotation(dataImportCron, AnnSourceDesiredDigest, digest)
+		cc.AddAnnotation(dataImportCron, AnnImageStreamDockerRef, dockerRef)
 	}
 	return nil
 }
@@ -547,7 +550,7 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 			return err
 		}
 	} else {
-		AddAnnotation(pvc, AnnLastUseTime, time.Now().Format(time.RFC3339Nano))
+		cc.AddAnnotation(pvc, AnnLastUseTime, time.Now().Format(time.RFC3339Nano))
 		if err := r.client.Update(ctx, pvc); err != nil {
 			return err
 		}
@@ -629,7 +632,7 @@ func (r *DataImportCronReconciler) deleteJobs(ctx context.Context, cron types.Na
 		return err
 	}
 	for _, cronJob := range cronJobList.Items {
-		if err := r.client.Delete(ctx, &cronJob, deleteOpts); IgnoreNotFound(err) != nil {
+		if err := r.client.Delete(ctx, &cronJob, deleteOpts); cc.IgnoreNotFound(err) != nil {
 			return err
 		}
 	}
@@ -638,7 +641,7 @@ func (r *DataImportCronReconciler) deleteJobs(ctx context.Context, cron types.Na
 		return err
 	}
 	for _, job := range jobList.Items {
-		if err := r.client.Delete(ctx, &job, deleteOpts); IgnoreNotFound(err) != nil {
+		if err := r.client.Delete(ctx, &job, deleteOpts); cc.IgnoreNotFound(err) != nil {
 			return err
 		}
 	}
@@ -717,7 +720,7 @@ func (r *DataImportCronReconciler) cronJobExistsAndUpdated(ctx context.Context, 
 	var cronJob batchv1.CronJob
 	cronJobNamespacedName := types.NamespacedName{Namespace: r.cdiNamespace, Name: GetCronJobName(cron)}
 	if err := r.client.Get(ctx, cronJobNamespacedName, &cronJob); err != nil {
-		return false, IgnoreNotFound(err)
+		return false, cc.IgnoreNotFound(err)
 	}
 	desired, err := r.newCronJob(cron)
 	if err != nil {
@@ -737,7 +740,7 @@ func (r *DataImportCronReconciler) cronJobExistsAndUpdated(ctx context.Context, 
 	}
 	r.log.Info("Updating CronJob", "name", merged.GetName())
 	if err := r.client.Update(ctx, merged); err != nil {
-		return false, IgnoreNotFound(err)
+		return false, cc.IgnoreNotFound(err)
 	}
 	return true, nil
 }
@@ -873,7 +876,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 	if err := sdk.SetLastAppliedConfiguration(cronJob, AnnLastAppliedConfig); err != nil {
 		return nil, err
 	}
-	SetRestrictedSecurityContext(&cronJob.Spec.JobTemplate.Spec.Template.Spec)
+	cc.SetRestrictedSecurityContext(&cronJob.Spec.JobTemplate.Spec.Template.Spec)
 	return cronJob, nil
 }
 
@@ -917,7 +920,7 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	dv.Namespace = cron.Namespace
 	r.setDataImportCronResourceLabels(cron, dv)
 	passCronAnnotationToDv(cron, dv, AnnImmediateBinding)
-	passCronAnnotationToDv(cron, dv, AnnPodRetainAfterCompletion)
+	passCronAnnotationToDv(cron, dv, cc.AnnPodRetainAfterCompletion)
 	return dv
 }
 
@@ -947,7 +950,7 @@ func untagDigestedDockerURL(dockerURL string) string {
 
 func passCronAnnotationToDv(cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume, ann string) {
 	if val := cron.Annotations[ann]; val != "" {
-		AddAnnotation(dv, ann, val)
+		cc.AddAnnotation(dv, ann, val)
 	}
 }
 

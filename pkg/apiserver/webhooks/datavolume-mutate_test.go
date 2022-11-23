@@ -42,9 +42,9 @@ import (
 
 	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 
 	cdicorev1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
 )
 
 var _ = Describe("Mutating DataVolume Webhook", func() {
@@ -173,7 +173,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
 			Expect(dataVolume.Annotations).To(BeNil())
 			dataVolume.Annotations = make(map[string]string)
-			dataVolume.Annotations[controller.AnnCloneToken] = "baz"
+			dataVolume.Annotations[cc.AnnCloneToken] = "baz"
 			dvBytes, _ := json.Marshal(&dataVolume)
 
 			dataVolume.Annotations["foo"] = "bar"
@@ -316,7 +316,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 
 			ann, ok := patchObjs[0].Value.(map[string]interface{})
 			Expect(ok).Should(BeTrue())
-			val, ok := ann[controller.AnnDeleteAfterCompletion].(string)
+			val, ok := ann[cc.AnnDeleteAfterCompletion].(string)
 			Expect(ok).Should(BeTrue())
 			Expect(val).Should(Equal("true"))
 		},
@@ -348,7 +348,7 @@ func mutateDVsEx(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthori
 		return true, sar, nil
 	})
 
-	cdiConfig := controller.MakeEmptyCDIConfigSpec(common.ConfigName)
+	cdiConfig := cc.MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Spec.DataVolumeTTLSeconds = pointer.Int32(ttl)
 	objs := []runtime.Object{cdiConfig}
 	objs = append(objs, cdiObjects...)

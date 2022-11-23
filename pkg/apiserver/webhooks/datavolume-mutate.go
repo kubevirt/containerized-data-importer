@@ -34,7 +34,7 @@ import (
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/clone"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 )
 
@@ -111,12 +111,12 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 		if err != nil {
 			return toAdmissionResponseError(err)
 		}
-		if controller.GetDataVolumeTTLSeconds(config) >= 0 {
+		if cc.GetDataVolumeTTLSeconds(config) >= 0 {
 			if modifiedDataVolume.Annotations == nil {
 				modifiedDataVolume.Annotations = make(map[string]string)
 			}
-			if modifiedDataVolume.Annotations[controller.AnnDeleteAfterCompletion] != "false" {
-				modifiedDataVolume.Annotations[controller.AnnDeleteAfterCompletion] = "true"
+			if modifiedDataVolume.Annotations[cc.AnnDeleteAfterCompletion] != "false" {
+				modifiedDataVolume.Annotations[cc.AnnDeleteAfterCompletion] = "true"
 				modified = true
 			}
 		}
@@ -145,7 +145,7 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 			return toAdmissionResponseError(err)
 		}
 
-		_, ok := oldDataVolume.Annotations[controller.AnnCloneToken]
+		_, ok := oldDataVolume.Annotations[cc.AnnCloneToken]
 		if ok {
 			klog.V(3).Infof("DataVolume %s/%s already has clone token", targetNamespace, targetName)
 			return allowedAdmissionResponse()
@@ -187,7 +187,7 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 	if modifiedDataVolume.Annotations == nil {
 		modifiedDataVolume.Annotations = make(map[string]string)
 	}
-	modifiedDataVolume.Annotations[controller.AnnCloneToken] = token
+	modifiedDataVolume.Annotations[cc.AnnCloneToken] = token
 
 	klog.V(3).Infof("Sending patch response...")
 

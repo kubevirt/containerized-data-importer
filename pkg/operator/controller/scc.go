@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
@@ -78,7 +78,7 @@ func ensureSCCExists(logger logr.Logger, c client.Client, saNamespace, saName, c
 		logger.V(3).Info("No match error for SCC, must not be in openshift")
 		return nil
 	} else if errors.IsNotFound(err) {
-		cr, err := controller.GetActiveCDI(c)
+		cr, err := cc.GetActiveCDI(c)
 		if err != nil {
 			return err
 		}

@@ -11,7 +11,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	cdicontroller "kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -44,7 +44,7 @@ func (h *dataVolumeTransferHandler) ReconcilePending(ot *cdiv1.ObjectTransfer) (
 		return 0, nil
 	}
 
-	pods, err := cdicontroller.GetPodsUsingPVCs(h.reconciler.Client, dv.Namespace, sets.NewString(cdicontroller.GetDataVolumeClaimName(dv)), false)
+	pods, err := cc.GetPodsUsingPVCs(h.reconciler.Client, dv.Namespace, sets.NewString(getDataVolumeClaimName(dv)), false)
 	if err != nil {
 		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}
@@ -60,7 +60,7 @@ func (h *dataVolumeTransferHandler) ReconcilePending(ot *cdiv1.ObjectTransfer) (
 	dv2 := dv.DeepCopy()
 	dv2.Status = cdiv1.DataVolumeStatus{}
 	data := map[string]string{
-		"pvcName": cdicontroller.GetDataVolumeClaimName(dv),
+		"pvcName": getDataVolumeClaimName(dv),
 	}
 
 	return 0, h.reconciler.pendingHelper(ot, dv2, data)
@@ -190,7 +190,7 @@ func (h *dataVolumeTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (
 
 func (h *dataVolumeTransferHandler) deleteDataVolume(ot *cdiv1.ObjectTransfer, dv *cdiv1.DataVolume) (time.Duration, error) {
 	pvc := &corev1.PersistentVolumeClaim{}
-	pvcExists, err := h.reconciler.getResource(dv.Namespace, cdicontroller.GetDataVolumeClaimName(dv), pvc)
+	pvcExists, err := h.reconciler.getResource(dv.Namespace, getDataVolumeClaimName(dv), pvc)
 	if err != nil {
 		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}
@@ -218,9 +218,9 @@ func (h *dataVolumeTransferHandler) deleteDataVolume(ot *cdiv1.ObjectTransfer, d
 		pvc.OwnerReferences = append(os[0:idx], os[idx+1:]...)
 	}
 
-	_, ok := pvc.Annotations[cdicontroller.AnnPopulatedFor]
+	_, ok := pvc.Annotations[cc.AnnPopulatedFor]
 	if ok {
-		delete(pvc.Annotations, cdicontroller.AnnPopulatedFor)
+		delete(pvc.Annotations, cc.AnnPopulatedFor)
 	}
 
 	if idx >= 0 || ok {
@@ -241,7 +241,7 @@ func (h *dataVolumeTransferHandler) deleteDataVolume(ot *cdiv1.ObjectTransfer, d
 func (h *dataVolumeTransferHandler) addPopulatedAnnotation(ot *cdiv1.ObjectTransfer, pvc *corev1.PersistentVolumeClaim) error {
 	dvName := getTransferTargetName(ot)
 
-	if v, ok := pvc.Annotations[cdicontroller.AnnPopulatedFor]; ok {
+	if v, ok := pvc.Annotations[cc.AnnPopulatedFor]; ok {
 		if v == dvName {
 			return nil
 		}
@@ -253,7 +253,16 @@ func (h *dataVolumeTransferHandler) addPopulatedAnnotation(ot *cdiv1.ObjectTrans
 		pvc.Annotations = make(map[string]string)
 	}
 
-	pvc.Annotations[cdicontroller.AnnPopulatedFor] = dvName
+	pvc.Annotations[cc.AnnPopulatedFor] = dvName
 
 	return h.reconciler.updateResource(ot, pvc)
+}
+
+func getDataVolumeClaimName(dv *cdiv1.DataVolume) string {
+	pvcName, ok := dv.Annotations[cc.AnnPopulatedFor]
+	if ok {
+		return pvcName
+	}
+
+	return dv.Name
 }

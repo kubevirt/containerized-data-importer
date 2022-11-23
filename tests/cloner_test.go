@@ -26,7 +26,9 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cont "kubevirt.io/containerized-data-importer/pkg/controller"
+	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -329,9 +331,9 @@ var _ = Describe("all clone tests", func() {
 
 				actualCloneType := utils.GetCloneType(f.CdiClient, dataVolume)
 				if actualCloneType == "snapshot" {
-					f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(controller.SmartCloneSourceInUse))
+					f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(dvc.SmartCloneSourceInUse))
 				} else if actualCloneType == "csivolumeclone" {
-					f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(controller.CSICloneSourceInUse))
+					f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(dvc.CSICloneSourceInUse))
 				} else {
 					Fail(fmt.Sprintf("Unknown clonetype %s", actualCloneType))
 				}
@@ -348,7 +350,7 @@ var _ = Describe("all clone tests", func() {
 				err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				//verify event
-				f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(controller.ErrResourceExists))
+				f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(dvc.ErrResourceExists))
 			})
 
 			It("[test_id:1356]Should not clone anything when CloneOf annotation exists", func() {
@@ -868,7 +870,7 @@ var _ = Describe("all clone tests", func() {
 					if wffcStorageClass != nil {
 						dataVolume.Spec.Storage.StorageClassName = &wffcStorageClass.Name
 					}
-					dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
+					dataVolume.Annotations[cont.AnnImmediateBinding] = "true"
 					dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 					Expect(err).ToNot(HaveOccurred())
 					By("Waiting for import to be completed")
@@ -1177,7 +1179,7 @@ var _ = Describe("all clone tests", func() {
 				By("Modify source PVC's capacity")
 				sourcePvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourcePvc.Namespace).Get(context.TODO(), sourcePvc.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
-				sourcePvc.Annotations[controller.AnnSourceCapacity] = "400Mi"
+				sourcePvc.Annotations[dvc.AnnSourceCapacity] = "400Mi"
 				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourcePvc.Namespace).Update(context.TODO(), sourcePvc, metav1.UpdateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1306,7 +1308,7 @@ var _ = Describe("all clone tests", func() {
 				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				// Check if the NoSourceClone annotation exists in target PVC
 				By("Check the expected event")
-				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.CloneWithoutSource))
+				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(dvc.CloneWithoutSource))
 
 				By("Create source PVC")
 				sourceDV := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
@@ -1342,7 +1344,7 @@ var _ = Describe("all clone tests", func() {
 				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				// Check if the NoSourceClone annotation exists in target PVC
 				By("Check the expected event")
-				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.CloneWithoutSource))
+				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(dvc.CloneWithoutSource))
 
 				By("Create source PVC")
 				// We use a larger size in the source PVC so the validation fails
@@ -1355,7 +1357,7 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				By("The clone should fail")
-				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.CloneValidationFailed))
+				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(dvc.CloneValidationFailed))
 			})
 
 			// TODO: check if this test is a duplicate of It("should handle a pre populated PVC during clone", func()
@@ -2535,7 +2537,7 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 	} else if cloneType == "snapshot" {
-		f.ExpectEvent(targetNs.Name).Should(ContainSubstring(controller.SmartCloneSourceInUse))
+		f.ExpectEvent(targetNs.Name).Should(ContainSubstring(dvc.SmartCloneSourceInUse))
 		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -2543,7 +2545,7 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 	} else {
-		f.ExpectEvent(targetNs.Name).Should(ContainSubstring(controller.CSICloneSourceInUse))
+		f.ExpectEvent(targetNs.Name).Should(ContainSubstring(dvc.CSICloneSourceInUse))
 		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -2781,7 +2783,7 @@ func VerifyGC(f *framework.Framework, dvName, dvNamespace string, checkOwnerRefs
 // VerifyNoGC verifies DV is not garbage collected
 func VerifyNoGC(f *framework.Framework, dvName, dvNamespace string) {
 	By("Verify DV is not garbage collected")
-	matchString := "DataVolume is not annotated to be garbage collected\t{\"Datavolume\": \"" + dvNamespace + "/" + dvName + "\"}"
+	matchString := "DataVolume is not annotated to be garbage collected\t{\"DataVolume\": \"" + dvNamespace + "/" + dvName + "\"}"
 	fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
 	Eventually(func() string {
 		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
@@ -2796,7 +2798,7 @@ func VerifyNoGC(f *framework.Framework, dvName, dvNamespace string) {
 // VerifyDisabledGC verifies DV is not deleted when garbage collection is disabled
 func VerifyDisabledGC(f *framework.Framework, dvName, dvNamespace string) {
 	By("Verify DV is not deleted when garbage collection is disabled")
-	matchString := "Garbage Collection is disabled\t{\"Datavolume\": \"" + dvNamespace + "/" + dvName + "\"}"
+	matchString := "Garbage Collection is disabled\t{\"DataVolume\": \"" + dvNamespace + "/" + dvName + "\"}"
 	fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
 	Eventually(func() string {
 		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)

@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	cdicontroller "kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
 const (
@@ -51,7 +51,7 @@ func (h *pvcTransferHandler) ReconcilePending(ot *cdiv1.ObjectTransfer) (time.Du
 	}
 
 	for _, f := range []string{pvcCloneFinalizer, pvcSnapshotFinalizer} {
-		if cdicontroller.HasFinalizer(pvc, f) {
+		if cc.HasFinalizer(pvc, f) {
 			if err := h.reconciler.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "PVC has finalizer: "+f, ""); err != nil {
 				return 0, err
 			}
@@ -75,7 +75,7 @@ func (h *pvcTransferHandler) ReconcilePending(ot *cdiv1.ObjectTransfer) (time.Du
 		return 0, nil
 	}
 
-	pods, err := cdicontroller.GetPodsUsingPVCs(h.reconciler.Client, pvc.Namespace, sets.NewString(pvc.Name), false)
+	pods, err := cc.GetPodsUsingPVCs(h.reconciler.Client, pvc.Namespace, sets.NewString(pvc.Name), false)
 	if err != nil {
 		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}

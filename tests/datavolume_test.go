@@ -24,7 +24,9 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cont "kubevirt.io/containerized-data-importer/pkg/controller"
+	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -383,8 +385,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			// for smart clone dv the dv can't be updated, only events will show the quota reason
 			if args.name == "dv-clone-test" && f.IsSnapshotStorageClassAvailable() {
 				expectedPhase = cdiv1.SnapshotForSmartCloneInProgress
-				boundCondition.Reason = controller.SnapshotForSmartCloneInProgress
-				readyCondition.Reason = controller.SnapshotForSmartCloneInProgress
+				boundCondition.Reason = dvc.SnapshotForSmartCloneInProgress
+				readyCondition.Reason = dvc.SnapshotForSmartCloneInProgress
 			}
 			waitForDvPhase(expectedPhase, dataVolume, f)
 			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.ErrExceededQuota))
@@ -435,7 +437,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              tinyCoreIsoURL,
 				dvFunc:           utils.NewDataVolumeWithHTTPImport,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -531,7 +533,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              cirrosURL,
 				dvFunc:           utils.NewDataVolumeWithHTTPImport,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -555,7 +557,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              httpsTinyCoreIsoURL,
 				dvFunc:           createHTTPSDataVolume,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -579,7 +581,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              httpsTinyCoreQcow2URL,
 				dvFunc:           createHTTPSDataVolume,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -603,7 +605,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              httpsTinyCoreQcow2URL,
 				dvFunc:           createHTTPSDataVolumeWeirdCertFilename,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -627,7 +629,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              tinyCoreIsoAuthURL,
 				dvFunc:           createHTTPExtraHeaders,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -651,7 +653,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              tinyCoreIsoAuthURL,
 				dvFunc:           createHTTPSecretExtraHeaders,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -675,7 +677,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              func() string { return "" },
 				dvFunc:           createBlankRawDataVolume,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -699,7 +701,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:        "1Gi",
 				url:         func() string { return "" },
 				dvFunc:      createUploadDataVolume,
-				eventReason: controller.UploadReady,
+				eventReason: dvc.UploadReady,
 				phase:       cdiv1.UploadReady,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
@@ -722,7 +724,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:        "1Gi",
 				url:         tarArchiveURL,
 				dvFunc:      utils.NewDataVolumeWithArchiveContent,
-				eventReason: controller.ImportSucceeded,
+				eventReason: dvc.ImportSucceeded,
 				phase:       cdiv1.Succeeded,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
@@ -769,7 +771,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              imageioURL,
 				dvFunc:           createImageIoDataVolume,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -797,7 +799,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              imageioURL,
 				dvFunc:           createImageIoWarmImportDataVolume,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -821,7 +823,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              imageioURL,
 				dvFunc:           createImageIoDataVolumeNoExtents,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -845,7 +847,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:        "1Gi",
 				url:         func() string { return fillCommand }, // its not URL, but command, but the parameter lines up.
 				dvFunc:      createCloneDataVolume,
-				eventReason: controller.CloneSucceeded,
+				eventReason: dvc.CloneSucceeded,
 				phase:       cdiv1.Succeeded,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
@@ -868,7 +870,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              tinyCoreIsoRegistryURL,
 				dvFunc:           createRegistryImportDataVolume,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
 				repeat:           10,
@@ -893,7 +895,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "22Mi", // The image has 18M
 				url:              tinyCoreIsoRegistryURL,
 				dvFunc:           createRegistryImportDataVolume,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -917,7 +919,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              vcenterURL,
 				dvFunc:           createVddkDataVolume,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: false,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -941,7 +943,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              vcenterURL,
 				dvFunc:           createVddkWarmImportDataVolume,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: false,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -1019,7 +1021,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              vcenterURL,
 				dvFunc:           createVddkDataVolumeWithInitImageURL,
-				eventReason:      controller.ImportSucceeded,
+				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: false,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -1047,7 +1049,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:        "1Gi",
 				url:         tinyCoreIsoURL,
 				dvFunc:      utils.NewDataVolumeWithHTTPImport,
-				eventReason: controller.ImportSucceeded,
+				eventReason: dvc.ImportSucceeded,
 				phase:       cdiv1.Succeeded,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
@@ -1070,7 +1072,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:        "1Gi",
 				url:         func() string { return "" },
 				dvFunc:      createUploadDataVolume,
-				eventReason: controller.UploadReady,
+				eventReason: dvc.UploadReady,
 				phase:       cdiv1.UploadReady,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
@@ -1093,7 +1095,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:        "500Mi",
 				url:         func() string { return fillCommand }, // its not URL, but command, but the parameter lines up.
 				dvFunc:      createCloneDataVolume,
-				eventReason: controller.CloneSucceeded,
+				eventReason: dvc.CloneSucceeded,
 				phase:       cdiv1.Succeeded,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
@@ -1333,11 +1335,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				return false
 			}, timeout, pollingInterval).Should(BeTrue())
 		},
-			table.Entry("[test_id:3933]succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[test_id:3935]succeed import from VDDK to block volume", "import-vddk", "", nil, "dv-vddk-import-test", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[test_id:3936]succeed warm import from VDDK to block volume", "warm-import-vddk", "", nil, "dv-vddk-warm-import-test", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[test_id:3938]succeed import from ImageIO to block volume", "import-imageio", "", nil, "dv-imageio-import-test", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[test_id:3944]succeed warm import from ImageIO to block volume", "warm-import-imageio", "", nil, "dv-imageio-warm-import-test", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[test_id:3933]succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", dvc.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[test_id:3935]succeed import from VDDK to block volume", "import-vddk", "", nil, "dv-vddk-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[test_id:3936]succeed warm import from VDDK to block volume", "warm-import-vddk", "", nil, "dv-vddk-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[test_id:3938]succeed import from ImageIO to block volume", "import-imageio", "", nil, "dv-imageio-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[test_id:3944]succeed warm import from ImageIO to block volume", "warm-import-imageio", "", nil, "dv-imageio-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 
@@ -1622,7 +1624,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume := utils.NewCloningDataVolume(dataVolumeName, "10Mi", sourcePvc)
 			dataVolume.Spec.PVC = nil
 			dataVolume.Spec.Storage = &storageSpec
-			dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
+			dataVolume.Annotations[cont.AnnImmediateBinding] = "true"
 
 			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
@@ -2387,7 +2389,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			size := "1Gi"
 
 			dataVolume := dvFunc(dvName, size, url())
-			dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
+			dataVolume.Annotations[cont.AnnImmediateBinding] = "true"
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)

@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -62,7 +62,7 @@ func ensureUploadProxyRouteExists(logger logr.Logger, c client.Client, scheme *r
 		return fmt.Errorf("unexpected ConfigMap format, 'ca-bundle.crt' key missing")
 	}
 
-	cr, err := controller.GetActiveCDI(c)
+	cr, err := cc.GetActiveCDI(c)
 	if err != nil {
 		return err
 	}

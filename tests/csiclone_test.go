@@ -8,7 +8,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	controller "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -105,18 +106,18 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		dataVolume, md5 := createDataVolumeDontWait("dv-csi-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, f.CsiCloneSCName, f)
 		By("Verify Quota was exceeded in events and dv conditions")
 		waitForDvPhase(cdiv1.Pending, dataVolume, f)
-		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.ErrExceededQuota))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(cc.ErrExceededQuota))
 		boundCondition := &cdiv1.DataVolumeCondition{
 			Type:    cdiv1.DataVolumeBound,
 			Status:  v1.ConditionUnknown,
 			Message: "No PVC found",
-			Reason:  controller.ErrExceededQuota,
+			Reason:  cc.ErrExceededQuota,
 		}
 		readyCondition := &cdiv1.DataVolumeCondition{
 			Type:    cdiv1.DataVolumeReady,
 			Status:  v1.ConditionFalse,
 			Message: "",
-			Reason:  controller.ErrExceededQuota,
+			Reason:  cc.ErrExceededQuota,
 		}
 		utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
 

@@ -38,7 +38,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
 type dataVolumeValidatingWebhook struct {
@@ -411,7 +411,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.Da
 		}
 	}
 
-	if err := controller.ValidateClone(sourcePVC, spec); err != nil {
+	if err := cc.ValidateClone(sourcePVC, spec); err != nil {
 		return &metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: err.Error(),
@@ -519,7 +519,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 				return toAdmissionResponseError(err)
 			}
 		} else {
-			dvName, ok := pvc.Annotations[controller.AnnPopulatedFor]
+			dvName, ok := pvc.Annotations[cc.AnnPopulatedFor]
 			if !ok || dvName != dv.GetName() {
 				pvcOwner := metav1.GetControllerOf(pvc)
 				// We should reject the DV if a PVC with the same name exists, and that PVC has no ownerRef, or that

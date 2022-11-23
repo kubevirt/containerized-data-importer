@@ -24,6 +24,8 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/monitoring"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
@@ -194,7 +196,7 @@ func (r *StorageProfileReconciler) deleteStorageProfile(name string, log logr.Lo
 		},
 	}
 
-	if err := r.client.Delete(context.TODO(), storageProfileObj); IgnoreNotFound(err) != nil {
+	if err := r.client.Delete(context.TODO(), storageProfileObj); cc.IgnoreNotFound(err) != nil {
 		return err
 	}
 

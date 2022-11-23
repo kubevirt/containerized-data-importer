@@ -21,7 +21,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
 // cdi-file-host pod/service relative values
@@ -169,7 +169,7 @@ func IsStaticNfsWithInternalClusterServer() bool {
 
 // UpdateCDIConfigWithOptions updates CDIConfig with specific UpdateOptions
 func UpdateCDIConfigWithOptions(c client.Client, opts metav1.UpdateOptions, updateFunc func(*cdiv1.CDIConfigSpec)) error {
-	cdi, err := controller.GetActiveCDI(c)
+	cdi, err := cc.GetActiveCDI(c)
 	if err != nil {
 		return err
 	}
@@ -300,7 +300,7 @@ func hasString(strings []string, str string) bool {
 	return false
 }
 
-//IsOpenshift checks if we are on OpenShift platform
+// IsOpenshift checks if we are on OpenShift platform
 func IsOpenshift(client kubernetes.Interface) bool {
 	//OpenShift 3.X check
 	result := client.Discovery().RESTClient().Get().AbsPath("/oapi/v1").Do(context.TODO())

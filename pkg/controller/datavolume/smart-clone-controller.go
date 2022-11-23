@@ -1,4 +1,20 @@
-package controller
+/*
+Copyright 2022 The CDI Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+limitations under the License.
+See the License for the specific language governing permissions and
+*/
+
+package datavolume
 
 import (
 	"context"
@@ -24,6 +40,8 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -90,7 +108,7 @@ func addSmartCloneControllerWatches(mgr manager.Manager, smartCloneController co
 		return nil
 	}
 
-	if err != nil && !isErrCacheNotStarted(err) {
+	if err != nil && !cc.IsErrCacheNotStarted(err) {
 		return err
 	}
 
@@ -164,11 +182,11 @@ func (r *SmartCloneReconciler) reconcilePvc(log logr.Logger, pvc *corev1.Persist
 			return reconcile.Result{}, err
 		}
 
-		if v, ok := pvc.Annotations[AnnCloneOf]; !ok || v != "true" {
+		if v, ok := pvc.Annotations[cc.AnnCloneOf]; !ok || v != "true" {
 			if pvc.Annotations == nil {
 				pvc.Annotations = make(map[string]string)
 			}
-			pvc.Annotations[AnnCloneOf] = "true"
+			pvc.Annotations[cc.AnnCloneOf] = "true"
 
 			if err := r.client.Update(context.TODO(), pvc); err != nil {
 				return reconcile.Result{}, err
@@ -216,7 +234,7 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 		return reconcile.Result{}, nil
 	}
 
-	targetPvcSpec, err := RenderPvcSpec(r.client, r.recorder, r.log, dataVolume)
+	targetPvcSpec, err := renderPvcSpec(r.client, r.recorder, r.log, dataVolume)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -238,7 +256,7 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 		}
 	}
 	if snapshot.Spec.Source.PersistentVolumeClaimName != nil {
-		event := &DataVolumeEvent{
+		event := &Event{
 			eventType: corev1.EventTypeNormal,
 			reason:    SmartClonePVCInProgress,
 			message:   fmt.Sprintf(MessageSmartClonePVCInProgress, snapshot.Namespace, *snapshot.Spec.Source.PersistentVolumeClaimName),
@@ -249,10 +267,10 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 
 	log.V(3).Info("Creating PVC from snapshot", "pvc.Namespace", newPvc.Namespace, "pvc.Name", newPvc.Name)
 	if err := r.client.Create(context.TODO(), newPvc); err != nil {
-		if errQuotaExceeded(err) {
-			event := &DataVolumeEvent{
+		if cc.ErrQuotaExceeded(err) {
+			event := &Event{
 				eventType: corev1.EventTypeWarning,
-				reason:    ErrExceededQuota,
+				reason:    cc.ErrExceededQuota,
 				message:   err.Error(),
 			}
 
@@ -289,7 +307,7 @@ func (r *SmartCloneReconciler) deleteSnapshot(log logr.Logger, namespace, name s
 	return nil
 }
 
-func (r *SmartCloneReconciler) emitEvent(snapshot *snapshotv1.VolumeSnapshot, event *DataVolumeEvent) {
+func (r *SmartCloneReconciler) emitEvent(snapshot *snapshotv1.VolumeSnapshot, event *Event) {
 	if event.eventType != "" {
 		r.recorder.Event(snapshot, event.eventType, event.reason, event.message)
 	}
@@ -355,11 +373,11 @@ func newPvcFromSnapshot(snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *core
 			Namespace: snapshot.Namespace,
 			Labels:    labels,
 			Annotations: map[string]string{
-				AnnSmartCloneRequest:       "true",
-				AnnRunningCondition:        string(corev1.ConditionFalse),
-				AnnRunningConditionMessage: cloneComplete,
-				AnnRunningConditionReason:  "Completed",
-				annSmartCloneSnapshot:      key,
+				AnnSmartCloneRequest:          "true",
+				cc.AnnRunningCondition:        string(corev1.ConditionFalse),
+				cc.AnnRunningConditionMessage: cc.CloneComplete,
+				cc.AnnRunningConditionReason:  "Completed",
+				annSmartCloneSnapshot:         key,
 			},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{

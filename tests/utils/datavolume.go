@@ -20,7 +20,8 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 )
 
 const (
@@ -472,7 +473,7 @@ func NewDataVolumeForImageCloning(dataVolumeName, size, namespace, pvcName strin
 	dv := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        dataVolumeName,
-			Annotations: map[string]string{controller.AnnDeleteAfterCompletion: "false"},
+			Annotations: map[string]string{cc.AnnDeleteAfterCompletion: "false"},
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: &cdiv1.DataVolumeSource{
@@ -673,7 +674,7 @@ func WaitForDataVolumePhaseWithTimeout(ci ClientsIface, namespace string, phase 
 		if err != nil {
 			return err
 		}
-		if ttl := controller.GetDataVolumeTTLSeconds(cfg); ttl >= 0 {
+		if ttl := cc.GetDataVolumeTTLSeconds(cfg); ttl >= 0 {
 			return WaitForDataVolumeGC(ci, namespace, dataVolumeName, ttl, dataVolumePhaseTime)
 		}
 	}
@@ -701,7 +702,7 @@ func WaitForDataVolumeGC(ci ClientsIface, namespace string, pvcName string, ttl 
 	err := wait.PollImmediate(dataVolumePollInterval, timeout, func() (bool, error) {
 		dv, err := ci.Cdi().CdiV1beta1().DataVolumes(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{})
 		if err == nil {
-			retain = dv.Annotations[controller.AnnDeleteAfterCompletion] == "false"
+			retain = dv.Annotations[cc.AnnDeleteAfterCompletion] == "false"
 			actualPhase = dv.Status.Phase
 			if actualPhase != cdiv1.Succeeded {
 				return false, nil
@@ -819,7 +820,7 @@ func WaitForConditions(ci ClientsIface, dataVolumeName, namespace string, timeou
 func verifyConditions(actualConditions []cdiv1.DataVolumeCondition, testConditions []*cdiv1.DataVolumeCondition) bool {
 	for _, condition := range testConditions {
 		if condition != nil {
-			actualCondition := findConditionByType(condition.Type, actualConditions)
+			actualCondition := dvc.FindConditionByType(condition.Type, actualConditions)
 			if actualCondition != nil {
 				if actualCondition.Status != condition.Status {
 					fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Status does not match for type: %s, status expected: [%s], status found: [%s]\n", condition.Type, condition.Status, actualCondition.Status)
@@ -837,13 +838,4 @@ func verifyConditions(actualConditions []cdiv1.DataVolumeCondition, testConditio
 		}
 	}
 	return true
-}
-
-func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions []cdiv1.DataVolumeCondition) *cdiv1.DataVolumeCondition {
-	for i, condition := range conditions {
-		if condition.Type == conditionType {
-			return &conditions[i]
-		}
-	}
-	return nil
 }

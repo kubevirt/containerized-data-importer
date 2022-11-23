@@ -26,6 +26,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
@@ -233,7 +234,7 @@ func (app *uploadProxyApp) resolveUploadPath(pvcName, pvcNamespace, defaultPath 
 		return "", err
 	}
 
-	contentType, found := pvc.Annotations[controller.AnnContentType]
+	contentType, found := pvc.Annotations[cc.AnnContentType]
 	if !found {
 		return defaultPath, nil
 	}
@@ -266,12 +267,12 @@ func (app *uploadProxyApp) uploadReady(pvcName, pvcNamespace string) error {
 		if err != nil {
 			return false, err
 		}
-		phase := v1.PodPhase(pvc.Annotations[controller.AnnPodPhase])
+		phase := v1.PodPhase(pvc.Annotations[cc.AnnPodPhase])
 		if phase == v1.PodSucceeded {
 			return false, fmt.Errorf("rejecting Upload Request for PVC %s that already finished uploading", pvcName)
 		}
 
-		ready, _ := strconv.ParseBool(pvc.Annotations[controller.AnnPodReady])
+		ready, _ := strconv.ParseBool(pvc.Annotations[cc.AnnPodReady])
 		return ready, nil
 	})
 }

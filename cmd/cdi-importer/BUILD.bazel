@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/common:go_default_library",
-        "//pkg/controller:go_default_library",
+        "//pkg/controller/common:go_default_library",
         "//pkg/image:go_default_library",
         "//pkg/importer:go_default_library",
         "//pkg/util:go_default_library",

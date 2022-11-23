@@ -19,12 +19,12 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cont "kubevirt.io/containerized-data-importer/pkg/controller"
+	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
-
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 )
@@ -84,7 +84,7 @@ var _ = Describe("Import Proxy tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Storing the OpenShift Cluster Wide Proxy original configuration")
-			clusterWideProxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
+			clusterWideProxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), cont.ClusterWideProxyName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			clusterWideProxySpec = clusterWideProxy.Spec.DeepCopy()
 		}
@@ -132,7 +132,7 @@ var _ = Describe("Import Proxy tests", func() {
 
 	verifyImportProxyConfigMap := func(pvcName string) {
 		By("Verify import proxy ConfigMap copied to the import namespace")
-		trustedCAProxy := controller.GetImportProxyConfigMapName(pvcName)
+		trustedCAProxy := cont.GetImportProxyConfigMapName(pvcName)
 		Eventually(func() error {
 			_, err := f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Get(context.TODO(), trustedCAProxy, metav1.GetOptions{})
 			return err
@@ -145,7 +145,7 @@ var _ = Describe("Import Proxy tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		err = utils.DeletePodByName(f.K8sClient, pvc.Annotations[controller.AnnImportPod], f.Namespace.Name, nil)
 		Expect(err).ToNot(HaveOccurred())
-		trustedCAProxy := controller.GetImportProxyConfigMapName(pvcName)
+		trustedCAProxy := cont.GetImportProxyConfigMapName(pvcName)
 		Eventually(func() bool {
 			_, err := f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Get(context.TODO(), trustedCAProxy, metav1.GetOptions{})
 			return k8serrors.IsNotFound(err)
@@ -380,7 +380,7 @@ var _ = Describe("Import Proxy tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Verify initial job succeeded")
-			initialJobName := controller.GetInitialJobName(cron)
+			initialJobName := cont.GetInitialJobName(cron)
 			Eventually(func() int32 {
 				job, err := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), initialJobName, metav1.GetOptions{})
 				if err != nil {
@@ -394,7 +394,7 @@ var _ = Describe("Import Proxy tests", func() {
 			verifyPodInfoInProxyLogs(f, f.CdiInstallNs, initialJobName, url, registryUserAgent, now, BeTrue)
 
 			By("Verify cronjob first job succeeded")
-			cronJobName := controller.GetCronJobName(cron)
+			cronJobName := cont.GetCronJobName(cron)
 			Eventually(func() *metav1.Time {
 				cronjob, err := f.K8sClient.BatchV1().CronJobs(f.CdiInstallNs).Get(context.TODO(), cronJobName, metav1.GetOptions{})
 				if err != nil {
@@ -429,7 +429,7 @@ var _ = Describe("Import Proxy tests", func() {
 				var err error
 				cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
-				condUpToDate := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
+				condUpToDate := cont.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
 				return condUpToDate != nil && condUpToDate.Status == corev1.ConditionTrue
 			}, timeout, pollingInterval).Should(BeTrue(), "Timeout waiting for DataImportCron conditions")
 
@@ -533,7 +533,7 @@ func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpCli
 	By("Waiting OpenShift Cluster Wide Proxy reconcile")
 	// the default OpenShift no_proxy configuration only appears in the proxy object after and http(s) url is updated
 	Eventually(func() bool {
-		cwproxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
+		cwproxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), cont.ClusterWideProxyName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Fprintf(GinkgoWriter, "INFO: status HTTP: %s, proxyHTTPURL: %s, status HTTPS: %s, proxyHTTPSURL: %s,\n", cwproxy.Status.HTTPProxy, proxyHTTPURL, cwproxy.Status.HTTPSProxy, proxyHTTPSURL)
 		if cwproxy.Status.HTTPProxy == proxyHTTPURL && cwproxy.Status.HTTPSProxy == proxyHTTPSURL {
@@ -546,16 +546,16 @@ func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpCli
 	Eventually(func() bool {
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		cdiHTTP, _ := controller.GetImportProxyConfig(config, common.ImportProxyHTTP)
-		cdiHTTPS, _ := controller.GetImportProxyConfig(config, common.ImportProxyHTTPS)
-		cdiNoProxy, _ := controller.GetImportProxyConfig(config, common.ImportProxyNoProxy)
+		cdiHTTP, _ := cont.GetImportProxyConfig(config, common.ImportProxyHTTP)
+		cdiHTTPS, _ := cont.GetImportProxyConfig(config, common.ImportProxyHTTPS)
+		cdiNoProxy, _ := cont.GetImportProxyConfig(config, common.ImportProxyNoProxy)
 		fmt.Fprintf(GinkgoWriter, "INFO: cdiHTTP: %s, proxyHTTPURL: %s, cdiHTTPS: %s, proxyHTTPSURL: %s, cdiNoProxy: %s\n", cdiHTTP, proxyHTTPURL, cdiHTTPS, proxyHTTPSURL, cdiNoProxy)
 		return cdiHTTP == proxyHTTPURL && cdiHTTPS == proxyHTTPSURL
 	}, time.Second*120, time.Second).Should(BeTrue())
 }
 
 func updateClusterWideProxyObj(ocpClient *configclient.Clientset, HTTPProxy, HTTPSProxy, NoProxy, trustedCa string) {
-	proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
+	proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), cont.ClusterWideProxyName, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
 		Skip("This OpenShift cluster version does not have a Cluster Wide Proxy object")
 	}
@@ -635,7 +635,7 @@ func cleanClusterWideProxy(ocpClient *configclient.Clientset, clusterWideProxySp
 	updateClusterWideProxyObj(ocpClient, clusterWideProxySpec.HTTPProxy, clusterWideProxySpec.HTTPSProxy, clusterWideProxySpec.NoProxy, clusterWideProxySpec.TrustedCA.Name)
 	By("Waiting OpenShift Cluster Wide Proxy to be reset to original configuration")
 	Eventually(func() bool {
-		proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
+		proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), cont.ClusterWideProxyName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		if proxy.Status.HTTPProxy == clusterWideProxySpec.HTTPProxy &&
 			proxy.Status.HTTPSProxy == clusterWideProxySpec.HTTPSProxy {

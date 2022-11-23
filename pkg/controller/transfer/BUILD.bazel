@@ -12,7 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/common:go_default_library",
-        "//pkg/controller:go_default_library",
+        "//pkg/controller/common:go_default_library",
         "//pkg/util:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/go-logr/logr:go_default_library",

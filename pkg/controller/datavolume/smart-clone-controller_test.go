@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package datavolume
 
 import (
 	"context"
@@ -38,6 +38,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
 var (
@@ -274,7 +275,7 @@ func createSmartCloneReconciler(objects ...runtime.Object) *SmartCloneReconciler
 }
 
 func createPVCWithSnapshotSource(name, snapshotName string) *corev1.PersistentVolumeClaim {
-	pvc := createPvc(name, metav1.NamespaceDefault, map[string]string{}, nil)
+	pvc := CreatePvc(name, metav1.NamespaceDefault, map[string]string{}, nil)
 	pvc.Annotations = map[string]string{
 		"cdi.kubevirt.io/smartCloneSnapshot": metav1.NamespaceDefault + "/" + snapshotName,
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,6 +30,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
@@ -37,62 +39,6 @@ import (
 
 const (
 	importControllerAgentName = "import-controller"
-
-	// SourceHTTP is the source type HTTP, if unspecified or invalid, it defaults to SourceHTTP
-	SourceHTTP = "http"
-	// SourceS3 is the source type S3
-	SourceS3 = "s3"
-	// SourceGlance is the source type of glance
-	SourceGlance = "glance"
-	// SourceNone means there is no source.
-	SourceNone = "none"
-	// SourceRegistry is the source type of Registry
-	SourceRegistry = "registry"
-	// SourceImageio is the source type ovirt-imageio
-	SourceImageio = "imageio"
-	// SourceVDDK is the source type of VDDK
-	SourceVDDK = "vddk"
-
-	// AnnSource provide a const for our PVC import source annotation
-	AnnSource = AnnAPIGroup + "/storage.import.source"
-	// AnnEndpoint provides a const for our PVC endpoint annotation
-	AnnEndpoint = AnnAPIGroup + "/storage.import.endpoint"
-	// AnnSecret provides a const for our PVC secretName annotation
-	AnnSecret = AnnAPIGroup + "/storage.import.secretName"
-	// AnnCertConfigMap is the name of a configmap containing tls certs
-	AnnCertConfigMap = AnnAPIGroup + "/storage.import.certConfigMap"
-	// AnnContentType provides a const for the PVC content-type
-	AnnContentType = AnnAPIGroup + "/storage.contentType"
-	// AnnRegistryImportMethod provides a const for registry import method annotation
-	AnnRegistryImportMethod = AnnAPIGroup + "/storage.import.registryImportMethod"
-	// AnnRegistryImageStream provides a const for registry image stream annotation
-	AnnRegistryImageStream = AnnAPIGroup + "/storage.import.registryImageStream"
-	// AnnImportPod provides a const for our PVC importPodName annotation
-	AnnImportPod = AnnAPIGroup + "/storage.import.importPodName"
-	// AnnRequiresScratch provides a const for our PVC requires scratch annotation
-	AnnRequiresScratch = AnnAPIGroup + "/storage.import.requiresScratch"
-	// AnnDiskID provides a const for our PVC diskId annotation
-	AnnDiskID = AnnAPIGroup + "/storage.import.diskId"
-	// AnnUUID provides a const for our PVC uuid annotation
-	AnnUUID = AnnAPIGroup + "/storage.import.uuid"
-	// AnnBackingFile provides a const for our PVC backing file annotation
-	AnnBackingFile = AnnAPIGroup + "/storage.import.backingFile"
-	// AnnThumbprint provides a const for our PVC backing thumbprint annotation
-	AnnThumbprint = AnnAPIGroup + "/storage.import.vddk.thumbprint"
-	// AnnPreallocationApplied provides a const for PVC preallocation annotation
-	AnnPreallocationApplied = AnnAPIGroup + "/storage.preallocation"
-	// AnnExtraHeaders provides a const for our PVC extraHeaders annotation
-	AnnExtraHeaders = AnnAPIGroup + "/storage.import.extraHeaders"
-	// AnnSecretExtraHeaders provides a const for our PVC secretExtraHeaders annotation
-	AnnSecretExtraHeaders = AnnAPIGroup + "/storage.import.secretExtraHeaders"
-
-	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
-	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"
-	//AnnDefaultStorageClass is the annotation indicating that a storage class is the default one.
-	AnnDefaultStorageClass = "storageclass.kubernetes.io/is-default-class"
-
-	// AnnOpenShiftImageLookup is the annotation for OpenShift image stream lookup
-	AnnOpenShiftImageLookup = "alpha.image.policy.openshift.io/resolve-names"
 
 	// ErrImportFailedPVC provides a const to indicate an import to the PVC failed
 	ErrImportFailedPVC = "ErrImportFailed"
@@ -108,6 +54,9 @@ const (
 	// importPodImageStreamFinalizer ensures image stream import pod is deleted when pvc is deleted,
 	// as in this case pod has no pvc OwnerReference
 	importPodImageStreamFinalizer = "cdi.kubevirt.io/importImageStream"
+
+	// secretExtraHeadersVolumeName is the format string that specifies where extra HTTP header secrets will be mounted
+	secretExtraHeadersVolumeName = "cdi-secret-extra-headers-vol-%d"
 )
 
 // ImportReconciler members
@@ -222,17 +171,17 @@ func (r *ImportReconciler) shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim,
 	if err != nil {
 		return false, err
 	}
-	multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, AnnCurrentCheckpoint)
-	multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, AnnMultiStageImportDone)
+	multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnCurrentCheckpoint)
+	multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnMultiStageImportDone)
 
-	return (!isPVCComplete(pvc) || (isPVCComplete(pvc) && multiStageImport && !multiStageAlreadyDone)) &&
-			(checkPVC(pvc, AnnEndpoint, log) || checkPVC(pvc, AnnSource, log)) &&
+	return (!cc.IsPVCComplete(pvc) || (cc.IsPVCComplete(pvc) && multiStageImport && !multiStageAlreadyDone)) &&
+			(checkPVC(pvc, cc.AnnEndpoint, log) || checkPVC(pvc, cc.AnnSource, log)) &&
 			shouldHandlePvc(pvc, waitForFirstConsumerEnabled, log),
 		nil
 }
 
 func isImageStream(pvc *corev1.PersistentVolumeClaim) bool {
-	return pvc.Annotations[AnnRegistryImageStream] == "true"
+	return pvc.Annotations[cc.AnnRegistryImageStream] == "true"
 }
 
 // Reconcile the reconcile loop for the CDIConfig object.
@@ -254,26 +203,26 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 		return reconcile.Result{}, err
 	}
 	if !shouldReconcile {
-		multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, AnnCurrentCheckpoint)
-		multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, AnnMultiStageImportDone)
+		multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnCurrentCheckpoint)
+		multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnMultiStageImportDone)
 
 		log.V(3).Info("Should not reconcile this PVC",
-			"pvc.annotation.phase.complete", isPVCComplete(pvc),
-			"pvc.annotations.endpoint", checkPVC(pvc, AnnEndpoint, log),
-			"pvc.annotations.source", checkPVC(pvc, AnnSource, log),
+			"pvc.annotation.phase.complete", cc.IsPVCComplete(pvc),
+			"pvc.annotations.endpoint", checkPVC(pvc, cc.AnnEndpoint, log),
+			"pvc.annotations.source", checkPVC(pvc, cc.AnnSource, log),
 			"isBound", isBound(pvc, log), "isMultistage", multiStageImport, "multiStageDone", multiStageAlreadyDone)
 		return reconcile.Result{}, nil
 	}
 
 	// In case this is a request to create a blank disk on a block device, we do not create a pod.
 	// we just mark the DV as successful
-	volumeMode := getVolumeMode(pvc)
-	if volumeMode == corev1.PersistentVolumeBlock && pvc.GetAnnotations()[AnnSource] == SourceNone && pvc.GetAnnotations()[AnnPreallocationRequested] != "true" {
+	volumeMode := cc.GetVolumeMode(pvc)
+	if volumeMode == corev1.PersistentVolumeBlock && pvc.GetAnnotations()[cc.AnnSource] == cc.SourceNone && pvc.GetAnnotations()[cc.AnnPreallocationRequested] != "true" {
 		log.V(1).Info("attempting to create blank disk for block mode, this is a no-op, marking pvc with pod-phase succeeded")
 		if pvc.GetAnnotations() == nil {
 			pvc.SetAnnotations(make(map[string]string, 0))
 		}
-		pvc.GetAnnotations()[AnnPodPhase] = string(corev1.PodSucceeded)
+		pvc.GetAnnotations()[cc.AnnPodPhase] = string(corev1.PodSucceeded)
 		if err := r.updatePVC(pvc, log); err != nil {
 			return reconcile.Result{}, errors.WithMessage(err, fmt.Sprintf("could not update pvc %q annotation and/or label", pvc.Name))
 		}
@@ -306,11 +255,11 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 	}
 
 	if pod == nil {
-		if isPVCComplete(pvc) {
+		if cc.IsPVCComplete(pvc) {
 			// Don't create the POD if the PVC is completed already
 			log.V(1).Info("PVC is already complete")
 		} else if pvc.DeletionTimestamp == nil {
-			podsUsingPVC, err := GetPodsUsingPVCs(r.client, pvc.Namespace, sets.NewString(pvc.Name), false)
+			podsUsingPVC, err := cc.GetPodsUsingPVCs(r.client, pvc.Namespace, sets.NewString(pvc.Name), false)
 			if err != nil {
 				return reconcile.Result{}, err
 			}
@@ -326,7 +275,7 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 				return reconcile.Result{Requeue: true}, nil
 			}
 
-			if _, ok := pvc.Annotations[AnnImportPod]; ok {
+			if _, ok := pvc.Annotations[cc.AnnImportPod]; ok {
 				// Create importer pod, make sure the PVC owns it.
 				if err := r.createImporterPod(pvc); err != nil {
 					return reconcile.Result{}, err
@@ -356,7 +305,7 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 		}
 	}
 
-	if !isPVCComplete(pvc) {
+	if !cc.IsPVCComplete(pvc) {
 		// We are not done yet, force a re-reconcile in 2 seconds to get an update.
 		log.V(1).Info("Force Reconcile pvc import not finished", "pvc.Name", pvc.Name)
 
@@ -410,18 +359,18 @@ func (r *ImportReconciler) initPvcPodName(pvc *corev1.PersistentVolumeClaim, log
 	log.V(1).Info("Init pod name on PVC")
 	anno := pvc.GetAnnotations()
 
-	anno[AnnImportPod] = createImportPodNameFromPvc(pvc)
+	anno[cc.AnnImportPod] = createImportPodNameFromPvc(pvc)
 
 	requiresScratch := r.requiresScratchSpace(pvc)
 	if requiresScratch {
-		anno[AnnRequiresScratch] = "true"
+		anno[cc.AnnRequiresScratch] = "true"
 	}
 
 	if !reflect.DeepEqual(currentPvcCopy, pvc) {
 		if err := r.updatePVC(pvc, log); err != nil {
 			return err
 		}
-		log.V(1).Info("Updated PVC", "pvc.anno.AnnImportPod", anno[AnnImportPod])
+		log.V(1).Info("Updated PVC", "pvc.anno.AnnImportPod", anno[cc.AnnImportPod])
 	}
 	return nil
 }
@@ -432,7 +381,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 
 	log.V(1).Info("Updating PVC from pod")
 	anno := pvc.GetAnnotations()
-	setAnnotationsFromPodWithPrefix(anno, pod, AnnRunningCondition)
+	setAnnotationsFromPodWithPrefix(anno, pod, cc.AnnRunningCondition)
 
 	scratchExitCode := false
 	if pod.Status.ContainerStatuses != nil &&
@@ -442,21 +391,21 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		if pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode == common.ScratchSpaceNeededExitCode {
 			log.V(1).Info("Pod requires scratch space, terminating pod, and restarting with scratch space", "pod.Name", pod.Name)
 			scratchExitCode = true
-			anno[AnnRequiresScratch] = "true"
+			anno[cc.AnnRequiresScratch] = "true"
 		} else {
 			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message)
 		}
 	}
 
-	if anno[AnnCurrentCheckpoint] != "" {
-		anno[AnnCurrentPodID] = string(pod.ObjectMeta.UID)
+	if anno[cc.AnnCurrentCheckpoint] != "" {
+		anno[cc.AnnCurrentPodID] = string(pod.ObjectMeta.UID)
 	}
 
-	anno[AnnImportPod] = string(pod.Name)
+	anno[cc.AnnImportPod] = string(pod.Name)
 	if !scratchExitCode {
 		// No scratch exit code, update the phase based on the pod. If we do have scratch exit code we don't want to update the
 		// phase, because the pod might terminate cleanly and mistakenly mark the import complete.
-		anno[AnnPodPhase] = string(pod.Status.Phase)
+		anno[cc.AnnPodPhase] = string(pod.Status.Phase)
 	}
 
 	// Check if the POD is waiting for scratch space, if so create some.
@@ -468,9 +417,9 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		}
 	} else {
 		// No scratch space, or scratch space is bound, remove annotation
-		delete(anno, AnnBoundCondition)
-		delete(anno, AnnBoundConditionMessage)
-		delete(anno, AnnBoundConditionReason)
+		delete(anno, cc.AnnBoundCondition)
+		delete(anno, cc.AnnBoundConditionMessage)
+		delete(anno, cc.AnnBoundConditionReason)
 	}
 
 	if !checkIfLabelExists(pvc, common.CDILabelKey, common.CDILabelValue) {
@@ -484,15 +433,15 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		if err := r.updatePVC(pvc, log); err != nil {
 			return err
 		}
-		log.V(1).Info("Updated PVC", "pvc.anno.Phase", anno[AnnPodPhase], "pvc.anno.Restarts", anno[AnnPodRestarts])
+		log.V(1).Info("Updated PVC", "pvc.anno.Phase", anno[cc.AnnPodPhase], "pvc.anno.Restarts", anno[cc.AnnPodRestarts])
 	}
 
-	if isPVCComplete(pvc) || scratchExitCode {
+	if cc.IsPVCComplete(pvc) || scratchExitCode {
 		if !scratchExitCode {
 			r.recorder.Event(pvc, corev1.EventTypeNormal, ImportSucceededPVC, "Import Successful")
 			log.V(1).Info("Import completed successfully")
 		}
-		if shouldDeletePod(pvc) {
+		if cc.ShouldDeletePod(pvc) {
 			log.V(1).Info("Deleting pod", "pod.Name", pod.Name)
 			if err := r.cleanup(pvc, pod, log); err != nil {
 				return err
@@ -503,11 +452,11 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 }
 
 func (r *ImportReconciler) cleanup(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, log logr.Logger) error {
-	if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
+	if err := r.client.Delete(context.TODO(), pod); cc.IgnoreNotFound(err) != nil {
 		return err
 	}
-	if HasFinalizer(pvc, importPodImageStreamFinalizer) {
-		RemoveFinalizer(pvc, importPodImageStreamFinalizer)
+	if cc.HasFinalizer(pvc, importPodImageStreamFinalizer) {
+		cc.RemoveFinalizer(pvc, importPodImageStreamFinalizer)
 		if err := r.updatePVC(pvc, log); err != nil {
 			return err
 		}
@@ -535,10 +484,10 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		scratchPvcName = &name
 	}
 
-	if getSource(pvc) == SourceVDDK {
+	if cc.GetSource(pvc) == cc.SourceVDDK {
 		r.log.V(1).Info("Pod requires VDDK sidecar for VMware transfer")
 		anno := pvc.GetAnnotations()
-		if imageName, ok := anno[AnnVddkInitImageURL]; ok {
+		if imageName, ok := anno[cc.AnnVddkInitImageURL]; ok {
 			vddkImageName = &imageName
 		} else {
 			if vddkImageName, err = r.getVddkImageName(); err != nil {
@@ -546,10 +495,10 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 			}
 		}
 		if vddkImageName == nil {
-			message := fmt.Sprintf("waiting for %s configmap or %s annotation for VDDK image", common.VddkConfigMap, AnnVddkInitImageURL)
-			anno[AnnBoundCondition] = "false"
-			anno[AnnBoundConditionMessage] = message
-			anno[AnnBoundConditionReason] = common.AwaitingVDDK
+			message := fmt.Sprintf("waiting for %s configmap or %s annotation for VDDK image", common.VddkConfigMap, cc.AnnVddkInitImageURL)
+			anno[cc.AnnBoundCondition] = "false"
+			anno[cc.AnnBoundConditionMessage] = message
+			anno[cc.AnnBoundConditionReason] = common.AwaitingVDDK
 			if err := r.updatePVC(pvc, r.log); err != nil {
 				return err
 			}
@@ -570,12 +519,12 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		pvc:               pvc,
 		scratchPvcName:    scratchPvcName,
 		vddkImageName:     vddkImageName,
-		priorityClassName: getPriorityClass(pvc),
+		priorityClassName: cc.GetPriorityClass(pvc),
 	}
 
 	pod, err := createImporterPod(r.log, r.client, podArgs, r.installerLabels)
 	// Check if pod has failed and, in that case, record an event with the error
-	if podErr := handleFailedPod(err, pvc.Annotations[AnnImportPod], pvc, r.recorder, r.client); podErr != nil {
+	if podErr := cc.HandleFailedPod(err, pvc.Annotations[cc.AnnImportPod], pvc, r.recorder, r.client); podErr != nil {
 		return podErr
 	}
 
@@ -583,8 +532,8 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 
 	// If importing from image stream, add finalizer. Note we don't watch the importer pod in this case,
 	// so to prevent a deadlock we add finalizer only if the pod is not retained after completion.
-	if isImageStream(pvc) && pvc.GetAnnotations()[AnnPodRetainAfterCompletion] != "true" {
-		AddFinalizer(pvc, importPodImageStreamFinalizer)
+	if isImageStream(pvc) && pvc.GetAnnotations()[cc.AnnPodRetainAfterCompletion] != "true" {
+		cc.AddFinalizer(pvc, importPodImageStreamFinalizer)
 		if err := r.updatePVC(pvc, r.log); err != nil {
 			return err
 		}
@@ -598,14 +547,18 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 	return nil
 }
 
+func createScratchNameFromPvc(pvc *v1.PersistentVolumeClaim) string {
+	return naming.GetResourceName(pvc.Name, common.ScratchNameSuffix)
+}
+
 func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim) (*importPodEnvVar, error) {
 	podEnvVar := &importPodEnvVar{}
-	podEnvVar.source = getSource(pvc)
-	podEnvVar.contentType = GetContentType(pvc)
+	podEnvVar.source = cc.GetSource(pvc)
+	podEnvVar.contentType = cc.GetContentType(pvc)
 
 	var err error
-	if podEnvVar.source != SourceNone {
-		podEnvVar.ep, err = getEndpoint(pvc)
+	if podEnvVar.source != cc.SourceNone {
+		podEnvVar.ep, err = cc.GetEndpoint(pvc)
 		if err != nil {
 			return nil, err
 		}
@@ -627,19 +580,19 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		if err != nil {
 			return nil, err
 		}
-		podEnvVar.diskID = getValueFromAnnotation(pvc, AnnDiskID)
-		podEnvVar.backingFile = getValueFromAnnotation(pvc, AnnBackingFile)
-		podEnvVar.uuid = getValueFromAnnotation(pvc, AnnUUID)
-		podEnvVar.thumbprint = getValueFromAnnotation(pvc, AnnThumbprint)
-		podEnvVar.previousCheckpoint = getValueFromAnnotation(pvc, AnnPreviousCheckpoint)
-		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, AnnCurrentCheckpoint)
-		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, AnnFinalCheckpoint)
+		podEnvVar.diskID = getValueFromAnnotation(pvc, cc.AnnDiskID)
+		podEnvVar.backingFile = getValueFromAnnotation(pvc, cc.AnnBackingFile)
+		podEnvVar.uuid = getValueFromAnnotation(pvc, cc.AnnUUID)
+		podEnvVar.thumbprint = getValueFromAnnotation(pvc, cc.AnnThumbprint)
+		podEnvVar.previousCheckpoint = getValueFromAnnotation(pvc, cc.AnnPreviousCheckpoint)
+		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, cc.AnnCurrentCheckpoint)
+		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, cc.AnnFinalCheckpoint)
 
 		for annotation, value := range pvc.Annotations {
-			if strings.HasPrefix(annotation, AnnExtraHeaders) {
+			if strings.HasPrefix(annotation, cc.AnnExtraHeaders) {
 				podEnvVar.extraHeaders = append(podEnvVar.extraHeaders, value)
 			}
-			if strings.HasPrefix(annotation, AnnSecretExtraHeaders) {
+			if strings.HasPrefix(annotation, cc.AnnSecretExtraHeaders) {
 				podEnvVar.secretExtraHeaders = append(podEnvVar.secretExtraHeaders, value)
 			}
 		}
@@ -669,12 +622,12 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 	}
 	podEnvVar.filesystemOverhead = string(fsOverhead)
 
-	if preallocation, err := strconv.ParseBool(getValueFromAnnotation(pvc, AnnPreallocationRequested)); err == nil {
+	if preallocation, err := strconv.ParseBool(getValueFromAnnotation(pvc, cc.AnnPreallocationRequested)); err == nil {
 		podEnvVar.preallocation = preallocation
 	} // else use the default "false"
 
 	//get the requested image size.
-	podEnvVar.imageSize, err = getRequestedImageSize(pvc)
+	podEnvVar.imageSize, err = cc.GetRequestedImageSize(pvc)
 	if err != nil {
 		return nil, err
 	}
@@ -682,7 +635,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 }
 
 func (r *ImportReconciler) isInsecureTLS(pvc *corev1.PersistentVolumeClaim, cdiConfig *cdiv1.CDIConfig) (bool, error) {
-	ep, ok := pvc.Annotations[AnnEndpoint]
+	ep, ok := pvc.Annotations[cc.AnnEndpoint]
 	if !ok || ep == "" {
 		return false, nil
 	}
@@ -731,7 +684,7 @@ func IsInsecureTLS(ep string, cdiConfig *cdiv1.CDIConfig, client client.Client, 
 }
 
 func (r *ImportReconciler) getCertConfigMap(pvc *corev1.PersistentVolumeClaim) (string, error) {
-	value, ok := pvc.Annotations[AnnCertConfigMap]
+	value, ok := pvc.Annotations[cc.AnnCertConfigMap]
 	if !ok || value == "" {
 		return "", nil
 	}
@@ -754,13 +707,13 @@ func (r *ImportReconciler) getCertConfigMap(pvc *corev1.PersistentVolumeClaim) (
 // causes processNextItem() to stop.
 func (r *ImportReconciler) getSecretName(pvc *corev1.PersistentVolumeClaim) string {
 	ns := pvc.Namespace
-	name, found := pvc.Annotations[AnnSecret]
+	name, found := pvc.Annotations[cc.AnnSecret]
 	if !found || name == "" {
 		msg := "getEndpointSecret: "
 		if !found {
-			msg += fmt.Sprintf("annotation %q is missing in pvc \"%s/%s\"", AnnSecret, ns, pvc.Name)
+			msg += fmt.Sprintf("annotation %q is missing in pvc \"%s/%s\"", cc.AnnSecret, ns, pvc.Name)
 		} else {
-			msg += fmt.Sprintf("secret name is missing from annotation %q in pvc \"%s/%s\"", AnnSecret, ns, pvc.Name)
+			msg += fmt.Sprintf("secret name is missing from annotation %q in pvc \"%s/%s\"", cc.AnnSecret, ns, pvc.Name)
 		}
 		r.log.V(2).Info(msg)
 		return "" // importer pod will not contain secret credentials
@@ -770,23 +723,23 @@ func (r *ImportReconciler) getSecretName(pvc *corev1.PersistentVolumeClaim) stri
 
 func (r *ImportReconciler) requiresScratchSpace(pvc *corev1.PersistentVolumeClaim) bool {
 	scratchRequired := false
-	contentType := GetContentType(pvc)
+	contentType := cc.GetContentType(pvc)
 	// All archive requires scratch space.
 	if contentType == "archive" {
 		scratchRequired = true
 	} else {
-		switch getSource(pvc) {
-		case SourceGlance:
+		switch cc.GetSource(pvc) {
+		case cc.SourceGlance:
 			scratchRequired = true
-		case SourceImageio:
-			if val, ok := pvc.Annotations[AnnCurrentCheckpoint]; ok {
+		case cc.SourceImageio:
+			if val, ok := pvc.Annotations[cc.AnnCurrentCheckpoint]; ok {
 				scratchRequired = val != ""
 			}
-		case SourceRegistry:
-			scratchRequired = pvc.Annotations[AnnRegistryImportMethod] != string(cdiv1.RegistryPullNode)
+		case cc.SourceRegistry:
+			scratchRequired = pvc.Annotations[cc.AnnRegistryImportMethod] != string(cdiv1.RegistryPullNode)
 		}
 	}
-	value, ok := pvc.Annotations[AnnRequiresScratch]
+	value, ok := pvc.Annotations[cc.AnnRequiresScratch]
 	if ok {
 		boolVal, _ := strconv.ParseBool(value)
 		scratchRequired = scratchRequired || boolVal
@@ -802,7 +755,7 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 	}
 	anno := pvc.GetAnnotations()
 	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: pvc.GetNamespace(), Name: scratchPVCName}, scratchPvc)
-	if IgnoreNotFound(err) != nil {
+	if cc.IgnoreNotFound(err) != nil {
 		return err
 	}
 	if k8serrors.IsNotFound(err) {
@@ -810,13 +763,13 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 
 		storageClassName := GetScratchPvcStorageClass(r.client, pvc)
 		// Scratch PVC doesn't exist yet, create it. Determine which storage class to use.
-		_, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, scratchPVCName, storageClassName, r.installerLabels, r.recorder)
+		_, err = createScratchPersistentVolumeClaim(r.client, pvc, pod, scratchPVCName, storageClassName, r.installerLabels, r.recorder)
 		if err != nil {
 			return err
 		}
-		anno[AnnBoundCondition] = "false"
-		anno[AnnBoundConditionMessage] = "Creating scratch space"
-		anno[AnnBoundConditionReason] = creatingScratch
+		anno[cc.AnnBoundCondition] = "false"
+		anno[cc.AnnBoundConditionMessage] = "Creating scratch space"
+		anno[cc.AnnBoundConditionReason] = creatingScratch
 	} else {
 		if scratchPvc.DeletionTimestamp != nil {
 			// Delete the pod since we are in a deadlock situation now. The scratch PVC from the previous import is not gone
@@ -828,9 +781,9 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 			}
 			return fmt.Errorf("terminating scratch space found, deleting pod %s", pod.Name)
 		}
-		setBoundConditionFromPVC(anno, AnnBoundCondition, scratchPvc)
+		setBoundConditionFromPVC(anno, cc.AnnBoundCondition, scratchPvc)
 	}
-	anno[AnnRequiresScratch] = "false"
+	anno[cc.AnnRequiresScratch] = "false"
 	return nil
 }
 
@@ -854,59 +807,9 @@ func (r *ImportReconciler) getVddkImageName() (*string, error) {
 	return nil, errors.Errorf("Found %s ConfigMap in namespace %s, but it does not contain a '%s' entry.", common.VddkConfigMap, namespace, common.VddkConfigDataKey)
 }
 
-// returns the source string which determines the type of source. If no source or invalid source found, default to http
-func getSource(pvc *corev1.PersistentVolumeClaim) string {
-	source, found := pvc.Annotations[AnnSource]
-	if !found {
-		source = ""
-	}
-	switch source {
-	case
-		SourceHTTP,
-		SourceS3,
-		SourceGlance,
-		SourceNone,
-		SourceRegistry,
-		SourceImageio,
-		SourceVDDK:
-	default:
-		source = SourceHTTP
-	}
-	return source
-}
-
-// GetContentType returns the content type of the source image. If invalid or not set, default to kubevirt
-func GetContentType(pvc *corev1.PersistentVolumeClaim) string {
-	contentType, found := pvc.Annotations[AnnContentType]
-	if !found {
-		return string(cdiv1.DataVolumeKubeVirt)
-	}
-	switch contentType {
-	case
-		string(cdiv1.DataVolumeKubeVirt),
-		string(cdiv1.DataVolumeArchive):
-	default:
-		contentType = string(cdiv1.DataVolumeKubeVirt)
-	}
-	return contentType
-}
-
-// returns the endpoint string which contains the full path URI of the target object to be copied.
-func getEndpoint(pvc *corev1.PersistentVolumeClaim) (string, error) {
-	ep, found := pvc.Annotations[AnnEndpoint]
-	if !found || ep == "" {
-		verb := "empty"
-		if !found {
-			verb = "missing"
-		}
-		return ep, errors.Errorf("annotation %q in pvc \"%s/%s\" is %s\n", AnnEndpoint, pvc.Namespace, pvc.Name, verb)
-	}
-	return ep, nil
-}
-
 // returns the import image part of the endpoint string
 func getRegistryImportImage(pvc *corev1.PersistentVolumeClaim) (string, error) {
-	ep, err := getEndpoint(pvc)
+	ep, err := cc.GetEndpoint(pvc)
 	if err != nil {
 		return "", nil
 	}
@@ -929,14 +832,14 @@ func getValueFromAnnotation(pvc *corev1.PersistentVolumeClaim, annotation string
 // If this pod is going to transfer one checkpoint in a multi-stage import, attach the checkpoint name to the pod name so
 // that each checkpoint gets a unique pod. That way each pod can be inspected using the retainAfterCompletion annotation.
 func podNameWithCheckpoint(pvc *corev1.PersistentVolumeClaim) string {
-	if checkpoint := pvc.Annotations[AnnCurrentCheckpoint]; checkpoint != "" {
+	if checkpoint := pvc.Annotations[cc.AnnCurrentCheckpoint]; checkpoint != "" {
 		return pvc.Name + "-checkpoint-" + checkpoint
 	}
 	return pvc.Name
 }
 
 func getImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
-	podName, ok := pvc.Annotations[AnnImportPod]
+	podName, ok := pvc.Annotations[cc.AnnImportPod]
 	if ok {
 		return podName
 	}
@@ -954,18 +857,18 @@ func createImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 // importer pod.
 func createImporterPod(log logr.Logger, client client.Client, args *importerPodArgs, installerLabels map[string]string) (*corev1.Pod, error) {
 	var err error
-	args.podResourceRequirements, err = GetDefaultPodResourceRequirements(client)
+	args.podResourceRequirements, err = cc.GetDefaultPodResourceRequirements(client)
 	if err != nil {
 		return nil, err
 	}
 
-	args.workloadNodePlacement, err = GetWorkloadNodePlacement(client)
+	args.workloadNodePlacement, err = cc.GetWorkloadNodePlacement(client)
 	if err != nil {
 		return nil, err
 	}
 
 	var pod *corev1.Pod
-	if getSource(args.pvc) == SourceRegistry && args.pvc.Annotations[AnnRegistryImportMethod] == string(cdiv1.RegistryPullNode) {
+	if cc.GetSource(args.pvc) == cc.SourceRegistry && args.pvc.Annotations[cc.AnnRegistryImportMethod] == string(cdiv1.RegistryPullNode) {
 		args.importImage, err = getRegistryImportImage(args.pvc)
 		if err != nil {
 			return nil, err
@@ -988,7 +891,7 @@ func createImporterPod(log logr.Logger, client client.Client, args *importerPodA
 // makeNodeImporterPodSpec creates and returns the node docker cache based importer pod spec based on the passed-in importImage and pvc.
 func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 	// importer pod name contains the pvc name
-	podName := args.pvc.Annotations[AnnImportPod]
+	podName := args.pvc.Annotations[cc.AnnImportPod]
 
 	volumes := []corev1.Volume{
 		{
@@ -998,7 +901,7 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			},
 		},
 		{
-			Name: DataVolName,
+			Name: cc.DataVolName,
 			VolumeSource: corev1.VolumeSource{
 				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 					ClaimName: args.pvc.Name,
@@ -1019,7 +922,7 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			Name:      podName,
 			Namespace: args.pvc.Namespace,
 			Annotations: map[string]string{
-				AnnCreatedBy: "yes",
+				cc.AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
 				common.CDILabelKey:        common.CDILabelValue,
@@ -1076,7 +979,7 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 	When we don't set pod OwnerReferences, all works well.
 	*/
 	if isImageStream(args.pvc) {
-		pod.Annotations[AnnOpenShiftImageLookup] = "*"
+		pod.Annotations[cc.AnnOpenShiftImageLookup] = "*"
 	} else {
 		blockOwnerDeletion := true
 		isController := true
@@ -1091,7 +994,7 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 		pod.OwnerReferences = append(pod.OwnerReferences, ownerRef)
 	}
 
-	args.podEnvVar.source = SourceHTTP
+	args.podEnvVar.source = cc.SourceHTTP
 	args.podEnvVar.ep = "http://localhost:8100/disk.img"
 	args.podEnvVar.readyFile = "/shared/ready"
 	args.podEnvVar.doneFile = "/shared/done"
@@ -1101,7 +1004,7 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 		Name:      "shared-volume",
 	})
 
-	SetRestrictedSecurityContext(&pod.Spec)
+	cc.SetRestrictedSecurityContext(&pod.Spec)
 
 	return pod
 }
@@ -1109,14 +1012,14 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 // makeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
 func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 	// importer pod name contains the pvc name
-	podName := args.pvc.Annotations[AnnImportPod]
+	podName := args.pvc.Annotations[cc.AnnImportPod]
 
 	blockOwnerDeletion := true
 	isController := true
 
 	volumes := []corev1.Volume{
 		{
-			Name: DataVolName,
+			Name: cc.DataVolName,
 			VolumeSource: corev1.VolumeSource{
 				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 					ClaimName: args.pvc.Name,
@@ -1128,7 +1031,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 
 	if args.scratchPvcName != nil {
 		volumes = append(volumes, corev1.Volume{
-			Name: ScratchVolName,
+			Name: cc.ScratchVolName,
 			VolumeSource: corev1.VolumeSource{
 				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 					ClaimName: *args.scratchPvcName,
@@ -1149,7 +1052,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			Name:      podName,
 			Namespace: args.pvc.Namespace,
 			Annotations: map[string]string{
-				AnnCreatedBy: "yes",
+				cc.AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
 				common.CDILabelKey:        common.CDILabelValue,
@@ -1184,7 +1087,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 
 	if args.scratchPvcName != nil {
 		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
-			Name:      ScratchVolName,
+			Name:      cc.ScratchVolName,
 			MountPath: common.ScratchDataDir,
 		})
 	}
@@ -1232,12 +1135,12 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 
 	for index, header := range args.podEnvVar.secretExtraHeaders {
 		vm := corev1.VolumeMount{
-			Name:      fmt.Sprintf(SecretExtraHeadersVolumeName, index),
+			Name:      fmt.Sprintf(secretExtraHeadersVolumeName, index),
 			MountPath: path.Join(common.ImporterSecretExtraHeadersDir, fmt.Sprint(index)),
 		}
 
 		vol := corev1.Volume{
-			Name: fmt.Sprintf(SecretExtraHeadersVolumeName, index),
+			Name: fmt.Sprintf(secretExtraHeadersVolumeName, index),
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: header,
@@ -1249,7 +1152,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
 	}
 
-	SetRestrictedSecurityContext(&pod.Spec)
+	cc.SetRestrictedSecurityContext(&pod.Spec)
 
 	return pod
 }
@@ -1266,15 +1169,15 @@ func setImporterPodCommons(pod *corev1.Pod, podEnvVar *importPodEnvVar, pvc *cor
 		ownerUID = pvc.OwnerReferences[0].UID
 	}
 
-	if getVolumeMode(pvc) == corev1.PersistentVolumeBlock {
-		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
+	if cc.GetVolumeMode(pvc) == corev1.PersistentVolumeBlock {
+		pod.Spec.Containers[0].VolumeDevices = cc.AddVolumeDevices()
 	} else {
-		pod.Spec.Containers[0].VolumeMounts = addImportVolumeMounts()
+		pod.Spec.Containers[0].VolumeMounts = cc.AddImportVolumeMounts()
 	}
 
 	pod.Spec.Containers[0].Env = makeImportEnv(podEnvVar, ownerUID)
 
-	SetPodPvcAnnotations(pod, pvc)
+	setPodPvcAnnotations(pod, pvc)
 }
 
 func makeImporterContainerSpec(image, verbose, pullPolicy string) *corev1.Container {
@@ -1304,17 +1207,6 @@ func createConfigMapVolume(certVolName, objRef string) corev1.Volume {
 			},
 		},
 	}
-}
-
-// this is being called for pods using PV with filesystem volume mode
-func addImportVolumeMounts() []corev1.VolumeMount {
-	volumeMounts := []corev1.VolumeMount{
-		{
-			Name:      DataVolName,
-			MountPath: common.ImporterDataDir,
-		},
-	}
-	return volumeMounts
 }
 
 // return the Env portion for the importer container.
