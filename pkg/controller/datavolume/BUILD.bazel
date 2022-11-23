@@ -6,6 +6,7 @@ go_library(
         "clone-controller.go",
         "conditions.go",
         "controller.go",
+        "external-population-controller.go",
         "garbagecollect.go",
         "import-controller.go",
         "smart-clone-controller.go",

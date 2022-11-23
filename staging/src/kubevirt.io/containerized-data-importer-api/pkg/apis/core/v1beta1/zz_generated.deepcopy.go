@@ -1466,6 +1466,11 @@ func (in *StorageSpec) DeepCopyInto(out *StorageSpec) {
 		*out = new(v1.TypedLocalObjectReference)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.DataSourceRef != nil {
+		in, out := &in.DataSourceRef, &out.DataSourceRef
+		*out = new(v1.TypedLocalObjectReference)
+		(*in).DeepCopyInto(*out)
+	}
 	return
 }
 
