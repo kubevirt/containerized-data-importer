@@ -5,7 +5,7 @@ metadata:
 spec:
   source:
     pvc:
-      namespace: "source-ns"
+      namespace: "kube-system"
   pvc:
     accessModes:
       - ReadWriteOnce
