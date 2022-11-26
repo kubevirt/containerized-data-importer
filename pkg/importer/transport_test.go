@@ -16,7 +16,6 @@ limitations under the License.
 package importer
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -30,7 +29,7 @@ var _ = Describe("Registry Importer", func() {
 	var err error
 
 	BeforeEach(func() {
-		tmpDir, err = ioutil.TempDir("", "scratch")
+		tmpDir, err = os.MkdirTemp("", "scratch")
 		Expect(err).NotTo(HaveOccurred())
 		By("tmpDir: " + tmpDir)
 	})

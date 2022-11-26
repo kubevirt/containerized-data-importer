@@ -3,8 +3,8 @@ package prometheus
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"path"
 	"time"
 
@@ -97,13 +97,13 @@ func StartPrometheusEndpoint(certsDirectory string) {
 	}
 
 	certFile := path.Join(certsDirectory, "tls.crt")
-	if err = ioutil.WriteFile(certFile, certBytes, 0600); err != nil {
+	if err = os.WriteFile(certFile, certBytes, 0600); err != nil {
 		klog.Error("Error writing cert file")
 		return
 	}
 
 	keyFile := path.Join(certsDirectory, "tls.key")
-	if err = ioutil.WriteFile(keyFile, keyBytes, 0600); err != nil {
+	if err = os.WriteFile(keyFile, keyBytes, 0600); err != nil {
 		klog.Error("Error writing key file")
 		return
 	}

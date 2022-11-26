@@ -1,7 +1,6 @@
 package importer
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +20,7 @@ var _ = Describe("Registry data source", func() {
 	var ds *RegistryDataSource
 
 	BeforeEach(func() {
-		tmpDir, err = ioutil.TempDir("", "scratch")
+		tmpDir, err = os.MkdirTemp("", "scratch")
 		Expect(err).NotTo(HaveOccurred())
 		By("tmpDir: " + tmpDir)
 	})

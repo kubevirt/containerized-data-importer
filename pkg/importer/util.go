@@ -1,7 +1,6 @@
 package importer
 
 import (
-	"io/ioutil"
 	"net/url"
 	"os"
 	"os/signal"
@@ -30,7 +29,7 @@ func ParseEndpoint(endpt string) (*url.URL, error) {
 // CleanDir cleans the contents of a directory including its sub directories, but does NOT remove the
 // directory itself.
 func CleanDir(dest string) error {
-	dir, err := ioutil.ReadDir(dest)
+	dir, err := os.ReadDir(dest)
 	if err != nil {
 		klog.Errorf("Unable read directory to clean: %s, %v", dest, err)
 		return err

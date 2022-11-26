@@ -22,9 +22,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -878,7 +878,7 @@ func loadCA(certDir string) (*x509.CertPool, error) {
 	if certDir == "" {
 		return nil, errors.New("Error CA not provided")
 	}
-	files, err := ioutil.ReadDir(certDir)
+	files, err := os.ReadDir(certDir)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Error listing files in %s", certDir)
 	}
@@ -893,7 +893,7 @@ func loadCA(certDir string) (*x509.CertPool, error) {
 
 		klog.Infof("Attempting to get certs from %s", fp)
 
-		certs, err := ioutil.ReadFile(fp)
+		certs, err := os.ReadFile(fp)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error reading file %s", fp)
 		}

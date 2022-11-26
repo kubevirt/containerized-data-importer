@@ -17,7 +17,6 @@ package image
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -134,7 +133,7 @@ var _ = Describe("Convert to Raw", func() {
 	var tmpDir, destPath string
 
 	BeforeEach(func() {
-		tmpDir, err := ioutil.TempDir(os.TempDir(), "qemutestdest")
+		tmpDir, err := os.MkdirTemp(os.TempDir(), "qemutestdest")
 		Expect(err).NotTo(HaveOccurred())
 		By("tmpDir: " + tmpDir)
 		destPath = filepath.Join(tmpDir, "dest")

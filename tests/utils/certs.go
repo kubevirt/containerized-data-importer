@@ -2,7 +2,6 @@ package utils
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path"
 
@@ -72,11 +71,11 @@ func CreateCertForTestService(namespace, serviceName, configMapName, certDir, ce
 		}
 	}
 
-	if err = ioutil.WriteFile(path.Join(certDir, certFileName), certBytes, 0644); err != nil {
+	if err = os.WriteFile(path.Join(certDir, certFileName), certBytes, 0644); err != nil {
 		return err
 	}
 
-	if err = ioutil.WriteFile(path.Join(certDir, keyFileName), keyBytes, 0600); err != nil {
+	if err = os.WriteFile(path.Join(certDir, keyFileName), keyBytes, 0600); err != nil {
 		return err
 	}
 

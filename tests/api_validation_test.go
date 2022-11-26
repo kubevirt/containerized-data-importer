@@ -3,7 +3,6 @@ package tests
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
@@ -404,7 +403,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 })
 
 func yamlFiletoStruct(fileName string, o *map[string]interface{}) error {
-	yamlFile, err := ioutil.ReadFile(fileName)
+	yamlFile, err := os.ReadFile(fileName)
 	if err != nil {
 		return err
 	}
@@ -422,7 +421,7 @@ func structToYamlFile(fileName string, o interface{}) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(fileName, yamlOutput, 0644)
+	err = os.WriteFile(fileName, yamlOutput, 0644)
 	if err != nil {
 		return err
 	}

@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -504,7 +504,7 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 				if err == nil {
 					defer resp.Body.Close()
 					if resp.StatusCode == http.StatusOK {
-						bodyBytes, err := ioutil.ReadAll(resp.Body)
+						bodyBytes, err := io.ReadAll(resp.Body)
 						Expect(err).NotTo(HaveOccurred())
 						match := importRegExp.FindStringSubmatch(string(bodyBytes))
 						if match != nil {
@@ -1005,7 +1005,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 				var result map[string]interface{}
 				resp := f.MakePrometheusHTTPRequest("query?query=kubevirt_cdi_import_dv_unusual_restartcount_total>0")
 				defer resp.Body.Close()
-				bodyBytes, err := ioutil.ReadAll(resp.Body)
+				bodyBytes, err := io.ReadAll(resp.Body)
 				if err != nil {
 					return false
 				}

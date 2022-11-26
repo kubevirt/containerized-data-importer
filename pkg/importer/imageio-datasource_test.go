@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -214,7 +214,7 @@ var _ = Describe("Imageio pollprogress", func() {
 			cancel: cancel,
 		}
 		By("Creating string reader we can test just the poll progress part")
-		stringReader := ioutil.NopCloser(strings.NewReader("This is a test string"))
+		stringReader := io.NopCloser(strings.NewReader("This is a test string"))
 		endlessReader := EndlessReader{
 			Reader: stringReader,
 		}
@@ -602,7 +602,7 @@ var _ = Describe("Imageio extents", func() {
 		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
 		err = source.StreamExtents(extentsReader, destination)
 		Expect(err).ToNot(HaveOccurred())
-		data, err := ioutil.ReadFile(destination)
+		data, err := os.ReadFile(destination)
 		Expect(err).ToNot(HaveOccurred())
 		extentData := createTestExtentData()
 		comparison := bytes.Compare(data, extentData)
@@ -879,7 +879,7 @@ func createErrMockOvirtClient(ep string, accessKey string, secKey string) (Conne
 func createCert() string {
 	var err error
 
-	tempDir, err := ioutil.TempDir("/tmp", "cert-test")
+	tempDir, err := os.MkdirTemp("/tmp", "cert-test")
 	Expect(err).ToNot(HaveOccurred())
 
 	keyPair, err := triple.NewCA("datastream.cdi.kubevirt.io")
@@ -888,7 +888,7 @@ func createCert() string {
 	certBytes := bytes.Buffer{}
 	pem.Encode(&certBytes, &pem.Block{Type: cert.CertificateBlockType, Bytes: keyPair.Cert.Raw})
 
-	err = ioutil.WriteFile(path.Join(tempDir, "tls.crt"), certBytes.Bytes(), 0644)
+	err = os.WriteFile(path.Join(tempDir, "tls.crt"), certBytes.Bytes(), 0644)
 	Expect(err).ToNot(HaveOccurred())
 
 	return tempDir

@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"os"
@@ -66,7 +65,7 @@ func GetNamespace() string {
 }
 
 func getNamespace(path string) string {
-	if data, err := ioutil.ReadFile(path); err == nil {
+	if data, err := os.ReadFile(path); err == nil {
 		if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
 			return ns
 		}
@@ -254,7 +253,7 @@ func WriteTerminationMessageToFile(file, message string) error {
 	// Only write the first line of the message.
 	scanner := bufio.NewScanner(strings.NewReader(message))
 	if scanner.Scan() {
-		err := ioutil.WriteFile(file, []byte(scanner.Text()), os.ModeAppend)
+		err := os.WriteFile(file, []byte(scanner.Text()), os.ModeAppend)
 		if err != nil {
 			return errors.Wrap(err, "could not create termination message file")
 		}

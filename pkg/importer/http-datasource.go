@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -211,20 +210,20 @@ func createCertPool(certDir string) (*x509.CertPool, error) {
 	}
 
 	// append the user-provided trusted CA certificates bundle when making egress connections using proxy
-	if files, err := ioutil.ReadDir(common.ImporterProxyCertDir); err == nil {
+	if files, err := os.ReadDir(common.ImporterProxyCertDir); err == nil {
 		for _, file := range files {
 			if file.IsDir() || file.Name()[0] == '.' {
 				continue
 			}
 			fp := path.Join(common.ImporterProxyCertDir, file.Name())
-			if certs, err := ioutil.ReadFile(fp); err == nil {
+			if certs, err := os.ReadFile(fp); err == nil {
 				certPool.AppendCertsFromPEM(certs)
 			}
 		}
 	}
 
 	// append server CA certificates
-	files, err := ioutil.ReadDir(certDir)
+	files, err := os.ReadDir(certDir)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Error listing files in %s", certDir)
 	}
@@ -238,7 +237,7 @@ func createCertPool(certDir string) (*x509.CertPool, error) {
 
 		klog.Infof("Attempting to get certs from %s", fp)
 
-		certs, err := ioutil.ReadFile(fp)
+		certs, err := os.ReadFile(fp)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error reading file %s", fp)
 		}
@@ -470,7 +469,7 @@ func getExtraHeadersFromSecrets() ([]string, error) {
 			return nil
 		}
 
-		header, err := ioutil.ReadFile(filePath)
+		header, err := os.ReadFile(filePath)
 		if err != nil {
 			return errors.Wrapf(err, "Error reading headers from %s", filePath)
 		}

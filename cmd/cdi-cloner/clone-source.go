@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"flag"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -38,7 +37,7 @@ func (er *execReader) Read(p []byte) (n int, err error) {
 	n, err = er.stdout.Read(p)
 	if err == io.EOF {
 		if err2 := er.cmd.Wait(); err2 != nil {
-			errBytes, _ := ioutil.ReadAll(er.stderr)
+			errBytes, _ := io.ReadAll(er.stderr)
 			klog.Fatalf("Subprocess did not execute successfully, result is: %q\n%s", er.cmd.ProcessState.ExitCode(), string(errBytes))
 		}
 	}
@@ -86,7 +85,7 @@ func createHTTPClient(clientKey, clientCert, serverCert []byte) *http.Client {
 }
 
 func startPrometheus() {
-	certsDirectory, err := ioutil.TempDir("", "certsdir")
+	certsDirectory, err := os.MkdirTemp("", "certsdir")
 	if err != nil {
 		klog.Fatalf("Error %s creating temp dir", err)
 	}
@@ -192,7 +191,7 @@ func newTarReader(preallocation bool) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	return &execReader{cmd: cmd, stdout: stdout, stderr: ioutil.NopCloser(&stderr)}, nil
+	return &execReader{cmd: cmd, stdout: stdout, stderr: io.NopCloser(&stderr)}, nil
 }
 
 func getInputStream(preallocation bool) (rc io.ReadCloser) {

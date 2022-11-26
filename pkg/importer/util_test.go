@@ -2,7 +2,6 @@ package importer
 
 import (
 	"io"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -58,7 +57,7 @@ var _ = Describe("Stream Data To File", func() {
 	)
 
 	BeforeEach(func() {
-		tmpDir, err = ioutil.TempDir("", "stream")
+		tmpDir, err = os.MkdirTemp("", "stream")
 		Expect(err).NotTo(HaveOccurred())
 		By("tmpDir: " + tmpDir)
 	})
@@ -91,7 +90,7 @@ var _ = Describe("Clean dir", func() {
 	)
 
 	BeforeEach(func() {
-		tmpDir, err = ioutil.TempDir("", "stream")
+		tmpDir, err = os.MkdirTemp("", "stream")
 		Expect(err).NotTo(HaveOccurred())
 		By("tmpDir: " + tmpDir)
 	})
@@ -110,12 +109,12 @@ var _ = Describe("Clean dir", func() {
 		Expect(err).NotTo(HaveOccurred())
 		_, err = os.Create(filepath.Join(tmpDir, "newfile2"))
 		Expect(err).NotTo(HaveOccurred())
-		dir, err := ioutil.ReadDir(tmpDir)
+		dir, err := os.ReadDir(tmpDir)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(2).To(Equal(len(dir)))
 		err = CleanDir(tmpDir)
 		Expect(err).NotTo(HaveOccurred())
-		dir, err = ioutil.ReadDir(tmpDir)
+		dir, err = os.ReadDir(tmpDir)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(0).To(Equal(len(dir)))
 	})

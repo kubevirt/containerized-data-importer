@@ -3,7 +3,6 @@ package prometheus
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"strings"
 
 	. "github.com/onsi/ginkgo"
@@ -35,10 +34,10 @@ func init() {
 var _ = Describe("Timed update", func() {
 
 	It("Should start and stop when finished", func() {
-		r := ioutil.NopCloser(bytes.NewReader([]byte("hello world")))
+		r := io.NopCloser(bytes.NewReader([]byte("hello world")))
 		progressReader := NewProgressReader(r, uint64(11), progress, ownerUID)
 		progressReader.StartTimedUpdate()
-		_, err := ioutil.ReadAll(r)
+		_, err := io.ReadAll(r)
 		Expect(err).ToNot(HaveOccurred())
 	})
 })

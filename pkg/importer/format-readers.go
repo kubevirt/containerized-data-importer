@@ -21,7 +21,6 @@ import (
 	"compress/gzip"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
 	"strconv"
 
 	"github.com/pkg/errors"
@@ -145,7 +144,7 @@ func (fr *FormatReaders) appendReader(rType int, x interface{}) {
 		r = io.MultiReader(r, fr.TopReader())
 	}
 	if _, ok := r.(io.Closer); !ok {
-		r = ioutil.NopCloser(r)
+		r = io.NopCloser(r)
 	}
 	fr.readers = append(fr.readers, reader{rdrType: rType, rdr: r.(io.ReadCloser)})
 }
