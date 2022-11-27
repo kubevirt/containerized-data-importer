@@ -30,7 +30,12 @@ import (
 func IsPopulated(pvc *corev1.PersistentVolumeClaim, getDvFunc func(name, namespace string) (*cdiv1.DataVolume, error)) (bool, error) {
 	pvcOwner := metav1.GetControllerOf(pvc)
 	if pvcOwner != nil && pvcOwner.Kind == "DataVolume" {
-		// Find the data volume:
+		populated, ok := pvc.Annotations["cdi.kubevirt.io/storage.populationDone"]
+		if ok {
+			// New CDI, we don't need to query the DV to tell if done
+			return populated == "true", nil
+		}
+		// Find the data volume, for older CDI that didn't always populate populationDone:
 		dv, err := getDvFunc(pvcOwner.Name, pvc.Namespace)
 		if err != nil {
 			return false, err
