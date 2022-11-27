@@ -573,6 +573,9 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 			return reconcile.Result{}, err
 		}
 	} else {
+		if err := r.annotateForCompletion(datavolume, pvc); err != nil {
+			return reconcile.Result{}, err
+		}
 		res, err := r.garbageCollect(datavolume, pvc, log)
 		if err != nil {
 			return reconcile.Result{}, err
@@ -2785,6 +2788,25 @@ func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
 
 func newLongTermCloneTokenGenerator(key *rsa.PrivateKey) token.Generator {
 	return token.NewGenerator(common.ExtendedCloneTokenIssuer, key, 10*365*24*time.Hour)
+}
+
+func (r *DatavolumeReconciler) annotateForCompletion(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+	if dataVolume.Status.Phase != cdiv1.Succeeded {
+		return nil
+	}
+	if pvc.ObjectMeta.Annotations[AnnPopulatedFor] == "" {
+		pvc.Annotations[AnnPopulatedFor] = dataVolume.Name
+		if err := r.updatePVC(pvc); err != nil {
+			return err
+		}
+	}
+	if dataVolume.Annotations[AnnPrePopulated] == "" {
+		dataVolume.Annotations[AnnPrePopulated] = pvc.Name
+		if err := r.updateDataVolume(dataVolume); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *DatavolumeReconciler) garbageCollect(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*reconcile.Result, error) {
