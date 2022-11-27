@@ -66,7 +66,7 @@ const (
 	AnnPodRestarts = AnnAPIGroup + "/storage.pod.restarts"
 	// AnnPopulatedFor is a PVC annotation telling the datavolume controller that the PVC is already populated
 	AnnPopulatedFor = AnnAPIGroup + "/storage.populatedFor"
-	// AnnPrePopulated is a PVC annotation telling the datavolume controller that the PVC is already populated
+	// AnnPrePopulated is a DV annotation telling the datavolume controller that the PVC is already populated
 	AnnPrePopulated = AnnAPIGroup + "/storage.prePopulated"
 	// AnnPopulationDone is a PVC annotation for communicating that the PVC is done populating.
 	// It differs from AnnPopulatedFor, AnnPrePopulated by being initialized to false when the PVC is created
