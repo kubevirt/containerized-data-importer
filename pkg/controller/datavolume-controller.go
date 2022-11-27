@@ -2594,6 +2594,7 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 
 	annotations[AnnPodRestarts] = "0"
 	annotations[AnnContentType] = string(getContentType(dataVolume))
+	annotations[AnnPopulationDone] = "false"
 
 	if dataVolume.Spec.Source.HTTP != nil {
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.HTTP.URL
@@ -2794,14 +2795,17 @@ func (r *DatavolumeReconciler) annotateForCompletion(dataVolume *cdiv1.DataVolum
 	if dataVolume.Status.Phase != cdiv1.Succeeded {
 		return nil
 	}
-	if pvc.ObjectMeta.Annotations[AnnPopulatedFor] == "" {
-		pvc.Annotations[AnnPopulatedFor] = dataVolume.Name
+	pvcCopy := pvc.DeepCopy()
+	pvc.ObjectMeta.Annotations[AnnPopulatedFor] = dataVolume.Name
+	pvc.ObjectMeta.Annotations[AnnPopulationDone] = "true"
+	if !reflect.DeepEqual(pvc, pvcCopy) {
 		if err := r.updatePVC(pvc); err != nil {
 			return err
 		}
 	}
-	if dataVolume.Annotations[AnnPrePopulated] == "" {
-		dataVolume.Annotations[AnnPrePopulated] = pvc.Name
+	dataVolumeCopy := dataVolume.DeepCopy()
+	dataVolume.Annotations[AnnPrePopulated] = pvc.Name
+	if !reflect.DeepEqual(dataVolume, dataVolumeCopy) {
 		if err := r.updateDataVolume(dataVolume); err != nil {
 			return err
 		}
