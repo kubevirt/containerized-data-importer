@@ -77,7 +77,7 @@ const (
 	// ImportProxyConfigMapName provides the key for getting the name of the ConfigMap in the cdi namespace containing a CA certificate bundle
 	ImportProxyConfigMapName = "trusted-ca-proxy-bundle-cm"
 	// ImportProxyConfigMapKey provides the key name of the ConfigMap in the cdi namespace containing a CA certificate bundle
-	ImportProxyConfigMapKey = "ca.pem"
+	ImportProxyConfigMapKey = "ca.crt"
 	// ImporterProxyCertDir is where the configmap containing proxy certs will be mounted
 	ImporterProxyCertDir = "/proxycerts/"
 

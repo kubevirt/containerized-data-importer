@@ -146,7 +146,7 @@ var _ = Describe("Import Proxy tests", func() {
 			imgURL := createImgURL(args.isHTTPS, args.withBasicAuth, args.imgName, f.CdiInstallNs)
 			dvName = args.name
 
-			updateProxy(f, f.Namespace.Name, proxyHTTPURL, proxyHTTPSURL, noProxy, ocpClient)
+			updateProxy(f, proxyHTTPURL, proxyHTTPSURL, noProxy, ocpClient)
 
 			By(fmt.Sprintf("Creating new datavolume %s", dvName))
 			dv := createHTTPDataVolume(f, dvName, args.size, imgURL, args.isHTTPS, args.withBasicAuth)
@@ -294,7 +294,7 @@ var _ = Describe("Import Proxy tests", func() {
 
 		DescribeTable("should proxy registry imports", func(isHTTPS, hasAuth bool) {
 			now := time.Now()
-			updateProxy(f, f.Namespace.Name, "", createProxyURL(isHTTPS, hasAuth, f.CdiInstallNs), "", ocpClient)
+			updateProxy(f, "", createProxyURL(isHTTPS, hasAuth, f.CdiInstallNs), "", ocpClient)
 
 			By("Creating new datavolume")
 			dv := utils.NewDataVolumeWithRegistryImport("import-dv", "1Gi", fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs))
@@ -331,11 +331,13 @@ var _ = Describe("Import Proxy tests", func() {
 
 			now := time.Now()
 			ns := f.Namespace.Name
-			updateProxy(f, ns, "", createProxyURL(isHTTPS, hasAuth, f.CdiInstallNs), "", ocpClient)
+			updateProxy(f, "", createProxyURL(isHTTPS, hasAuth, f.CdiInstallNs), "", ocpClient)
 
-			// Clone ConfigMap to the common name for the cronjobs
-			_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, f.CdiInstallNs, proxyTestCaConfigMapName, "")
-			Expect(err).ToNot(HaveOccurred())
+			// Clone ConfigMap to the common name for the cronjobs. This is already done by the config controllor for OpenShift cluster-wide proxy.
+			if !utils.IsOpenshift(f.K8sClient) {
+				_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, f.CdiInstallNs, proxyTestCaConfigMapName, "")
+				Expect(err).ToNot(HaveOccurred())
+			}
 
 			cm, err := utils.CopyRegistryCertConfigMapDestName(f.K8sClient, ns, f.CdiInstallNs, utils.RegistryCertConfigMap)
 			Expect(err).To(BeNil())
@@ -413,10 +415,10 @@ var _ = Describe("Import Proxy tests", func() {
 	})
 })
 
-func updateProxy(f *framework.Framework, destNamespace, proxyHTTPURL, proxyHTTPSURL, noProxy string, ocpClient *configclient.Clientset) {
+func updateProxy(f *framework.Framework, proxyHTTPURL, proxyHTTPSURL, noProxy string, ocpClient *configclient.Clientset) {
 	By("Updating CDIConfig with ImportProxy configuration")
 	if !utils.IsOpenshift(f.K8sClient) {
-		proxyCAConfigMapName, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, destNamespace, proxyTestCaConfigMapName, "")
+		proxyCAConfigMapName, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, cdiProxyCaConfigMapName, f.Namespace.Name, proxyTestCaConfigMapName, "")
 		Expect(err).ToNot(HaveOccurred())
 		updateCDIConfigProxy(f, proxyHTTPURL, proxyHTTPSURL, noProxy, proxyCAConfigMapName)
 	} else {
