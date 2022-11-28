@@ -203,11 +203,12 @@ func StreamDataToFile(r io.Reader, fileName string) error {
 // using the specified io.Reader to the specified destination.
 func UnArchiveTar(reader io.Reader, destDir string) error {
 	klog.V(1).Infof("begin untar to %s...\n", destDir)
-	untar := exec.Command("/usr/bin/tar", "--no-same-owner", "-xvC", destDir)
+	untar := exec.Command("/usr/bin/tar", "--preserve-permissions", "--no-same-owner", "-xvC", destDir)
 	untar.Stdin = reader
 	var outBuf, errBuf bytes.Buffer
 	untar.Stdout = &outBuf
 	untar.Stderr = &errBuf
+	klog.V(1).Infof("running untar cmd: %v\n", untar.Args)
 	err := untar.Start()
 	if err != nil {
 		return err
