@@ -18,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -48,6 +49,7 @@ type CDIConfigReconciler struct {
 	client client.Client
 	// use this for getting any resources not in the install namespace or cluster scope
 	uncachedClient         client.Client
+	recorder               record.EventRecorder
 	scheme                 *runtime.Scheme
 	log                    logr.Logger
 	uploadProxyServiceName string
@@ -376,27 +378,42 @@ func (r *CDIConfigReconciler) reconcileImportProxy(config *cdiv1.CDIConfig) erro
 		config.Status.ImportProxy.HTTPProxy = &clusterWideProxy.Status.HTTPProxy
 		config.Status.ImportProxy.HTTPSProxy = &clusterWideProxy.Status.HTTPSProxy
 		config.Status.ImportProxy.NoProxy = &clusterWideProxy.Status.NoProxy
-		if cmName := clusterWideProxy.Spec.TrustedCA.Name; cmName != "" {
-			if err := r.reconcileImportProxyCAConfigMap(cmName); err != nil {
-				return err
-			}
-			config.Status.ImportProxy.TrustedCAProxy = &cmName
+		if err := r.reconcileImportProxyCAConfigMap(config, clusterWideProxy); err != nil {
+			return err
 		}
+		config.Status.ImportProxy.TrustedCAProxy = &clusterWideProxy.Spec.TrustedCA.Name
 	}
 	return nil
 }
 
 // Create/Update a configmap with the CA certificates in the controllor context with the cluster-wide proxy CA certificates to be used by the importer pod
-func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(cmName string) error {
+func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(config *cdiv1.CDIConfig, clusterWideProxy *ocpconfigv1.Proxy) error {
+	cmOldName := config.Status.ImportProxy.TrustedCAProxy
+	cmName := clusterWideProxy.Spec.TrustedCA.Name
 	client := r.uncachedClient
+
+	// Delete old ConfigMap if name changed
+	if cmOldName != nil && *cmOldName != "" && *cmOldName != cmName {
+		if err := client.Delete(context.TODO(), r.createProxyConfigMap(*cmOldName, "")); err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+	}
+	if cmName == "" {
+		return nil
+	}
+
 	clusterWideProxyConfigMap := &v1.ConfigMap{}
 	if err := client.Get(context.TODO(), types.NamespacedName{Name: cmName, Namespace: ClusterWideProxyConfigMapNameSpace}, clusterWideProxyConfigMap); err != nil {
+		if errors.IsNotFound(err) {
+			msg := fmt.Sprintf(MessageResourceDoesntExist, cmName)
+			r.recorder.Event(clusterWideProxy, v1.EventTypeWarning, ErrResourceDoesntExist, msg)
+		}
 		return err
 	}
 	// Copy the cluster-wide proxy CA certificates to the importer pod proxy CA certificates configMap
 	certBytes, ok := clusterWideProxyConfigMap.Data[ClusterWideProxyConfigMapKey]
 	if !ok {
-		return fmt.Errorf("No cluster-wide proxy CA certifiacte")
+		return fmt.Errorf("no cluster-wide proxy CA certificate")
 	}
 	configMap := &v1.ConfigMap{}
 	if err := client.Get(context.TODO(), types.NamespacedName{Name: cmName, Namespace: r.cdiNamespace}, configMap); err != nil {
@@ -445,6 +462,7 @@ func NewConfigController(mgr manager.Manager, log logr.Logger, uploadProxyServic
 	reconciler := &CDIConfigReconciler{
 		client:                 mgr.GetClient(),
 		uncachedClient:         uncachedClient,
+		recorder:               mgr.GetEventRecorderFor("config-controller"),
 		scheme:                 mgr.GetScheme(),
 		log:                    log.WithName("config-controller"),
 		uploadProxyServiceName: uploadProxyServiceName,
