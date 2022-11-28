@@ -616,6 +616,48 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Entry("has tag", imageStreamName+":"+imageStreamTag, 0),
 			Entry("has no tag", imageStreamName, 1),
 		)
+
+		It("should pass through defaultInstancetype and defaultPreference annotations to DataVolume and DataSource", func() {
+			cron = newDataImportCron(cronName)
+			cron.Annotations[AnnSourceDesiredDigest] = testDigest
+			cron.Annotations[AnnDefaultInstancetype] = AnnDefaultInstancetype
+			cron.Annotations[AnnDefaultInstancetypeKind] = AnnDefaultInstancetypeKind
+			cron.Annotations[AnnDefaultPreference] = AnnDefaultPreference
+			cron.Annotations[AnnDefaultPreferenceKind] = AnnDefaultPreferenceKind
+
+			reconciler = createDataImportCronReconciler(cron)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(reconciler.client.Get(context.TODO(), cronKey, cron)).ToNot(HaveOccurred())
+
+			imports := cron.Status.CurrentImports
+			Expect(imports).ToNot(BeNil())
+			Expect(len(imports)).ToNot(BeZero())
+
+			dvName := imports[0].DataVolumeName
+			Expect(dvName).ToNot(BeEmpty())
+
+			ExpectInstancetypeAnnotations := func(annotations map[string]string) {
+				Expect(annotations).ToNot(BeEmpty())
+				Expect(annotations).Should(ContainElement(AnnDefaultInstancetype))
+				Expect(annotations[AnnDefaultInstancetype]).Should(Equal(AnnDefaultInstancetype))
+				Expect(annotations).Should(ContainElement(AnnDefaultInstancetypeKind))
+				Expect(annotations[AnnDefaultInstancetypeKind]).Should(Equal(AnnDefaultInstancetypeKind))
+				Expect(annotations).Should(ContainElement(AnnDefaultPreference))
+				Expect(annotations[AnnDefaultPreference]).Should(Equal(AnnDefaultPreference))
+				Expect(annotations).Should(ContainElement(AnnDefaultPreferenceKind))
+				Expect(annotations[AnnDefaultPreferenceKind]).Should(Equal(AnnDefaultPreferenceKind))
+			}
+
+			dv := &cdiv1.DataVolume{}
+			Expect(reconciler.client.Get(context.TODO(), dvKey(dvName), dv)).To(Succeed())
+			ExpectInstancetypeAnnotations(dv.Annotations)
+
+			dataSource = &cdiv1.DataSource{}
+			Expect(reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)).To(Succeed())
+			ExpectInstancetypeAnnotations(dataSource.Annotations)
+		})
 	})
 })
 
