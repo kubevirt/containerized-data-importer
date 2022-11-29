@@ -5335,6 +5335,9 @@
     "properties": {
      "pvc": {
       "$ref": "#/definitions/v1beta1.DataVolumeSourcePVC"
+     },
+     "snapshot": {
+      "$ref": "#/definitions/v1beta1.DataVolumeSourceSnapshot"
      }
     }
    },
@@ -5507,6 +5510,9 @@
      "s3": {
       "$ref": "#/definitions/v1beta1.DataVolumeSourceS3"
      },
+     "snapshot": {
+      "$ref": "#/definitions/v1beta1.DataVolumeSourceSnapshot"
+     },
      "upload": {
       "$ref": "#/definitions/v1beta1.DataVolumeSourceUpload"
      },
@@ -5668,6 +5674,26 @@
      },
      "url": {
       "description": "URL is the url of the S3 source",
+      "type": "string",
+      "default": ""
+     }
+    }
+   },
+   "v1beta1.DataVolumeSourceSnapshot": {
+    "description": "DataVolumeSourceSnapshot provides the parameters to create a Data Volume from an existing VolumeSnapshot",
+    "type": "object",
+    "required": [
+     "namespace",
+     "name"
+    ],
+    "properties": {
+     "name": {
+      "description": "The name of the source VolumeSnapshot",
+      "type": "string",
+      "default": ""
+     },
+     "namespace": {
+      "description": "The namespace of the source VolumeSnapshot",
       "type": "string",
       "default": ""
      }
