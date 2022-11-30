@@ -4,6 +4,9 @@ set -e
 
 KUBEVIRT_WITH_ETC_IN_MEMORY=${KUBEVIRT_WITH_ETC_IN_MEMORY:-false}
 KUBEVIRT_WITH_ETC_CAPACITY=${KUBEVIRT_WITH_ETC_CAPACITY:-none}
+KUBEVIRT_DNS_HOST_PORT=${KUBEVIRT_DNS_HOST_PORT:-31111}
+
+export KUBEVIRTCI_PODMAN_SOCKET=${KUBEVIRTCI_PODMAN_SOCKET:-"/run/podman/podman.sock"}
 
 if [ -z "${KUBEVIRTCI_TAG}" ] && [ -z "${KUBEVIRTCI_GOCLI_CONTAINER}" ]; then
     >&2 echo "FATAL: either KUBEVIRTCI_TAG or KUBEVIRTCI_GOCLI_CONTAINER must be set"
@@ -14,20 +17,26 @@ if [ -n "${KUBEVIRTCI_TAG}" ] && [ -n "${KUBEVIRTCI_GOCLI_CONTAINER}" ]; then
     >&2 echo "WARNING: KUBEVIRTCI_GOCLI_CONTAINER is set and will take precedence over the also set KUBEVIRTCI_TAG"
 fi
 
+detect_podman_socket() {
+    if curl --unix-socket "${KUBEVIRTCI_PODMAN_SOCKET}" http://d/v3.0.0/libpod/info >/dev/null 2>&1; then
+        echo "${KUBEVIRTCI_PODMAN_SOCKET}"
+    fi
+}
+
 if [ "${KUBEVIRTCI_RUNTIME}" = "podman" ]; then
-    _cri_bin="podman --remote --url=unix://${XDG_RUNTIME_DIR}/podman/podman.sock"
-    _docker_socket="${XDG_RUNTIME_DIR}/podman/podman.sock"
+    _cri_socket=$(detect_podman_socket)
+    _cri_bin="podman --remote --url=unix://$_cri_socket"
 elif [ "${KUBEVIRTCI_RUNTIME}" = "docker" ]; then
     _cri_bin=docker
-    _docker_socket="/var/run/docker.sock"
+    _cri_socket="/var/run/docker.sock"
 else
-    if curl --unix-socket "${XDG_RUNTIME_DIR}/podman/podman.sock" http://d/v3.0.0/libpod/info >/dev/null 2>&1; then
-        _cri_bin="podman --remote --url=unix://${XDG_RUNTIME_DIR}/podman/podman.sock"
-        _docker_socket="${XDG_RUNTIME_DIR}/podman/podman.sock"
+    _cri_socket=$(detect_podman_socket)
+    if [ -n "$_cri_socket" ]; then
+        _cri_bin="podman --remote --url=unix://$_cri_socket"
         >&2 echo "selecting podman as container runtime"
     elif docker ps >/dev/null 2>&1; then
         _cri_bin=docker
-        _docker_socket="/var/run/docker.sock"
+        _cri_socket="/var/run/docker.sock"
         >&2 echo "selecting docker as container runtime"
     else
         >&2 echo "no working container runtime found. Neither docker nor podman seems to work."
@@ -36,7 +45,7 @@ else
 fi
 
 _cli_container="${KUBEVIRTCI_GOCLI_CONTAINER:-quay.io/kubevirtci/gocli:${KUBEVIRTCI_TAG}}"
-_cli="${_cri_bin} run --privileged --net=host --rm ${USE_TTY} -v ${_docker_socket}:/var/run/docker.sock"
+_cli="${_cri_bin} run --privileged --net=host --rm ${USE_TTY} -v ${_cri_socket}:/var/run/docker.sock"
 # gocli will try to mount /lib/modules to make it accessible to dnsmasq in
 # in case it exists
 if [ -d /lib/modules ]; then
@@ -79,6 +88,9 @@ function _registry_volume() {
 function _add_common_params() {
     # shellcheck disable=SC2155
     local params="--nodes ${KUBEVIRT_NUM_NODES} --memory ${KUBEVIRT_MEMORY_SIZE} --cpu 6 --secondary-nics ${KUBEVIRT_NUM_SECONDARY_NICS} --random-ports --background --prefix $provider_prefix ${KUBEVIRT_PROVIDER} ${KUBEVIRT_PROVIDER_EXTRA_ARGS}"
+
+    params=" --dns-port $KUBEVIRT_DNS_HOST_PORT $params"
+
     if [[ $TARGET =~ windows_sysprep.* ]] && [ -n "$WINDOWS_SYSPREP_NFS_DIR" ]; then
         params=" --nfs-data $WINDOWS_SYSPREP_NFS_DIR $params"
     elif [[ $TARGET =~ windows.* ]] && [ -n "$WINDOWS_NFS_DIR" ]; then
@@ -89,6 +101,8 @@ function _add_common_params() {
 
     if [ -n "${KUBEVIRTCI_PROVISION_CHECK}" ]; then
         params=" --container-registry=quay.io --container-suffix=:latest $params"
+    elif [[ ${KUBEVIRT_SLIM} == "true" ]]; then
+        params=" --slim $params"
     fi
 
     if [ $KUBEVIRT_WITH_ETC_IN_MEMORY == "true" ]; then
@@ -113,14 +127,6 @@ function _add_common_params() {
 
     if [[ $KUBEVIRT_DEPLOY_PROMETHEUS == "true" ]] &&
         [[ $KUBEVIRT_PROVIDER_EXTRA_ARGS != *"--enable-prometheus"* ]]; then
-
-        if [[ ($KUBEVIRT_PROVIDER =~ k8s-1\.1.*) || ($KUBEVIRT_PROVIDER =~ k8s-1.20) ]]; then
-            echo "ERROR: cluster up failed because prometheus is only supported for providers >= k8s-1.21\n"
-            echo "the current provider is $KUBEVIRT_PROVIDER, consider updating to a newer version, or\n"
-            echo "disabling Prometheus using export KUBEVIRT_DEPLOY_PROMETHEUS=false"
-            exit 1
-        fi
-
         params=" --enable-prometheus $params"
 
         if [[ $KUBEVIRT_DEPLOY_PROMETHEUS_ALERTMANAGER == "true" ]] &&
@@ -140,6 +146,11 @@ function _add_common_params() {
     if [ -n "$KUBEVIRT_REALTIME_SCHEDULER" ]; then
         params=" --enable-realtime-scheduler $params"
     fi
+
+    if [ -n "$KUBEVIRTCI_PROXY" ]; then
+        params=" --docker-proxy=$KUBEVIRTCI_PROXY $params"
+    fi
+
     echo $params
 }
 
