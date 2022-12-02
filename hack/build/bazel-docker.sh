@@ -109,7 +109,7 @@ else
     volumes="-v ${BUILDER_VOLUME}:/root:rw,z,exec"
 fi
 
-if [ ${CI} == "true" ]; then
+if [ "${CI}" = "true" ]; then
     mkdir -p "$HOME/containers"
     volumes="$volumes -v ${HOME}/containers:/root/containers:ro,z"
 fi
