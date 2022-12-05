@@ -5,7 +5,6 @@ import (
 	"crypto/rsa"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 
@@ -303,7 +302,7 @@ func deleteReadyFile() {
 }
 
 func getTokenPublicKey() *rsa.PublicKey {
-	keyBytes, err := ioutil.ReadFile(controller.TokenPublicKeyPath)
+	keyBytes, err := os.ReadFile(controller.TokenPublicKeyPath)
 	if err != nil {
 		klog.Fatalf("Error reading apiserver public key")
 	}
@@ -317,7 +316,7 @@ func getTokenPublicKey() *rsa.PublicKey {
 }
 
 func getTokenPrivateKey() *rsa.PrivateKey {
-	bytes, err := ioutil.ReadFile(controller.TokenPrivateKeyPath)
+	bytes, err := os.ReadFile(controller.TokenPrivateKeyPath)
 	if err != nil {
 		klog.Fatalf("Error reading private key")
 	}

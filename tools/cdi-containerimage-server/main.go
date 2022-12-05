@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -23,7 +22,7 @@ func printFiles(dir string) error {
 }
 
 func getImageFilename(dir string) (string, error) {
-	entries, err := ioutil.ReadDir(dir)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", err
 	}
@@ -56,7 +55,7 @@ func main() {
 		log.Fatalf("Failed listening on %s err: %v", addr, err)
 	}
 
-	if err := ioutil.WriteFile(*readyFile, []byte(imageFilename), 0666); err != nil {
+	if err := os.WriteFile(*readyFile, []byte(imageFilename), 0666); err != nil {
 		log.Fatalf("Failed creating \"ready\" file: %v", err)
 	}
 	defer os.Remove(*readyFile)

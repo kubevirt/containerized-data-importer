@@ -3,7 +3,6 @@ package util
 import (
 	"bytes"
 	"encoding/base64"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -121,7 +120,7 @@ var _ = Describe("Copy files", func() {
 	var err error
 
 	BeforeEach(func() {
-		destTmp, err = ioutil.TempDir("", "dest")
+		destTmp, err = os.MkdirTemp("", "dest")
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -162,7 +161,7 @@ var _ = Describe("Zero out ranges in files", func() {
 	BeforeEach(func() {
 		var err error
 
-		testFile, err = ioutil.TempFile("", "test")
+		testFile, err = os.CreateTemp("", "test")
 		Expect(err).ToNot(HaveOccurred())
 		written, err := testFile.Write(testData)
 		Expect(err).ToNot(HaveOccurred())
@@ -184,7 +183,7 @@ var _ = Describe("Zero out ranges in files", func() {
 		Expect(err).ToNot(HaveOccurred())
 		err = testFile.Close()
 		Expect(err).ToNot(HaveOccurred())
-		data, err := ioutil.ReadFile(testFile.Name())
+		data, err := os.ReadFile(testFile.Name())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(data)).To(Equal(len(testData)))
 		comparison := bytes.Compare(data[start:end], bytes.Repeat([]byte{0}, length))
@@ -203,7 +202,7 @@ var _ = Describe("Zero out ranges in files", func() {
 		Expect(err).ToNot(HaveOccurred())
 		err = testFile.Close()
 		Expect(err).ToNot(HaveOccurred())
-		data, err := ioutil.ReadFile(testFile.Name())
+		data, err := os.ReadFile(testFile.Name())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(data)).To(Equal(len(testData) + length))
 		comparison := bytes.Compare(data[:len(testData)], testData)

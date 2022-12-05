@@ -17,7 +17,6 @@ limitations under the License.
 package importer
 
 import (
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -129,7 +128,7 @@ func getImageFileName(dir string) (string, error) {
 		return "", errors.Errorf("image directory does not exist")
 	}
 
-	entries, err := ioutil.ReadDir(dir)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		klog.Errorf("Error reading directory")
 		return "", errors.Wrapf(err, "image file does not exist in image directory")

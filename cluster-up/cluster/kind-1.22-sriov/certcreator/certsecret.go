@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -65,7 +64,7 @@ func generate(hookName, namespace string) ([]byte, []byte, error) {
 func exportCertificateFile(data []byte, filePath string) error {
 	certificateFileName := fmt.Sprintf("%s.cert", filePath)
 	encodedData := []byte(base64.StdEncoding.EncodeToString(data))
-	if err := ioutil.WriteFile(certificateFileName, encodedData, 0644); err != nil {
+	if err := os.WriteFile(certificateFileName, encodedData, 0644); err != nil {
 		return fmt.Errorf("failed to write content to file %s: %v", filePath, err)
 	}
 	log.Printf("certificate exported successfully to: %s", filePath)

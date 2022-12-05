@@ -15,7 +15,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -69,7 +68,7 @@ func getHTTPEp(ep string) string {
 	if len(readyFile) == 0 {
 		return ep
 	}
-	imageName, err := ioutil.ReadFile(readyFile)
+	imageName, err := os.ReadFile(readyFile)
 	if err != nil {
 		klog.Errorf("Failed reading file %s: %+v", readyFile, err)
 		os.Exit(1)
@@ -95,7 +94,7 @@ func touchDoneFile() {
 func main() {
 	defer klog.Flush()
 
-	certsDirectory, err := ioutil.TempDir("", "certsdir")
+	certsDirectory, err := os.MkdirTemp("", "certsdir")
 	if err != nil {
 		panic(err)
 	}

@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -190,7 +189,7 @@ func newResponse(r *http.Request, contentType string, status int, body string) *
 	resp.Status = http.StatusText(status)
 	buf := bytes.NewBufferString(body)
 	resp.ContentLength = int64(buf.Len())
-	resp.Body = ioutil.NopCloser(buf)
+	resp.Body = io.NopCloser(buf)
 	return resp
 }
 

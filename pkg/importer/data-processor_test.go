@@ -2,7 +2,6 @@ package importer
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 
@@ -244,7 +243,7 @@ var _ = Describe("Data Processor", func() {
 	})
 
 	It("should call Convert after Process phase", func() {
-		tmpDir, err := ioutil.TempDir("", "scratch")
+		tmpDir, err := os.MkdirTemp("", "scratch")
 		Expect(err).ToNot(HaveOccurred())
 		defer os.RemoveAll(tmpDir)
 
@@ -318,7 +317,7 @@ var _ = Describe("Data Processor", func() {
 	})
 
 	table.DescribeTable("should avoid cleanup before delta copies", func(dataSource DataSourceInterface, expectedCleanup bool) {
-		tmpDir, err := ioutil.TempDir("", "scratch")
+		tmpDir, err := os.MkdirTemp("", "scratch")
 		Expect(err).ToNot(HaveOccurred())
 		defer os.RemoveAll(tmpDir)
 
@@ -381,7 +380,7 @@ var _ = Describe("Convert", func() {
 
 var _ = Describe("Resize", func() {
 	It("Should not resize and return complete, when requestedSize is blank", func() {
-		tempDir, err := ioutil.TempDir(os.TempDir(), "dest")
+		tempDir, err := os.MkdirTemp(os.TempDir(), "dest")
 		Expect(err).ToNot(HaveOccurred())
 		url, err := url.Parse("http://fakeurl-notreal.fake")
 		Expect(err).ToNot(HaveOccurred())
@@ -398,7 +397,7 @@ var _ = Describe("Resize", func() {
 	})
 
 	It("Should not resize and return complete, when requestedSize is valid, but datadir doesn't exist (block device)", func() {
-		tempDir, err := ioutil.TempDir(os.TempDir(), "dest")
+		tempDir, err := os.MkdirTemp(os.TempDir(), "dest")
 		Expect(err).ToNot(HaveOccurred())
 
 		replaceAvailableSpaceBlockFunc(func(dataDir string) (int64, error) {
@@ -421,7 +420,7 @@ var _ = Describe("Resize", func() {
 	})
 
 	It("Should resize and return complete, when requestedSize is valid, and datadir exists", func() {
-		tmpDir, err := ioutil.TempDir(os.TempDir(), "data")
+		tmpDir, err := os.MkdirTemp(os.TempDir(), "data")
 		Expect(err).ToNot(HaveOccurred())
 		url, err := url.Parse("http://fakeurl-notreal.fake")
 		Expect(err).ToNot(HaveOccurred())
@@ -438,7 +437,7 @@ var _ = Describe("Resize", func() {
 	})
 
 	It("Should not resize and return error, when ResizeImage fails", func() {
-		tmpDir, err := ioutil.TempDir(os.TempDir(), "data")
+		tmpDir, err := os.MkdirTemp(os.TempDir(), "data")
 		Expect(err).ToNot(HaveOccurred())
 		url, err := url.Parse("http://fakeurl-notreal.fake")
 		Expect(err).ToNot(HaveOccurred())

@@ -1,7 +1,7 @@
 package importer
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -24,7 +24,7 @@ var _ = Describe("S3 data source", func() {
 
 	BeforeEach(func() {
 		newClientFunc = createMockS3Client
-		tmpDir, err = ioutil.TempDir("", "scratch")
+		tmpDir, err = os.MkdirTemp("", "scratch")
 		Expect(err).NotTo(HaveOccurred())
 		By("tmpDir: " + tmpDir)
 	})
@@ -122,7 +122,7 @@ var _ = Describe("S3 data source", func() {
 			fileStat, err := file.Stat()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(int64(len(want))).To(Equal(fileStat.Size()))
-			resultBuffer, err := ioutil.ReadAll(file)
+			resultBuffer, err := io.ReadAll(file)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(reflect.DeepEqual(resultBuffer, want)).To(BeTrue())
 			Expect(file.Name()).To(Equal(sd.GetURL().String()))

@@ -26,7 +26,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -215,7 +214,7 @@ func (app *uploadServerApp) createUploadServer() (*http.Server, error) {
 	}
 
 	if app.tlsKey != "" && app.tlsCert != "" {
-		certDir, err := ioutil.TempDir("", "uploadserver-tls")
+		certDir, err := os.MkdirTemp("", "uploadserver-tls")
 		if err != nil {
 			return nil, errors.Wrap(err, "Error creating cert dir")
 		}
@@ -223,12 +222,12 @@ func (app *uploadServerApp) createUploadServer() (*http.Server, error) {
 		app.keyFile = filepath.Join(certDir, "tls.key")
 		app.certFile = filepath.Join(certDir, "tls.crt")
 
-		err = ioutil.WriteFile(app.keyFile, []byte(app.tlsKey), 0600)
+		err = os.WriteFile(app.keyFile, []byte(app.tlsKey), 0600)
 		if err != nil {
 			return nil, errors.Wrap(err, "Error creating key file")
 		}
 
-		err = ioutil.WriteFile(app.certFile, []byte(app.tlsCert), 0600)
+		err = os.WriteFile(app.certFile, []byte(app.tlsCert), 0600)
 		if err != nil {
 			return nil, errors.Wrap(err, "Error creating cert file")
 		}
@@ -504,5 +503,5 @@ func newContentReader(stream io.ReadCloser, contentType string) io.ReadCloser {
 }
 
 func newSnappyReadCloser(stream io.ReadCloser) io.ReadCloser {
-	return ioutil.NopCloser(snappy.NewReader(stream))
+	return io.NopCloser(snappy.NewReader(stream))
 }

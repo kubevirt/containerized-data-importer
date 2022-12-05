@@ -2,7 +2,6 @@ package main
 
 import (
 	"io"
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -15,7 +14,7 @@ import (
 var _ = Describe("Prometheus Endpoint", func() {
 	It("Should start prometheus endpoint", func() {
 		By("Creating cert directory, we can store self signed CAs")
-		certsDirectory, err := ioutil.TempDir("", "certsdir")
+		certsDirectory, err := os.MkdirTemp("", "certsdir")
 		Expect(err).NotTo(HaveOccurred())
 		empty, err := isDirEmpty(certsDirectory)
 		Expect(err).NotTo(HaveOccurred())

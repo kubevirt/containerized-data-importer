@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/x509"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -51,7 +50,7 @@ var _ = Describe("Http data source", func() {
 		By("[BeforeEach] Creating test server")
 		ts = createTestServer(imageDir)
 		dp = nil
-		tmpDir, err = ioutil.TempDir("", "scratch")
+		tmpDir, err = os.MkdirTemp("", "scratch")
 		Expect(err).NotTo(HaveOccurred())
 		By("tmpDir: " + tmpDir)
 	})
@@ -140,7 +139,7 @@ var _ = Describe("Http data source", func() {
 				fileStat, err := file.Stat()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(int64(len(want))).To(Equal(fileStat.Size()))
-				resultBuffer, err := ioutil.ReadAll(file)
+				resultBuffer, err := io.ReadAll(file)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(reflect.DeepEqual(resultBuffer, want)).To(BeTrue())
 			}
@@ -181,7 +180,7 @@ var _ = Describe("Http data source", func() {
 			if firstExists && secondExists {
 				response, err := ts.Client().Get(ts.URL + "/" + r.RequestURI)
 				Expect(err).NotTo(HaveOccurred())
-				body, err := ioutil.ReadAll(response.Body)
+				body, err := io.ReadAll(response.Body)
 				Expect(err).NotTo(HaveOccurred())
 				w.Write(body)
 			} else {
@@ -201,7 +200,7 @@ var _ = Describe("Http client", func() {
 	BeforeEach(func() {
 		var err error
 
-		tempDir, err = ioutil.TempDir("/tmp", "cert-test")
+		tempDir, err = os.MkdirTemp("/tmp", "cert-test")
 		Expect(err).ToNot(HaveOccurred())
 
 		keyPair, err := triple.NewCA("datastream.cdi.kubevirt.io")
@@ -209,7 +208,7 @@ var _ = Describe("Http client", func() {
 
 		certBytes := cert.EncodeCertPEM(keyPair.Cert)
 
-		err = ioutil.WriteFile(path.Join(tempDir, "tls.crt"), certBytes, 0644)
+		err = os.WriteFile(path.Join(tempDir, "tls.crt"), certBytes, 0644)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -417,7 +416,7 @@ var _ = Describe("http pollprogress", func() {
 			cancel: cancel,
 		}
 		By("Creating string reader we can test just the poll progress part")
-		stringReader := ioutil.NopCloser(strings.NewReader("This is a test string"))
+		stringReader := io.NopCloser(strings.NewReader("This is a test string"))
 		endlessReader := EndlessReader{
 			Reader: stringReader,
 		}
@@ -448,7 +447,7 @@ func readFile(fileName string) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close()
-	result, err := ioutil.ReadAll(f)
+	result, err := io.ReadAll(f)
 	return result, err
 }
 

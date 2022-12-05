@@ -14,7 +14,6 @@ package main
 
 import (
 	"flag"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"text/template"
@@ -116,7 +115,7 @@ func generateFromFile(templFile string) {
 	// Read generated manifests and populate templated manifest
 	genDir := *genManifestsPath
 	data.GeneratedManifests = make(map[string]string)
-	manifests, err := ioutil.ReadDir(genDir)
+	manifests, err := os.ReadDir(genDir)
 	if err != nil {
 		klog.Fatalf("Failed to read directory %s: %v", genDir, err)
 	}
@@ -125,7 +124,7 @@ func generateFromFile(templFile string) {
 		if manifest.IsDir() {
 			continue
 		}
-		b, err := ioutil.ReadFile(filepath.Join(genDir, manifest.Name()))
+		b, err := os.ReadFile(filepath.Join(genDir, manifest.Name()))
 		if err != nil {
 			klog.Fatalf("Failed to read file %s: %v", templFile, err)
 		}

@@ -27,7 +27,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"regexp"
@@ -925,7 +924,7 @@ func (vs *VDDKDataSource) Info() (ProcessingPhase, error) {
 // Close closes any readers or other open resources.
 func (vs *VDDKDataSource) Close() error {
 	if vddkVersion != "" || vddkHost != "" {
-		existingbytes, _ := ioutil.ReadFile(common.PodTerminationMessageFile)
+		existingbytes, _ := os.ReadFile(common.PodTerminationMessageFile)
 		existing := string(existingbytes)
 		if existing != "" {
 			existing += "; "

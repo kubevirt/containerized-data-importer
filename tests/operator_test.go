@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -795,7 +795,7 @@ var _ = Describe("ALL Operator tests", func() {
 					var result map[string]interface{}
 					resp := f.MakePrometheusHTTPRequest("query?query=" + endpoint)
 					defer resp.Body.Close()
-					bodyBytes, err := ioutil.ReadAll(resp.Body)
+					bodyBytes, err := io.ReadAll(resp.Body)
 					if err != nil {
 						return false
 					}
@@ -884,7 +884,7 @@ var _ = Describe("ALL Operator tests", func() {
 					resp := f.MakePrometheusHTTPRequest("alerts")
 					defer resp.Body.Close()
 					// Make sure alert appears and is firing
-					bodyBytes, err := ioutil.ReadAll(resp.Body)
+					bodyBytes, err := io.ReadAll(resp.Body)
 					if err != nil {
 						return false
 					}

@@ -27,7 +27,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"reflect"
 	"sort"
@@ -302,7 +301,7 @@ func (app *cdiAPIApp) uploadHandler(request *restful.Request, response *restful.
 
 	namespace := request.PathParameter("namespace")
 	defer request.Request.Body.Close()
-	body, err := ioutil.ReadAll(request.Request.Body)
+	body, err := io.ReadAll(request.Request.Body)
 	if err != nil {
 		klog.Error(err)
 		response.WriteError(http.StatusBadRequest, err)
