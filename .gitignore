@@ -14,3 +14,4 @@ hack/gen-swagger-doc/html5
 **/*.swp
 _ci-configs/*
 tests/manifests/out/*
+.vscode/
