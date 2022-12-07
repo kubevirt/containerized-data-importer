@@ -435,12 +435,12 @@ func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(config *cdiv1.CDIC
 	return nil
 }
 
-func (r *CDIConfigReconciler) createProxyConfigMap(cmName, certBytes string) *v1.ConfigMap {
+func (r *CDIConfigReconciler) createProxyConfigMap(cmName, cert string) *v1.ConfigMap {
 	return &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cmName,
 			Namespace: r.cdiNamespace},
-		Data: map[string]string{common.ImportProxyConfigMapKey: certBytes},
+		Data: map[string]string{common.ImportProxyConfigMapKey: cert},
 	}
 }
 
