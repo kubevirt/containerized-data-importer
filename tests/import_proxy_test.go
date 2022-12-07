@@ -130,19 +130,9 @@ var _ = Describe("Import Proxy tests", func() {
 		}, 30*time.Second, time.Second).Should(BeTrue())
 	})
 
-	getImportProxyConfigMapName := func() string {
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		Expect(config.Status.ImportProxy).ToNot(BeNil())
-		trustedCAProxy := config.Status.ImportProxy.TrustedCAProxy
-		Expect(trustedCAProxy).ToNot(BeNil())
-		Expect(*trustedCAProxy).ToNot(BeEmpty())
-		return *trustedCAProxy
-	}
-
-	verifyImportProxyConfigMap := func() {
+	verifyImportProxyConfigMap := func(pvcName string) {
 		By("Verify import proxy ConfigMap copied to the import namespace")
-		trustedCAProxy := getImportProxyConfigMapName()
+		trustedCAProxy := controller.GetImportProxyConfigMapName(pvcName)
 		Eventually(func() error {
 			_, err := f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Get(context.TODO(), trustedCAProxy, metav1.GetOptions{})
 			return err
@@ -155,7 +145,7 @@ var _ = Describe("Import Proxy tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		err = utils.DeletePodByName(f.K8sClient, pvc.Annotations[controller.AnnImportPod], f.Namespace.Name, nil)
 		Expect(err).ToNot(HaveOccurred())
-		trustedCAProxy := getImportProxyConfigMapName()
+		trustedCAProxy := controller.GetImportProxyConfigMapName(pvcName)
 		Eventually(func() bool {
 			_, err := f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Get(context.TODO(), trustedCAProxy, metav1.GetOptions{})
 			return k8serrors.IsNotFound(err)
@@ -189,7 +179,7 @@ var _ = Describe("Import Proxy tests", func() {
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dvName)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(pvc)
-			verifyImportProxyConfigMap()
+			verifyImportProxyConfigMap(dvName)
 			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.Succeeded)))
 			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
 			Expect(err).ToNot(HaveOccurred())
@@ -344,7 +334,7 @@ var _ = Describe("Import Proxy tests", func() {
 			pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(pvc)
-			verifyImportProxyConfigMap()
+			verifyImportProxyConfigMap(dvName)
 			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.Succeeded)))
 			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
 			Expect(err).ToNot(HaveOccurred())
@@ -432,7 +422,7 @@ var _ = Describe("Import Proxy tests", func() {
 				return dvName
 			}, timeout, pollingInterval).ShouldNot(BeEmpty())
 
-			verifyImportProxyConfigMap()
+			verifyImportProxyConfigMap(dvName)
 
 			By("Wait for DataImportCron UpToDate")
 			Eventually(func() bool {
