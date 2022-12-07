@@ -28,11 +28,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -357,6 +359,15 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 		Entry("successfully get the list of hostnames and/or CIDRs that proxy should not be used", "", "", noProxyDomains, "", noProxyDomains, common.ImportProxyNoProxy),
 		Entry("successfully get ConfiMap CA name", "", "", "", trustedCAProxy, trustedCAProxy, trustedCAProxy),
 	)
+
+	It("Should error and record event if TrustedCAProxy ConfigMap is missing", func() {
+		reconciler, _ := createConfigReconciler(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAProxy))
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
+		Expect(err).To(HaveOccurred())
+		Expect(errors.IsNotFound(err)).To(BeTrue())
+		event := <-reconciler.recorder.(*record.FakeRecorder).Events
+		Expect(event).To(ContainSubstring(ErrResourceDoesntExist))
+	})
 
 	It("Should not change the CDIConfig when updating the ClusterWideProxy if the CDIConfig proxy information already exist", func() {
 		reconciler, cdiConfig := createConfigReconciler()
@@ -804,6 +815,7 @@ func createConfigReconciler(objects ...runtime.Object) (*CDIConfigReconciler, *c
 		uncachedClient:         cl,
 		scheme:                 s,
 		log:                    configLog,
+		recorder:               record.NewFakeRecorder(1),
 		configName:             "cdiconfig",
 		cdiNamespace:           testNamespace,
 		uploadProxyServiceName: testServiceName,
