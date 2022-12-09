@@ -1,3 +1,7 @@
+v1.55.2:
+BugFix: Updated GO builder to use golang 1.18.8
+BugFix: Preserve permissions on extract
+
 v1.55.1:
 BugFix: Add cron-job sa to scc
 BugFix: Adapt DataImportCron and DataSource to DV GC
