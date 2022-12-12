@@ -953,7 +953,7 @@ var _ = Describe("all clone tests", func() {
 		Context("[rfe_id:4219]CSI Clone", func() {
 			BeforeEach(func() {
 				if !f.IsCSIVolumeCloneStorageClassAvailable() {
-					Skip("SmartClone does not work without SnapshotStorageClass")
+					Skip("CSI Clone does not work without a capable storage class")
 				}
 				cloneStorageClassName = f.CsiCloneSCName
 				By(fmt.Sprintf("Get original storage profile: %s", cloneStorageClassName))
