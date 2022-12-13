@@ -4,6 +4,13 @@ metadata:
   labels:
     cdi.kubevirt.io/testing: ""
   name: cdi-testing-scc
+allowHostDirVolumePlugin: true
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegedContainer: true
+readOnlyRootFilesystem: false
 allowedCapabilities:
 - 'SETFCAP'
 seLinuxContext:
