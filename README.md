@@ -82,13 +82,15 @@ There are quite a few examples in the [example manifests](https://github.com/kub
 
 CDI includes a self contained development and test environment.  We use Docker to build, and we provide a simple way to get a test cluster up and running on your laptop. The development tools include a version of kubectl that you can use to communicate with the cluster. A wrapper script to communicate with the cluster can be invoked using ./cluster-up/kubectl.sh.
 
-```
+```bash
 $ mkdir $GOPATH/src/kubevirt.io && cd $GOPATH/src/kubevirt.io
 $ git clone https://github.com/kubevirt/containerized-data-importer && cd containerized-data-importer
 $ make cluster-up
 $ make cluster-sync
 $ ./cluster-up/kubectl.sh .....
 ```
+For development on external cluster (not provisioned by our CI),
+check out the [external provider](cluster-sync/external/README.md).
 
 ## Storage notes
 

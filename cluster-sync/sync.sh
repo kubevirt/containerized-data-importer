@@ -35,6 +35,14 @@ if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
   MANIFEST_REGISTRY="registry:5000"
 fi
 
+if [ "${KUBEVIRT_PROVIDER}" == "external" ]; then
+  # No kubevirtci local registry, likely using something external
+  if [[ $(${CDI_CRI} login --help | grep authfile) ]]; then
+    registry_provider=$(echo "$DOCKER_PREFIX" | cut -d '/' -f 1)
+    echo "Please log in to "${registry_provider}", bazel push expects external registry creds to be in ~/.docker/config.json"
+    ${CDI_CRI} login --authfile "${HOME}/.docker/config.json" $registry_provider
+  fi
+fi
 # Need to set the DOCKER_PREFIX appropriately in the call to `make docker push`, otherwise make will just pass in the default `kubevirt`
 DOCKER_PREFIX=$MANIFEST_REGISTRY PULL_POLICY=$PULL_POLICY make manifests
 DOCKER_PREFIX=$DOCKER_PREFIX make push
@@ -87,7 +95,7 @@ function configure_uploadproxy_override {
 }
 
 function configure_prometheus {
-  if _kubectl get crd prometheuses.monitoring.coreos.com; then
+  if _kubectl get crd prometheuses.monitoring.coreos.com >/dev/null 2>&1; then
     _kubectl patch prometheus k8s -n monitoring --type=json -p '[{"op": "replace", "path": "/spec/ruleSelector", "value":{}}, {"op": "replace", "path": "/spec/ruleNamespaceSelector", "value":{"matchLabels": {"cdi.kubevirt.io": ""}}}]'
   fi
 }
@@ -157,7 +165,7 @@ function setup_for_upgrade_testing {
 
 # Start functional test HTTP server.
 # We skip the functional test additions for external provider for now, as they're specific
-if [ "${KUBEVIRT_PROVIDER}" != "external" ] && [ "${CDI_SYNC}" == "test-infra" ]; then
+if [ "${CDI_SYNC}" == "test-infra" ]; then
   configure_storage
   _kubectl apply -f "./_out/manifests/cdi-testing-sa.yaml"
   _kubectl apply -f "./_out/manifests/bad-webserver.yaml"
@@ -169,6 +177,9 @@ if [ "${KUBEVIRT_PROVIDER}" != "external" ] && [ "${CDI_SYNC}" == "test-infra" ]
   _kubectl apply -f "./_out/manifests/imageio.yaml"
   # vCenter (VDDK) test service:
   _kubectl apply -f "./_out/manifests/vcenter.yaml"
+  if _kubectl get crd securitycontextconstraints.security.openshift.io >/dev/null 2>&1; then
+    _kubectl apply -f "./_out/manifests/cdi-testing-scc.yaml"
+  fi
   exit 0
 fi
 

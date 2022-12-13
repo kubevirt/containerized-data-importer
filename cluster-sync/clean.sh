@@ -7,14 +7,14 @@ source ./cluster-up/cluster/${KUBEVIRT_PROVIDER}/provider.sh
 echo "Cleaning up ..."
 
 if [ "${CDI_CLEAN}" == "test-infra" ]; then
-  _kubectl delete all -n cdi -l cdi.kubevirt.io/testing
+  _kubectl delete all -n ${CDI_NAMESPACE} -l cdi.kubevirt.io/testing
   exit 0
 fi
 
 OPERATOR_CR_MANIFEST=./_out/manifests/release/cdi-cr.yaml
 OPERATOR_MANIFEST=./_out/manifests/release/cdi-operator.yaml
 LABELS=("operator.cdi.kubevirt.io" "cdi.kubevirt.io" "prometheus.cdi.kubevirt.io")
-NAMESPACES=(default kube-system cdi)
+NAMESPACES=(default kube-system "${CDI_NAMESPACE}")
 
 _kubectl get ot --all-namespaces -o=custom-columns=NAME:.metadata.name,NAMESPACE:.metadata.namespace,FINALIZERS:.metadata.finalizers --no-headers | grep objectTransfer | while read p; do
     arr=($p)
@@ -48,7 +48,7 @@ if [ -f "${OPERATOR_CR_MANIFEST}" ]; then
 	echo "Cleaning CR object ..."
     if _kubectl get crd cdis.cdi.kubevirt.io ; then
         _kubectl delete --ignore-not-found -f "${OPERATOR_CR_MANIFEST}"
-        _kubectl wait cdis.cdi.kubevirt.io/${CR_NAME} --for=delete --timeout=30s | echo "this is fine"
+        _kubectl wait cdis.cdi.kubevirt.io/${CR_NAME} --for=delete --timeout=30s || echo "this is fine"
     fi
 fi
 
