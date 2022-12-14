@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,11 +28,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -333,7 +335,9 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 	var trustedCAProxy = "user-ca-bundle"
 
 	DescribeTable("Should set ImportProxy correctly if ClusterWideProxy with correct URLs exists", func(proxyHTTPURL string, proxyHTTPSURL string, noProxyDomains string, trustedCAName string, expect string, endpType string) {
-		reconciler, cdiConfig := createConfigReconciler(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAProxy))
+		trustedCAProxyConfigMap := createConfigMap(trustedCAProxy, ClusterWideProxyConfigMapNameSpace)
+		trustedCAProxyConfigMap.Data = map[string]string{ClusterWideProxyConfigMapKey: "fake_cert"}
+		reconciler, cdiConfig := createConfigReconciler(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAProxy), trustedCAProxyConfigMap)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
@@ -355,6 +359,15 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 		Entry("successfully get the list of hostnames and/or CIDRs that proxy should not be used", "", "", noProxyDomains, "", noProxyDomains, common.ImportProxyNoProxy),
 		Entry("successfully get ConfiMap CA name", "", "", "", trustedCAProxy, trustedCAProxy, trustedCAProxy),
 	)
+
+	It("Should error and record event if TrustedCAProxy ConfigMap is missing", func() {
+		reconciler, _ := createConfigReconciler(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAProxy))
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
+		Expect(err).To(HaveOccurred())
+		Expect(errors.IsNotFound(err)).To(BeTrue())
+		event := <-reconciler.recorder.(*record.FakeRecorder).Events
+		Expect(event).To(ContainSubstring(ErrResourceDoesntExist))
+	})
 
 	It("Should not change the CDIConfig when updating the ClusterWideProxy if the CDIConfig proxy information already exist", func() {
 		reconciler, cdiConfig := createConfigReconciler()
@@ -387,9 +400,10 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 
 		test := &corev1.ConfigMap{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: ClusterWideProxyConfigMapName, Namespace: ClusterWideProxyConfigMapNameSpace}, test)
+		Expect(err).ToNot(HaveOccurred())
 
 		configMap := &corev1.ConfigMap{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ImportProxyConfigMapName, Namespace: reconciler.cdiNamespace}, configMap)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: ClusterWideProxyConfigMapName, Namespace: reconciler.cdiNamespace}, configMap)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(configMap.Labels[common.AppKubernetesComponentLabel]).To(Equal("storage"))
 
@@ -801,6 +815,7 @@ func createConfigReconciler(objects ...runtime.Object) (*CDIConfigReconciler, *c
 		uncachedClient:         cl,
 		scheme:                 s,
 		log:                    configLog,
+		recorder:               record.NewFakeRecorder(1),
 		configName:             "cdiconfig",
 		cdiNamespace:           testNamespace,
 		uploadProxyServiceName: testServiceName,
