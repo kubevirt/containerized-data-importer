@@ -53,6 +53,7 @@ container_bundle(
     images = {
         "$(container_prefix)/cdi-func-test-bad-webserver:$(container_tag)": "//tools/cdi-func-test-bad-webserver:cdi-func-test-bad-webserver-image",
         "$(container_prefix)/cdi-func-test-proxy:$(container_tag)": "//tools/cdi-func-test-proxy:cdi-func-test-proxy-image",
+        "$(container_prefix)/cdi-func-test-sample-populator:$(container_tag)": "//tools/cdi-func-test-sample-populator:cdi-func-test-sample-populator-image",
         "$(container_prefix)/cdi-func-test-file-host-init:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image",
         "$(container_prefix)/cdi-func-test-file-host-http:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image",
         "$(container_prefix)/cdi-func-test-registry-init:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image",
@@ -72,6 +73,7 @@ container_bundle(
     images = {
         "$(container_prefix)/cdi-func-test-bad-webserver:$(container_tag)": "//tools/cdi-func-test-bad-webserver:cdi-func-test-bad-webserver-image",
         "$(container_prefix)/cdi-func-test-proxy:$(container_tag)": "//tools/cdi-func-test-proxy:cdi-func-test-proxy-image",
+        "$(container_prefix)/cdi-func-test-sample-populator:$(container_tag)": "//tools/cdi-func-test-sample-populator:cdi-func-test-sample-populator-image",
         "$(container_prefix)/cdi-func-test-file-host-init:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image",
         "$(container_prefix)/cdi-func-test-file-host-http:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image",
         "$(container_prefix)/cdi-func-test-registry-init:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image",

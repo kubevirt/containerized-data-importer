@@ -172,6 +172,7 @@ if [ "${CDI_SYNC}" == "test-infra" ]; then
   _kubectl apply -f "./_out/manifests/file-host.yaml"
   _kubectl apply -f "./_out/manifests/registry-host.yaml"
   _kubectl apply -f "./_out/manifests/test-proxy.yaml"
+  _kubectl apply -f "./_out/manifests/sample-populator.yaml"
   _kubectl apply -f "./_out/manifests/uploadproxy-nodeport.yaml"
   # Imageio test service:
   _kubectl apply -f "./_out/manifests/imageio.yaml"
