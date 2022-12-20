@@ -29,8 +29,6 @@ import (
 type CdiV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	CDIsGetter
-	CDIConfigsGetter
-	DataVolumesGetter
 }
 
 // CdiV1alpha1Client is used to interact with features provided by the cdi.kubevirt.io group.
@@ -40,14 +38,6 @@ type CdiV1alpha1Client struct {
 
 func (c *CdiV1alpha1Client) CDIs() CDIInterface {
 	return newCDIs(c)
-}
-
-func (c *CdiV1alpha1Client) CDIConfigs() CDIConfigInterface {
-	return newCDIConfigs(c)
-}
-
-func (c *CdiV1alpha1Client) DataVolumes(namespace string) DataVolumeInterface {
-	return newDataVolumes(c, namespace)
 }
 
 // NewForConfig creates a new CdiV1alpha1Client for the given config.

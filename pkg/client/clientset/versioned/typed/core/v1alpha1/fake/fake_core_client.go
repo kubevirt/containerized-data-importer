@@ -32,14 +32,6 @@ func (c *FakeCdiV1alpha1) CDIs() v1alpha1.CDIInterface {
 	return &FakeCDIs{c}
 }
 
-func (c *FakeCdiV1alpha1) CDIConfigs() v1alpha1.CDIConfigInterface {
-	return &FakeCDIConfigs{c}
-}
-
-func (c *FakeCdiV1alpha1) DataVolumes(namespace string) v1alpha1.DataVolumeInterface {
-	return &FakeDataVolumes{c, namespace}
-}
-
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeCdiV1alpha1) RESTClient() rest.Interface {

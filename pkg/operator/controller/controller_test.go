@@ -1723,7 +1723,6 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.Deployment cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.ServiceAccount cdi-cronjob"] = false
 	match[normalCreateSuccess+" *v1.APIService v1beta1.upload.cdi.kubevirt.io"] = false
-	match[normalCreateSuccess+" *v1.APIService v1alpha1.upload.cdi.kubevirt.io"] = false
 	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration cdi-api-datavolume-validate"] = false
 	match[normalCreateSuccess+" *v1.MutatingWebhookConfiguration cdi-api-datavolume-mutate"] = false
 	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration cdi-api-validate"] = false

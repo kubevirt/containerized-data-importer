@@ -28,8 +28,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
@@ -51,6 +53,7 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileDeleteSecrets)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileInitializeCRD)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileSetConfigAuthority)
+	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileHandleOldVersion)
 }
 
 func isControllerDeployment(d *appsv1.Deployment) bool {
@@ -252,4 +255,117 @@ func reconcileSetConfigAuthority(args *callbacks.ReconcileCallbackArgs) error {
 	cdi.Annotations[cdicontroller.AnnConfigAuthority] = ""
 
 	return args.Client.Update(context.TODO(), cdi)
+}
+
+func getSpecVersion(version string, crd *extv1.CustomResourceDefinition) *extv1.CustomResourceDefinitionVersion {
+	for _, v := range crd.Spec.Versions {
+		if v.Name == version {
+			return &v
+		}
+	}
+	return nil
+}
+
+func rewriteOldObjects(args *callbacks.ReconcileCallbackArgs, version string, crd *extv1.CustomResourceDefinition) error {
+	args.Logger.Info("Rewriting old objects")
+	kind := crd.Spec.Names.Kind
+	gvk := schema.GroupVersionKind{
+		Group:   crd.Spec.Group,
+		Version: version,
+		Kind:    kind,
+	}
+	ul := &unstructured.UnstructuredList{}
+	ul.SetGroupVersionKind(gvk)
+	err := args.Client.List(context.TODO(), ul, &client.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for _, item := range ul.Items {
+		nn := client.ObjectKey{Namespace: item.GetNamespace(), Name: item.GetName()}
+		u := &unstructured.Unstructured{}
+		u.SetGroupVersionKind(item.GetObjectKind().GroupVersionKind())
+		err = args.Client.Get(context.TODO(), nn, u)
+		if err != nil {
+			return err
+		}
+		err = args.Client.Update(context.TODO(), u)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func removeStoredVersion(args *callbacks.ReconcileCallbackArgs, desiredVersion string, crd *extv1.CustomResourceDefinition) error {
+	args.Logger.Info("Removing stored version")
+	crd.Status.StoredVersions = []string{desiredVersion}
+	return args.Client.Status().Update(context.TODO(), crd)
+}
+
+// Handle upgrade from clusters that had v1alpha1 as a storage version
+// and remove it from all CRDs managed by us
+func reconcileHandleOldVersion(args *callbacks.ReconcileCallbackArgs) error {
+	if args.State != callbacks.ReconcileStatePostRead {
+		return nil
+	}
+	currentCrd := args.CurrentObject.(*extv1.CustomResourceDefinition)
+	desiredCrd := args.DesiredObject.(*extv1.CustomResourceDefinition)
+	desiredVersion := newestVersion(desiredCrd)
+
+	if olderVersionsExist(desiredVersion, currentCrd) {
+		desiredCrd = restoreOlderVersions(currentCrd, desiredCrd)
+		if !desiredIsStorage(desiredVersion, currentCrd) {
+			// Let kubernetes add it
+			return nil
+		}
+		if err := rewriteOldObjects(args, desiredVersion, currentCrd); err != nil {
+			return err
+		}
+		if err := removeStoredVersion(args, desiredVersion, currentCrd); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func olderVersionsExist(desiredVersion string, crd *extv1.CustomResourceDefinition) bool {
+	for _, version := range crd.Status.StoredVersions {
+		if version != desiredVersion {
+			return true
+		}
+	}
+	return false
+}
+
+func desiredIsStorage(desiredVersion string, crd *extv1.CustomResourceDefinition) bool {
+	specVersion := getSpecVersion(desiredVersion, crd)
+	return specVersion != nil && specVersion.Storage == true
+}
+
+func newestVersion(crd *extv1.CustomResourceDefinition) string {
+	orderedVersions := []string{"v1", "v1beta1", "v1alpha1"}
+	for _, version := range orderedVersions {
+		specVersion := getSpecVersion(version, crd)
+		if specVersion != nil {
+			return version
+		}
+	}
+	return ""
+}
+
+// Merge both old and new versions into new CRD, so we have both in the desiredCrd object
+func restoreOlderVersions(currentCrd, desiredCrd *extv1.CustomResourceDefinition) *extv1.CustomResourceDefinition {
+	for _, version := range currentCrd.Status.StoredVersions {
+		specVersion := getSpecVersion(version, desiredCrd)
+		if specVersion == nil {
+			// Not available in desired CRD, restore from current CRD
+			specVersion := getSpecVersion(version, currentCrd)
+			// We are only allowed one storage version
+			// The desired CRD already has one
+			specVersion.Storage = false
+
+			desiredCrd.Spec.Versions = append(desiredCrd.Spec.Versions, *specVersion)
+		}
+	}
+	return desiredCrd
 }

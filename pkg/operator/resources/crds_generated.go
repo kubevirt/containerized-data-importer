@@ -89,6 +89,12 @@ spec:
               config:
                 description: CDIConfig at CDI level
                 properties:
+                  dataVolumeTTLSeconds:
+                    description: DataVolumeTTLSeconds is the time in seconds after
+                      DataVolume completion it can be garbage collected. The default
+                      is 0 sec. To disable GC use -1.
+                    format: int32
+                    type: integer
                   featureGates:
                     description: FeatureGates are a list of specific enabled feature
                       gates
@@ -140,12 +146,12 @@ spec:
                       trustedCAProxy:
                         description: "TrustedCAProxy is the name of a ConfigMap in
                           the cdi namespace that contains a user-provided trusted
-                          certificate authority (CA) bundle. The TrustedCAProxy field
-                          is consumed by the import controller that is resposible
-                          for coping it to a config map named trusted-ca-proxy-bundle-cm
-                          in the cdi namespace. Here is an example of the ConfigMap
-                          (in yaml): \n apiVersion: v1 kind: ConfigMap metadata: name:
-                          trusted-ca-proxy-bundle-cm namespace: cdi data: ca.pem:
+                          certificate authority (CA) bundle. The TrustedCAProxy ConfigMap
+                          is consumed by the DataImportCron controller for creating
+                          cronjobs, and by the import controller referring a copy
+                          of the ConfigMap in the import namespace. Here is an example
+                          of the ConfigMap (in yaml): \n apiVersion: v1 kind: ConfigMap
+                          metadata: name: my-ca-proxy-cm namespace: cdi data: ca.pem:
                           | -----BEGIN CERTIFICATE----- ... <base64 encoded cert>
                           ... -----END CERTIFICATE-----"
                         type: string
@@ -195,6 +201,97 @@ spec:
                       if no storage class specified, use no storage class for scratch
                       space'
                     type: string
+                  tlsSecurityProfile:
+                    description: TLSSecurityProfile is used by operators to apply
+                      cluster-wide TLS security settings to operands.
+                    properties:
+                      custom:
+                        description: "custom is a user-defined TLS security profile.
+                          Be extremely careful using a custom profile as invalid configurations
+                          can be catastrophic. An example custom profile looks like
+                          this: \n ciphers: - ECDHE-ECDSA-CHACHA20-POLY1305 - ECDHE-RSA-CHACHA20-POLY1305
+                          - ECDHE-RSA-AES128-GCM-SHA256 - ECDHE-ECDSA-AES128-GCM-SHA256
+                          minTLSVersion: TLSv1.1"
+                        nullable: true
+                        properties:
+                          ciphers:
+                            description: "ciphers is used to specify the cipher algorithms
+                              that are negotiated during the TLS handshake.  Operators
+                              may remove entries their operands do not support.  For
+                              example, to use DES-CBC3-SHA  (yaml): \n ciphers: -
+                              DES-CBC3-SHA"
+                            items:
+                              type: string
+                            type: array
+                          minTLSVersion:
+                            description: "minTLSVersion is used to specify the minimal
+                              version of the TLS protocol that is negotiated during
+                              the TLS handshake. For example, to use TLS versions
+                              1.1, 1.2 and 1.3 (yaml): \n minTLSVersion: TLSv1.1 \n
+                              NOTE: currently the highest minTLSVersion allowed is
+                              VersionTLS12"
+                            enum:
+                            - VersionTLS10
+                            - VersionTLS11
+                            - VersionTLS12
+                            - VersionTLS13
+                            type: string
+                        type: object
+                      intermediate:
+                        description: "intermediate is a TLS security profile based
+                          on: \n https://wiki.mozilla.org/Security/Server_Side_TLS#Intermediate_compatibility_.28recommended.29
+                          \n and looks like this (yaml): \n ciphers: - TLS_AES_128_GCM_SHA256
+                          - TLS_AES_256_GCM_SHA384 - TLS_CHACHA20_POLY1305_SHA256
+                          - ECDHE-ECDSA-AES128-GCM-SHA256 - ECDHE-RSA-AES128-GCM-SHA256
+                          - ECDHE-ECDSA-AES256-GCM-SHA384 - ECDHE-RSA-AES256-GCM-SHA384
+                          - ECDHE-ECDSA-CHACHA20-POLY1305 - ECDHE-RSA-CHACHA20-POLY1305
+                          - DHE-RSA-AES128-GCM-SHA256 - DHE-RSA-AES256-GCM-SHA384
+                          minTLSVersion: TLSv1.2"
+                        nullable: true
+                        type: object
+                      modern:
+                        description: "modern is a TLS security profile based on: \n
+                          https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility
+                          \n and looks like this (yaml): \n ciphers: - TLS_AES_128_GCM_SHA256
+                          - TLS_AES_256_GCM_SHA384 - TLS_CHACHA20_POLY1305_SHA256
+                          minTLSVersion: TLSv1.3 \n NOTE: Currently unsupported."
+                        nullable: true
+                        type: object
+                      old:
+                        description: "old is a TLS security profile based on: \n https://wiki.mozilla.org/Security/Server_Side_TLS#Old_backward_compatibility
+                          \n and looks like this (yaml): \n ciphers: - TLS_AES_128_GCM_SHA256
+                          - TLS_AES_256_GCM_SHA384 - TLS_CHACHA20_POLY1305_SHA256
+                          - ECDHE-ECDSA-AES128-GCM-SHA256 - ECDHE-RSA-AES128-GCM-SHA256
+                          - ECDHE-ECDSA-AES256-GCM-SHA384 - ECDHE-RSA-AES256-GCM-SHA384
+                          - ECDHE-ECDSA-CHACHA20-POLY1305 - ECDHE-RSA-CHACHA20-POLY1305
+                          - DHE-RSA-AES128-GCM-SHA256 - DHE-RSA-AES256-GCM-SHA384
+                          - DHE-RSA-CHACHA20-POLY1305 - ECDHE-ECDSA-AES128-SHA256
+                          - ECDHE-RSA-AES128-SHA256 - ECDHE-ECDSA-AES128-SHA - ECDHE-RSA-AES128-SHA
+                          - ECDHE-ECDSA-AES256-SHA384 - ECDHE-RSA-AES256-SHA384 -
+                          ECDHE-ECDSA-AES256-SHA - ECDHE-RSA-AES256-SHA - DHE-RSA-AES128-SHA256
+                          - DHE-RSA-AES256-SHA256 - AES128-GCM-SHA256 - AES256-GCM-SHA384
+                          - AES128-SHA256 - AES256-SHA256 - AES128-SHA - AES256-SHA
+                          - DES-CBC3-SHA minTLSVersion: TLSv1.0"
+                        nullable: true
+                        type: object
+                      type:
+                        description: "type is one of Old, Intermediate, Modern or
+                          Custom. Custom provides the ability to specify individual
+                          TLS security profile parameters. Old, Intermediate and Modern
+                          are TLS security profiles based on: \n https://wiki.mozilla.org/Security/Server_Side_TLS#Recommended_configurations
+                          \n The profiles are intent based, so they may change over
+                          time as new ciphers are developed and existing ciphers are
+                          found to be insecure.  Depending on precisely which ciphers
+                          are available to a process, the list may be reduced. \n
+                          Note that the Modern profile is currently not supported
+                          because it is not yet well adopted by common software libraries."
+                        enum:
+                        - Old
+                        - Intermediate
+                        - Modern
+                        - Custom
+                        type: string
+                    type: object
                   uploadProxyURLOverride:
                     description: Override the URL used when uploading to a DataVolume
                     type: string
@@ -1144,6 +1241,9 @@ spec:
                       type: object
                     type: array
                 type: object
+              priorityClass:
+                description: PriorityClass of the CDI control plane
+                type: string
               uninstallStrategy:
                 description: CDIUninstallStrategy defines the state to leave CDI on
                   uninstall
@@ -4376,233 +4476,6 @@ spec:
     singular: cdiconfig
   scope: Cluster
   versions:
-  - name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: CDIConfig provides a user configuration for CDI
-        properties:
-          apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-            type: string
-          kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: CDIConfigSpec defines specification for user configuration
-            properties:
-              featureGates:
-                description: FeatureGates are a list of specific enabled feature gates
-                items:
-                  type: string
-                type: array
-              filesystemOverhead:
-                description: FilesystemOverhead describes the space reserved for overhead
-                  when using Filesystem volumes. A value is between 0 and 1, if not
-                  defined it is 0.055 (5.5% overhead)
-                properties:
-                  global:
-                    description: Global is how much space of a Filesystem volume should
-                      be reserved for overhead. This value is used unless overridden
-                      by a more specific value (per storageClass)
-                    pattern: ^(0(?:\.\d{1,3})?|1)$
-                    type: string
-                  storageClass:
-                    additionalProperties:
-                      description: 'Percent is a string that can only be a value between
-                        [0,1) (Note: we actually rely on reconcile to reject invalid
-                        values)'
-                      pattern: ^(0(?:\.\d{1,3})?|1)$
-                      type: string
-                    description: StorageClass specifies how much space of a Filesystem
-                      volume should be reserved for safety. The keys are the storageClass
-                      and the values are the overhead. This value overrides the global
-                      value
-                    type: object
-                type: object
-              importProxy:
-                description: ImportProxy contains importer pod proxy configuration.
-                properties:
-                  HTTPProxy:
-                    description: HTTPProxy is the URL http://<username>:<pswd>@<ip>:<port>
-                      of the import proxy for HTTP requests.  Empty means unset and
-                      will not result in the import pod env var.
-                    type: string
-                  HTTPSProxy:
-                    description: HTTPSProxy is the URL https://<username>:<pswd>@<ip>:<port>
-                      of the import proxy for HTTPS requests.  Empty means unset and
-                      will not result in the import pod env var.
-                    type: string
-                  noProxy:
-                    description: NoProxy is a comma-separated list of hostnames and/or
-                      CIDRs for which the proxy should not be used. Empty means unset
-                      and will not result in the import pod env var.
-                    type: string
-                  trustedCAProxy:
-                    description: "TrustedCAProxy is the name of a ConfigMap in the
-                      cdi namespace that contains a user-provided trusted certificate
-                      authority (CA) bundle. The TrustedCAProxy field is consumed
-                      by the import controller that is resposible for coping it to
-                      a config map named trusted-ca-proxy-bundle-cm in the cdi namespace.
-                      Here is an example of the ConfigMap (in yaml): \n apiVersion:
-                      v1 kind: ConfigMap metadata: name: trusted-ca-proxy-bundle-cm
-                      namespace: cdi data: ca.pem: | -----BEGIN CERTIFICATE----- ...
-                      <base64 encoded cert> ... -----END CERTIFICATE-----"
-                    type: string
-                type: object
-              insecureRegistries:
-                description: InsecureRegistries is a list of TLS disabled registries
-                items:
-                  type: string
-                type: array
-              podResourceRequirements:
-                description: ResourceRequirements describes the compute resource requirements.
-                properties:
-                  limits:
-                    additionalProperties:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    description: 'Limits describes the maximum amount of compute resources
-                      allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
-                    type: object
-                  requests:
-                    additionalProperties:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    description: 'Requests describes the minimum amount of compute
-                      resources required. If Requests is omitted for a container,
-                      it defaults to Limits if that is explicitly specified, otherwise
-                      to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
-                    type: object
-                type: object
-              preallocation:
-                description: Preallocation controls whether storage for DataVolumes
-                  should be allocated in advance.
-                type: boolean
-              scratchSpaceStorageClass:
-                description: 'Override the storage class to used for scratch space
-                  during transfer operations. The scratch space storage class is determined
-                  in the following order: 1. value of scratchSpaceStorageClass, if
-                  that doesn''t exist, use the default storage class, if there is
-                  no default storage class, use the storage class of the DataVolume,
-                  if no storage class specified, use no storage class for scratch
-                  space'
-                type: string
-              uploadProxyURLOverride:
-                description: Override the URL used when uploading to a DataVolume
-                type: string
-            type: object
-          status:
-            description: CDIConfigStatus provides the most recently observed status
-              of the CDI Config resource
-            properties:
-              defaultPodResourceRequirements:
-                description: ResourceRequirements describes the compute resource requirements.
-                properties:
-                  limits:
-                    additionalProperties:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    description: 'Limits describes the maximum amount of compute resources
-                      allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
-                    type: object
-                  requests:
-                    additionalProperties:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    description: 'Requests describes the minimum amount of compute
-                      resources required. If Requests is omitted for a container,
-                      it defaults to Limits if that is explicitly specified, otherwise
-                      to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
-                    type: object
-                type: object
-              filesystemOverhead:
-                description: FilesystemOverhead describes the space reserved for overhead
-                  when using Filesystem volumes. A percentage value is between 0 and
-                  1
-                properties:
-                  global:
-                    description: Global is how much space of a Filesystem volume should
-                      be reserved for overhead. This value is used unless overridden
-                      by a more specific value (per storageClass)
-                    pattern: ^(0(?:\.\d{1,3})?|1)$
-                    type: string
-                  storageClass:
-                    additionalProperties:
-                      description: 'Percent is a string that can only be a value between
-                        [0,1) (Note: we actually rely on reconcile to reject invalid
-                        values)'
-                      pattern: ^(0(?:\.\d{1,3})?|1)$
-                      type: string
-                    description: StorageClass specifies how much space of a Filesystem
-                      volume should be reserved for safety. The keys are the storageClass
-                      and the values are the overhead. This value overrides the global
-                      value
-                    type: object
-                type: object
-              importProxy:
-                description: ImportProxy contains importer pod proxy configuration.
-                properties:
-                  HTTPProxy:
-                    description: HTTPProxy is the URL http://<username>:<pswd>@<ip>:<port>
-                      of the import proxy for HTTP requests.  Empty means unset and
-                      will not result in the import pod env var.
-                    type: string
-                  HTTPSProxy:
-                    description: HTTPSProxy is the URL https://<username>:<pswd>@<ip>:<port>
-                      of the import proxy for HTTPS requests.  Empty means unset and
-                      will not result in the import pod env var.
-                    type: string
-                  noProxy:
-                    description: NoProxy is a comma-separated list of hostnames and/or
-                      CIDRs for which the proxy should not be used. Empty means unset
-                      and will not result in the import pod env var.
-                    type: string
-                  trustedCAProxy:
-                    description: "TrustedCAProxy is the name of a ConfigMap in the
-                      cdi namespace that contains a user-provided trusted certificate
-                      authority (CA) bundle. The TrustedCAProxy field is consumed
-                      by the import controller that is resposible for coping it to
-                      a config map named trusted-ca-proxy-bundle-cm in the cdi namespace.
-                      Here is an example of the ConfigMap (in yaml): \n apiVersion:
-                      v1 kind: ConfigMap metadata: name: trusted-ca-proxy-bundle-cm
-                      namespace: cdi data: ca.pem: | -----BEGIN CERTIFICATE----- ...
-                      <base64 encoded cert> ... -----END CERTIFICATE-----"
-                    type: string
-                type: object
-              preallocation:
-                description: Preallocation controls whether storage for DataVolumes
-                  should be allocated in advance.
-                type: boolean
-              scratchSpaceStorageClass:
-                description: The calculated storage class to be used for scratch space
-                type: string
-              uploadProxyURL:
-                description: The calculated upload proxy URL
-                type: string
-            type: object
-        required:
-        - spec
-        type: object
-    served: true
-    storage: false
   - name: v1beta1
     schema:
       openAPIV3Schema:
@@ -5809,570 +5682,6 @@ spec:
     singular: datavolume
   scope: Namespaced
   versions:
-  - additionalPrinterColumns:
-    - description: The phase the data volume is in
-      jsonPath: .status.phase
-      name: Phase
-      type: string
-    - description: Transfer progress in percentage if known, N/A otherwise
-      jsonPath: .status.progress
-      name: Progress
-      type: string
-    - description: The number of times the transfer has been restarted.
-      jsonPath: .status.restartCount
-      name: Restarts
-      type: integer
-    - jsonPath: .metadata.creationTimestamp
-      name: Age
-      type: date
-    name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: DataVolume is an abstraction on top of PersistentVolumeClaims
-          to allow easy population of those PersistentVolumeClaims with relation to
-          VirtualMachines
-        properties:
-          apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-            type: string
-          kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: DataVolumeSpec defines the DataVolume type specification
-            properties:
-              checkpoints:
-                description: Checkpoints is a list of DataVolumeCheckpoints, representing
-                  stages in a multistage import.
-                items:
-                  description: DataVolumeCheckpoint defines a stage in a warm migration.
-                  properties:
-                    current:
-                      description: Current is the identifier of the snapshot created
-                        for this checkpoint.
-                      type: string
-                    previous:
-                      description: Previous is the identifier of the snapshot from
-                        the previous checkpoint.
-                      type: string
-                  required:
-                  - current
-                  - previous
-                  type: object
-                type: array
-              contentType:
-                description: 'DataVolumeContentType options: "kubevirt", "archive"'
-                enum:
-                - kubevirt
-                - archive
-                type: string
-              finalCheckpoint:
-                description: FinalCheckpoint indicates whether the current DataVolumeCheckpoint
-                  is the final checkpoint.
-                type: boolean
-              preallocation:
-                description: Preallocation controls whether storage for DataVolumes
-                  should be allocated in advance.
-                type: boolean
-              priorityClassName:
-                description: PriorityClassName for Importer, Cloner and Uploader pod
-                type: string
-              pvc:
-                description: PVC is the PVC specification
-                properties:
-                  accessModes:
-                    description: 'AccessModes contains the desired access modes the
-                      volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1'
-                    items:
-                      type: string
-                    type: array
-                  dataSource:
-                    description: 'This field can be used to specify either: * An existing
-                      VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
-                      * An existing PVC (PersistentVolumeClaim) If the provisioner
-                      or an external controller can support the specified data source,
-                      it will create a new volume based on the contents of the specified
-                      data source. If the AnyVolumeDataSource feature gate is enabled,
-                      this field will always have the same contents as the DataSourceRef
-                      field.'
-                    properties:
-                      apiGroup:
-                        description: APIGroup is the group for the resource being
-                          referenced. If APIGroup is not specified, the specified
-                          Kind must be in the core API group. For any other third-party
-                          types, APIGroup is required.
-                        type: string
-                      kind:
-                        description: Kind is the type of resource being referenced
-                        type: string
-                      name:
-                        description: Name is the name of resource being referenced
-                        type: string
-                    required:
-                    - kind
-                    - name
-                    type: object
-                    x-kubernetes-map-type: atomic
-                  dataSourceRef:
-                    description: 'Specifies the object from which to populate the
-                      volume with data, if a non-empty volume is desired. This may
-                      be any local object from a non-empty API group (non core object)
-                      or a PersistentVolumeClaim object. When this field is specified,
-                      volume binding will only succeed if the type of the specified
-                      object matches some installed volume populator or dynamic provisioner.
-                      This field will replace the functionality of the DataSource
-                      field and as such if both fields are non-empty, they must have
-                      the same value. For backwards compatibility, both fields (DataSource
-                      and DataSourceRef) will be set to the same value automatically
-                      if one of them is empty and the other is non-empty. There are
-                      two important differences between DataSource and DataSourceRef:
-                      * While DataSource only allows two specific types of objects,
-                      DataSourceRef allows any non-core object, as well as PersistentVolumeClaim
-                      objects. * While DataSource ignores disallowed values (dropping
-                      them), DataSourceRef preserves all values, and generates an
-                      error if a disallowed value is specified. (Alpha) Using this
-                      field requires the AnyVolumeDataSource feature gate to be enabled.'
-                    properties:
-                      apiGroup:
-                        description: APIGroup is the group for the resource being
-                          referenced. If APIGroup is not specified, the specified
-                          Kind must be in the core API group. For any other third-party
-                          types, APIGroup is required.
-                        type: string
-                      kind:
-                        description: Kind is the type of resource being referenced
-                        type: string
-                      name:
-                        description: Name is the name of resource being referenced
-                        type: string
-                    required:
-                    - kind
-                    - name
-                    type: object
-                    x-kubernetes-map-type: atomic
-                  resources:
-                    description: 'Resources represents the minimum resources the volume
-                      should have. If RecoverVolumeExpansionFailure feature is enabled
-                      users are allowed to specify resource requirements that are
-                      lower than previous value but must still be higher than capacity
-                      recorded in the status field of the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
-                    properties:
-                      limits:
-                        additionalProperties:
-                          anyOf:
-                          - type: integer
-                          - type: string
-                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                          x-kubernetes-int-or-string: true
-                        description: 'Limits describes the maximum amount of compute
-                          resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
-                        type: object
-                      requests:
-                        additionalProperties:
-                          anyOf:
-                          - type: integer
-                          - type: string
-                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                          x-kubernetes-int-or-string: true
-                        description: 'Requests describes the minimum amount of compute
-                          resources required. If Requests is omitted for a container,
-                          it defaults to Limits if that is explicitly specified, otherwise
-                          to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
-                        type: object
-                    type: object
-                  selector:
-                    description: A label query over volumes to consider for binding.
-                    properties:
-                      matchExpressions:
-                        description: matchExpressions is a list of label selector
-                          requirements. The requirements are ANDed.
-                        items:
-                          description: A label selector requirement is a selector
-                            that contains values, a key, and an operator that relates
-                            the key and values.
-                          properties:
-                            key:
-                              description: key is the label key that the selector
-                                applies to.
-                              type: string
-                            operator:
-                              description: operator represents a key's relationship
-                                to a set of values. Valid operators are In, NotIn,
-                                Exists and DoesNotExist.
-                              type: string
-                            values:
-                              description: values is an array of string values. If
-                                the operator is In or NotIn, the values array must
-                                be non-empty. If the operator is Exists or DoesNotExist,
-                                the values array must be empty. This array is replaced
-                                during a strategic merge patch.
-                              items:
-                                type: string
-                              type: array
-                          required:
-                          - key
-                          - operator
-                          type: object
-                        type: array
-                      matchLabels:
-                        additionalProperties:
-                          type: string
-                        description: matchLabels is a map of {key,value} pairs. A
-                          single {key,value} in the matchLabels map is equivalent
-                          to an element of matchExpressions, whose key field is "key",
-                          the operator is "In", and the values array contains only
-                          "value". The requirements are ANDed.
-                        type: object
-                    type: object
-                    x-kubernetes-map-type: atomic
-                  storageClassName:
-                    description: 'Name of the StorageClass required by the claim.
-                      More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
-                    type: string
-                  volumeMode:
-                    description: volumeMode defines what type of volume is required
-                      by the claim. Value of Filesystem is implied when not included
-                      in claim spec.
-                    type: string
-                  volumeName:
-                    description: VolumeName is the binding reference to the PersistentVolume
-                      backing this claim.
-                    type: string
-                type: object
-              source:
-                description: Source is the src of the data for the requested DataVolume
-                properties:
-                  blank:
-                    description: DataVolumeBlankImage provides the parameters to create
-                      a new raw blank image for the PVC
-                    type: object
-                  http:
-                    description: DataVolumeSourceHTTP can be either an http or https
-                      endpoint, with an optional basic auth user name and password,
-                      and an optional configmap containing additional CAs
-                    properties:
-                      certConfigMap:
-                        description: CertConfigMap is a configmap reference, containing
-                          a Certificate Authority(CA) public key, and a base64 encoded
-                          pem certificate
-                        type: string
-                      extraHeaders:
-                        description: ExtraHeaders is a list of strings containing
-                          extra headers to include with HTTP transfer requests
-                        items:
-                          type: string
-                        type: array
-                      secretExtraHeaders:
-                        description: SecretExtraHeaders is a list of Secret references,
-                          each containing an extra HTTP header that may include sensitive
-                          information
-                        items:
-                          type: string
-                        type: array
-                      secretRef:
-                        description: SecretRef A Secret reference, the secret should
-                          contain accessKeyId (user name) base64 encoded, and secretKey
-                          (password) also base64 encoded
-                        type: string
-                      url:
-                        description: URL is the URL of the http(s) endpoint
-                        type: string
-                    required:
-                    - url
-                    type: object
-                  imageio:
-                    description: DataVolumeSourceImageIO provides the parameters to
-                      create a Data Volume from an imageio source
-                    properties:
-                      certConfigMap:
-                        description: CertConfigMap provides a reference to the CA
-                          cert
-                        type: string
-                      diskId:
-                        description: DiskID provides id of a disk to be imported
-                        type: string
-                      secretRef:
-                        description: SecretRef provides the secret reference needed
-                          to access the ovirt-engine
-                        type: string
-                      url:
-                        description: URL is the URL of the ovirt-engine
-                        type: string
-                    required:
-                    - diskId
-                    - url
-                    type: object
-                  pvc:
-                    description: DataVolumeSourcePVC provides the parameters to create
-                      a Data Volume from an existing PVC
-                    properties:
-                      name:
-                        description: The name of the source PVC
-                        type: string
-                      namespace:
-                        description: The namespace of the source PVC
-                        type: string
-                    required:
-                    - name
-                    - namespace
-                    type: object
-                  registry:
-                    description: DataVolumeSourceRegistry provides the parameters
-                      to create a Data Volume from an registry source
-                    properties:
-                      certConfigMap:
-                        description: CertConfigMap provides a reference to the Registry
-                          certs
-                        type: string
-                      secretRef:
-                        description: SecretRef provides the secret reference needed
-                          to access the Registry source
-                        type: string
-                      url:
-                        description: URL is the url of the Docker registry source
-                        type: string
-                    required:
-                    - url
-                    type: object
-                  s3:
-                    description: DataVolumeSourceS3 provides the parameters to create
-                      a Data Volume from an S3 source
-                    properties:
-                      certConfigMap:
-                        description: CertConfigMap is a configmap reference, containing
-                          a Certificate Authority(CA) public key, and a base64 encoded
-                          pem certificate
-                        type: string
-                      secretRef:
-                        description: SecretRef provides the secret reference needed
-                          to access the S3 source
-                        type: string
-                      url:
-                        description: URL is the url of the S3 source
-                        type: string
-                    required:
-                    - url
-                    type: object
-                  upload:
-                    description: DataVolumeSourceUpload provides the parameters to
-                      create a Data Volume by uploading the source
-                    type: object
-                  vddk:
-                    description: DataVolumeSourceVDDK provides the parameters to create
-                      a Data Volume from a Vmware source
-                    properties:
-                      backingFile:
-                        description: BackingFile is the path to the virtual hard disk
-                          to migrate from vCenter/ESXi
-                        type: string
-                      initImageURL:
-                        description: InitImageURL is an optional URL to an image containing
-                          an extracted VDDK library, overrides v2v-vmware config map
-                        type: string
-                      secretRef:
-                        description: SecretRef provides a reference to a secret containing
-                          the username and password needed to access the vCenter or
-                          ESXi host
-                        type: string
-                      thumbprint:
-                        description: Thumbprint is the certificate thumbprint of the
-                          vCenter or ESXi host
-                        type: string
-                      url:
-                        description: URL is the URL of the vCenter or ESXi host with
-                          the VM to migrate
-                        type: string
-                      uuid:
-                        description: UUID is the UUID of the virtual machine that
-                          the backing file is attached to in vCenter/ESXi
-                        type: string
-                    type: object
-                type: object
-              storage:
-                description: Storage is the requested storage specification
-                properties:
-                  accessModes:
-                    description: 'AccessModes contains the desired access modes the
-                      volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1'
-                    items:
-                      type: string
-                    type: array
-                  dataSource:
-                    description: 'This field can be used to specify either: * An existing
-                      VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
-                      * An existing PVC (PersistentVolumeClaim) * An existing custom
-                      resource that implements data population (Alpha) In order to
-                      use custom resource types that implement data population, the
-                      AnyVolumeDataSource feature gate must be enabled. If the provisioner
-                      or an external controller can support the specified data source,
-                      it will create a new volume based on the contents of the specified
-                      data source.'
-                    properties:
-                      apiGroup:
-                        description: APIGroup is the group for the resource being
-                          referenced. If APIGroup is not specified, the specified
-                          Kind must be in the core API group. For any other third-party
-                          types, APIGroup is required.
-                        type: string
-                      kind:
-                        description: Kind is the type of resource being referenced
-                        type: string
-                      name:
-                        description: Name is the name of resource being referenced
-                        type: string
-                    required:
-                    - kind
-                    - name
-                    type: object
-                    x-kubernetes-map-type: atomic
-                  resources:
-                    description: 'Resources represents the minimum resources the volume
-                      should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
-                    properties:
-                      limits:
-                        additionalProperties:
-                          anyOf:
-                          - type: integer
-                          - type: string
-                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                          x-kubernetes-int-or-string: true
-                        description: 'Limits describes the maximum amount of compute
-                          resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
-                        type: object
-                      requests:
-                        additionalProperties:
-                          anyOf:
-                          - type: integer
-                          - type: string
-                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                          x-kubernetes-int-or-string: true
-                        description: 'Requests describes the minimum amount of compute
-                          resources required. If Requests is omitted for a container,
-                          it defaults to Limits if that is explicitly specified, otherwise
-                          to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
-                        type: object
-                    type: object
-                  selector:
-                    description: A label query over volumes to consider for binding.
-                    properties:
-                      matchExpressions:
-                        description: matchExpressions is a list of label selector
-                          requirements. The requirements are ANDed.
-                        items:
-                          description: A label selector requirement is a selector
-                            that contains values, a key, and an operator that relates
-                            the key and values.
-                          properties:
-                            key:
-                              description: key is the label key that the selector
-                                applies to.
-                              type: string
-                            operator:
-                              description: operator represents a key's relationship
-                                to a set of values. Valid operators are In, NotIn,
-                                Exists and DoesNotExist.
-                              type: string
-                            values:
-                              description: values is an array of string values. If
-                                the operator is In or NotIn, the values array must
-                                be non-empty. If the operator is Exists or DoesNotExist,
-                                the values array must be empty. This array is replaced
-                                during a strategic merge patch.
-                              items:
-                                type: string
-                              type: array
-                          required:
-                          - key
-                          - operator
-                          type: object
-                        type: array
-                      matchLabels:
-                        additionalProperties:
-                          type: string
-                        description: matchLabels is a map of {key,value} pairs. A
-                          single {key,value} in the matchLabels map is equivalent
-                          to an element of matchExpressions, whose key field is "key",
-                          the operator is "In", and the values array contains only
-                          "value". The requirements are ANDed.
-                        type: object
-                    type: object
-                    x-kubernetes-map-type: atomic
-                  storageClassName:
-                    description: 'Name of the StorageClass required by the claim.
-                      More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
-                    type: string
-                  volumeMode:
-                    description: volumeMode defines what type of volume is required
-                      by the claim. Value of Filesystem is implied when not included
-                      in claim spec.
-                    type: string
-                  volumeName:
-                    description: VolumeName is the binding reference to the PersistentVolume
-                      backing this claim.
-                    type: string
-                type: object
-            required:
-            - source
-            type: object
-          status:
-            description: DataVolumeStatus contains the current status of the DataVolume
-            properties:
-              claimName:
-                description: ClaimName is the name of the underlying PVC used by the
-                  DataVolume.
-                type: string
-              conditions:
-                items:
-                  description: DataVolumeCondition represents the state of a data
-                    volume condition.
-                  properties:
-                    lastHeartbeatTime:
-                      format: date-time
-                      type: string
-                    lastTransitionTime:
-                      format: date-time
-                      type: string
-                    message:
-                      type: string
-                    reason:
-                      type: string
-                    status:
-                      type: string
-                    type:
-                      description: DataVolumeConditionType is the string representation
-                        of known condition types
-                      type: string
-                  required:
-                  - status
-                  - type
-                  type: object
-                type: array
-              phase:
-                description: Phase is the current phase of the data volume
-                type: string
-              progress:
-                description: DataVolumeProgress is the current progress of the DataVolume
-                  transfer operation. Value between 0 and 100 inclusive, N/A if not
-                  available
-                type: string
-              restartCount:
-                description: RestartCount is the number of times the pod populating
-                  the DataVolume has restarted
-                format: int32
-                type: integer
-            type: object
-        required:
-        - spec
-        type: object
-    served: true
-    storage: false
-    subresources: {}
   - additionalPrinterColumns:
     - description: The phase the data volume is in
       jsonPath: .status.phase

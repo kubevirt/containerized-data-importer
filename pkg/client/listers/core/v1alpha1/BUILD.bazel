@@ -4,8 +4,6 @@ go_library(
     name = "go_default_library",
     srcs = [
         "cdi.go",
-        "cdiconfig.go",
-        "datavolume.go",
         "expansion_generated.go",
     ],
     importpath = "kubevirt.io/containerized-data-importer/pkg/client/listers/core/v1alpha1",

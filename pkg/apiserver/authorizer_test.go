@@ -103,15 +103,6 @@ var _ = Describe("Authorizer test", func() {
 		Expect(authReview).ToNot(BeNil())
 	})
 
-	It("Generate access review path err group", func() {
-		app := newAuthorizor()
-		req := fakeRequest()
-		req.Request.URL.Path = "/apis/NOTOURGROUP/v1alpha1/namespaces/default/uploadtokenrequests"
-		authReview, err := app.generateAccessReview(req)
-		Expect(err).To(HaveOccurred())
-		Expect(authReview).To(BeNil())
-	})
-
 	It("Generate access review path err resource", func() {
 		app := newAuthorizor()
 		req := fakeRequest()

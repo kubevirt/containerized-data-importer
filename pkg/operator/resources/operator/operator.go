@@ -93,6 +93,7 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 			},
 			Resources: []string{
 				"customresourcedefinitions",
+				"customresourcedefinitions/status",
 			},
 			Verbs: []string{
 				"*",

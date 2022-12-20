@@ -25,7 +25,6 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 	v1alpha1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1"
 	v1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	uploadv1alpha1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1alpha1"
 	uploadv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 )
 
@@ -58,10 +57,6 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=cdi.kubevirt.io, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("cdis"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1alpha1().CDIs().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("cdiconfigs"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1alpha1().CDIConfigs().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("datavolumes"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1alpha1().DataVolumes().Informer()}, nil
 
 		// Group=cdi.kubevirt.io, Version=v1beta1
 	case v1beta1.SchemeGroupVersion.WithResource("cdis"):
@@ -78,10 +73,6 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1beta1().ObjectTransfers().Informer()}, nil
 	case v1beta1.SchemeGroupVersion.WithResource("storageprofiles"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1beta1().StorageProfiles().Informer()}, nil
-
-		// Group=upload.cdi.kubevirt.io, Version=v1alpha1
-	case uploadv1alpha1.SchemeGroupVersion.WithResource("uploadtokenrequests"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Upload().V1alpha1().UploadTokenRequests().Informer()}, nil
 
 		// Group=upload.cdi.kubevirt.io, Version=v1beta1
 	case uploadv1beta1.SchemeGroupVersion.WithResource("uploadtokenrequests"):

@@ -25,7 +25,9 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -45,6 +47,83 @@ var _ = Describe("ALL Operator tests", func() {
 	Context("[Destructive]", func() {
 		var _ = Describe("Operator tests", func() {
 			f := framework.NewFramework("operator-test")
+
+			Context("Adding versions to datavolume CRD", func() {
+				deploymentName := "cdi-operator"
+				var originalReplicaVal int32
+
+				AfterEach(func() {
+					By(fmt.Sprintf("Setting %s replica number back to the original value %d", deploymentName, originalReplicaVal))
+					scaleDeployment(f, deploymentName, originalReplicaVal)
+					Eventually(func() int32 {
+						depl, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						return depl.Status.ReadyReplicas
+					}, 5*time.Minute, 1*time.Second).Should(Equal(originalReplicaVal))
+				})
+
+				It("Alpha versions of CRD are removed, even if objects previously existed", func() {
+					By("Scaling down CDI operator")
+					originalReplicaVal = scaleDeployment(f, deploymentName, 0)
+					Eventually(func() bool {
+						_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, deploymentName, common.CDILabelSelector)
+						if !errors.IsNotFound(err) {
+							return false
+						}
+						return true
+					}, 20*time.Second, 1*time.Second).Should(BeTrue())
+
+					By("Appending v1alpha1 version as stored version")
+					dvCrd, err := f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), "datavolumes.cdi.kubevirt.io", metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					oldVer := dvCrd.Spec.Versions[0].DeepCopy()
+					oldVer.Name = "v1alpha1"
+					dvCrd.Spec.Versions[0].Storage = false
+					oldVer.Storage = true
+					dvCrd.Spec.Versions = append(dvCrd.Spec.Versions, *oldVer)
+
+					dvCrd, err = f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), dvCrd, metav1.UpdateOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dvCrd.Status.StoredVersions).Should(ContainElement("v1alpha1"))
+
+					By("Creating datavolume")
+					dv := utils.NewDataVolumeForUpload("delete-me", "1Gi")
+					dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+					Expect(err).ToNot(HaveOccurred())
+
+					By("Making sure we can get datavolume in v1alpha1 version")
+					Eventually(func() error {
+						u := &unstructured.Unstructured{}
+						gvk := schema.GroupVersionKind{
+							Group:   "cdi.kubevirt.io",
+							Version: "v1alpha1",
+							Kind:    "DataVolume",
+						}
+						u.SetGroupVersionKind(gvk)
+						nn := crclient.ObjectKey{Namespace: dv.Namespace, Name: dv.Name}
+						err = f.CrClient.Get(context.TODO(), nn, u)
+						return err
+					}, 1*time.Minute, 2*time.Second).Should(BeNil())
+
+					By("Scaling up CDI operator")
+					scaleDeployment(f, deploymentName, originalReplicaVal)
+					By("Eventually, CDI will restore v1beta1 to be the only stored version")
+					Eventually(func() bool {
+						dvCrd, err = f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), "datavolumes.cdi.kubevirt.io", metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						for _, ver := range dvCrd.Spec.Versions {
+							if !(ver.Name == "v1beta1" && ver.Storage == true) {
+								return false
+							}
+						}
+						return true
+					}, 1*time.Minute, 2*time.Second).Should(BeTrue())
+
+					By("Datavolume is still there")
+					_, err = f.CdiClient.CdiV1beta1().DataVolumes(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
 
 			It("[test_id:3951]should create a route in OpenShift", func() {
 				if !utils.IsOpenshift(f.K8sClient) {
@@ -611,15 +690,9 @@ var _ = Describe("ALL Operator tests", func() {
 			f := framework.NewFramework("strict-reconciliation-test")
 
 			It("[test_id:5573]cdi-deployment replicas back to original value on attempt to scale", func() {
+				By("Overwrite number of replicas with 10")
 				deploymentName := "cdi-deployment"
-				cdiDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				originalReplicaVal := *cdiDeployment.Spec.Replicas
-
-				By("Overwrite number of replicas with originalVal + 1")
-				cdiDeployment.Spec.Replicas = pointer.Int32(originalReplicaVal + 1)
-				_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), cdiDeployment, metav1.UpdateOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				originalReplicaVal := scaleDeployment(f, deploymentName, 10)
 
 				By("Ensuring original value of replicas restored & extra deployment pod was cleaned up")
 				Eventually(func() bool {
@@ -841,14 +914,9 @@ var _ = Describe("ALL Operator tests", func() {
 					Skip("This test depends on prometheus infra being available")
 				}
 
-				By("Scale down operator so alert will trigger")
 				deploymentName := "cdi-operator"
-				operatorDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				originalReplicas := operatorDeployment.Spec.Replicas
-				operatorDeployment.Spec.Replicas = pointer.Int32(0)
-				_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				By("Scale down operator so alert will trigger")
+				originalReplicas := scaleDeployment(f, deploymentName, 0)
 				Eventually(func() bool {
 					dep, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
@@ -861,7 +929,7 @@ var _ = Describe("ALL Operator tests", func() {
 						Namespace: f.CdiInstallNs,
 					},
 				}
-				err = f.CrClient.Get(context.TODO(), crclient.ObjectKeyFromObject(promRule), promRule)
+				err := f.CrClient.Get(context.TODO(), crclient.ObjectKeyFromObject(promRule), promRule)
 				Expect(err).ToNot(HaveOccurred())
 				for i, group := range promRule.Spec.Groups {
 					if group.Name == "cdi.rules" {
@@ -905,11 +973,7 @@ var _ = Describe("ALL Operator tests", func() {
 				}, 10*time.Minute, 1*time.Second).Should(BeTrue())
 
 				By("Ensuring original value of replicas restored")
-				operatorDeployment, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				operatorDeployment.Spec.Replicas = originalReplicas
-				_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				scaleDeployment(f, deploymentName, originalReplicas)
 				err = utils.WaitForDeploymentReplicasReady(f.K8sClient, f.CdiInstallNs, deploymentName)
 				Expect(err).ToNot(HaveOccurred())
 			})
@@ -1390,6 +1454,16 @@ func updateUninstallStrategy(client cdiClientset.Interface, strategy *cdiv1.CDIU
 	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 
 	return result
+}
+
+func scaleDeployment(f *framework.Framework, deploymentName string, replicas int32) int32 {
+	operatorDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	originalReplicas := *operatorDeployment.Spec.Replicas
+	operatorDeployment.Spec.Replicas = &[]int32{replicas}[0]
+	_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	return originalReplicas
 }
 
 func checkForRunbookURL(rule promv1.Rule) {

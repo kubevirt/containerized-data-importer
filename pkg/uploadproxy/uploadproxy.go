@@ -245,7 +245,6 @@ func (app *uploadProxyApp) resolveUploadPath(pvcName, pvcNamespace, defaultPath 
 		if strings.Contains(defaultPath, "alpha") {
 			return common.UploadArchiveAlphaPath, nil
 		}
-
 		return common.UploadArchivePath, nil
 	default:
 		return "", fmt.Errorf("rejecting upload request for PVC %s - upload content-type %s is invalid", pvcName, contentType)
