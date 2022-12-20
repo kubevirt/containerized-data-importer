@@ -15,7 +15,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"kubevirt.io/containerized-data-importer/pkg/controller"
+	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -116,7 +117,7 @@ var _ = Describe("External population tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verifying PVC's content")
-		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.ExternalPopulationSucceeded))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(dvc.ExternalPopulationSucceeded))
 		expectetHash := []byte(expectedContent)
 		expectedHashString := fmt.Sprintf("%x", md5.Sum(expectetHash))
 		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultPvcMountPath, int64(len(expectedContent)))
@@ -155,7 +156,7 @@ var _ = Describe("External population tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 		// We check the expected event
-		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.NoAnyVolumeDataSource))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(dvc.NoAnyVolumeDataSource))
 
 		By("Cleaning up")
 		err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
@@ -184,7 +185,7 @@ var _ = Describe("External population tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 		// We check the expected event
-		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.NoCSIDriverForExternalPopulation))
+		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(dvc.NoCSIDriverForExternalPopulation))
 
 		By("Cleaning up")
 		err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)

@@ -34,12 +34,13 @@ var (
 	fileContents string
 	httpEndpoint string
 	metricsPath  string
-	masterURL    string
+	mainURL      string
 	kubeconfig   string
 	imageName    string
 	namespace    string
 )
 
+// CDISamplePopulator is the struct to be used as a SamplePopulator CR
 type CDISamplePopulator struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -47,6 +48,7 @@ type CDISamplePopulator struct {
 	Spec CDIPopulatorSpec `json:"spec"`
 }
 
+// CDIPopulatorSpec is the struct to be used as the spec of the SamplePopulator CR
 type CDIPopulatorSpec struct {
 	FileName     string `json:"fileName"`
 	FileContents string `json:"fileContents"`
@@ -60,7 +62,7 @@ func init() {
 
 	// Controller args
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
-	flag.StringVar(&masterURL, "master", "", "The address of the Kubernetes API server. Overrides any value in kubeconfig. Only required if out-of-cluster.")
+	flag.StringVar(&mainURL, "main", "", "The address of the Kubernetes API server. Overrides any value in kubeconfig. Only required if out-of-cluster.")
 	flag.StringVar(&imageName, "image-name", "", "(Mandatory) Image to use for populating")
 	flag.StringVar(&namespace, "namespace", "cdi", "Namespace to deploy controller")
 	flag.StringVar(&httpEndpoint, "http-endpoint", "", "The TCP network address where the HTTP server for diagnostics, including metrics and leader election health check, will listen (example: `:8080`). The default is empty string, which means the server is disabled.")
@@ -94,7 +96,7 @@ func runSampleController() {
 	groupVersionResource := schema.GroupVersionResource{Group: groupName, Version: apiVersion, Resource: resource}
 
 	// We run the default controller in populator-machinery, which will trigger this populator again in "populate" mode
-	populatormachinery.RunController(masterURL, kubeconfig, imageName, httpEndpoint, metricsPath,
+	populatormachinery.RunController(mainURL, kubeconfig, imageName, httpEndpoint, metricsPath,
 		namespace, prefix, groupKind, groupVersionResource, mountPath, devicePath, getPopulatorPodArgs)
 }
 

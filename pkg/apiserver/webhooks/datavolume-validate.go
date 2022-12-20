@@ -157,7 +157,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 	if (spec.Source == nil && spec.SourceRef == nil) || (spec.Source != nil && spec.SourceRef != nil) {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Data volume should have either Source or SourceRef"),
+			Message: fmt.Sprintf("Data volume should have either Source or SourceRef, or be externally populated"),
 			Field:   field.Child("source").String(),
 		})
 		return causes
@@ -441,14 +441,14 @@ func validateDataSource(dataSource *v1.TypedLocalObjectReference, field *k8sfiel
 	if len(dataSource.Name) == 0 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Required value: at least 1 access mode is required"),
+			Message: fmt.Sprintf("Required value: DataSource/DataSourceRef name"),
 			Field:   field.Child("name", "").String(),
 		})
 	}
 	if len(dataSource.Kind) == 0 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Required value: at least 1 access mode is required"),
+			Message: fmt.Sprintf("Required value: DataSource/DataSourceRef name"),
 			Field:   field.Child("kind").String(),
 		})
 	}
@@ -459,8 +459,8 @@ func validateDataSource(dataSource *v1.TypedLocalObjectReference, field *k8sfiel
 	if len(apiGroup) == 0 && dataSource.Kind != "PersistentVolumeClaim" {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Required value: at least 1 access mode is required"),
-			Field:   field.Child("PVC", "").String(),
+			Message: fmt.Sprintf("Required value: DataSource/DataSourceRef apiGroup when kind is not 'PersistentVolumeClaim'"),
+			Field:   field.Child("apiGroup", "").String(),
 		})
 	}
 
@@ -503,6 +503,7 @@ func validateStorageSize(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) (*met
 	return nil, true
 }
 
+// validateExternalPopulation validates a DataVolume meant to be externally populated
 func validateExternalPopulation(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path, dataSource, dataSourceRef *v1.TypedLocalObjectReference) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 

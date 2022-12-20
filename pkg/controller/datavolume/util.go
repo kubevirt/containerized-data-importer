@@ -144,6 +144,7 @@ func copyStorageAsPvc(log logr.Logger, storage *cdiv1.StorageSpec) *v1.Persisten
 		StorageClassName: input.StorageClassName,
 		VolumeMode:       input.VolumeMode,
 		DataSource:       input.DataSource,
+		DataSourceRef:    input.DataSourceRef,
 	}
 
 	return pvcSpec
