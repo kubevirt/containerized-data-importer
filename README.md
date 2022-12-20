@@ -88,6 +88,13 @@ $ git clone https://github.com/kubevirt/containerized-data-importer && cd contai
 $ make cluster-up
 $ make cluster-sync
 $ ./cluster-up/kubectl.sh .....
+以上的不好用，用接下来的方法
+准备两个窗口，
+  1、窗口1执行：make bazel-make
+  2、窗口2执行：bash build-cdi-importer.sh
+  3、窗口2执行：bash build-cdi-importer-image.sh
+注：
+ 第2步要等第一步的两个窗口都启动了才能执行，通过docker ps |grep kubevirt-cdi-bazel-builder 查看是否启动了两个容器
 ```
 
 ## Storage notes

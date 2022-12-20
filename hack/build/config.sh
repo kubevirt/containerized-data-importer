@@ -25,7 +25,10 @@ FUNC_TEST_REGISTRY="cdi-func-test-registry"
 FUNC_TEST_REGISTRY_POPULATE="cdi-func-test-registry-populate"
 FUNC_TEST_REGISTRY_INIT="cdi-func-test-registry-init"
 FUNC_TEST_BAD_WEBSERVER="cdi-func-test-bad-webserver"
-FUNC_TEST_PROXY="cdi-func-test-proxy"
+# update this whenever builder Dockerfile is updated
+BUILDER_TAG=${BUILDER_TAG:-0.0.9}
+#BUILDER_IMAGE=${BUILDER_IMAGE:-kubevirt/kubevirt-cdi-bazel-builder@sha256:b12b8f7a1b0c0cebe9985ed93dcdc5a04784e88ac7c982b7317d0b96b4f7526f}
+BUILDER_IMAGE=${BUILDER_IMAGE:-harbor.ctyuncdn.cn/nest-lib/kubevirt-cdi-bazel-builder@sha256:b12b8f7a1b0c0cebe9985ed93dcdc5a04784e88ac7c982b7317d0b96b4f7526f}
 
 # update this whenever new builder tag is created
 BUILDER_IMAGE=${BUILDER_IMAGE:-quay.io/kubevirt/kubevirt-cdi-bazel-builder:0.0.13}

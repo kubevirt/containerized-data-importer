@@ -20,6 +20,8 @@ script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
+echo "BUILDER_IMAGE: "${BUILDER_IMAGE}
+
 WORK_DIR="/go/src/kubevirt.io/containerized-data-importer"
 
 # Execute the build
