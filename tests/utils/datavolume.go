@@ -315,6 +315,29 @@ func NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName string, size string, ht
 	return dataVolume
 }
 
+// NewDataVolumeWithExternalPopulation initializes a DataVolume struct meant to be externally populated
+func NewDataVolumeWithExternalPopulation(dataVolumeName, size, storageClassName string, volumeMode corev1.PersistentVolumeMode, populatorSpec *corev1.TypedLocalObjectReference) *cdiv1.DataVolume {
+	dataVolume := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dataVolumeName,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Storage: &cdiv1.StorageSpec{
+				VolumeMode:       &volumeMode,
+				StorageClassName: &storageClassName,
+				AccessModes:      []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				DataSourceRef:    populatorSpec,
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+	return dataVolume
+}
+
 // NewDataVolumeCloneToBlockPV initializes a DataVolume for block cloning
 func NewDataVolumeCloneToBlockPV(dataVolumeName string, size string, srcNamespace, srcName, storageClassName string) *cdiv1.DataVolume {
 	volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock)
