@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
