@@ -30,7 +30,6 @@ DOCKERIZED_CUSTOM_CA_PATH="/etc/pki/ca-trust/source/anchors/custom-ca.crt"
 SYNC_OUT=${SYNC_OUT:-true}
 SYNC_VENDOR=${SYNC_VENDOR:-true}
 
-echo "BUILDER_IMAGE: "${BUILDER_IMAGE}
 # Be less verbose with bazel
 if [ -n "${TRAVIS_JOB_ID}" ]; then
     cat >.bazelrc <<EOF
@@ -47,7 +46,6 @@ if [ -z "$(docker volume list | grep ${BUILDER_VOLUME})" ]; then
     fi
 fi
 
-echo "BUILDER_VOLUME: "${BUILDER_VOLUME}
 # Make sure that the output directory exists
 echo "Making sure output directory exists..."
 if [ "$KUBEVIRTCI_RUNTIME" = "podman" ]; then

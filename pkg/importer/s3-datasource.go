@@ -126,13 +126,14 @@ func (sd *S3DataSource) Close() error {
 func createS3Reader(ep *url.URL, accessKey, secKey string, certDir string) (io.ReadCloser, error) {
 	klog.V(3).Infoln("Using S3 client to get data")
 
-	klog.Infof("Endpoint %s", ep.Host)
+	endpoint := ep.Host
+	klog.Infof("Endpoint %s", endpoint)
 	path := strings.Trim(ep.Path, "/")
 	bucket, object := extractBucketAndObject(path)
 
 	klog.V(1).Infof("bucket %s", bucket)
 	klog.V(1).Infof("object %s", object)
-	svc, err := newClientFunc(ep, accessKey, secKey)
+	svc, err := newClientFunc(endpoint, accessKey, secKey, certDir)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not build s3 client for %q", ep.Host)
 	}
@@ -149,23 +150,26 @@ func createS3Reader(ep *url.URL, accessKey, secKey string, certDir string) (io.R
 	return objectReader, nil
 }
 
-func getS3Client(ep *url.URL, accessKey, secKey string) (S3Client, error) {
+func getS3Client(endpoint, accessKey, secKey string, certDir string) (S3Client, error) {
+	// Adding certs using CustomCABundle will overwrite the SystemCerts, so we opt by creating a custom HTTPClient
+	httpClient, err := createHTTPClient(certDir)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating http client for s3")
+	}
+
 	creds := credentials.NewStaticCredentials(accessKey, secKey, "")
-	region := extractRegion(ep.Host)
-	conf := aws.Config{
+	region := extractRegion(endpoint)
+	sess, err := session.NewSession(&aws.Config{
 		Region:           aws.String(region),
-		Endpoint:         aws.String(ep.Host),
+		Endpoint:         aws.String(endpoint),
 		Credentials:      creds,
 		S3ForcePathStyle: aws.Bool(true),
-	}
-
-	if ep.Scheme == "http" {
-		conf.DisableSSL = aws.Bool(true)
-	}
-
-	sess, err := session.NewSession(&conf, )
+		HTTPClient:       httpClient,
+	},
+	)
 	if err != nil {
-                    return nil, err
+		return nil, err
 	}
 
 	svc := s3.New(sess)

@@ -19,7 +19,6 @@
 
 set -e
 
-tail -f /dev/null
 source hack/build/common.sh
 source hack/build/config.sh
 
