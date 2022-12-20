@@ -1189,7 +1189,6 @@ kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1
 kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1
 kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1/utils
 kubevirt.io/containerized-data-importer-api/pkg/apis/upload
-kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1alpha1
 kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1
 # kubevirt.io/controller-lifecycle-operator-sdk v0.2.4
 ## explicit; go 1.14
