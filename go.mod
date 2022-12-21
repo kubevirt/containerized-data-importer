@@ -18,7 +18,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1
+	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.19.0
 	github.com/openshift/api v0.0.0
