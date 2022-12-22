@@ -16,6 +16,7 @@ import (
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -80,12 +81,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed getting DataImportCron %s/%s: %v", cronNamespace, cronName, err)
 	}
-	controller.AddAnnotation(dataImportCron, controller.AnnLastCronTime, time.Now().Format(time.RFC3339))
+	cc.AddAnnotation(dataImportCron, controller.AnnLastCronTime, time.Now().Format(time.RFC3339))
 
 	imports := dataImportCron.Status.CurrentImports
 	if digest != "" && (imports == nil || digest != imports[0].Digest) &&
 		digest != dataImportCron.Annotations[controller.AnnSourceDesiredDigest] {
-		controller.AddAnnotation(dataImportCron, controller.AnnSourceDesiredDigest, digest)
+		cc.AddAnnotation(dataImportCron, controller.AnnSourceDesiredDigest, digest)
 		log.Printf("Digest updated")
 	} else {
 		log.Printf("No digest update")

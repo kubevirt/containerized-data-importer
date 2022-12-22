@@ -36,6 +36,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/controller/transfer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
@@ -84,7 +85,7 @@ type ControllerEnvs struct {
 // The importer and cloner images are obtained here along with the supported flags. IMPORTER_IMAGE, CLONER_IMAGE, and UPLOADSERVICE_IMAGE
 // are required by the controller and will cause it to fail if not defined.
 // Note: kubeconfig hierarchy is 1) -kubeconfig flag, 2) $KUBECONFIG exported var. If neither is
-//   specified we do an in-cluster config. For testing it's easiest to export KUBECONFIG.
+// specified we do an in-cluster config. For testing it's easiest to export KUBECONFIG.
 func init() {
 	// flags
 	flag.StringVar(&kubeURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
@@ -204,9 +205,17 @@ func start(ctx context.Context, cfg *rest.Config) {
 	}
 
 	// TODO: Current DV controller had threadiness 3, should we do the same here, defaults to one thread.
-	if _, err := controller.NewDatavolumeController(ctx, mgr, log,
+	if _, err := dvc.NewImportController(ctx, mgr, log, installerLabels); err != nil {
+		klog.Errorf("Unable to setup datavolume import controller: %v", err)
+		os.Exit(1)
+	}
+	if _, err := dvc.NewUploadController(ctx, mgr, log, installerLabels); err != nil {
+		klog.Errorf("Unable to setup datavolume upload controller: %v", err)
+		os.Exit(1)
+	}
+	if _, err := dvc.NewCloneController(ctx, mgr, log,
 		clonerImage, importerImage, pullPolicy, getTokenPublicKey(), getTokenPrivateKey(), installerLabels); err != nil {
-		klog.Errorf("Unable to setup datavolume controller: %v", err)
+		klog.Errorf("Unable to setup datavolume clone controller: %v", err)
 		os.Exit(1)
 	}
 

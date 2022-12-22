@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,6 +38,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
 )
 
@@ -94,12 +96,12 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 			},
 			Spec: cdiv1.StorageProfileSpec{
 				ClaimPropertySets: []cdiv1.ClaimPropertySet{
-					{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: &blockMode},
+					{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: &BlockMode},
 				},
 			},
 			Status: cdiv1.StorageProfileStatus{
 				ClaimPropertySets: []cdiv1.ClaimPropertySet{
-					{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: &blockMode},
+					{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: &BlockMode},
 				},
 			},
 		}
@@ -108,7 +110,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	})
 
 	It("Should delete storage profile when corresponding storage class gets deleted", func() {
-		storageClass := createStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"})
+		storageClass := CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"})
 		reconciler := createStorageProfileReconciler(storageClass)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
@@ -126,7 +128,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	})
 
 	It("Should create storage profile without claim property set for storage class not in capabilitiesByProvisionerKey map", func() {
-		reconciler := createStorageProfileReconciler(createStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
+		reconciler := createStorageProfileReconciler(CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
@@ -140,7 +142,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 
 	It("Should create storage profile with default claim property set for storage class", func() {
 		scProvisioner := "rook-ceph.rbd.csi.ceph.com"
-		reconciler := createStorageProfileReconciler(createStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, scProvisioner))
+		reconciler := createStorageProfileReconciler(CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, scProvisioner))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
@@ -163,7 +165,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	})
 
 	It("Should find storage capabilities for no-provisioner LSO storage class", func() {
-		storageClass := createStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, lsoLabels, "kubernetes.io/no-provisioner")
+		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, lsoLabels, "kubernetes.io/no-provisioner")
 		pv := CreatePv("my-pv", storageClassName)
 
 		reconciler := createStorageProfileReconciler(storageClass, pv)
@@ -180,7 +182,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	})
 
 	It("Should not have storage capabilities for no-provisioner LSO storage class if there are no PVs for it", func() {
-		storageClass := createStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, lsoLabels, "kubernetes.io/no-provisioner")
+		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, lsoLabels, "kubernetes.io/no-provisioner")
 
 		reconciler := createStorageProfileReconciler(storageClass)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
@@ -196,7 +198,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	})
 
 	It("Should update storage profile with editted claim property sets", func() {
-		reconciler := createStorageProfileReconciler(createStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
+		reconciler := createStorageProfileReconciler(CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
@@ -208,8 +210,8 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(len(sp.Status.ClaimPropertySets)).To(Equal(0))
 
 		claimPropertySets := []cdiv1.ClaimPropertySet{
-			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany}, VolumeMode: &blockMode},
-			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: &filesystemMode},
+			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany}, VolumeMode: &BlockMode},
+			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: &FilesystemMode},
 		}
 		sp.Spec.ClaimPropertySets = claimPropertySets
 		err = reconciler.client.Update(context.TODO(), sp.DeepCopy())
@@ -227,7 +229,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	})
 
 	It("Should update storage profile with labels when the value changes", func() {
-		reconciler := createStorageProfileReconciler(createStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
+		reconciler := createStorageProfileReconciler(CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
@@ -238,8 +240,8 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(sp.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 
 		claimPropertySets := []cdiv1.ClaimPropertySet{
-			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany}, VolumeMode: &blockMode},
-			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: &filesystemMode},
+			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany}, VolumeMode: &BlockMode},
+			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: &FilesystemMode},
 		}
 		sp.Spec.ClaimPropertySets = claimPropertySets
 		reconciler.installerLabels[common.AppKubernetesPartOfLabel] = "newtesting"
@@ -256,7 +258,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	})
 
 	It("Should error when updating storage profile with missing access modes", func() {
-		reconciler := createStorageProfileReconciler(createStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
+		reconciler := createStorageProfileReconciler(CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
@@ -268,15 +270,15 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(len(sp.Status.ClaimPropertySets)).To(Equal(0))
 
 		claimPropertySets := []cdiv1.ClaimPropertySet{
-			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany}, VolumeMode: &blockMode},
-			{VolumeMode: &filesystemMode},
+			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany}, VolumeMode: &BlockMode},
+			{VolumeMode: &FilesystemMode},
 		}
 		sp.Spec.ClaimPropertySets = claimPropertySets
 		err = reconciler.client.Update(context.TODO(), sp.DeepCopy())
 		Expect(err).ToNot(HaveOccurred())
 		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("must provide access mode for volume mode: %s", filesystemMode)))
+		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("must provide access mode for volume mode: %s", FilesystemMode)))
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(storageProfileList.Items)).To(Equal(1))
@@ -287,7 +289,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	})
 
 	table.DescribeTable("should create clone strategy", func(cloneStrategy cdiv1.CDICloneStrategy) {
-		storageClass := createStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"})
+		storageClass := CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"})
 
 		storageClass.Annotations["cdi.kubevirt.io/clone-strategy"] = string(cloneStrategy)
 		reconciler := createStorageProfileReconciler(storageClass)
@@ -310,7 +312,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	)
 
 	table.DescribeTable("Should set the IncompleteProfileGauge correctly", func(provisioner string, count int) {
-		reconciler := createStorageProfileReconciler(createStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner))
+		reconciler := createStorageProfileReconciler(CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
@@ -357,4 +359,23 @@ func createStorageProfileReconciler(objects ...runtime.Object) *StorageProfileRe
 		},
 	}
 	return r
+}
+
+func CreatePv(name string, storageClassName string) *v1.PersistentVolume {
+	volumeMode := v1.PersistentVolumeFilesystem
+	pv := &v1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			UID:  types.UID(name),
+		},
+		Spec: v1.PersistentVolumeSpec{
+			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany, v1.ReadWriteOnce},
+			Capacity: v1.ResourceList{
+				v1.ResourceName(v1.ResourceStorage): resource.MustParse("1G"),
+			},
+			StorageClassName: storageClassName,
+			VolumeMode:       &volumeMode,
+		},
+	}
+	return pv
 }

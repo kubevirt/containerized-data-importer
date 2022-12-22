@@ -37,7 +37,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/monitoring"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 )
@@ -58,7 +58,7 @@ const (
 func ensurePrometheusResourcesExist(c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
 	namespace := owner.GetNamespace()
 
-	cr, err := controller.GetActiveCDI(c)
+	cr, err := cc.GetActiveCDI(c)
 	if err != nil {
 		return err
 	}

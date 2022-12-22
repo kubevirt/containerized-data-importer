@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -73,9 +74,9 @@ var _ = Describe("All DataSource Tests", func() {
 			ds = createDataSource()
 			ds.Spec.Source.PVC = &cdiv1.DataVolumeSourcePVC{Namespace: metav1.NamespaceDefault, Name: pvcName}
 			reconciler = createDataSourceReconciler(ds)
-			verifyConditions("Source DV does not exist", false, notFound)
+			verifyConditions("Source DV does not exist", false, NotFound)
 
-			dv := newImportDataVolume(pvcName)
+			dv := NewImportDataVolume(pvcName)
 			err := reconciler.client.Create(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -91,16 +92,16 @@ var _ = Describe("All DataSource Tests", func() {
 
 			err = reconciler.client.Delete(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
-			verifyConditions("Source DV Deleted", false, notFound)
+			verifyConditions("Source DV Deleted", false, NotFound)
 
-			pvc := createPvc(pvcName, metav1.NamespaceDefault, nil, nil)
+			pvc := CreatePvc(pvcName, metav1.NamespaceDefault, nil, nil)
 			err = reconciler.client.Create(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 			verifyConditions("Source PVC exists, but no DV", true, ready)
 
 			err = reconciler.client.Delete(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
-			verifyConditions("Source PVC Deleted", false, notFound)
+			verifyConditions("Source PVC Deleted", false, NotFound)
 		})
 	})
 })

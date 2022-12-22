@@ -49,6 +49,8 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
@@ -56,9 +58,6 @@ import (
 )
 
 const (
-	// AnnUploadRequest marks that a PVC should be made available for upload
-	AnnUploadRequest = "cdi.kubevirt.io/storage.upload.target"
-
 	// AnnUploadClientName is the TLS name uploadserver will accept requests from
 	AnnUploadClientName = "cdi.kubevirt.io/uploadClientName"
 
@@ -126,8 +125,8 @@ func (r *UploadReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 		return reconcile.Result{}, err
 	}
 
-	_, isUpload := pvc.Annotations[AnnUploadRequest]
-	_, isCloneTarget := pvc.Annotations[AnnCloneRequest]
+	_, isUpload := pvc.Annotations[cc.AnnUploadRequest]
+	_, isCloneTarget := pvc.Annotations[cc.AnnCloneRequest]
 
 	if isUpload && isCloneTarget {
 		log.V(1).Info("PVC has both clone and upload annotations")
@@ -183,7 +182,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		}
 		if err = ValidateCanCloneSourceAndTargetSpec(r.client, source, pvc, contentType); err != nil {
 			log.Error(err, "Error validating clone spec, ignoring")
-			r.recorder.Eventf(pvc, corev1.EventTypeWarning, ErrIncompatiblePVC, err.Error())
+			r.recorder.Eventf(pvc, corev1.EventTypeWarning, cc.ErrIncompatiblePVC, err.Error())
 			return reconcile.Result{}, nil
 		}
 
@@ -199,7 +198,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 	}
 
 	if pod == nil {
-		podsUsingPVC, err := GetPodsUsingPVCs(r.client, pvc.Namespace, sets.NewString(pvc.Name), false)
+		podsUsingPVC, err := cc.GetPodsUsingPVCs(r.client, pvc.Namespace, sets.NewString(pvc.Name), false)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -278,7 +277,7 @@ func (r *UploadReconciler) updatePvcPodName(pvc *v1.PersistentVolumeClaim, podNa
 }
 
 func (r *UploadReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim) error {
-	r.log.V(1).Info("Phase is now", "pvc.anno.Phase", pvc.GetAnnotations()[AnnPodPhase])
+	r.log.V(1).Info("Phase is now", "pvc.anno.Phase", pvc.GetAnnotations()[cc.AnnPodPhase])
 	if err := r.client.Update(context.TODO(), pvc); err != nil {
 		return err
 	}
@@ -331,8 +330,8 @@ func (r *UploadReconciler) cleanup(pvc *v1.PersistentVolumeClaim) error {
 		}
 		return err
 	}
-	if pod.DeletionTimestamp == nil && shouldDeletePod(pvc) {
-		if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
+	if pod.DeletionTimestamp == nil && cc.ShouldDeletePod(pvc) {
+		if err := r.client.Delete(context.TODO(), pod); cc.IgnoreNotFound(err) != nil {
 			return err
 		}
 	}
@@ -372,7 +371,7 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 	}
 
 	preallocationRequested := false
-	if preallocation, err := strconv.ParseBool(getValueFromAnnotation(pvc, AnnPreallocationRequested)); err == nil {
+	if preallocation, err := strconv.ParseBool(getValueFromAnnotation(pvc, cc.AnnPreallocationRequested)); err == nil {
 		preallocationRequested = preallocation
 	}
 
@@ -402,7 +401,7 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 	r.log.V(3).Info("Creating upload pod")
 	pod, err := r.createUploadPod(args)
 	// Check if pod has failed and, in that case, record an event with the error
-	if podErr := handleFailedPod(err, podName, pvc, r.recorder, r.client); podErr != nil {
+	if podErr := cc.HandleFailedPod(err, podName, pvc, r.recorder, r.client); podErr != nil {
 		return nil, podErr
 	}
 
@@ -424,11 +423,11 @@ func (r *UploadReconciler) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, 
 
 		storageClassName := GetScratchPvcStorageClass(r.client, pvc)
 
-		anno[AnnBoundCondition] = "false"
-		anno[AnnBoundConditionMessage] = "Creating scratch space"
-		anno[AnnBoundConditionReason] = creatingScratch
+		anno[cc.AnnBoundCondition] = "false"
+		anno[cc.AnnBoundConditionMessage] = "Creating scratch space"
+		anno[cc.AnnBoundConditionReason] = creatingScratch
 		// Scratch PVC doesn't exist yet, create it.
-		scratchPvc, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, name, storageClassName, map[string]string{}, r.recorder)
+		scratchPvc, err = createScratchPersistentVolumeClaim(r.client, pvc, pod, name, storageClassName, map[string]string{}, r.recorder)
 		if err != nil {
 			return nil, err
 		}
@@ -436,7 +435,7 @@ func (r *UploadReconciler) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, 
 		if !metav1.IsControlledBy(scratchPvc, pod) {
 			return nil, errors.Errorf("%s scratch PVC not controlled by pod %s", scratchPvc.Name, pod.Name)
 		}
-		setBoundConditionFromPVC(anno, AnnBoundCondition, scratchPvc)
+		setBoundConditionFromPVC(anno, cc.AnnBoundCondition, scratchPvc)
 	}
 
 	return scratchPvc, nil
@@ -471,7 +470,7 @@ func (r *UploadReconciler) deleteService(namespace, serviceName string) error {
 	}
 
 	if service.DeletionTimestamp == nil {
-		if err := r.client.Delete(context.TODO(), service); IgnoreNotFound(err) != nil {
+		if err := r.client.Delete(context.TODO(), service); cc.IgnoreNotFound(err) != nil {
 			return errors.Wrap(err, "error deleting upload service")
 		}
 	}
@@ -482,10 +481,25 @@ func (r *UploadReconciler) deleteService(namespace, serviceName string) error {
 // updateUploadAnnotations updates annotations to reflect the current state of the upload
 func updateUploadAnnotations(pvc *corev1.PersistentVolumeClaim, anno map[string]string, pod *v1.Pod, isCloneTarget bool) {
 	podPhase := pod.Status.Phase
-	anno[AnnPodPhase] = string(podPhase)
-	anno[AnnPodReady] = strconv.FormatBool(isPodReady(pod))
+	anno[cc.AnnPodPhase] = string(podPhase)
+	anno[cc.AnnPodReady] = strconv.FormatBool(isPodReady(pod))
 
-	setAnnotationsFromPodWithPrefix(anno, pod, AnnRunningCondition)
+	setAnnotationsFromPodWithPrefix(anno, pod, cc.AnnRunningCondition)
+}
+
+func isPodReady(pod *v1.Pod) bool {
+	if len(pod.Status.ContainerStatuses) == 0 {
+		return false
+	}
+
+	numReady := 0
+	for _, s := range pod.Status.ContainerStatuses {
+		if s.Ready {
+			numReady++
+		}
+	}
+
+	return numReady == len(pod.Status.ContainerStatuses)
 }
 
 // createUploadService creates upload service service manifest and sends to server
@@ -560,12 +574,12 @@ func (r *UploadReconciler) makeUploadServiceSpec(name string, pvc *v1.Persistent
 func (r *UploadReconciler) createUploadPod(args UploadPodArgs) (*v1.Pod, error) {
 	ns := args.PVC.Namespace
 
-	podResourceRequirements, err := GetDefaultPodResourceRequirements(r.client)
+	podResourceRequirements, err := cc.GetDefaultPodResourceRequirements(r.client)
 	if err != nil {
 		return nil, err
 	}
 
-	workloadNodePlacement, err := GetWorkloadNodePlacement(r.client)
+	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(r.client)
 	if err != nil {
 		return nil, err
 	}
@@ -699,7 +713,7 @@ func createUploadResourceName(name string) string {
 
 // UploadPossibleForPVC is called by the api server to see whether to return an upload token
 func UploadPossibleForPVC(pvc *v1.PersistentVolumeClaim) error {
-	if _, ok := pvc.Annotations[AnnUploadRequest]; !ok {
+	if _, ok := pvc.Annotations[cc.AnnUploadRequest]; !ok {
 		return errors.Errorf("PVC %s is not an upload target", pvc.Name)
 	}
 	return nil
@@ -717,7 +731,7 @@ func createUploadServiceNameFromPvcName(pvc string) string {
 }
 
 func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequirements *v1.ResourceRequirements, workloadNodePlacement *sdkapi.NodePlacement) *v1.Pod {
-	requestImageSize, _ := getRequestedImageSize(args.PVC)
+	requestImageSize, _ := cc.GetRequestedImageSize(args.PVC)
 	serviceName := naming.GetServiceNameFromResourceName(args.Name)
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -813,7 +827,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			RestartPolicy: v1.RestartPolicyOnFailure,
 			Volumes: []v1.Volume{
 				{
-					Name: DataVolName,
+					Name: cc.DataVolName,
 					VolumeSource: v1.VolumeSource{
 						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
 							ClaimName: args.PVC.Name,
@@ -825,7 +839,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			NodeSelector:      workloadNodePlacement.NodeSelector,
 			Tolerations:       workloadNodePlacement.Tolerations,
 			Affinity:          workloadNodePlacement.Affinity,
-			PriorityClassName: getPriorityClass(args.PVC),
+			PriorityClassName: cc.GetPriorityClass(args.PVC),
 		},
 	}
 
@@ -833,10 +847,10 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 		pod.Spec.Containers[0].Resources = *resourceRequirements
 	}
 
-	if getVolumeMode(args.PVC) == v1.PersistentVolumeBlock {
+	if cc.GetVolumeMode(args.PVC) == v1.PersistentVolumeBlock {
 		pod.Spec.Containers[0].VolumeDevices = []v1.VolumeDevice{
 			{
-				Name:       DataVolName,
+				Name:       cc.DataVolName,
 				DevicePath: common.WriteBlockPath,
 			},
 		}
@@ -847,7 +861,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 	} else {
 		pod.Spec.Containers[0].VolumeMounts = []v1.VolumeMount{
 			{
-				Name:      DataVolName,
+				Name:      cc.DataVolName,
 				MountPath: common.UploadServerDataDir,
 			},
 		}
@@ -855,7 +869,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 
 	if args.ScratchPVCName != "" {
 		pod.Spec.Volumes = append(pod.Spec.Volumes, v1.Volume{
-			Name: ScratchVolName,
+			Name: cc.ScratchVolName,
 			VolumeSource: v1.VolumeSource{
 				PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
 					ClaimName: args.ScratchPVCName,
@@ -865,11 +879,11 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 		})
 
 		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, v1.VolumeMount{
-			Name:      ScratchVolName,
+			Name:      cc.ScratchVolName,
 			MountPath: common.ScratchDataDir,
 		})
 	}
-	SetPodPvcAnnotations(pod, args.PVC)
-	SetRestrictedSecurityContext(&pod.Spec)
+	setPodPvcAnnotations(pod, args.PVC)
+	cc.SetRestrictedSecurityContext(&pod.Spec)
 	return pod
 }

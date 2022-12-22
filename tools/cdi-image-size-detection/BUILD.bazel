@@ -6,7 +6,7 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/tools/cdi-image-size-detection",
     visibility = ["//visibility:private"],
     deps = [
-        "//pkg/controller:go_default_library",
+        "//pkg/controller/common:go_default_library",
         "//pkg/image:go_default_library",
         "//pkg/util:go_default_library",
     ],

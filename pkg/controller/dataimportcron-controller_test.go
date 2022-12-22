@@ -48,6 +48,8 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	cdv "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 )
 
 var (
@@ -199,7 +201,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 		})
 
 		It("Should create and delete CronJob if DataImportCron is created and deleted", func() {
-			cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
+			cdiConfig := cc.MakeEmptyCDIConfigSpec(common.ConfigName)
 			cdiConfig.Status.ImportProxy = &cdiv1.ImportProxy{
 				HTTPProxy:      &httpProxy,
 				HTTPSProxy:     &httpsProxy,
@@ -392,7 +394,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			for i := 0; i < nPVCs; i++ {
 				digest := strings.Repeat(strconv.Itoa(i), 12)
 				digests[i] = "sha256:" + digest
-				pvcs[i] = createPvc(dataSourceName+"-"+digest, cron.Namespace, nil, nil)
+				pvcs[i] = cc.CreatePvc(dataSourceName+"-"+digest, cron.Namespace, nil, nil)
 				err := reconciler.client.Create(context.TODO(), pvcs[i])
 				Expect(err).ToNot(HaveOccurred())
 			}
@@ -567,7 +569,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(*dv.Spec.Source.Registry.URL).To(Equal("docker://" + testDockerRef))
 			dv.Status.Phase = cdiv1.Succeeded
-			dv.Status.Conditions = updateReadyCondition(dv.Status.Conditions, corev1.ConditionTrue, "", "")
+			dv.Status.Conditions = cdv.UpdateReadyCondition(dv.Status.Conditions, corev1.ConditionTrue, "", "")
 			err = reconciler.client.Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
 			verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready)
@@ -627,7 +629,7 @@ var _ = Describe("untagURL", func() {
 })
 
 func createDataImportCronReconciler(objects ...runtime.Object) *DataImportCronReconciler {
-	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
+	cdiConfig := cc.MakeEmptyCDIConfigSpec(common.ConfigName)
 	objs := []runtime.Object{cdiConfig}
 	objs = append(objs, objects...)
 	return createDataImportCronReconcilerWithoutConfig(objs...)
