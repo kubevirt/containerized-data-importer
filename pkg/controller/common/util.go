@@ -323,6 +323,24 @@ var (
 	apiServerKey     *rsa.PrivateKey
 )
 
+// SizeMismatchError is an error returned if source size is larger than target
+type SizeMismatchError struct {
+	targetQuantity resource.Quantity
+	sourceQuantity resource.Quantity
+}
+
+func (e *SizeMismatchError) Error() string {
+	return fmt.Sprintf("target resources requests storage size %d is smaller than the source %d", e.targetQuantity.Value(), e.sourceQuantity.Value())
+}
+
+// NewSizeMismatchError returns a new SizeMismatchError
+func NewSizeMismatchError(target, source resource.Quantity) *SizeMismatchError {
+	return &SizeMismatchError{
+		targetQuantity: target,
+		sourceQuantity: source,
+	}
+}
+
 // FakeValidator is a fake token validator
 type FakeValidator struct {
 	Match     string
@@ -965,7 +983,7 @@ func ValidateRequestedCloneSize(sourceResources corev1.ResourceRequirements, tar
 
 	// Verify that the target PVC size is equal or larger than the source.
 	if sourceRequest.Value() > targetRequest.Value() {
-		return errors.Errorf("target resources requests storage size is smaller than the source %d < %d", targetRequest.Value(), sourceRequest.Value())
+		return NewSizeMismatchError(targetRequest, sourceRequest)
 	}
 	return nil
 }

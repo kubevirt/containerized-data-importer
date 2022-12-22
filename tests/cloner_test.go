@@ -1851,7 +1851,7 @@ var _ = Describe("all clone tests", func() {
 			targetDv = utils.NewDataVolumeForImageCloning("target-dv-too-small", "15Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 			_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
 			Expect(err).To(HaveOccurred())
-			Expect(strings.Contains(err.Error(), "target resources requests storage size is smaller than the source")).To(BeTrue())
+			Expect(strings.Contains(err.Error(), "is smaller than the source")).To(BeTrue())
 
 			By("Cloning from the source DataVolume to properly sized target")
 			targetDv = utils.NewDataVolumeForImageCloning("target-dv", "50Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
@@ -1898,7 +1898,7 @@ var _ = Describe("all clone tests", func() {
 			targetDv = utils.NewDataVolumeForImageCloning("target-dv", "50Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 			_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
 			Expect(err).To(HaveOccurred())
-			Expect(strings.Contains(err.Error(), "target resources requests storage size is smaller than the source")).To(BeTrue())
+			Expect(strings.Contains(err.Error(), "is smaller than the source")).To(BeTrue())
 
 			By("Cloning from the source DataVolume to properly sized target")
 			targetDv = utils.NewDataVolumeForImageCloning("target-dv", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
@@ -2850,7 +2850,7 @@ var _ = Describe("all clone tests", func() {
 				cloneDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("clone-from-snap", "500Mi", f.Namespace.Name, "snap-"+dataVolumeName, &f.SnapshotSCName, &volumeMode)
 				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("target resources requests storage size is smaller than the source"))
+				Expect(err.Error()).To(ContainSubstring("is smaller than the source"))
 			})
 		})
 

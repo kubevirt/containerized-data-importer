@@ -325,7 +325,7 @@ var _ = Describe("Planner test", func() {
 				planner := createPlanner(createStorageClass(), source)
 				strategy, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(HavePrefix("target resources requests storage size is smaller than the source"))
+				Expect(err.Error()).To(ContainSubstring("is smaller than the source"))
 				Expect(strategy).To(BeNil())
 				expectEvent(planner, CloneValidationFailed)
 			})

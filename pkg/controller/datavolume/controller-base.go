@@ -722,7 +722,7 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 			return err
 		}
 	}
-	// We are not done yet, force a re-reconcile in 2 seconds to get an update.
+	r.log.V(3).Info("DV not succeeded, force a re-reconcile in 2 seconds to get an update")
 	result.RequeueAfter = 2 * time.Second
 	return nil
 }

@@ -780,7 +780,7 @@ func ValidateCanCloneSourceAndTargetSpec(ctx context.Context, c client.Client, s
 	}
 
 	if !permissive && sourceUsableSpace.Cmp(targetUsableSpace) > 0 {
-		return errors.New("target resources requests storage size is smaller than the source")
+		return cc.NewSizeMismatchError(targetUsableSpace, sourceUsableSpace)
 	}
 
 	// Can clone.

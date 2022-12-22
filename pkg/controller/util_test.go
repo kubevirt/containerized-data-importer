@@ -282,7 +282,7 @@ var _ = Describe("ValidateClone", func() {
 
 		err := ValidateClone(sourcePvc, dvSpec)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("target resources requests storage size is smaller than the source"))
+		Expect(err.Error()).To(ContainSubstring("is smaller than the source"))
 	})
 
 	It("Should validate the clone when source PVC is using fs volumeMode, even if the target has an incompatible size (Storage API)", func() {
@@ -324,7 +324,7 @@ var _ = Describe("ValidateClone", func() {
 
 		err := ValidateClone(sourcePvc, dvSpec)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("target resources requests storage size is smaller than the source"))
+		Expect(err.Error()).To(ContainSubstring("is smaller than the source"))
 
 	})
 
