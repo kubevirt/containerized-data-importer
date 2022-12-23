@@ -56,6 +56,7 @@ go_test(
     srcs = [
         "clone-controller_test.go",
         "conditions_test.go",
+        "controller_suite_test.go",
         "import-controller_test.go",
         "smart-clone-controller_test.go",
         "upload-controller_test.go",
@@ -68,6 +69,7 @@ go_test(
         "//pkg/feature-gates:go_default_library",
         "//pkg/token:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
+        "//tests/reporters:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",
         "//vendor/github.com/onsi/ginkgo/extensions/table:go_default_library",
@@ -86,6 +88,7 @@ go_test(
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client/fake:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/log:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/log/zap:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/reconcile:go_default_library",
     ],
 )
