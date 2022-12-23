@@ -57,12 +57,7 @@ type PopulatorReconciler struct {
 }
 
 // NewPopulatorController creates a new instance of the datavolume external population controller
-func NewPopulatorController(
-	ctx context.Context,
-	mgr manager.Manager,
-	log logr.Logger,
-	installerLabels map[string]string,
-) (controller.Controller, error) {
+func NewPopulatorController(ctx context.Context, mgr manager.Manager, log logr.Logger, installerLabels map[string]string) (controller.Controller, error) {
 	client := mgr.GetClient()
 	reconciler := &PopulatorReconciler{
 		ReconcilerBase: ReconcilerBase{
@@ -96,21 +91,21 @@ func (r PopulatorReconciler) Reconcile(ctx context.Context, req reconcile.Reques
 
 // If dataSourceRef is set (external populator), use an empty spec.Source field
 func (r PopulatorReconciler) prepare(syncRes *dataVolumeSyncResult) error {
-	if !dvUsesExternalPopulator(syncRes.dv) {
+	if !dvUsesVolumePopulator(syncRes.dv) {
 		return errors.Errorf("undefined population source")
 	}
 	syncRes.dvMutated.Spec.Source = &cdiv1.DataVolumeSource{}
 	return nil
 }
 
-// checkAnyVolumeDataSource determines if the AnyVolumeDataSource feature gate is enabled or not
-func (r *PopulatorReconciler) checkAnyVolumeDataSource(pvc *corev1.PersistentVolumeClaim, event *Event) (bool, error) {
+// checkPopulationRequirements returns true if the PVC meets the requirements to be populated
+func (r *PopulatorReconciler) checkPopulationRequirements(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume, event *Event) (bool, error) {
 	csiDriverAvailable, err := r.storageClassCSIDriverExists(pvc.Spec.StorageClassName)
 	if err != nil && !k8serrors.IsNotFound(err) {
 		return false, err
 	}
-	// AnyVolumeDataSource feature only works with CSI drivers
-	if !csiDriverAvailable {
+	// Non-snapshot population will only work with CSI drivers
+	if !isSnapshotPopulation(pvc) && !csiDriverAvailable {
 		r.recorder.Event(pvc, corev1.EventTypeWarning, NoCSIDriverForExternalPopulation, MessageNoCSIDriverForExternalPopulation)
 		event.reason = NoCSIDriverForExternalPopulation
 		event.message = MessageNoCSIDriverForExternalPopulation
@@ -118,36 +113,79 @@ func (r *PopulatorReconciler) checkAnyVolumeDataSource(pvc *corev1.PersistentVol
 		return false, nil
 	}
 
-	// If the AnyVolumeDataSource feature gate is disabled, Kubernetes drops the contents of the dataSourceRef field.
-	// We can then determine if the feature is enabled or not by checking that field after creating the PVC.
+	return r.checkAnyVolumeDataSource(pvc, dv, event), nil
+}
+
+// checkAnyVolumeDataSource determines if the AnyVolumeDataSource feature gate is required/enabled
+func (r *PopulatorReconciler) checkAnyVolumeDataSource(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume, event *Event) bool {
+	// We don't need the AnyVolumeDataSource feature gate if
+	// the PVC is externally populated by a PVC or Snapshot.
+	nonPopulator := isPvcPopulation(pvc) || isSnapshotPopulation(pvc)
+
+	// If the AnyVolumeDataSource feature gate is disabled, Kubernetes drops
+	// the contents of the dataSourceRef field. We can then determine if the
+	// feature is enabled or not by checking that field after creating the PVC.
 	enabled := pvc.Spec.DataSourceRef != nil
-	if !enabled {
+
+	populationSupported := enabled || nonPopulator
+	if !populationSupported {
 		r.recorder.Event(pvc, corev1.EventTypeWarning, NoAnyVolumeDataSource, MessageNoAnyVolumeDataSource)
 		event.reason = NoAnyVolumeDataSource
 		event.message = MessageNoAnyVolumeDataSource
 		event.eventType = corev1.EventTypeWarning
 	} else {
 		event.reason = ExternalPopulationSucceeded
-		event.message = fmt.Sprintf(MessageExternalPopulationSucceeded, pvc.Name, pvc.Spec.DataSourceRef.Name)
+		event.message = fmt.Sprintf(MessageExternalPopulationSucceeded, pvc.Name, getPopulatorName(pvc))
 		event.eventType = corev1.EventTypeNormal
 	}
 
-	return enabled, nil
+	return populationSupported
 }
 
-// dvUsesExternalPopulator returns true if the datavolume's PVC is meant to be externally populated
-func dvUsesExternalPopulator(dv *cdiv1.DataVolume) bool {
-	if (dv.Spec.PVC != nil && (dv.Spec.PVC.DataSourceRef != nil || dv.Spec.PVC.DataSource != nil)) ||
-		(dv.Spec.Storage != nil && (dv.Spec.Storage.DataSourceRef != nil || dv.Spec.Storage.DataSource != nil)) {
-		return true
+// getPopulatorName returns the name of the passed PVC's populator
+func getPopulatorName(pvc *corev1.PersistentVolumeClaim) string {
+	var populatorName string
+	if pvc.Spec.DataSourceRef != nil {
+		populatorName = pvc.Spec.DataSourceRef.Name
+	} else {
+		populatorName = pvc.Spec.DataSource.Name
 	}
-	return false
+	return populatorName
+}
+
+// dvUsesVolumePopulator returns true if the datavolume's PVC is meant to be externally populated
+func dvUsesVolumePopulator(dv *cdiv1.DataVolume) bool {
+	return isDataSourcePopulated(dv) || isDataSourceRefPopulated(dv)
+}
+
+// isDataSourcePopulated returns true if the DataVolume has a populated DataSource field
+func isDataSourcePopulated(dv *cdiv1.DataVolume) bool {
+	return (dv.Spec.PVC != nil && dv.Spec.PVC.DataSource != nil) ||
+		(dv.Spec.Storage != nil && dv.Spec.Storage.DataSource != nil)
+}
+
+// isDataSourceRefPopulated returns true if the DataVolume has a populated DataSourceRef field
+func isDataSourceRefPopulated(dv *cdiv1.DataVolume) bool {
+	return (dv.Spec.PVC != nil && dv.Spec.PVC.DataSourceRef != nil) ||
+		(dv.Spec.Storage != nil && dv.Spec.Storage.DataSourceRef != nil)
+}
+
+// isPvcPopulation returns true if a PVC's population source is of PVC kind
+func isPvcPopulation(pvc *corev1.PersistentVolumeClaim) bool {
+	return (pvc.Spec.DataSource != nil && pvc.Spec.DataSource.Kind == "PersistentVolumeClaim") ||
+		(pvc.Spec.DataSourceRef != nil && pvc.Spec.DataSourceRef.Kind == "PersistentVolumeClaim")
+}
+
+// isSnapshotPopulation returns true if a PVC's population source is of Snapshot kind
+func isSnapshotPopulation(pvc *corev1.PersistentVolumeClaim) bool {
+	return (pvc.Spec.DataSource != nil && pvc.Spec.DataSource.Kind == "VolumeSnapshot") ||
+		(pvc.Spec.DataSourceRef != nil && pvc.Spec.DataSourceRef.Kind == "VolumeSnapshot")
 }
 
 // Generic controller functions
 
 func (r PopulatorReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
-	if !dvUsesExternalPopulator(dataVolume) {
+	if !dvUsesVolumePopulator(dataVolume) {
 		return errors.Errorf("undefined population source")
 	}
 	pvc.Annotations[cc.AnnExternalPopulation] = "true"
@@ -185,10 +223,12 @@ func (r PopulatorReconciler) updateStatus(syncRes dataVolumeSyncResult, syncErr 
 }
 
 func (r PopulatorReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
-	// The PVC will only be populated if the AnyVolumeDataSource feature is succesfully enabled
-	if enabled, err := r.checkAnyVolumeDataSource(pvc, event); err != nil {
+	// * Population by Snapshots doesn't have additional requirements.
+	// * Population by PVC requires CSI drivers.
+	// * Population by external populators requires both CSI drivers and the AnyVolumeDataSource feature gate.
+	if supported, err := r.checkPopulationRequirements(pvc, dataVolumeCopy, event); err != nil {
 		return err
-	} else if enabled {
+	} else if supported {
 		dataVolumeCopy.Status.Phase = cdiv1.Succeeded
 	}
 	return nil

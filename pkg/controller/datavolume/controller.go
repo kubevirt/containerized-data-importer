@@ -223,7 +223,7 @@ func getDataVolumeOp(dv *cdiv1.DataVolume) dataVolumeOp {
 		return dataVolumeClone
 	}
 	if src == nil {
-		if dvUsesExternalPopulator(dv) {
+		if dvUsesVolumePopulator(dv) {
 			return dataVolumePopulator
 		}
 		return dataVolumeNop
@@ -820,13 +820,13 @@ func (r *ReconcilerBase) updateDataVolume(dv *cdiv1.DataVolume) error {
 	// Restore so we don't nil out the dv that is being worked on
 	var sourceCopy *cdiv1.DataVolumeSource
 
-	if dv.Spec.SourceRef != nil || dvUsesExternalPopulator(dv) {
+	if dv.Spec.SourceRef != nil || dvUsesVolumePopulator(dv) {
 		sourceCopy = dv.Spec.Source
 		dv.Spec.Source = nil
 	}
 
 	err := r.client.Update(context.TODO(), dv)
-	if dv.Spec.SourceRef != nil || dvUsesExternalPopulator(dv) {
+	if dv.Spec.SourceRef != nil || dvUsesVolumePopulator(dv) {
 		dv.Spec.Source = sourceCopy
 	}
 	return err

@@ -448,7 +448,7 @@ func validateDataSource(dataSource *v1.TypedLocalObjectReference, field *k8sfiel
 	if len(dataSource.Kind) == 0 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Required value: DataSource/DataSourceRef name"),
+			Message: fmt.Sprintf("Required value: DataSource/DataSourceRef kind"),
 			Field:   field.Child("kind").String(),
 		})
 	}
@@ -515,12 +515,6 @@ func validateExternalPopulation(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path
 		})
 	}
 
-	if dataSource != nil {
-		causes = append(causes, validateDataSource(dataSource, field.Child("dataSource"))...)
-	}
-	if dataSourceRef != nil {
-		causes = append(causes, validateDataSource(dataSourceRef, field.Child("dataSourceRef"))...)
-	}
 	if dataSource != nil && dataSourceRef != nil {
 		if !apiequality.Semantic.DeepEqual(dataSource, dataSourceRef) {
 			causes = append(causes, metav1.StatusCause{
@@ -529,6 +523,12 @@ func validateExternalPopulation(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path
 				Field:   "",
 			})
 		}
+	}
+	if dataSource != nil {
+		causes = append(causes, validateDataSource(dataSource, field.Child("dataSource"))...)
+	}
+	if dataSourceRef != nil {
+		causes = append(causes, validateDataSource(dataSourceRef, field.Child("dataSourceRef"))...)
 	}
 
 	return causes

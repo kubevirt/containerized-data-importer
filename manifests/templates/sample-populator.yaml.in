@@ -59,11 +59,15 @@ kind: ServiceAccount
 metadata:
   name: cdi-sample-account
   namespace: {{ .Namespace }}
+  labels:
+    cdi.kubevirt.io/testing: ""
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: cdi-sample-role
+  labels:
+    cdi.kubevirt.io/testing: ""
 rules:
   - apiGroups: [""]
     resources: [persistentvolumes]
@@ -85,6 +89,8 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: cdi-sample-binding
+  labels:
+    cdi.kubevirt.io/testing: ""
 subjects:
   - kind: ServiceAccount
     name: cdi-sample-account
@@ -99,6 +105,8 @@ apiVersion: apps/v1
 metadata:
   name: cdi-sample-populator
   namespace: {{ .Namespace }}
+  labels:
+    cdi.kubevirt.io/testing: ""
 spec:
   selector:
     matchLabels:
@@ -107,6 +115,7 @@ spec:
     metadata:
       labels:
         app: cdi-sample-populator
+        cdi.kubevirt.io/testing: ""
     spec:
       serviceAccount: cdi-sample-account
       containers:
