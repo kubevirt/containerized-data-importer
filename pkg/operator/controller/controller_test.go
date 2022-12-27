@@ -295,6 +295,7 @@ var _ = Describe("Controller", func() {
 					},
 					Labels: map[string]string{
 						"severity":                      "warning",
+						"operator_health_impact":        "critical",
 						"kubernetes_operator_part_of":   "kubevirt",
 						"kubernetes_operator_component": "containerized-data-importer",
 					},
