@@ -51,6 +51,7 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCreatePrometheusInfra)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileRemainingRelationshipLabels)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileDeleteSecrets)
+	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCDICRD)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileInitializeCRD)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileSetConfigAuthority)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileHandleOldVersion)

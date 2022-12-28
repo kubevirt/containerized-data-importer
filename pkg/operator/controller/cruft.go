@@ -31,11 +31,16 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
@@ -262,4 +267,94 @@ func reconcileRemainingRelationshipLabels(args *callbacks.ReconcileCallbackArgs)
 	}
 
 	return nil
+}
+
+// Delete after we no longer want to include CDI CRD v1alpha1 version in release YAMLs
+// Special code needed because we're not the owner of this object.
+func (r *ReconcileCDI) watchCDICRD() error {
+	if err := r.controller.Watch(&source.Kind{Type: &extv1.CustomResourceDefinition{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			name := obj.GetName()
+			if name != "cdis.cdi.kubevirt.io" {
+				return nil
+			}
+			cr, err := cc.GetActiveCDI(r.client)
+			if err != nil {
+				return nil
+			}
+			return []reconcile.Request{
+				{
+					NamespacedName: types.NamespacedName{
+						Namespace: "",
+						Name:      cr.Name,
+					},
+				},
+			}
+		},
+	)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ReconcileCDICRD monitors the CDI CRD and removes the alpha version from it.
+// Delete after we no longer want to include CDI CRD v1alpha1 version in release YAMLs
+// Remove alpha as a version from the CDI CRD
+func reconcileCDICRD(args *callbacks.ReconcileCallbackArgs) error {
+	if args.State != callbacks.ReconcileStatePostRead {
+		return nil
+	}
+	deployment := args.CurrentObject.(*appsv1.Deployment)
+	if !isControllerDeployment(deployment) || !sdk.CheckDeploymentReady(deployment) {
+		return nil
+	}
+
+	crd := &extv1.CustomResourceDefinition{}
+	crdKey := client.ObjectKey{Namespace: "", Name: "cdis.cdi.kubevirt.io"}
+	err := args.Client.Get(context.TODO(), crdKey, crd)
+	crdCopy := crd.DeepCopy()
+	if err != nil {
+		if errors.IsNotFound(err) {
+			args.Logger.Info("CDI CRD does not exist")
+			return nil
+		}
+		args.Logger.Error(err, "Failed to get CDI CRD")
+		return err
+	}
+
+	desiredVersion := newestVersion(crd)
+	if olderVersionsExist(desiredVersion, crd) {
+		args.Logger.Info("Old version is in CDI CRD status.storedVersion, rewriting objects and removing...")
+		if !desiredIsStorage(desiredVersion, crd) {
+			return err
+		}
+		if err := rewriteOldObjects(args, desiredVersion, crd); err != nil {
+			return err
+		}
+		if err := removeStoredVersion(args, desiredVersion, crd); err != nil {
+			return err
+		}
+	} else {
+		removeOldVersions(desiredVersion, crd)
+		if !reflect.DeepEqual(crdCopy, crd) {
+			args.Logger.Info("Old version not in CDI CRD status.storedVersion, removing also from CRD spec")
+			if err := args.Client.Update(context.TODO(), crd); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// Delete after we no longer want to include CDI CRD v1alpha1 version in release YAMLs
+func removeOldVersions(desiredVersion string, crd *extv1.CustomResourceDefinition) *extv1.CustomResourceDefinition {
+	newVersions := make([]extv1.CustomResourceDefinitionVersion, 0)
+	for _, version := range crd.Spec.Versions {
+		if version.Name == desiredVersion {
+			newVersions = append(newVersions, version)
+		}
+	}
+	crd.Spec.Versions = newVersions
+	return crd
 }
