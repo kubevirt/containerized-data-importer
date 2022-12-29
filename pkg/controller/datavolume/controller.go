@@ -89,18 +89,13 @@ type dataVolumeSyncResult struct {
 	dv      *cdiv1.DataVolume
 	pvc     *corev1.PersistentVolumeClaim
 	pvcSpec *v1.PersistentVolumeClaimSpec
-	res     *reconcile.Result
-}
-
-// Reconciler interface
-type Reconciler interface {
-	updateAnnotations(dataVolume *cdiv1.DataVolume, annotations map[string]string) error
-	updateStatus(log logr.Logger, syncRes dataVolumeSyncResult, syncErr error) (reconcile.Result, error)
+	gc      bool
+	result  *reconcile.Result
 }
 
 // ReconcilerBase members
 type ReconcilerBase struct {
-	Reconciler
+	reconcile.Reconciler
 	client          client.Client
 	recorder        record.EventRecorder
 	scheme          *runtime.Scheme
@@ -236,63 +231,51 @@ func getDataVolumeOp(dv *cdiv1.DataVolume) dataVolumeOp {
 	return dataVolumeNop
 }
 
-// Reconcile loop for the data volumes
-func (r ReconcilerBase) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	log := r.log.WithValues("DataVolume", req.NamespacedName)
-	res, syncErr := r.sync(log, req, nil, nil)
-	return r.updateStatus(log, res, syncErr)
-}
-
-func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, prepare func(*cdiv1.DataVolume) error) (dataVolumeSyncResult, error) {
-	var ctx dataVolumeSyncResult
-
+func (r ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, syncRes *dataVolumeSyncResult, cleanup, prepare func() error) error {
 	dv, err := r.getDataVolume(req.NamespacedName)
-	if dv == nil {
-		ctx.res = &reconcile.Result{}
-		return ctx, err
+	if dv == nil || err != nil {
+		syncRes.result = &reconcile.Result{}
+		return err
 	}
+	syncRes.dv = dv
+
 	if dv.DeletionTimestamp != nil {
 		log.Info("DataVolume marked for deletion, cleaning up")
 		if cleanup != nil {
-			err := cleanup(dv)
-			return ctx, err
+			err := cleanup()
+			return err
 		}
-		ctx.res = &reconcile.Result{}
-		return ctx, nil
+		syncRes.result = &reconcile.Result{}
+		return nil
 	}
 
 	if prepare != nil {
-		if err := prepare(dv); err != nil {
-			return ctx, err
+		if err := prepare(); err != nil {
+			return err
 		}
 	}
 
-	pvc, err := r.getPVC(dv)
+	syncRes.pvc, err = r.getPVC(dv)
 	if err != nil {
-		return ctx, err
+		return err
 	}
-	if pvc != nil {
-		res, err := r.garbageCollect(dv, pvc, log)
-		if err != nil {
-			return ctx, err
+	if syncRes.pvc != nil {
+		if err := r.garbageCollect(syncRes, log); err != nil {
+			return err
 		}
-		if res != nil {
-			ctx.res = res
-			return ctx, nil
+		if syncRes.result != nil || syncRes.gc {
+			return nil
 		}
-		if err := r.validatePVC(dv, pvc); err != nil {
-			return ctx, err
+		if err := r.validatePVC(dv, syncRes.pvc); err != nil {
+			return err
 		}
 	}
 
-	pvcSpec, err := renderPvcSpec(r.client, r.recorder, log, dv)
+	syncRes.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, dv)
 	if err != nil {
-		return ctx, err
+		return err
 	}
-	ctx.dv = dv
-	ctx.pvc = pvc
-	ctx.pvcSpec = pvcSpec
-	return ctx, nil
+	return nil
 }
 
 func (r *ReconcilerBase) validatePVC(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
@@ -342,21 +325,18 @@ func (r *ReconcilerBase) getDataVolume(key types.NamespacedName) (*cdiv1.DataVol
 	return dv, nil
 }
 
+type pvcModifierFunc func(datavolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error
+
 func (r *ReconcilerBase) createPvcForDatavolume(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec,
-	pvcModifier func(datavolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim)) (*corev1.PersistentVolumeClaim, error) {
-	newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec, datavolume.Namespace, datavolume.Name)
+	pvcModifier pvcModifierFunc) (*corev1.PersistentVolumeClaim, error) {
+	newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec, datavolume.Namespace, datavolume.Name, pvcModifier)
 	if err != nil {
 		return nil, err
 	}
 	util.SetRecommendedLabels(newPvc, r.installerLabels, "cdi-controller")
-
-	if pvcModifier != nil {
-		pvcModifier(datavolume, newPvc)
-	}
 	if err := r.client.Create(context.TODO(), newPvc); err != nil {
 		return nil, err
 	}
-
 	return newPvc, nil
 }
 
@@ -436,13 +416,21 @@ func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 
 type updateStatusPhaseFunc func(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error
 
-func (r ReconcilerBase) reconcileDataVolumeStatus(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, modify modifyFunc, updateStatusPhase updateStatusPhaseFunc) (reconcile.Result, error) {
-	dataVolumeCopy := dataVolume.DeepCopy()
+func (r ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, modify modifyFunc, updateStatusPhase updateStatusPhaseFunc) (reconcile.Result, error) {
+	pvc := syncRes.pvc
+	dataVolumeCopy := syncRes.dv.DeepCopy()
+	result := reconcile.Result{}
+	curPhase := dataVolumeCopy.Status.Phase
 	var event Event
 	var err error
-	result := reconcile.Result{}
 
-	curPhase := dataVolumeCopy.Status.Phase
+	if syncRes.gc {
+		if err := r.client.Delete(context.TODO(), syncRes.dv); err != nil {
+			return reconcile.Result{}, err
+		}
+		return reconcile.Result{}, nil
+	}
+
 	if pvc != nil {
 		dataVolumeCopy.Status.ClaimName = pvc.Name
 
@@ -520,7 +508,7 @@ func (r ReconcilerBase) reconcileDataVolumeStatus(dataVolume *cdiv1.DataVolume, 
 	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))
 	copy(currentCond, dataVolumeCopy.Status.Conditions)
 	r.updateConditions(dataVolumeCopy, pvc, "")
-	return result, r.emitEvent(dataVolume, dataVolumeCopy, curPhase, currentCond, &event)
+	return result, r.emitEvent(syncRes.dv, dataVolumeCopy, curPhase, currentCond, &event)
 }
 
 func (r *ReconcilerBase) updateConditions(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, reason string) {
@@ -722,7 +710,7 @@ func buildHTTPClient() *http.Client {
 // It also sets the appropriate OwnerReferences on the resource
 // which allows handleObject to discover the DataVolume resource
 // that 'owns' it.
-func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, targetPvcSpec *corev1.PersistentVolumeClaimSpec, namespace string, name string) (*corev1.PersistentVolumeClaim, error) {
+func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, targetPvcSpec *corev1.PersistentVolumeClaimSpec, namespace, name string, pvcModifier pvcModifierFunc) (*corev1.PersistentVolumeClaim, error) {
 	labels := map[string]string{
 		common.CDILabelKey: common.CDILabelValue,
 	}
@@ -730,18 +718,11 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
 	}
 	annotations := make(map[string]string)
-
 	for k, v := range dataVolume.ObjectMeta.Annotations {
 		annotations[k] = v
 	}
-
 	annotations[cc.AnnPodRestarts] = "0"
 	annotations[cc.AnnContentType] = string(getContentType(dataVolume))
-
-	if err := r.Reconciler.updateAnnotations(dataVolume, annotations); err != nil {
-		return nil, err
-	}
-
 	if dataVolume.Spec.PriorityClassName != "" {
 		annotations[cc.AnnPriorityClassName] = dataVolume.Spec.PriorityClassName
 	}
@@ -755,6 +736,12 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 			Annotations: annotations,
 		},
 		Spec: *targetPvcSpec,
+	}
+
+	if pvcModifier != nil {
+		if err := pvcModifier(dataVolume, pvc); err != nil {
+			return nil, err
+		}
 	}
 
 	if pvc.Namespace == dataVolume.Namespace {

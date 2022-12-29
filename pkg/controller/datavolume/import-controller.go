@@ -26,9 +26,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -115,7 +113,15 @@ func addDataVolumeImportControllerWatches(mgr manager.Manager, datavolumeControl
 	return nil
 }
 
-func (r ImportReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, annotations map[string]string) error {
+func (r ImportReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+	annotations := pvc.Annotations
+
+	if checkpoint := r.getNextCheckpoint(dataVolume, pvc); checkpoint != nil {
+		annotations[cc.AnnCurrentCheckpoint] = checkpoint.Current
+		annotations[cc.AnnPreviousCheckpoint] = checkpoint.Previous
+		annotations[cc.AnnFinalCheckpoint] = strconv.FormatBool(checkpoint.IsFinal)
+	}
+
 	if dataVolume.Spec.Source.HTTP != nil {
 		annotations[cc.AnnEndpoint] = dataVolume.Spec.Source.HTTP.URL
 		annotations[cc.AnnSource] = cc.SourceHTTP
@@ -198,58 +204,56 @@ func (r ImportReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, annota
 	return errors.Errorf("no source set for import datavolume")
 }
 
-func (r ImportReconciler) updateStatus(log logr.Logger, syncRes dataVolumeSyncResult, syncErr error) (reconcile.Result, error) {
-	if syncErr != nil {
-		return reconcile.Result{}, syncErr
-	}
-	if syncRes.res != nil {
-		return *syncRes.res, nil
-	}
-	//FIXME: pass syncRes instead of args
-	if err := r.reconcileDataVolumePVC(log, syncRes.dv, &syncRes.pvc, syncRes.pvcSpec); err != nil {
-		return reconcile.Result{}, err
-	}
-	return r.reconcileDataVolumeStatus(syncRes.dv, syncRes.pvc, nil, r.updateStatusPhase)
-
+// Reconcile loop for the import data volumes
+func (r ImportReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+	log := r.log.WithValues("DataVolume", req.NamespacedName)
+	return r.updateStatus(r.sync(log, req))
 }
 
-func (r *ImportReconciler) reconcileDataVolumePVC(log logr.Logger, dv *cdiv1.DataVolume, pvc **corev1.PersistentVolumeClaim, pvcSpec *v1.PersistentVolumeClaimSpec) error {
-	if _, dvPrePopulated := dv.Annotations[cc.AnnPrePopulated]; dvPrePopulated {
-		return nil
+func (r ImportReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
+	var syncRes dataVolumeSyncResult
+	syncErr := r.syncCommon(log, req, &syncRes, nil, nil)
+	if syncErr != nil || syncRes.result != nil {
+		return syncRes, syncErr
 	}
-	if *pvc == nil {
-		newPvc, err := r.createPvcForDatavolume(dv, pvcSpec, r.updateCheckpoint)
-		if err != nil {
-			if cc.ErrQuotaExceeded(err) {
-				r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, dv, nil, nil,
-					Event{
-						eventType: corev1.EventTypeWarning,
-						reason:    cc.ErrExceededQuota,
-						message:   err.Error(),
-					})
-			}
-			return err
-		}
-		*pvc = newPvc
-		return nil
-	}
-	if cc.GetSource(*pvc) == cc.SourceVDDK {
-		changed, err := r.getVddkAnnotations(dv, *pvc)
-		if err != nil {
-			return err
-		}
-		if changed {
-			err = r.client.Get(context.TODO(), types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}, dv)
-			if err != nil {
-				return err
-			}
+	if syncRes.pvc == nil {
+		if _, dvPrePopulated := syncRes.dv.Annotations[cc.AnnPrePopulated]; !dvPrePopulated {
+			syncRes.pvc, syncErr = r.createPvcForDatavolume(syncRes.dv, syncRes.pvcSpec, r.updateAnnotations)
 		}
 	}
+	if syncRes.pvc != nil && syncErr == nil {
+		syncErr = r.maybeSetPvcMultiStageAnnotation(syncRes.pvc, syncRes.dv)
 
-	if err := r.maybeSetMultiStageAnnotation(*pvc, dv); err != nil {
-		return err
 	}
-	return nil
+	return syncRes, syncErr
+}
+
+func (r ImportReconciler) updateStatus(syncRes dataVolumeSyncResult, syncErr error) (reconcile.Result, error) {
+	if syncErr != nil {
+		if cc.ErrQuotaExceeded(syncErr) {
+			r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, syncRes.dv, nil, nil,
+				Event{
+					eventType: corev1.EventTypeWarning,
+					reason:    cc.ErrExceededQuota,
+					message:   syncErr.Error(),
+				})
+		}
+		return reconcile.Result{}, syncErr
+	}
+	if syncRes.result != nil {
+		return *syncRes.result, nil
+	}
+	modifier := func(dv *cdiv1.DataVolume) {
+		if syncRes.pvc != nil && cc.GetSource(syncRes.pvc) == cc.SourceVDDK {
+			if vddkHost := syncRes.pvc.Annotations[cc.AnnVddkHostConnection]; vddkHost != "" {
+				cc.AddAnnotation(dv, cc.AnnVddkHostConnection, vddkHost)
+			}
+			if vddkVersion := syncRes.pvc.Annotations[cc.AnnVddkVersion]; vddkVersion != "" {
+				cc.AddAnnotation(dv, cc.AnnVddkVersion, vddkVersion)
+			}
+		}
+	}
+	return r.updateStatusCommon(syncRes, modifier, r.updateStatusPhase)
 }
 
 func (r ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
@@ -325,40 +329,15 @@ func (r ImportReconciler) updatesMultistageImportSucceeded(pvc *corev1.Persisten
 		// Single stage of a multi-stage import
 		dataVolumeCopy.Status.Phase = cdiv1.Paused
 		// Advances annotations to next checkpoint
-		if err := r.setMultistageImportAnnotations(dataVolumeCopy, pvc); err != nil {
+		if err := r.setPvcMultistageImportAnnotations(dataVolumeCopy, pvc); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (r *ImportReconciler) updateCheckpoint(datavolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) {
-	checkpoint := r.getNextCheckpoint(datavolume, pvc)
-	if checkpoint != nil {
-		pvc.ObjectMeta.Annotations[cc.AnnCurrentCheckpoint] = checkpoint.Current
-		pvc.ObjectMeta.Annotations[cc.AnnPreviousCheckpoint] = checkpoint.Previous
-		pvc.ObjectMeta.Annotations[cc.AnnFinalCheckpoint] = strconv.FormatBool(checkpoint.IsFinal)
-	}
-}
-
-func (r *ImportReconciler) getVddkAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (bool, error) {
-	var dataVolumeCopy = dataVolume.DeepCopy()
-	if vddkHost := pvc.Annotations[cc.AnnVddkHostConnection]; vddkHost != "" {
-		cc.AddAnnotation(dataVolumeCopy, cc.AnnVddkHostConnection, vddkHost)
-	}
-	if vddkVersion := pvc.Annotations[cc.AnnVddkVersion]; vddkVersion != "" {
-		cc.AddAnnotation(dataVolumeCopy, cc.AnnVddkVersion, vddkVersion)
-	}
-
-	// only update if something has changed
-	if !reflect.DeepEqual(dataVolume, dataVolumeCopy) {
-		return true, r.updateDataVolume(dataVolumeCopy)
-	}
-	return false, nil
-}
-
 // Sets the annotation if pvc needs it, and does not have it yet
-func (r *ImportReconciler) maybeSetMultiStageAnnotation(pvc *corev1.PersistentVolumeClaim, datavolume *cdiv1.DataVolume) error {
+func (r *ImportReconciler) maybeSetPvcMultiStageAnnotation(pvc *corev1.PersistentVolumeClaim, datavolume *cdiv1.DataVolume) error {
 	if pvc.Status.Phase == corev1.ClaimBound {
 		// If a PVC already exists with no multi-stage annotations, check if it
 		// needs them set (if not already finished with an import).
@@ -366,7 +345,7 @@ func (r *ImportReconciler) maybeSetMultiStageAnnotation(pvc *corev1.PersistentVo
 		multiStageAnnotationsSet := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnCurrentCheckpoint)
 		multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnMultiStageImportDone)
 		if multiStageImport && !multiStageAnnotationsSet && !multiStageAlreadyDone {
-			err := r.setMultistageImportAnnotations(datavolume, pvc)
+			err := r.setPvcMultistageImportAnnotations(datavolume, pvc)
 			if err != nil {
 				return err
 			}
@@ -376,7 +355,7 @@ func (r *ImportReconciler) maybeSetMultiStageAnnotation(pvc *corev1.PersistentVo
 }
 
 // Set the PVC annotations related to multi-stage imports so that they point to the next checkpoint to copy.
-func (r *ImportReconciler) setMultistageImportAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+func (r *ImportReconciler) setPvcMultistageImportAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
 	pvcCopy := pvc.DeepCopy()
 
 	// Only mark this checkpoint complete if it was completed by the current pod.
