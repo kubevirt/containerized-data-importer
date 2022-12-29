@@ -851,17 +851,6 @@ var _ = Describe("all clone tests", func() {
 					}
 				})
 
-				AfterEach(func() {
-					if wffcStorageClass != nil {
-						err := f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), wffcStorageClass.Name, metav1.DeleteOptions{})
-						Expect(err).ToNot(HaveOccurred())
-						Eventually(func() bool {
-							_, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), wffcStorageClass.Name, metav1.GetOptions{})
-							return err != nil && k8serrors.IsNotFound(err)
-						}, time.Minute, time.Second).Should(BeTrue())
-					}
-				})
-
 				It("should report correct status for smart/CSI clones", func() {
 					volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
 
@@ -2535,6 +2524,197 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(preallocationAnnotationFound).To(BeTrue())
 			Expect(annValue).To(Equal("true"))
+		})
+	})
+
+	var _ = Describe("Clone from volumesnapshot source", func() {
+		f := framework.NewFramework(namespacePrefix)
+
+		var snapshot *snapshotv1.VolumeSnapshot
+		var targetNamespace *v1.Namespace
+
+		createSnapshot := func(size string, storageClassName *string, volumeMode v1.PersistentVolumeMode) {
+			snapSourceDv := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+			snapSourceDv.Spec.PVC.VolumeMode = &volumeMode
+			snapSourceDv.Spec.PVC.StorageClassName = storageClassName
+			By(fmt.Sprintf("Create new datavolume %s which will be the source of the volumesnapshot", snapSourceDv.Name))
+			snapSourceDv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, snapSourceDv)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(snapSourceDv)
+			By("Waiting for import to be completed")
+			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, snapSourceDv.Name)
+			Expect(err).ToNot(HaveOccurred())
+			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(snapSourceDv.Namespace).Get(context.TODO(), snapSourceDv.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			snapClass := f.GetSnapshotClass()
+			snapshot = &snapshotv1.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "snap-" + snapSourceDv.Name,
+					Namespace: f.Namespace.Name,
+				},
+				Spec: snapshotv1.VolumeSnapshotSpec{
+					Source: snapshotv1.VolumeSnapshotSource{
+						PersistentVolumeClaimName: &pvc.Name,
+					},
+					VolumeSnapshotClassName: &snapClass.Name,
+				},
+			}
+			err = f.CrClient.Create(context.TODO(), snapshot)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				err = f.CrClient.Get(context.TODO(), client.ObjectKeyFromObject(snapshot), snapshot)
+				if err != nil {
+					return false
+				}
+				return snapshot.Status != nil && snapshot.Status.ReadyToUse != nil && *snapshot.Status.ReadyToUse
+			}, 10*time.Second, 1*time.Second).Should(BeTrue())
+			By("Snapshot ready, no need to keep PVC around")
+			err = f.DeletePVC(pvc)
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		BeforeEach(func() {
+			if !f.IsSnapshotStorageClassAvailable() {
+				Skip("Clone from volumesnapshot does not work without snapshot capable storage")
+			}
+		})
+
+		AfterEach(func() {
+			By(fmt.Sprintf("[AfterEach] Removing snapshot %s/%s", snapshot.Namespace, snapshot.Name))
+			Eventually(func() bool {
+				err := f.CrClient.Delete(context.TODO(), snapshot)
+				return err != nil && k8serrors.IsNotFound(err)
+			}, time.Minute, time.Second).Should(BeTrue())
+
+			if targetNamespace != nil {
+				err := f.K8sClient.CoreV1().Namespaces().Delete(context.TODO(), targetNamespace.Name, metav1.DeleteOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				targetNamespace = nil
+			}
+		})
+
+		DescribeTable("Should sucessfully clone without falling back to host assisted", func(volumeMode v1.PersistentVolumeMode, repeat int, crossNamespace bool) {
+			var i int
+			var err error
+
+			targetNs := f.Namespace
+			if crossNamespace {
+				targetNamespace, err = f.CreateNamespace("cdi-cross-ns-snapshot-clone-test", nil)
+				Expect(err).ToNot(HaveOccurred())
+				targetNs = targetNamespace
+			}
+			size := "1Gi"
+			createSnapshot(size, nil, volumeMode)
+
+			for i = 0; i < repeat; i++ {
+				dataVolume := utils.NewDataVolumeForCloningFromSnapshot(fmt.Sprintf("clone-from-snap-%d", i), size, snapshot.Namespace, snapshot.Name, nil, &volumeMode)
+				By(fmt.Sprintf("Create new datavolume %s which will clone from volumesnapshot", dataVolume.Name))
+				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+			}
+
+			for i = 0; i < repeat; i++ {
+				By("Waiting for clone to be completed")
+				dvName := fmt.Sprintf("clone-from-snap-%d", i)
+				err = utils.WaitForDataVolumePhase(f, targetNs.Name, cdiv1.Succeeded, dvName)
+				Expect(err).ToNot(HaveOccurred())
+				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(targetNs.Name).Get(context.TODO(), dvName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				_, ok := pvc.Annotations[controller.AnnCloneRequest]
+				Expect(ok).To(BeFalse())
+				Expect(pvc.Spec.DataSource.Kind).To(Equal("VolumeSnapshot"))
+				Expect(pvc.Spec.DataSourceRef.Kind).To(Equal("VolumeSnapshot"))
+			}
+
+			By("Verify MD5 on one of the DVs")
+			lastDvName := fmt.Sprintf("clone-from-snap-%d", i-1)
+			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(targetNs.Name).Get(context.TODO(), lastDvName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			path := utils.DefaultImagePath
+			if volumeMode == v1.PersistentVolumeBlock {
+				path = utils.DefaultPvcMountPath
+			}
+			same, err := f.VerifyTargetPVCContentMD5(targetNs, pvc, path, utils.UploadFileMD5, utils.UploadFileSize)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(same).To(BeTrue())
+		},
+			Entry("with filesystem single clone", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 1, true),
+			Entry("with filesystem multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 5, false),
+			Entry("with block single clone", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 1, false),
+			Entry("with block multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 5, false),
+		)
+
+		Context("Fallback to host assisted", func() {
+			var noExpansionStorageClass *storagev1.StorageClass
+
+			BeforeEach(func() {
+				allowVolumeExpansion := false
+				disableVolumeExpansion := func(sc *storagev1.StorageClass) {
+					sc.AllowVolumeExpansion = &allowVolumeExpansion
+				}
+				sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), utils.DefaultStorageClass.GetName(), metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				noExpansionStorageClass, err = f.CreateVariationOfStorageClass(sc, disableVolumeExpansion)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			DescribeTable("Should sucessfully clone using host assisted", func(volumeMode v1.PersistentVolumeMode, repeat int, crossNamespace bool) {
+				var i int
+				var err error
+
+				targetNs := f.Namespace
+				if crossNamespace {
+					targetNamespace, err = f.CreateNamespace("cdi-cross-ns-snapshot-clone-test", nil)
+					Expect(err).ToNot(HaveOccurred())
+					targetNs = targetNamespace
+				}
+				snapSourceSize := "1Gi"
+				// Make sure expansion required, that's how we achieve fallback to host assisted
+				targetDvSize := "2Gi"
+				createSnapshot(snapSourceSize, &noExpansionStorageClass.Name, volumeMode)
+
+				for i = 0; i < repeat; i++ {
+					dataVolume := utils.NewDataVolumeForCloningFromSnapshot(fmt.Sprintf("clone-from-snap-%d", i), targetDvSize, snapshot.Namespace, snapshot.Name, &noExpansionStorageClass.Name, &volumeMode)
+					By(fmt.Sprintf("Create new datavolume %s which will clone from volumesnapshot", dataVolume.Name))
+					dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, dataVolume)
+					Expect(err).ToNot(HaveOccurred())
+					f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+				}
+
+				for i = 0; i < repeat; i++ {
+					dvName := fmt.Sprintf("clone-from-snap-%d", i)
+					By("Waiting for clone to be completed")
+					err = utils.WaitForDataVolumePhase(f, targetNs.Name, cdiv1.Succeeded, dvName)
+					Expect(err).ToNot(HaveOccurred())
+					By("Check host assisted clone is taking place")
+					pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(targetNs.Name).Get(context.TODO(), dvName, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					suffix := "-host-assisted-source-pvc"
+					Expect(pvc.Annotations[controller.AnnCloneRequest]).To(ContainSubstring(suffix))
+					Expect(pvc.Spec.DataSource).To(BeNil())
+					Expect(pvc.Spec.DataSourceRef).To(BeNil())
+				}
+
+				By("Verify MD5 on one of the DVs")
+				lastDvName := fmt.Sprintf("clone-from-snap-%d", i-1)
+				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(targetNs.Name).Get(context.TODO(), lastDvName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				path := utils.DefaultImagePath
+				if volumeMode == v1.PersistentVolumeBlock {
+					path = utils.DefaultPvcMountPath
+				}
+				same, err := f.VerifyTargetPVCContentMD5(targetNs, pvc, path, utils.UploadFileMD5, utils.UploadFileSize)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(same).To(BeTrue())
+			},
+				Entry("with filesystem single clone", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 1, true),
+				Entry("with filesystem multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 5, false),
+				Entry("with block single clone", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 1, false),
+				Entry("with block multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 5, false),
+			)
 		})
 	})
 })

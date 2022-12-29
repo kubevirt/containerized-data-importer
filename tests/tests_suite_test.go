@@ -1,6 +1,7 @@
 package tests_test
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"testing"
@@ -11,6 +12,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/reporters"
@@ -124,10 +127,23 @@ func BuildTestSuite() {
 	})
 
 	AfterSuite(func() {
+		client := framework.ClientsInstance.K8sClient
+
 		Eventually(func() []corev1.Namespace {
-			nsList, _ := utils.GetTestNamespaceList(framework.ClientsInstance.K8sClient, framework.NsPrefixLabel)
+			nsList, _ := utils.GetTestNamespaceList(client, framework.NsPrefixLabel)
 			fmt.Fprintf(ginkgo.GinkgoWriter, "DEBUG: AfterSuite nsList: %v\n", nsList.Items)
 			return nsList.Items
 		}, nsDeletedTimeout, pollInterval).Should(BeEmpty())
+
+		// Delete temp storage classes
+		labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{"cdi.kubevirt.io/testing": ""}}
+		scList, err := client.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
+		})
+		Expect(err).ToNot(HaveOccurred())
+		for _, sc := range scList.Items {
+			err = client.StorageV1().StorageClasses().Delete(context.TODO(), sc.Name, metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+		}
 	})
 }

@@ -588,6 +588,39 @@ func NewDataVolumeForCloningWithEmptySize(dataVolumeName, namespace, pvcName str
 	return dv
 }
 
+// NewDataVolumeForCloningFromSnapshot initializes a DataVolume struct for cloning from a volume snapshot
+func NewDataVolumeForCloningFromSnapshot(dataVolumeName, size, namespace, snapshot string, storageClassName *string, volumeMode *k8sv1.PersistentVolumeMode) *cdiv1.DataVolume {
+	dv := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        dataVolumeName,
+			Annotations: map[string]string{},
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				Snapshot: &cdiv1.DataVolumeSourceSnapshot{
+					Namespace: namespace,
+					Name:      snapshot,
+				},
+			},
+			Storage: &cdiv1.StorageSpec{
+				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+	if volumeMode != nil {
+		dv.Spec.Storage.VolumeMode = volumeMode
+	}
+	if storageClassName != nil {
+		dv.Spec.Storage.StorageClassName = storageClassName
+	}
+	return dv
+}
+
 // NewDataVolumeWithRegistryImport initializes a DataVolume struct with registry annotations
 func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registryURL string) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
