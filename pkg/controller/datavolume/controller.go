@@ -784,10 +784,19 @@ func getContentType(dv *cdiv1.DataVolume) cdiv1.DataVolumeContentType {
 
 // Whenever the controller updates a DV, we must make sure to nil out spec.source when spec.sourceRef is set
 func (r *ReconcilerBase) updateDataVolume(dv *cdiv1.DataVolume) error {
+	// Restore so we don't nil out the dv that is being worked on
+	var sourceCopy *cdiv1.DataVolumeSource
+
 	if dv.Spec.SourceRef != nil {
+		sourceCopy = dv.Spec.Source
 		dv.Spec.Source = nil
 	}
-	return r.client.Update(context.TODO(), dv)
+
+	err := r.client.Update(context.TODO(), dv)
+	if dv.Spec.SourceRef != nil {
+		dv.Spec.Source = sourceCopy
+	}
+	return err
 }
 
 func (r *ReconcilerBase) updatePVC(pvc *corev1.PersistentVolumeClaim) error {
