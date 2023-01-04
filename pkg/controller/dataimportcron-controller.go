@@ -485,6 +485,10 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 	}
 	dataSourceCopy := dataSource.DeepCopy()
 	r.setDataImportCronResourceLabels(dataImportCron, dataSource)
+	passCronAnnotationToDataSource(dataImportCron, dataSource, AnnDefaultInstancetype)
+	passCronAnnotationToDataSource(dataImportCron, dataSource, AnnDefaultInstancetypeKind)
+	passCronAnnotationToDataSource(dataImportCron, dataSource, AnnDefaultPreference)
+	passCronAnnotationToDataSource(dataImportCron, dataSource, AnnDefaultPreferenceKind)
 
 	sourcePVC := dataImportCron.Status.LastImportedPVC
 	if sourcePVC != nil {
@@ -921,6 +925,10 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	r.setDataImportCronResourceLabels(cron, dv)
 	passCronAnnotationToDv(cron, dv, AnnImmediateBinding)
 	passCronAnnotationToDv(cron, dv, cc.AnnPodRetainAfterCompletion)
+	passCronAnnotationToDv(cron, dv, AnnDefaultInstancetype)
+	passCronAnnotationToDv(cron, dv, AnnDefaultInstancetypeKind)
+	passCronAnnotationToDv(cron, dv, AnnDefaultPreference)
+	passCronAnnotationToDv(cron, dv, AnnDefaultPreferenceKind)
 	return dv
 }
 
@@ -951,6 +959,12 @@ func untagDigestedDockerURL(dockerURL string) string {
 func passCronAnnotationToDv(cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume, ann string) {
 	if val := cron.Annotations[ann]; val != "" {
 		cc.AddAnnotation(dv, ann, val)
+	}
+}
+
+func passCronAnnotationToDataSource(cron *cdiv1.DataImportCron, ds *cdiv1.DataSource, ann string) {
+	if val := cron.Annotations[ann]; val != "" {
+		cc.AddAnnotation(ds, ann, val)
 	}
 }
 
