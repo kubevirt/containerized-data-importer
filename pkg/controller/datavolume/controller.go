@@ -87,9 +87,9 @@ type Event struct {
 
 type dataVolumeSyncResult struct {
 	dv      *cdiv1.DataVolume
+	dvCopy  *cdiv1.DataVolume
 	pvc     *corev1.PersistentVolumeClaim
 	pvcSpec *v1.PersistentVolumeClaimSpec
-	gc      bool
 	result  *reconcile.Result
 }
 
@@ -238,6 +238,7 @@ func (r ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, syncR
 		return err
 	}
 	syncRes.dv = dv
+	syncRes.dvCopy = dv.DeepCopy()
 
 	if dv.DeletionTimestamp != nil {
 		log.Info("DataVolume marked for deletion, cleaning up")
@@ -263,7 +264,7 @@ func (r ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, syncR
 		if err := r.garbageCollect(syncRes, log); err != nil {
 			return err
 		}
-		if syncRes.result != nil || syncRes.gc {
+		if syncRes.result != nil || syncRes.dv == nil {
 			return nil
 		}
 		if err := r.validatePVC(dv, syncRes.pvc); err != nil {
@@ -356,7 +357,7 @@ func (r *ReconcilerBase) getStorageClassBindingMode(storageClassName *string) (*
 	return &volumeBindingImmediate, nil
 }
 
-func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
+func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, result *reconcile.Result) error {
 	var podNamespace string
 	if datavolume.Status.Progress == "" {
 		datavolume.Status.Progress = "N/A"
@@ -371,34 +372,35 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 	if datavolume.Status.Phase == cdiv1.Succeeded || datavolume.Status.Phase == cdiv1.Failed {
 		// Data volume completed progress, or failed, either way stop queueing the data volume.
 		r.log.Info("Datavolume finished, no longer updating progress", "Namespace", datavolume.Namespace, "Name", datavolume.Name, "Phase", datavolume.Status.Phase)
-		return reconcile.Result{}, nil
+		return nil
 	}
 	pod, err := r.getPodFromPvc(podNamespace, pvc)
 	if err == nil {
 		if pod.Status.Phase != corev1.PodRunning {
 			// Avoid long timeouts and error traces from HTTP get when pod is already gone
-			return reconcile.Result{}, nil
+			return nil
 		}
 		if err := updateProgressUsingPod(datavolume, pod); err != nil {
-			return reconcile.Result{}, err
+			return err
 		}
 	}
 	// We are not done yet, force a re-reconcile in 2 seconds to get an update.
-	return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
+	result.RequeueAfter = 2 * time.Second
+	return nil
 }
-
-type modifyFunc func(dataVolume *cdiv1.DataVolume)
 
 func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 	phase cdiv1.DataVolumePhase,
 	dataVolume *cdiv1.DataVolume,
+	dataVolumeCopy *cdiv1.DataVolume,
 	pvc *corev1.PersistentVolumeClaim,
-	modify modifyFunc,
 	event Event) error {
 
-	var dataVolumeCopy = dataVolume.DeepCopy()
-	curPhase := dataVolumeCopy.Status.Phase
+	if dataVolume == nil {
+		return nil
+	}
 
+	curPhase := dataVolumeCopy.Status.Phase
 	dataVolumeCopy.Status.Phase = phase
 
 	reason := ""
@@ -406,30 +408,21 @@ func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 		reason = event.reason
 	}
 	r.updateConditions(dataVolumeCopy, pvc, reason)
-
-	if modify != nil {
-		modify(dataVolumeCopy)
-	}
-
 	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, &event)
 }
 
 type updateStatusPhaseFunc func(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error
 
-func (r ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, modify modifyFunc, updateStatusPhase updateStatusPhaseFunc) (reconcile.Result, error) {
-	pvc := syncRes.pvc
-	dataVolumeCopy := syncRes.dv.DeepCopy()
-	result := reconcile.Result{}
-	curPhase := dataVolumeCopy.Status.Phase
-	var event Event
-	var err error
-
-	if syncRes.gc {
-		if err := r.client.Delete(context.TODO(), syncRes.dv); err != nil {
-			return reconcile.Result{}, err
-		}
+func (r ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, updateStatusPhase updateStatusPhaseFunc) (reconcile.Result, error) {
+	if syncRes.dv == nil {
 		return reconcile.Result{}, nil
 	}
+
+	result := getReconcileResult(syncRes.result)
+	dataVolumeCopy := syncRes.dvCopy
+	curPhase := dataVolumeCopy.Status.Phase
+	pvc := syncRes.pvc
+	var event Event
 
 	if pvc != nil {
 		dataVolumeCopy.Status.ClaimName = pvc.Name
@@ -490,8 +483,7 @@ func (r ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, modify 
 		if i, err := strconv.Atoi(pvc.Annotations[cc.AnnPodRestarts]); err == nil && i >= 0 {
 			dataVolumeCopy.Status.RestartCount = int32(i)
 		}
-		result, err = r.reconcileProgressUpdate(dataVolumeCopy, pvc)
-		if err != nil {
+		if err := r.reconcileProgressUpdate(dataVolumeCopy, pvc, &result); err != nil {
 			return result, err
 		}
 	} else {
@@ -499,10 +491,6 @@ func (r ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, modify 
 		if ok {
 			dataVolumeCopy.Status.Phase = cdiv1.Pending
 		}
-	}
-
-	if modify != nil {
-		modify(dataVolumeCopy)
 	}
 
 	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))

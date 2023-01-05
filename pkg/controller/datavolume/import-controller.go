@@ -217,13 +217,13 @@ func (r ImportReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolu
 		return syncRes, syncErr
 	}
 	if syncRes.pvc == nil {
-		if _, dvPrePopulated := syncRes.dv.Annotations[cc.AnnPrePopulated]; !dvPrePopulated {
-			syncRes.pvc, syncErr = r.createPvcForDatavolume(syncRes.dv, syncRes.pvcSpec, r.updateAnnotations)
+		if _, dvPrePopulated := syncRes.dvCopy.Annotations[cc.AnnPrePopulated]; !dvPrePopulated {
+			syncRes.pvc, syncErr = r.createPvcForDatavolume(syncRes.dvCopy, syncRes.pvcSpec, r.updateAnnotations)
 		}
 	}
 	if syncRes.pvc != nil && syncErr == nil {
-		syncErr = r.maybeSetPvcMultiStageAnnotation(syncRes.pvc, syncRes.dv)
-
+		r.setVddkAnnotations(syncRes)
+		syncErr = r.maybeSetPvcMultiStageAnnotation(syncRes.pvc, syncRes.dvCopy)
 	}
 	return syncRes, syncErr
 }
@@ -231,29 +231,23 @@ func (r ImportReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolu
 func (r ImportReconciler) updateStatus(syncRes dataVolumeSyncResult, syncErr error) (reconcile.Result, error) {
 	if syncErr != nil {
 		if cc.ErrQuotaExceeded(syncErr) {
-			r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, syncRes.dv, nil, nil,
+			err := r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, syncRes.dv, syncRes.dvCopy, nil,
 				Event{
 					eventType: corev1.EventTypeWarning,
 					reason:    cc.ErrExceededQuota,
 					message:   syncErr.Error(),
 				})
-		}
-		return reconcile.Result{}, syncErr
-	}
-	if syncRes.result != nil {
-		return *syncRes.result, nil
-	}
-	modifier := func(dv *cdiv1.DataVolume) {
-		if syncRes.pvc != nil && cc.GetSource(syncRes.pvc) == cc.SourceVDDK {
-			if vddkHost := syncRes.pvc.Annotations[cc.AnnVddkHostConnection]; vddkHost != "" {
-				cc.AddAnnotation(dv, cc.AnnVddkHostConnection, vddkHost)
+			if err != nil {
+				syncErr = err
 			}
-			if vddkVersion := syncRes.pvc.Annotations[cc.AnnVddkVersion]; vddkVersion != "" {
-				cc.AddAnnotation(dv, cc.AnnVddkVersion, vddkVersion)
-			}
+			return getReconcileResult(syncRes.result), syncErr
 		}
 	}
-	return r.updateStatusCommon(syncRes, modifier, r.updateStatusPhase)
+	res, err := r.updateStatusCommon(syncRes, r.updateStatusPhase)
+	if err != nil {
+		syncErr = err
+	}
+	return res, syncErr
 }
 
 func (r ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
@@ -305,6 +299,18 @@ func (r ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, d
 		event.message = fmt.Sprintf(MessageImportSucceeded, pvc.Name)
 	}
 	return nil
+}
+
+func (r ImportReconciler) setVddkAnnotations(syncRes dataVolumeSyncResult) {
+	if cc.GetSource(syncRes.pvc) != cc.SourceVDDK {
+		return
+	}
+	if vddkHost := syncRes.pvc.Annotations[cc.AnnVddkHostConnection]; vddkHost != "" {
+		cc.AddAnnotation(syncRes.dvCopy, cc.AnnVddkHostConnection, vddkHost)
+	}
+	if vddkVersion := syncRes.pvc.Annotations[cc.AnnVddkVersion]; vddkVersion != "" {
+		cc.AddAnnotation(syncRes.dvCopy, cc.AnnVddkVersion, vddkVersion)
+	}
 }
 
 func (r ImportReconciler) updatesMultistageImportSucceeded(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume) error {

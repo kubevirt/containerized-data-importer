@@ -107,7 +107,11 @@ func (r *ReconcilerBase) detachPvcDeleteDv(syncRes *dataVolumeSyncResult) error 
 	if err := r.updatePVC(syncRes.pvc); err != nil {
 		return err
 	}
-	syncRes.gc = true
+	if err := r.client.Delete(context.TODO(), syncRes.dv); err != nil {
+		return err
+	}
+	syncRes.result = &reconcile.Result{}
+	syncRes.dv = nil
 	return nil
 }
 

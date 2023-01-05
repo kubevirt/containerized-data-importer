@@ -160,19 +160,9 @@ type statusPhaseSync struct {
 	event Event
 }
 
-type finalizerOp int
-
-const (
-	nop finalizerOp = iota
-	addFinalizer
-	removeFinalizer
-)
-
 type dataVolumeCloneSyncResult struct {
 	dataVolumeSyncResult
 	phaseSync *statusPhaseSync
-	strategy  cloneStrategy
-	finOp     finalizerOp
 }
 
 // ErrInvalidTermMsg reports that the termination message from the size-detection pod doesn't exists or is not a valid quantity
@@ -345,7 +335,7 @@ func (r CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 }
 
 func (r CloneReconciler) prepare(syncRes *dataVolumeCloneSyncResult) error {
-	dv := syncRes.dv
+	dv := syncRes.dvCopy
 	if err := r.populateSourceIfSourceRef(dv); err != nil {
 		return err
 	}
@@ -383,22 +373,24 @@ func (r CloneReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolum
 	prepare := func() error {
 		return r.prepare(&syncRes)
 	}
-	syncErr := r.syncCommon(log, req, &(syncRes.dataVolumeSyncResult), cleanup, prepare)
+	syncErr := r.syncCommon(log, req, &syncRes.dataVolumeSyncResult, cleanup, prepare)
 	if syncErr != nil || syncRes.result != nil {
 		return syncRes, syncErr
 	}
 
 	pvc := syncRes.pvc
 	pvcSpec := syncRes.pvcSpec
-	datavolume := syncRes.dv
-	transferName := getTransferName(syncRes.dv)
+	datavolume := syncRes.dvCopy
+	transferName := getTransferName(datavolume)
 
 	// Get the most appropiate clone strategy
 	selectedCloneStrategy, err := r.selectCloneStrategy(datavolume, pvcSpec)
 	if err != nil {
 		return syncRes, err
 	}
-	syncRes.strategy = selectedCloneStrategy
+	if selectedCloneStrategy != NoClone {
+		cc.AddAnnotation(datavolume, annCloneType, cloneStrategyToCloneType(selectedCloneStrategy))
+	}
 
 	pvcPopulated := pvcIsPopulated(pvc, datavolume)
 	_, prePopulated := datavolume.Annotations[cc.AnnPrePopulated]
@@ -421,7 +413,7 @@ func (r CloneReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolum
 	// If the target's size is not specified, we can extract that value from the source PVC
 	targetRequest, hasTargetRequest := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 	if !hasTargetRequest || targetRequest.IsZero() {
-		done, err := r.detectCloneSize(syncRes)
+		done, err := r.detectCloneSize(syncRes, selectedCloneStrategy)
 		if err != nil {
 			return syncRes, err
 		} else if !done {
@@ -429,6 +421,9 @@ func (r CloneReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolum
 			if readyToClone, err := r.isSourceReadyToClone(datavolume, selectedCloneStrategy); err != nil {
 				return syncRes, err
 			} else if !readyToClone {
+				if syncRes.result == nil {
+					syncRes.result = &reconcile.Result{}
+				}
 				syncRes.result.Requeue = true
 				return syncRes,
 					r.syncCloneStatusPhase(&syncRes, cdiv1.CloneScheduled, nil)
@@ -535,21 +530,17 @@ func (r CloneReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolum
 }
 
 func (r CloneReconciler) updateStatus(syncRes dataVolumeCloneSyncResult, syncErr error) (reconcile.Result, error) {
-	modifier := getModifier(syncRes)
-	ps := syncRes.phaseSync
-	if ps != nil {
-		syncErr = r.updateDataVolumeStatusPhaseWithEvent(ps.phase, syncRes.dv, ps.pvc, modifier, ps.event)
+	if ps := syncRes.phaseSync; ps != nil {
+		if err := r.updateDataVolumeStatusPhaseWithEvent(ps.phase, syncRes.dv, syncRes.dvCopy, ps.pvc, ps.event); err != nil {
+			syncErr = err
+		}
+		return getReconcileResult(syncRes.result), syncErr
 	}
-	if syncErr != nil {
-		return reconcile.Result{}, syncErr
+	res, err := r.updateStatusCommon(syncRes.dataVolumeSyncResult, r.updateStatusPhase)
+	if err != nil {
+		syncErr = err
 	}
-	if syncRes.result != nil {
-		return *syncRes.result, nil
-	}
-	if ps != nil {
-		return reconcile.Result{}, nil
-	}
-	return r.updateStatusCommon(syncRes.dataVolumeSyncResult, modifier, r.updateStatusPhase)
+	return res, syncErr
 }
 
 func (r CloneReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
@@ -674,7 +665,7 @@ func (r *CloneReconciler) reconcileCsiClonePvc(log logr.Logger,
 	transferName string) (reconcile.Result, error) {
 
 	log = log.WithName("reconcileCsiClonePvc")
-	datavolume := syncRes.dv
+	datavolume := syncRes.dvCopy
 	pvcSpec := syncRes.pvcSpec
 	pvcName := datavolume.Name
 
@@ -766,7 +757,7 @@ func (r *CloneReconciler) finishClone(log logr.Logger, syncRes *dataVolumeCloneS
 	}
 
 	// expand for non-namespace case
-	return r.expandPvcAfterClone(log, syncRes, cdiv1.Succeeded, false)
+	return r.expandPvcAfterClone(log, syncRes, syncRes.pvc, cdiv1.Succeeded, false)
 }
 
 func (r *CloneReconciler) setCloneOfOnPvc(pvc *corev1.PersistentVolumeClaim) error {
@@ -786,13 +777,11 @@ func (r *CloneReconciler) setCloneOfOnPvc(pvc *corev1.PersistentVolumeClaim) err
 func (r *CloneReconciler) expandPvcAfterClone(
 	log logr.Logger,
 	syncRes *dataVolumeCloneSyncResult,
+	pvc *corev1.PersistentVolumeClaim,
 	nextPhase cdiv1.DataVolumePhase,
 	isTemp bool) (reconcile.Result, error) {
 
-	datavolume := syncRes.dv
-	pvc := syncRes.pvc
-
-	done, err := r.expand(log, syncRes)
+	done, err := r.expand(log, syncRes, pvc)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -805,26 +794,13 @@ func (r *CloneReconciler) expandPvcAfterClone(
 	if isTemp {
 		// trigger transfer and next reconcile should have pvcExists == true
 		pvc.Annotations[annReadyForTransfer] = "true"
-		pvc.Annotations[cc.AnnPopulatedFor] = datavolume.Name
+		pvc.Annotations[cc.AnnPopulatedFor] = syncRes.dvCopy.Name
 		if err := r.updatePVC(pvc); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
 
 	return reconcile.Result{}, r.syncCloneStatusPhase(syncRes, nextPhase, pvc)
-}
-
-func getModifier(syncRes dataVolumeCloneSyncResult) modifyFunc {
-	return func(dv *cdiv1.DataVolume) {
-		if syncRes.strategy != NoClone {
-			cc.AddAnnotation(dv, annCloneType, cloneStrategyToCloneType(syncRes.strategy))
-		}
-		if syncRes.finOp == addFinalizer {
-			cc.AddFinalizer(dv, crossNamespaceFinalizer)
-		} else if syncRes.finOp == removeFinalizer {
-			cc.RemoveFinalizer(dv, crossNamespaceFinalizer)
-		}
-	}
 }
 
 func cloneStrategyToCloneType(selectedCloneStrategy cloneStrategy) string {
@@ -844,7 +820,7 @@ func (r *CloneReconciler) reconcileSmartClonePvc(log logr.Logger,
 	transferName string,
 	snapshotClassName string) (reconcile.Result, error) {
 
-	datavolume := syncRes.dv
+	datavolume := syncRes.dvCopy
 	pvcName := datavolume.Name
 
 	if isCrossNamespaceClone(datavolume) {
@@ -946,7 +922,7 @@ func (r *CloneReconciler) doCrossNamespaceClone(log logr.Logger,
 	returnWhenCloneInProgress bool,
 	selectedCloneStrategy cloneStrategy) (*reconcile.Result, error) {
 
-	datavolume := syncRes.dv
+	datavolume := syncRes.dvCopy
 	initialized, err := r.initTransfer(log, syncRes, pvcName)
 	if err != nil {
 		return &reconcile.Result{}, err
@@ -964,7 +940,7 @@ func (r *CloneReconciler) doCrossNamespaceClone(log logr.Logger,
 			return &reconcile.Result{}, err
 		}
 	} else if tmpPVC.Annotations[cc.AnnCloneOf] == "true" {
-		result, err := r.expandPvcAfterClone(log, syncRes, cdiv1.NamespaceTransferInProgress, true)
+		result, err := r.expandPvcAfterClone(log, syncRes, tmpPVC, cdiv1.NamespaceTransferInProgress, true)
 		return &result, err
 	} else {
 		// AnnCloneOf != true, so cloneInProgress
@@ -1003,12 +979,12 @@ func (r *CloneReconciler) sourceInUse(dv *cdiv1.DataVolume, eventReason string) 
 
 func (r *CloneReconciler) initTransfer(log logr.Logger, syncRes *dataVolumeCloneSyncResult, name string) (bool, error) {
 	initialized := true
-	dv := syncRes.dv
+	dv := syncRes.dvCopy
 
 	log.Info("Initializing transfer")
 
 	if !cc.HasFinalizer(dv, crossNamespaceFinalizer) {
-		syncRes.finOp = addFinalizer
+		cc.AddFinalizer(dv, crossNamespaceFinalizer)
 		initialized = false
 	}
 
@@ -1062,7 +1038,7 @@ func (r *CloneReconciler) initTransfer(log logr.Logger, syncRes *dataVolumeClone
 }
 
 func (r CloneReconciler) cleanup(syncRes *dataVolumeCloneSyncResult) error {
-	dv := syncRes.dv
+	dv := syncRes.dvCopy
 	transferName := getTransferName(dv)
 	if !cc.HasFinalizer(dv, crossNamespaceFinalizer) {
 		return nil
@@ -1128,7 +1104,7 @@ func (r CloneReconciler) cleanup(syncRes *dataVolumeCloneSyncResult) error {
 		return fmt.Errorf("waiting for ObjectTransfer %s to delete", transferName)
 	}
 
-	syncRes.finOp = removeFinalizer
+	cc.RemoveFinalizer(dv, crossNamespaceFinalizer)
 	return nil
 }
 
@@ -1136,8 +1112,7 @@ func expansionPodName(pvc *corev1.PersistentVolumeClaim) string {
 	return "cdi-expand-" + string(pvc.UID)
 }
 
-func (r *CloneReconciler) expand(log logr.Logger, syncRes *dataVolumeCloneSyncResult) (bool, error) {
-	pvc := syncRes.pvc
+func (r *CloneReconciler) expand(log logr.Logger, syncRes *dataVolumeCloneSyncResult, pvc *corev1.PersistentVolumeClaim) (bool, error) {
 	if pvc.Status.Phase != corev1.ClaimBound {
 		return false, fmt.Errorf("cannot expand volume in %q phase", pvc.Status.Phase)
 	}
@@ -1195,7 +1170,7 @@ func (r *CloneReconciler) expand(log logr.Logger, syncRes *dataVolumeCloneSyncRe
 
 	if !podExists {
 		var err error
-		pod, err = r.createExpansionPod(pvc, syncRes.dv, podName)
+		pod, err = r.createExpansionPod(pvc, syncRes.dvCopy, podName)
 		// Check if pod has failed and, in that case, record an event with the error
 		if podErr := cc.HandleFailedPod(err, podName, pvc, r.recorder, r.client); podErr != nil {
 			return false, podErr
@@ -1624,7 +1599,7 @@ func (r *CloneReconciler) newVolumeClonePVC(dv *cdiv1.DataVolume,
 
 func (r *CloneReconciler) syncCloneStatusPhase(syncRes *dataVolumeCloneSyncResult, phase cdiv1.DataVolumePhase, pvc *corev1.PersistentVolumeClaim) error {
 	var event Event
-	dataVolume := syncRes.dv
+	dataVolume := syncRes.dvCopy
 
 	switch phase {
 	case cdiv1.CloneScheduled:
@@ -1696,7 +1671,7 @@ func (r *CloneReconciler) getPreferredCloneStrategyForStorageClass(storageClass 
 
 // validateCloneAndSourcePVC checks if the source PVC of a clone exists and does proper validation
 func (r *CloneReconciler) validateCloneAndSourcePVC(syncRes *dataVolumeCloneSyncResult) (bool, error) {
-	datavolume := syncRes.dv
+	datavolume := syncRes.dvCopy
 	sourcePvc, err := r.findSourcePvc(datavolume)
 	if err != nil {
 		// Clone without source
@@ -1767,9 +1742,9 @@ func (r *CloneReconciler) isSourceReadyToClone(
 }
 
 // detectCloneSize obtains and assigns the original PVC's size when cloning using an empty storage value
-func (r *CloneReconciler) detectCloneSize(syncRes dataVolumeCloneSyncResult) (bool, error) {
+func (r *CloneReconciler) detectCloneSize(syncRes dataVolumeCloneSyncResult, cloneType cloneStrategy) (bool, error) {
 	var targetSize int64
-	sourcePvc, err := r.findSourcePvc(syncRes.dv)
+	sourcePvc, err := r.findSourcePvc(syncRes.dvCopy)
 	if err != nil {
 		return false, err
 	}
@@ -1780,14 +1755,14 @@ func (r *CloneReconciler) detectCloneSize(syncRes dataVolumeCloneSyncResult) (bo
 	// collects the size of the original virtual image with 'qemu-img'.
 	// If another strategy is used or the original PVC's volume mode
 	// is "block", we simply extract the value from the original PVC's spec.
-	if syncRes.strategy == HostAssistedClone &&
+	if cloneType == HostAssistedClone &&
 		cc.GetVolumeMode(sourcePvc) == corev1.PersistentVolumeFilesystem &&
 		cc.GetContentType(sourcePvc) == string(cdiv1.DataVolumeKubeVirt) {
 		var available bool
 		// If available, we first try to get the virtual size from previous iterations
 		targetSize, available = getSizeFromAnnotations(sourcePvc)
 		if !available {
-			targetSize, err = r.getSizeFromPod(syncRes.pvc, sourcePvc, syncRes.dv)
+			targetSize, err = r.getSizeFromPod(syncRes.pvc, sourcePvc, syncRes.dvCopy)
 			if err != nil {
 				return false, err
 			} else if targetSize == 0 {
@@ -1803,7 +1778,7 @@ func (r *CloneReconciler) detectCloneSize(syncRes dataVolumeCloneSyncResult) (bo
 	// if the source's size ends up being larger due to overhead differences
 	// TODO: Fix this in next PR that uses actual size also in validation
 	if sourceCapacity.CmpInt64(targetSize) == 1 {
-		syncRes.dv.Annotations[cc.AnnPermissiveClone] = "true"
+		syncRes.dvCopy.Annotations[cc.AnnPermissiveClone] = "true"
 	}
 
 	// Parse size into a 'Quantity' struct and, if needed, inflate it with filesystem overhead
