@@ -43,16 +43,17 @@ import (
 )
 
 const (
-	ruleName                 = "prometheus-cdi-rules"
-	rbacName                 = "cdi-monitoring"
-	monitorName              = "service-monitor-cdi"
-	defaultMonitoringNs      = "monitoring"
-	runbookURLBasePath       = "https://kubevirt.io/monitoring/runbooks/"
-	severityAlertLabelKey    = "severity"
-	partOfAlertLabelKey      = "kubernetes_operator_part_of"
-	partOfAlertLabelValue    = "kubevirt"
-	componentAlertLabelKey   = "kubernetes_operator_component"
-	componentAlertLabelValue = common.CDILabelValue
+	ruleName                  = "prometheus-cdi-rules"
+	rbacName                  = "cdi-monitoring"
+	monitorName               = "service-monitor-cdi"
+	defaultMonitoringNs       = "monitoring"
+	runbookURLBasePath        = "https://kubevirt.io/monitoring/runbooks/"
+	severityAlertLabelKey     = "severity"
+	healthImpactAlertLabelKey = "operator_health_impact"
+	partOfAlertLabelKey       = "kubernetes_operator_part_of"
+	partOfAlertLabelValue     = "kubevirt"
+	componentAlertLabelKey    = "kubernetes_operator_component"
+	componentAlertLabelValue  = common.CDILabelValue
 )
 
 func ensurePrometheusResourcesExist(c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
@@ -150,9 +151,10 @@ func getAlertRules() []promv1.Rule {
 				"runbook_url": runbookURLBasePath + "CDIOperatorDown",
 			},
 			map[string]string{
-				severityAlertLabelKey:  "warning",
-				partOfAlertLabelKey:    partOfAlertLabelValue,
-				componentAlertLabelKey: componentAlertLabelValue,
+				severityAlertLabelKey:     "warning",
+				healthImpactAlertLabelKey: "critical",
+				partOfAlertLabelKey:       partOfAlertLabelValue,
+				componentAlertLabelKey:    componentAlertLabelValue,
 			},
 		),
 		generateAlertRule(
@@ -164,9 +166,10 @@ func getAlertRules() []promv1.Rule {
 				"runbook_url": runbookURLBasePath + "CDINotReady",
 			},
 			map[string]string{
-				severityAlertLabelKey:  "warning",
-				partOfAlertLabelKey:    partOfAlertLabelValue,
-				componentAlertLabelKey: componentAlertLabelValue,
+				severityAlertLabelKey:     "warning",
+				healthImpactAlertLabelKey: "critical",
+				partOfAlertLabelKey:       partOfAlertLabelValue,
+				componentAlertLabelKey:    componentAlertLabelValue,
 			},
 		),
 		generateAlertRule(
@@ -178,9 +181,10 @@ func getAlertRules() []promv1.Rule {
 				"runbook_url": runbookURLBasePath + "CDIDataVolumeUnusualRestartCount",
 			},
 			map[string]string{
-				severityAlertLabelKey:  "warning",
-				partOfAlertLabelKey:    partOfAlertLabelValue,
-				componentAlertLabelKey: componentAlertLabelValue,
+				severityAlertLabelKey:     "warning",
+				healthImpactAlertLabelKey: "warning",
+				partOfAlertLabelKey:       partOfAlertLabelValue,
+				componentAlertLabelKey:    componentAlertLabelValue,
 			},
 		),
 		generateAlertRule(
@@ -192,9 +196,10 @@ func getAlertRules() []promv1.Rule {
 				"runbook_url": runbookURLBasePath + "CDIStorageProfilesIncomplete",
 			},
 			map[string]string{
-				severityAlertLabelKey:  "info",
-				partOfAlertLabelKey:    partOfAlertLabelValue,
-				componentAlertLabelKey: componentAlertLabelValue,
+				severityAlertLabelKey:     "info",
+				healthImpactAlertLabelKey: "warning",
+				partOfAlertLabelKey:       partOfAlertLabelValue,
+				componentAlertLabelKey:    componentAlertLabelValue,
 			},
 		),
 		generateAlertRule(
@@ -206,9 +211,10 @@ func getAlertRules() []promv1.Rule {
 				"runbook_url": runbookURLBasePath + "CDIDataImportCronOutdated",
 			},
 			map[string]string{
-				severityAlertLabelKey:  "info",
-				partOfAlertLabelKey:    partOfAlertLabelValue,
-				componentAlertLabelKey: componentAlertLabelValue,
+				severityAlertLabelKey:     "info",
+				healthImpactAlertLabelKey: "warning",
+				partOfAlertLabelKey:       partOfAlertLabelValue,
+				componentAlertLabelKey:    componentAlertLabelValue,
 			},
 		),
 	}

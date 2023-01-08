@@ -1112,6 +1112,7 @@ var _ = Describe("ALL Operator tests", func() {
 							if rule.Alert != "" {
 								Expect(rule.Labels).ToNot(BeNil())
 								checkForSeverityLabel(rule)
+								checkForHealthImpactLabel(rule)
 								checkForPartOfLabel(rule)
 								checkForComponentLabel(rule)
 							}
@@ -1484,6 +1485,12 @@ func checkForSeverityLabel(rule promv1.Rule) {
 	severity, ok := rule.Labels["severity"]
 	ExpectWithOffset(1, ok).To(BeTrue(), fmt.Sprintf("%s does not have severity label", rule.Alert))
 	ExpectWithOffset(1, severity).To(BeElementOf("info", "warning", "critical"), fmt.Sprintf("%s severity label is not valid", rule.Alert))
+}
+
+func checkForHealthImpactLabel(rule promv1.Rule) {
+	operatorHealthImpact, ok := rule.Labels["operator_health_impact"]
+	ExpectWithOffset(1, ok).To(BeTrue(), fmt.Sprintf("%s does not have operator_health_impact label", rule.Alert))
+	ExpectWithOffset(1, operatorHealthImpact).To(BeElementOf("none", "warning", "critical"), fmt.Sprintf("%s operator_health_impact label is not valid", rule.Alert))
 }
 
 func checkForPartOfLabel(rule promv1.Rule) {
