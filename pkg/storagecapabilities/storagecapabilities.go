@@ -64,6 +64,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"csi.trident.netapp.io/ontap-san": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
 	// topolvm
 	"topolvm.cybozu.com": createTopoLVMCapabilities(),
+	"topolvm.io":         createTopoLVMCapabilities(),
 	// OpenStack Cinder
 	"cinder.csi.openstack.org": createCinderVolumeCapabilities(),
 }
