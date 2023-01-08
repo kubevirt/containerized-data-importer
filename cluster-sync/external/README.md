@@ -21,6 +21,7 @@ export KUBEVIRT_PROVIDER=external
 export PULL_POLICY=Always
 export CDI_NAMESPACE=cdi-rand-ns-name
 export KUBECONFIG=/path/to/kubeconfig
+# Make CDI repositories public on your registry
 export DOCKER_PREFIX=quay.io/username
 ```
 
