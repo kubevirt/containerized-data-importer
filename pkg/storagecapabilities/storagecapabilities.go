@@ -33,6 +33,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// ceph-fs
 	"cephfs.csi.ceph.com":                   {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"openshift-storage.cephfs.csi.ceph.com": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
+	// LINSTOR
+	"linstor.csi.linbit.com": createLinstorCapabilities(),
 	// dell-unity-csi
 	"csi-unity.dellemc.com": createDellUnityCapabilities(),
 	// storageos
@@ -189,6 +191,16 @@ func createRbdCapabilities() []StorageCapabilities {
 		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
 		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
 		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
+	}
+}
+
+func createLinstorCapabilities() []StorageCapabilities {
+	return []StorageCapabilities{
+		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
+		{AccessMode: v1.ReadOnlyMany, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadOnlyMany, VolumeMode: v1.PersistentVolumeFilesystem},
 	}
 }
 
