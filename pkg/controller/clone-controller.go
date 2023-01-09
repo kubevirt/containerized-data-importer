@@ -652,6 +652,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 							ClaimName: sourcePvcName,
+							ReadOnly:  sourceVolumeMode == corev1.PersistentVolumeBlock,
 						},
 					},
 				},
