@@ -78,14 +78,14 @@ const (
 )
 
 const (
-	// AnnDefaultInstancetype provides a default VirtualMachine{ClusterInstancetype,Instancetype} that can be used by a VirtualMachine booting from a given PVC
-	AnnDefaultInstancetype = "instancetype.kubevirt.io/default-instancetype"
-	// AnnDefaultInstancetypeKind provides a default kind of either VirtualMachineClusterInstancetype or VirtualMachineInstancetype
-	AnnDefaultInstancetypeKind = "instancetype.kubevirt.io/default-instancetype-kind"
-	// AnnDefaultPreference provides a default VirtualMachine{ClusterPreference,Preference} that can be used by a VirtualMachine booting from a given PVC
-	AnnDefaultPreference = "instancetype.kubevirt.io/default-preference"
-	// AnnDefaultPreferenceKind provides a default kind of either VirtualMachineClusterPreference or VirtualMachinePreference
-	AnnDefaultPreferenceKind = "instancetype.kubevirt.io/default-preference-kind"
+	// LabelDefaultInstancetype provides a default VirtualMachine{ClusterInstancetype,Instancetype} that can be used by a VirtualMachine booting from a given PVC
+	LabelDefaultInstancetype = "instancetype.kubevirt.io/default-instancetype"
+	// LabelDefaultInstancetypeKind provides a default kind of either VirtualMachineClusterInstancetype or VirtualMachineInstancetype
+	LabelDefaultInstancetypeKind = "instancetype.kubevirt.io/default-instancetype-kind"
+	// LabelDefaultPreference provides a default VirtualMachine{ClusterPreference,Preference} that can be used by a VirtualMachine booting from a given PVC
+	LabelDefaultPreference = "instancetype.kubevirt.io/default-preference"
+	// LabelDefaultPreferenceKind provides a default kind of either VirtualMachineClusterPreference or VirtualMachinePreference
+	LabelDefaultPreferenceKind = "instancetype.kubevirt.io/default-preference-kind"
 )
 
 var (

@@ -661,6 +661,14 @@ func AddAnnotation(obj metav1.Object, key, value string) {
 	obj.GetAnnotations()[key] = value
 }
 
+// AddLabel adds a label to an object
+func AddLabel(obj metav1.Object, key, value string) {
+	if obj.GetLabels() == nil {
+		obj.SetLabels(make(map[string]string))
+	}
+	obj.GetLabels()[key] = value
+}
+
 // HandleFailedPod handles pod-creation errors and updates the pod's PVC without providing sensitive information
 func HandleFailedPod(err error, podName string, pvc *v1.PersistentVolumeClaim, recorder record.EventRecorder, c client.Client) error {
 	if err == nil {
