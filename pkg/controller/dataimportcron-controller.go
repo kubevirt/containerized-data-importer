@@ -850,6 +850,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 			Schedule:                   cron.Spec.Schedule,
 			ConcurrencyPolicy:          batchv1.ForbidConcurrent,
 			SuccessfulJobsHistoryLimit: pointer.Int32(1),
+			FailedJobsHistoryLimit:     pointer.Int32(1),
 			JobTemplate: batchv1.JobTemplateSpec{
 				Spec: batchv1.JobSpec{
 					Template: corev1.PodTemplateSpec{
@@ -861,7 +862,8 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 							Volumes:                       volumes,
 						},
 					},
-					BackoffLimit: pointer.Int32(2),
+					BackoffLimit:            pointer.Int32(2),
+					TTLSecondsAfterFinished: pointer.Int32(10),
 				},
 			},
 		},
