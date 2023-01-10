@@ -606,6 +606,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			reconciler = createCloneReconciler(dv, pvc, storageProfile, sc)
 
 			syncRes := dataVolumeCloneSyncResult{dataVolumeSyncResult: dataVolumeSyncResult{dv: dv, dvCopy: dv.DeepCopy(), pvc: pvc, pvcSpec: dv.Spec.PVC.DeepCopy()}}
+			reconciler.annotate(syncRes.dvCopy, syncRes.pvc)
 			result, err := reconciler.updateStatus(syncRes, nil)
 			Expect(err).ToNot(HaveOccurred())
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)

@@ -270,6 +270,7 @@ func (r ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, syncR
 		if err := r.validatePVC(dv, syncRes.pvc); err != nil {
 			return err
 		}
+		r.annotate(syncRes.dvCopy, syncRes.pvc)
 	}
 
 	syncRes.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, dv)
@@ -277,6 +278,15 @@ func (r ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, syncR
 		return err
 	}
 	return nil
+}
+
+func (r *ReconcilerBase) annotate(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) {
+	if pvc.Status.Phase == corev1.ClaimBound && pvcIsPopulated(pvc, dv) {
+		if dv.Annotations == nil {
+			dv.Annotations = make(map[string]string)
+		}
+		dv.Annotations[cc.AnnPrePopulated] = pvc.Name
+	}
 }
 
 func (r *ReconcilerBase) validatePVC(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
@@ -458,10 +468,6 @@ func (r ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, updateS
 				}
 
 				if pvcIsPopulated(pvc, dataVolumeCopy) {
-					if dataVolumeCopy.Annotations == nil {
-						dataVolumeCopy.Annotations = make(map[string]string)
-					}
-					dataVolumeCopy.Annotations[cc.AnnPrePopulated] = pvc.Name
 					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
 				} else {
 					if err := updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
@@ -558,7 +564,7 @@ func (r *ReconcilerBase) emitFailureConditionEvent(dataVolume *cdiv1.DataVolume,
 
 func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, curPhase cdiv1.DataVolumePhase, originalCond []cdiv1.DataVolumeCondition, event *Event) error {
 	// Only update the object if something actually changed in the status.
-	if !reflect.DeepEqual(dataVolume, dataVolumeCopy) {
+	if !reflect.DeepEqual(dataVolume.Status, dataVolumeCopy.Status) {
 		if err := r.updateDataVolume(dataVolumeCopy); err != nil {
 			r.log.Error(err, "Unable to update datavolume", "name", dataVolumeCopy.Name)
 			return err

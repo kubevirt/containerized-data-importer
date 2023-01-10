@@ -112,6 +112,7 @@ func (r *ReconcilerBase) detachPvcDeleteDv(syncRes *dataVolumeSyncResult) error 
 	}
 	syncRes.result = &reconcile.Result{}
 	syncRes.dv = nil
+	syncRes.dvCopy = nil
 	return nil
 }
 
