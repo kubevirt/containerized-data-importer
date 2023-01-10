@@ -485,10 +485,11 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 	}
 	dataSourceCopy := dataSource.DeepCopy()
 	r.setDataImportCronResourceLabels(dataImportCron, dataSource)
-	passCronAnnotationToDataSource(dataImportCron, dataSource, AnnDefaultInstancetype)
-	passCronAnnotationToDataSource(dataImportCron, dataSource, AnnDefaultInstancetypeKind)
-	passCronAnnotationToDataSource(dataImportCron, dataSource, AnnDefaultPreference)
-	passCronAnnotationToDataSource(dataImportCron, dataSource, AnnDefaultPreferenceKind)
+
+	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultInstancetype)
+	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultInstancetypeKind)
+	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultPreference)
+	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultPreferenceKind)
 
 	sourcePVC := dataImportCron.Status.LastImportedPVC
 	if sourcePVC != nil {
@@ -925,10 +926,12 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	r.setDataImportCronResourceLabels(cron, dv)
 	passCronAnnotationToDv(cron, dv, AnnImmediateBinding)
 	passCronAnnotationToDv(cron, dv, cc.AnnPodRetainAfterCompletion)
-	passCronAnnotationToDv(cron, dv, AnnDefaultInstancetype)
-	passCronAnnotationToDv(cron, dv, AnnDefaultInstancetypeKind)
-	passCronAnnotationToDv(cron, dv, AnnDefaultPreference)
-	passCronAnnotationToDv(cron, dv, AnnDefaultPreferenceKind)
+
+	passCronLabelToDv(cron, dv, cc.LabelDefaultInstancetype)
+	passCronLabelToDv(cron, dv, cc.LabelDefaultInstancetypeKind)
+	passCronLabelToDv(cron, dv, cc.LabelDefaultPreference)
+	passCronLabelToDv(cron, dv, cc.LabelDefaultPreferenceKind)
+
 	return dv
 }
 
@@ -956,15 +959,21 @@ func untagDigestedDockerURL(dockerURL string) string {
 	return dockerURL
 }
 
+func passCronLabelToDv(cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume, ann string) {
+	if val := cron.Labels[ann]; val != "" {
+		cc.AddLabel(dv, ann, val)
+	}
+}
+
 func passCronAnnotationToDv(cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume, ann string) {
 	if val := cron.Annotations[ann]; val != "" {
 		cc.AddAnnotation(dv, ann, val)
 	}
 }
 
-func passCronAnnotationToDataSource(cron *cdiv1.DataImportCron, ds *cdiv1.DataSource, ann string) {
-	if val := cron.Annotations[ann]; val != "" {
-		cc.AddAnnotation(ds, ann, val)
+func passCronLabelToDataSource(cron *cdiv1.DataImportCron, ds *cdiv1.DataSource, ann string) {
+	if val := cron.Labels[ann]; val != "" {
+		cc.AddLabel(ds, ann, val)
 	}
 }
 

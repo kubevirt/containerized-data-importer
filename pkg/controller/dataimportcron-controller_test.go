@@ -617,13 +617,15 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Entry("has no tag", imageStreamName, 1),
 		)
 
-		It("should pass through defaultInstancetype and defaultPreference annotations to DataVolume and DataSource", func() {
+		It("should pass through defaultInstancetype and defaultPreference metadata to DataVolume and DataSource", func() {
 			cron = newDataImportCron(cronName)
 			cron.Annotations[AnnSourceDesiredDigest] = testDigest
-			cron.Annotations[AnnDefaultInstancetype] = AnnDefaultInstancetype
-			cron.Annotations[AnnDefaultInstancetypeKind] = AnnDefaultInstancetypeKind
-			cron.Annotations[AnnDefaultPreference] = AnnDefaultPreference
-			cron.Annotations[AnnDefaultPreferenceKind] = AnnDefaultPreferenceKind
+
+			cron.Labels = map[string]string{}
+			cron.Labels[cc.LabelDefaultInstancetype] = cc.LabelDefaultInstancetype
+			cron.Labels[cc.LabelDefaultInstancetypeKind] = cc.LabelDefaultInstancetypeKind
+			cron.Labels[cc.LabelDefaultPreference] = cc.LabelDefaultPreference
+			cron.Labels[cc.LabelDefaultPreferenceKind] = cc.LabelDefaultPreferenceKind
 
 			reconciler = createDataImportCronReconciler(cron)
 			_, err := reconciler.Reconcile(context.TODO(), cronReq)
@@ -638,25 +640,25 @@ var _ = Describe("All DataImportCron Tests", func() {
 			dvName := imports[0].DataVolumeName
 			Expect(dvName).ToNot(BeEmpty())
 
-			ExpectInstancetypeAnnotations := func(annotations map[string]string) {
-				Expect(annotations).ToNot(BeEmpty())
-				Expect(annotations).Should(ContainElement(AnnDefaultInstancetype))
-				Expect(annotations[AnnDefaultInstancetype]).Should(Equal(AnnDefaultInstancetype))
-				Expect(annotations).Should(ContainElement(AnnDefaultInstancetypeKind))
-				Expect(annotations[AnnDefaultInstancetypeKind]).Should(Equal(AnnDefaultInstancetypeKind))
-				Expect(annotations).Should(ContainElement(AnnDefaultPreference))
-				Expect(annotations[AnnDefaultPreference]).Should(Equal(AnnDefaultPreference))
-				Expect(annotations).Should(ContainElement(AnnDefaultPreferenceKind))
-				Expect(annotations[AnnDefaultPreferenceKind]).Should(Equal(AnnDefaultPreferenceKind))
+			ExpectInstancetypeLabels := func(labels map[string]string) {
+				Expect(labels).ToNot(BeEmpty())
+				Expect(labels).Should(ContainElement(cc.LabelDefaultInstancetype))
+				Expect(labels[cc.LabelDefaultInstancetype]).Should(Equal(cc.LabelDefaultInstancetype))
+				Expect(labels).Should(ContainElement(cc.LabelDefaultInstancetypeKind))
+				Expect(labels[cc.LabelDefaultInstancetypeKind]).Should(Equal(cc.LabelDefaultInstancetypeKind))
+				Expect(labels).Should(ContainElement(cc.LabelDefaultPreference))
+				Expect(labels[cc.LabelDefaultPreference]).Should(Equal(cc.LabelDefaultPreference))
+				Expect(labels).Should(ContainElement(cc.LabelDefaultPreferenceKind))
+				Expect(labels[cc.LabelDefaultPreferenceKind]).Should(Equal(cc.LabelDefaultPreferenceKind))
 			}
 
 			dv := &cdiv1.DataVolume{}
 			Expect(reconciler.client.Get(context.TODO(), dvKey(dvName), dv)).To(Succeed())
-			ExpectInstancetypeAnnotations(dv.Annotations)
+			ExpectInstancetypeLabels(dv.Labels)
 
 			dataSource = &cdiv1.DataSource{}
 			Expect(reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)).To(Succeed())
-			ExpectInstancetypeAnnotations(dataSource.Annotations)
+			ExpectInstancetypeLabels(dataSource.Labels)
 		})
 	})
 })

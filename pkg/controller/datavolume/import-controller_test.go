@@ -101,6 +101,29 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.Labels[common.KubePersistentVolumeFillingUpSuppressLabelKey]).To(Equal(common.KubePersistentVolumeFillingUpSuppressLabelValue))
 		})
 
+		It("Should pass instancetype labels from DV to PVC", func() {
+			dv := NewImportDataVolume("test-dv")
+			dv.Labels = map[string]string{}
+			dv.Labels[LabelDefaultInstancetype] = LabelDefaultInstancetype
+			dv.Labels[LabelDefaultInstancetypeKind] = LabelDefaultInstancetypeKind
+			dv.Labels[LabelDefaultPreference] = LabelDefaultPreference
+			dv.Labels[LabelDefaultPreferenceKind] = LabelDefaultPreferenceKind
+
+			reconciler = createImportReconciler(dv)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(pvc.Name).To(Equal("test-dv"))
+			Expect(pvc.Labels[LabelDefaultInstancetype]).To(Equal(LabelDefaultInstancetype))
+			Expect(pvc.Labels[LabelDefaultInstancetypeKind]).To(Equal(LabelDefaultInstancetypeKind))
+			Expect(pvc.Labels[LabelDefaultPreference]).To(Equal(LabelDefaultPreference))
+			Expect(pvc.Labels[LabelDefaultPreferenceKind]).To(Equal(LabelDefaultPreferenceKind))
+		})
+
 		It("Should set params on a PVC from import DV.PVC", func() {
 			importDataVolume := NewImportDataVolume("test-dv")
 			importDataVolume.Spec.PVC.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}

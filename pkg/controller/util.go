@@ -77,17 +77,6 @@ const (
 	ClusterWideProxyConfigMapKey = "ca-bundle.crt"
 )
 
-const (
-	// AnnDefaultInstancetype provides a default VirtualMachine{ClusterInstancetype,Instancetype} that can be used by a VirtualMachine booting from a given PVC
-	AnnDefaultInstancetype = "instancetype.kubevirt.io/default-instancetype"
-	// AnnDefaultInstancetypeKind provides a default kind of either VirtualMachineClusterInstancetype or VirtualMachineInstancetype
-	AnnDefaultInstancetypeKind = "instancetype.kubevirt.io/default-instancetype-kind"
-	// AnnDefaultPreference provides a default VirtualMachine{ClusterPreference,Preference} that can be used by a VirtualMachine booting from a given PVC
-	AnnDefaultPreference = "instancetype.kubevirt.io/default-preference"
-	// AnnDefaultPreferenceKind provides a default kind of either VirtualMachineClusterPreference or VirtualMachinePreference
-	AnnDefaultPreferenceKind = "instancetype.kubevirt.io/default-preference-kind"
-)
-
 var (
 	vddkInfoMatch = regexp.MustCompile(`((.*; )|^)VDDK: (?P<info>{.*})`)
 )
