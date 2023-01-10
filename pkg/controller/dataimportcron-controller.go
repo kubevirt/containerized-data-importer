@@ -486,10 +486,10 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 	dataSourceCopy := dataSource.DeepCopy()
 	r.setDataImportCronResourceLabels(dataImportCron, dataSource)
 
-	passCronLabelToDataSource(dataImportCron, dataSource, LabelDefaultInstancetype)
-	passCronLabelToDataSource(dataImportCron, dataSource, LabelDefaultInstancetypeKind)
-	passCronLabelToDataSource(dataImportCron, dataSource, LabelDefaultPreference)
-	passCronLabelToDataSource(dataImportCron, dataSource, LabelDefaultPreferenceKind)
+	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultInstancetype)
+	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultInstancetypeKind)
+	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultPreference)
+	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultPreferenceKind)
 
 	sourcePVC := dataImportCron.Status.LastImportedPVC
 	if sourcePVC != nil {
@@ -927,10 +927,10 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	passCronAnnotationToDv(cron, dv, AnnImmediateBinding)
 	passCronAnnotationToDv(cron, dv, cc.AnnPodRetainAfterCompletion)
 
-	passCronLabelToDv(cron, dv, LabelDefaultInstancetype)
-	passCronLabelToDv(cron, dv, LabelDefaultInstancetypeKind)
-	passCronLabelToDv(cron, dv, LabelDefaultPreference)
-	passCronLabelToDv(cron, dv, LabelDefaultPreferenceKind)
+	passCronLabelToDv(cron, dv, cc.LabelDefaultInstancetype)
+	passCronLabelToDv(cron, dv, cc.LabelDefaultInstancetypeKind)
+	passCronLabelToDv(cron, dv, cc.LabelDefaultPreference)
+	passCronLabelToDv(cron, dv, cc.LabelDefaultPreferenceKind)
 
 	return dv
 }

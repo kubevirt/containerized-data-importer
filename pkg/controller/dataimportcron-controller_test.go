@@ -622,10 +622,10 @@ var _ = Describe("All DataImportCron Tests", func() {
 			cron.Annotations[AnnSourceDesiredDigest] = testDigest
 
 			cron.Labels = map[string]string{}
-			cron.Labels[LabelDefaultInstancetype] = LabelDefaultInstancetype
-			cron.Labels[LabelDefaultInstancetypeKind] = LabelDefaultInstancetypeKind
-			cron.Labels[LabelDefaultPreference] = LabelDefaultPreference
-			cron.Labels[LabelDefaultPreferenceKind] = LabelDefaultPreferenceKind
+			cron.Labels[cc.LabelDefaultInstancetype] = cc.LabelDefaultInstancetype
+			cron.Labels[cc.LabelDefaultInstancetypeKind] = cc.LabelDefaultInstancetypeKind
+			cron.Labels[cc.LabelDefaultPreference] = cc.LabelDefaultPreference
+			cron.Labels[cc.LabelDefaultPreferenceKind] = cc.LabelDefaultPreferenceKind
 
 			reconciler = createDataImportCronReconciler(cron)
 			_, err := reconciler.Reconcile(context.TODO(), cronReq)
@@ -642,14 +642,14 @@ var _ = Describe("All DataImportCron Tests", func() {
 
 			ExpectInstancetypeLabels := func(labels map[string]string) {
 				Expect(labels).ToNot(BeEmpty())
-				Expect(labels).Should(ContainElement(LabelDefaultInstancetype))
-				Expect(labels[LabelDefaultInstancetype]).Should(Equal(LabelDefaultInstancetype))
-				Expect(labels).Should(ContainElement(LabelDefaultInstancetypeKind))
-				Expect(labels[LabelDefaultInstancetypeKind]).Should(Equal(LabelDefaultInstancetypeKind))
-				Expect(labels).Should(ContainElement(LabelDefaultPreference))
-				Expect(labels[LabelDefaultPreference]).Should(Equal(LabelDefaultPreference))
-				Expect(labels).Should(ContainElement(LabelDefaultPreferenceKind))
-				Expect(labels[LabelDefaultPreferenceKind]).Should(Equal(LabelDefaultPreferenceKind))
+				Expect(labels).Should(ContainElement(cc.LabelDefaultInstancetype))
+				Expect(labels[cc.LabelDefaultInstancetype]).Should(Equal(cc.LabelDefaultInstancetype))
+				Expect(labels).Should(ContainElement(cc.LabelDefaultInstancetypeKind))
+				Expect(labels[cc.LabelDefaultInstancetypeKind]).Should(Equal(cc.LabelDefaultInstancetypeKind))
+				Expect(labels).Should(ContainElement(cc.LabelDefaultPreference))
+				Expect(labels[cc.LabelDefaultPreference]).Should(Equal(cc.LabelDefaultPreference))
+				Expect(labels).Should(ContainElement(cc.LabelDefaultPreferenceKind))
+				Expect(labels[cc.LabelDefaultPreferenceKind]).Should(Equal(cc.LabelDefaultPreferenceKind))
 			}
 
 			dv := &cdiv1.DataVolume{}
