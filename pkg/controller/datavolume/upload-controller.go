@@ -19,7 +19,6 @@ package datavolume
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -109,11 +108,8 @@ func (r UploadReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 
 func (r UploadReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.syncUpload(log, req)
-	if !reflect.DeepEqual(syncRes.dv, syncRes.dvCopy) {
-		if err := r.updateDataVolume(syncRes.dvCopy); err != nil {
-			log.Error(err, "Unable to sync update dv", "name", syncRes.dvCopy.Name)
-			syncErr = err
-		}
+	if err := r.syncUpdateMeta(log, syncRes); err != nil {
+		syncErr = err
 	}
 	return syncRes, syncErr
 }

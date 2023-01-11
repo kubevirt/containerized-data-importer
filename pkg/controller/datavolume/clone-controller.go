@@ -366,11 +366,8 @@ func (r CloneReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *co
 
 func (r CloneReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeCloneSyncResult, error) {
 	syncRes, syncErr := r.syncClone(log, req)
-	if !reflect.DeepEqual(syncRes.dv, syncRes.dvCopy) {
-		if err := r.updateDataVolume(syncRes.dvCopy); err != nil {
-			r.log.Error(err, "Unable to sync update dv", "name", syncRes.dvCopy.Name)
-			syncErr = err
-		}
+	if err := r.syncUpdateMeta(log, syncRes.dataVolumeSyncResult); err != nil {
+		syncErr = err
 	}
 	return syncRes, syncErr
 }

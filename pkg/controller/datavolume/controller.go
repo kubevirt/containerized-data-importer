@@ -280,7 +280,23 @@ func (r ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, syncR
 	return nil
 }
 
-func (r *ReconcilerBase) annotate(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) {
+func (r ReconcilerBase) syncUpdateMeta(log logr.Logger, syncRes dataVolumeSyncResult) error {
+	if syncRes.dv == nil || syncRes.dvCopy == nil {
+		return nil
+	}
+	if !reflect.DeepEqual(syncRes.dv.Status, syncRes.dvCopy.Status) {
+		return fmt.Errorf("status update is not allowed in sync phase")
+	}
+	if !reflect.DeepEqual(syncRes.dv.ObjectMeta, syncRes.dvCopy.ObjectMeta) {
+		if err := r.updateDataVolume(syncRes.dvCopy); err != nil {
+			r.log.Error(err, "Unable to sync update dv meta", "name", syncRes.dvCopy.Name)
+			return err
+		}
+	}
+	return nil
+}
+
+func (r ReconcilerBase) annotate(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) {
 	if pvc.Status.Phase == corev1.ClaimBound && pvcIsPopulated(pvc, dv) {
 		if dv.Annotations == nil {
 			dv.Annotations = make(map[string]string)
@@ -563,6 +579,9 @@ func (r *ReconcilerBase) emitFailureConditionEvent(dataVolume *cdiv1.DataVolume,
 }
 
 func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, curPhase cdiv1.DataVolumePhase, originalCond []cdiv1.DataVolumeCondition, event *Event) error {
+	if !reflect.DeepEqual(dataVolume.ObjectMeta, dataVolume.ObjectMeta) {
+		return fmt.Errorf("meta update is not allowed in updateStatus phase")
+	}
 	// Only update the object if something actually changed in the status.
 	if !reflect.DeepEqual(dataVolume.Status, dataVolumeCopy.Status) {
 		if err := r.updateDataVolume(dataVolumeCopy); err != nil {
