@@ -292,6 +292,9 @@ func (r ReconcilerBase) syncUpdateMeta(log logr.Logger, syncRes dataVolumeSyncRe
 			r.log.Error(err, "Unable to sync update dv meta", "name", syncRes.dvCopy.Name)
 			return err
 		}
+		// Needed for emitEvent() DeepEqual check
+		objMeta := syncRes.dvCopy.ObjectMeta.DeepCopy()
+		syncRes.dv.ObjectMeta = *objMeta
 	}
 	return nil
 }
@@ -579,7 +582,7 @@ func (r *ReconcilerBase) emitFailureConditionEvent(dataVolume *cdiv1.DataVolume,
 }
 
 func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, curPhase cdiv1.DataVolumePhase, originalCond []cdiv1.DataVolumeCondition, event *Event) error {
-	if !reflect.DeepEqual(dataVolume.ObjectMeta, dataVolume.ObjectMeta) {
+	if !reflect.DeepEqual(dataVolume.ObjectMeta, dataVolumeCopy.ObjectMeta) {
 		return fmt.Errorf("meta update is not allowed in updateStatus phase")
 	}
 	// Only update the object if something actually changed in the status.
