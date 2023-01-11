@@ -212,34 +212,33 @@ func (r ImportReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 
 func (r ImportReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.syncImport(log, req)
-	if err := r.syncUpdateMeta(log, syncRes); err != nil {
+	if err := r.syncUpdateMeta(log, &syncRes); err != nil {
 		syncErr = err
 	}
 	return syncRes, syncErr
 }
 
 func (r ImportReconciler) syncImport(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
-	var syncRes dataVolumeSyncResult
-	syncErr := r.syncCommon(log, req, &syncRes, nil, nil)
+	syncRes, syncErr := r.syncCommon(log, req, nil, nil)
 	if syncErr != nil || syncRes.result != nil {
-		return syncRes, syncErr
+		return *syncRes, syncErr
 	}
 	if syncRes.pvc == nil {
-		if _, dvPrePopulated := syncRes.dvCopy.Annotations[cc.AnnPrePopulated]; !dvPrePopulated {
-			syncRes.pvc, syncErr = r.createPvcForDatavolume(syncRes.dvCopy, syncRes.pvcSpec, r.updateAnnotations)
+		if _, dvPrePopulated := syncRes.dvMutated.Annotations[cc.AnnPrePopulated]; !dvPrePopulated {
+			syncRes.pvc, syncErr = r.createPvcForDatavolume(syncRes.dvMutated, syncRes.pvcSpec, r.updateAnnotations)
 		}
 	}
 	if syncRes.pvc != nil && syncErr == nil {
-		r.setVddkAnnotations(syncRes)
-		syncErr = r.maybeSetPvcMultiStageAnnotation(syncRes.pvc, syncRes.dvCopy)
+		r.setVddkAnnotations(*syncRes)
+		syncErr = r.maybeSetPvcMultiStageAnnotation(syncRes.pvc, syncRes.dvMutated)
 	}
-	return syncRes, syncErr
+	return *syncRes, syncErr
 }
 
 func (r ImportReconciler) updateStatus(syncRes dataVolumeSyncResult, syncErr error) (reconcile.Result, error) {
 	if syncErr != nil {
 		if cc.ErrQuotaExceeded(syncErr) {
-			err := r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, syncRes.dv, syncRes.dvCopy, nil,
+			err := r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, syncRes.dv, syncRes.dvMutated, nil,
 				Event{
 					eventType: corev1.EventTypeWarning,
 					reason:    cc.ErrExceededQuota,
@@ -314,10 +313,10 @@ func (r ImportReconciler) setVddkAnnotations(syncRes dataVolumeSyncResult) {
 		return
 	}
 	if vddkHost := syncRes.pvc.Annotations[cc.AnnVddkHostConnection]; vddkHost != "" {
-		cc.AddAnnotation(syncRes.dvCopy, cc.AnnVddkHostConnection, vddkHost)
+		cc.AddAnnotation(syncRes.dvMutated, cc.AnnVddkHostConnection, vddkHost)
 	}
 	if vddkVersion := syncRes.pvc.Annotations[cc.AnnVddkVersion]; vddkVersion != "" {
-		cc.AddAnnotation(syncRes.dvCopy, cc.AnnVddkVersion, vddkVersion)
+		cc.AddAnnotation(syncRes.dvMutated, cc.AnnVddkVersion, vddkVersion)
 	}
 }
 

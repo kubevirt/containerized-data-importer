@@ -334,8 +334,8 @@ func (r CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 	return r.updateStatus(r.sync(log, req))
 }
 
-func (r CloneReconciler) prepare(syncRes *dataVolumeCloneSyncResult) error {
-	dv := syncRes.dvCopy
+func (r CloneReconciler) prepare(syncRes *dataVolumeSyncResult) error {
+	dv := syncRes.dvMutated
 	if err := r.populateSourceIfSourceRef(dv); err != nil {
 		return err
 	}
@@ -366,29 +366,22 @@ func (r CloneReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *co
 
 func (r CloneReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeCloneSyncResult, error) {
 	syncRes, syncErr := r.syncClone(log, req)
-	if err := r.syncUpdateMeta(log, syncRes.dataVolumeSyncResult); err != nil {
+	if err := r.syncUpdateMeta(log, &syncRes.dataVolumeSyncResult); err != nil {
 		syncErr = err
 	}
 	return syncRes, syncErr
 }
 
 func (r CloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (dataVolumeCloneSyncResult, error) {
-	var syncRes dataVolumeCloneSyncResult
-
-	cleanup := func() error {
-		return r.cleanup(&syncRes)
-	}
-	prepare := func() error {
-		return r.prepare(&syncRes)
-	}
-	syncErr := r.syncCommon(log, req, &syncRes.dataVolumeSyncResult, cleanup, prepare)
+	res, syncErr := r.syncCommon(log, req, r.cleanup, r.prepare)
+	syncRes := dataVolumeCloneSyncResult{dataVolumeSyncResult: *res}
 	if syncErr != nil || syncRes.result != nil {
 		return syncRes, syncErr
 	}
 
 	pvc := syncRes.pvc
 	pvcSpec := syncRes.pvcSpec
-	datavolume := syncRes.dvCopy
+	datavolume := syncRes.dvMutated
 	transferName := getTransferName(datavolume)
 
 	// Get the most appropiate clone strategy
@@ -539,7 +532,7 @@ func (r CloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (data
 
 func (r CloneReconciler) updateStatus(syncRes dataVolumeCloneSyncResult, syncErr error) (reconcile.Result, error) {
 	if ps := syncRes.phaseSync; ps != nil {
-		if err := r.updateDataVolumeStatusPhaseWithEvent(ps.phase, syncRes.dv, syncRes.dvCopy, ps.pvc, ps.event); err != nil {
+		if err := r.updateDataVolumeStatusPhaseWithEvent(ps.phase, syncRes.dv, syncRes.dvMutated, ps.pvc, ps.event); err != nil {
 			syncErr = err
 		}
 		return getReconcileResult(syncRes.result), syncErr
@@ -673,7 +666,7 @@ func (r *CloneReconciler) reconcileCsiClonePvc(log logr.Logger,
 	transferName string) (reconcile.Result, error) {
 
 	log = log.WithName("reconcileCsiClonePvc")
-	datavolume := syncRes.dvCopy
+	datavolume := syncRes.dvMutated
 	pvcSpec := syncRes.pvcSpec
 	pvcName := datavolume.Name
 
@@ -802,7 +795,7 @@ func (r *CloneReconciler) expandPvcAfterClone(
 	if isTemp {
 		// trigger transfer and next reconcile should have pvcExists == true
 		pvc.Annotations[annReadyForTransfer] = "true"
-		pvc.Annotations[cc.AnnPopulatedFor] = syncRes.dvCopy.Name
+		pvc.Annotations[cc.AnnPopulatedFor] = syncRes.dvMutated.Name
 		if err := r.updatePVC(pvc); err != nil {
 			return reconcile.Result{}, err
 		}
@@ -828,7 +821,7 @@ func (r *CloneReconciler) reconcileSmartClonePvc(log logr.Logger,
 	transferName string,
 	snapshotClassName string) (reconcile.Result, error) {
 
-	datavolume := syncRes.dvCopy
+	datavolume := syncRes.dvMutated
 	pvcName := datavolume.Name
 
 	if isCrossNamespaceClone(datavolume) {
@@ -930,7 +923,7 @@ func (r *CloneReconciler) doCrossNamespaceClone(log logr.Logger,
 	returnWhenCloneInProgress bool,
 	selectedCloneStrategy cloneStrategy) (*reconcile.Result, error) {
 
-	datavolume := syncRes.dvCopy
+	datavolume := syncRes.dvMutated
 	initialized, err := r.initTransfer(log, syncRes, pvcName)
 	if err != nil {
 		return &reconcile.Result{}, err
@@ -987,7 +980,7 @@ func (r *CloneReconciler) sourceInUse(dv *cdiv1.DataVolume, eventReason string) 
 
 func (r *CloneReconciler) initTransfer(log logr.Logger, syncRes *dataVolumeCloneSyncResult, name string) (bool, error) {
 	initialized := true
-	dv := syncRes.dvCopy
+	dv := syncRes.dvMutated
 
 	log.Info("Initializing transfer")
 
@@ -1045,8 +1038,8 @@ func (r *CloneReconciler) initTransfer(log logr.Logger, syncRes *dataVolumeClone
 	return initialized, nil
 }
 
-func (r CloneReconciler) cleanup(syncRes *dataVolumeCloneSyncResult) error {
-	dv := syncRes.dvCopy
+func (r CloneReconciler) cleanup(syncRes *dataVolumeSyncResult) error {
+	dv := syncRes.dvMutated
 	transferName := getTransferName(dv)
 	if !cc.HasFinalizer(dv, crossNamespaceFinalizer) {
 		return nil
@@ -1178,7 +1171,7 @@ func (r *CloneReconciler) expand(log logr.Logger, syncRes *dataVolumeCloneSyncRe
 
 	if !podExists {
 		var err error
-		pod, err = r.createExpansionPod(pvc, syncRes.dvCopy, podName)
+		pod, err = r.createExpansionPod(pvc, syncRes.dvMutated, podName)
 		// Check if pod has failed and, in that case, record an event with the error
 		if podErr := cc.HandleFailedPod(err, podName, pvc, r.recorder, r.client); podErr != nil {
 			return false, podErr
@@ -1607,7 +1600,7 @@ func (r *CloneReconciler) newVolumeClonePVC(dv *cdiv1.DataVolume,
 
 func (r *CloneReconciler) syncCloneStatusPhase(syncRes *dataVolumeCloneSyncResult, phase cdiv1.DataVolumePhase, pvc *corev1.PersistentVolumeClaim) error {
 	var event Event
-	dataVolume := syncRes.dvCopy
+	dataVolume := syncRes.dvMutated
 
 	switch phase {
 	case cdiv1.CloneScheduled:
@@ -1679,7 +1672,7 @@ func (r *CloneReconciler) getPreferredCloneStrategyForStorageClass(storageClass 
 
 // validateCloneAndSourcePVC checks if the source PVC of a clone exists and does proper validation
 func (r *CloneReconciler) validateCloneAndSourcePVC(syncRes *dataVolumeCloneSyncResult) (bool, error) {
-	datavolume := syncRes.dvCopy
+	datavolume := syncRes.dvMutated
 	sourcePvc, err := r.findSourcePvc(datavolume)
 	if err != nil {
 		// Clone without source
@@ -1752,7 +1745,7 @@ func (r *CloneReconciler) isSourceReadyToClone(
 // detectCloneSize obtains and assigns the original PVC's size when cloning using an empty storage value
 func (r *CloneReconciler) detectCloneSize(syncRes dataVolumeCloneSyncResult, cloneType cloneStrategy) (bool, error) {
 	var targetSize int64
-	sourcePvc, err := r.findSourcePvc(syncRes.dvCopy)
+	sourcePvc, err := r.findSourcePvc(syncRes.dvMutated)
 	if err != nil {
 		return false, err
 	}
@@ -1770,7 +1763,7 @@ func (r *CloneReconciler) detectCloneSize(syncRes dataVolumeCloneSyncResult, clo
 		// If available, we first try to get the virtual size from previous iterations
 		targetSize, available = getSizeFromAnnotations(sourcePvc)
 		if !available {
-			targetSize, err = r.getSizeFromPod(syncRes.pvc, sourcePvc, syncRes.dvCopy)
+			targetSize, err = r.getSizeFromPod(syncRes.pvc, sourcePvc, syncRes.dvMutated)
 			if err != nil {
 				return false, err
 			} else if targetSize == 0 {
@@ -1786,7 +1779,7 @@ func (r *CloneReconciler) detectCloneSize(syncRes dataVolumeCloneSyncResult, clo
 	// if the source's size ends up being larger due to overhead differences
 	// TODO: Fix this in next PR that uses actual size also in validation
 	if sourceCapacity.CmpInt64(targetSize) == 1 {
-		syncRes.dvCopy.Annotations[cc.AnnPermissiveClone] = "true"
+		syncRes.dvMutated.Annotations[cc.AnnPermissiveClone] = "true"
 	}
 
 	// Parse size into a 'Quantity' struct and, if needed, inflate it with filesystem overhead

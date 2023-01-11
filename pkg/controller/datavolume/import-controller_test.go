@@ -1516,5 +1516,5 @@ func createStorageClassWithBindingMode(name string, annotations map[string]strin
 }
 
 func createSyncResult(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) dataVolumeSyncResult {
-	return dataVolumeSyncResult{dv: dv, dvCopy: dv.DeepCopy(), pvc: pvc}
+	return dataVolumeSyncResult{dv: dv, dvMutated: dv.DeepCopy(), pvc: pvc}
 }

@@ -86,11 +86,11 @@ type Event struct {
 }
 
 type dataVolumeSyncResult struct {
-	dv      *cdiv1.DataVolume
-	dvCopy  *cdiv1.DataVolume
-	pvc     *corev1.PersistentVolumeClaim
-	pvcSpec *v1.PersistentVolumeClaimSpec
-	result  *reconcile.Result
+	dv        *cdiv1.DataVolume
+	dvMutated *cdiv1.DataVolume
+	pvc       *corev1.PersistentVolumeClaim
+	pvcSpec   *v1.PersistentVolumeClaimSpec
+	result    *reconcile.Result
 }
 
 // ReconcilerBase members
@@ -231,80 +231,87 @@ func getDataVolumeOp(dv *cdiv1.DataVolume) dataVolumeOp {
 	return dataVolumeNop
 }
 
-func (r ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, syncRes *dataVolumeSyncResult, cleanup, prepare func() error) error {
+type dataVolumeSyncResultFunc func(*dataVolumeSyncResult) error
+
+func (r ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (*dataVolumeSyncResult, error) {
+	syncRes, syncErr := r.sync(log, req, cleanup, prepare)
+	if err := r.syncUpdateMeta(log, syncRes); err != nil {
+		syncErr = err
+	}
+	return syncRes, syncErr
+}
+
+func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (*dataVolumeSyncResult, error) {
+	syncRes := &dataVolumeSyncResult{}
 	dv, err := r.getDataVolume(req.NamespacedName)
 	if dv == nil || err != nil {
 		syncRes.result = &reconcile.Result{}
-		return err
+		return syncRes, err
 	}
 	syncRes.dv = dv
-	syncRes.dvCopy = dv.DeepCopy()
+	syncRes.dvMutated = dv.DeepCopy()
 
 	if dv.DeletionTimestamp != nil {
 		log.Info("DataVolume marked for deletion, cleaning up")
 		if cleanup != nil {
-			err := cleanup()
-			return err
+			err := cleanup(syncRes)
+			return syncRes, err
 		}
 		syncRes.result = &reconcile.Result{}
-		return nil
+		return syncRes, nil
 	}
 
 	if prepare != nil {
-		if err := prepare(); err != nil {
-			return err
+		if err := prepare(syncRes); err != nil {
+			return syncRes, err
 		}
 	}
 
 	syncRes.pvc, err = r.getPVC(dv)
 	if err != nil {
-		return err
+		return syncRes, err
 	}
 	if syncRes.pvc != nil {
 		if err := r.garbageCollect(syncRes, log); err != nil {
-			return err
+			return syncRes, err
 		}
 		if syncRes.result != nil || syncRes.dv == nil {
-			return nil
+			return syncRes, nil
 		}
 		if err := r.validatePVC(dv, syncRes.pvc); err != nil {
-			return err
+			return syncRes, err
 		}
-		r.annotate(syncRes.dvCopy, syncRes.pvc)
+		r.handlePrePopulation(syncRes.dvMutated, syncRes.pvc)
 	}
 
 	syncRes.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, dv)
 	if err != nil {
-		return err
+		return syncRes, err
 	}
-	return nil
+	return syncRes, nil
 }
 
-func (r ReconcilerBase) syncUpdateMeta(log logr.Logger, syncRes dataVolumeSyncResult) error {
-	if syncRes.dv == nil || syncRes.dvCopy == nil {
+func (r ReconcilerBase) syncUpdateMeta(log logr.Logger, syncRes *dataVolumeSyncResult) error {
+	if syncRes.dv == nil || syncRes.dvMutated == nil {
 		return nil
 	}
-	if !reflect.DeepEqual(syncRes.dv.Status, syncRes.dvCopy.Status) {
+	if !reflect.DeepEqual(syncRes.dv.Status, syncRes.dvMutated.Status) {
 		return fmt.Errorf("status update is not allowed in sync phase")
 	}
-	if !reflect.DeepEqual(syncRes.dv.ObjectMeta, syncRes.dvCopy.ObjectMeta) {
-		if err := r.updateDataVolume(syncRes.dvCopy); err != nil {
-			r.log.Error(err, "Unable to sync update dv meta", "name", syncRes.dvCopy.Name)
+	if !reflect.DeepEqual(syncRes.dv.ObjectMeta, syncRes.dvMutated.ObjectMeta) {
+		if err := r.updateDataVolume(syncRes.dvMutated); err != nil {
+			r.log.Error(err, "Unable to sync update dv meta", "name", syncRes.dvMutated.Name)
 			return err
 		}
 		// Needed for emitEvent() DeepEqual check
-		objMeta := syncRes.dvCopy.ObjectMeta.DeepCopy()
-		syncRes.dv.ObjectMeta = *objMeta
+		syncRes.dv = syncRes.dvMutated.DeepCopy()
 	}
 	return nil
 }
 
-func (r ReconcilerBase) annotate(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) {
+func (r ReconcilerBase) handlePrePopulation(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) {
 	if pvc.Status.Phase == corev1.ClaimBound && pvcIsPopulated(pvc, dv) {
-		if dv.Annotations == nil {
-			dv.Annotations = make(map[string]string)
-		}
-		dv.Annotations[cc.AnnPrePopulated] = pvc.Name
+		cc.AddAnnotation(dv, cc.AnnPrePopulated, pvc.Name)
 	}
 }
 
@@ -448,7 +455,7 @@ func (r ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, updateS
 	}
 
 	result := getReconcileResult(syncRes.result)
-	dataVolumeCopy := syncRes.dvCopy
+	dataVolumeCopy := syncRes.dvMutated
 	curPhase := dataVolumeCopy.Status.Phase
 	pvc := syncRes.pvc
 	var event Event
