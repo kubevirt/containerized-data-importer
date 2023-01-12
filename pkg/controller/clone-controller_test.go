@@ -177,7 +177,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		}),
 	)
 
-	DescribeTable("Should create new source pod if none exists, and target pod is marked ready and", func(podFunc func(*corev1.PersistentVolumeClaim) *corev1.Pod) {
+	DescribeTable("Should create new source pod if none exists, and target pod is marked ready and", func(sourceVolumeMode corev1.PersistentVolumeMode, podFunc func(*corev1.PersistentVolumeClaim) *corev1.Pod) {
 		testPvc := cc.CreatePvc("testPvc1", "default", map[string]string{
 			cc.AnnCloneRequest:  "default/source",
 			cc.AnnPodReady:      "true",
@@ -185,7 +185,9 @@ var _ = Describe("Clone controller reconcile loop", func() {
 			AnnUploadClientName: "uploadclient",
 			AnnCloneSourcePod:   "default-testPvc1-source-pod",
 			cc.AnnPodNetwork:    "net1"}, nil)
+		testPvc.Spec.VolumeMode = &sourceVolumeMode
 		sourcePvc := cc.CreatePvc("source", "default", map[string]string{}, nil)
+		sourcePvc.Spec.VolumeMode = &sourceVolumeMode
 		otherSourcePod := podFunc(sourcePvc)
 		objs := []runtime.Object{testPvc, sourcePvc}
 		if otherSourcePod != nil {
@@ -207,6 +209,12 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).ToNot(BeNil())
+		if sourceVolumeMode == corev1.PersistentVolumeBlock {
+			Expect(sourcePod.Spec.Volumes[0].PersistentVolumeClaim.ReadOnly).To(BeTrue())
+		} else {
+			Expect(sourcePod.Spec.Containers[0].VolumeMounts[0].ReadOnly).To(BeTrue())
+			Expect(sourcePod.Spec.Volumes[0].PersistentVolumeClaim.ReadOnly).To(BeFalse())
+		}
 		Expect(sourcePod.GetLabels()[cc.CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
 		Expect(sourcePod.GetLabels()[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 		By("Verifying source pod annotations passed from pvc")
@@ -235,13 +243,16 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		}
 		Expect(pa).To(Equal(epa))
 	},
-		Entry("no pods are using source PVC", func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
+		Entry("no pods are using source PVC", corev1.PersistentVolumeFilesystem, func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
 			return nil
 		}),
-		Entry("readonly pod using source PVC", func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
+		Entry("no pods are using source PVC (block)", corev1.PersistentVolumeBlock, func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
+			return nil
+		}),
+		Entry("readonly pod using source PVC", corev1.PersistentVolumeFilesystem, func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
 			return podUsingPVC(pvc, true)
 		}),
-		Entry("other clone source pod using source PVC", func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
+		Entry("other clone source pod using source PVC", corev1.PersistentVolumeFilesystem, func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
 			pod := podUsingPVC(pvc, true)
 			pod.Labels = map[string]string{"cdi.kubevirt.io": "cdi-clone-source"}
 			return pod
@@ -871,6 +882,7 @@ func createSourcePod(pvc *corev1.PersistentVolumeClaim, pvcUID string) *corev1.P
 	}
 
 	if volumeMode == corev1.PersistentVolumeBlock {
+		pod.Spec.Volumes[0].PersistentVolumeClaim.ReadOnly = true
 		pod.Spec.Containers[0].VolumeDevices = cc.AddVolumeDevices()
 		addVars = []corev1.EnvVar{
 			{
@@ -887,6 +899,7 @@ func createSourcePod(pvc *corev1.PersistentVolumeClaim, pvcUID string) *corev1.P
 			{
 				Name:      cc.DataVolName,
 				MountPath: common.ClonerMountPath,
+				ReadOnly:  true,
 			},
 		}
 		addVars = []corev1.EnvVar{
