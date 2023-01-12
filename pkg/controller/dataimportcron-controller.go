@@ -311,6 +311,9 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	if dv != nil {
 		switch dv.Status.Phase {
 		case cdiv1.Succeeded:
+			if r.updatePvc(ctx, dataImportCron, pvc); err != nil {
+				return res, err
+			}
 			importSucceeded = true
 		case cdiv1.ImportScheduled:
 			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "Import is scheduled", scheduled)
@@ -321,14 +324,10 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, fmt.Sprintf("Import DataVolume phase %s", dvPhase), dvPhase)
 		}
 	} else if pvc != nil {
-		importSucceeded = true
-		pvcCopy := pvc.DeepCopy()
-		r.setDataImportCronResourceLabels(dataImportCron, pvc)
-		if !reflect.DeepEqual(pvc, pvcCopy) {
-			if err := r.client.Update(ctx, pvc); err != nil {
-				return res, err
-			}
+		if r.updatePvc(ctx, dataImportCron, pvc); err != nil {
+			return res, err
 		}
+		importSucceeded = true
 	} else {
 		if len(imports) > 0 {
 			dataImportCron.Status.CurrentImports = imports[1:]
@@ -392,7 +391,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	return res, nil
 }
 
-// Returns the current import DV if exists, otherwise returns the last imported PVC
+// Returns the current import DV if exists, and the last imported PVC
 func (r *DataImportCronReconciler) getImportState(ctx context.Context, cron *cdiv1.DataImportCron) (*cdiv1.DataVolume, *corev1.PersistentVolumeClaim, error) {
 	imports := cron.Status.CurrentImports
 	if len(imports) == 0 {
@@ -401,19 +400,32 @@ func (r *DataImportCronReconciler) getImportState(ctx context.Context, cron *cdi
 
 	dvName := imports[0].DataVolumeName
 	dv := &cdiv1.DataVolume{}
-	if err := r.client.Get(ctx, types.NamespacedName{Namespace: cron.Namespace, Name: dvName}, dv); err == nil {
-		return dv, nil, nil
-	} else if !k8serrors.IsNotFound(err) {
-		return nil, nil, err
+	if err := r.client.Get(ctx, types.NamespacedName{Namespace: cron.Namespace, Name: dvName}, dv); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return nil, nil, err
+		}
+		dv = nil
 	}
 
 	pvc := &corev1.PersistentVolumeClaim{}
-	if err := r.client.Get(ctx, types.NamespacedName{Namespace: cron.Namespace, Name: dvName}, pvc); err == nil {
-		return nil, pvc, nil
-	} else if !k8serrors.IsNotFound(err) {
-		return nil, nil, err
+	if err := r.client.Get(ctx, types.NamespacedName{Namespace: cron.Namespace, Name: dvName}, pvc); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return nil, nil, err
+		}
+		pvc = nil
 	}
-	return nil, nil, nil
+	return dv, pvc, nil
+}
+
+func (r *DataImportCronReconciler) updatePvc(ctx context.Context, cron *cdiv1.DataImportCron, pvc *corev1.PersistentVolumeClaim) error {
+	pvcCopy := pvc.DeepCopy()
+	r.setDataImportCronResourceLabels(cron, pvc)
+	if !reflect.DeepEqual(pvc, pvcCopy) {
+		if err := r.client.Update(ctx, pvc); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *DataImportCronReconciler) deleteErroneousDataVolume(ctx context.Context, cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume) error {

@@ -349,6 +349,11 @@ var _ = Describe("All DataImportCron Tests", func() {
 			dv.Status.Phase = cdiv1.Succeeded
 			err = reconciler.client.Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
+
+			pvc := createPvc(dv.Name, dv.Namespace, nil, nil)
+			err = reconciler.client.Create(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+
 			verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready)
 
 			sourcePVC := cdiv1.DataVolumeSourcePVC{
@@ -569,6 +574,10 @@ var _ = Describe("All DataImportCron Tests", func() {
 			dv.Status.Phase = cdiv1.Succeeded
 			dv.Status.Conditions = updateReadyCondition(dv.Status.Conditions, corev1.ConditionTrue, "", "")
 			err = reconciler.client.Update(context.TODO(), dv)
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc := createPvc(dv.Name, dv.Namespace, nil, nil)
+			err = reconciler.client.Create(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 			verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready)
 
