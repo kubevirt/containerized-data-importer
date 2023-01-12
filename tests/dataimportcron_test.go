@@ -125,9 +125,8 @@ var _ = Describe("DataImportCron", func() {
 					By("Reset desired digest")
 					retryOnceOnErr(updateDataImportCron(f.CdiClient, ns, cronName, updateDigest(""))).Should(BeNil())
 
-					By("Delete last import PVC")
-					err := f.K8sClient.CoreV1().PersistentVolumeClaims(ns).Delete(context.TODO(), currentImportDv, metav1.DeleteOptions{})
-					Expect(err).ToNot(HaveOccurred())
+					By("Delete last import PVC " + currentImportDv)
+					deleteDvPvc(f, currentImportDv)
 					lastImportDv = ""
 
 					By("Wait for non-empty desired digest")
@@ -198,8 +197,7 @@ var _ = Describe("DataImportCron", func() {
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "DataSource was not re-created")
 
 			By("Delete last imported PVC")
-			err = f.DeletePVC(currentPvc)
-			Expect(err).To(BeNil())
+			deleteDvPvc(f, currentPvc.Name)
 			By("Verify last imported PVC was re-created")
 			Eventually(func() bool {
 				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(ns).Get(context.TODO(), currentPvc.Name, metav1.GetOptions{})

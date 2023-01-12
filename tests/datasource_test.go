@@ -64,14 +64,6 @@ var _ = Describe("DataSource", func() {
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 	}
 
-	// Delete PVC if DV was GCed, otherwise delete both
-	deleteDvPvc := func(pvcName string) {
-		err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, pvcName)
-		Expect(err).ToNot(HaveOccurred())
-		err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvcName)
-		Expect(err).ToNot(HaveOccurred())
-	}
-
 	It("[test_id:8041]status conditions should be updated on pvc create/update/delete", func() {
 		By("creating datasource")
 		ds := newDataSource(ds1Name)
@@ -87,7 +79,7 @@ var _ = Describe("DataSource", func() {
 		createDv(pvc1Name, testUrl())
 		ds = waitForReadyCondition(ds, corev1.ConditionTrue, "Ready")
 
-		deleteDvPvc(pvc1Name)
+		deleteDvPvc(f, pvc1Name)
 		ds = waitForReadyCondition(ds, corev1.ConditionFalse, "NotFound")
 
 		ds.Spec.Source.PVC = nil
@@ -120,7 +112,7 @@ var _ = Describe("DataSource", func() {
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionTrue, "Ready")
 		ds2 = waitForReadyCondition(ds2, corev1.ConditionTrue, "Ready")
 
-		deleteDvPvc(pvc1Name)
+		deleteDvPvc(f, pvc1Name)
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionFalse, "NotFound")
 		ds2 = waitForReadyCondition(ds2, corev1.ConditionFalse, "NotFound")
 
@@ -130,7 +122,7 @@ var _ = Describe("DataSource", func() {
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionFalse, "ImportInProgress")
 		ds2 = waitForReadyCondition(ds2, corev1.ConditionFalse, "ImportInProgress")
 
-		deleteDvPvc(pvc2Name)
+		deleteDvPvc(f, pvc2Name)
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionFalse, "NotFound")
 		ds2 = waitForReadyCondition(ds2, corev1.ConditionFalse, "NotFound")
 	})
@@ -158,3 +150,11 @@ var _ = Describe("DataSource", func() {
 		}, 60*time.Second, pollingInterval).ShouldNot(Equal(ts))
 	})
 })
+
+// Delete PVC if DV was GCed, otherwise delete both
+func deleteDvPvc(f *framework.Framework, pvcName string) {
+	err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, pvcName)
+	Expect(err).ToNot(HaveOccurred())
+	err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvcName)
+	Expect(err).ToNot(HaveOccurred())
+}

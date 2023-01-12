@@ -131,7 +131,9 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 		dvKey := types.NamespacedName{Namespace: namespace, Name: name}
 		dv := &cdiv1.DataVolume{}
 		if err := mgr.GetClient().Get(context.TODO(), dvKey, dv); err != nil {
-			mgr.GetLogger().Error(err, "Failed to get DV", "dvKey", dvKey)
+			if !k8serrors.IsNotFound(err) {
+				mgr.GetLogger().Error(err, "Failed to get DV", "dvKey", dvKey)
+			}
 			return reqs
 		}
 		if getDataVolumeOp(dv) == op {
