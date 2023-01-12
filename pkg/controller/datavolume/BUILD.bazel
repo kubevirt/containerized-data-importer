@@ -58,6 +58,7 @@ go_test(
         "clone-controller_test.go",
         "conditions_test.go",
         "controller_suite_test.go",
+        "external-population-controller_test.go",
         "import-controller_test.go",
         "smart-clone-controller_test.go",
         "upload-controller_test.go",
