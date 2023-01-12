@@ -32,30 +32,32 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-func (r *ReconcilerBase) garbageCollect(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*reconcile.Result, error) {
+func (r *ReconcilerBase) garbageCollect(syncRes *dataVolumeSyncResult, log logr.Logger) error {
+	dataVolume := syncRes.dv
 	if dataVolume.Status.Phase != cdiv1.Succeeded {
-		return nil, nil
+		return nil
 	}
 	cdiConfig := &cdiv1.CDIConfig{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
-		return nil, err
+		return err
 	}
 	dvTTL := cc.GetDataVolumeTTLSeconds(cdiConfig)
 	if dvTTL < 0 {
 		log.Info("Garbage Collection is disabled")
-		return nil, nil
+		return nil
 	}
 	if allowed, err := r.isGarbageCollectionAllowed(dataVolume, log); !allowed || err != nil {
-		return nil, err
+		return err
 	}
 	// Current DV still has TTL, so reconcile will return with the needed RequeueAfter
 	if delta := getDeltaTTL(dataVolume, dvTTL); delta > 0 {
-		return &reconcile.Result{RequeueAfter: delta}, nil
+		syncRes.result = &reconcile.Result{RequeueAfter: delta}
+		return nil
 	}
-	if err := r.detachPvcDeleteDv(pvc, dataVolume); err != nil {
-		return nil, err
+	if err := r.detachPvcDeleteDv(syncRes); err != nil {
+		return err
 	}
-	return &reconcile.Result{}, nil
+	return nil
 }
 
 func (r *ReconcilerBase) isGarbageCollectionAllowed(dv *cdiv1.DataVolume, log logr.Logger) (bool, error) {
@@ -99,15 +101,18 @@ func (r *ReconcilerBase) canUpdateFinalizers(ownerRef metav1.OwnerReference) (bo
 	return ssar.Status.Allowed, nil
 }
 
-func (r *ReconcilerBase) detachPvcDeleteDv(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) error {
-	updatePvcOwnerRefs(pvc, dv)
-	delete(pvc.Annotations, cc.AnnPopulatedFor)
-	if err := r.updatePVC(pvc); err != nil {
+func (r *ReconcilerBase) detachPvcDeleteDv(syncRes *dataVolumeSyncResult) error {
+	updatePvcOwnerRefs(syncRes.pvc, syncRes.dv)
+	delete(syncRes.pvc.Annotations, cc.AnnPopulatedFor)
+	if err := r.updatePVC(syncRes.pvc); err != nil {
 		return err
 	}
-	if err := r.client.Delete(context.TODO(), dv); err != nil {
+	if err := r.client.Delete(context.TODO(), syncRes.dv); err != nil {
 		return err
 	}
+	syncRes.result = &reconcile.Result{}
+	syncRes.dv = nil
+	syncRes.dvMutated = nil
 	return nil
 }
 

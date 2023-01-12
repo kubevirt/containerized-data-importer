@@ -86,21 +86,16 @@ type Event struct {
 }
 
 type dataVolumeSyncResult struct {
-	dv      *cdiv1.DataVolume
-	pvc     *corev1.PersistentVolumeClaim
-	pvcSpec *v1.PersistentVolumeClaimSpec
-	res     *reconcile.Result
-}
-
-// Reconciler interface
-type Reconciler interface {
-	updateAnnotations(dataVolume *cdiv1.DataVolume, annotations map[string]string) error
-	updateStatus(log logr.Logger, syncRes dataVolumeSyncResult, syncErr error) (reconcile.Result, error)
+	dv        *cdiv1.DataVolume
+	dvMutated *cdiv1.DataVolume
+	pvc       *corev1.PersistentVolumeClaim
+	pvcSpec   *v1.PersistentVolumeClaimSpec
+	result    *reconcile.Result
 }
 
 // ReconcilerBase members
 type ReconcilerBase struct {
-	Reconciler
+	reconcile.Reconciler
 	client          client.Client
 	recorder        record.EventRecorder
 	scheme          *runtime.Scheme
@@ -238,63 +233,88 @@ func getDataVolumeOp(dv *cdiv1.DataVolume) dataVolumeOp {
 	return dataVolumeNop
 }
 
-// Reconcile loop for the data volumes
-func (r ReconcilerBase) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	log := r.log.WithValues("DataVolume", req.NamespacedName)
-	res, syncErr := r.sync(log, req, nil, nil)
-	return r.updateStatus(log, res, syncErr)
+type dataVolumeSyncResultFunc func(*dataVolumeSyncResult) error
+
+func (r ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (*dataVolumeSyncResult, error) {
+	syncRes, syncErr := r.sync(log, req, cleanup, prepare)
+	if err := r.syncUpdateMeta(log, syncRes); err != nil {
+		syncErr = err
+	}
+	return syncRes, syncErr
 }
 
-func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, prepare func(*cdiv1.DataVolume) error) (dataVolumeSyncResult, error) {
-	var ctx dataVolumeSyncResult
-
+func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (*dataVolumeSyncResult, error) {
+	syncRes := &dataVolumeSyncResult{}
 	dv, err := r.getDataVolume(req.NamespacedName)
-	if dv == nil {
-		ctx.res = &reconcile.Result{}
-		return ctx, err
+	if dv == nil || err != nil {
+		syncRes.result = &reconcile.Result{}
+		return syncRes, err
 	}
+	syncRes.dv = dv
+	syncRes.dvMutated = dv.DeepCopy()
+
 	if dv.DeletionTimestamp != nil {
 		log.Info("DataVolume marked for deletion, cleaning up")
 		if cleanup != nil {
-			err := cleanup(dv)
-			return ctx, err
+			err := cleanup(syncRes)
+			return syncRes, err
 		}
-		ctx.res = &reconcile.Result{}
-		return ctx, nil
+		syncRes.result = &reconcile.Result{}
+		return syncRes, nil
 	}
 
 	if prepare != nil {
-		if err := prepare(dv); err != nil {
-			return ctx, err
+		if err := prepare(syncRes); err != nil {
+			return syncRes, err
 		}
 	}
 
-	pvc, err := r.getPVC(dv)
+	syncRes.pvc, err = r.getPVC(dv)
 	if err != nil {
-		return ctx, err
+		return syncRes, err
 	}
-	if pvc != nil {
-		res, err := r.garbageCollect(dv, pvc, log)
-		if err != nil {
-			return ctx, err
+	if syncRes.pvc != nil {
+		if err := r.garbageCollect(syncRes, log); err != nil {
+			return syncRes, err
 		}
-		if res != nil {
-			ctx.res = res
-			return ctx, nil
+		if syncRes.result != nil || syncRes.dv == nil {
+			return syncRes, nil
 		}
-		if err := r.validatePVC(dv, pvc); err != nil {
-			return ctx, err
+		if err := r.validatePVC(dv, syncRes.pvc); err != nil {
+			return syncRes, err
 		}
+		r.handlePrePopulation(syncRes.dvMutated, syncRes.pvc)
 	}
 
-	pvcSpec, err := renderPvcSpec(r.client, r.recorder, log, dv)
+	syncRes.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, dv)
 	if err != nil {
-		return ctx, err
+		return syncRes, err
 	}
-	ctx.dv = dv
-	ctx.pvc = pvc
-	ctx.pvcSpec = pvcSpec
-	return ctx, nil
+	return syncRes, nil
+}
+
+func (r ReconcilerBase) syncUpdateMeta(log logr.Logger, syncRes *dataVolumeSyncResult) error {
+	if syncRes.dv == nil || syncRes.dvMutated == nil {
+		return nil
+	}
+	if !reflect.DeepEqual(syncRes.dv.Status, syncRes.dvMutated.Status) {
+		return fmt.Errorf("status update is not allowed in sync phase")
+	}
+	if !reflect.DeepEqual(syncRes.dv.ObjectMeta, syncRes.dvMutated.ObjectMeta) {
+		if err := r.updateDataVolume(syncRes.dvMutated); err != nil {
+			r.log.Error(err, "Unable to sync update dv meta", "name", syncRes.dvMutated.Name)
+			return err
+		}
+		// Needed for emitEvent() DeepEqual check
+		syncRes.dv = syncRes.dvMutated.DeepCopy()
+	}
+	return nil
+}
+
+func (r ReconcilerBase) handlePrePopulation(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) {
+	if pvc.Status.Phase == corev1.ClaimBound && pvcIsPopulated(pvc, dv) {
+		cc.AddAnnotation(dv, cc.AnnPrePopulated, pvc.Name)
+	}
 }
 
 func (r *ReconcilerBase) validatePVC(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
@@ -344,21 +364,18 @@ func (r *ReconcilerBase) getDataVolume(key types.NamespacedName) (*cdiv1.DataVol
 	return dv, nil
 }
 
+type pvcModifierFunc func(datavolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error
+
 func (r *ReconcilerBase) createPvcForDatavolume(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec,
-	pvcModifier func(datavolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim)) (*corev1.PersistentVolumeClaim, error) {
-	newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec, datavolume.Namespace, datavolume.Name)
+	pvcModifier pvcModifierFunc) (*corev1.PersistentVolumeClaim, error) {
+	newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec, datavolume.Namespace, datavolume.Name, pvcModifier)
 	if err != nil {
 		return nil, err
 	}
 	util.SetRecommendedLabels(newPvc, r.installerLabels, "cdi-controller")
-
-	if pvcModifier != nil {
-		pvcModifier(datavolume, newPvc)
-	}
 	if err := r.client.Create(context.TODO(), newPvc); err != nil {
 		return nil, err
 	}
-
 	return newPvc, nil
 }
 
@@ -378,7 +395,7 @@ func (r *ReconcilerBase) getStorageClassBindingMode(storageClassName *string) (*
 	return &volumeBindingImmediate, nil
 }
 
-func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
+func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, result *reconcile.Result) error {
 	var podNamespace string
 	if datavolume.Status.Progress == "" {
 		datavolume.Status.Progress = "N/A"
@@ -393,34 +410,35 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 	if datavolume.Status.Phase == cdiv1.Succeeded || datavolume.Status.Phase == cdiv1.Failed {
 		// Data volume completed progress, or failed, either way stop queueing the data volume.
 		r.log.Info("Datavolume finished, no longer updating progress", "Namespace", datavolume.Namespace, "Name", datavolume.Name, "Phase", datavolume.Status.Phase)
-		return reconcile.Result{}, nil
+		return nil
 	}
 	pod, err := r.getPodFromPvc(podNamespace, pvc)
 	if err == nil {
 		if pod.Status.Phase != corev1.PodRunning {
 			// Avoid long timeouts and error traces from HTTP get when pod is already gone
-			return reconcile.Result{}, nil
+			return nil
 		}
 		if err := updateProgressUsingPod(datavolume, pod); err != nil {
-			return reconcile.Result{}, err
+			return err
 		}
 	}
 	// We are not done yet, force a re-reconcile in 2 seconds to get an update.
-	return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
+	result.RequeueAfter = 2 * time.Second
+	return nil
 }
-
-type modifyFunc func(dataVolume *cdiv1.DataVolume)
 
 func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 	phase cdiv1.DataVolumePhase,
 	dataVolume *cdiv1.DataVolume,
+	dataVolumeCopy *cdiv1.DataVolume,
 	pvc *corev1.PersistentVolumeClaim,
-	modify modifyFunc,
 	event Event) error {
 
-	var dataVolumeCopy = dataVolume.DeepCopy()
-	curPhase := dataVolumeCopy.Status.Phase
+	if dataVolume == nil {
+		return nil
+	}
 
+	curPhase := dataVolumeCopy.Status.Phase
 	dataVolumeCopy.Status.Phase = phase
 
 	reason := ""
@@ -428,23 +446,22 @@ func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 		reason = event.reason
 	}
 	r.updateConditions(dataVolumeCopy, pvc, reason)
-
-	if modify != nil {
-		modify(dataVolumeCopy)
-	}
-
 	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, &event)
 }
 
 type updateStatusPhaseFunc func(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error
 
-func (r ReconcilerBase) reconcileDataVolumeStatus(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, modify modifyFunc, updateStatusPhase updateStatusPhaseFunc) (reconcile.Result, error) {
-	dataVolumeCopy := dataVolume.DeepCopy()
-	var event Event
-	var err error
-	result := reconcile.Result{}
+func (r ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, updateStatusPhase updateStatusPhaseFunc) (reconcile.Result, error) {
+	if syncRes.dv == nil {
+		return reconcile.Result{}, nil
+	}
 
+	result := getReconcileResult(syncRes.result)
+	dataVolumeCopy := syncRes.dvMutated
 	curPhase := dataVolumeCopy.Status.Phase
+	pvc := syncRes.pvc
+	var event Event
+
 	if pvc != nil {
 		dataVolumeCopy.Status.ClaimName = pvc.Name
 
@@ -479,10 +496,6 @@ func (r ReconcilerBase) reconcileDataVolumeStatus(dataVolume *cdiv1.DataVolume, 
 				}
 
 				if pvcIsPopulated(pvc, dataVolumeCopy) {
-					if dataVolumeCopy.Annotations == nil {
-						dataVolumeCopy.Annotations = make(map[string]string)
-					}
-					dataVolumeCopy.Annotations[cc.AnnPrePopulated] = pvc.Name
 					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
 				} else {
 					if err := updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
@@ -504,8 +517,7 @@ func (r ReconcilerBase) reconcileDataVolumeStatus(dataVolume *cdiv1.DataVolume, 
 		if i, err := strconv.Atoi(pvc.Annotations[cc.AnnPodRestarts]); err == nil && i >= 0 {
 			dataVolumeCopy.Status.RestartCount = int32(i)
 		}
-		result, err = r.reconcileProgressUpdate(dataVolumeCopy, pvc)
-		if err != nil {
+		if err := r.reconcileProgressUpdate(dataVolumeCopy, pvc, &result); err != nil {
 			return result, err
 		}
 	} else {
@@ -515,14 +527,10 @@ func (r ReconcilerBase) reconcileDataVolumeStatus(dataVolume *cdiv1.DataVolume, 
 		}
 	}
 
-	if modify != nil {
-		modify(dataVolumeCopy)
-	}
-
 	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))
 	copy(currentCond, dataVolumeCopy.Status.Conditions)
 	r.updateConditions(dataVolumeCopy, pvc, "")
-	return result, r.emitEvent(dataVolume, dataVolumeCopy, curPhase, currentCond, &event)
+	return result, r.emitEvent(syncRes.dv, dataVolumeCopy, curPhase, currentCond, &event)
 }
 
 func (r *ReconcilerBase) updateConditions(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, reason string) {
@@ -583,8 +591,11 @@ func (r *ReconcilerBase) emitFailureConditionEvent(dataVolume *cdiv1.DataVolume,
 }
 
 func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, curPhase cdiv1.DataVolumePhase, originalCond []cdiv1.DataVolumeCondition, event *Event) error {
+	if !reflect.DeepEqual(dataVolume.ObjectMeta, dataVolumeCopy.ObjectMeta) {
+		return fmt.Errorf("meta update is not allowed in updateStatus phase")
+	}
 	// Only update the object if something actually changed in the status.
-	if !reflect.DeepEqual(dataVolume, dataVolumeCopy) {
+	if !reflect.DeepEqual(dataVolume.Status, dataVolumeCopy.Status) {
 		if err := r.updateDataVolume(dataVolumeCopy); err != nil {
 			r.log.Error(err, "Unable to update datavolume", "name", dataVolumeCopy.Name)
 			return err
@@ -739,7 +750,7 @@ func passDataVolumeInstancetypeLabelstoPVC(dataVolumeLabels, pvcLabels map[strin
 // It also sets the appropriate OwnerReferences on the resource
 // which allows handleObject to discover the DataVolume resource
 // that 'owns' it.
-func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, targetPvcSpec *corev1.PersistentVolumeClaimSpec, namespace string, name string) (*corev1.PersistentVolumeClaim, error) {
+func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, targetPvcSpec *corev1.PersistentVolumeClaimSpec, namespace, name string, pvcModifier pvcModifierFunc) (*corev1.PersistentVolumeClaim, error) {
 	labels := map[string]string{
 		common.CDILabelKey: common.CDILabelValue,
 	}
@@ -749,18 +760,11 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 	labels = passDataVolumeInstancetypeLabelstoPVC(dataVolume.GetLabels(), labels)
 
 	annotations := make(map[string]string)
-
 	for k, v := range dataVolume.ObjectMeta.Annotations {
 		annotations[k] = v
 	}
-
 	annotations[cc.AnnPodRestarts] = "0"
 	annotations[cc.AnnContentType] = string(getContentType(dataVolume))
-
-	if err := r.Reconciler.updateAnnotations(dataVolume, annotations); err != nil {
-		return nil, err
-	}
-
 	if dataVolume.Spec.PriorityClassName != "" {
 		annotations[cc.AnnPriorityClassName] = dataVolume.Spec.PriorityClassName
 	}
@@ -774,6 +778,12 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 			Annotations: annotations,
 		},
 		Spec: *targetPvcSpec,
+	}
+
+	if pvcModifier != nil {
+		if err := pvcModifier(dataVolume, pvc); err != nil {
+			return nil, err
+		}
 	}
 
 	if pvc.Namespace == dataVolume.Namespace {

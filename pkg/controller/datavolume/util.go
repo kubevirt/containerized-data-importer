@@ -33,6 +33,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -344,4 +345,11 @@ func setAnnOwnedByDataVolume(dest, obj metav1.Object) error {
 	dest.GetAnnotations()[AnnOwnedByDataVolume] = key
 
 	return nil
+}
+
+func getReconcileResult(result *reconcile.Result) reconcile.Result {
+	if result != nil {
+		return *result
+	}
+	return reconcile.Result{}
 }
