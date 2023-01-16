@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -120,6 +121,7 @@ type ImportReconciler struct {
 	verbose            string
 	pullPolicy         string
 	filesystemOverhead string
+	cdiNamespace       string
 	featureGates       featuregates.FeatureGates
 	installerLabels    map[string]string
 }
@@ -181,6 +183,7 @@ func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pu
 		verbose:         verbose,
 		pullPolicy:      pullPolicy,
 		recorder:        mgr.GetEventRecorderFor("import-controller"),
+		cdiNamespace:    util.GetNamespace(),
 		featureGates:    featuregates.NewFeatureGates(client),
 		installerLabels: installerLabels,
 	}
@@ -342,6 +345,10 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 				return reconcile.Result{}, err
 			}
 		} else {
+			// Copy import proxy ConfigMap (if exists) from cdi namespace to the import namespace
+			if err := r.copyImportProxyConfigMap(pvc, pod); err != nil {
+				return reconcile.Result{}, err
+			}
 			// Pod exists, we need to update the PVC status.
 			if err := r.updatePvcFromPod(pvc, pod, log); err != nil {
 				return reconcile.Result{}, err
@@ -356,6 +363,45 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 	}
 	return reconcile.Result{}, nil
+}
+
+func (r *ImportReconciler) copyImportProxyConfigMap(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod) error {
+	cdiConfig := &cdiv1.CDIConfig{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
+		return err
+	}
+	cmName, err := GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName)
+	if err != nil || cmName == "" {
+		return nil
+	}
+	cdiConfigMap := &corev1.ConfigMap{}
+	if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: cmName, Namespace: r.cdiNamespace}, cdiConfigMap); err != nil {
+		return err
+	}
+	importConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      GetImportProxyConfigMapName(pvc.Name),
+			Namespace: pvc.Namespace,
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion:         pod.APIVersion,
+				Kind:               pod.Kind,
+				Name:               pod.Name,
+				UID:                pod.UID,
+				BlockOwnerDeletion: pointer.Bool(true),
+				Controller:         pointer.Bool(true),
+			}},
+		},
+		Data: cdiConfigMap.Data,
+	}
+	if err := r.client.Create(context.TODO(), importConfigMap); err != nil && !k8serrors.IsAlreadyExists(err) {
+		return err
+	}
+	return nil
+}
+
+// GetImportProxyConfigMapName returns the import proxy ConfigMap name
+func GetImportProxyConfigMapName(pvcName string) string {
+	return naming.GetResourceName("import-proxy-cm", pvcName)
 }
 
 func (r *ImportReconciler) initPvcPodName(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
@@ -1174,7 +1220,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			MountPath: common.ImporterProxyCertDir,
 		}
 		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
-		pod.Spec.Volumes = append(pod.Spec.Volumes, createConfigMapVolume(ProxyCertVolName, args.podEnvVar.certConfigMapProxy))
+		pod.Spec.Volumes = append(pod.Spec.Volumes, createConfigMapVolume(ProxyCertVolName, GetImportProxyConfigMapName(args.pvc.Name)))
 	}
 
 	for index, header := range args.podEnvVar.secretExtraHeaders {
