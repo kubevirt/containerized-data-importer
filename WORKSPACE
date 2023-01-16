@@ -1250,19 +1250,13 @@ rpm(
 rpm(
     name = "libgcc-0__11.2.1-9.4.el9.aarch64",
     sha256 = "83553d747fbbe61a2e5a22604f15d38e366bf4b453c99947bc1253ddec6b5049",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/libgcc-11.2.1-9.4.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/83553d747fbbe61a2e5a22604f15d38e366bf4b453c99947bc1253ddec6b5049",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/83553d747fbbe61a2e5a22604f15d38e366bf4b453c99947bc1253ddec6b5049"],
 )
 
 rpm(
     name = "libgcc-0__11.2.1-9.4.el9.x86_64",
     sha256 = "34443f5befca73364cc7db887c4a95a254ba662cd45d80765a77a84e3a5da59f",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/libgcc-11.2.1-9.4.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/34443f5befca73364cc7db887c4a95a254ba662cd45d80765a77a84e3a5da59f",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/34443f5befca73364cc7db887c4a95a254ba662cd45d80765a77a84e3a5da59f"],
 )
 
 rpm(
@@ -1562,19 +1556,13 @@ rpm(
 rpm(
     name = "libstdc__plus____plus__-0__11.2.1-9.4.el9.aarch64",
     sha256 = "2617e76cc2048676224a4ec834925165c7ce3a93320e3cb8bdaa698a3fe0265b",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/libstdc++-11.2.1-9.4.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/2617e76cc2048676224a4ec834925165c7ce3a93320e3cb8bdaa698a3fe0265b",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/2617e76cc2048676224a4ec834925165c7ce3a93320e3cb8bdaa698a3fe0265b"],
 )
 
 rpm(
     name = "libstdc__plus____plus__-0__11.2.1-9.4.el9.x86_64",
     sha256 = "212fb5fff9f8d7539f89f9a794baa8f5aa5dd9628f3abf8bbfe1193af669f449",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/libstdc++-11.2.1-9.4.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/212fb5fff9f8d7539f89f9a794baa8f5aa5dd9628f3abf8bbfe1193af669f449",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/212fb5fff9f8d7539f89f9a794baa8f5aa5dd9628f3abf8bbfe1193af669f449"],
 )
 
 rpm(
