@@ -119,6 +119,7 @@ const (
 	dataVolumeImport
 	dataVolumeUpload
 	dataVolumeClone
+	dataVolumePopulator
 )
 
 func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeController controller.Controller, op dataVolumeOp) error {
@@ -222,6 +223,9 @@ func getDataVolumeOp(dv *cdiv1.DataVolume) dataVolumeOp {
 		return dataVolumeClone
 	}
 	if src == nil {
+		if dvUsesVolumePopulator(dv) {
+			return dataVolumePopulator
+		}
 		return dataVolumeNop
 	}
 	if src.Upload != nil {
@@ -237,7 +241,7 @@ type dataVolumeSyncResultFunc func(*dataVolumeSyncResult) error
 
 func (r ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (*dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.sync(log, req, cleanup, prepare)
-	if err := r.syncUpdateMeta(log, syncRes); err != nil {
+	if err := r.syncUpdate(log, syncRes); err != nil {
 		syncErr = err
 	}
 	return syncRes, syncErr
@@ -293,7 +297,7 @@ func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, pr
 	return syncRes, nil
 }
 
-func (r ReconcilerBase) syncUpdateMeta(log logr.Logger, syncRes *dataVolumeSyncResult) error {
+func (r ReconcilerBase) syncUpdate(log logr.Logger, syncRes *dataVolumeSyncResult) error {
 	if syncRes.dv == nil || syncRes.dvMutated == nil {
 		return nil
 	}
@@ -746,7 +750,7 @@ func passDataVolumeInstancetypeLabelstoPVC(dataVolumeLabels, pvcLabels map[strin
 	return pvcLabels
 }
 
-// newPersistentVolumeClaim creates a new PVC the DataVolume resource.
+// newPersistentVolumeClaim creates a new PVC for the DataVolume resource.
 // It also sets the appropriate OwnerReferences on the resource
 // which allows handleObject to discover the DataVolume resource
 // that 'owns' it.
@@ -811,18 +815,18 @@ func getContentType(dv *cdiv1.DataVolume) cdiv1.DataVolumeContentType {
 	return cdiv1.DataVolumeKubeVirt
 }
 
-// Whenever the controller updates a DV, we must make sure to nil out spec.source when spec.sourceRef is set
+// Whenever the controller updates a DV, we must make sure to nil out spec.source when using other population methods
 func (r *ReconcilerBase) updateDataVolume(dv *cdiv1.DataVolume) error {
 	// Restore so we don't nil out the dv that is being worked on
 	var sourceCopy *cdiv1.DataVolumeSource
 
-	if dv.Spec.SourceRef != nil {
+	if dv.Spec.SourceRef != nil || dvUsesVolumePopulator(dv) {
 		sourceCopy = dv.Spec.Source
 		dv.Spec.Source = nil
 	}
 
 	err := r.client.Update(context.TODO(), dv)
-	if dv.Spec.SourceRef != nil {
+	if dv.Spec.SourceRef != nil || dvUsesVolumePopulator(dv) {
 		dv.Spec.Source = sourceCopy
 	}
 	return err
@@ -853,4 +857,52 @@ func (r *ReconcilerBase) shouldBeMarkedWaitForFirstConsumer(pvc *corev1.Persiste
 		pvc.Status.Phase == corev1.ClaimPending
 
 	return res, nil
+}
+
+// handlePvcCreation works as a wrapper for non-clone PVC creation and error handling
+func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncRes *dataVolumeSyncResult, pvcModifier pvcModifierFunc) error {
+	if syncRes.pvc != nil {
+		return nil
+	}
+	if _, dvPrePopulated := syncRes.dvMutated.Annotations[cc.AnnPrePopulated]; dvPrePopulated {
+		return nil
+	}
+	// Creating the PVC
+	newPvc, err := r.createPvcForDatavolume(syncRes.dvMutated, syncRes.pvcSpec, pvcModifier)
+	if err != nil {
+		if cc.ErrQuotaExceeded(err) {
+			r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, syncRes.dv, syncRes.dvMutated, nil,
+				Event{
+					eventType: corev1.EventTypeWarning,
+					reason:    cc.ErrExceededQuota,
+					message:   err.Error(),
+				})
+		}
+		return err
+	}
+	syncRes.pvc = newPvc
+
+	return nil
+}
+
+// storageClassCSIDriverExists returns true if the passed storage class has CSI drivers available
+func (r *ReconcilerBase) storageClassCSIDriverExists(storageClassName *string) (bool, error) {
+	log := r.log.WithName("getCsiDriverForStorageClass").V(3)
+
+	storageClass, err := cc.GetStorageClassByName(r.client, storageClassName)
+	if err != nil {
+		return false, err
+	}
+	if storageClass == nil {
+		log.Info("Target PVC's Storage Class not found")
+		return false, nil
+	}
+
+	csiDriver := &storagev1.CSIDriver{}
+
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: storageClass.Provisioner}, csiDriver); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }

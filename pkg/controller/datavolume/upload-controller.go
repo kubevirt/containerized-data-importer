@@ -108,7 +108,7 @@ func (r UploadReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 
 func (r UploadReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.syncUpload(log, req)
-	if err := r.syncUpdateMeta(log, &syncRes); err != nil {
+	if err := r.syncUpdate(log, &syncRes); err != nil {
 		syncErr = err
 	}
 	return syncRes, syncErr
@@ -119,28 +119,15 @@ func (r UploadReconciler) syncUpload(log logr.Logger, req reconcile.Request) (da
 	if syncErr != nil || syncRes.result != nil {
 		return *syncRes, syncErr
 	}
-	if syncRes.pvc == nil {
-		if _, dvPrePopulated := syncRes.dvMutated.Annotations[cc.AnnPrePopulated]; !dvPrePopulated {
-			syncRes.pvc, syncErr = r.createPvcForDatavolume(syncRes.dvMutated, syncRes.pvcSpec, r.updateAnnotations)
-		}
+	if err := r.handlePvcCreation(log, syncRes, r.updateAnnotations); err != nil {
+		syncErr = err
 	}
 	return *syncRes, syncErr
 }
 
 func (r UploadReconciler) updateStatus(syncRes dataVolumeSyncResult, syncErr error) (reconcile.Result, error) {
 	if syncErr != nil {
-		if cc.ErrQuotaExceeded(syncErr) {
-			err := r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, syncRes.dv, syncRes.dvMutated, nil,
-				Event{
-					eventType: corev1.EventTypeWarning,
-					reason:    cc.ErrExceededQuota,
-					message:   syncErr.Error(),
-				})
-			if err != nil {
-				syncErr = err
-			}
-			return getReconcileResult(syncRes.result), syncErr
-		}
+		return getReconcileResult(syncRes.result), syncErr
 	}
 	res, err := r.updateStatusCommon(syncRes, r.updateStatusPhase)
 	if err != nil {

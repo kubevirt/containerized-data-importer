@@ -74,8 +74,10 @@ func validateNameLength(name string, maxLen int) []metav1.StatusCause {
 
 func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admissionv1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec, namespace *string) []metav1.StatusCause {
 	var causes []metav1.StatusCause
-	var url string
 	var sourceType string
+	var url string
+	var dataSourceRef *v1.TypedLocalObjectReference
+	var dataSource *v1.TypedLocalObjectReference
 
 	if spec.PVC == nil && spec.Storage == nil {
 		causes = append(causes, metav1.StatusCause{
@@ -101,6 +103,8 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 	}
 
 	if spec.PVC != nil {
+		dataSourceRef = spec.PVC.DataSourceRef
+		dataSource = spec.PVC.DataSource
 		accessModes := spec.PVC.AccessModes
 		if len(accessModes) == 0 {
 			causes = append(causes, metav1.StatusCause{
@@ -128,6 +132,8 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 			return causes
 		}
 	} else if spec.Storage != nil {
+		dataSourceRef = spec.Storage.DataSourceRef
+		dataSource = spec.Storage.DataSource
 		// here in storage spec we allow empty access mode and AccessModes with more than one entry
 		accessModes := spec.Storage.AccessModes
 		for _, mode := range accessModes {
@@ -142,10 +148,16 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 		}
 	}
 
+	// The PVC is externally populated when using dataSource and/or dataSourceRef
+	if externalPopulation := dataSourceRef != nil || dataSource != nil; externalPopulation {
+		causes = append(causes, validateExternalPopulation(spec, field, dataSource, dataSourceRef)...)
+		return causes
+	}
+
 	if (spec.Source == nil && spec.SourceRef == nil) || (spec.Source != nil && spec.SourceRef != nil) {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Data volume should have either Source or SourceRef"),
+			Message: fmt.Sprintf("Data volume should have either Source or SourceRef, or be externally populated"),
 			Field:   field.Child("source").String(),
 		})
 		return causes
@@ -422,6 +434,39 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.Da
 	return nil
 }
 
+// validateDataSource validates a DataSource/DataSourceRef in a DataVolume spec
+func validateDataSource(dataSource *v1.TypedLocalObjectReference, field *k8sfield.Path) []metav1.StatusCause {
+	var causes []metav1.StatusCause
+
+	if len(dataSource.Name) == 0 {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Required value: DataSource/DataSourceRef name"),
+			Field:   field.Child("name", "").String(),
+		})
+	}
+	if len(dataSource.Kind) == 0 {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Required value: DataSource/DataSourceRef kind"),
+			Field:   field.Child("kind").String(),
+		})
+	}
+	apiGroup := ""
+	if dataSource.APIGroup != nil {
+		apiGroup = *dataSource.APIGroup
+	}
+	if len(apiGroup) == 0 && dataSource.Kind != "PersistentVolumeClaim" {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Required value: DataSource/DataSourceRef apiGroup when kind is not 'PersistentVolumeClaim'"),
+			Field:   field.Child("apiGroup", "").String(),
+		})
+	}
+
+	return causes
+}
+
 func validateStorageSize(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) (*metav1.StatusCause, bool) {
 	var name string
 	var resources v1.ResourceRequirements
@@ -456,6 +501,37 @@ func validateStorageSize(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) (*met
 	}
 
 	return nil, true
+}
+
+// validateExternalPopulation validates a DataVolume meant to be externally populated
+func validateExternalPopulation(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path, dataSource, dataSourceRef *v1.TypedLocalObjectReference) []metav1.StatusCause {
+	var causes []metav1.StatusCause
+
+	if spec.Source != nil || spec.SourceRef != nil {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("External population is incompatible with Source and SourceRef"),
+			Field:   field.Child("source").String(),
+		})
+	}
+
+	if dataSource != nil && dataSourceRef != nil {
+		if !apiequality.Semantic.DeepEqual(dataSource, dataSourceRef) {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("DataSourceRef and DataSource must match"),
+				Field:   "",
+			})
+		}
+	}
+	if dataSource != nil {
+		causes = append(causes, validateDataSource(dataSource, field.Child("dataSource"))...)
+	}
+	if dataSourceRef != nil {
+		causes = append(causes, validateDataSource(dataSourceRef, field.Child("dataSourceRef"))...)
+	}
+
+	return causes
 }
 
 func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {

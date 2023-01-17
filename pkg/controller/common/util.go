@@ -75,6 +75,8 @@ const (
 	AnnPrePopulated = AnnAPIGroup + "/storage.prePopulated"
 	// AnnPriorityClassName is PVC annotation to indicate the priority class name for importer, cloner and uploader pod
 	AnnPriorityClassName = AnnAPIGroup + "/storage.pod.priorityclassname"
+	// AnnExternalPopulation annotation marks a PVC as "externally populated", allowing the import-controller to skip it
+	AnnExternalPopulation = AnnAPIGroup + "/externalPopulation"
 
 	// AnnDeleteAfterCompletion is PVC annotation for deleting DV after completion
 	AnnDeleteAfterCompletion = AnnAPIGroup + "/storage.deleteAfterCompletion"

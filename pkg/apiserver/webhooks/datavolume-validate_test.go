@@ -483,6 +483,89 @@ var _ = Describe("Validating Webhook", func() {
 
 			Entry("reject a spec change on source type that does not support multi-stage import", false, []string{}, true, []string{}, nil, false, blankSource),
 		)
+
+		It("should accept DataVolume without source if dataSource is correctly populated", func() {
+			pvc := newPVCSpec(pvcSizeDefault)
+			dataVolume := newDataVolumeWithSourceRef("test-dv", nil, nil, pvc)
+			dataVolume.Spec.PVC.DataSource = &corev1.TypedLocalObjectReference{
+				Kind: "PersistentVolumeClaim",
+				Name: dataVolume.Name,
+			}
+
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(true))
+		})
+
+		It("should accept DataVolume without source if dataSourceRef is correctly populated", func() {
+			pvc := newPVCSpec(pvcSizeDefault)
+			dataVolume := newDataVolumeWithSourceRef("test-dv", nil, nil, pvc)
+			dataVolume.Spec.PVC.DataSourceRef = &corev1.TypedLocalObjectReference{
+				Kind: "PersistentVolumeClaim",
+				Name: dataVolume.Name,
+			}
+
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(true))
+		})
+
+		It("should reject DataVolume with populated source and dataSource", func() {
+			blankSource := cdiv1.DataVolumeSource{
+				Blank: &cdiv1.DataVolumeBlankImage{},
+			}
+			pvc := newPVCSpec(pvcSizeDefault)
+			dataVolume := newDataVolumeWithSourceRef("test-dv", &blankSource, nil, pvc)
+			dataVolume.Spec.PVC.DataSource = &corev1.TypedLocalObjectReference{
+				Kind: "PersistentVolumeClaim",
+				Name: dataVolume.Name,
+			}
+
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with populated source and dataSourceRef", func() {
+			blankSource := cdiv1.DataVolumeSource{
+				Blank: &cdiv1.DataVolumeBlankImage{},
+			}
+			pvc := newPVCSpec(pvcSizeDefault)
+			dataVolume := newDataVolumeWithSourceRef("test-dv", &blankSource, nil, pvc)
+			dataVolume.Spec.PVC.DataSourceRef = &corev1.TypedLocalObjectReference{
+				Kind: "PersistentVolumeClaim",
+				Name: dataVolume.Name,
+			}
+
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with badly populated dataSource", func() {
+			pvc := newPVCSpec(pvcSizeDefault)
+			dataVolume := newDataVolumeWithSourceRef("test-dv", nil, nil, pvc)
+			// APIGroup can only be empty when kind is PersistentVolumeClaim
+			dataVolume.Spec.PVC.DataSource = &corev1.TypedLocalObjectReference{
+				Kind: "VolumeSnapshot",
+				Name: dataVolume.Name,
+			}
+
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with if dataSource and dataSourceRef are different", func() {
+			pvc := newPVCSpec(pvcSizeDefault)
+			dataVolume := newDataVolumeWithSourceRef("test-dv", nil, nil, pvc)
+			dataVolume.Spec.PVC.DataSource = &corev1.TypedLocalObjectReference{
+				Kind: "PersistentVolumeClaim",
+				Name: dataVolume.Name,
+			}
+			dataVolume.Spec.PVC.DataSourceRef = &corev1.TypedLocalObjectReference{
+				Kind: "PersistentVolumeClaim",
+				Name: dataVolume.Name + "-test",
+			}
+
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
 	})
 
 	Context("with DataVolume (using sourceRef) admission review", func() {

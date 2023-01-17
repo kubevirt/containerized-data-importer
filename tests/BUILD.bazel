@@ -30,6 +30,7 @@ go_test(
         "datasource_test.go",
         "datavolume_test.go",
         "explain_test.go",
+        "external_population_test.go",
         "import_proxy_test.go",
         "import_test.go",
         "leaderelection_test.go",

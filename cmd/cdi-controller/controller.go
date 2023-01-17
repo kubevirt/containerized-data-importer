@@ -218,6 +218,10 @@ func start(ctx context.Context, cfg *rest.Config) {
 		klog.Errorf("Unable to setup datavolume clone controller: %v", err)
 		os.Exit(1)
 	}
+	if _, err := dvc.NewPopulatorController(ctx, mgr, log, installerLabels); err != nil {
+		klog.Errorf("Unable to setup datavolume external-population controller: %v", err)
+		os.Exit(1)
+	}
 
 	if _, err := controller.NewImportController(mgr, log, importerImage, pullPolicy, verbose, installerLabels); err != nil {
 		klog.Errorf("Unable to setup import controller: %v", err)

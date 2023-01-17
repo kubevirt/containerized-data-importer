@@ -1,0 +1,139 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.4
+    api-approved.kubernetes.io: unapproved
+  creationTimestamp: null
+  name: samplepopulators.cdi.sample.populator
+spec:
+  group: cdi.sample.populator
+  names:
+    kind: SamplePopulator
+    listKind: SamplePopulatorList
+    plural: samplepopulators
+    singular: samplepopulator
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: SamplePopulator is a specification for a SamplePopulator resource
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          spec:
+            description: CDIPopulatorSpec is the spec for a SamplePopulator resource
+            properties:
+              fileContents:
+                type: string
+              fileName:
+                type: string
+            required:
+            - fileContents
+            - fileName
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cdi-sample-account
+  namespace: {{ .Namespace }}
+  labels:
+    cdi.kubevirt.io/testing: ""
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cdi-sample-role
+  labels:
+    cdi.kubevirt.io/testing: ""
+rules:
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [get, list, watch, patch]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get, list, watch, patch, create, delete]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch, create, delete]
+  - apiGroups: [storage.k8s.io]
+    resources: [storageclasses]
+    verbs: [get, list, watch]
+  - apiGroups: [cdi.sample.populator]
+    resources: [samplepopulators]
+    verbs: [get, list, watch]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cdi-sample-binding
+  labels:
+    cdi.kubevirt.io/testing: ""
+subjects:
+  - kind: ServiceAccount
+    name: cdi-sample-account
+    namespace: {{ .Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: cdi-sample-role
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: cdi-sample-populator
+  namespace: {{ .Namespace }}
+  labels:
+    cdi.kubevirt.io/testing: ""
+spec:
+  selector:
+    matchLabels:
+      app: cdi-sample-populator
+  template:
+    metadata:
+      labels:
+        app: cdi-sample-populator
+        cdi.kubevirt.io/testing: ""
+    spec:
+      serviceAccount: cdi-sample-account
+      containers:
+       - name: cdi-sample-populator
+         image: {{ .DockerRepo }}/cdi-func-test-sample-populator:{{ .DockerTag }}
+         imagePullPolicy: Always
+         command: ["/app/tools/cdi-func-test-sample-populator/cdi-func-test-sample-populator-image.binary"]
+         args:
+          - --mode=controller
+          - --image-name={{ .DockerRepo }}/cdi-func-test-sample-populator:{{ .DockerTag }}
+          - --http-endpoint=:8080
+          - --namespace={{ .Namespace }}
+         ports:
+          - containerPort: 8080
+            name: http-endpoint
+            protocol: TCP
+         env:
+         - name: CDI_NAMESPACE
+           valueFrom:
+             fieldRef:
+               fieldPath: metadata.namespace

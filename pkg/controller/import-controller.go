@@ -165,12 +165,17 @@ func addImportControllerWatches(mgr manager.Manager, importController controller
 
 func (r *ImportReconciler) shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim,
 	log logr.Logger) (bool, error) {
+	_, pvcUsesExternalPopulator := pvc.Annotations[cc.AnnExternalPopulation]
+	if pvcUsesExternalPopulator {
+		return false, nil
+	}
+
 	_, isImmediateBindingRequested := pvc.Annotations[AnnImmediateBinding]
 	waitForFirstConsumerEnabled, err := isWaitForFirstConsumerEnabled(isImmediateBindingRequested, r.featureGates)
-
 	if err != nil {
 		return false, err
 	}
+
 	multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnCurrentCheckpoint)
 	multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnMultiStageImportDone)
 

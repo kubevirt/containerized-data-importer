@@ -28,7 +28,6 @@ import (
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -715,7 +714,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			AnnDefaultStorageClass: "true",
 		}, map[string]string{}, "csi-plugin")
 
-		syncRes := func(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, pvcSpec *v1.PersistentVolumeClaimSpec) dataVolumeCloneSyncResult {
+		syncRes := func(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, pvcSpec *corev1.PersistentVolumeClaimSpec) dataVolumeCloneSyncResult {
 			return dataVolumeCloneSyncResult{dataVolumeSyncResult: dataVolumeSyncResult{dv: dv, dvMutated: dv.DeepCopy(), pvc: pvc, pvcSpec: pvcSpec}}
 		}
 
