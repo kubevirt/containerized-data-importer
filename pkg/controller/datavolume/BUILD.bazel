@@ -3,12 +3,13 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "go_default_library",
     srcs = [
-        "clone-controller.go",
+        "clone-controller-base.go",
         "conditions.go",
-        "controller.go",
+        "controller-base.go",
         "external-population-controller.go",
         "garbagecollect.go",
         "import-controller.go",
+        "pvc-clone-controller.go",
         "smart-clone-controller.go",
         "upload-controller.go",
         "util.go",
@@ -55,11 +56,11 @@ go_library(
 go_test(
     name = "go_default_test",
     srcs = [
-        "clone-controller_test.go",
         "conditions_test.go",
         "controller_suite_test.go",
         "external-population-controller_test.go",
         "import-controller_test.go",
+        "pvc-clone-controller_test.go",
         "smart-clone-controller_test.go",
         "upload-controller_test.go",
         "util_test.go",
