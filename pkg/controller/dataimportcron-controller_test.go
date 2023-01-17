@@ -269,10 +269,13 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(cronjob.Spec.SuccessfulJobsHistoryLimit).To(Equal(pointer.Int32(1)))
-			Expect(cronjob.Spec.FailedJobsHistoryLimit).To(BeNil())
+			Expect(cronjob.Spec.FailedJobsHistoryLimit).To(Equal(pointer.Int32(1)))
 
-			jobTemplateSpec := cronjob.Spec.JobTemplate.Spec.Template.Spec
-			containers := jobTemplateSpec.Containers
+			jobTemplateSpec := cronjob.Spec.JobTemplate.Spec
+			Expect(jobTemplateSpec.TTLSecondsAfterFinished).To(Equal(pointer.Int32(10)))
+
+			jobPodTemplateSpec := jobTemplateSpec.Template.Spec
+			containers := jobPodTemplateSpec.Containers
 			Expect(containers).To(HaveLen(1))
 
 			env := containers[0].Env
@@ -281,7 +284,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(getEnvVar(env, common.ImportProxyNoProxy)).To(BeEmpty())
 
 			Expect(containers[0].VolumeMounts).To(HaveLen(0))
-			Expect(jobTemplateSpec.Volumes).To(HaveLen(0))
+			Expect(jobPodTemplateSpec.Volumes).To(HaveLen(0))
 		})
 
 		It("Should update CronJob on reconcile", func() {
