@@ -53,7 +53,7 @@ var (
 
 var _ = Describe("All DataVolume Tests", func() {
 	var (
-		reconciler *CloneReconciler
+		reconciler *PvcCloneReconciler
 	)
 	AfterEach(func() {
 		if reconciler != nil {
@@ -943,7 +943,7 @@ func podUsingCloneSource(dv *cdiv1.DataVolume, readOnly bool) *corev1.Pod {
 	}
 }
 
-func createCloneReconciler(objects ...runtime.Object) *CloneReconciler {
+func createCloneReconciler(objects ...runtime.Object) *PvcCloneReconciler {
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		ScratchSpaceStorageClass: testStorageClass,
@@ -957,7 +957,7 @@ func createCloneReconciler(objects ...runtime.Object) *CloneReconciler {
 	return createCloneReconcilerWithoutConfig(objs...)
 }
 
-func createCloneReconcilerWithoutConfig(objects ...runtime.Object) *CloneReconciler {
+func createCloneReconcilerWithoutConfig(objects ...runtime.Object) *PvcCloneReconciler {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)
 
@@ -977,21 +977,23 @@ func createCloneReconcilerWithoutConfig(objects ...runtime.Object) *CloneReconci
 	sccs := &fakeControllerStarter{}
 
 	// Create a ReconcileMemcached object with the scheme and fake client.
-	r := &CloneReconciler{
-		ReconcilerBase: ReconcilerBase{
-			client:       cl,
-			scheme:       s,
-			log:          dvCloneLog,
-			recorder:     rec,
-			featureGates: featuregates.NewFeatureGates(cl),
-			installerLabels: map[string]string{
-				common.AppKubernetesPartOfLabel:  "testing",
-				common.AppKubernetesVersionLabel: "v0.0.0-tests",
+	r := &PvcCloneReconciler{
+		CloneReconcilerBase: CloneReconcilerBase{
+			ReconcilerBase: ReconcilerBase{
+				client:       cl,
+				scheme:       s,
+				log:          dvCloneLog,
+				recorder:     rec,
+				featureGates: featuregates.NewFeatureGates(cl),
+				installerLabels: map[string]string{
+					common.AppKubernetesPartOfLabel:  "testing",
+					common.AppKubernetesVersionLabel: "v0.0.0-tests",
+				},
 			},
+			tokenValidator: &FakeValidator{Match: "foobar"},
+			tokenGenerator: &FakeGenerator{token: "foobar"},
 		},
-		tokenValidator: &FakeValidator{Match: "foobar"},
-		tokenGenerator: &FakeGenerator{token: "foobar"},
-		sccs:           sccs,
+		sccs: sccs,
 	}
 	r.Reconciler = r
 	return r
