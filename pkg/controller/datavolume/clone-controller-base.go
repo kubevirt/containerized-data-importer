@@ -34,8 +34,6 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -49,6 +47,8 @@ const (
 	CloneInProgress = "CloneInProgress"
 	// SnapshotForSmartCloneInProgress provides a const to indicate snapshot creation for smart-clone is in progress
 	SnapshotForSmartCloneInProgress = "SnapshotForSmartCloneInProgress"
+	// CloneFromSnapshotSourceInProgress provides a const to indicate clone from snapshot source is in progress
+	CloneFromSnapshotSourceInProgress = "CloneFromSnapshotSourceInProgress"
 	// SnapshotForSmartCloneCreated provides a const to indicate snapshot creation for smart-clone has been completed
 	SnapshotForSmartCloneCreated = "SnapshotForSmartCloneCreated"
 	// SmartClonePVCInProgress provides a const to indicate snapshot creation for smart-clone is in progress
@@ -76,6 +76,8 @@ const (
 	MessageCloneSucceeded = "Successfully cloned from %s/%s into %s/%s"
 	// MessageSmartCloneInProgress provides a const to form snapshot for smart-clone is in progress message
 	MessageSmartCloneInProgress = "Creating snapshot for smart-clone is in progress (for pvc %s/%s)"
+	// MessageCloneFromSnapshotSourceInProgress provides a const to form clone from snapshot source is in progress message
+	MessageCloneFromSnapshotSourceInProgress = "Creating PVC from snapshot source is in progress (for snapshot %s/%s)"
 	// MessageSmartClonePVCInProgress provides a const to form snapshot for smart-clone is in progress message
 	MessageSmartClonePVCInProgress = "Creating PVC for smart-clone is in progress (for pvc %s/%s)"
 	// MessageCsiCloneInProgress provides a const to form a CSI Volume Clone in progress message
@@ -124,8 +126,6 @@ const (
 	annReadyForTransfer = "cdi.kubevirt.io/readyForTransfer"
 
 	annCloneType = "cdi.kubevirt.io/cloneType"
-
-	cloneControllerName = "datavolume-clone-controller"
 )
 
 type statusPhaseSync struct {
@@ -147,14 +147,6 @@ type CloneReconcilerBase struct {
 	pullPolicy     string
 	tokenValidator token.Validator
 	tokenGenerator token.Generator
-}
-
-func addDataVolumeCloneControllerCommonWatches(mgr manager.Manager, datavolumeController controller.Controller) error {
-	if err := addDataVolumeControllerCommonWatches(mgr, datavolumeController, dataVolumeClone); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (r *CloneReconcilerBase) ensureExtendedToken(pvc *corev1.PersistentVolumeClaim) error {
@@ -521,6 +513,10 @@ func (r *CloneReconcilerBase) syncCloneStatusPhase(syncRes *dataVolumeCloneSyncR
 		event.eventType = corev1.EventTypeNormal
 		event.reason = SnapshotForSmartCloneInProgress
 		event.message = fmt.Sprintf(MessageSmartCloneInProgress, sourceNamespace, sourceName)
+	case cdiv1.CloneFromSnapshotSourceInProgress:
+		event.eventType = corev1.EventTypeNormal
+		event.reason = CloneFromSnapshotSourceInProgress
+		event.message = fmt.Sprintf(MessageCloneFromSnapshotSourceInProgress, sourceNamespace, sourceName)
 	case cdiv1.CSICloneInProgress:
 		event.eventType = corev1.EventTypeNormal
 		event.reason = string(cdiv1.CSICloneInProgress)
@@ -615,6 +611,80 @@ func (r *CloneReconcilerBase) syncDataVolumeStatusPhaseWithEvent(
 	}
 	syncRes.phaseSync = &statusPhaseSync{phase: phase, pvc: pvc, event: event}
 	return nil
+}
+
+func (r *CloneReconcilerBase) cleanupTransfer(dv *cdiv1.DataVolume) error {
+	transferName := getTransferName(dv)
+	if !cc.HasFinalizer(dv, crossNamespaceFinalizer) {
+		return nil
+	}
+
+	r.log.V(1).Info("Doing cleanup of transfer")
+
+	if dv.DeletionTimestamp != nil && dv.Status.Phase != cdiv1.Succeeded {
+		// delete all potential PVCs that may not have owner refs
+		namespaces := []string{dv.Namespace}
+		names := []string{dv.Name}
+		appendTmpPvcIfNeeded(dv, namespaces, names, transferName)
+
+		for i := range namespaces {
+			pvc := &corev1.PersistentVolumeClaim{}
+			nn := types.NamespacedName{Namespace: namespaces[i], Name: names[i]}
+			if err := r.client.Get(context.TODO(), nn, pvc); err != nil {
+				if !k8serrors.IsNotFound(err) {
+					return err
+				}
+			} else {
+				pod := &corev1.Pod{}
+				nn := types.NamespacedName{Namespace: namespaces[i], Name: expansionPodName(pvc)}
+				if err := r.client.Get(context.TODO(), nn, pod); err != nil {
+					if !k8serrors.IsNotFound(err) {
+						return err
+					}
+				} else {
+					if err := r.client.Delete(context.TODO(), pod); err != nil {
+						if !k8serrors.IsNotFound(err) {
+							return err
+						}
+					}
+				}
+
+				if err := r.client.Delete(context.TODO(), pvc); err != nil {
+					if !k8serrors.IsNotFound(err) {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	ot := &cdiv1.ObjectTransfer{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: transferName}, ot); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else {
+		if ot.DeletionTimestamp == nil {
+			if err := r.client.Delete(context.TODO(), ot); err != nil {
+				if !k8serrors.IsNotFound(err) {
+					return err
+				}
+			}
+		}
+		return fmt.Errorf("waiting for ObjectTransfer %s to delete", transferName)
+	}
+
+	cc.RemoveFinalizer(dv, crossNamespaceFinalizer)
+	return nil
+}
+
+func appendTmpPvcIfNeeded(dv *cdiv1.DataVolume, names, namespaces []string, pvcName string) {
+	_, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dv)
+
+	if sourceNamespace != "" && sourceNamespace != dv.Namespace {
+		namespaces = append(namespaces, sourceNamespace)
+		names = append(names, pvcName)
+	}
 }
 
 func isCrossNamespaceClone(dv *cdiv1.DataVolume) bool {

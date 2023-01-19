@@ -64,6 +64,8 @@ const (
 	CsiClone
 )
 
+const pvcCloneControllerName = "datavolume-pvc-clone-controller"
+
 // ErrInvalidTermMsg reports that the termination message from the size-detection pod doesn't exists or is not a valid quantity
 var ErrInvalidTermMsg = fmt.Errorf("The termination message from the size-detection pod is not-valid")
 
@@ -97,9 +99,9 @@ func NewPvcCloneController(
 			ReconcilerBase: ReconcilerBase{
 				client:          client,
 				scheme:          mgr.GetScheme(),
-				log:             log.WithName(cloneControllerName),
+				log:             log.WithName(pvcCloneControllerName),
 				featureGates:    featuregates.NewFeatureGates(client),
-				recorder:        mgr.GetEventRecorderFor(cloneControllerName),
+				recorder:        mgr.GetEventRecorderFor(pvcCloneControllerName),
 				installerLabels: installerLabels,
 			},
 			clonerImage:    clonerImage,
@@ -113,7 +115,7 @@ func NewPvcCloneController(
 	}
 	reconciler.Reconciler = reconciler
 
-	dataVolumeCloneController, err := controller.New(cloneControllerName, mgr, controller.Options{
+	dataVolumeCloneController, err := controller.New(pvcCloneControllerName, mgr, controller.Options{
 		Reconciler: reconciler,
 	})
 	if err != nil {
@@ -163,7 +165,7 @@ func (sccs *smartCloneControllerStarter) StartController() {
 }
 
 func addDataVolumeCloneControllerWatches(mgr manager.Manager, datavolumeController controller.Controller) error {
-	if err := addDataVolumeControllerCommonWatches(mgr, datavolumeController, dataVolumeClone); err != nil {
+	if err := addDataVolumeControllerCommonWatches(mgr, datavolumeController, dataVolumePvcClone); err != nil {
 		return err
 	}
 
@@ -204,7 +206,7 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 			return
 		}
 		for _, dv := range dvList.Items {
-			if getDataVolumeOp(&dv) == dataVolumeClone {
+			if getDataVolumeOp(&dv) == dataVolumePvcClone {
 				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
 			}
 		}
@@ -235,7 +237,7 @@ func (r PvcCloneReconciler) prepare(syncRes *dataVolumeSyncResult) error {
 	if err := r.populateSourceIfSourceRef(dv); err != nil {
 		return err
 	}
-	if isCrossNamespaceClone(dv) && dv.Status.Phase == cdiv1.Succeeded {
+	if dv.Status.Phase == cdiv1.Succeeded {
 		if err := r.cleanup(syncRes); err != nil {
 			return err
 		}
@@ -713,72 +715,14 @@ func (r *PvcCloneReconciler) sourceInUse(dv *cdiv1.DataVolume, eventReason strin
 
 func (r PvcCloneReconciler) cleanup(syncRes *dataVolumeSyncResult) error {
 	dv := syncRes.dvMutated
-	transferName := getTransferName(dv)
-	if !cc.HasFinalizer(dv, crossNamespaceFinalizer) {
-		return nil
-	}
+	r.log.V(3).Info("Cleanup initiated in dv PVC clone controller")
 
-	r.log.V(1).Info("Doing cleanup")
-
-	if dv.DeletionTimestamp != nil && dv.Status.Phase != cdiv1.Succeeded {
-		// delete all potential PVCs that may not have owner refs
-		namespaces := []string{dv.Namespace}
-		names := []string{dv.Name}
-		if dv.Spec.Source.PVC != nil &&
-			dv.Spec.Source.PVC.Namespace != "" &&
-			dv.Spec.Source.PVC.Namespace != dv.Namespace {
-			namespaces = append(namespaces, dv.Spec.Source.PVC.Namespace)
-			names = append(names, transferName)
-		}
-
-		for i := range namespaces {
-			pvc := &corev1.PersistentVolumeClaim{}
-			nn := types.NamespacedName{Namespace: namespaces[i], Name: names[i]}
-			if err := r.client.Get(context.TODO(), nn, pvc); err != nil {
-				if !k8serrors.IsNotFound(err) {
-					return err
-				}
-			} else {
-				pod := &corev1.Pod{}
-				nn := types.NamespacedName{Namespace: namespaces[i], Name: expansionPodName(pvc)}
-				if err := r.client.Get(context.TODO(), nn, pod); err != nil {
-					if !k8serrors.IsNotFound(err) {
-						return err
-					}
-				} else {
-					if err := r.client.Delete(context.TODO(), pod); err != nil {
-						if !k8serrors.IsNotFound(err) {
-							return err
-						}
-					}
-				}
-
-				if err := r.client.Delete(context.TODO(), pvc); err != nil {
-					if !k8serrors.IsNotFound(err) {
-						return err
-					}
-				}
-			}
-		}
-	}
-
-	ot := &cdiv1.ObjectTransfer{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: transferName}, ot); err != nil {
-		if !k8serrors.IsNotFound(err) {
+	if isCrossNamespaceClone(dv) {
+		if err := r.cleanupTransfer(dv); err != nil {
 			return err
 		}
-	} else {
-		if ot.DeletionTimestamp == nil {
-			if err := r.client.Delete(context.TODO(), ot); err != nil {
-				if !k8serrors.IsNotFound(err) {
-					return err
-				}
-			}
-		}
-		return fmt.Errorf("waiting for ObjectTransfer %s to delete", transferName)
 	}
 
-	cc.RemoveFinalizer(dv, crossNamespaceFinalizer)
 	return nil
 }
 

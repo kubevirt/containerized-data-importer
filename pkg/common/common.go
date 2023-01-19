@@ -159,6 +159,9 @@ const (
 	// SmartClonerCDILabel is the label applied to resources created by the smart-clone controller
 	SmartClonerCDILabel = "cdi-smart-clone"
 
+	// CloneFromSnapshotFallbackPVCCDILabel is the label applied to the temp host assisted PVC used for fallback in cloning from volumesnapshot
+	CloneFromSnapshotFallbackPVCCDILabel = "cdi-clone-from-snapshot-source-host-assisted-fallback-pvc"
+
 	// UploadPodName (controller pkg only)
 	UploadPodName = "cdi-upload"
 	// UploadServerCDILabel is the label applied to upload server resources
