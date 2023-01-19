@@ -161,7 +161,7 @@ build-docgen:
 	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-build-metricsdocs.sh"
 
 fossa:
-	${DO_BAZ} "FOSSA_TOKEN_FILE=${FOSSA_TOKEN_FILE} ./hack/fossa.sh"
+	${DO_BAZ} "FOSSA_TOKEN_FILE=${FOSSA_TOKEN_FILE} PULL_BASE_REF=${PULL_BASE_REF} CI=${CI} ./hack/fossa.sh"
 
 help:
 	@echo "Usage: make [Targets ...]"
