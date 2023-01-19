@@ -618,11 +618,9 @@ func (r *CloneReconcilerBase) syncDataVolumeStatusPhaseWithEvent(
 }
 
 func isCrossNamespaceClone(dv *cdiv1.DataVolume) bool {
-	if dv.Spec.Source.PVC == nil {
-		return false
-	}
+	_, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dv)
 
-	return dv.Spec.Source.PVC.Namespace != "" && dv.Spec.Source.PVC.Namespace != dv.Namespace
+	return sourceNamespace != "" && sourceNamespace != dv.Namespace
 }
 
 func getTransferName(dv *cdiv1.DataVolume) string {
