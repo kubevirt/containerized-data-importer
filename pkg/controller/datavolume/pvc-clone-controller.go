@@ -440,43 +440,6 @@ func (r PvcCloneReconciler) updateStatus(syncRes dataVolumeCloneSyncResult, sync
 	return res, syncErr
 }
 
-func (r PvcCloneReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
-	phase, ok := pvc.Annotations[cc.AnnPodPhase]
-	if phase != string(corev1.PodSucceeded) {
-		_, ok = pvc.Annotations[cc.AnnCloneRequest]
-		if !ok || pvc.Status.Phase != corev1.ClaimBound || pvcIsPopulated(pvc, dataVolumeCopy) {
-			return nil
-		}
-		dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
-	}
-	if !ok {
-		return nil
-	}
-	switch phase {
-	case string(corev1.PodPending):
-		dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
-		event.eventType = corev1.EventTypeNormal
-		event.reason = CloneScheduled
-		event.message = fmt.Sprintf(MessageCloneScheduled, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
-	case string(corev1.PodRunning):
-		dataVolumeCopy.Status.Phase = cdiv1.CloneInProgress
-		event.eventType = corev1.EventTypeNormal
-		event.reason = CloneInProgress
-		event.message = fmt.Sprintf(MessageCloneInProgress, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
-	case string(corev1.PodFailed):
-		event.eventType = corev1.EventTypeWarning
-		event.reason = CloneFailed
-		event.message = fmt.Sprintf(MessageCloneFailed, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
-	case string(corev1.PodSucceeded):
-		dataVolumeCopy.Status.Phase = cdiv1.Succeeded
-		dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress("100.0%")
-		event.eventType = corev1.EventTypeNormal
-		event.reason = CloneSucceeded
-		event.message = fmt.Sprintf(MessageCloneSucceeded, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
-	}
-	return nil
-}
-
 func (r *PvcCloneReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec) (cloneStrategy, error) {
 	preferredCloneStrategy, err := r.getCloneStrategy(datavolume)
 	if err != nil {
@@ -534,7 +497,7 @@ func (r *PvcCloneReconciler) reconcileCsiClonePvc(log logr.Logger,
 	if isCrossNamespaceClone(datavolume) {
 		pvcName = transferName
 
-		result, err := r.doCrossNamespaceClone(log, syncRes, pvcName, false, CsiClone)
+		result, err := r.doCrossNamespaceClone(log, syncRes, pvcName, datavolume.Spec.Source.PVC.Namespace, false, CsiClone)
 		if result != nil {
 			return *result, err
 		}
@@ -632,7 +595,7 @@ func (r *PvcCloneReconciler) reconcileSmartClonePvc(log logr.Logger,
 
 	if isCrossNamespaceClone(datavolume) {
 		pvcName = transferName
-		result, err := r.doCrossNamespaceClone(log, syncRes, pvcName, true, SmartClone)
+		result, err := r.doCrossNamespaceClone(log, syncRes, pvcName, datavolume.Spec.Source.PVC.Namespace, true, SmartClone)
 		if result != nil {
 			return *result, err
 		}

@@ -1088,3 +1088,18 @@ func NewImportDataVolume(name string) *cdiv1.DataVolume {
 		},
 	}
 }
+
+// GetCloneSourceNameAndNamespace returns the name and namespace of the cloning source
+func GetCloneSourceNameAndNamespace(dv *cdiv1.DataVolume) (name, namespace string) {
+	var sourceName, sourceNamespace string
+	// Cloning sources are mutually exclusive
+	if dv.Spec.Source.PVC != nil {
+		sourceName = dv.Spec.Source.PVC.Name
+		sourceNamespace = dv.Spec.Source.PVC.Namespace
+	} else if dv.Spec.Source.Snapshot != nil {
+		sourceName = dv.Spec.Source.Snapshot.Name
+		sourceNamespace = dv.Spec.Source.Snapshot.Namespace
+	}
+
+	return sourceName, sourceNamespace
+}
