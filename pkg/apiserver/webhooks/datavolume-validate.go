@@ -406,7 +406,14 @@ func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.Ad
 			Field:   field.Child("sourceRef").String(),
 		}
 	}
-	return wh.validateDataVolumeSourcePVC(dataSource.Spec.Source.PVC, field.Child("sourceRef"), spec)
+	dataSourcePVC := dataSource.Spec.Source.PVC
+	if dataSourcePVC == nil {
+		return &metav1.StatusCause{
+			Message: fmt.Sprintf("Empty PVC field in '%s'. DataSource may not be ready yet", dataSource.Name),
+			Field:   field.Child("sourceRef").String(),
+		}
+	}
+	return wh.validateDataVolumeSourcePVC(dataSourcePVC, field.Child("sourceRef"), spec)
 }
 
 func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.DataVolumeSourcePVC, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) *metav1.StatusCause {

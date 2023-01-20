@@ -609,6 +609,23 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(false))
 		})
 
+		It("should reject DataVolume with SourceRef on create if DataSource exists but its PVC field is not populated", func() {
+			dataVolume := newDataSourceDataVolume("testDV", &testNamespace, "test")
+			dataSource := &cdiv1.DataSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Spec.SourceRef.Name,
+					Namespace: testNamespace,
+				},
+				Spec: cdiv1.DataSourceSpec{
+					Source: cdiv1.DataSourceSource{
+						PVC: nil,
+					},
+				},
+			}
+			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource})
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
 		It("should accept DataVolume with SourceRef on create if DataSource exists but PVC does not exist", func() {
 			dataVolume := newDataSourceDataVolume("testDV", &testNamespace, "test")
 			dataSource := &cdiv1.DataSource{
