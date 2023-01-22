@@ -250,14 +250,14 @@ func (r ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, clean
 func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (*dataVolumeSyncResult, error) {
 	syncRes := &dataVolumeSyncResult{}
 	dv, err := r.getDataVolume(req.NamespacedName)
-	if dv == nil || err != nil {
+	if err != nil {
 		syncRes.result = &reconcile.Result{}
 		return syncRes, err
 	}
 	syncRes.dv = dv
 	syncRes.dvMutated = dv.DeepCopy()
 
-	if dv.DeletionTimestamp != nil {
+	if syncRes.dv == nil || dv.DeletionTimestamp != nil {
 		log.Info("DataVolume marked for deletion, cleaning up")
 		if cleanup != nil {
 			err := cleanup(syncRes)
