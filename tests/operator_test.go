@@ -37,6 +37,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
@@ -67,10 +68,7 @@ var _ = Describe("ALL Operator tests", func() {
 					originalReplicaVal = scaleDeployment(f, deploymentName, 0)
 					Eventually(func() bool {
 						_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, deploymentName, common.CDILabelSelector)
-						if !errors.IsNotFound(err) {
-							return false
-						}
-						return true
+						return errors.IsNotFound(err)
 					}, 20*time.Second, 1*time.Second).Should(BeTrue())
 
 					By("Appending v1alpha1 version as stored version")
@@ -821,7 +819,7 @@ var _ = Describe("ALL Operator tests", func() {
 				return i
 			}
 
-			createUnknownStorageClass := func(name string) *storagev1.StorageClass {
+			createUnknownStorageClass := func(name, provisioner string) *storagev1.StorageClass {
 				immediateBinding := storagev1.VolumeBindingImmediate
 
 				return &storagev1.StorageClass{
@@ -831,7 +829,7 @@ var _ = Describe("ALL Operator tests", func() {
 							"cdi.kubevirt.io/testing": "",
 						},
 					},
-					Provisioner:       "kubernetes.io/non-existent-provisioner",
+					Provisioner:       provisioner,
 					VolumeBindingMode: &immediateBinding,
 				}
 			}
@@ -897,6 +895,12 @@ var _ = Describe("ALL Operator tests", func() {
 				}, 10*time.Minute, 1*time.Second).Should(BeTrue())
 			}
 
+			waitForIncompleteMetricInitialization := func() {
+				Eventually(func() int {
+					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
+				}, 2*time.Minute, 1*time.Second).ShouldNot(Equal(-1))
+			}
+
 			It("[test_id:7962] CDIOperatorDown alert firing when operator scaled down", func() {
 				if !f.IsPrometheusAvailable() {
 					Skip("This test depends on prometheus infra being available")
@@ -941,7 +945,7 @@ var _ = Describe("ALL Operator tests", func() {
 					Spec: cr.Spec,
 				}
 				cdi.Spec.Infra.NodeSelector = map[string]string{"wrong": "wrong"}
-				cdi, err := f.CdiClient.CdiV1beta1().CDIs().Create(context.TODO(), cdi, metav1.CreateOptions{})
+				_, err := f.CdiClient.CdiV1beta1().CDIs().Create(context.TODO(), cdi, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				getPrometheusRule()
@@ -955,7 +959,7 @@ var _ = Describe("ALL Operator tests", func() {
 				cdi, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				cdi.Spec = cr.Spec
-				cdi, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
+				_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				waitCDI(f, cr, cdiPods)
 				crModified = false
@@ -986,18 +990,15 @@ var _ = Describe("ALL Operator tests", func() {
 				err := f.CrClient.Get(context.TODO(), types.NamespacedName{Name: defaultStorageClass.Name}, defaultStorageClassProfile)
 				Expect(err).ToNot(HaveOccurred())
 
-				originalMetricVal := 0
-				Eventually(func() int {
-					originalMetricVal = getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
-					return originalMetricVal
-				}, 2*time.Minute, 1*time.Second).ShouldNot(Equal(-1))
+				waitForIncompleteMetricInitialization()
 
 				numAddedStorageClasses = 2
 				for i := 0; i < numAddedStorageClasses; i++ {
-					_, err = f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), createUnknownStorageClass(fmt.Sprintf("unknown-sc-%d", i)), metav1.CreateOptions{})
+					_, err = f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), createUnknownStorageClass(fmt.Sprintf("unknown-sc-%d", i), "kubernetes.io/non-existent-provisioner"), metav1.CreateOptions{})
 					Expect(err).ToNot(HaveOccurred())
 				}
 
+				originalMetricVal := getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
 				expectedIncomplete := originalMetricVal + numAddedStorageClasses
 				Eventually(func() int {
 					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
@@ -1017,6 +1018,29 @@ var _ = Describe("ALL Operator tests", func() {
 						return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
 					}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", expectedIncomplete))
 				}
+			})
+
+			It("[test_id:9659] StorageProfile incomplete metric expected value remains unchanged for provisioner known to not work", func() {
+				if !f.IsPrometheusAvailable() {
+					Skip("This test depends on prometheus infra being available")
+				}
+
+				waitForIncompleteMetricInitialization()
+				originalMetricVal := getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
+				sc, err := f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), createUnknownStorageClass("unsupported-provisioner", storagecapabilities.ProvisionerNoobaa), metav1.CreateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Profile created and is incomplete")
+				profile := &cdiv1.StorageProfile{}
+				Eventually(func() error {
+					return f.CrClient.Get(context.TODO(), types.NamespacedName{Name: sc.Name}, profile)
+				}, 20*time.Second, 1*time.Second).Should(Succeed())
+				Expect(profile.Status.ClaimPropertySets).To(BeNil())
+
+				By("Metric stays the same because we don't support this provisioner")
+				Consistently(func() int {
+					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
+				}, 2*time.Minute, 1*time.Second).Should(Equal(originalMetricVal))
 			})
 
 			It("[test_id:7964] DataImportCron failing metric expected value when patching DesiredDigest annotation with junk sha256 value", func() {
@@ -1411,7 +1435,7 @@ func ensureCDI(f *framework.Framework, cr *cdiv1.CDI, cdiPods *corev1.PodList) {
 	}
 
 	By("Create CDI CR")
-	cdi, err = f.CdiClient.CdiV1beta1().CDIs().Create(context.TODO(), cdi, metav1.CreateOptions{})
+	_, err = f.CdiClient.CdiV1beta1().CDIs().Create(context.TODO(), cdi, metav1.CreateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
 	waitCDI(f, cr, cdiPods)
