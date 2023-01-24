@@ -171,6 +171,7 @@ func reconcileCreatePrometheusInfra(args *callbacks.ReconcileCallbackArgs) error
 		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure prometheus resources exists, %v", err))
 		return err
 	}
+
 	return nil
 }
 

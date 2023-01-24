@@ -921,7 +921,7 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("[test_id:9656] CDINotReady alert firing when CDI is not ready", func() {
+			It("[test_id:9656] Metric kubevirt_cdi_cr_ready is 0 when CDI is not ready", func() {
 				if !f.IsPrometheusAvailable() {
 					Skip("This test depends on prometheus infra being available")
 				}
@@ -944,11 +944,9 @@ var _ = Describe("ALL Operator tests", func() {
 				cdi, err := f.CdiClient.CdiV1beta1().CDIs().Create(context.TODO(), cdi, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
-				promRule := getPrometheusRule()
-				patchPrometheusRule(promRule, "CDINotReady", "1m")
+				getPrometheusRule()
 
-				waitForPrometheusAlert("CDINotReady")
-
+				By("Wait for kubevirt_cdi_cr_ready == 0")
 				Eventually(func() int {
 					return getMetricValue("kubevirt_cdi_cr_ready")
 				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", 0))
@@ -1351,15 +1349,14 @@ var _ = Describe("ALL Operator tests", func() {
 
 func getCDICrAndPods(f *framework.Framework) (*cdiv1.CDI, *corev1.PodList) {
 	cdiPods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
-
 	Expect(err).ToNot(HaveOccurred(), "failed listing cdi pods")
 	Expect(len(cdiPods.Items)).To(BeNumerically(">", 0), "no cdi pods found")
 
-	cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
-	if errors.IsNotFound(err) {
-		Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
-	}
+	cdis, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
 	Expect(err).ToNot(HaveOccurred())
+	Expect(len(cdis.Items)).To(Equal(1))
+	cr := &cdis.Items[0]
+
 	return cr, cdiPods
 }
 
@@ -1402,7 +1399,7 @@ func ensureCDI(f *framework.Framework, cr *cdiv1.CDI, cdiPods *corev1.PodList) {
 
 	cdi = &cdiv1.CDI{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "cdi",
+			Name: cr.Name,
 		},
 		Spec: cr.Spec,
 	}
