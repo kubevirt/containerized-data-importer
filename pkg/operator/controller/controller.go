@@ -23,10 +23,6 @@ import (
 	"strconv"
 	"time"
 
-	"kubevirt.io/containerized-data-importer/pkg/monitoring"
-
-	"kubevirt.io/containerized-data-importer/pkg/operator/resources/generate/install"
-
 	"github.com/kelseyhightower/envconfig"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/prometheus/client_golang/prometheus"
@@ -44,9 +40,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	cdicerts "kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/generate/install"
 	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
