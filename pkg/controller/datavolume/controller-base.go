@@ -260,8 +260,9 @@ func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, pr
 	if dv.DeletionTimestamp != nil {
 		log.Info("DataVolume marked for deletion, cleaning up")
 		if cleanup != nil {
-			err := cleanup(syncRes)
-			return syncRes, err
+			if err := cleanup(syncRes); err != nil {
+				return syncRes, err
+			}
 		}
 		syncRes.result = &reconcile.Result{}
 		return syncRes, nil
