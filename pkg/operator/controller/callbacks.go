@@ -151,7 +151,8 @@ func reconcileCreatePrometheusInfra(args *callbacks.ReconcileCallbackArgs) error
 	}
 
 	deployment := args.CurrentObject.(*appsv1.Deployment)
-	if !isControllerDeployment(deployment) || !sdk.CheckDeploymentReady(deployment) {
+	// we don't check sdk.CheckDeploymentReady(deployment) since we want Prometheus to cover NotReady state as well
+	if !isControllerDeployment(deployment) {
 		return nil
 	}
 
