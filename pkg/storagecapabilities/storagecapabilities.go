@@ -64,6 +64,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"csi.trident.netapp.io/ontap-san": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
 	// topolvm
 	"topolvm.cybozu.com": createTopoLVMCapabilities(),
+	"topolvm.io":         createTopoLVMCapabilities(),
+	// OpenStack Cinder
+	"cinder.csi.openstack.org": createCinderVolumeCapabilities(),
 }
 
 // Get finds and returns a predefined StorageCapabilities for a given StorageClass
@@ -210,6 +213,13 @@ func createOpenStorageVolumeCapabilities() []StorageCapabilities {
 func createOpenStorageSharedVolumeCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
 		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
+	}
+}
+
+func createCinderVolumeCapabilities() []StorageCapabilities {
+	return []StorageCapabilities{
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
 		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
 	}
 }
