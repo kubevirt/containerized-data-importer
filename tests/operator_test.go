@@ -981,18 +981,24 @@ var _ = Describe("ALL Operator tests", func() {
 					Skip("This test depends on prometheus infra being available")
 				}
 
-				numAddedStorageClasses = 2
 				defaultStorageClass := utils.GetDefaultStorageClass(f.K8sClient)
 				defaultStorageClassProfile := &cdiv1.StorageProfile{}
 				err := f.CrClient.Get(context.TODO(), types.NamespacedName{Name: defaultStorageClass.Name}, defaultStorageClassProfile)
 				Expect(err).ToNot(HaveOccurred())
+
+				originalMetricVal := 0
+				Eventually(func() int {
+					originalMetricVal = getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
+					return originalMetricVal
+				}, 2*time.Minute, 1*time.Second).ShouldNot(Equal(-1))
+
+				numAddedStorageClasses = 2
 				for i := 0; i < numAddedStorageClasses; i++ {
 					_, err = f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), createUnknownStorageClass(fmt.Sprintf("unknown-sc-%d", i)), metav1.CreateOptions{})
 					Expect(err).ToNot(HaveOccurred())
 				}
-				originalMetricVal := getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
-				expectedIncomplete := originalMetricVal + numAddedStorageClasses
 
+				expectedIncomplete := originalMetricVal + numAddedStorageClasses
 				Eventually(func() int {
 					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
 				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", expectedIncomplete))
