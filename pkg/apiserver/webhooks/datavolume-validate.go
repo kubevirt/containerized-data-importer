@@ -488,7 +488,8 @@ func validateStorageSize(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) (*met
 
 	// The storage size of a DataVolume can only be empty when two conditios are met:
 	//	1. The 'Storage' spec API is used, which allows for additional logic in CDI.
-	//	2. The 'PVC' source is used, so the original size can be extracted from the source.
+	//	2. The 'PVC' source or SourceRef is used, so the original size can be extracted from the source.
+	isClone := spec.SourceRef != nil || (spec.Source != nil && spec.Source.PVC != nil)
 	if pvcSize, ok := resources.Requests["storage"]; ok {
 		if pvcSize.IsZero() || pvcSize.Value() < 0 {
 			cause := metav1.StatusCause{
@@ -498,7 +499,7 @@ func validateStorageSize(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) (*met
 			}
 			return &cause, false
 		}
-	} else if spec.Storage == nil || spec.Source.PVC == nil {
+	} else if spec.Storage == nil || !isClone {
 		cause := metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: fmt.Sprintf("%s size is missing", name),

@@ -426,7 +426,7 @@ var _ = Describe("Validating Webhook", func() {
 			}, false),
 		)
 
-		It("should reject empty Requests when using Storage API without PVC source", func() {
+		It("should reject empty Requests when using Storage API with DataVolumeSource but without DataVolumeSourcePVC", func() {
 			httpSource := &cdiv1.DataVolumeSource{
 				HTTP: &cdiv1.DataVolumeSourceHTTP{URL: "http://www.example.com"},
 			}
@@ -439,6 +439,39 @@ var _ = Describe("Validating Webhook", func() {
 			dv := newDataVolumeWithStorageSpec("testDV", httpSource, nil, storage)
 			resp := validateDataVolumeCreate(dv)
 			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should allow empty Requests when using Storage API with DataVolumeSourceRef", func() {
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "testPVC",
+					Namespace: testNamespace,
+				},
+				Spec: *newPVCSpec(pvcSizeDefault),
+			}
+			dataSource := &cdiv1.DataSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "testDs",
+					Namespace: testNamespace,
+				},
+				Spec: cdiv1.DataSourceSpec{
+					Source: cdiv1.DataSourceSource{
+						PVC: &cdiv1.DataVolumeSourcePVC{
+							Name:      pvc.Name,
+							Namespace: testNamespace,
+						},
+					},
+				},
+			}
+			storage := &cdiv1.StorageSpec{}
+			sourceRef := &cdiv1.DataVolumeSourceRef{
+				Kind:      cdiv1.DataVolumeDataSource,
+				Namespace: &testNamespace,
+				Name:      dataSource.Name,
+			}
+			dv := newDataVolumeWithStorageSpec("testDV", nil, sourceRef, storage)
+			resp := validateDataVolumeCreateEx(dv, []runtime.Object{pvc}, []runtime.Object{dataSource})
+			Expect(resp.Allowed).To(Equal(true))
 		})
 
 		DescribeTable("should", func(oldFinalCheckpoint bool, oldCheckpoints []string, newFinalCheckpoint bool, newCheckpoints []string, modifyDV func(*cdiv1.DataVolume), expectedSuccess bool, sourceFunc func() *cdiv1.DataVolumeSource) {
