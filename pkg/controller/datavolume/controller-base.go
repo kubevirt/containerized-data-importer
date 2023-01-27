@@ -256,6 +256,10 @@ func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, pr
 	}
 	syncRes.dv = dv
 	syncRes.dvMutated = dv.DeepCopy()
+	syncRes.pvc, err = r.getPVC(dv)
+	if err != nil {
+		return syncRes, err
+	}
 
 	if dv.DeletionTimestamp != nil {
 		log.Info("DataVolume marked for deletion, cleaning up")
@@ -273,10 +277,6 @@ func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, pr
 		}
 	}
 
-	syncRes.pvc, err = r.getPVC(dv)
-	if err != nil {
-		return syncRes, err
-	}
 	if syncRes.pvc != nil {
 		if err := r.garbageCollect(syncRes, log); err != nil {
 			return syncRes, err
