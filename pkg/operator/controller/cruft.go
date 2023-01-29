@@ -306,7 +306,7 @@ func reconcileCDICRD(args *callbacks.ReconcileCallbackArgs) error {
 		return nil
 	}
 	deployment := args.CurrentObject.(*appsv1.Deployment)
-	if !isControllerDeployment(deployment) || !sdk.CheckDeploymentReady(deployment) {
+	if !isControllerDeployment(deployment) {
 		return nil
 	}
 
