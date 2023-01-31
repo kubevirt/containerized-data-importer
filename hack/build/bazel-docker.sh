@@ -100,13 +100,15 @@ _rsync \
     ${CDI_DIR}/ \
     "rsync://root@127.0.0.1:${RSYNCD_PORT}/build"
 
-if [ "${CDI_CRI}" = "docker" ]; then
-    volumes="-v ${BUILDER_VOLUME}:/root:rw,z"
-    # append .docker directory as volume
-    mkdir -p "${HOME}/.docker"
-    volumes="$volumes -v ${HOME}/.docker:/root/.docker:ro,z"
-else
-    volumes="-v ${BUILDER_VOLUME}:/root:rw,z,exec"
+volumes="-v ${BUILDER_VOLUME}:/root:rw,z"
+# append .docker directory as volume
+mkdir -p "${HOME}/.docker"
+volumes="$volumes -v ${HOME}/.docker:/root/.docker:ro,z"
+
+if [[ $CDI_CRI = podman* ]] && [[ -f "${XDG_RUNTIME_DIR-}/containers/auth.json" ]]; then
+    volumes="$volumes --mount type=bind,source=${XDG_RUNTIME_DIR-}/containers/auth.json,target=/root/.docker/config.json,readonly"
+elif [[ -f "${HOME}/.docker/config.json" ]]; then
+    volumes="$volumes --mount type=bind,source=${HOME}/.docker/config.json,target=/root/.docker/config.json,readonly"
 fi
 
 if [ "${CI}" = "true" ]; then
