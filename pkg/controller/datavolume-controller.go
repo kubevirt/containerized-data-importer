@@ -3148,6 +3148,21 @@ func (r *DatavolumeReconciler) makeSizeDetectionPodSpec(
 		},
 	}
 
+	if sourcePvc.Namespace == dv.Namespace {
+		pod.OwnerReferences = []metav1.OwnerReference{
+			*metav1.NewControllerRef(dv, schema.GroupVersionKind{
+				Group:   cdiv1.SchemeGroupVersion.Group,
+				Version: cdiv1.SchemeGroupVersion.Version,
+				Kind:    "DataVolume",
+			}),
+		}
+	} else {
+		if err := setAnnOwnedByDataVolume(pod, dv); err != nil {
+			return nil
+		}
+		pod.Annotations[annOwnerUID] = string(dv.UID)
+	}
+
 	SetRestrictedSecurityContext(&pod.Spec)
 
 	return pod
@@ -3161,13 +3176,6 @@ func makeSizeDetectionObjectMeta(sourcePvc *corev1.PersistentVolumeClaim, dataVo
 		Labels: map[string]string{
 			common.CDILabelKey:       common.CDILabelValue,
 			common.CDIComponentLabel: common.ImporterPodName,
-		},
-		OwnerReferences: []metav1.OwnerReference{
-			*metav1.NewControllerRef(dataVolume, schema.GroupVersionKind{
-				Group:   cdiv1.SchemeGroupVersion.Group,
-				Version: cdiv1.SchemeGroupVersion.Version,
-				Kind:    "DataVolume",
-			}),
 		},
 	}
 }

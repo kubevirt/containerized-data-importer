@@ -1206,6 +1206,63 @@ var _ = Describe("all clone tests", func() {
 				// Compare the two clones to see if they have the same hash
 				compareCloneWithSource(sourcePvc, secondTargetPvc, diskImagePath, diskImagePath)
 			})
+
+			It("Should clone using size-detection pod across namespaces", func() {
+				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "200Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+				dataVolume.Spec.Storage.VolumeMode = &volumeMode
+				controller.AddAnnotation(dataVolume, controller.AnnPodRetainAfterCompletion, "true")
+				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+				sourcePvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Wait for source DV Succeeded phase")
+				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, dataVolumeName, cloneCompleteTimeout)
+				Expect(err).ToNot(HaveOccurred())
+
+				// We create the target namespace
+				targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+					framework.NsPrefixLabel: f.NsPrefix,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				f.AddNamespaceToDelete(targetNs)
+
+				// We attempt to create the sizeless clone
+				targetDataVolume := utils.NewDataVolumeForCloningWithEmptySize("target-dv", f.Namespace.Name, sourcePvc.Name, nil, &volumeMode)
+				controller.AddAnnotation(targetDataVolume, controller.AnnDeleteAfterCompletion, "false")
+				targetDataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDataVolume)
+				Expect(err).ToNot(HaveOccurred())
+
+				// We verify that the size-detection pod is created
+				By("Verify size-detection pod is created")
+				Eventually(func() *v1.Pod {
+					pod, _ := utils.FindPodByPrefixOnce(f.K8sClient, f.Namespace.Name, sizeDetectionPodPrefix, "")
+					return pod
+				}, time.Minute, time.Second).ShouldNot(BeNil(), "Creating size-detection pod")
+
+				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
+
+				By("Wait for target DV Succeeded phase")
+				err = utils.WaitForDataVolumePhaseWithTimeout(f, targetDataVolume.Namespace, cdiv1.Succeeded, "target-dv", cloneCompleteTimeout)
+				Expect(err).ToNot(HaveOccurred())
+
+				// Compare the two clones to see if they have the same hash
+				By("Source file system pvc md5summing")
+				sourceMD5, err := f.GetMD5(f.Namespace, sourcePvc, diskImagePath, crossVolumeModeCloneMD5NumBytes)
+				Expect(err).ToNot(HaveOccurred())
+				deleteAndWaitForVerifierPod()
+
+				By("Target file system pvc md5summing")
+				targetMD5, err := f.GetMD5(targetNs, targetPvc, diskImagePath, crossVolumeModeCloneMD5NumBytes)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(sourceMD5).To(Equal(targetMD5))
+				deleteAndWaitForVerifierPod()
+
+				deleteAndWaitForSizeDetectionPod()
+			})
 		})
 
 		Context("CloneStrategy on storageclass annotation", func() {
