@@ -419,6 +419,7 @@ func (r *DataImportCronReconciler) getImportState(ctx context.Context, cron *cdi
 
 func (r *DataImportCronReconciler) updatePvc(ctx context.Context, cron *cdiv1.DataImportCron, pvc *corev1.PersistentVolumeClaim) error {
 	pvcCopy := pvc.DeepCopy()
+	AddAnnotation(pvc, AnnLastUseTime, time.Now().UTC().Format(time.RFC3339Nano))
 	r.setDataImportCronResourceLabels(cron, pvc)
 	if !reflect.DeepEqual(pvc, pvcCopy) {
 		if err := r.client.Update(ctx, pvc); err != nil {
@@ -559,8 +560,7 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 			return err
 		}
 	} else {
-		AddAnnotation(pvc, AnnLastUseTime, time.Now().Format(time.RFC3339Nano))
-		if err := r.client.Update(ctx, pvc); err != nil {
+		if err := r.updatePvc(ctx, dataImportCron, pvc); err != nil {
 			return err
 		}
 	}
