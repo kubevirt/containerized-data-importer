@@ -14,12 +14,12 @@
 
 determine_cri_bin() {
     if [ "${KUBEVIRTCI_RUNTIME-}" = "podman" ]; then
-        echo "podman --remote --url=unix://${XDG_RUNTIME_DIR-}/podman/podman.sock"
+        echo podman
     elif [ "${KUBEVIRTCI_RUNTIME-}" = "docker" ]; then
         echo docker
     else
-        if curl --unix-socket "${XDG_RUNTIME_DIR-}/podman/podman.sock" http://d/v3.0.0/libpod/info >/dev/null 2>&1; then
-            echo "podman --remote --url=unix://${XDG_RUNTIME_DIR-}/podman/podman.sock"
+        if podman ps >/dev/null 2>&1; then
+            echo "podman"
         elif docker ps >/dev/null 2>&1; then
             echo docker
         else
