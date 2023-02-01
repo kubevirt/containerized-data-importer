@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -696,6 +697,42 @@ func ValidateClone(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSp
 		if err := ValidateRequestedCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// ValidateSnapshotClone compares a snapshot clone spec against its source snapshot to validate its creation
+func ValidateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv1.DataVolumeSpec) error {
+	var sourceResources, targetResources v1.ResourceRequirements
+
+	if sourceSnapshot.Status == nil {
+		return fmt.Errorf("no status on source snapshot, not possible to proceed")
+	}
+	size := sourceSnapshot.Status.RestoreSize
+	restoreSizeAvailable := size != nil && size.Sign() > 0
+	if restoreSizeAvailable {
+		sourceResources.Requests = corev1.ResourceList{corev1.ResourceStorage: *size}
+	}
+
+	isSizelessClone := false
+	explicitPvcRequest := spec.PVC != nil
+	if explicitPvcRequest {
+		targetResources = spec.PVC.Resources
+	} else {
+		targetResources = spec.Storage.Resources
+		if _, ok := targetResources.Requests["storage"]; !ok {
+			isSizelessClone = true
+		}
+	}
+
+	if !isSizelessClone && restoreSizeAvailable {
+		// Sizes available, make sure user picked something bigger than minimal
+		if err := ValidateRequestedCloneSize(sourceResources, targetResources); err != nil {
+			return err
+		}
+	} else if isSizelessClone && !restoreSizeAvailable {
+		return fmt.Errorf("size not specified by user/provisioner, can't tell how much needed for restore")
 	}
 
 	return nil

@@ -34,7 +34,14 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 const (
@@ -107,10 +114,10 @@ const (
 	CloneValidationFailed = "CloneValidationFailed"
 	// MessageCloneValidationFailed reports that a clone wasn't admitted by our validation mechanism (message)
 	MessageCloneValidationFailed = "The clone doesn't meet the validation requirements"
-	// CloneWithoutSource reports that the source PVC of a clone doesn't exists (reason)
+	// CloneWithoutSource reports that the source of a clone doesn't exists (reason)
 	CloneWithoutSource = "CloneWithoutSource"
-	// MessageCloneWithoutSource reports that the source PVC of a clone doesn't exists (message)
-	MessageCloneWithoutSource = "The source PVC %s doesn't exist"
+	// MessageCloneWithoutSource reports that the source of a clone doesn't exists (message)
+	MessageCloneWithoutSource = "The source %s %s doesn't exist"
 
 	// AnnCSICloneRequest annotation associates object with CSI Clone Request
 	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"
@@ -695,4 +702,54 @@ func isCrossNamespaceClone(dv *cdiv1.DataVolume) bool {
 
 func getTransferName(dv *cdiv1.DataVolume) string {
 	return fmt.Sprintf("cdi-tmp-%s", dv.UID)
+}
+
+// addCloneWithoutSourceWatch reconciles clones created without source once the matching PVC is created
+func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController controller.Controller, typeToWatch client.Object, indexingKey string) error {
+	getKey := func(namespace, name string) string {
+		return namespace + "/" + name
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, indexingKey, func(obj client.Object) []string {
+		dv := obj.(*cdiv1.DataVolume)
+		if source := dv.Spec.Source; source != nil {
+			sourceName, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dv)
+			if sourceName != "" {
+				ns := cc.GetNamespace(sourceNamespace, obj.GetNamespace())
+				return []string{getKey(ns, sourceName)}
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	// Function to reconcile DVs that match the selected fields
+	dataVolumeMapper := func(obj client.Object) (reqs []reconcile.Request) {
+		dvList := &cdiv1.DataVolumeList{}
+		namespacedName := types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}
+		matchingFields := client.MatchingFields{indexingKey: namespacedName.String()}
+		if err := mgr.GetClient().List(context.TODO(), dvList, matchingFields); err != nil {
+			return
+		}
+		for _, dv := range dvList.Items {
+			op := getDataVolumeOp(&dv)
+			if op == dataVolumePvcClone || op == dataVolumeSnapshotClone {
+				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
+			}
+		}
+		return
+	}
+
+	if err := datavolumeController.Watch(&source.Kind{Type: typeToWatch},
+		handler.EnqueueRequestsFromMapFunc(dataVolumeMapper),
+		predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool { return true },
+			DeleteFunc: func(e event.DeleteEvent) bool { return false },
+			UpdateFunc: func(e event.UpdateEvent) bool { return false },
+		}); err != nil {
+		return err
+	}
+
+	return nil
 }

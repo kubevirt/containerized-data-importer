@@ -26,6 +26,7 @@ import (
 
 	"github.com/kelseyhightower/envconfig"
 
+	snapclient "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
 	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -116,6 +117,8 @@ func main() {
 
 	cdiClient := cdiclient.NewForConfigOrDie(cfg)
 
+	snapClient := snapclient.NewForConfigOrDie(cfg)
+
 	ctx := signals.SetupSignalHandler()
 
 	authConfigWatcher := apiserver.NewAuthConfigWatcher(ctx, client)
@@ -136,6 +139,7 @@ func main() {
 		client,
 		aggregatorClient,
 		cdiClient,
+		snapClient,
 		authorizor,
 		authConfigWatcher,
 		cdiConfigTLSWatcher,

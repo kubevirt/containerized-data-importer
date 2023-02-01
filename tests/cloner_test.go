@@ -1352,6 +1352,7 @@ var _ = Describe("all clone tests", func() {
 				By("Create the clone before the source PVC")
 				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec("clone-dv", "1Gi", f.Namespace.Name, dataVolumeName, nil, &fsVM)
 				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
+				Expect(err).ToNot(HaveOccurred())
 				// Check if the NoSourceClone annotation exists in target PVC
 				By("Check the expected event")
 				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(dvc.CloneWithoutSource))
@@ -1387,7 +1388,8 @@ var _ = Describe("all clone tests", func() {
 
 				By("Create the clone before the source PVC")
 				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec("clone-dv", "1Mi", f.Namespace.Name, dataVolumeName, nil, &blockVM)
-				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
+				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
+				Expect(err).ToNot(HaveOccurred())
 				// Check if the NoSourceClone annotation exists in target PVC
 				By("Check the expected event")
 				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(dvc.CloneWithoutSource))
@@ -2715,6 +2717,55 @@ var _ = Describe("all clone tests", func() {
 				Entry("with block single clone", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 1, false),
 				Entry("with block multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 5, false),
 			)
+		})
+
+		Context("Clone without a source snapshot", func() {
+			It("Should finish the clone after creating the source snapshot", func() {
+				size := "1Gi"
+				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+				By("Create the clone before the source snapshot")
+				cloneDV := utils.NewDataVolumeForCloningFromSnapshot("clone-from-snap", size, f.Namespace.Name, "snap-"+dataVolumeName, nil, &volumeMode)
+				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
+				Expect(err).ToNot(HaveOccurred())
+				// Check if the NoSourceClone annotation exists in target PVC
+				// By("Check the expected event")
+				// f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(dvc.CloneWithoutSource))
+
+				By("Create source snapshot")
+				createSnapshot(size, nil, volumeMode)
+
+				clonePvc, err := utils.WaitForPVC(f.K8sClient, cloneDV.Namespace, cloneDV.Name)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(cloneDV)
+
+				By("Wait for clone PVC Bound phase")
+				err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, cloneDV.Name)
+				Expect(err).ToNot(HaveOccurred())
+				By("Wait for clone DV Succeeded phase")
+				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, cloneDV.Name, cloneCompleteTimeout)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verify MD5")
+				path := utils.DefaultImagePath
+				same, err := f.VerifyTargetPVCContentMD5(f.Namespace, clonePvc, path, utils.UploadFileMD5, utils.UploadFileSize)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(same).To(BeTrue())
+			})
+		})
+
+		Context("Validate source snapshot", func() {
+			It("Should reject when input size is lower than recommended restore size", func() {
+				recommendedSnapSize := "2Gi"
+				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+
+				By("Create source snapshot")
+				createSnapshot(recommendedSnapSize, nil, volumeMode)
+
+				cloneDV := utils.NewDataVolumeForCloningFromSnapshot("clone-from-snap", "500Mi", f.Namespace.Name, "snap-"+dataVolumeName, nil, &volumeMode)
+				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("target resources requests storage size is smaller than the source"))
+			})
 		})
 	})
 })

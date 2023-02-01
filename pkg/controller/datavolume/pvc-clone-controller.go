@@ -46,12 +46,8 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 type cloneStrategy int
@@ -170,56 +166,7 @@ func addDataVolumeCloneControllerWatches(mgr manager.Manager, datavolumeControll
 	}
 
 	// Watch to reconcile clones created without source
-	if err := addCloneWithoutSourceWatch(mgr, datavolumeController); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// addCloneWithoutSourceWatch reconciles clones created without source once the matching PVC is created
-func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController controller.Controller) error {
-	const sourcePvcField = "spec.source.pvc"
-
-	getKey := func(namespace, name string) string {
-		return namespace + "/" + name
-	}
-
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, sourcePvcField, func(obj client.Object) []string {
-		if source := obj.(*cdiv1.DataVolume).Spec.Source; source != nil {
-			if pvc := source.PVC; pvc != nil {
-				ns := cc.GetNamespace(pvc.Namespace, obj.GetNamespace())
-				return []string{getKey(ns, pvc.Name)}
-			}
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	// Function to reconcile DVs that match the selected fields
-	dataVolumeMapper := func(obj client.Object) (reqs []reconcile.Request) {
-		dvList := &cdiv1.DataVolumeList{}
-		namespacedName := types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}
-		matchingFields := client.MatchingFields{sourcePvcField: namespacedName.String()}
-		if err := mgr.GetClient().List(context.TODO(), dvList, matchingFields); err != nil {
-			return
-		}
-		for _, dv := range dvList.Items {
-			if getDataVolumeOp(&dv) == dataVolumePvcClone {
-				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
-			}
-		}
-		return
-	}
-
-	if err := datavolumeController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}},
-		handler.EnqueueRequestsFromMapFunc(dataVolumeMapper),
-		predicate.Funcs{
-			CreateFunc: func(e event.CreateEvent) bool { return true },
-			DeleteFunc: func(e event.DeleteEvent) bool { return false },
-			UpdateFunc: func(e event.UpdateEvent) bool { return false },
-		}); err != nil {
+	if err := addCloneWithoutSourceWatch(mgr, datavolumeController, &corev1.PersistentVolumeClaim{}, "spec.source.pvc"); err != nil {
 		return err
 	}
 
@@ -1055,7 +1002,7 @@ func (r *PvcCloneReconciler) validateCloneAndSourcePVC(syncRes *dataVolumeCloneS
 				Event{
 					eventType: corev1.EventTypeWarning,
 					reason:    CloneWithoutSource,
-					message:   fmt.Sprintf(MessageCloneWithoutSource, datavolume.Spec.Source.PVC.Name),
+					message:   fmt.Sprintf(MessageCloneWithoutSource, "pvc", datavolume.Spec.Source.PVC.Name),
 				})
 			return false, nil
 		}

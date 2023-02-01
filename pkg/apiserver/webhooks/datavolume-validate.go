@@ -26,6 +26,7 @@ import (
 	neturl "net/url"
 	"reflect"
 
+	snapclient "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
 	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -42,8 +43,9 @@ import (
 )
 
 type dataVolumeValidatingWebhook struct {
-	k8sClient kubernetes.Interface
-	cdiClient cdiclient.Interface
+	k8sClient  kubernetes.Interface
+	cdiClient  cdiclient.Interface
+	snapClient snapclient.Interface
 }
 
 func validateSourceURL(sourceURL string) string {
@@ -297,6 +299,23 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 		}
 	}
 
+	if spec.Source.Snapshot != nil {
+		if spec.Source.Snapshot.Namespace == "" || spec.Source.Snapshot.Name == "" {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("%s source snapshot is not valid", field.Child("source", "Snapshot").String()),
+				Field:   field.Child("source", "Snapshot").String(),
+			})
+			return causes
+		}
+		if request.Operation == admissionv1.Create {
+			cause := wh.validateDataVolumeSourceSnapshot(spec.Source.Snapshot, field.Child("source", "Snapshot"), spec)
+			if cause != nil {
+				causes = append(causes, *cause)
+			}
+		}
+	}
+
 	return causes
 }
 
@@ -406,6 +425,13 @@ func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.Ad
 			Field:   field.Child("sourceRef").String(),
 		}
 	}
+	dataSourceSnapshot := dataSource.Spec.Source.Snapshot
+	if dataSourceSnapshot != nil {
+		return &metav1.StatusCause{
+			Message: "Snapshot sourceRef not allowed at this point",
+			Field:   field.Child("sourceRef").String(),
+		}
+	}
 	dataSourcePVC := dataSource.Spec.Source.PVC
 	if dataSourcePVC == nil {
 		return &metav1.StatusCause{
@@ -474,6 +500,29 @@ func validateDataSource(dataSource *v1.TypedLocalObjectReference, field *k8sfiel
 	return causes
 }
 
+func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourceSnapshot(snapshot *cdiv1.DataVolumeSourceSnapshot, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) *metav1.StatusCause {
+	sourceSnapshot, err := wh.snapClient.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Get(context.TODO(), snapshot.Name, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil
+		}
+		return &metav1.StatusCause{
+			Message: err.Error(),
+			Field:   field.String(),
+		}
+	}
+
+	if err := cc.ValidateSnapshotClone(sourceSnapshot, spec); err != nil {
+		return &metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: err.Error(),
+			Field:   field.String(),
+		}
+	}
+
+	return nil
+}
+
 func validateStorageSize(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) (*metav1.StatusCause, bool) {
 	var name string
 	var resources v1.ResourceRequirements
@@ -488,8 +537,8 @@ func validateStorageSize(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) (*met
 
 	// The storage size of a DataVolume can only be empty when two conditios are met:
 	//	1. The 'Storage' spec API is used, which allows for additional logic in CDI.
-	//	2. The 'PVC' source or SourceRef is used, so the original size can be extracted from the source.
-	isClone := spec.SourceRef != nil || (spec.Source != nil && spec.Source.PVC != nil)
+	//	2. The 'PVC'/'Snapshot' source or SourceRef is used, so the original size can be extracted from the source.
+	isClone := spec.SourceRef != nil || (spec.Source != nil && spec.Source.PVC != nil) || (spec.Source != nil && spec.Source.Snapshot != nil)
 	if pvcSize, ok := resources.Requests["storage"]; ok {
 		if pvcSize.IsZero() || pvcSize.Value() < 0 {
 			cause := metav1.StatusCause{

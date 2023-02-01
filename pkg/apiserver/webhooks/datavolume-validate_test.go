@@ -30,6 +30,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
@@ -38,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
 
+	snapclientfake "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake"
 	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -470,8 +472,57 @@ var _ = Describe("Validating Webhook", func() {
 				Name:      dataSource.Name,
 			}
 			dv := newDataVolumeWithStorageSpec("testDV", nil, sourceRef, storage)
-			resp := validateDataVolumeCreateEx(dv, []runtime.Object{pvc}, []runtime.Object{dataSource})
+			resp := validateDataVolumeCreateEx(dv, []runtime.Object{pvc}, []runtime.Object{dataSource}, nil)
 			Expect(resp.Allowed).To(Equal(true))
+		})
+
+		It("should reject snapshot clone when input size is lower than recommended restore size", func() {
+			size := resource.MustParse("1G")
+			snapshot := &snapshotv1.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "testsnap",
+					Namespace: testNamespace,
+				},
+				Status: &snapshotv1.VolumeSnapshotStatus{
+					RestoreSize: &size,
+				},
+			}
+			storage := &cdiv1.StorageSpec{
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("500Mi"),
+					},
+				},
+			}
+			snapSource := &cdiv1.DataVolumeSource{
+				Snapshot: &cdiv1.DataVolumeSourceSnapshot{
+					Namespace: snapshot.Namespace,
+					Name:      snapshot.Name,
+				},
+			}
+			dv := newDataVolumeWithStorageSpec("testDV", snapSource, nil, storage)
+			resp := validateDataVolumeCreateEx(dv, nil, nil, []runtime.Object{snapshot})
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject snapshot clone when no input size/recommended restore size", func() {
+			snapshot := &snapshotv1.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "testsnap",
+					Namespace: testNamespace,
+				},
+				Status: &snapshotv1.VolumeSnapshotStatus{},
+			}
+			storage := &cdiv1.StorageSpec{}
+			snapSource := &cdiv1.DataVolumeSource{
+				Snapshot: &cdiv1.DataVolumeSourceSnapshot{
+					Namespace: snapshot.Namespace,
+					Name:      snapshot.Name,
+				},
+			}
+			dv := newDataVolumeWithStorageSpec("testDV", snapSource, nil, storage)
+			resp := validateDataVolumeCreateEx(dv, nil, nil, []runtime.Object{snapshot})
+			Expect(resp.Allowed).To(Equal(false))
 		})
 
 		DescribeTable("should", func(oldFinalCheckpoint bool, oldCheckpoints []string, newFinalCheckpoint bool, newCheckpoints []string, modifyDV func(*cdiv1.DataVolume), expectedSuccess bool, sourceFunc func() *cdiv1.DataVolumeSource) {
@@ -627,7 +678,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 				Spec: *newPVCSpec(pvcSizeDefault),
 			}
-			resp := validateDataVolumeCreateEx(dataVolume, []runtime.Object{pvc}, []runtime.Object{dataSource})
+			resp := validateDataVolumeCreateEx(dataVolume, []runtime.Object{pvc}, []runtime.Object{dataSource}, nil)
 			Expect(resp.Allowed).To(Equal(true))
 		},
 			Entry("accept DataVolume with PVC and sourceRef on create", &testNamespace),
@@ -655,7 +706,7 @@ var _ = Describe("Validating Webhook", func() {
 					},
 				},
 			}
-			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource})
+			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource}, nil)
 			Expect(resp.Allowed).To(Equal(false))
 		})
 
@@ -675,7 +726,7 @@ var _ = Describe("Validating Webhook", func() {
 					},
 				},
 			}
-			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource})
+			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource}, nil)
 			Expect(resp.Allowed).To(Equal(true))
 		})
 
@@ -975,13 +1026,14 @@ func newPVCSpec(sizeValue int64) *corev1.PersistentVolumeClaimSpec {
 }
 
 func validateDataVolumeCreate(dv *cdiv1.DataVolume, objects ...runtime.Object) *admissionv1.AdmissionResponse {
-	return validateDataVolumeCreateEx(dv, objects, nil)
+	return validateDataVolumeCreateEx(dv, objects, nil, nil)
 }
 
-func validateDataVolumeCreateEx(dv *cdiv1.DataVolume, k8sObjects, cdiObjects []runtime.Object) *admissionv1.AdmissionResponse {
+func validateDataVolumeCreateEx(dv *cdiv1.DataVolume, k8sObjects, cdiObjects, snapObjects []runtime.Object) *admissionv1.AdmissionResponse {
 	client := fakeclient.NewSimpleClientset(k8sObjects...)
 	cdiClient := cdiclientfake.NewSimpleClientset(cdiObjects...)
-	wh := NewDataVolumeValidatingWebhook(client, cdiClient)
+	snapClient := snapclientfake.NewSimpleClientset(snapObjects...)
+	wh := NewDataVolumeValidatingWebhook(client, cdiClient, snapClient)
 
 	dvBytes, _ := json.Marshal(dv)
 	ar := &admissionv1.AdmissionReview{
@@ -1004,7 +1056,8 @@ func validateDataVolumeCreateEx(dv *cdiv1.DataVolume, k8sObjects, cdiObjects []r
 func validateAdmissionReview(ar *admissionv1.AdmissionReview, objects ...runtime.Object) *admissionv1.AdmissionResponse {
 	client := fakeclient.NewSimpleClientset(objects...)
 	cdiClient := cdiclientfake.NewSimpleClientset()
-	wh := NewDataVolumeValidatingWebhook(client, cdiClient)
+	snapClient := snapclientfake.NewSimpleClientset()
+	wh := NewDataVolumeValidatingWebhook(client, cdiClient, snapClient)
 	return serve(ar, wh)
 }
 

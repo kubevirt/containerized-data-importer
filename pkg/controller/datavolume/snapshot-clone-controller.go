@@ -27,6 +27,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -103,6 +104,20 @@ func addDataVolumeSnapshotCloneControllerWatches(mgr manager.Manager, datavolume
 		return err
 	}
 
+	// Watch to reconcile clones created without source
+	if err := mgr.GetClient().List(context.TODO(), &snapshotv1.VolumeSnapshotList{}); err != nil {
+		if meta.IsNoMatchError(err) {
+			// Back out if there's no point to attempt watch
+			return nil
+		}
+		if !cc.IsErrCacheNotStarted(err) {
+			return err
+		}
+	}
+	if err := addCloneWithoutSourceWatch(mgr, datavolumeController, &snapshotv1.VolumeSnapshot{}, "spec.source.snapshot"); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -168,6 +183,13 @@ func (r SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconcil
 	_, prePopulated := datavolume.Annotations[cc.AnnPrePopulated]
 
 	if pvcPopulated || prePopulated {
+		return syncRes, nil
+	}
+
+	// Check if source snapshot exists and do proper validation before attempting to clone
+	if done, err := r.validateCloneAndSourceSnapshot(&syncRes); err != nil {
+		return syncRes, err
+	} else if !done {
 		return syncRes, nil
 	}
 
@@ -246,6 +268,35 @@ func (r SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconcil
 	}
 
 	return syncRes, syncErr
+}
+
+// validateCloneAndSourceSnapshot checks if the source snapshot of a clone exists and does proper validation
+func (r *SnapshotCloneReconciler) validateCloneAndSourceSnapshot(syncRes *dataVolumeCloneSyncResult) (bool, error) {
+	datavolume := syncRes.dvMutated
+	nn := types.NamespacedName{Namespace: datavolume.Spec.Source.Snapshot.Namespace, Name: datavolume.Spec.Source.Snapshot.Name}
+	snapshot := &snapshotv1.VolumeSnapshot{}
+	err := r.client.Get(context.TODO(), nn, snapshot)
+	if err != nil {
+		// Clone without source
+		if k8serrors.IsNotFound(err) {
+			r.syncDataVolumeStatusPhaseWithEvent(syncRes, datavolume.Status.Phase, nil,
+				Event{
+					eventType: corev1.EventTypeWarning,
+					reason:    CloneWithoutSource,
+					message:   fmt.Sprintf(MessageCloneWithoutSource, "snapshot", datavolume.Spec.Source.Snapshot.Name),
+				})
+			return false, nil
+		}
+		return false, err
+	}
+
+	err = cc.ValidateSnapshotClone(snapshot, &datavolume.Spec)
+	if err != nil {
+		r.recorder.Event(datavolume, corev1.EventTypeWarning, CloneValidationFailed, MessageCloneValidationFailed)
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (r *SnapshotCloneReconciler) evaluateFallBackToHostAssistedNeeded(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec, snapshot *snapshotv1.VolumeSnapshot) (bool, error) {

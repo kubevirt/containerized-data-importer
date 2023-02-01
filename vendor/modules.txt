@@ -273,6 +273,11 @@ github.com/klauspost/pgzip
 # github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1
 ## explicit; go 1.17
 github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1
+github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned
+github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake
+github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/scheme
+github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1
+github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1/fake
 # github.com/kubernetes-csi/lib-volume-populator v1.2.0
 ## explicit; go 1.18
 github.com/kubernetes-csi/lib-volume-populator/populator-machinery
