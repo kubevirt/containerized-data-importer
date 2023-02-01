@@ -276,7 +276,7 @@ var _ = Describe("DataImportCron", func() {
 			pvcList, err = f.K8sClient.CoreV1().PersistentVolumeClaims(ns).List(context.TODO(), metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			return len(pvcList.Items)
-		}, 10*time.Second, pollingInterval).Should(Equal(importsToKeep), "Garbage collection failed cleaning old imports")
+		}, dataImportCronTimeout, pollingInterval).Should(Equal(importsToKeep), "Garbage collection failed cleaning old imports")
 
 		By("Check last import PVC is timestamped and not garbage collected")
 		pvcFound := false
