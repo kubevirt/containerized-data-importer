@@ -18,10 +18,10 @@ determine_cri_bin() {
     elif [ "${KUBEVIRTCI_RUNTIME-}" = "docker" ]; then
         echo docker
     else
-        if podman ps >/dev/null 2>&1; then
-            echo "podman"
-        elif docker ps >/dev/null 2>&1; then
+        if docker ps >/dev/null 2>&1; then
             echo docker
+        elif podman ps >/dev/null 2>&1; then
+            echo podman
         else
             echo ""
         fi
