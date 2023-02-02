@@ -22,6 +22,10 @@ func (r *ReconcileCDI) watch() error {
 		return err
 	}
 
+	if err := r.watchCDICRD(); err != nil {
+		return err
+	}
+
 	if err := r.watchPrometheusResources(); err != nil {
 		return err
 	}

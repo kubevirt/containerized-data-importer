@@ -63,7 +63,60 @@ var _ = Describe("ALL Operator tests", func() {
 					}, 5*time.Minute, 1*time.Second).Should(Equal(originalReplicaVal))
 				})
 
-				It("Alpha versions of CRD are removed, even if objects previously existed", func() {
+				It("Alpha version of CDI CRD is removed even if it was briefly a storage version", func() {
+					By("Scaling down CDI operator")
+					originalReplicaVal = scaleDeployment(f, deploymentName, 0)
+					Eventually(func() bool {
+						_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, deploymentName, common.CDILabelSelector)
+						if !errors.IsNotFound(err) {
+							return false
+						}
+						return true
+					}, 20*time.Second, 1*time.Second).Should(BeTrue())
+
+					By("Appending v1alpha1 version as stored version")
+					cdiCrd, err := f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), "cdis.cdi.kubevirt.io", metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					oldVer := cdiCrd.Spec.Versions[0].DeepCopy()
+					oldVer.Name = "v1alpha1"
+					cdiCrd.Spec.Versions[0].Storage = false
+					oldVer.Storage = false
+					cdiCrd.Spec.Versions = append(cdiCrd.Spec.Versions, *oldVer)
+
+					cdiCrd, err = f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), cdiCrd, metav1.UpdateOptions{})
+
+					By("Restoring CRD with newer version as storage")
+					cdiCrd, err = f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), "cdis.cdi.kubevirt.io", metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					// This is done because due to the way CRDs are applied,
+					// the scenario where alpha is the "storage: true" isn't
+					// possible - so the code doesn't handle it.
+					for i, ver := range cdiCrd.Spec.Versions {
+						if ver.Name == "v1alpha1" {
+							cdiCrd.Spec.Versions[i].Storage = false
+						} else {
+							cdiCrd.Spec.Versions[i].Storage = true
+						}
+					}
+					cdiCrd, err = f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), cdiCrd, metav1.UpdateOptions{})
+					Expect(err).ToNot(HaveOccurred())
+
+					By("Scaling up CDI operator")
+					scaleDeployment(f, deploymentName, originalReplicaVal)
+					By("Eventually, CDI will restore v1beta1 to be the only stored version")
+					Eventually(func() bool {
+						cdiCrd, err = f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), "cdis.cdi.kubevirt.io", metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						for _, ver := range cdiCrd.Spec.Versions {
+							if !(ver.Name == "v1beta1" && ver.Storage == true) {
+								return false
+							}
+						}
+						return true
+					}, 1*time.Minute, 2*time.Second).Should(BeTrue())
+				})
+
+				It("Alpha versions of datavolume CRD are removed, even if objects previously existed", func() {
 					By("Scaling down CDI operator")
 					originalReplicaVal = scaleDeployment(f, deploymentName, 0)
 					Eventually(func() bool {
@@ -1566,13 +1619,17 @@ func updateUninstallStrategy(client cdiClientset.Interface, strategy *cdiv1.CDIU
 	return result
 }
 
-func scaleDeployment(f *framework.Framework, deploymentName string, replicas int32) int32 {
-	operatorDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
-	Expect(err).ToNot(HaveOccurred())
-	originalReplicas := *operatorDeployment.Spec.Replicas
-	operatorDeployment.Spec.Replicas = &[]int32{replicas}[0]
-	_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
-	Expect(err).ToNot(HaveOccurred())
+func scaleDeployment(f *framework.Framework, deploymentName string, replicas int32) (originalReplicas int32) {
+	Eventually(func() error {
+		operatorDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		originalReplicas = *operatorDeployment.Spec.Replicas
+		operatorDeployment.Spec.Replicas = &[]int32{replicas}[0]
+		_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
+		return err
+	}, 1*time.Minute, 1*time.Second).Should(BeNil())
 	return originalReplicas
 }
 
