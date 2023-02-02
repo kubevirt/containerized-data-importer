@@ -1448,55 +1448,37 @@ rpm(
 rpm(
     name = "libselinux-0__3.3-2.el9.aarch64",
     sha256 = "f14cadbedd18e37a5ecb11d112095aa3e539de58bea77fb6f2aca5f165bf788b",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/libselinux-3.3-2.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/f14cadbedd18e37a5ecb11d112095aa3e539de58bea77fb6f2aca5f165bf788b",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/f14cadbedd18e37a5ecb11d112095aa3e539de58bea77fb6f2aca5f165bf788b"],
 )
 
 rpm(
     name = "libselinux-0__3.3-2.el9.x86_64",
     sha256 = "8e589b8408b04cbc19564620b229b6768edbaeb9090885d2273d84b8fc2f172b",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/libselinux-3.3-2.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/8e589b8408b04cbc19564620b229b6768edbaeb9090885d2273d84b8fc2f172b",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/8e589b8408b04cbc19564620b229b6768edbaeb9090885d2273d84b8fc2f172b"],
 )
 
 rpm(
     name = "libsemanage-0__3.3-2.el9.aarch64",
     sha256 = "d17a576a02f8dc920f4922573094212f3a6d325b572052d13f8eb2282e72fc33",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/libsemanage-3.3-2.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/d17a576a02f8dc920f4922573094212f3a6d325b572052d13f8eb2282e72fc33",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/d17a576a02f8dc920f4922573094212f3a6d325b572052d13f8eb2282e72fc33"],
 )
 
 rpm(
     name = "libsemanage-0__3.3-2.el9.x86_64",
     sha256 = "3cf458196a076b6cd29db495dcc0c518dd0e2f25c5ad47a9843a05b0d2eccc5e",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/libsemanage-3.3-2.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/3cf458196a076b6cd29db495dcc0c518dd0e2f25c5ad47a9843a05b0d2eccc5e",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/3cf458196a076b6cd29db495dcc0c518dd0e2f25c5ad47a9843a05b0d2eccc5e"],
 )
 
 rpm(
     name = "libsepol-0__3.3-2.el9.aarch64",
     sha256 = "74dcae8d3dceb2aac2cbb3440015419aa4fec51e485eb92ef82df057f574e0ca",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/libsepol-3.3-2.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/74dcae8d3dceb2aac2cbb3440015419aa4fec51e485eb92ef82df057f574e0ca",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/74dcae8d3dceb2aac2cbb3440015419aa4fec51e485eb92ef82df057f574e0ca"],
 )
 
 rpm(
     name = "libsepol-0__3.3-2.el9.x86_64",
     sha256 = "fc508147fe876706b61941a6ce554d7f7786f1ec3d097c4411fd6c7511acd289",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/libsepol-3.3-2.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/fc508147fe876706b61941a6ce554d7f7786f1ec3d097c4411fd6c7511acd289",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/fc508147fe876706b61941a6ce554d7f7786f1ec3d097c4411fd6c7511acd289"],
 )
 
 rpm(
