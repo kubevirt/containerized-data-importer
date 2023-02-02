@@ -9,10 +9,12 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -65,19 +67,39 @@ var _ = Describe("DataSource", func() {
 	}
 
 	It("[test_id:8041]status conditions should be updated on pvc create/update/delete", func() {
-		By("creating datasource")
+		By("Create DataSource with no source PVC")
 		ds := newDataSource(ds1Name)
 		ds, err := f.CdiClient.CdiV1beta1().DataSources(ds.Namespace).Create(context.TODO(), ds, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		ds = waitForReadyCondition(ds, corev1.ConditionFalse, "NoPvc")
 
+		By("Update DataSource source PVC to nonexisting one")
 		ds.Spec.Source.PVC = &cdiv1.DataVolumeSourcePVC{Namespace: f.Namespace.Name, Name: pvc1Name}
 		ds, err = f.CdiClient.CdiV1beta1().DataSources(ds.Namespace).Update(context.TODO(), ds, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		ds = waitForReadyCondition(ds, corev1.ConditionFalse, "NotFound")
 
+		By("Create clone DV with SourceRef pointing the DataSource")
+		dv := utils.NewDataVolumeWithSourceRef("clone-dv", "1Gi", ds.Namespace, ds.Name)
+		dv.Annotations[controller.AnnImmediateBinding] = "true"
+		Expect(dv).ToNot(BeNil())
+		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify DV conditions")
+		utils.WaitForConditions(f, dv.Name, dv.Namespace, time.Minute, pollingInterval,
+			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeBound, Status: v1.ConditionUnknown, Message: "No PVC found", Reason: dvc.CloneWithoutSource},
+			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeReady, Status: v1.ConditionFalse, Reason: dvc.MessageCloneWithoutSource},
+			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: v1.ConditionFalse})
+		f.ExpectEvent(dv.Namespace).Should(ContainSubstring(dvc.CloneWithoutSource))
+
+		By("Create import DV so the missing DataSource source PVC will be ready")
 		createDv(pvc1Name, testUrl())
 		ds = waitForReadyCondition(ds, corev1.ConditionTrue, "Ready")
+
+		By("Wait for the clone DV success")
+		err = utils.WaitForDataVolumePhase(f, dv.Namespace, cdiv1.Succeeded, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
 
 		deleteDvPvc(f, pvc1Name)
 		ds = waitForReadyCondition(ds, corev1.ConditionFalse, "NotFound")
