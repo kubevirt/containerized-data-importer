@@ -46,12 +46,8 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 type cloneStrategy int
@@ -63,6 +59,8 @@ const (
 	SmartClone
 	CsiClone
 )
+
+const pvcCloneControllerName = "datavolume-pvc-clone-controller"
 
 // ErrInvalidTermMsg reports that the termination message from the size-detection pod doesn't exists or is not a valid quantity
 var ErrInvalidTermMsg = fmt.Errorf("The termination message from the size-detection pod is not-valid")
@@ -97,9 +95,9 @@ func NewPvcCloneController(
 			ReconcilerBase: ReconcilerBase{
 				client:          client,
 				scheme:          mgr.GetScheme(),
-				log:             log.WithName(cloneControllerName),
+				log:             log.WithName(pvcCloneControllerName),
 				featureGates:    featuregates.NewFeatureGates(client),
-				recorder:        mgr.GetEventRecorderFor(cloneControllerName),
+				recorder:        mgr.GetEventRecorderFor(pvcCloneControllerName),
 				installerLabels: installerLabels,
 			},
 			clonerImage:    clonerImage,
@@ -113,7 +111,7 @@ func NewPvcCloneController(
 	}
 	reconciler.Reconciler = reconciler
 
-	dataVolumeCloneController, err := controller.New(cloneControllerName, mgr, controller.Options{
+	dataVolumeCloneController, err := controller.New(pvcCloneControllerName, mgr, controller.Options{
 		Reconciler: reconciler,
 	})
 	if err != nil {
@@ -163,61 +161,12 @@ func (sccs *smartCloneControllerStarter) StartController() {
 }
 
 func addDataVolumeCloneControllerWatches(mgr manager.Manager, datavolumeController controller.Controller) error {
-	if err := addDataVolumeControllerCommonWatches(mgr, datavolumeController, dataVolumeClone); err != nil {
+	if err := addDataVolumeControllerCommonWatches(mgr, datavolumeController, dataVolumePvcClone); err != nil {
 		return err
 	}
 
 	// Watch to reconcile clones created without source
-	if err := addCloneWithoutSourceWatch(mgr, datavolumeController); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// addCloneWithoutSourceWatch reconciles clones created without source once the matching PVC is created
-func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController controller.Controller) error {
-	const sourcePvcField = "spec.source.pvc"
-
-	getKey := func(namespace, name string) string {
-		return namespace + "/" + name
-	}
-
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, sourcePvcField, func(obj client.Object) []string {
-		if source := obj.(*cdiv1.DataVolume).Spec.Source; source != nil {
-			if pvc := source.PVC; pvc != nil {
-				ns := cc.GetNamespace(pvc.Namespace, obj.GetNamespace())
-				return []string{getKey(ns, pvc.Name)}
-			}
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	// Function to reconcile DVs that match the selected fields
-	dataVolumeMapper := func(obj client.Object) (reqs []reconcile.Request) {
-		dvList := &cdiv1.DataVolumeList{}
-		namespacedName := types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}
-		matchingFields := client.MatchingFields{sourcePvcField: namespacedName.String()}
-		if err := mgr.GetClient().List(context.TODO(), dvList, matchingFields); err != nil {
-			return
-		}
-		for _, dv := range dvList.Items {
-			if getDataVolumeOp(&dv) == dataVolumeClone {
-				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
-			}
-		}
-		return
-	}
-
-	if err := datavolumeController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}},
-		handler.EnqueueRequestsFromMapFunc(dataVolumeMapper),
-		predicate.Funcs{
-			CreateFunc: func(e event.CreateEvent) bool { return true },
-			DeleteFunc: func(e event.DeleteEvent) bool { return false },
-			UpdateFunc: func(e event.UpdateEvent) bool { return false },
-		}); err != nil {
+	if err := addCloneWithoutSourceWatch(mgr, datavolumeController, &corev1.PersistentVolumeClaim{}, "spec.source.pvc"); err != nil {
 		return err
 	}
 
@@ -235,7 +184,7 @@ func (r PvcCloneReconciler) prepare(syncRes *dataVolumeSyncResult) error {
 	if err := r.populateSourceIfSourceRef(dv); err != nil {
 		return err
 	}
-	if isCrossNamespaceClone(dv) && dv.Status.Phase == cdiv1.Succeeded {
+	if dv.Status.Phase == cdiv1.Succeeded {
 		if err := r.cleanup(syncRes); err != nil {
 			return err
 		}
@@ -440,43 +389,6 @@ func (r PvcCloneReconciler) updateStatus(syncRes dataVolumeCloneSyncResult, sync
 	return res, syncErr
 }
 
-func (r PvcCloneReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
-	phase, ok := pvc.Annotations[cc.AnnPodPhase]
-	if phase != string(corev1.PodSucceeded) {
-		_, ok = pvc.Annotations[cc.AnnCloneRequest]
-		if !ok || pvc.Status.Phase != corev1.ClaimBound || pvcIsPopulated(pvc, dataVolumeCopy) {
-			return nil
-		}
-		dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
-	}
-	if !ok {
-		return nil
-	}
-	switch phase {
-	case string(corev1.PodPending):
-		dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
-		event.eventType = corev1.EventTypeNormal
-		event.reason = CloneScheduled
-		event.message = fmt.Sprintf(MessageCloneScheduled, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
-	case string(corev1.PodRunning):
-		dataVolumeCopy.Status.Phase = cdiv1.CloneInProgress
-		event.eventType = corev1.EventTypeNormal
-		event.reason = CloneInProgress
-		event.message = fmt.Sprintf(MessageCloneInProgress, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
-	case string(corev1.PodFailed):
-		event.eventType = corev1.EventTypeWarning
-		event.reason = CloneFailed
-		event.message = fmt.Sprintf(MessageCloneFailed, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
-	case string(corev1.PodSucceeded):
-		dataVolumeCopy.Status.Phase = cdiv1.Succeeded
-		dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress("100.0%")
-		event.eventType = corev1.EventTypeNormal
-		event.reason = CloneSucceeded
-		event.message = fmt.Sprintf(MessageCloneSucceeded, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
-	}
-	return nil
-}
-
 func (r *PvcCloneReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec) (cloneStrategy, error) {
 	preferredCloneStrategy, err := r.getCloneStrategy(datavolume)
 	if err != nil {
@@ -534,7 +446,7 @@ func (r *PvcCloneReconciler) reconcileCsiClonePvc(log logr.Logger,
 	if isCrossNamespaceClone(datavolume) {
 		pvcName = transferName
 
-		result, err := r.doCrossNamespaceClone(log, syncRes, pvcName, false, CsiClone)
+		result, err := r.doCrossNamespaceClone(log, syncRes, pvcName, datavolume.Spec.Source.PVC.Namespace, false, CsiClone)
 		if result != nil {
 			return *result, err
 		}
@@ -632,7 +544,7 @@ func (r *PvcCloneReconciler) reconcileSmartClonePvc(log logr.Logger,
 
 	if isCrossNamespaceClone(datavolume) {
 		pvcName = transferName
-		result, err := r.doCrossNamespaceClone(log, syncRes, pvcName, true, SmartClone)
+		result, err := r.doCrossNamespaceClone(log, syncRes, pvcName, datavolume.Spec.Source.PVC.Namespace, true, SmartClone)
 		if result != nil {
 			return *result, err
 		}
@@ -750,72 +662,14 @@ func (r *PvcCloneReconciler) sourceInUse(dv *cdiv1.DataVolume, eventReason strin
 
 func (r PvcCloneReconciler) cleanup(syncRes *dataVolumeSyncResult) error {
 	dv := syncRes.dvMutated
-	transferName := getTransferName(dv)
-	if !cc.HasFinalizer(dv, crossNamespaceFinalizer) {
-		return nil
-	}
+	r.log.V(3).Info("Cleanup initiated in dv PVC clone controller")
 
-	r.log.V(1).Info("Doing cleanup")
-
-	if dv.DeletionTimestamp != nil && dv.Status.Phase != cdiv1.Succeeded {
-		// delete all potential PVCs that may not have owner refs
-		namespaces := []string{dv.Namespace}
-		names := []string{dv.Name}
-		if dv.Spec.Source.PVC != nil &&
-			dv.Spec.Source.PVC.Namespace != "" &&
-			dv.Spec.Source.PVC.Namespace != dv.Namespace {
-			namespaces = append(namespaces, dv.Spec.Source.PVC.Namespace)
-			names = append(names, transferName)
-		}
-
-		for i := range namespaces {
-			pvc := &corev1.PersistentVolumeClaim{}
-			nn := types.NamespacedName{Namespace: namespaces[i], Name: names[i]}
-			if err := r.client.Get(context.TODO(), nn, pvc); err != nil {
-				if !k8serrors.IsNotFound(err) {
-					return err
-				}
-			} else {
-				pod := &corev1.Pod{}
-				nn := types.NamespacedName{Namespace: namespaces[i], Name: expansionPodName(pvc)}
-				if err := r.client.Get(context.TODO(), nn, pod); err != nil {
-					if !k8serrors.IsNotFound(err) {
-						return err
-					}
-				} else {
-					if err := r.client.Delete(context.TODO(), pod); err != nil {
-						if !k8serrors.IsNotFound(err) {
-							return err
-						}
-					}
-				}
-
-				if err := r.client.Delete(context.TODO(), pvc); err != nil {
-					if !k8serrors.IsNotFound(err) {
-						return err
-					}
-				}
-			}
-		}
-	}
-
-	ot := &cdiv1.ObjectTransfer{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: transferName}, ot); err != nil {
-		if !k8serrors.IsNotFound(err) {
+	if isCrossNamespaceClone(dv) {
+		if err := r.cleanupTransfer(dv); err != nil {
 			return err
 		}
-	} else {
-		if ot.DeletionTimestamp == nil {
-			if err := r.client.Delete(context.TODO(), ot); err != nil {
-				if !k8serrors.IsNotFound(err) {
-					return err
-				}
-			}
-		}
-		return fmt.Errorf("waiting for ObjectTransfer %s to delete", transferName)
 	}
 
-	cc.RemoveFinalizer(dv, crossNamespaceFinalizer)
 	return nil
 }
 
@@ -1148,7 +1002,7 @@ func (r *PvcCloneReconciler) validateCloneAndSourcePVC(syncRes *dataVolumeCloneS
 				Event{
 					eventType: corev1.EventTypeWarning,
 					reason:    CloneWithoutSource,
-					message:   fmt.Sprintf(MessageCloneWithoutSource, datavolume.Spec.Source.PVC.Name),
+					message:   fmt.Sprintf(MessageCloneWithoutSource, "pvc", datavolume.Spec.Source.PVC.Name),
 				})
 			return false, nil
 		}

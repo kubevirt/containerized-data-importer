@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -583,12 +584,16 @@ func ValidateCloneTokenPVC(t string, v token.Validator, source, target *v1.Persi
 		return errors.Wrap(err, "error verifying token")
 	}
 
-	return validateTokenData(tokenData, source.Namespace, source.Name, target.Namespace, target.Name, string(target.UID))
+	tokenResourceName := getTokenResourceNamePvc(source)
+	srcName := getSourceNamePvc(source)
+
+	return validateTokenData(tokenData, source.Namespace, srcName, target.Namespace, target.Name, string(target.UID), tokenResourceName)
 }
 
 // ValidateCloneTokenDV validates clone token for DV
 func ValidateCloneTokenDV(validator token.Validator, dv *cdiv1.DataVolume) error {
-	if dv.Spec.Source.PVC == nil || dv.Spec.Source.PVC.Namespace == "" || dv.Spec.Source.PVC.Namespace == dv.Namespace {
+	sourceName, sourceNamespace := GetCloneSourceNameAndNamespace(dv)
+	if sourceNamespace == "" || sourceNamespace == dv.Namespace {
 		return nil
 	}
 
@@ -602,15 +607,48 @@ func ValidateCloneTokenDV(validator token.Validator, dv *cdiv1.DataVolume) error
 		return errors.Wrap(err, "error verifying token")
 	}
 
-	return validateTokenData(tokenData, dv.Spec.Source.PVC.Namespace, dv.Spec.Source.PVC.Name, dv.Namespace, dv.Name, "")
+	tokenResourceName := getTokenResourceNameDataVolume(dv.Spec.Source)
+	if tokenResourceName == "" {
+		return errors.New("token resource name empty, can't verify properly")
+	}
+
+	return validateTokenData(tokenData, sourceNamespace, sourceName, dv.Namespace, dv.Name, "", tokenResourceName)
 }
 
-func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNamespace, targetName, targetUID string) error {
+func getTokenResourceNameDataVolume(source *cdiv1.DataVolumeSource) string {
+	if source.PVC != nil {
+		return "persistentvolumeclaims"
+	} else if source.Snapshot != nil {
+		return "volumesnapshots"
+	}
+
+	return ""
+}
+
+func getTokenResourceNamePvc(sourcePvc *corev1.PersistentVolumeClaim) string {
+	if v, ok := sourcePvc.Labels[common.CDIComponentLabel]; ok && v == common.CloneFromSnapshotFallbackPVCCDILabel {
+		return "volumesnapshots"
+	}
+
+	return "persistentvolumeclaims"
+}
+
+func getSourceNamePvc(sourcePvc *corev1.PersistentVolumeClaim) string {
+	if v, ok := sourcePvc.Labels[common.CDIComponentLabel]; ok && v == common.CloneFromSnapshotFallbackPVCCDILabel {
+		if sourcePvc.Spec.DataSourceRef != nil {
+			return sourcePvc.Spec.DataSourceRef.Name
+		}
+	}
+
+	return sourcePvc.Name
+}
+
+func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNamespace, targetName, targetUID, tokenResourceName string) error {
 	uid := tokenData.Params["uid"]
 	if tokenData.Operation != token.OperationClone ||
 		tokenData.Name != srcName ||
 		tokenData.Namespace != srcNamespace ||
-		tokenData.Resource.Resource != "persistentvolumeclaims" ||
+		tokenData.Resource.Resource != tokenResourceName ||
 		tokenData.Params["targetNamespace"] != targetNamespace ||
 		tokenData.Params["targetName"] != targetName ||
 		(uid != "" && uid != targetUID) {
@@ -659,6 +697,42 @@ func ValidateClone(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSp
 		if err := ValidateRequestedCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// ValidateSnapshotClone compares a snapshot clone spec against its source snapshot to validate its creation
+func ValidateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv1.DataVolumeSpec) error {
+	var sourceResources, targetResources v1.ResourceRequirements
+
+	if sourceSnapshot.Status == nil {
+		return fmt.Errorf("no status on source snapshot, not possible to proceed")
+	}
+	size := sourceSnapshot.Status.RestoreSize
+	restoreSizeAvailable := size != nil && size.Sign() > 0
+	if restoreSizeAvailable {
+		sourceResources.Requests = corev1.ResourceList{corev1.ResourceStorage: *size}
+	}
+
+	isSizelessClone := false
+	explicitPvcRequest := spec.PVC != nil
+	if explicitPvcRequest {
+		targetResources = spec.PVC.Resources
+	} else {
+		targetResources = spec.Storage.Resources
+		if _, ok := targetResources.Requests["storage"]; !ok {
+			isSizelessClone = true
+		}
+	}
+
+	if !isSizelessClone && restoreSizeAvailable {
+		// Sizes available, make sure user picked something bigger than minimal
+		if err := ValidateRequestedCloneSize(sourceResources, targetResources); err != nil {
+			return err
+		}
+	} else if isSizelessClone && !restoreSizeAvailable {
+		return fmt.Errorf("size not specified by user/provisioner, can't tell how much needed for restore")
 	}
 
 	return nil
@@ -1087,4 +1161,19 @@ func NewImportDataVolume(name string) *cdiv1.DataVolume {
 			PriorityClassName: "p0",
 		},
 	}
+}
+
+// GetCloneSourceNameAndNamespace returns the name and namespace of the cloning source
+func GetCloneSourceNameAndNamespace(dv *cdiv1.DataVolume) (name, namespace string) {
+	var sourceName, sourceNamespace string
+	// Cloning sources are mutually exclusive
+	if dv.Spec.Source.PVC != nil {
+		sourceName = dv.Spec.Source.PVC.Name
+		sourceNamespace = dv.Spec.Source.PVC.Namespace
+	} else if dv.Spec.Source.Snapshot != nil {
+		sourceName = dv.Spec.Source.Snapshot.Name
+		sourceNamespace = dv.Spec.Source.Snapshot.Namespace
+	}
+
+	return sourceName, sourceNamespace
 }

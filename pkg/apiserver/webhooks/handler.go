@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 
+	snapclient "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -50,8 +51,8 @@ type admissionHandler struct {
 }
 
 // NewDataVolumeValidatingWebhook creates a new DataVolumeValidation webhook
-func NewDataVolumeValidatingWebhook(k8sClient kubernetes.Interface, cdiClient cdiclient.Interface) http.Handler {
-	return newAdmissionHandler(&dataVolumeValidatingWebhook{k8sClient: k8sClient, cdiClient: cdiClient})
+func NewDataVolumeValidatingWebhook(k8sClient kubernetes.Interface, cdiClient cdiclient.Interface, snapClient snapclient.Interface) http.Handler {
+	return newAdmissionHandler(&dataVolumeValidatingWebhook{k8sClient: k8sClient, cdiClient: cdiClient, snapClient: snapClient})
 }
 
 // NewDataVolumeMutatingWebhook creates a new DataVolumeMutation webhook

@@ -132,7 +132,7 @@ var _ = Describe("Auth config tests", func() {
 			common.AppKubernetesPartOfLabel:  "testing",
 			common.AppKubernetesVersionLabel: "v0.0.0-tests",
 		}
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, authConfigWatcher, cdiConfigTLSWatcher, nil, installerLabels)
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, authorizer, authConfigWatcher, cdiConfigTLSWatcher, nil, installerLabels)
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)
@@ -165,7 +165,7 @@ var _ = Describe("Auth config tests", func() {
 		authorizer := &testAuthorizer{}
 		acw := NewAuthConfigWatcher(ctx, client).(*authConfigWatcher)
 
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, nil, nil, map[string]string{})
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, authorizer, acw, nil, nil, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)
@@ -212,7 +212,7 @@ var _ = Describe("Auth config tests", func() {
 		acw := NewAuthConfigWatcher(ctx, client).(*authConfigWatcher)
 		ctw := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
 
-		_, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, ctw, nil, map[string]string{})
+		_, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, authorizer, acw, ctw, nil, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		// 'Old' has TLS 1.0 as min version
@@ -248,7 +248,7 @@ var _ = Describe("Auth config tests", func() {
 		ctw := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
 		certWatcher := NewFakeCertWatcher()
 
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, ctw, certWatcher, map[string]string{})
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, authorizer, acw, ctw, certWatcher, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)

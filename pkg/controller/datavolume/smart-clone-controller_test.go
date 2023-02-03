@@ -298,6 +298,10 @@ func createSnapshotVolume(name, namespace string, owner *metav1.OwnerReference) 
 			Name:            name,
 			Namespace:       namespace,
 			OwnerReferences: ownerRefs,
+			Labels: map[string]string{
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: common.SmartClonerCDILabel,
+			},
 		},
 	}
 }

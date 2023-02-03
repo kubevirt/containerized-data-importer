@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -565,10 +566,26 @@ func (f *Framework) DeleteStorageQuota() error {
 // CreateWFFCVariationOfStorageClass creates a WFFC variation of a storage class
 func (f *Framework) CreateWFFCVariationOfStorageClass(sc *storagev1.StorageClass) (*storagev1.StorageClass, error) {
 	wffc := storagev1.VolumeBindingWaitForFirstConsumer
-	sc.ObjectMeta = metav1.ObjectMeta{
-		Name: fmt.Sprintf("%s-temp-wffc", sc.Name),
+	setWaitForFirstConsumer := func(sc *storagev1.StorageClass) {
+		sc.VolumeBindingMode = &wffc
 	}
-	sc.VolumeBindingMode = &wffc
+
+	return f.CreateVariationOfStorageClass(sc, setWaitForFirstConsumer)
+}
+
+// CreateVariationOfStorageClass creates a variation of a storage class following mutationFunc's changes
+func (f *Framework) CreateVariationOfStorageClass(sc *storagev1.StorageClass, mutationFunc func(*storagev1.StorageClass)) (*storagev1.StorageClass, error) {
+	scCopy := sc.DeepCopy()
+	mutationFunc(sc)
+	if reflect.DeepEqual(sc, scCopy) {
+		return sc, nil
+	}
+	sc.ObjectMeta = metav1.ObjectMeta{
+		GenerateName: fmt.Sprintf("%s-temp-variation", sc.Name),
+		Labels: map[string]string{
+			"cdi.kubevirt.io/testing": "",
+		},
+	}
 
 	return f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
 }
@@ -689,6 +706,29 @@ func (f *Framework) IsSnapshotStorageClassAvailable() bool {
 	}
 
 	return false
+}
+
+// GetSnapshotClass returns the volume snapshot class.
+func (f *Framework) GetSnapshotClass() *snapshotv1.VolumeSnapshotClass {
+	// Fetch the storage class
+	storageclass, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
+	if err != nil {
+		return nil
+	}
+
+	scs := &snapshotv1.VolumeSnapshotClassList{}
+	if err = f.CrClient.List(context.TODO(), scs); err != nil {
+		return nil
+	}
+
+	for _, snapshotClass := range scs.Items {
+		// Validate association between snapshot class and storage class
+		if snapshotClass.Driver == storageclass.Provisioner {
+			return &snapshotClass
+		}
+	}
+
+	return nil
 }
 
 // IsBlockVolumeStorageClassAvailable checks if the block volume storage class exists.

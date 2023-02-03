@@ -215,7 +215,12 @@ func start(ctx context.Context, cfg *rest.Config) {
 	}
 	if _, err := dvc.NewPvcCloneController(ctx, mgr, log,
 		clonerImage, importerImage, pullPolicy, getTokenPublicKey(), getTokenPrivateKey(), installerLabels); err != nil {
-		klog.Errorf("Unable to setup datavolume clone controller: %v", err)
+		klog.Errorf("Unable to setup datavolume pvc clone controller: %v", err)
+		os.Exit(1)
+	}
+	if _, err := dvc.NewSnapshotCloneController(ctx, mgr, log,
+		clonerImage, importerImage, pullPolicy, getTokenPublicKey(), getTokenPrivateKey(), installerLabels); err != nil {
+		klog.Errorf("Unable to setup datavolume snapshot clone controller: %v", err)
 		os.Exit(1)
 	}
 	if _, err := dvc.NewPopulatorController(ctx, mgr, log, installerLabels); err != nil {

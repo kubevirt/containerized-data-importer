@@ -60,7 +60,6 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 			Resources: []string{
 				"persistentvolumes",
 				"persistentvolumeclaims",
-				"volumesnapshots",
 			},
 			Verbs: []string{
 				"get",
@@ -79,7 +78,6 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 			Resources: []string{
 				"persistentvolumeclaims/finalizers",
 				"pods/finalizers",
-				"volumesnapshots/finalizers",
 			},
 			Verbs: []string{
 				"update",
