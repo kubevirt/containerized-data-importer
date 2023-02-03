@@ -180,7 +180,7 @@ func handleImport(
 		if err == importer.ErrRequiresScratchSpace {
 			return common.ScratchSpaceNeededExitCode
 		}
-		err = util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %+v", err.Error()))
+		err = util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %v", err.Error()))
 		if err != nil {
 			klog.Errorf("%+v", err)
 		}
@@ -310,7 +310,7 @@ func createBlankImage(imageSize string, availableDestSpace int64, preallocation 
 
 	if err != nil {
 		klog.Errorf("%+v", err)
-		message := fmt.Sprintf("Unable to create blank image: %+v", err)
+		message := fmt.Sprintf("Unable to create blank image: %v", err)
 		err = util.WriteTerminationMessage(message)
 		if err != nil {
 			klog.Errorf("%+v", err)
@@ -321,7 +321,7 @@ func createBlankImage(imageSize string, availableDestSpace int64, preallocation 
 
 func errorCannotConnectDataSource(err error, dsName string) {
 	klog.Errorf("%+v", err)
-	err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to %s data source: %+v", dsName, err))
+	err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to %s data source: %v", dsName, err))
 	if err != nil {
 		klog.Errorf("%+v", err)
 	}
