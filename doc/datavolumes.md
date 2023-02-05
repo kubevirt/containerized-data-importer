@@ -30,6 +30,7 @@ The following statuses are possible.
 * Import/Clone/UploadInProgress: The operation (import/clone/upload) is in progress.
 * SnapshotForSmartClone/SmartClonePVCInProgress: The Smart-Cloning operation is in progress.
 * CSICloneInProgress: The CSI Volume Clone operation is in progress
+* CloneFromSnapshotSourceInProgress: Clone from VolumeSnapshot source is in progress
 * Paused: A [multi-stage](#multi-stage-import) import is waiting to transfer a new checkpoint.
 * Succeeded: The operation has succeeded.
 * Failed: The operation has failed.

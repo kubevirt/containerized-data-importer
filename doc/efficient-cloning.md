@@ -25,12 +25,13 @@ _The required prerequisites in order to trigger efficient cloning methods_
     4) The user creating the DataVolume has permission to create the `datavolumes/source` resource in the source namespace
     5) The source volume is not in use
 
-### Note: Data Volume Cloning can work together with namespace transfer and size expansion  
+*Note: Data Volume Cloning can work together with namespace transfer and size expansion*  
 
 ### Additional Documentation
 * DataVolumes: [datavolumes](./datavolumes.md)
 * DataVolume Cloning: [clone-datavolumes](./clone-datavolume.md)
 * CSI Volume Cloning: [csi-cloning](./csi-cloning.md)
+* Cloning from VolumeSnapshot source: [clone-from-volumesnapshot-source](./clone-from-volumesnapshot-source.md)
 * Smart Cloning: [smart-clone](./smart-clone.md)
 * Namespace Transfer: [namespace-transfer](./namespace-transfer.md)
 * StorageProfile (description of cloneStrategy): [storageprofile](./storageprofile.md)
