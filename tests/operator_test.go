@@ -33,7 +33,6 @@ import (
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
@@ -229,10 +228,7 @@ var _ = Describe("ALL Operator tests", func() {
 
 			// Condition flags can be found here with their meaning https://github.com/kubevirt/hyperconverged-cluster-operator/blob/main/docs/conditions.md
 			It("[test_id:3953]Condition flags on CR should be healthy and operating", func() {
-				cdiObjects, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				Expect(len(cdiObjects.Items)).To(Equal(1))
-				cdiObject := cdiObjects.Items[0]
+				cdiObject := getCDI(f)
 				conditionMap := sdk.GetConditionValues(cdiObject.Status.Conditions)
 				// Application should be fully operational and healthy.
 				Expect(conditionMap[conditions.ConditionAvailable]).To(Equal(corev1.ConditionTrue))
@@ -242,10 +238,7 @@ var _ = Describe("ALL Operator tests", func() {
 
 			It("should make CDI config authority", func() {
 				Eventually(func() bool {
-					cdiObjects, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
-					Expect(err).ToNot(HaveOccurred())
-					Expect(len(cdiObjects.Items)).To(Equal(1))
-					cdiObject := cdiObjects.Items[0]
+					cdiObject := getCDI(f)
 					_, ok := cdiObject.Annotations["cdi.kubevirt.io/configAuthority"]
 					return ok
 				}, 1*time.Minute, 2*time.Second).Should(BeTrue())
@@ -321,13 +314,7 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("should deploy components that tolerate CriticalAddonsOnly taint", func() {
-				var err error
-				cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
-				if errors.IsNotFound(err) {
-					Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
-				}
-				Expect(err).ToNot(HaveOccurred())
-
+				cr := getCDI(f)
 				criticalAddonsToleration := corev1.Toleration{
 					Key:      "CriticalAddonsOnly",
 					Operator: corev1.TolerationOpExists,
@@ -398,7 +385,8 @@ var _ = Describe("ALL Operator tests", func() {
 			var cdiPods *corev1.PodList
 
 			BeforeEach(func() {
-				cr, cdiPods = getCDICrAndPods(f)
+				cr = getCDI(f)
+				cdiPods = getCDIPods(f)
 			})
 
 			removeCDI := func() {
@@ -457,7 +445,7 @@ var _ = Describe("ALL Operator tests", func() {
 
 			It("[test_id:3955]should block CDI delete", func() {
 				uninstallStrategy := cdiv1.CDIUninstallStrategyBlockUninstallIfWorkloadsExist
-				updateUninstallStrategy(f.CdiClient, &uninstallStrategy)
+				updateUninstallStrategy(f, &uninstallStrategy)
 
 				By("Creating datavolume")
 				dv := utils.NewDataVolumeForUpload("delete-me", "1Gi")
@@ -590,16 +578,10 @@ var _ = Describe("ALL Operator tests", func() {
 			}
 
 			BeforeEach(func() {
-				var err error
-				currentCR, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
-				if errors.IsNotFound(err) {
-					Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
-				}
-				Expect(err).ToNot(HaveOccurred())
-
+				currentCR := getCDI(f)
 				restoreCdiCr = &cdiv1.CDI{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "cdi",
+						Name: currentCR.Name,
 					},
 					Spec: currentCR.Spec,
 				}
@@ -630,7 +612,7 @@ var _ = Describe("ALL Operator tests", func() {
 
 				tempCdiCr := &cdiv1.CDI{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "cdi",
+						Name: restoreCdiCr.Name,
 					},
 					Spec: *localSpec,
 				}
@@ -817,7 +799,8 @@ var _ = Describe("ALL Operator tests", func() {
 			f := framework.NewFramework("alert-tests")
 
 			BeforeEach(func() {
-				cr, cdiPods = getCDICrAndPods(f)
+				cr = getCDI(f)
+				cdiPods = getCDIPods(f)
 			})
 
 			AfterEach(func() {
@@ -993,7 +976,7 @@ var _ = Describe("ALL Operator tests", func() {
 				By("Creating new CDI with wrong NodeSelector")
 				cdi := &cdiv1.CDI{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "cdi",
+						Name: cr.Name,
 					},
 					Spec: cr.Spec,
 				}
@@ -1009,7 +992,7 @@ var _ = Describe("ALL Operator tests", func() {
 				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", 0))
 
 				By("Revert CDI CR changes")
-				cdi, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+				cdi, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				cdi.Spec = cr.Spec
 				_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
@@ -1184,12 +1167,7 @@ var _ = Describe("ALL Operator tests", func() {
 			f := framework.NewFramework("operator-cert-config-test")
 
 			BeforeEach(func() {
-				cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
-				if errors.IsNotFound(err) {
-					Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
-				}
-				Expect(err).ToNot(HaveOccurred())
-				cdi = cr
+				cdi = getCDI(f)
 			})
 
 			AfterEach(func() {
@@ -1197,7 +1175,7 @@ var _ = Describe("ALL Operator tests", func() {
 					return
 				}
 
-				cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+				cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cdi.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				cr.Spec.CertConfig = cdi.Spec.CertConfig
@@ -1237,8 +1215,7 @@ var _ = Describe("ALL Operator tests", func() {
 				ts := time.Now()
 
 				Eventually(func() bool {
-					cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
-					Expect(err).ToNot(HaveOccurred())
+					cr := getCDI(f)
 					cr.Spec.CertConfig = &cdiv1.CDICertConfig{
 						CA: &cdiv1.CertConfig{
 							Duration:    &metav1.Duration{Duration: time.Minute * 20},
@@ -1338,14 +1315,9 @@ var _ = Describe("ALL Operator tests", func() {
 			}
 
 			BeforeEach(func() {
-				cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
-				if errors.IsNotFound(err) {
-					Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
-				}
-				Expect(err).ToNot(HaveOccurred())
-				cdi = cr
-				if cr.Spec.PriorityClass != nil {
-					By(fmt.Sprintf("Current priority class is: [%s]", *cr.Spec.PriorityClass))
+				cdi = getCDI(f)
+				if cdi.Spec.PriorityClass != nil {
+					By(fmt.Sprintf("Current priority class is: [%s]", *cdi.Spec.PriorityClass))
 				}
 			})
 
@@ -1354,12 +1326,9 @@ var _ = Describe("ALL Operator tests", func() {
 					return
 				}
 
-				cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-
+				cr := getCDI(f)
 				cr.Spec.PriorityClass = cdi.Spec.PriorityClass
-
-				_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
+				_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				if !utils.IsOpenshift(f.K8sClient) {
@@ -1394,14 +1363,10 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("should use kubernetes priority class if set", func() {
-				cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
-				if errors.IsNotFound(err) {
-					Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
-				}
-				Expect(err).ToNot(HaveOccurred())
+				cr := getCDI(f)
 				By("Setting the priority class to system cluster critical, which is known to exist")
 				cr.Spec.PriorityClass = &systemClusterCritical
-				_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
+				_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				By("Verifying the CDI deployment is updated")
 				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(systemClusterCritical), common.CDILabelSelector)
@@ -1412,11 +1377,8 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("should use openshift priority class if not set and available", func() {
-				_, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
-				if errors.IsNotFound(err) {
-					Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
-				}
-				_, err = f.K8sClient.SchedulingV1().PriorityClasses().Create(context.TODO(), osUserCrit, metav1.CreateOptions{})
+				getCDI(f)
+				_, err := f.K8sClient.SchedulingV1().PriorityClasses().Create(context.TODO(), osUserCrit, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				By("Verifying the CDI control plane is updated")
 				// Deployment
@@ -1430,17 +1392,19 @@ var _ = Describe("ALL Operator tests", func() {
 	})
 })
 
-func getCDICrAndPods(f *framework.Framework) (*cdiv1.CDI, *corev1.PodList) {
+func getCDIPods(f *framework.Framework) *corev1.PodList {
 	cdiPods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
 	Expect(err).ToNot(HaveOccurred(), "failed listing cdi pods")
 	Expect(len(cdiPods.Items)).To(BeNumerically(">", 0), "no cdi pods found")
+	return cdiPods
+}
 
+func getCDI(f *framework.Framework) *cdiv1.CDI {
+	By("Getting CDI resource")
 	cdis, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
 	Expect(err).ToNot(HaveOccurred())
-	Expect(len(cdis.Items)).To(Equal(1))
-	cr := &cdis.Items[0]
-
-	return cr, cdiPods
+	Expect(cdis.Items).To(HaveLen(1))
+	return &cdis.Items[0]
 }
 
 func removeCDI(f *framework.Framework, cr *cdiv1.CDI) {
@@ -1593,22 +1557,17 @@ func cdiOperatorDeploymentGone(f *framework.Framework) bool {
 	return false
 }
 
-func updateUninstallStrategy(client cdiClientset.Interface, strategy *cdiv1.CDIUninstallStrategy) *cdiv1.CDIUninstallStrategy {
-	By("Getting CDI resource")
-	cdis, err := client.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
-	Expect(err).ToNot(HaveOccurred())
-	Expect(cdis.Items).To(HaveLen(1))
-
-	cdi := &cdis.Items[0]
+func updateUninstallStrategy(f *framework.Framework, strategy *cdiv1.CDIUninstallStrategy) *cdiv1.CDIUninstallStrategy {
+	cdi := getCDI(f)
 	result := cdi.Spec.UninstallStrategy
 
 	cdi.Spec.UninstallStrategy = strategy
-	_, err = client.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
+	_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
 	By("Waiting for update")
 	Eventually(func() bool {
-		cdi, err = client.CdiV1beta1().CDIs().Get(context.TODO(), cdi.Name, metav1.GetOptions{})
+		cdi, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cdi.Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		if strategy == nil {
 			return cdi.Spec.UninstallStrategy == nil
