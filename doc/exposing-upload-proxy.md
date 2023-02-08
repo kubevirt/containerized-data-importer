@@ -40,6 +40,8 @@ spec:
             name: cdi-uploadproxy
             port:
               number: 443
+        path: /*
+        pathType: Prefix
   tls:
   - hosts:
     # change to a valid FQDN in your organization
