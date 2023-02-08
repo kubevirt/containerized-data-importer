@@ -198,7 +198,7 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 			}
 			return reqs
 		}
-		if getDataVolumeOp(dv) == op {
+		if getDataVolumeOp(mgr.GetLogger(), dv, mgr.GetClient()) == op {
 			reqs = append(reqs, reconcile.Request{NamespacedName: dvKey})
 		}
 		return reqs
@@ -208,7 +208,7 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 	if err := dataVolumeController.Watch(&source.Kind{Type: &cdiv1.DataVolume{}}, handler.EnqueueRequestsFromMapFunc(
 		func(obj client.Object) []reconcile.Request {
 			dv := obj.(*cdiv1.DataVolume)
-			if getDataVolumeOp(dv) != op {
+			if getDataVolumeOp(mgr.GetLogger(), dv, mgr.GetClient()) != op {
 				return nil
 			}
 			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}}}
@@ -269,7 +269,7 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 				return
 			}
 			for _, dv := range dvList.Items {
-				if getDataVolumeOp(&dv) == op {
+				if getDataVolumeOp(mgr.GetLogger(), &dv, mgr.GetClient()) == op {
 					reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
 				}
 			}
@@ -283,14 +283,16 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 	return nil
 }
 
-func getDataVolumeOp(dv *cdiv1.DataVolume) dataVolumeOp {
+func getDataVolumeOp(log logr.Logger, dv *cdiv1.DataVolume, client client.Client) dataVolumeOp {
 	src := dv.Spec.Source
 
-	if (src != nil && src.PVC != nil) || dv.Spec.SourceRef != nil {
+	if dv.Spec.SourceRef != nil {
+		return getSourceRefOp(log, dv, client)
+	}
+	if src != nil && src.PVC != nil {
 		return dataVolumePvcClone
 	}
-	// FIXME: order dependent dv.Spec.SourceRef, should lookup DataSource to determine op
-	if (src != nil && src.Snapshot != nil) || dv.Spec.SourceRef != nil {
+	if src != nil && src.Snapshot != nil {
 		return dataVolumeSnapshotClone
 	}
 	if src == nil {
@@ -307,6 +309,28 @@ func getDataVolumeOp(dv *cdiv1.DataVolume) dataVolumeOp {
 	}
 
 	return dataVolumeNop
+}
+
+func getSourceRefOp(log logr.Logger, dv *cdiv1.DataVolume, client client.Client) dataVolumeOp {
+	dataSource := &cdiv1.DataSource{}
+	ns := dv.Namespace
+	if dv.Spec.SourceRef.Namespace != nil && *dv.Spec.SourceRef.Namespace != "" {
+		ns = *dv.Spec.SourceRef.Namespace
+	}
+	nn := types.NamespacedName{Namespace: ns, Name: dv.Spec.SourceRef.Name}
+	if err := client.Get(context.TODO(), nn, dataSource); err != nil {
+		log.Error(err, "Unable to get DataSource", "namespacedName", nn)
+		return dataVolumeNop
+	}
+
+	switch {
+	case dataSource.Spec.Source.PVC != nil:
+		return dataVolumePvcClone
+	case dataSource.Spec.Source.Snapshot != nil:
+		return dataVolumeSnapshotClone
+	default:
+		return dataVolumeNop
+	}
 }
 
 type dvController interface {

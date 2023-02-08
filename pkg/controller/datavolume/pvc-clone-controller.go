@@ -706,6 +706,10 @@ func (r *PvcCloneReconciler) cleanup(syncState *dvSyncState) error {
 	dv := syncState.dvMutated
 	r.log.V(3).Info("Cleanup initiated in dv PVC clone controller")
 
+	if err := r.populateSourceIfSourceRef(dv); err != nil {
+		return err
+	}
+
 	if isCrossNamespaceClone(dv) {
 		if err := r.cleanupTransfer(dv); err != nil {
 			return err
