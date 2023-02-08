@@ -863,7 +863,7 @@ var _ = Describe("ALL Operator tests", func() {
 				By("Creating new CDI with wrong NodeSelector")
 				cdi := &cdiv1.CDI{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "cdi",
+						Name: cr.Name,
 					},
 					Spec: cr.Spec,
 				}
@@ -879,7 +879,7 @@ var _ = Describe("ALL Operator tests", func() {
 				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", 0))
 
 				By("Revert CDI CR changes")
-				cdi, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+				cdi, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				cdi.Spec = cr.Spec
 				cdi, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
