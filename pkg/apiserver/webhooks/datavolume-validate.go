@@ -425,21 +425,17 @@ func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.Ad
 			Field:   field.Child("sourceRef").String(),
 		}
 	}
-	dataSourceSnapshot := dataSource.Spec.Source.Snapshot
-	if dataSourceSnapshot != nil {
-		return &metav1.StatusCause{
-			Message: "Snapshot sourceRef not allowed at this point",
-			Field:   field.Child("sourceRef").String(),
-		}
+	switch {
+	case dataSource.Spec.Source.PVC != nil:
+		return wh.validateDataVolumeSourcePVC(dataSource.Spec.Source.PVC, field.Child("sourceRef"), spec)
+	case dataSource.Spec.Source.Snapshot != nil:
+		return wh.validateDataVolumeSourceSnapshot(dataSource.Spec.Source.Snapshot, field.Child("sourceRef"), spec)
 	}
-	dataSourcePVC := dataSource.Spec.Source.PVC
-	if dataSourcePVC == nil {
-		return &metav1.StatusCause{
-			Message: fmt.Sprintf("Empty PVC field in '%s'. DataSource may not be ready yet", dataSource.Name),
-			Field:   field.Child("sourceRef").String(),
-		}
+
+	return &metav1.StatusCause{
+		Message: fmt.Sprintf("Empty source field in '%s'. DataSource may not be ready yet", dataSource.Name),
+		Field:   field.Child("sourceRef").String(),
 	}
-	return wh.validateDataVolumeSourcePVC(dataSourcePVC, field.Child("sourceRef"), spec)
 }
 
 func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.DataVolumeSourcePVC, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) *metav1.StatusCause {

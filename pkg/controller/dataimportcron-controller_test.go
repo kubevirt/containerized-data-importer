@@ -326,7 +326,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err := reconciler.client.Update(context.TODO(), cron)
 			Expect(err).ToNot(HaveOccurred())
 			dataSource = &cdiv1.DataSource{}
-			verifyConditions("After DesiredDigest is set", false, false, false, noImport, outdated, noPvc)
+			verifyConditions("After DesiredDigest is set", false, false, false, noImport, outdated, noSource)
 
 			imports := cron.Status.CurrentImports
 			Expect(imports).ToNot(BeNil())
@@ -344,12 +344,12 @@ var _ = Describe("All DataImportCron Tests", func() {
 			dv.Status.Phase = cdiv1.ImportScheduled
 			err = reconciler.client.Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
-			verifyConditions("Import scheduled", false, false, false, scheduled, inProgress, noPvc)
+			verifyConditions("Import scheduled", false, false, false, scheduled, inProgress, noSource)
 
 			dv.Status.Phase = cdiv1.ImportInProgress
 			err = reconciler.client.Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
-			verifyConditions("Import in progress", true, false, false, inProgress, inProgress, noPvc)
+			verifyConditions("Import in progress", true, false, false, inProgress, inProgress, noSource)
 
 			dv.Status.Phase = cdiv1.Succeeded
 			err = reconciler.client.Update(context.TODO(), dv)

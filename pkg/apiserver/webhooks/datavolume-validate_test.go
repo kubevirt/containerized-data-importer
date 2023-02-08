@@ -730,6 +730,26 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(true))
 		})
 
+		It("should accept DataVolume with SourceRef on create if DataSource exists but snapshot does not exist", func() {
+			dataVolume := newDataSourceDataVolume("testDV", &testNamespace, "test")
+			dataSource := &cdiv1.DataSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Spec.SourceRef.Name,
+					Namespace: testNamespace,
+				},
+				Spec: cdiv1.DataSourceSpec{
+					Source: cdiv1.DataSourceSource{
+						Snapshot: &cdiv1.DataVolumeSourceSnapshot{
+							Name:      "testNonExistentSnap",
+							Namespace: testNamespace,
+						},
+					},
+				},
+			}
+			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource}, nil)
+			Expect(resp.Allowed).To(Equal(true))
+		})
+
 		It("should reject DataVolume with empty SourceRef name on create", func() {
 			dataVolume := newDataSourceDataVolume("testDV", &testNamespace, "")
 			resp := validateDataVolumeCreate(dataVolume)

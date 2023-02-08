@@ -595,7 +595,8 @@ func (r *CloneReconcilerBase) populateSourceIfSourceRef(dv *cdiv1.DataVolume) er
 		return err
 	}
 	dv.Spec.Source = &cdiv1.DataVolumeSource{
-		PVC: dataSource.Spec.Source.PVC,
+		PVC:      dataSource.Spec.Source.PVC,
+		Snapshot: dataSource.Spec.Source.Snapshot,
 	}
 	return nil
 }
@@ -612,7 +613,7 @@ func (r *CloneReconcilerBase) cleanupTransfer(dv *cdiv1.DataVolume) error {
 		// delete all potential PVCs that may not have owner refs
 		namespaces := []string{dv.Namespace}
 		names := []string{dv.Name}
-		appendTmpPvcIfNeeded(dv, namespaces, names, transferName)
+		namespaces, names = appendTmpPvcIfNeeded(dv, namespaces, names, transferName)
 
 		for i := range namespaces {
 			pvc := &corev1.PersistentVolumeClaim{}
@@ -665,13 +666,15 @@ func (r *CloneReconcilerBase) cleanupTransfer(dv *cdiv1.DataVolume) error {
 	return nil
 }
 
-func appendTmpPvcIfNeeded(dv *cdiv1.DataVolume, names, namespaces []string, pvcName string) {
+func appendTmpPvcIfNeeded(dv *cdiv1.DataVolume, namespaces, names []string, pvcName string) ([]string, []string) {
 	_, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dv)
 
 	if sourceNamespace != "" && sourceNamespace != dv.Namespace {
 		namespaces = append(namespaces, sourceNamespace)
 		names = append(names, pvcName)
 	}
+
+	return namespaces, names
 }
 
 func isCrossNamespaceClone(dv *cdiv1.DataVolume) bool {
@@ -713,7 +716,7 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 			return
 		}
 		for _, dv := range dvList.Items {
-			op := getDataVolumeOp(&dv)
+			op := getDataVolumeOp(mgr.GetLogger(), &dv, mgr.GetClient())
 			if op == dataVolumePvcClone || op == dataVolumeSnapshotClone {
 				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
 			}
