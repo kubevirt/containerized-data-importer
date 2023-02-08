@@ -479,6 +479,52 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 		return err
 	}
 
+	if err := addDataSourceWatch(mgr, datavolumeController); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func addDataSourceWatch(mgr manager.Manager, c controller.Controller) error {
+	const dvDataSourceField = "datasource"
+
+	getKey := func(namespace, name string) string {
+		return namespace + "/" + name
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, dvDataSourceField, func(obj client.Object) []string {
+		if sourceRef := obj.(*cdiv1.DataVolume).Spec.SourceRef; sourceRef != nil && sourceRef.Kind == cdiv1.DataVolumeDataSource {
+			ns := obj.GetNamespace()
+			if sourceRef.Namespace != nil && *sourceRef.Namespace != "" {
+				ns = *sourceRef.Namespace
+			}
+			return []string{getKey(ns, sourceRef.Name)}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	mapToDataVolume := func(obj client.Object) (reqs []reconcile.Request) {
+		var dvs cdiv1.DataVolumeList
+		matchingFields := client.MatchingFields{dvDataSourceField: getKey(obj.GetNamespace(), obj.GetName())}
+		if err := mgr.GetClient().List(context.TODO(), &dvs, matchingFields); err != nil {
+			c.GetLogger().Error(err, "Unable to list DataVolumes", "matchingFields", matchingFields)
+			return
+		}
+		for _, dv := range dvs.Items {
+			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
+		}
+		return
+	}
+
+	if err := c.Watch(&source.Kind{Type: &cdiv1.DataSource{}},
+		handler.EnqueueRequestsFromMapFunc(mapToDataVolume),
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
