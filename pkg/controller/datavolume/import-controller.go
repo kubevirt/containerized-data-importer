@@ -221,16 +221,16 @@ func (r ImportReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolu
 func (r ImportReconciler) syncImport(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.syncCommon(log, req, nil, nil)
 	if syncErr != nil || syncRes.result != nil {
-		return *syncRes, syncErr
+		return syncRes, syncErr
 	}
-	if err := r.handlePvcCreation(log, syncRes, r.updateAnnotations); err != nil {
+	if err := r.handlePvcCreation(log, &syncRes, r.updateAnnotations); err != nil {
 		syncErr = err
 	}
 	if syncRes.pvc != nil && syncErr == nil {
-		r.setVddkAnnotations(*syncRes)
+		r.setVddkAnnotations(&syncRes)
 		syncErr = r.maybeSetPvcMultiStageAnnotation(syncRes.pvc, syncRes.dvMutated)
 	}
-	return *syncRes, syncErr
+	return syncRes, syncErr
 }
 
 func (r ImportReconciler) updateStatus(syncRes dataVolumeSyncResult, syncErr error) (reconcile.Result, error) {
@@ -295,7 +295,7 @@ func (r ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, d
 	return nil
 }
 
-func (r ImportReconciler) setVddkAnnotations(syncRes dataVolumeSyncResult) {
+func (r ImportReconciler) setVddkAnnotations(syncRes *dataVolumeSyncResult) {
 	if cc.GetSource(syncRes.pvc) != cc.SourceVDDK {
 		return
 	}

@@ -267,7 +267,7 @@ func (r PvcCloneReconciler) sync(log logr.Logger, req reconcile.Request) (dataVo
 
 func (r PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (dataVolumeCloneSyncResult, error) {
 	res, syncErr := r.syncCommon(log, req, r.cleanup, r.prepare)
-	syncRes := dataVolumeCloneSyncResult{dataVolumeSyncResult: *res}
+	syncRes := dataVolumeCloneSyncResult{dataVolumeSyncResult: res}
 	if syncErr != nil || syncRes.result != nil {
 		return syncRes, syncErr
 	}
