@@ -246,16 +246,16 @@ func getDataVolumeOp(dv *cdiv1.DataVolume) dataVolumeOp {
 
 type dataVolumeSyncResultFunc func(*dataVolumeSyncResult) error
 
-func (r ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (*dataVolumeSyncResult, error) {
+func (r ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.sync(log, req, cleanup, prepare)
-	if err := r.syncUpdate(log, syncRes); err != nil {
+	if err := r.syncUpdate(log, &syncRes); err != nil {
 		syncErr = err
 	}
 	return syncRes, syncErr
 }
 
-func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (*dataVolumeSyncResult, error) {
-	syncRes := &dataVolumeSyncResult{}
+func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (dataVolumeSyncResult, error) {
+	syncRes := dataVolumeSyncResult{}
 	dv, err := r.getDataVolume(req.NamespacedName)
 	if dv == nil || err != nil {
 		syncRes.result = &reconcile.Result{}
@@ -271,7 +271,7 @@ func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, pr
 	if dv.DeletionTimestamp != nil {
 		log.Info("DataVolume marked for deletion, cleaning up")
 		if cleanup != nil {
-			if err := cleanup(syncRes); err != nil {
+			if err := cleanup(&syncRes); err != nil {
 				return syncRes, err
 			}
 		}
@@ -280,13 +280,13 @@ func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, pr
 	}
 
 	if prepare != nil {
-		if err := prepare(syncRes); err != nil {
+		if err := prepare(&syncRes); err != nil {
 			return syncRes, err
 		}
 	}
 
 	if syncRes.pvc != nil {
-		if err := r.garbageCollect(syncRes, log); err != nil {
+		if err := r.garbageCollect(&syncRes, log); err != nil {
 			return syncRes, err
 		}
 		if syncRes.result != nil || syncRes.dv == nil {

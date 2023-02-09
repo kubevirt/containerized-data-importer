@@ -203,12 +203,12 @@ func (r PopulatorReconciler) sync(log logr.Logger, req reconcile.Request) (dataV
 func (r PopulatorReconciler) syncExternalPopulation(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.syncCommon(log, req, nil, r.prepare)
 	if syncErr != nil || syncRes.result != nil {
-		return *syncRes, syncErr
+		return syncRes, syncErr
 	}
-	if err := r.handlePvcCreation(log, syncRes, r.updateAnnotations); err != nil {
+	if err := r.handlePvcCreation(log, &syncRes, r.updateAnnotations); err != nil {
 		syncErr = err
 	}
-	return *syncRes, syncErr
+	return syncRes, syncErr
 }
 
 func (r PopulatorReconciler) updateStatus(syncRes dataVolumeSyncResult, syncErr error) (reconcile.Result, error) {
