@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -33,7 +34,6 @@ import (
 	"github.com/pkg/errors"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -74,6 +74,8 @@ const (
 	MessageErrClaimLost = "PVC %s lost"
 
 	dvPhaseField = "status.phase"
+
+	claimRefField = "spec.claimRef"
 )
 
 var httpClient *http.Client
@@ -89,7 +91,7 @@ type dataVolumeSyncResult struct {
 	dv        *cdiv1.DataVolume
 	dvMutated *cdiv1.DataVolume
 	pvc       *corev1.PersistentVolumeClaim
-	pvcSpec   *v1.PersistentVolumeClaimSpec
+	pvcSpec   *corev1.PersistentVolumeClaimSpec
 	result    *reconcile.Result
 }
 
@@ -110,6 +112,22 @@ func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) boo
 	}
 	dvName, ok := pvc.Annotations[cc.AnnPopulatedFor]
 	return ok && dvName == dv.Name
+}
+
+func checkStaticProvisionPending(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
+	if pvc == nil || dv == nil {
+		return false
+	}
+	if _, ok := dv.Annotations[cc.AnnCheckStaticVolume]; !ok {
+		return false
+	}
+	_, ok := pvc.Annotations[cc.AnnPersistentVolumeList]
+	return ok
+}
+
+func shouldSetPending(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
+	return checkStaticProvisionPending(pvc, dv) ||
+		(pvc == nil && dv.Status.Phase == cdiv1.PhaseUnset)
 }
 
 type dataVolumeOp int
@@ -246,15 +264,15 @@ func getDataVolumeOp(dv *cdiv1.DataVolume) dataVolumeOp {
 
 type dataVolumeSyncResultFunc func(*dataVolumeSyncResult) error
 
-func (r ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (dataVolumeSyncResult, error) {
+func (r *ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.sync(log, req, cleanup, prepare)
-	if err := r.syncUpdate(log, &syncRes); err != nil {
-		syncErr = err
+	if syncErr != nil {
+		return syncRes, syncErr
 	}
-	return syncRes, syncErr
+	return syncRes, r.syncUpdate(log, &syncRes)
 }
 
-func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (dataVolumeSyncResult, error) {
+func (r *ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (dataVolumeSyncResult, error) {
 	syncRes := dataVolumeSyncResult{}
 	dv, err := r.getDataVolume(req.NamespacedName)
 	if dv == nil || err != nil {
@@ -285,6 +303,15 @@ func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, pr
 		}
 	}
 
+	syncRes.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, dv)
+	if err != nil {
+		return syncRes, err
+	}
+
+	if err := r.handleStaticVolume(&syncRes, log); err != nil || syncRes.result != nil {
+		return syncRes, err
+	}
+
 	if syncRes.pvc != nil {
 		if err := r.garbageCollect(&syncRes, log); err != nil {
 			return syncRes, err
@@ -298,14 +325,10 @@ func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, pr
 		r.handlePrePopulation(syncRes.dvMutated, syncRes.pvc)
 	}
 
-	syncRes.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, dv)
-	if err != nil {
-		return syncRes, err
-	}
 	return syncRes, nil
 }
 
-func (r ReconcilerBase) syncUpdate(log logr.Logger, syncRes *dataVolumeSyncResult) error {
+func (r *ReconcilerBase) syncUpdate(log logr.Logger, syncRes *dataVolumeSyncResult) error {
 	if syncRes.dv == nil || syncRes.dvMutated == nil {
 		return nil
 	}
@@ -323,18 +346,115 @@ func (r ReconcilerBase) syncUpdate(log logr.Logger, syncRes *dataVolumeSyncResul
 	return nil
 }
 
-func (r ReconcilerBase) handlePrePopulation(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) {
+func (r *ReconcilerBase) handleStaticVolume(syncRes *dataVolumeSyncResult, log logr.Logger) error {
+	if _, ok := syncRes.dvMutated.Annotations[cc.AnnCheckStaticVolume]; !ok {
+		return nil
+	}
+
+	if syncRes.pvc == nil {
+		volumes, err := r.getAvailableVolumesForDV(syncRes, log)
+		if err != nil {
+			return err
+		}
+
+		if len(volumes) == 0 {
+			log.Info("No PVs for DV")
+			return nil
+		}
+
+		if err := r.handlePvcCreation(log, syncRes, func(_ *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+			bs, err := json.Marshal(volumes)
+			if err != nil {
+				return err
+			}
+			cc.AddAnnotation(pvc, cc.AnnPersistentVolumeList, string(bs))
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		// set result to make sure callers don't do anything else in sync
+		syncRes.result = &reconcile.Result{}
+		return nil
+	}
+
+	volumeAnno, ok := syncRes.pvc.Annotations[cc.AnnPersistentVolumeList]
+	if !ok {
+		// etiher did not create the PVC here OR bind to expected PV succeeded
+		return nil
+	}
+
+	if syncRes.pvc.Spec.VolumeName == "" {
+		// set result to make sure callers don't do anything else in sync
+		syncRes.result = &reconcile.Result{}
+		return nil
+	}
+
+	var volumes []string
+	if err := json.Unmarshal([]byte(volumeAnno), &volumes); err != nil {
+		return err
+	}
+
+	for _, v := range volumes {
+		if v == syncRes.pvc.Spec.VolumeName {
+			pvcCpy := syncRes.pvc.DeepCopy()
+			// handle as "populatedFor" going foreward
+			cc.AddAnnotation(pvcCpy, cc.AnnPopulatedFor, syncRes.dvMutated.Name)
+			delete(pvcCpy.Annotations, cc.AnnPersistentVolumeList)
+			if err := r.updatePVC(pvcCpy); err != nil {
+				return err
+			}
+			syncRes.pvc = pvcCpy
+			return nil
+		}
+	}
+
+	// delete the pvc and hope for better luck...
+	pvcCpy := syncRes.pvc.DeepCopy()
+	if err := r.client.Delete(context.TODO(), pvcCpy, &client.DeleteOptions{}); err != nil {
+		return err
+	}
+
+	syncRes.pvc = pvcCpy
+
+	return fmt.Errorf("DataVolume bound to unexpected PV %s", syncRes.pvc.Spec.VolumeName)
+}
+
+func (r *ReconcilerBase) getAvailableVolumesForDV(syncRes *dataVolumeSyncResult, log logr.Logger) ([]string, error) {
+	pvList := &corev1.PersistentVolumeList{}
+	fields := client.MatchingFields{claimRefField: claimRefIndexKeyFunc(syncRes.dv.Namespace, syncRes.dv.Name)}
+	if err := r.client.List(context.TODO(), pvList, fields); err != nil {
+		return nil, err
+	}
+	var pvNames []string
+	for _, pv := range pvList.Items {
+		// TODO - should we be more specific here, like do the actual matching in pv controller?
+		if pv.Status.Phase == corev1.VolumeAvailable {
+			log.Info("Found matching volume for DV", "pv", pv.Name)
+			pvNames = append(pvNames, pv.Name)
+		}
+	}
+	return pvNames, nil
+}
+
+func (r *ReconcilerBase) handlePrePopulation(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) {
 	if pvc.Status.Phase == corev1.ClaimBound && pvcIsPopulated(pvc, dv) {
 		cc.AddAnnotation(dv, cc.AnnPrePopulated, pvc.Name)
 	}
 }
 
 func (r *ReconcilerBase) validatePVC(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+	// If the PVC is being deleted, we should log a warning to the event recorder and return to wait the deletion complete
+	// don't bother with owner refs is the pvc is deleted
+	if pvc.DeletionTimestamp != nil {
+		msg := fmt.Sprintf(MessageResourceMarkedForDeletion, pvc.Name)
+		r.recorder.Event(dv, corev1.EventTypeWarning, ErrResourceMarkedForDeletion, msg)
+		return errors.Errorf(msg)
+	}
 	// If the PVC is not controlled by this DataVolume resource, we should log
 	// a warning to the event recorder and return
-	pvcPopulated := pvcIsPopulated(pvc, dv)
 	if !metav1.IsControlledBy(pvc, dv) {
-		if pvcPopulated {
+		if pvcIsPopulated(pvc, dv) {
 			if err := r.addOwnerRef(pvc, dv); err != nil {
 				return err
 			}
@@ -343,12 +463,6 @@ func (r *ReconcilerBase) validatePVC(dv *cdiv1.DataVolume, pvc *corev1.Persisten
 			r.recorder.Event(dv, corev1.EventTypeWarning, ErrResourceExists, msg)
 			return errors.Errorf(msg)
 		}
-	}
-	// If the PVC is being deleted, we should log a warning to the event recorder and return to wait the deletion complete
-	if pvc.DeletionTimestamp != nil {
-		msg := fmt.Sprintf(MessageResourceMarkedForDeletion, pvc.Name)
-		r.recorder.Event(dv, corev1.EventTypeWarning, ErrResourceMarkedForDeletion, msg)
-		return errors.Errorf(msg)
 	}
 	return nil
 }
@@ -463,7 +577,7 @@ func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 
 type updateStatusPhaseFunc func(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error
 
-func (r ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, updateStatusPhase updateStatusPhaseFunc) (reconcile.Result, error) {
+func (r *ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, updateStatusPhase updateStatusPhaseFunc) (reconcile.Result, error) {
 	if syncRes.dv == nil {
 		return reconcile.Result{}, nil
 	}
@@ -474,7 +588,9 @@ func (r ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, updateS
 	pvc := syncRes.pvc
 	var event Event
 
-	if pvc != nil {
+	if shouldSetPending(pvc, dataVolumeCopy) {
+		dataVolumeCopy.Status.Phase = cdiv1.Pending
+	} else if pvc != nil {
 		dataVolumeCopy.Status.ClaimName = pvc.Name
 
 		// the following check is for a case where the request is to create a blank disk for a block device.
@@ -531,11 +647,6 @@ func (r ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, updateS
 		}
 		if err := r.reconcileProgressUpdate(dataVolumeCopy, pvc, &result); err != nil {
 			return result, err
-		}
-	} else {
-		_, ok := dataVolumeCopy.Annotations[cc.AnnPrePopulated]
-		if ok {
-			dataVolumeCopy.Status.Phase = cdiv1.Pending
 		}
 	}
 

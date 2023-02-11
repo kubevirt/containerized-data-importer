@@ -177,6 +177,13 @@ const (
 	// AnnUploadRequest marks that a PVC should be made available for upload
 	AnnUploadRequest = AnnAPIGroup + "/storage.upload.target"
 
+	// AnnCheckStaticVolume checks if a statically allocated PV exists before creating the target PVC.
+	// If so, PVC is still created but population is skipped
+	AnnCheckStaticVolume = AnnAPIGroup + "/storage.checkStaticVolume"
+
+	// AnnPersistentVolumeList is an annotation storing a list of PV names
+	AnnPersistentVolumeList = AnnAPIGroup + "/storage.persistentVolumeList"
+
 	//AnnDefaultStorageClass is the annotation indicating that a storage class is the default one.
 	AnnDefaultStorageClass = "storageclass.kubernetes.io/is-default-class"
 

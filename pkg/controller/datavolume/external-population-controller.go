@@ -94,6 +94,8 @@ func (r PopulatorReconciler) prepare(syncRes *dataVolumeSyncResult) error {
 	if !dvUsesVolumePopulator(syncRes.dv) {
 		return errors.Errorf("undefined population source")
 	}
+	// TODO - let's revisit this
+	syncRes.dv.Spec.Source = &cdiv1.DataVolumeSource{}
 	syncRes.dvMutated.Spec.Source = &cdiv1.DataVolumeSource{}
 	return nil
 }

@@ -34,6 +34,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,6 +42,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -833,9 +835,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 			Expect(found).To(BeTrue())
 		},
-			Entry("should remain unset", cdiv1.PhaseUnset, cdiv1.PhaseUnset),
+			Entry("should become pending", cdiv1.PhaseUnset, cdiv1.Pending),
 			Entry("should remain pending", cdiv1.Pending, cdiv1.Pending),
-			Entry("should remain snapshotforsmartcloninginprogress", cdiv1.SnapshotForSmartCloneInProgress, cdiv1.SnapshotForSmartCloneInProgress),
 			Entry("should remain inprogress", cdiv1.ImportInProgress, cdiv1.ImportInProgress),
 		)
 
@@ -1283,6 +1284,125 @@ var _ = Describe("All DataVolume Tests", func() {
 			updatePvcOwnerRefs(pvc, dv)
 			Expect(pvc.OwnerReferences).To(HaveLen(4))
 			Expect(pvc.OwnerReferences).To(Equal([]metav1.OwnerReference{ref("1"), ref("2"), ref("3"), vmOwnerRef}))
+		})
+	})
+
+	Describe("checkStaticVolume annotation handling", func() {
+		newStaticCheckDV := func() *cdiv1.DataVolume {
+			dv := NewImportDataVolume("static-check-dv")
+			if dv.Annotations == nil {
+				dv.Annotations = make(map[string]string)
+			}
+			dv.Annotations[AnnCheckStaticVolume] = ""
+			return dv
+		}
+
+		newAvailablePV := func(dv *cdiv1.DataVolume) *corev1.PersistentVolume {
+			return &corev1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pv1",
+				},
+				Spec: corev1.PersistentVolumeSpec{
+					ClaimRef: &corev1.ObjectReference{
+						Name:      dv.Name,
+						Namespace: dv.Namespace,
+					},
+				},
+				Status: corev1.PersistentVolumeStatus{
+					Phase: corev1.VolumeAvailable,
+				},
+			}
+		}
+
+		newPendingPVC := func(dv *cdiv1.DataVolume, pv *corev1.PersistentVolume) *corev1.PersistentVolumeClaim {
+			return &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: dv.Namespace,
+					Name:      dv.Name,
+					Annotations: map[string]string{
+						AnnPersistentVolumeList: fmt.Sprintf("[\"%s\"]", pv.Name),
+					},
+				},
+			}
+		}
+
+		requestFunc := func(dv *cdiv1.DataVolume) reconcile.Request {
+			return reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: dv.Namespace,
+					Name:      dv.Name,
+				},
+			}
+		}
+
+		pvcFunc := func(r *ImportReconciler, dv *cdiv1.DataVolume) (*corev1.PersistentVolumeClaim, error) {
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: dv.Namespace,
+					Name:      dv.Name,
+				},
+			}
+			err := r.client.Get(context.TODO(), client.ObjectKeyFromObject(pvc), pvc)
+			return pvc, err
+		}
+
+		It("should create PVC with persistentVolumeList annotation", func() {
+			dv := newStaticCheckDV()
+			pv := newAvailablePV(dv)
+			reconciler = createImportReconciler(dv, pv)
+			_, err := reconciler.Reconcile(context.TODO(), requestFunc(dv))
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc, err := pvcFunc(reconciler, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Annotations[AnnPersistentVolumeList]).To(Equal(fmt.Sprintf("[\"%s\"]", pv.Name)))
+		})
+
+		It("should do nothing if PVC not bound", func() {
+			dv := newStaticCheckDV()
+			pv := newAvailablePV(dv)
+			pvc := newPendingPVC(dv, pv)
+			reconciler = createImportReconciler(dv, pv, pvc)
+			_, err := reconciler.Reconcile(context.TODO(), requestFunc(dv))
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc, err = pvcFunc(reconciler, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Annotations[AnnPersistentVolumeList]).To(Equal(fmt.Sprintf("[\"%s\"]", pv.Name)))
+			Expect(pvc.Annotations).ToNot(HaveKey(AnnPopulatedFor))
+			Expect(pvc.Spec.VolumeName).To(BeEmpty())
+		})
+
+		It("should remove persistentVolumeList and add populatedForAnnotation", func() {
+			dv := newStaticCheckDV()
+			pv := newAvailablePV(dv)
+			pvc := newPendingPVC(dv, pv)
+			pvc.Spec.VolumeName = pv.Name
+			pv.Status.Phase = corev1.VolumeBound
+			reconciler = createImportReconciler(dv, pv, pvc)
+			_, err := reconciler.Reconcile(context.TODO(), requestFunc(dv))
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc, err = pvcFunc(reconciler, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Annotations).ToNot(HaveKey(AnnPersistentVolumeList))
+			Expect(pvc.Annotations).To(HaveKey(AnnPopulatedFor))
+			Expect(pvc.Spec.VolumeName).To(Equal(pv.Name))
+		})
+
+		It("should delete PVC if it gets bound to unknown PV", func() {
+			dv := newStaticCheckDV()
+			pv := newAvailablePV(dv)
+			pvc := newPendingPVC(dv, pv)
+			pvc.Spec.VolumeName = "foobar"
+			pv.Status.Phase = corev1.VolumeBound
+			reconciler = createImportReconciler(dv, pv, pvc)
+			_, err := reconciler.Reconcile(context.TODO(), requestFunc(dv))
+			Expect(err).To(HaveOccurred())
+
+			_, err = pvcFunc(reconciler, dv)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.IsNotFound(err)).To(BeTrue())
 		})
 	})
 
