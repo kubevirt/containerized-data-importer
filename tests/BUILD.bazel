@@ -35,6 +35,7 @@ go_test(
         "import_test.go",
         "leaderelection_test.go",
         "local_volume_test.go",
+        "monitoring_test.go",
         "operator_test.go",
         "rbac_test.go",
         "smartclone_test.go",
