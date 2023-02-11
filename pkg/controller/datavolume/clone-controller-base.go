@@ -545,7 +545,7 @@ func (r *CloneReconcilerBase) syncCloneStatusPhase(syncRes *dataVolumeCloneSyncR
 	return r.syncDataVolumeStatusPhaseWithEvent(syncRes, phase, pvc, event)
 }
 
-func (r CloneReconcilerBase) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+func (r *CloneReconcilerBase) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
 	phase, ok := pvc.Annotations[cc.AnnPodPhase]
 	if phase != string(corev1.PodSucceeded) {
 		_, ok = pvc.Annotations[cc.AnnCloneRequest]
