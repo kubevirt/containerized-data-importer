@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -302,7 +302,7 @@ var _ = Describe("Create blank image", func() {
 		size := convertQuantityToQemuSize(quantity)
 		replaceExecFunction(mockExecFunction("", "", nil, "create", "-f", "raw", "image", size), func() {
 			err = CreateBlankImage("image", quantity, false)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no such file or directory"))
 		})
 	})
 
@@ -323,7 +323,7 @@ var _ = Describe("Create blank image", func() {
 		size := convertQuantityToQemuSize(quantity)
 		replaceExecFunction(mockExecFunctionStrict("", "", nil, "create", "-f", "raw", "image", size, "-o", "preallocation=falloc"), func() {
 			err = CreateBlankImage("image", quantity, true)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no such file or directory"))
 		})
 	})
 
@@ -333,7 +333,7 @@ var _ = Describe("Create blank image", func() {
 		size := convertQuantityToQemuSize(quantity)
 		replaceExecFunction(mockExecFunctionStrict("", "", nil, "create", "-f", "raw", "image", size), func() {
 			err = CreateBlankImage("image", quantity, false)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no such file or directory"))
 		})
 	})
 })

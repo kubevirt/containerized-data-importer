@@ -23,10 +23,6 @@ const (
 	defaultUserAgent      = "cdi-nbdkit-importer"
 )
 
-type nbdkitOperations struct {
-	nbdkit *Nbdkit
-}
-
 // NbdkitPlugin represents a plugin for nbdkit
 type NbdkitPlugin string
 
@@ -107,8 +103,7 @@ func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraH
 	for _, header := range secretExtraHeaders {
 		redactArgs = append(redactArgs, fmt.Sprintf("header=%s", header))
 	}
-
-	return &Nbdkit{
+	n := &Nbdkit{
 		NbdPidFile: nbdkitPidFile,
 		plugin:     NbdkitCurlPlugin,
 		nbdkitArgs: args,
@@ -116,6 +111,8 @@ func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraH
 		redactArgs: redactArgs,
 		Socket:     socket,
 	}
+	n.AddFilter(NbdkitRetryFilter)
+	return n
 }
 
 // NewNbdkitVddk creates a new Nbdkit instance with the vddk plugin
@@ -211,9 +208,8 @@ func (n *Nbdkit) StartNbdkit(source string) error {
 		argsNbdkit = append(argsNbdkit, fmt.Sprintf("--filter=%s", f))
 	}
 	// set additional arguments
-	for _, a := range n.nbdkitArgs {
-		argsNbdkit = append(argsNbdkit, a)
-	}
+	argsNbdkit = append(argsNbdkit, n.nbdkitArgs...)
+
 	// append nbdkit plugin arguments
 	argsNbdkit = append(argsNbdkit, string(n.plugin))
 	argsNbdkit = append(argsNbdkit, n.pluginArgs...)
