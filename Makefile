@@ -47,7 +47,7 @@ update-codegen:
 
 generate: update-codegen bazel-generate generate-doc
 
-generate-verify: generate
+generate-verify: generate bootstrap-ginkgo
 	git difftool -y --trust-exit-code --extcmd=./hack/diff-csv.sh
 
 gomod-update:
@@ -156,6 +156,9 @@ openshift-ci-image-push:
 
 generate-doc: build-docgen
 	_out/tools/metricsdocs/metricsdocs > doc/metrics.md
+
+bootstrap-ginkgo:
+	${DO_BAZ} ./hack/build/bootstrap-ginkgo.sh
 
 build-docgen:
 	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-build-metricsdocs.sh"
