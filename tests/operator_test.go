@@ -794,33 +794,10 @@ var _ = Describe("ALL Operator tests", func() {
 				crModified             bool
 				cdiPods                *corev1.PodList
 				numAddedStorageClasses int
+				originalMetricVal      int
 			)
 
 			f := framework.NewFramework("alert-tests")
-
-			BeforeEach(func() {
-				cr = getCDI(f)
-				cdiPods = getCDIPods(f)
-			})
-
-			AfterEach(func() {
-				By("Delete unknown storage classes")
-				for i := 0; i < numAddedStorageClasses; i++ {
-					name := fmt.Sprintf("unknown-sc-%d", i)
-					_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), name, metav1.GetOptions{})
-					if err != nil && errors.IsNotFound(err) {
-						continue
-					}
-					err = f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), name, metav1.DeleteOptions{})
-					Expect(err).ToNot(HaveOccurred())
-				}
-
-				if crModified {
-					removeCDI(f, cr)
-					ensureCDI(f, cr, cdiPods)
-					crModified = false
-				}
-			})
 
 			getMetricValue := func(endpoint string) int {
 				var returnVal string
@@ -854,6 +831,43 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				return i
 			}
+
+			waitForIncompleteMetricInitialization := func() {
+				Eventually(func() int {
+					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
+				}, 2*time.Minute, 1*time.Second).ShouldNot(Equal(-1))
+			}
+
+			BeforeEach(func() {
+				cr = getCDI(f)
+				cdiPods = getCDIPods(f)
+
+				waitForIncompleteMetricInitialization()
+				originalMetricVal = getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
+			})
+
+			AfterEach(func() {
+				By("Delete unknown storage classes")
+				for i := 0; i < numAddedStorageClasses; i++ {
+					name := fmt.Sprintf("unknown-sc-%d", i)
+					_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), name, metav1.GetOptions{})
+					if err != nil && errors.IsNotFound(err) {
+						continue
+					}
+					err = f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), name, metav1.DeleteOptions{})
+					Expect(err).ToNot(HaveOccurred())
+				}
+
+				if crModified {
+					removeCDI(f, cr)
+					ensureCDI(f, cr, cdiPods)
+					crModified = false
+				}
+
+				Eventually(func() int {
+					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
+				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", originalMetricVal))
+			})
 
 			createUnknownStorageClass := func(name, provisioner string) *storagev1.StorageClass {
 				immediateBinding := storagev1.VolumeBindingImmediate
@@ -929,12 +943,6 @@ var _ = Describe("ALL Operator tests", func() {
 					}
 					return false
 				}, 10*time.Minute, 1*time.Second).Should(BeTrue())
-			}
-
-			waitForIncompleteMetricInitialization := func() {
-				Eventually(func() int {
-					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
-				}, 2*time.Minute, 1*time.Second).ShouldNot(Equal(-1))
 			}
 
 			It("[test_id:7962] CDIOperatorDown alert firing when operator scaled down", func() {
@@ -1026,15 +1034,12 @@ var _ = Describe("ALL Operator tests", func() {
 				err := f.CrClient.Get(context.TODO(), types.NamespacedName{Name: defaultStorageClass.Name}, defaultStorageClassProfile)
 				Expect(err).ToNot(HaveOccurred())
 
-				waitForIncompleteMetricInitialization()
-
 				numAddedStorageClasses = 2
 				for i := 0; i < numAddedStorageClasses; i++ {
 					_, err = f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), createUnknownStorageClass(fmt.Sprintf("unknown-sc-%d", i), "kubernetes.io/non-existent-provisioner"), metav1.CreateOptions{})
 					Expect(err).ToNot(HaveOccurred())
 				}
 
-				originalMetricVal := getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
 				expectedIncomplete := originalMetricVal + numAddedStorageClasses
 				Eventually(func() int {
 					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
@@ -1061,8 +1066,6 @@ var _ = Describe("ALL Operator tests", func() {
 					Skip("This test depends on prometheus infra being available")
 				}
 
-				waitForIncompleteMetricInitialization()
-				originalMetricVal := getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
 				sc, err := f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), createUnknownStorageClass("unsupported-provisioner", storagecapabilities.ProvisionerNoobaa), metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1084,8 +1087,8 @@ var _ = Describe("ALL Operator tests", func() {
 					Skip("This test depends on prometheus infra being available")
 				}
 				numCrons := 2
-				originalMetricVal := getMetricValue("kubevirt_cdi_dataimportcron_outdated_total")
-				expectedFailingCrons := originalMetricVal + numCrons
+				originalCronMetricVal := getMetricValue("kubevirt_cdi_dataimportcron_outdated_total")
+				expectedFailingCrons := originalCronMetricVal + numCrons
 
 				reg, err := getDataVolumeSourceRegistry(f)
 				Expect(err).To(BeNil())
@@ -1114,10 +1117,10 @@ var _ = Describe("ALL Operator tests", func() {
 						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Update(context.TODO(), cron, metav1.UpdateOptions{})
 						return err
 					}, dataImportCronTimeout, pollingInterval).Should(BeNil())
-					By(fmt.Sprintf("Ensuring metric value incremented to %d", originalMetricVal+i))
+					By(fmt.Sprintf("Ensuring metric value incremented to %d", originalCronMetricVal+i))
 					Eventually(func() int {
 						return getMetricValue("kubevirt_cdi_dataimportcron_outdated_total")
-					}, 3*time.Minute, 1*time.Second).Should(BeNumerically("==", originalMetricVal+i))
+					}, 3*time.Minute, 1*time.Second).Should(BeNumerically("==", originalCronMetricVal+i))
 				}
 				By("Ensure metric value decrements when crons are cleaned up")
 				for i := 1; i < numCrons+1; i++ {
