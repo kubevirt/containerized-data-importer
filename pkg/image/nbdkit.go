@@ -100,6 +100,8 @@ func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraH
 	for _, header := range extraHeaders {
 		pluginArgs = append(pluginArgs, fmt.Sprintf("header=%s", header))
 	}
+	// Don't do exponential retry, the container restart will be exponential
+	pluginArgs = append(pluginArgs, "retry-exponential=no")
 	for _, header := range secretExtraHeaders {
 		redactArgs = append(redactArgs, fmt.Sprintf("header=%s", header))
 	}
@@ -111,6 +113,7 @@ func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraH
 		redactArgs: redactArgs,
 		Socket:     socket,
 	}
+	// Should be last filter
 	n.AddFilter(NbdkitRetryFilter)
 	return n
 }
