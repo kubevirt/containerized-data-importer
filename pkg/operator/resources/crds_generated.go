@@ -304,6 +304,19 @@ spec:
                 - IfNotPresent
                 - Never
                 type: string
+              imagePullSecrets:
+                description: The imagePullSecrets to pull the container images
+                items:
+                  description: LocalObjectReference contains enough information to
+                    let you locate the referenced object inside the same namespace.
+                  properties:
+                    name:
+                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        TODO: Add other useful fields. apiVersion, kind, uid?'
+                      type: string
+                  type: object
+                  x-kubernetes-map-type: atomic
+                type: array
               infra:
                 description: Rules on which nodes CDI infrastructure pods will be
                   scheduled
@@ -2520,6 +2533,19 @@ spec:
                 - IfNotPresent
                 - Never
                 type: string
+              imagePullSecrets:
+                description: The imagePullSecrets to pull the container images
+                items:
+                  description: LocalObjectReference contains enough information to
+                    let you locate the referenced object inside the same namespace.
+                  properties:
+                    name:
+                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        TODO: Add other useful fields. apiVersion, kind, uid?'
+                      type: string
+                  type: object
+                  x-kubernetes-map-type: atomic
+                type: array
               infra:
                 description: Rules on which nodes CDI infrastructure pods will be
                   scheduled

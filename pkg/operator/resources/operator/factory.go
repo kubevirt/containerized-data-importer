@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -60,6 +61,7 @@ type ClusterServiceVersionData struct {
 	ReplacesCsvVersion string
 	Namespace          string
 	ImagePullPolicy    string
+	ImagePullSecrets   []corev1.LocalObjectReference
 	IconBase64         string
 	Verbosity          string
 

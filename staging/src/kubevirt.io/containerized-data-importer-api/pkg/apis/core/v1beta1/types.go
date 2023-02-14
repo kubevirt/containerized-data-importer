@@ -653,7 +653,9 @@ type CDICertConfig struct {
 type CDISpec struct {
 	// +kubebuilder:validation:Enum=Always;IfNotPresent;Never
 	// PullPolicy describes a policy for if/when to pull a container image
-	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty" valid:"required"`
+	ImagePullPolicy  corev1.PullPolicy             `json:"imagePullPolicy,omitempty" valid:"required"`
+	// The imagePullSecrets to pull the container images
+	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 	// +kubebuilder:validation:Enum=RemoveWorkloads;BlockUninstallIfWorkloadsExist
 	// CDIUninstallStrategy defines the state to leave CDI on uninstall
 	UninstallStrategy *CDIUninstallStrategy `json:"uninstallStrategy,omitempty"`

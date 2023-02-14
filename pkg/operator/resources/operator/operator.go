@@ -290,7 +290,8 @@ func createDeployment(args *FactoryArgs) []client.Object {
 			args.NamespacedArgs.UploadProxyImage,
 			args.NamespacedArgs.UploadServerImage,
 			args.NamespacedArgs.Verbosity,
-			args.NamespacedArgs.PullPolicy),
+			args.NamespacedArgs.PullPolicy,
+			args.NamespacedArgs.ImagePullSecrets),
 		createOperatorLeaderElectionConfigMap(args.NamespacedArgs.Namespace),
 	}
 }
@@ -324,6 +325,7 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 }
 
 func createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy string) []corev1.EnvVar {
+
 	return []corev1.EnvVar{
 		{
 			Name:  "DEPLOY_CLUSTER_RESOURCES",
@@ -372,8 +374,8 @@ func createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage
 	}
 }
 
-func createOperatorDeployment(operatorVersion, namespace, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy string) *appsv1.Deployment {
-	deployment := utils.CreateOperatorDeployment("cdi-operator", namespace, "name", "cdi-operator", serviceAccountName, int32(1))
+func createOperatorDeployment(operatorVersion, namespace, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference) *appsv1.Deployment {
+	deployment := utils.CreateOperatorDeployment("cdi-operator", namespace, "name", "cdi-operator", serviceAccountName, imagePullSecrets, int32(1))
 	container := utils.CreatePortsContainer("cdi-operator", operatorImage, pullPolicy, createPrometheusPorts())
 	container.Resources = corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
@@ -431,7 +433,8 @@ _The CDI Operator does not support updates yet._
 		data.UplodaProxyImage,
 		data.UplodaServerImage,
 		data.Verbosity,
-		data.ImagePullPolicy)
+		data.ImagePullPolicy,
+		data.ImagePullSecrets)
 
 	deployment.Spec.Template.Spec.PriorityClassName = utils.CDIPriorityClass
 

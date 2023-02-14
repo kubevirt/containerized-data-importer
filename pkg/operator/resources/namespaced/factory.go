@@ -19,6 +19,7 @@ package namespaced
 import (
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -39,6 +40,7 @@ type FactoryArgs struct {
 	UploadServerImage      string `required:"true" split_words:"true"`
 	Verbosity              string `required:"true"`
 	PullPolicy             string `required:"true" split_words:"true"`
+	ImagePullSecrets       []corev1.LocalObjectReference
 	PriorityClassName      string
 	Namespace              string
 	InfraNodePlacement     *sdkapi.NodePlacement

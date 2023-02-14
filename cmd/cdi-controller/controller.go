@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap/zapcore"
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -57,6 +58,7 @@ var (
 	uploadProxyServiceName string
 	configName             string
 	pullPolicy             string
+	imagePullSecrets       []corev1.LocalObjectReference
 	verbose                string
 	installerLabels        map[string]string
 	log                    = logf.Log.WithName("controller")
@@ -238,7 +240,7 @@ func start(ctx context.Context, cfg *rest.Config) {
 		os.Exit(1)
 	}
 
-	if _, err := controller.NewCloneController(mgr, log, clonerImage, pullPolicy, verbose, uploadClientCertGenerator, uploadServerBundleFetcher, getTokenPublicKey(), installerLabels); err != nil {
+	if _, err := controller.NewCloneController(mgr, log, clonerImage, pullPolicy, imagePullSecrets, verbose, uploadClientCertGenerator, uploadServerBundleFetcher, getTokenPublicKey(), installerLabels); err != nil {
 		klog.Errorf("Unable to setup clone controller: %v", err)
 		os.Exit(1)
 	}

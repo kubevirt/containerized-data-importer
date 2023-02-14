@@ -73,13 +73,15 @@ type CloneReconciler struct {
 	image               string
 	verbose             string
 	pullPolicy          string
+	imagePullSecrets    []corev1.LocalObjectReference
 	installerLabels     map[string]string
 }
 
 // NewCloneController creates a new instance of the config controller.
 func NewCloneController(mgr manager.Manager,
 	log logr.Logger,
-	image, pullPolicy,
+	image, pullPolicy string,
+	imagePullSecrets []corev1.LocalObjectReference,
 	verbose string,
 	clientCertGenerator generator.CertGenerator,
 	serverCAFetcher fetcher.CertBundleFetcher,
@@ -94,6 +96,7 @@ func NewCloneController(mgr manager.Manager,
 		image:               image,
 		verbose:             verbose,
 		pullPolicy:          pullPolicy,
+		imagePullSecrets:    imagePullSecrets,
 		recorder:            mgr.GetEventRecorderFor("clone-controller"),
 		clientCertGenerator: clientCertGenerator,
 		serverCAFetcher:     serverCAFetcher,
@@ -259,7 +262,7 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 			return 2 * time.Second, nil
 		}
 
-		sourcePod, err := r.CreateCloneSourcePod(r.image, r.pullPolicy, targetPvc, log)
+		sourcePod, err := r.CreateCloneSourcePod(r.image, r.pullPolicy, r.imagePullSecrets, targetPvc, log)
 		// Check if pod has failed and, in that case, record an event with the error
 		if podErr := cc.HandleFailedPod(err, cc.CreateCloneSourcePodName(targetPvc), targetPvc, r.recorder, r.client); podErr != nil {
 			return 0, podErr
@@ -476,7 +479,7 @@ func (r *CloneReconciler) cleanup(pvc *corev1.PersistentVolumeClaim, log logr.Lo
 }
 
 // CreateCloneSourcePod creates our cloning src pod which will be used for out of band cloning to read the contents of the src PVC
-func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*corev1.Pod, error) {
+func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*corev1.Pod, error) {
 	exists, sourcePvcNamespace, sourcePvcName := ParseCloneRequestAnnotation(pvc)
 	if !exists {
 		return nil, errors.Errorf("bad CloneRequest Annotation")
@@ -514,7 +517,7 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 		sourceVolumeMode = corev1.PersistentVolumeFilesystem
 	}
 
-	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerKey, serverCABundle, pvc, podResourceRequirements, workloadNodePlacement)
+	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, imagePullSecrets, sourcePvcName, sourcePvcNamespace, ownerKey, serverCABundle, pvc, podResourceRequirements, workloadNodePlacement)
 	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 
 	if err := r.client.Create(context.TODO(), pod); err != nil {
@@ -527,7 +530,7 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 }
 
 // MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
-func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerRefAnno string,
+func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, sourcePvcName, sourcePvcNamespace, ownerRefAnno string,
 	serverCACert []byte, targetPvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements,
 	workloadNodePlacement *sdkapi.NodePlacement) *corev1.Pod {
 
@@ -617,7 +620,8 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 					},
 				},
 			},
-			RestartPolicy: corev1.RestartPolicyOnFailure,
+			ImagePullSecrets: imagePullSecrets,
+			RestartPolicy:    corev1.RestartPolicyOnFailure,
 			Volumes: []corev1.Volume{
 				{
 					Name: cc.DataVolName,
