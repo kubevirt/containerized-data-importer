@@ -135,17 +135,6 @@ const (
 	annCloneType = "cdi.kubevirt.io/cloneType"
 )
 
-type statusPhaseSync struct {
-	phase cdiv1.DataVolumePhase
-	pvc   *corev1.PersistentVolumeClaim
-	event Event
-}
-
-type dataVolumeCloneSyncResult struct {
-	dataVolumeSyncResult
-	phaseSync *statusPhaseSync
-}
-
 // CloneReconcilerBase members
 type CloneReconcilerBase struct {
 	ReconcilerBase
@@ -193,14 +182,14 @@ func (r *CloneReconcilerBase) ensureExtendedToken(pvc *corev1.PersistentVolumeCl
 
 // When the clone is finished some additional actions may be applied
 // like namespaceTransfer Cleanup or size expansion
-func (r *CloneReconcilerBase) finishClone(log logr.Logger, syncRes *dataVolumeCloneSyncResult, transferName string) (reconcile.Result, error) {
+func (r *CloneReconcilerBase) finishClone(log logr.Logger, syncState *dvSyncState, transferName string) (reconcile.Result, error) {
 	//DO Nothing, not yet ready
-	if syncRes.pvc.Annotations[cc.AnnCloneOf] != "true" {
+	if syncState.pvc.Annotations[cc.AnnCloneOf] != "true" {
 		return reconcile.Result{}, nil
 	}
 
 	// expand for non-namespace case
-	return r.expandPvcAfterClone(log, syncRes, syncRes.pvc, cdiv1.Succeeded, false)
+	return r.expandPvcAfterClone(log, syncState, syncState.pvc, cdiv1.Succeeded, false)
 }
 
 func (r *CloneReconcilerBase) setCloneOfOnPvc(pvc *corev1.PersistentVolumeClaim) error {
@@ -219,47 +208,47 @@ func (r *CloneReconcilerBase) setCloneOfOnPvc(pvc *corev1.PersistentVolumeClaim)
 // temporary pvc is used when the clone src and tgt are in two distinct namespaces
 func (r *CloneReconcilerBase) expandPvcAfterClone(
 	log logr.Logger,
-	syncRes *dataVolumeCloneSyncResult,
+	syncState *dvSyncState,
 	pvc *corev1.PersistentVolumeClaim,
 	nextPhase cdiv1.DataVolumePhase,
 	isTemp bool) (reconcile.Result, error) {
 
-	done, err := r.expand(log, syncRes, pvc)
+	done, err := r.expand(log, syncState, pvc)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
 	if !done {
 		return reconcile.Result{Requeue: true},
-			r.syncCloneStatusPhase(syncRes, cdiv1.ExpansionInProgress, pvc)
+			r.syncCloneStatusPhase(syncState, cdiv1.ExpansionInProgress, pvc)
 	}
 
 	if isTemp {
 		// trigger transfer and next reconcile should have pvcExists == true
 		pvc.Annotations[annReadyForTransfer] = "true"
-		pvc.Annotations[cc.AnnPopulatedFor] = syncRes.dvMutated.Name
+		pvc.Annotations[cc.AnnPopulatedFor] = syncState.dvMutated.Name
 		if err := r.updatePVC(pvc); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
 
-	return reconcile.Result{}, r.syncCloneStatusPhase(syncRes, nextPhase, pvc)
+	return reconcile.Result{}, r.syncCloneStatusPhase(syncState, nextPhase, pvc)
 }
 
 func (r *CloneReconcilerBase) doCrossNamespaceClone(log logr.Logger,
-	syncRes *dataVolumeCloneSyncResult,
+	syncState *dvSyncState,
 	pvcName, sourceNamespace string,
 	returnWhenCloneInProgress bool,
 	selectedCloneStrategy cloneStrategy) (*reconcile.Result, error) {
 
-	initialized, err := r.initTransfer(log, syncRes, pvcName, sourceNamespace)
+	initialized, err := r.initTransfer(log, syncState, pvcName, sourceNamespace)
 	if err != nil {
 		return &reconcile.Result{}, err
 	}
 
 	// get reconciled again v soon
 	if !initialized {
-		return &reconcile.Result{}, r.syncCloneStatusPhase(syncRes, cdiv1.CloneScheduled, nil)
+		return &reconcile.Result{}, r.syncCloneStatusPhase(syncState, cdiv1.CloneScheduled, nil)
 	}
 
 	tmpPVC := &corev1.PersistentVolumeClaim{}
@@ -269,7 +258,7 @@ func (r *CloneReconcilerBase) doCrossNamespaceClone(log logr.Logger,
 			return &reconcile.Result{}, err
 		}
 	} else if tmpPVC.Annotations[cc.AnnCloneOf] == "true" {
-		result, err := r.expandPvcAfterClone(log, syncRes, tmpPVC, cdiv1.NamespaceTransferInProgress, true)
+		result, err := r.expandPvcAfterClone(log, syncState, tmpPVC, cdiv1.NamespaceTransferInProgress, true)
 		return &result, err
 	} else {
 		// AnnCloneOf != true, so cloneInProgress
@@ -281,9 +270,9 @@ func (r *CloneReconcilerBase) doCrossNamespaceClone(log logr.Logger,
 	return nil, nil
 }
 
-func (r *CloneReconcilerBase) initTransfer(log logr.Logger, syncRes *dataVolumeCloneSyncResult, name, namespace string) (bool, error) {
+func (r *CloneReconcilerBase) initTransfer(log logr.Logger, syncState *dvSyncState, name, namespace string) (bool, error) {
 	initialized := true
-	dv := syncRes.dvMutated
+	dv := syncState.dvMutated
 
 	log.Info("Initializing transfer")
 
@@ -345,12 +334,12 @@ func expansionPodName(pvc *corev1.PersistentVolumeClaim) string {
 	return "cdi-expand-" + string(pvc.UID)
 }
 
-func (r *CloneReconcilerBase) expand(log logr.Logger, syncRes *dataVolumeCloneSyncResult, pvc *corev1.PersistentVolumeClaim) (bool, error) {
+func (r *CloneReconcilerBase) expand(log logr.Logger, syncState *dvSyncState, pvc *corev1.PersistentVolumeClaim) (bool, error) {
 	if pvc.Status.Phase != corev1.ClaimBound {
 		return false, fmt.Errorf("cannot expand volume in %q phase", pvc.Status.Phase)
 	}
 
-	requestedSize, hasRequested := syncRes.pvcSpec.Resources.Requests[corev1.ResourceStorage]
+	requestedSize, hasRequested := syncState.pvcSpec.Resources.Requests[corev1.ResourceStorage]
 	currentSize, hasCurrent := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 	actualSize, hasActual := pvc.Status.Capacity[corev1.ResourceStorage]
 	if !hasRequested || !hasCurrent || !hasActual {
@@ -403,7 +392,7 @@ func (r *CloneReconcilerBase) expand(log logr.Logger, syncRes *dataVolumeCloneSy
 
 	if !podExists {
 		var err error
-		pod, err = r.createExpansionPod(pvc, syncRes.dvMutated, podName)
+		pod, err = r.createExpansionPod(pvc, syncState.dvMutated, podName)
 		// Check if pod has failed and, in that case, record an event with the error
 		if podErr := cc.HandleFailedPod(err, podName, pvc, r.recorder, r.client); podErr != nil {
 			return false, podErr
@@ -506,9 +495,9 @@ func (r *CloneReconcilerBase) createExpansionPod(pvc *corev1.PersistentVolumeCla
 	return pod, nil
 }
 
-func (r *CloneReconcilerBase) syncCloneStatusPhase(syncRes *dataVolumeCloneSyncResult, phase cdiv1.DataVolumePhase, pvc *corev1.PersistentVolumeClaim) error {
+func (r *CloneReconcilerBase) syncCloneStatusPhase(syncState *dvSyncState, phase cdiv1.DataVolumePhase, pvc *corev1.PersistentVolumeClaim) error {
 	var event Event
-	dataVolume := syncRes.dvMutated
+	dataVolume := syncState.dvMutated
 	sourceName, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dataVolume)
 
 	switch phase {
@@ -542,7 +531,7 @@ func (r *CloneReconcilerBase) syncCloneStatusPhase(syncRes *dataVolumeCloneSyncR
 		event.message = fmt.Sprintf(MessageCloneSucceeded, sourceNamespace, sourceName, dataVolume.Namespace, dataVolume.Name)
 	}
 
-	return r.syncDataVolumeStatusPhaseWithEvent(syncRes, phase, pvc, event)
+	return r.syncDataVolumeStatusPhaseWithEvent(syncState, phase, pvc, event)
 }
 
 func (r *CloneReconcilerBase) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
@@ -558,6 +547,9 @@ func (r *CloneReconcilerBase) updateStatusPhase(pvc *corev1.PersistentVolumeClai
 		return nil
 	}
 
+	if err := r.populateSourceIfSourceRef(dataVolumeCopy); err != nil {
+		return err
+	}
 	sourceName, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dataVolumeCopy)
 
 	switch phase {
@@ -605,18 +597,6 @@ func (r *CloneReconcilerBase) populateSourceIfSourceRef(dv *cdiv1.DataVolume) er
 	dv.Spec.Source = &cdiv1.DataVolumeSource{
 		PVC: dataSource.Spec.Source.PVC,
 	}
-	return nil
-}
-
-func (r *CloneReconcilerBase) syncDataVolumeStatusPhaseWithEvent(
-	syncRes *dataVolumeCloneSyncResult,
-	phase cdiv1.DataVolumePhase,
-	pvc *corev1.PersistentVolumeClaim,
-	event Event) error {
-	if syncRes.phaseSync != nil {
-		return fmt.Errorf("phaseSync is already set")
-	}
-	syncRes.phaseSync = &statusPhaseSync{phase: phase, pvc: pvc, event: event}
 	return nil
 }
 
