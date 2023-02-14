@@ -49,7 +49,7 @@ var _ = Describe("DataSource", func() {
 				By(fmt.Sprintf("condition state: %s, %s", cond.Status, cond.Reason))
 			}
 			return cond != nil && cond.Status == status && cond.Reason == reason
-		}, 60*time.Second, pollingInterval).Should(BeTrue())
+		}, timeout, pollingInterval).Should(BeTrue())
 		return ds
 	}
 
