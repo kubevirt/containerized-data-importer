@@ -92,7 +92,7 @@ func NewUploadController(
 	return datavolumeController, nil
 }
 
-func (r UploadReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+func (r *UploadReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
 	if dataVolume.Spec.Source.Upload == nil {
 		return errors.Errorf("no source set for upload datavolume")
 	}
@@ -101,20 +101,24 @@ func (r UploadReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *c
 }
 
 // Reconcile loop for the upload data volumes
-func (r UploadReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+func (r *UploadReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("DataVolume", req.NamespacedName)
 	return r.updateStatus(r.sync(log, req))
 }
 
-func (r UploadReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
+func (r *UploadReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.syncUpload(log, req)
+	// do not update the resource if there is an error
+	if syncErr != nil {
+		return syncRes, syncErr
+	}
 	if err := r.syncUpdate(log, &syncRes); err != nil {
 		syncErr = err
 	}
 	return syncRes, syncErr
 }
 
-func (r UploadReconciler) syncUpload(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
+func (r *UploadReconciler) syncUpload(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.syncCommon(log, req, nil, nil)
 	if syncErr != nil || syncRes.result != nil {
 		return syncRes, syncErr
@@ -125,8 +129,10 @@ func (r UploadReconciler) syncUpload(log logr.Logger, req reconcile.Request) (da
 	return syncRes, syncErr
 }
 
-func (r UploadReconciler) updateStatus(syncRes dataVolumeSyncResult, syncErr error) (reconcile.Result, error) {
+func (r *UploadReconciler) updateStatus(syncRes dataVolumeSyncResult, syncErr error) (reconcile.Result, error) {
+	// TODO FIXME - WE SHOULD ALWAYS UPDATE STATUS
 	if syncErr != nil {
+		r.log.Info("FIXME should not return because of this", "err", syncErr)
 		return getReconcileResult(syncRes.result), syncErr
 	}
 	res, err := r.updateStatusCommon(syncRes, r.updateStatusPhase)
@@ -136,7 +142,7 @@ func (r UploadReconciler) updateStatus(syncRes dataVolumeSyncResult, syncErr err
 	return res, syncErr
 }
 
-func (r UploadReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+func (r *UploadReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
 	phase, ok := pvc.Annotations[cc.AnnPodPhase]
 	if phase != string(corev1.PodSucceeded) {
 		_, ok = pvc.Annotations[cc.AnnUploadRequest]

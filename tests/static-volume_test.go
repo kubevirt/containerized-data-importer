@@ -18,20 +18,28 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-var _ = Describe("Replicated Volume tests", func() {
+var _ = Describe("checkStaticVolume tests", func() {
 	f := framework.NewFramework("transfer-test")
 
 	Context("with available PV", func() {
+		const (
+			dvName = "testdv"
+			dvSize = "1Gi"
+		)
 		var pvName string
 
 		importDef := func() *cdiv1.DataVolume {
-			return utils.NewDataVolumeWithHTTPImport("replicated-import", "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+			return utils.NewDataVolumeWithHTTPImport(dvName, dvSize, fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+		}
+
+		uploadDef := func() *cdiv1.DataVolume {
+			return utils.NewDataVolumeForUpload(dvName, dvSize)
 		}
 
 		BeforeEach(func() {
 			By("Creating source DV")
+			// source here shouldn't matter
 			dvDef := importDef()
-			controller.AddAnnotation(dvDef, controller.AnnCheckStaticVolume, "")
 			controller.AddAnnotation(dvDef, controller.AnnDeleteAfterCompletion, "false")
 			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dvDef)
 			Expect(err).ToNot(HaveOccurred())
@@ -102,6 +110,7 @@ var _ = Describe("Replicated Volume tests", func() {
 			Expect(pvc.Spec.VolumeName).To(Equal(pvName))
 		},
 			Entry("with import source", importDef),
+			Entry("with upload source", uploadDef),
 		)
 	})
 })

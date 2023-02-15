@@ -64,6 +64,7 @@ go_test(
         "pvc-clone-controller_test.go",
         "smart-clone-controller_test.go",
         "snapshot-clone-controller_test.go",
+        "static-volume_test.go",
         "upload-controller_test.go",
         "util_test.go",
     ],
