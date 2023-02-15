@@ -229,6 +229,7 @@ func (r *ImportReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 
 func (r *ImportReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.syncImport(log, req)
+	// do not update the resource if there is an error
 	if syncErr != nil {
 		return syncRes, syncErr
 	}
