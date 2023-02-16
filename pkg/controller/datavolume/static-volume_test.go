@@ -73,6 +73,17 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		return r, r.client
 	}
 
+	newCloneDV := func() *cdiv1.DataVolume {
+		dv := newCloneDataVolume("test-dv")
+		addAnno(dv)
+		return dv
+	}
+
+	cloneReconciler := func(objects ...runtime.Object) (reconcile.Reconciler, client.Client) {
+		r := createCloneReconciler(objects...)
+		return r, r.client
+	}
+
 	newImportArgs := func() *testArgs {
 		return &testArgs{
 			newDV:         newImportDV,
@@ -84,6 +95,13 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		return &testArgs{
 			newDV:         newUploadDV,
 			newReconciler: uploadReconciler,
+		}
+	}
+
+	newCloneArgs := func() *testArgs {
+		return &testArgs{
+			newDV:         newCloneDV,
+			newReconciler: cloneReconciler,
 		}
 	}
 
@@ -163,6 +181,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 	},
 		Entry("with import DataVolume", newImportArgs()),
 		Entry("with upload DataVolume", newUploadArgs()),
+		Entry("with clone DataVolume", newCloneArgs()),
 	)
 
 	DescribeTable("should do nothing if PVC not bound", func(args *testArgs) {
@@ -181,6 +200,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 	},
 		Entry("with import DataVolume", newImportArgs()),
 		Entry("with upload DataVolume", newUploadArgs()),
+		Entry("with clone DataVolume", newCloneArgs()),
 	)
 
 	DescribeTable("should remove persistentVolumeList and add populatedForAnnotation", func(args *testArgs) {
@@ -201,6 +221,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 	},
 		Entry("with import DataVolume", newImportArgs()),
 		Entry("with upload DataVolume", newUploadArgs()),
+		Entry("with clone DataVolume", newCloneArgs()),
 	)
 
 	DescribeTable("should delete PVC if it gets bound to unknown PV", func(args *testArgs) {
@@ -219,5 +240,6 @@ var _ = Describe("checkStaticVolume Tests", func() {
 	},
 		Entry("with import DataVolume", newImportArgs()),
 		Entry("with upload DataVolume", newUploadArgs()),
+		Entry("with clone DataVolume", newCloneArgs()),
 	)
 })
