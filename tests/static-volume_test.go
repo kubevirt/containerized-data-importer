@@ -26,7 +26,12 @@ var _ = Describe("checkStaticVolume tests", func() {
 			dvName = "testdv"
 			dvSize = "1Gi"
 		)
-		var pvName string
+
+		var (
+			pvName         string
+			pvStorageClass *string
+			pvMode         *corev1.PersistentVolumeMode
+		)
 
 		importDef := func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithHTTPImport(dvName, dvSize, fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
@@ -34,6 +39,16 @@ var _ = Describe("checkStaticVolume tests", func() {
 
 		uploadDef := func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeForUpload(dvName, dvSize)
+		}
+
+		cloneDef := func() *cdiv1.DataVolume {
+			// TODO change validation so this is not necessary
+			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+				framework.NsPrefixLabel: f.NsPrefix,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			f.AddNamespaceToDelete(targetNs)
+			return utils.NewDataVolumeForImageCloning(dvName, dvSize, targetNs.Name, "foo", pvStorageClass, pvMode)
 		}
 
 		BeforeEach(func() {
@@ -52,6 +67,8 @@ var _ = Describe("checkStaticVolume tests", func() {
 			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			pvName = pvc.Spec.VolumeName
+			pvStorageClass = pvc.Spec.StorageClassName
+			pvMode = pvc.Spec.VolumeMode
 
 			By("Retaining PV")
 			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
@@ -111,6 +128,7 @@ var _ = Describe("checkStaticVolume tests", func() {
 		},
 			Entry("with import source", importDef),
 			Entry("with upload source", uploadDef),
+			Entry("with clone source", cloneDef),
 		)
 	})
 })

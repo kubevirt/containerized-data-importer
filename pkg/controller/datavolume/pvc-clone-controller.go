@@ -259,6 +259,10 @@ func (r PvcCloneReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc 
 
 func (r PvcCloneReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeCloneSyncResult, error) {
 	syncRes, syncErr := r.syncClone(log, req)
+	// don't update on error
+	if syncErr != nil {
+		return syncRes, syncErr
+	}
 	if err := r.syncUpdate(log, &syncRes.dataVolumeSyncResult); err != nil {
 		syncErr = err
 	}
@@ -287,9 +291,10 @@ func (r PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (d
 	}
 
 	pvcPopulated := pvcIsPopulated(pvc, datavolume)
+	stacProvisionPending := checkStaticProvisionPending(pvc, datavolume)
 	_, prePopulated := datavolume.Annotations[cc.AnnPrePopulated]
 
-	if pvcPopulated || prePopulated {
+	if pvcPopulated || prePopulated || stacProvisionPending {
 		return syncRes, nil
 	}
 
