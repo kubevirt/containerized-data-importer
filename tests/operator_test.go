@@ -1581,17 +1581,13 @@ func updateUninstallStrategy(f *framework.Framework, strategy *cdiv1.CDIUninstal
 	return result
 }
 
-func scaleDeployment(f *framework.Framework, deploymentName string, replicas int32) (originalReplicas int32) {
-	Eventually(func() error {
-		operatorDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		originalReplicas = *operatorDeployment.Spec.Replicas
-		operatorDeployment.Spec.Replicas = &[]int32{replicas}[0]
-		_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
-		return err
-	}, 1*time.Minute, 1*time.Second).Should(BeNil())
+func scaleDeployment(f *framework.Framework, deploymentName string, replicas int32) int32 {
+	operatorDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	originalReplicas := *operatorDeployment.Spec.Replicas
+	patch := fmt.Sprintf(`[{"op": "replace", "path": "/spec/replicas", "value": %d}]`, replicas)
+	_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Patch(context.TODO(), deploymentName, types.JSONPatchType, []byte(patch), metav1.PatchOptions{})
+	Expect(err).ToNot(HaveOccurred())
 	return originalReplicas
 }
 
