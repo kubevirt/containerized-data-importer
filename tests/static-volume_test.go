@@ -51,6 +51,16 @@ var _ = Describe("checkStaticVolume tests", func() {
 			return utils.NewDataVolumeForImageCloning(dvName, dvSize, targetNs.Name, "foo", pvStorageClass, pvMode)
 		}
 
+		snapshotCloneDef := func() *cdiv1.DataVolume {
+			// TODO change validation so this is not necessary
+			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+				framework.NsPrefixLabel: f.NsPrefix,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			f.AddNamespaceToDelete(targetNs)
+			return utils.NewDataVolumeForSnapshotCloning(dvName, dvSize, targetNs.Name, "foo", pvStorageClass, pvMode)
+		}
+
 		BeforeEach(func() {
 			By("Creating source DV")
 			// source here shouldn't matter
@@ -109,16 +119,15 @@ var _ = Describe("checkStaticVolume tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		DescribeTable("should handle replicated DataVolume", func(defFunc func() *cdiv1.DataVolume) {
+		DescribeTable("should handle static allocated DataVolume", func(defFunc func() *cdiv1.DataVolume) {
 			By("Creating target DV")
-			dvDef := importDef()
+			dvDef := defFunc()
 			controller.AddAnnotation(dvDef, controller.AnnCheckStaticVolume, "")
 			controller.AddAnnotation(dvDef, controller.AnnDeleteAfterCompletion, "false")
 			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dvDef)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Waiting for target DV to succeed")
-			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
 			err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 300*time.Second)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -129,6 +138,7 @@ var _ = Describe("checkStaticVolume tests", func() {
 			Entry("with import source", importDef),
 			Entry("with upload source", uploadDef),
 			Entry("with clone source", cloneDef),
+			Entry("with snapshot clone source", snapshotCloneDef),
 		)
 	})
 })

@@ -2611,7 +2611,7 @@ var _ = Describe("all clone tests", func() {
 			createSnapshot(size, nil, volumeMode)
 
 			for i = 0; i < repeat; i++ {
-				dataVolume := utils.NewDataVolumeForCloningFromSnapshot(fmt.Sprintf("clone-from-snap-%d", i), size, snapshot.Namespace, snapshot.Name, nil, &volumeMode)
+				dataVolume := utils.NewDataVolumeForSnapshotCloningAndStorageSpec(fmt.Sprintf("clone-from-snap-%d", i), size, snapshot.Namespace, snapshot.Name, nil, &volumeMode)
 				By(fmt.Sprintf("Create new datavolume %s which will clone from volumesnapshot", dataVolume.Name))
 				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
@@ -2679,7 +2679,7 @@ var _ = Describe("all clone tests", func() {
 				createSnapshot(snapSourceSize, &noExpansionStorageClass.Name, volumeMode)
 
 				for i = 0; i < repeat; i++ {
-					dataVolume := utils.NewDataVolumeForCloningFromSnapshot(fmt.Sprintf("clone-from-snap-%d", i), targetDvSize, snapshot.Namespace, snapshot.Name, &noExpansionStorageClass.Name, &volumeMode)
+					dataVolume := utils.NewDataVolumeForSnapshotCloningAndStorageSpec(fmt.Sprintf("clone-from-snap-%d", i), targetDvSize, snapshot.Namespace, snapshot.Name, &noExpansionStorageClass.Name, &volumeMode)
 					By(fmt.Sprintf("Create new datavolume %s which will clone from volumesnapshot", dataVolume.Name))
 					dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, dataVolume)
 					Expect(err).ToNot(HaveOccurred())
@@ -2724,7 +2724,7 @@ var _ = Describe("all clone tests", func() {
 				size := "1Gi"
 				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
 				By("Create the clone before the source snapshot")
-				cloneDV := utils.NewDataVolumeForCloningFromSnapshot("clone-from-snap", size, f.Namespace.Name, "snap-"+dataVolumeName, nil, &volumeMode)
+				cloneDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("clone-from-snap", size, f.Namespace.Name, "snap-"+dataVolumeName, nil, &volumeMode)
 				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				Expect(err).ToNot(HaveOccurred())
 				// Check if the NoSourceClone annotation exists in target PVC
@@ -2761,7 +2761,7 @@ var _ = Describe("all clone tests", func() {
 				By("Create source snapshot")
 				createSnapshot(recommendedSnapSize, nil, volumeMode)
 
-				cloneDV := utils.NewDataVolumeForCloningFromSnapshot("clone-from-snap", "500Mi", f.Namespace.Name, "snap-"+dataVolumeName, nil, &volumeMode)
+				cloneDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("clone-from-snap", "500Mi", f.Namespace.Name, "snap-"+dataVolumeName, nil, &volumeMode)
 				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("target resources requests storage size is smaller than the source"))

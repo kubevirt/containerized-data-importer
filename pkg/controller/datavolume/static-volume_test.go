@@ -84,6 +84,17 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		return r, r.client
 	}
 
+	newSnapshotCloneDV := func() *cdiv1.DataVolume {
+		dv := newCloneFromSnapshotDataVolume("test-dv")
+		addAnno(dv)
+		return dv
+	}
+
+	snapshotCloneReconciler := func(objects ...runtime.Object) (reconcile.Reconciler, client.Client) {
+		r := createSnapshotCloneReconciler(objects...)
+		return r, r.client
+	}
+
 	newImportArgs := func() *testArgs {
 		return &testArgs{
 			newDV:         newImportDV,
@@ -102,6 +113,13 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		return &testArgs{
 			newDV:         newCloneDV,
 			newReconciler: cloneReconciler,
+		}
+	}
+
+	newSnapshotCloneArgs := func() *testArgs {
+		return &testArgs{
+			newDV:         newSnapshotCloneDV,
+			newReconciler: snapshotCloneReconciler,
 		}
 	}
 
@@ -182,6 +200,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		Entry("with import DataVolume", newImportArgs()),
 		Entry("with upload DataVolume", newUploadArgs()),
 		Entry("with clone DataVolume", newCloneArgs()),
+		Entry("with snapshot clone DataVolume", newSnapshotCloneArgs()),
 	)
 
 	DescribeTable("should do nothing if PVC not bound", func(args *testArgs) {
@@ -201,6 +220,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		Entry("with import DataVolume", newImportArgs()),
 		Entry("with upload DataVolume", newUploadArgs()),
 		Entry("with clone DataVolume", newCloneArgs()),
+		Entry("with snapshot clone DataVolume", newSnapshotCloneArgs()),
 	)
 
 	DescribeTable("should remove persistentVolumeList and add populatedForAnnotation", func(args *testArgs) {
@@ -222,6 +242,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		Entry("with import DataVolume", newImportArgs()),
 		Entry("with upload DataVolume", newUploadArgs()),
 		Entry("with clone DataVolume", newCloneArgs()),
+		Entry("with snapshot clone DataVolume", newSnapshotCloneArgs()),
 	)
 
 	DescribeTable("should delete PVC if it gets bound to unknown PV", func(args *testArgs) {
@@ -241,5 +262,6 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		Entry("with import DataVolume", newImportArgs()),
 		Entry("with upload DataVolume", newUploadArgs()),
 		Entry("with clone DataVolume", newCloneArgs()),
+		Entry("with snapshot clone DataVolume", newSnapshotCloneArgs()),
 	)
 })

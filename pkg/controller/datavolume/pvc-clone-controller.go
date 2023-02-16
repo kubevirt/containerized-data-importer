@@ -222,12 +222,12 @@ func addDataSourceWatch(mgr manager.Manager, c controller.Controller) error {
 }
 
 // Reconcile loop for the clone data volumes
-func (r PvcCloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+func (r *PvcCloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("DataVolume", req.NamespacedName)
 	return r.updateStatus(r.sync(log, req))
 }
 
-func (r PvcCloneReconciler) prepare(syncRes *dataVolumeSyncResult) error {
+func (r *PvcCloneReconciler) prepare(syncRes *dataVolumeSyncResult) error {
 	dv := syncRes.dvMutated
 	if err := r.populateSourceIfSourceRef(dv); err != nil {
 		return err
@@ -240,7 +240,7 @@ func (r PvcCloneReconciler) prepare(syncRes *dataVolumeSyncResult) error {
 	return nil
 }
 
-func (r PvcCloneReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+func (r *PvcCloneReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
 	if dataVolume.Spec.Source.PVC == nil {
 		return errors.Errorf("no source set for clone datavolume")
 	}
@@ -257,19 +257,17 @@ func (r PvcCloneReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc 
 	return nil
 }
 
-func (r PvcCloneReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeCloneSyncResult, error) {
+func (r *PvcCloneReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeCloneSyncResult, error) {
 	syncRes, syncErr := r.syncClone(log, req)
-	// don't update on error
-	if syncErr != nil {
-		return syncRes, syncErr
-	}
+	// TODO _ I think it is bad form that the datavolume is updated even in the case of error
+	// however if this function exits without calling syncUpdate() test_id:7736 and test_id:7739 fail
 	if err := r.syncUpdate(log, &syncRes.dataVolumeSyncResult); err != nil {
 		syncErr = err
 	}
 	return syncRes, syncErr
 }
 
-func (r PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (dataVolumeCloneSyncResult, error) {
+func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (dataVolumeCloneSyncResult, error) {
 	res, syncErr := r.syncCommon(log, req, r.cleanup, r.prepare)
 	syncRes := dataVolumeCloneSyncResult{dataVolumeSyncResult: res}
 	if syncErr != nil || syncRes.result != nil {
@@ -291,10 +289,10 @@ func (r PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (d
 	}
 
 	pvcPopulated := pvcIsPopulated(pvc, datavolume)
-	stacProvisionPending := checkStaticProvisionPending(pvc, datavolume)
+	staticProvisionPending := checkStaticProvisionPending(pvc, datavolume)
 	_, prePopulated := datavolume.Annotations[cc.AnnPrePopulated]
 
-	if pvcPopulated || prePopulated || stacProvisionPending {
+	if pvcPopulated || prePopulated || staticProvisionPending {
 		return syncRes, nil
 	}
 
@@ -428,7 +426,7 @@ func (r PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (d
 	return syncRes, syncErr
 }
 
-func (r PvcCloneReconciler) updateStatus(syncRes dataVolumeCloneSyncResult, syncErr error) (reconcile.Result, error) {
+func (r *PvcCloneReconciler) updateStatus(syncRes dataVolumeCloneSyncResult, syncErr error) (reconcile.Result, error) {
 	if ps := syncRes.phaseSync; ps != nil {
 		if err := r.updateDataVolumeStatusPhaseWithEvent(ps.phase, syncRes.dv, syncRes.dvMutated, ps.pvc, ps.event); err != nil {
 			syncErr = err
@@ -713,7 +711,7 @@ func (r *PvcCloneReconciler) sourceInUse(dv *cdiv1.DataVolume, eventReason strin
 	return len(pods) > 0, nil
 }
 
-func (r PvcCloneReconciler) cleanup(syncRes *dataVolumeSyncResult) error {
+func (r *PvcCloneReconciler) cleanup(syncRes *dataVolumeSyncResult) error {
 	dv := syncRes.dvMutated
 	r.log.V(3).Info("Cleanup initiated in dv PVC clone controller")
 
