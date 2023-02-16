@@ -196,6 +196,7 @@ func (r PopulatorReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc
 
 func (r PopulatorReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.syncExternalPopulation(log, req)
+	// TODO _ I think it is bad form that the datavolume is updated even in the case of error
 	if err := r.syncUpdate(log, &syncRes); err != nil {
 		syncErr = err
 	}

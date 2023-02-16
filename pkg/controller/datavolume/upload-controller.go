@@ -108,10 +108,7 @@ func (r *UploadReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 
 func (r *UploadReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.syncUpload(log, req)
-	// do not update the resource if there is an error
-	if syncErr != nil {
-		return syncRes, syncErr
-	}
+	// TODO _ I think it is bad form that the datavolume is updated even in the case of error
 	if err := r.syncUpdate(log, &syncRes); err != nil {
 		syncErr = err
 	}
