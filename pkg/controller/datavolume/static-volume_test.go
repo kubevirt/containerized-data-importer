@@ -62,6 +62,13 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		return r, r.client
 	}
 
+	newImportArgs := func() *testArgs {
+		return &testArgs{
+			newDV:         newImportDV,
+			newReconciler: importReconciler,
+		}
+	}
+
 	newUploadDV := func() *cdiv1.DataVolume {
 		dv := newUploadDataVolume(dvName)
 		addAnno(dv)
@@ -71,6 +78,13 @@ var _ = Describe("checkStaticVolume Tests", func() {
 	uploadReconciler := func(objects ...runtime.Object) (reconcile.Reconciler, client.Client) {
 		r := createUploadReconciler(objects...)
 		return r, r.client
+	}
+
+	newUploadArgs := func() *testArgs {
+		return &testArgs{
+			newDV:         newUploadDV,
+			newReconciler: uploadReconciler,
+		}
 	}
 
 	newCloneDV := func() *cdiv1.DataVolume {
@@ -84,6 +98,13 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		return r, r.client
 	}
 
+	newCloneArgs := func() *testArgs {
+		return &testArgs{
+			newDV:         newCloneDV,
+			newReconciler: cloneReconciler,
+		}
+	}
+
 	newSnapshotCloneDV := func() *cdiv1.DataVolume {
 		dv := newCloneFromSnapshotDataVolume("test-dv")
 		addAnno(dv)
@@ -95,31 +116,32 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		return r, r.client
 	}
 
-	newImportArgs := func() *testArgs {
-		return &testArgs{
-			newDV:         newImportDV,
-			newReconciler: importReconciler,
-		}
-	}
-
-	newUploadArgs := func() *testArgs {
-		return &testArgs{
-			newDV:         newUploadDV,
-			newReconciler: uploadReconciler,
-		}
-	}
-
-	newCloneArgs := func() *testArgs {
-		return &testArgs{
-			newDV:         newCloneDV,
-			newReconciler: cloneReconciler,
-		}
-	}
-
 	newSnapshotCloneArgs := func() *testArgs {
 		return &testArgs{
 			newDV:         newSnapshotCloneDV,
 			newReconciler: snapshotCloneReconciler,
+		}
+	}
+
+	newPopulatorDV := func() *cdiv1.DataVolume {
+		pvcDataSource := &corev1.TypedLocalObjectReference{
+			Kind: "PersistentVolumeClaim",
+			Name: "test",
+		}
+		dv := newPopulatorDataVolume("test-dv", pvcDataSource, nil)
+		addAnno(dv)
+		return dv
+	}
+
+	populatorReconciler := func(objects ...runtime.Object) (reconcile.Reconciler, client.Client) {
+		r := createPopulatorReconciler(objects...)
+		return r, r.client
+	}
+
+	newPopulatorArgs := func() *testArgs {
+		return &testArgs{
+			newDV:         newPopulatorDV,
+			newReconciler: populatorReconciler,
 		}
 	}
 
@@ -184,6 +206,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 	},
 		Entry("with import DataVolume", newImportArgs()),
 		Entry("with upload DataVolume", newUploadArgs()),
+		Entry("with populator DataVolume", newPopulatorArgs()),
 	)
 
 	DescribeTable("should create PVC with persistentVolumeList annotation", func(args *testArgs) {
@@ -201,6 +224,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		Entry("with upload DataVolume", newUploadArgs()),
 		Entry("with clone DataVolume", newCloneArgs()),
 		Entry("with snapshot clone DataVolume", newSnapshotCloneArgs()),
+		Entry("with populator DataVolume", newPopulatorArgs()),
 	)
 
 	DescribeTable("should do nothing if PVC not bound", func(args *testArgs) {
@@ -221,6 +245,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		Entry("with upload DataVolume", newUploadArgs()),
 		Entry("with clone DataVolume", newCloneArgs()),
 		Entry("with snapshot clone DataVolume", newSnapshotCloneArgs()),
+		Entry("with populator DataVolume", newPopulatorArgs()),
 	)
 
 	DescribeTable("should remove persistentVolumeList and add populatedForAnnotation", func(args *testArgs) {
@@ -243,6 +268,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		Entry("with upload DataVolume", newUploadArgs()),
 		Entry("with clone DataVolume", newCloneArgs()),
 		Entry("with snapshot clone DataVolume", newSnapshotCloneArgs()),
+		Entry("with populator DataVolume", newPopulatorArgs()),
 	)
 
 	DescribeTable("should delete PVC if it gets bound to unknown PV", func(args *testArgs) {
@@ -263,5 +289,6 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		Entry("with upload DataVolume", newUploadArgs()),
 		Entry("with clone DataVolume", newCloneArgs()),
 		Entry("with snapshot clone DataVolume", newSnapshotCloneArgs()),
+		Entry("with populator DataVolume", newPopulatorArgs()),
 	)
 })
