@@ -61,6 +61,14 @@ var _ = Describe("checkStaticVolume tests", func() {
 			return utils.NewDataVolumeForSnapshotCloning(dvName, dvSize, targetNs.Name, "foo", pvStorageClass, pvMode)
 		}
 
+		populatorDef := func() *cdiv1.DataVolume {
+			dataSourceRef := &corev1.TypedLocalObjectReference{
+				Kind: "PersistentVolumeClaim",
+				Name: "doesnotmatter",
+			}
+			return utils.NewDataVolumeWithExternalPopulation(dvName, dvSize, *pvStorageClass, *pvMode, nil, dataSourceRef)
+		}
+
 		BeforeEach(func() {
 			By("Creating source DV")
 			// source here shouldn't matter
@@ -139,6 +147,7 @@ var _ = Describe("checkStaticVolume tests", func() {
 			Entry("with upload source", uploadDef),
 			Entry("with clone source", cloneDef),
 			Entry("with snapshot clone source", snapshotCloneDef),
+			Entry("with populator source", populatorDef),
 		)
 	})
 })
