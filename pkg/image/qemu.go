@@ -289,6 +289,7 @@ func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity, p
 	err = os.Chmod(dest, 0660)
 	if err != nil {
 		err = errors.Wrap(err, "Unable to change permissions of target file")
+		return err
 	}
 
 	return nil
