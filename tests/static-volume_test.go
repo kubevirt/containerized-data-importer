@@ -142,6 +142,10 @@ var _ = Describe("checkStaticVolume tests", func() {
 			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.VolumeName).To(Equal(pvName))
+
+			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pv.CreationTimestamp.Before(&pvc.CreationTimestamp)).To(BeTrue())
 		},
 			Entry("with import source", importDef),
 			Entry("with upload source", uploadDef),
