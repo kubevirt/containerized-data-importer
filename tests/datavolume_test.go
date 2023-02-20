@@ -2314,8 +2314,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Cleaning up")
-			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
+			utils.CleanupDvPvc(f.K8sClient, f.CdiClient, f.Namespace.Name, dataVolume.Name)
 			Eventually(func() bool {
 				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				return k8serrors.IsNotFound(err)
@@ -2413,8 +2412,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Cleaning up")
-			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
+			utils.CleanupDvPvc(f.K8sClient, f.CdiClient, f.Namespace.Name, dataVolume.Name)
 			Eventually(func() bool {
 				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				return k8serrors.IsNotFound(err)
