@@ -172,10 +172,6 @@ var _ = Describe("DataSource", func() {
 	})
 })
 
-// Delete PVC if DV was GCed, otherwise delete both
 func deleteDvPvc(f *framework.Framework, pvcName string) {
-	err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, pvcName)
-	Expect(err).ToNot(HaveOccurred())
-	err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvcName)
-	Expect(err).ToNot(HaveOccurred())
+	utils.CleanupDvPvc(f.K8sClient, f.CdiClient, f.Namespace.Name, pvcName)
 }
