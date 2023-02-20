@@ -155,6 +155,8 @@ var _ = Describe("checkStaticVolume Tests", func() {
 					Name:      dv.Name,
 					Namespace: dv.Namespace,
 				},
+				AccessModes: dv.Spec.PVC.AccessModes,
+				Capacity:    dv.Spec.PVC.Resources.Requests,
 			},
 			Status: corev1.PersistentVolumeStatus{
 				Phase: corev1.VolumeAvailable,
