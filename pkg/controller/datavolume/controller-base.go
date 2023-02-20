@@ -426,10 +426,18 @@ func (r *ReconcilerBase) getAvailableVolumesForDV(syncRes *dataVolumeSyncResult,
 	if err := r.client.List(context.TODO(), pvList, fields); err != nil {
 		return nil, err
 	}
+	if syncRes.pvcSpec == nil {
+		return nil, fmt.Errorf("missing pvc spec")
+	}
 	var pvNames []string
 	for _, pv := range pvList.Items {
-		// TODO - should we be more specific here, like do the actual matching in pv controller?
 		if pv.Status.Phase == corev1.VolumeAvailable {
+			pvc := &corev1.PersistentVolumeClaim{
+				Spec: *syncRes.pvcSpec,
+			}
+			if err := checkVolumeSatisfyClaim(&pv, pvc); err != nil {
+				continue
+			}
 			log.Info("Found matching volume for DV", "pv", pv.Name)
 			pvNames = append(pvNames, pv.Name)
 		}

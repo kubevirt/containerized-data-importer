@@ -47,6 +47,7 @@ require (
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cluster-bootstrap v0.0.0
 	k8s.io/code-generator v0.23.3
+	k8s.io/component-helpers v0.23.0
 	k8s.io/klog/v2 v2.70.1
 	k8s.io/kube-aggregator v0.23.0
 	k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1
