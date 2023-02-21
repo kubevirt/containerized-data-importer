@@ -87,7 +87,7 @@ var _ = Describe("DataSource", func() {
 		By("Verify DV conditions")
 		utils.WaitForConditions(f, dv.Name, dv.Namespace, time.Minute, pollingInterval,
 			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeBound, Status: corev1.ConditionUnknown, Message: "No PVC found", Reason: controller.CloneWithoutSource},
-			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeReady, Status: corev1.ConditionFalse, Reason: controller.MessageCloneWithoutSource},
+			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeReady, Status: corev1.ConditionFalse, Reason: controller.CloneWithoutSource},
 			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: corev1.ConditionFalse})
 		f.ExpectEvent(dv.Namespace).Should(ContainSubstring(controller.CloneWithoutSource))
 

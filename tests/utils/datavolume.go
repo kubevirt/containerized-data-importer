@@ -815,25 +815,27 @@ func WaitForConditions(ci ClientsIface, dataVolumeName, namespace string, timeou
 	}, timeout, pollingInterval).Should(gomega.BeTrue())
 }
 
-// verifyConditions checks if the conditions match testConditions
+// verifyConditions checks if all the conditions exist and match testConditions
 func verifyConditions(actualConditions []cdiv1.DataVolumeCondition, testConditions []*cdiv1.DataVolumeCondition) bool {
 	for _, condition := range testConditions {
-		if condition != nil {
-			actualCondition := findConditionByType(condition.Type, actualConditions)
-			if actualCondition != nil {
-				if actualCondition.Status != condition.Status {
-					fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Status does not match for type: %s, status expected: [%s], status found: [%s]\n", condition.Type, condition.Status, actualCondition.Status)
-					return false
-				}
-				if strings.Compare(actualCondition.Reason, condition.Reason) != 0 {
-					fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Reason does not match for type: %s, reason expected [%s], reason found: [%s]\n", condition.Type, condition.Reason, actualCondition.Reason)
-					return false
-				}
-				if !strings.Contains(actualCondition.Message, condition.Message) {
-					fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Message does not match for type: %s, message expected: [%s],  message found: [%s]\n", condition.Type, condition.Message, actualCondition.Message)
-					return false
-				}
-			}
+		if condition == nil {
+			continue
+		}
+		actualCondition := findConditionByType(condition.Type, actualConditions)
+		if actualCondition == nil {
+			return false
+		}
+		if actualCondition.Status != condition.Status {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Status does not match for type: %s, status expected: [%s], status found: [%s]\n", condition.Type, condition.Status, actualCondition.Status)
+			return false
+		}
+		if strings.Compare(actualCondition.Reason, condition.Reason) != 0 {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Reason does not match for type: %s, reason expected [%s], reason found: [%s]\n", condition.Type, condition.Reason, actualCondition.Reason)
+			return false
+		}
+		if !strings.Contains(actualCondition.Message, condition.Message) {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Message does not match for type: %s, message expected: [%s],  message found: [%s]\n", condition.Type, condition.Message, actualCondition.Message)
+			return false
 		}
 	}
 	return true
