@@ -306,6 +306,15 @@ func (r *SnapshotCloneReconciler) evaluateFallBackToHostAssistedNeeded(datavolum
 	if err != nil {
 		return true, err
 	}
+	if bindingMode != nil && *bindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
+		waitForFirstConsumerEnabled, err := cc.IsWaitForFirstConsumerEnabled(datavolume, r.featureGates)
+		if err != nil {
+			return true, err
+		}
+		if !waitForFirstConsumerEnabled {
+			return true, nil
+		}
+	}
 
 	// Storage classes do not match means we can only do dumb cloning
 	if snapshot.Spec.VolumeSnapshotClassName == nil || *snapshot.Spec.VolumeSnapshotClassName == "" {

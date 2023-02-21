@@ -155,8 +155,7 @@ func (r *UploadReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 }
 
 func (r *UploadReconciler) shouldReconcile(isUpload bool, isCloneTarget bool, pvc *v1.PersistentVolumeClaim, log logr.Logger) (bool, error) {
-	_, isImmediateBindingRequested := pvc.Annotations[AnnImmediateBinding]
-	waitForFirstConsumerEnabled, err := isWaitForFirstConsumerEnabled(isImmediateBindingRequested, r.featureGates)
+	waitForFirstConsumerEnabled, err := cc.IsWaitForFirstConsumerEnabled(pvc, r.featureGates)
 	if err != nil {
 		return false, err
 	}

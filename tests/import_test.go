@@ -32,7 +32,6 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	cont "kubevirt.io/containerized-data-importer/pkg/controller"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -320,7 +319,7 @@ var _ = Describe("[Istio] Namespace sidecar injection", func() {
 		dataVolume := utils.NewDataVolumeWithHTTPImport("istio-sidecar-injection-test", "100Mi", tinyCoreIsoExternalURL)
 		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
 		// We set the Immediate Binding annotation to true, to eliminate creation of the consumer pod, which will also fail due to the Istio sidecar.
-		dataVolume.Annotations[cont.AnnImmediateBinding] = "true"
+		dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
 		dataVolume.Annotations[controller.AnnPodSidecarInjection] = "true"
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
@@ -348,7 +347,7 @@ var _ = Describe("[Istio] Namespace sidecar injection", func() {
 	It("[test_id:6492] Should successfully import with namespace sidecar injection enabled and default sidecar.istio.io/inject", func() {
 		dataVolume := utils.NewDataVolumeWithHTTPImport("istio-sidecar-injection-test", "100Mi", tinyCoreIsoExternalURL)
 		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
-		dataVolume.Annotations[cont.AnnImmediateBinding] = "true"
+		dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
 

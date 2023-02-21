@@ -453,6 +453,15 @@ func (r *PvcCloneReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume, p
 	if err != nil {
 		return NoClone, err
 	}
+	if bindingMode != nil && *bindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
+		waitForFirstConsumerEnabled, err := cc.IsWaitForFirstConsumerEnabled(datavolume, r.featureGates)
+		if err != nil {
+			return NoClone, err
+		}
+		if !waitForFirstConsumerEnabled {
+			return HostAssistedClone, nil
+		}
+	}
 
 	if preferredCloneStrategy != nil && *preferredCloneStrategy == cdiv1.CloneStrategyCsiClone {
 		csiClonePossible, err := r.advancedClonePossible(datavolume, pvcSpec)
