@@ -44,12 +44,14 @@ func main() {
 		[]string{""},
 		[]string{".gz"},
 		[]string{".xz"},
+		[]string{".zst"},
 		[]string{".qcow2"},
 		[]string{".vmdk"},
 		[]string{".vhd"},
 		[]string{".vhdx"},
 		[]string{".qcow2", ".gz"},
 		[]string{".qcow2", ".xz"},
+		[]string{".qcow2", ".zst"},
 	}
 
 	if err := utils.CreateCertForTestService(util.GetNamespace(), serviceName, configMapName, *certDir, certFile, keyFile); err != nil {

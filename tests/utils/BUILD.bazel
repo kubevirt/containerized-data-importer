@@ -31,6 +31,7 @@ go_library(
         "//pkg/util/naming:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1:go_default_library",
+        "//vendor/github.com/klauspost/compress/zstd:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",

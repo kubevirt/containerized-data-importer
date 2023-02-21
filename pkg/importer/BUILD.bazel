@@ -34,6 +34,7 @@ go_library(
         "//vendor/github.com/containers/image/v5/oci/archive:go_default_library",
         "//vendor/github.com/containers/image/v5/pkg/blobinfocache:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",
+        "//vendor/github.com/klauspost/compress/zstd:go_default_library",
         "//vendor/github.com/ovirt/go-ovirt:go_default_library",
         "//vendor/github.com/ovirt/go-ovirt-client:go_default_library",
         "//vendor/github.com/ovirt/go-ovirt-client-log-klog:go_default_library",

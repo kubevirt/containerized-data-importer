@@ -21,6 +21,8 @@ const (
 	ExtTar = ".tar"
 	// ExtXz is a constant for the .xz extenstion
 	ExtXz = ".xz"
+	// ExtZst is a constant for the .zst extenstion
+	ExtZst = ".zst"
 	// ExtTarXz is a constant for the .tar.xz extenstion
 	ExtTarXz = ExtTar + ExtXz
 	// ExtTarGz is a constant for the .tar.gz extenstion

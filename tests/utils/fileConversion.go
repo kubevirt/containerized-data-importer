@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/klauspost/compress/zstd"
 	"github.com/pkg/errors"
 	"github.com/ulikunitz/xz"
 
@@ -18,6 +19,7 @@ import (
 var formatTable = map[string]func(string, string, string) (string, error){
 	image.ExtGz:    toGz,
 	image.ExtXz:    toXz,
+	image.ExtZst:   toZst,
 	image.ExtTar:   toTar,
 	image.ExtQcow2: convertUsingQemuImg,
 	image.ExtVmdk:  convertUsingQemuImg,
@@ -96,6 +98,29 @@ func toGz(src, tgtDir, ext string) (string, error) {
 	defer tgtFile.Close()
 
 	w := gzip.NewWriter(tgtFile)
+	defer w.Close()
+
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return "", errors.Wrapf(err, "Error opening file %s", src)
+	}
+	defer srcFile.Close()
+
+	_, err = io.Copy(w, srcFile)
+	if err != nil {
+		return "", errors.Wrapf(err, "Error writing to file %s", tgtPath)
+	}
+	return tgtPath, nil
+}
+
+func toZst(src, tgtDir, ext string) (string, error) {
+	tgtFile, tgtPath, _ := createTargetFile(src, tgtDir, image.ExtGz)
+	defer tgtFile.Close()
+
+	w, err := zstd.NewWriter(tgtFile)
+	if err != nil {
+		return "", errors.Wrapf(err, "Error getting zst writer for file %s", tgtPath)
+	}
 	defer w.Close()
 
 	srcFile, err := os.Open(src)
