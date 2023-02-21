@@ -9,7 +9,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -88,9 +87,9 @@ var _ = Describe("DataSource", func() {
 
 		By("Verify DV conditions")
 		utils.WaitForConditions(f, dv.Name, dv.Namespace, time.Minute, pollingInterval,
-			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeBound, Status: v1.ConditionUnknown, Message: "No PVC found", Reason: dvc.CloneWithoutSource},
-			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeReady, Status: v1.ConditionFalse, Reason: dvc.MessageCloneWithoutSource},
-			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: v1.ConditionFalse})
+			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeBound, Status: corev1.ConditionUnknown, Message: "No PVC found", Reason: dvc.CloneWithoutSource},
+			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeReady, Status: corev1.ConditionFalse, Reason: dvc.CloneWithoutSource},
+			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: corev1.ConditionFalse})
 		f.ExpectEvent(dv.Namespace).Should(ContainSubstring(dvc.CloneWithoutSource))
 
 		By("Create import DV so the missing DataSource source PVC will be ready")
