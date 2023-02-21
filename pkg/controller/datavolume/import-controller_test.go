@@ -472,7 +472,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.GetAnnotations()[AnnSource] = "invalid phase should not copy"
 			dv.GetAnnotations()[AnnPodNetwork] = "data-network"
 			dv.GetAnnotations()[AnnPodSidecarInjection] = "false"
-			dv.Labels = map[string]string{"test": "test-label"}
+			dv.SetLabels(make(map[string]string))
+			dv.GetLabels()["test"] = "test-label"
 			reconciler = createImportReconciler(dv)
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())

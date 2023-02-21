@@ -368,8 +368,12 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 =======
 func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (*dataVolumeSyncResult, error) {
 	syncRes := &dataVolumeSyncResult{}
+<<<<<<< HEAD
 	dv, err := getDataVolume(r.client, req.NamespacedName)
 >>>>>>> 67bd1f823 (Rebase and add utests)
+=======
+	dv, err := r.getDataVolume(req.NamespacedName)
+>>>>>>> 3f19b15ae (Transferring annotations in smart clone and passing dv instead of client)
 	if dv == nil || err != nil {
 		syncState.result = &reconcile.Result{}
 		return syncState, err
@@ -579,9 +583,9 @@ func (r *ReconcilerBase) getPVC(key types.NamespacedName) (*corev1.PersistentVol
 	return pvc, nil
 }
 
-func getDataVolume(c client.Client, key types.NamespacedName) (*cdiv1.DataVolume, error) {
+func (r *ReconcilerBase) getDataVolume(key types.NamespacedName) (*cdiv1.DataVolume, error) {
 	dv := &cdiv1.DataVolume{}
-	if err := c.Get(context.TODO(), key, dv); err != nil {
+	if err := r.client.Get(context.TODO(), key, dv); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
 		}
