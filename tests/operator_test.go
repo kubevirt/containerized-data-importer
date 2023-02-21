@@ -795,6 +795,9 @@ var _ = Describe("ALL Operator tests", func() {
 				cdiPods                *corev1.PodList
 				numAddedStorageClasses int
 				originalMetricVal      int
+
+				metricPollingInterval = 5 * time.Second
+				metricPollingTimeout  = 5 * time.Minute
 			)
 
 			f := framework.NewFramework("alert-tests")
@@ -866,7 +869,7 @@ var _ = Describe("ALL Operator tests", func() {
 
 				Eventually(func() int {
 					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
-				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", originalMetricVal))
+				}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", originalMetricVal))
 			})
 
 			createUnknownStorageClass := func(name, provisioner string) *storagev1.StorageClass {
@@ -1043,7 +1046,7 @@ var _ = Describe("ALL Operator tests", func() {
 				expectedIncomplete := originalMetricVal + numAddedStorageClasses
 				Eventually(func() int {
 					return getMetricValue("kubevirt_cdi_incomplete_storageprofiles_total")
-				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", expectedIncomplete))
+				}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", expectedIncomplete))
 
 				By("Fix profiles to be complete and test metric value equals original")
 				for i := 0; i < numAddedStorageClasses; i++ {
