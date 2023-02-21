@@ -114,6 +114,11 @@ func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) boo
 	return ok && dvName == dv.Name
 }
 
+func dvIsPrePopulated(dv *cdiv1.DataVolume) bool {
+	_, ok := dv.Annotations[cc.AnnPrePopulated]
+	return ok
+}
+
 func checkStaticProvisionPending(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
 	if pvc == nil || dv == nil {
 		return false
@@ -125,9 +130,16 @@ func checkStaticProvisionPending(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.Da
 	return ok
 }
 
-func shouldSetPending(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
-	return checkStaticProvisionPending(pvc, dv) ||
-		(pvc == nil && dv.Status.Phase == cdiv1.PhaseUnset)
+func shouldSetDataVolumePending(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
+	if checkStaticProvisionPending(pvc, dv) {
+		return true
+	}
+
+	if pvc != nil {
+		return false
+	}
+
+	return dvIsPrePopulated(dv) || (dv.Status.Phase == cdiv1.PhaseUnset)
 }
 
 type dataVolumeOp int
@@ -140,6 +152,29 @@ const (
 	dataVolumeSnapshotClone
 	dataVolumePopulator
 )
+
+func claimRefIndexKeyFunc(namespace, name string) string {
+	return namespace + "/" + name
+}
+
+func CreateCommonIndexes(mgr manager.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, dvPhaseField, func(obj client.Object) []string {
+		return []string{string(obj.(*cdiv1.DataVolume).Status.Phase)}
+	}); err != nil {
+		return err
+	}
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &corev1.PersistentVolume{}, claimRefField, func(obj client.Object) []string {
+		if pv, ok := obj.(*corev1.PersistentVolume); ok {
+			if pv.Spec.ClaimRef != nil && pv.Spec.ClaimRef.Namespace != "" && pv.Spec.ClaimRef.Name != "" {
+				return []string{claimRefIndexKeyFunc(pv.Spec.ClaimRef.Namespace, pv.Spec.ClaimRef.Name)}
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	return nil
+}
 
 func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeController controller.Controller, op dataVolumeOp) error {
 	appendMatchingDataVolumeRequest := func(reqs []reconcile.Request, mgr manager.Manager, namespace, name string) []reconcile.Request {
@@ -596,7 +631,7 @@ func (r *ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, update
 	pvc := syncRes.pvc
 	var event Event
 
-	if shouldSetPending(pvc, dataVolumeCopy) {
+	if shouldSetDataVolumePending(pvc, dataVolumeCopy) {
 		dataVolumeCopy.Status.Phase = cdiv1.Pending
 	} else if pvc != nil {
 		dataVolumeCopy.Status.ClaimName = pvc.Name
@@ -991,7 +1026,7 @@ func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncRes *dataVolumeS
 	if syncRes.pvc != nil {
 		return nil
 	}
-	if _, dvPrePopulated := syncRes.dvMutated.Annotations[cc.AnnPrePopulated]; dvPrePopulated {
+	if dvIsPrePopulated(syncRes.dvMutated) {
 		return nil
 	}
 	// Creating the PVC

@@ -31,7 +31,6 @@ import (
 
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -101,29 +100,7 @@ func NewImportController(
 	return datavolumeController, nil
 }
 
-// TODO find a better place for this
-func claimRefIndexKeyFunc(namespace, name string) string {
-	return namespace + "/" + name
-}
-
 func addDataVolumeImportControllerWatches(mgr manager.Manager, datavolumeController controller.Controller) error {
-	// TODO - these are technically shared indexes (not just used by this controller) so should live elsewhere
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, dvPhaseField, func(obj client.Object) []string {
-		return []string{string(obj.(*cdiv1.DataVolume).Status.Phase)}
-	}); err != nil {
-		return err
-	}
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &corev1.PersistentVolume{}, claimRefField, func(obj client.Object) []string {
-		if pv, ok := obj.(*corev1.PersistentVolume); ok {
-			if pv.Spec.ClaimRef != nil && pv.Spec.ClaimRef.Namespace != "" && pv.Spec.ClaimRef.Name != "" {
-				return []string{claimRefIndexKeyFunc(pv.Spec.ClaimRef.Namespace, pv.Spec.ClaimRef.Name)}
-			}
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
 	if err := addDataVolumeControllerCommonWatches(mgr, datavolumeController, dataVolumeImport); err != nil {
 		return err
 	}
