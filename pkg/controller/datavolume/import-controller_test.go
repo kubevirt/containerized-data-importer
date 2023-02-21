@@ -464,7 +464,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(expectedSize.Value()))
 		})
 
-		It("Should pass annotation from DV to created a PVC on a DV", func() {
+		It("Should pass annotations and labels from DV to created PVC", func() {
 			dv := NewImportDataVolume("test-dv")
 			dv.SetAnnotations(make(map[string]string))
 			dv.GetAnnotations()["test-ann-1"] = "test-value-1"
@@ -472,6 +472,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.GetAnnotations()[AnnSource] = "invalid phase should not copy"
 			dv.GetAnnotations()[AnnPodNetwork] = "data-network"
 			dv.GetAnnotations()[AnnPodSidecarInjection] = "false"
+			dv.Labels = map[string]string{"test": "test-label"}
 			reconciler = createImportReconciler(dv)
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
@@ -486,6 +487,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.GetAnnotations()[AnnPodNetwork]).To(Equal("data-network"))
 			Expect(pvc.GetAnnotations()[AnnPodSidecarInjection]).To(Equal("false"))
 			Expect(pvc.GetAnnotations()[AnnPriorityClassName]).To(Equal("p0"))
+			Expect(pvc.Labels["test"]).To(Equal("test-label"))
 		})
 
 		It("Should pass annotation from DV with S3 source to created a PVC on a DV", func() {

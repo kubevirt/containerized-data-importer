@@ -238,7 +238,7 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	newPvc, err := newPvcFromSnapshot(snapshot.Name, snapshot, targetPvcSpec)
+	newPvc, err := newPvcFromSnapshot(r.client, snapshot.Name, snapshot, targetPvcSpec)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -352,7 +352,7 @@ func (r *SmartCloneReconciler) getTargetPVC(dataVolume *cdiv1.DataVolume) (*core
 	return pvc, nil
 }
 
-func newPvcFromSnapshot(name string, snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
+func newPvcFromSnapshot(c client.Client, name string, snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
 	targetPvcSpecCopy := targetPvcSpec.DeepCopy()
 	restoreSize := snapshot.Status.RestoreSize
 	if restoreSize == nil {
@@ -369,6 +369,17 @@ func newPvcFromSnapshot(name string, snapshot *snapshotv1.VolumeSnapshot, target
 		common.CDILabelKey:       common.CDILabelValue,
 		common.CDIComponentLabel: common.SmartClonerCDILabel,
 	}
+
+	dv, err := getDataVolume(c, client.ObjectKeyFromObject(snapshot))
+	if err != nil {
+		return nil, err
+	}
+	if dv != nil {
+		for k, v := range dv.Labels {
+			labels[k] = v
+		}
+	}
+
 	if util.ResolveVolumeMode(targetPvcSpecCopy.VolumeMode) == corev1.PersistentVolumeFilesystem {
 		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
 	}

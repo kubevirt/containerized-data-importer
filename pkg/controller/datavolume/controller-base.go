@@ -314,6 +314,7 @@ type dvController interface {
 	updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error
 }
 
+<<<<<<< HEAD
 func (r *ReconcilerBase) reconcile(ctx context.Context, req reconcile.Request, dvc dvController) (reconcile.Result, error) {
 	log := r.log.WithValues("DataVolume", req.NamespacedName)
 	syncRes, syncErr := dvc.sync(log, req)
@@ -340,6 +341,11 @@ func (r *ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, clea
 func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, cleanup, prepare dvSyncStateFunc) (dvSyncState, error) {
 	syncState := dvSyncState{}
 	dv, err := r.getDataVolume(req.NamespacedName)
+=======
+func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (*dataVolumeSyncResult, error) {
+	syncRes := &dataVolumeSyncResult{}
+	dv, err := getDataVolume(r.client, req.NamespacedName)
+>>>>>>> 67bd1f823 (Rebase and add utests)
 	if dv == nil || err != nil {
 		syncState.result = &reconcile.Result{}
 		return syncState, err
@@ -551,9 +557,9 @@ func (r *ReconcilerBase) getPVC(key types.NamespacedName) (*corev1.PersistentVol
 	return pvc, nil
 }
 
-func (r *ReconcilerBase) getDataVolume(key types.NamespacedName) (*cdiv1.DataVolume, error) {
+func getDataVolume(c client.Client, key types.NamespacedName) (*cdiv1.DataVolume, error) {
 	dv := &cdiv1.DataVolume{}
-	if err := r.client.Get(context.TODO(), key, dv); err != nil {
+	if err := c.Get(context.TODO(), key, dv); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
 		}
