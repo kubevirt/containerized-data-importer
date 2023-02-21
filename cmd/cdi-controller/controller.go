@@ -204,6 +204,11 @@ func start(ctx context.Context, cfg *rest.Config) {
 		os.Exit(1)
 	}
 
+	if err := dvc.CreateCommonIndexes(mgr); err != nil {
+		klog.Errorf("Unable to create shared indexes: %v", err)
+		os.Exit(1)
+	}
+
 	// TODO: Current DV controller had threadiness 3, should we do the same here, defaults to one thread.
 	if _, err := dvc.NewImportController(ctx, mgr, log, installerLabels); err != nil {
 		klog.Errorf("Unable to setup datavolume import controller: %v", err)

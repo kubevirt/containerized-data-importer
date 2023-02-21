@@ -31,6 +31,7 @@ var _ = Describe("checkStaticVolume tests", func() {
 			pvName         string
 			pvStorageClass *string
 			pvMode         *corev1.PersistentVolumeMode
+			sourceMD5      string
 		)
 
 		importDef := func() *cdiv1.DataVolume {
@@ -87,6 +88,13 @@ var _ = Describe("checkStaticVolume tests", func() {
 			pvName = pvc.Spec.VolumeName
 			pvStorageClass = pvc.Spec.StorageClassName
 			pvMode = pvc.Spec.VolumeMode
+
+			By("Getting source MD5")
+			md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, 0)
+			Expect(err).ToNot(HaveOccurred())
+			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+			Expect(err).ToNot(HaveOccurred())
+			sourceMD5 = md5
 
 			By("Retaining PV")
 			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
@@ -146,6 +154,11 @@ var _ = Describe("checkStaticVolume tests", func() {
 			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pv.CreationTimestamp.Before(&pvc.CreationTimestamp)).To(BeTrue())
+
+			By("Verify content")
+			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, sourceMD5, 0)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(same).To(BeTrue())
 		},
 			Entry("with import source", importDef),
 			Entry("with upload source", uploadDef),
