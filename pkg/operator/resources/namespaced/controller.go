@@ -179,7 +179,6 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{common.PrometheusLabelKey: common.PrometheusLabelValue})
 	deployment.SetLabels(labels)
 	deployment.Spec.Template.SetLabels(labels)
-
 	container.Env = []corev1.EnvVar{
 		{
 			Name:  "IMPORTER_IMAGE",

@@ -860,6 +860,10 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 	addEnvVarFromImportProxyConfig(common.ImportProxyHTTPS)
 	addEnvVarFromImportProxyConfig(common.ImportProxyNoProxy)
 
+	imagePullSecrets, err := cc.GetImagePullSecrets(r.client)
+	if err != nil {
+		return nil, err
+	}
 	cronJobName := GetCronJobName(cron)
 	cronJob := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
@@ -880,6 +884,7 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 							Containers:                    []corev1.Container{container},
 							ServiceAccountName:            common.CronJobServiceAccountName,
 							Volumes:                       volumes,
+							ImagePullSecrets:              imagePullSecrets,
 						},
 					},
 					BackoffLimit:            pointer.Int32(2),

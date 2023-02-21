@@ -4904,6 +4904,14 @@
       "description": "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
       "$ref": "#/definitions/v1beta1.FilesystemOverhead"
      },
+     "imagePullSecrets": {
+      "description": "The imagePullSecrets used to pull the container images",
+      "type": "array",
+      "items": {
+       "default": {},
+       "$ref": "#/definitions/v1.LocalObjectReference"
+      }
+     },
      "importProxy": {
       "description": "ImportProxy contains importer pod proxy configuration.",
       "$ref": "#/definitions/v1beta1.ImportProxy"
@@ -4949,6 +4957,14 @@
      "filesystemOverhead": {
       "description": "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A percentage value is between 0 and 1",
       "$ref": "#/definitions/v1beta1.FilesystemOverhead"
+     },
+     "imagePullSecrets": {
+      "description": "The imagePullSecrets used to pull the container images",
+      "type": "array",
+      "items": {
+       "default": {},
+       "$ref": "#/definitions/v1.LocalObjectReference"
+      }
      },
      "importProxy": {
       "description": "ImportProxy contains importer pod proxy configuration.",
@@ -5022,14 +5038,6 @@
        "IfNotPresent",
        "Never"
       ]
-     },
-     "imagePullSecrets": {
-      "description": "The imagePullSecrets to pull the container images",
-      "type": "array",
-      "items": {
-       "default": {},
-       "$ref": "#/definitions/v1.LocalObjectReference"
-      }
      },
      "infra": {
       "description": "Rules on which nodes CDI infrastructure pods will be scheduled",

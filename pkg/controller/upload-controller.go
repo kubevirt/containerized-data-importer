@@ -579,12 +579,17 @@ func (r *UploadReconciler) createUploadPod(args UploadPodArgs) (*v1.Pod, error) 
 		return nil, err
 	}
 
+	imagePullSecrets, err := cc.GetImagePullSecrets(r.client)
+	if err != nil {
+		return nil, err
+	}
+
 	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(r.client)
 	if err != nil {
 		return nil, err
 	}
 
-	pod := r.makeUploadPodSpec(args, podResourceRequirements, workloadNodePlacement)
+	pod := r.makeUploadPodSpec(args, podResourceRequirements, imagePullSecrets, workloadNodePlacement)
 	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: args.Name, Namespace: ns}, pod); err != nil {
@@ -730,7 +735,7 @@ func createUploadServiceNameFromPvcName(pvc string) string {
 	return naming.GetServiceNameFromResourceName(createUploadResourceName(pvc))
 }
 
-func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequirements *v1.ResourceRequirements, workloadNodePlacement *sdkapi.NodePlacement) *v1.Pod {
+func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequirements *v1.ResourceRequirements, imagePullSecrets []v1.LocalObjectReference, workloadNodePlacement *sdkapi.NodePlacement) *v1.Pod {
 	requestImageSize, _ := cc.GetRequestedImageSize(args.PVC)
 	serviceName := naming.GetServiceNameFromResourceName(args.Name)
 	pod := &v1.Pod{
@@ -840,6 +845,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			Tolerations:       workloadNodePlacement.Tolerations,
 			Affinity:          workloadNodePlacement.Affinity,
 			PriorityClassName: cc.GetPriorityClass(args.PVC),
+			ImagePullSecrets:  imagePullSecrets,
 		},
 	}
 

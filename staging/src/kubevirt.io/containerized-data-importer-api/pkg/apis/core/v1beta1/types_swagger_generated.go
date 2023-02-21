@@ -325,7 +325,6 @@ func (CDISpec) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                      "CDISpec defines our specification for the CDI installation",
 		"imagePullPolicy":       "+kubebuilder:validation:Enum=Always;IfNotPresent;Never\nPullPolicy describes a policy for if/when to pull a container image",
-		"imagePullSecrets":      "The imagePullSecrets to pull the container images",
 		"uninstallStrategy":     "+kubebuilder:validation:Enum=RemoveWorkloads;BlockUninstallIfWorkloadsExist\nCDIUninstallStrategy defines the state to leave CDI on uninstall",
 		"infra":                 "Rules on which nodes CDI infrastructure pods will be scheduled",
 		"workload":              "Restrict on which nodes CDI workload pods will be scheduled",
@@ -376,6 +375,7 @@ func (CDIConfigSpec) SwaggerDoc() map[string]string {
 		"insecureRegistries":       "InsecureRegistries is a list of TLS disabled registries",
 		"dataVolumeTTLSeconds":     "DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected. The default is 0 sec. To disable GC use -1.\n+optional",
 		"tlsSecurityProfile":       "TLSSecurityProfile is used by operators to apply cluster-wide TLS security settings to operands.",
+		"imagePullSecrets":         "The imagePullSecrets used to pull the container images",
 	}
 }
 
@@ -388,6 +388,7 @@ func (CDIConfigStatus) SwaggerDoc() map[string]string {
 		"defaultPodResourceRequirements": "ResourceRequirements describes the compute resource requirements.",
 		"filesystemOverhead":             "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A percentage value is between 0 and 1",
 		"preallocation":                  "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+		"imagePullSecrets":               "The imagePullSecrets used to pull the container images",
 	}
 }
 

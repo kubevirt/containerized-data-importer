@@ -411,6 +411,17 @@ func GetDefaultPodResourceRequirements(client client.Client) (*v1.ResourceRequir
 	return cdiconfig.Status.DefaultPodResourceRequirements, nil
 }
 
+// GetImagePullSecrets gets the imagePullSecrets needed to pull images from the cdi config
+func GetImagePullSecrets(client client.Client) ([]corev1.LocalObjectReference, error) {
+	cdiconfig := &cdiv1.CDIConfig{}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiconfig); err != nil {
+		klog.Errorf("Unable to find CDI configuration, %v\n", err)
+		return nil, err
+	}
+
+	return cdiconfig.Status.ImagePullSecrets, nil
+}
+
 // AddVolumeDevices returns VolumeDevice slice with one block device for pods using PV with block volume mode
 func AddVolumeDevices() []v1.VolumeDevice {
 	volumeDevices := []v1.VolumeDevice{
