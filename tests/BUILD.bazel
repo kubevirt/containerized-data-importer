@@ -38,6 +38,7 @@ go_test(
         "operator_test.go",
         "rbac_test.go",
         "smartclone_test.go",
+        "static-volume_test.go",
         "tests_suite_test.go",
         "transfer_test.go",
         "transport_test.go",

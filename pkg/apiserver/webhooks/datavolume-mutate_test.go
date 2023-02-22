@@ -125,6 +125,32 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			Expect(resp.Patch).To(BeNil())
 		})
 
+		DescribeTable("should accept a DataVolume with sourceRef to non-existing DataSource", func(anno string) {
+			dataVolume := newDataSourceDataVolume("testDV", nil, "test")
+			Expect(dataVolume.Annotations).To(BeNil())
+			dataVolume.Annotations = map[string]string{anno: "whatever"}
+			dvBytes, _ := json.Marshal(&dataVolume)
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1.SchemeGroupVersion.Group,
+						Version:  cdicorev1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+			resp := mutateDVs(key, ar, true)
+			Expect(resp.Allowed).To(BeTrue())
+			Expect(resp.Patch).ToNot(BeNil())
+		},
+			Entry("with static volume annotation", cc.AnnCheckStaticVolume),
+			Entry("with prePopulated volume annotation", cc.AnnPrePopulated),
+		)
+
 		It("should allow a DataVolume with sourceRef to existing DataSource", func() {
 			dataVolume := newDataSourceDataVolume("testDV", nil, "test")
 			Expect(dataVolume.Annotations).To(BeNil())
@@ -132,6 +158,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 
 			ar := &admissionv1.AdmissionReview{
 				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdicorev1.SchemeGroupVersion.Group,
 						Version:  cdicorev1.SchemeGroupVersion.Version,
@@ -207,6 +234,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 
 			ar := &admissionv1.AdmissionReview{
 				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdicorev1.SchemeGroupVersion.Group,
 						Version:  cdicorev1.SchemeGroupVersion.Version,
@@ -222,6 +250,34 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			Expect(resp.Allowed).To(BeFalse())
 			Expect(resp.Patch).To(BeNil())
 		})
+
+		DescribeTable("should accept a clone DataVolume", func(anno string) {
+			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
+			Expect(dataVolume.Annotations).To(BeNil())
+			dataVolume.Annotations = map[string]string{anno: "whatever"}
+			dvBytes, _ := json.Marshal(&dataVolume)
+
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1.SchemeGroupVersion.Group,
+						Version:  cdicorev1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+
+			resp := mutateDVs(key, ar, false)
+			Expect(resp.Allowed).To(BeTrue())
+			Expect(resp.Patch).ToNot(BeNil())
+		},
+			Entry("with static volume annotation", cc.AnnCheckStaticVolume),
+			Entry("with prePopulated volume annotation", cc.AnnPrePopulated),
+		)
 
 		It("should reject a clone if the source PVC's namespace doesn't exist", func() {
 			dataVolume := newPVCDataVolume("testDV", "noNamespace", "test")
@@ -229,6 +285,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 
 			ar := &admissionv1.AdmissionReview{
 				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdicorev1.SchemeGroupVersion.Group,
 						Version:  cdicorev1.SchemeGroupVersion.Version,
@@ -245,12 +302,41 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			Expect(resp.Patch).To(BeNil())
 		})
 
+		DescribeTable("should accept a clone if the source PVC's namespace doesn't exist", func(anno string) {
+			dataVolume := newPVCDataVolume("testDV", "noNamespace", "test")
+			Expect(dataVolume.Annotations).To(BeNil())
+			dataVolume.Annotations = map[string]string{anno: "whatever"}
+			dvBytes, _ := json.Marshal(&dataVolume)
+
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1.SchemeGroupVersion.Group,
+						Version:  cdicorev1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+
+			resp := mutateDVs(key, ar, false)
+			Expect(resp.Allowed).To(BeTrue())
+			Expect(resp.Patch).ToNot(BeNil())
+		},
+			Entry("with static volume annotation", cc.AnnCheckStaticVolume),
+			Entry("with prePopulated volume annotation", cc.AnnPrePopulated),
+		)
+
 		DescribeTable("should", func(srcNamespace string) {
 			dataVolume := newPVCDataVolume("testDV", srcNamespace, "test")
 			dvBytes, _ := json.Marshal(&dataVolume)
 
 			ar := &admissionv1.AdmissionReview{
 				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdicorev1.SchemeGroupVersion.Group,
 						Version:  cdicorev1.SchemeGroupVersion.Version,

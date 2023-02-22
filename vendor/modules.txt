@@ -1143,6 +1143,9 @@ k8s.io/component-base/config/v1alpha1
 k8s.io/component-base/metrics
 k8s.io/component-base/metrics/legacyregistry
 k8s.io/component-base/version
+# k8s.io/component-helpers v0.23.0 => k8s.io/component-helpers v0.23.0
+## explicit; go 1.16
+k8s.io/component-helpers/storage/volume
 # k8s.io/gengo v0.0.0-20211129171323-c02415ce4185
 ## explicit; go 1.13
 k8s.io/gengo/args

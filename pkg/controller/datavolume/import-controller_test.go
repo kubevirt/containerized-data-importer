@@ -833,9 +833,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 			Expect(found).To(BeTrue())
 		},
-			Entry("should remain unset", cdiv1.PhaseUnset, cdiv1.PhaseUnset),
+			Entry("should become pending", cdiv1.PhaseUnset, cdiv1.Pending),
 			Entry("should remain pending", cdiv1.Pending, cdiv1.Pending),
-			Entry("should remain snapshotforsmartcloninginprogress", cdiv1.SnapshotForSmartCloneInProgress, cdiv1.SnapshotForSmartCloneInProgress),
 			Entry("should remain inprogress", cdiv1.ImportInProgress, cdiv1.ImportInProgress),
 		)
 

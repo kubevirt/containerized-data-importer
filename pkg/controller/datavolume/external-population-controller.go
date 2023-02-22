@@ -84,16 +84,18 @@ func NewPopulatorController(ctx context.Context, mgr manager.Manager, log logr.L
 }
 
 // Reconcile loop for externally populated DataVolumes
-func (r PopulatorReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+func (r *PopulatorReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("DataVolume", req.NamespacedName)
 	return r.updateStatus(r.sync(log, req))
 }
 
 // If dataSourceRef is set (external populator), use an empty spec.Source field
-func (r PopulatorReconciler) prepare(syncRes *dataVolumeSyncResult) error {
+func (r *PopulatorReconciler) prepare(syncRes *dataVolumeSyncResult) error {
 	if !dvUsesVolumePopulator(syncRes.dv) {
 		return errors.Errorf("undefined population source")
 	}
+	// TODO - let's revisit this
+	syncRes.dv.Spec.Source = &cdiv1.DataVolumeSource{}
 	syncRes.dvMutated.Spec.Source = &cdiv1.DataVolumeSource{}
 	return nil
 }
@@ -184,7 +186,7 @@ func isSnapshotPopulation(pvc *corev1.PersistentVolumeClaim) bool {
 
 // Generic controller functions
 
-func (r PopulatorReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+func (r *PopulatorReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
 	if !dvUsesVolumePopulator(dataVolume) {
 		return errors.Errorf("undefined population source")
 	}
@@ -192,27 +194,30 @@ func (r PopulatorReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc
 	return nil
 }
 
-func (r PopulatorReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
+func (r *PopulatorReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.syncExternalPopulation(log, req)
+	// TODO _ I think it is bad form that the datavolume is updated even in the case of error
 	if err := r.syncUpdate(log, &syncRes); err != nil {
 		syncErr = err
 	}
 	return syncRes, syncErr
 }
 
-func (r PopulatorReconciler) syncExternalPopulation(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
+func (r *PopulatorReconciler) syncExternalPopulation(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
 	syncRes, syncErr := r.syncCommon(log, req, nil, r.prepare)
 	if syncErr != nil || syncRes.result != nil {
-		return *syncRes, syncErr
+		return syncRes, syncErr
 	}
-	if err := r.handlePvcCreation(log, syncRes, r.updateAnnotations); err != nil {
+	if err := r.handlePvcCreation(log, &syncRes, r.updateAnnotations); err != nil {
 		syncErr = err
 	}
-	return *syncRes, syncErr
+	return syncRes, syncErr
 }
 
-func (r PopulatorReconciler) updateStatus(syncRes dataVolumeSyncResult, syncErr error) (reconcile.Result, error) {
+func (r *PopulatorReconciler) updateStatus(syncRes dataVolumeSyncResult, syncErr error) (reconcile.Result, error) {
+	// TODO FIXME - WE SHOULD ALWAYS UPDATE STATUS
 	if syncErr != nil {
+		r.log.Info("FIXME should not return because of this", "err", syncErr)
 		return getReconcileResult(syncRes.result), syncErr
 	}
 	res, err := r.updateStatusCommon(syncRes, r.updateStatusPhase)
@@ -222,7 +227,7 @@ func (r PopulatorReconciler) updateStatus(syncRes dataVolumeSyncResult, syncErr 
 	return res, syncErr
 }
 
-func (r PopulatorReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+func (r *PopulatorReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
 	// * Population by Snapshots doesn't have additional requirements.
 	// * Population by PVC requires CSI drivers.
 	// * Population by external populators requires both CSI drivers and the AnyVolumeDataSource feature gate.
