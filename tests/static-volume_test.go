@@ -43,23 +43,11 @@ var _ = Describe("checkStaticVolume tests", func() {
 		}
 
 		cloneDef := func() *cdiv1.DataVolume {
-			// TODO change validation so this is not necessary
-			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
-				framework.NsPrefixLabel: f.NsPrefix,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			f.AddNamespaceToDelete(targetNs)
-			return utils.NewDataVolumeForImageCloning(dvName, dvSize, targetNs.Name, "foo", pvStorageClass, pvMode)
+			return utils.NewDataVolumeForImageCloning(dvName, dvSize, "baz", "foo", pvStorageClass, pvMode)
 		}
 
 		snapshotCloneDef := func() *cdiv1.DataVolume {
-			// TODO change validation so this is not necessary
-			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
-				framework.NsPrefixLabel: f.NsPrefix,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			f.AddNamespaceToDelete(targetNs)
-			return utils.NewDataVolumeForSnapshotCloning(dvName, dvSize, targetNs.Name, "foo", pvStorageClass, pvMode)
+			return utils.NewDataVolumeForSnapshotCloning(dvName, dvSize, "baz", "foo", pvStorageClass, pvMode)
 		}
 
 		populatorDef := func() *cdiv1.DataVolume {
