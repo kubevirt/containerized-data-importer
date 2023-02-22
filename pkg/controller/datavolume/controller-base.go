@@ -157,6 +157,7 @@ func claimRefIndexKeyFunc(namespace, name string) string {
 	return namespace + "/" + name
 }
 
+// CreateCommonIndexes creates indexes used by all controllers
 func CreateCommonIndexes(mgr manager.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, dvPhaseField, func(obj client.Object) []string {
 		return []string{string(obj.(*cdiv1.DataVolume).Status.Phase)}

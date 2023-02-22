@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"time"
 
 	"github.com/appscode/jsonpatch"
@@ -197,6 +198,10 @@ func validateDataVolumeResource(ar admissionv1.AdmissionReview) error {
 }
 
 func toPatchResponse(original, current interface{}) *admissionv1.AdmissionResponse {
+	if reflect.DeepEqual(original, current) {
+		return allowedAdmissionResponse()
+	}
+
 	patchType := admissionv1.PatchTypeJSONPatch
 
 	ob, err := json.Marshal(original)
@@ -219,7 +224,7 @@ func toPatchResponse(original, current interface{}) *admissionv1.AdmissionRespon
 		return toAdmissionResponseError(err)
 	}
 
-	klog.V(3).Infof("sending patches\n%s", pb)
+	klog.V(1).Infof("sending patches\n%s", pb)
 
 	return &admissionv1.AdmissionResponse{
 		Allowed:   true,
