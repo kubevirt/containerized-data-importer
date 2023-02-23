@@ -26,6 +26,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	authv1 "k8s.io/api/authorization/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/kubernetes"
@@ -85,7 +86,7 @@ func (p *sarProxy) Create(sar *authv1.SubjectAccessReview) (*authv1.SubjectAcces
 }
 
 func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
-	var dataVolume, oldDataVolume cdiv1.DataVolume
+	dataVolume := &cdiv1.DataVolume{}
 
 	klog.V(3).Infof("Got AdmissionReview %+v", ar)
 
@@ -102,22 +103,7 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 		return allowedAdmissionResponse()
 	}
 
-	cloneSourceHandler, err := newCloneSourceHandler(&dataVolume, wh.cdiClient)
-	if err != nil {
-		return toAdmissionResponseError(err)
-	}
-
-	targetNamespace, targetName := dataVolume.Namespace, dataVolume.Name
-	if targetNamespace == "" {
-		targetNamespace = ar.Request.Namespace
-	}
-
-	if targetName == "" {
-		targetName = ar.Request.Name
-	}
-
 	modifiedDataVolume := dataVolume.DeepCopy()
-	modified := false
 
 	if ar.Request.Operation == admissionv1.Create {
 		config, err := wh.cdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -130,17 +116,41 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 			}
 			if modifiedDataVolume.Annotations[cc.AnnDeleteAfterCompletion] != "false" {
 				modifiedDataVolume.Annotations[cc.AnnDeleteAfterCompletion] = "true"
-				modified = true
 			}
 		}
 	}
 
-	if cloneSourceHandler.cloneType == noClone {
-		klog.V(3).Infof("DataVolume %s/%s not cloning", targetNamespace, targetName)
-		if modified {
+	_, prePopulated := dataVolume.Annotations[cc.AnnPrePopulated]
+	_, checkStaticVolume := dataVolume.Annotations[cc.AnnCheckStaticVolume]
+	noTokenOkay := prePopulated || checkStaticVolume
+
+	targetNamespace, targetName := dataVolume.Namespace, dataVolume.Name
+	if targetNamespace == "" {
+		targetNamespace = ar.Request.Namespace
+	}
+
+	if targetName == "" {
+		targetName = ar.Request.Name
+	}
+
+	cloneSourceHandler, err := newCloneSourceHandler(dataVolume, wh.cdiClient)
+	if err != nil {
+		if k8serrors.IsNotFound(err) && noTokenOkay {
+			// no token needed, likely since no datasource
+			klog.V(3).Infof("DataVolume %s/%s is pre/static populated, not adding token, no datasource", targetNamespace, targetName)
 			return toPatchResponse(dataVolume, modifiedDataVolume)
 		}
-		return allowedAdmissionResponse()
+		return toAdmissionResponseError(err)
+	}
+
+	if cloneSourceHandler.cloneType == noClone {
+		klog.V(3).Infof("DataVolume %s/%s not cloning", targetNamespace, targetName)
+		return toPatchResponse(dataVolume, modifiedDataVolume)
+	}
+
+	// only add token at create time
+	if ar.Request.Operation != admissionv1.Create {
+		return toPatchResponse(dataVolume, modifiedDataVolume)
 	}
 
 	sourceName, sourceNamespace := cloneSourceHandler.sourceName, cloneSourceHandler.sourceNamespace
@@ -150,19 +160,12 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 
 	_, err = wh.k8sClient.CoreV1().Namespaces().Get(context.TODO(), sourceNamespace, metav1.GetOptions{})
 	if err != nil {
+		if k8serrors.IsNotFound(err) && noTokenOkay {
+			// no token needed, likely since no source namespace
+			klog.V(3).Infof("DataVolume %s/%s is pre/static populated, not adding token, no source namespace", targetNamespace, targetName)
+			return toPatchResponse(dataVolume, modifiedDataVolume)
+		}
 		return toAdmissionResponseError(err)
-	}
-
-	if ar.Request.Operation == admissionv1.Update {
-		if err := json.Unmarshal(ar.Request.OldObject.Raw, &oldDataVolume); err != nil {
-			return toAdmissionResponseError(err)
-		}
-
-		_, ok := oldDataVolume.Annotations[cc.AnnCloneToken]
-		if ok {
-			klog.V(3).Infof("DataVolume %s/%s already has clone token", targetNamespace, targetName)
-			return allowedAdmissionResponse()
-		}
 	}
 
 	ok, reason, err := cloneSourceHandler.cloneAuthFunc(wh.proxy, sourceNamespace, sourceName, targetNamespace, ar.Request.UserInfo)
@@ -171,6 +174,11 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 	}
 
 	if !ok {
+		if noTokenOkay {
+			klog.V(3).Infof("DataVolume %s/%s is pre/static populated, not adding token, auth failed", targetNamespace, targetName)
+			return toPatchResponse(dataVolume, modifiedDataVolume)
+		}
+
 		causes := []metav1.StatusCause{
 			{
 				Type:    metav1.CauseTypeFieldValueInvalid,

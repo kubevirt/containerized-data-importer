@@ -592,6 +592,8 @@ func validateExternalPopulation(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path
 }
 
 func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
+	klog.V(3).Infof("Got AdmissionReview %+v", ar)
+
 	if err := validateDataVolumeResource(ar); err != nil {
 		return toAdmissionResponseError(err)
 	}

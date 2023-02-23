@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -353,4 +354,72 @@ func getReconcileResult(result *reconcile.Result) reconcile.Result {
 		return *result
 	}
 	return reconcile.Result{}
+}
+
+// adapted from k8s.io/kubernetes/pkg/controller/volume/persistentvolume/pv_controller.go
+// checkVolumeSatisfyClaim checks if the volume requested by the claim satisfies the requirements of the claim
+func checkVolumeSatisfyClaim(volume *v1.PersistentVolume, claim *v1.PersistentVolumeClaim) error {
+	requestedQty := claim.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)]
+	requestedSize := requestedQty.Value()
+
+	// check if PV's DeletionTimeStamp is set, if so, return error.
+	if volume.ObjectMeta.DeletionTimestamp != nil {
+		return fmt.Errorf("the volume is marked for deletion %q", volume.Name)
+	}
+
+	volumeQty := volume.Spec.Capacity[v1.ResourceStorage]
+	volumeSize := volumeQty.Value()
+	if volumeSize < requestedSize {
+		return fmt.Errorf("requested PV is too small")
+	}
+
+	// this differs from pv_controller, be loose on storage class if not specified
+	requestedClass := storagehelpers.GetPersistentVolumeClaimClass(claim)
+	if requestedClass != "" && storagehelpers.GetPersistentVolumeClass(volume) != requestedClass {
+		return fmt.Errorf("storageClassName does not match")
+	}
+
+	if CheckVolumeModeMismatches(&claim.Spec, &volume.Spec) {
+		return fmt.Errorf("incompatible volumeMode")
+	}
+
+	if !CheckAccessModes(claim, volume) {
+		return fmt.Errorf("incompatible accessMode")
+	}
+
+	return nil
+}
+
+// CheckVolumeModeMismatches is a convenience method that checks volumeMode for PersistentVolume
+// and PersistentVolumeClaims
+// TODO - later versions of k8s.io/component-helpers have this function
+func CheckVolumeModeMismatches(pvcSpec *v1.PersistentVolumeClaimSpec, pvSpec *v1.PersistentVolumeSpec) bool {
+	// In HA upgrades, we cannot guarantee that the apiserver is on a version >= controller-manager.
+	// So we default a nil volumeMode to filesystem
+	requestedVolumeMode := v1.PersistentVolumeFilesystem
+	if pvcSpec.VolumeMode != nil {
+		requestedVolumeMode = *pvcSpec.VolumeMode
+	}
+	pvVolumeMode := v1.PersistentVolumeFilesystem
+	if pvSpec.VolumeMode != nil {
+		pvVolumeMode = *pvSpec.VolumeMode
+	}
+	return requestedVolumeMode != pvVolumeMode
+}
+
+// CheckAccessModes returns true if PV satisfies all the PVC's requested AccessModes
+// TODO - later versions of k8s.io/component-helpers have this function
+func CheckAccessModes(claim *v1.PersistentVolumeClaim, volume *v1.PersistentVolume) bool {
+	pvModesMap := map[v1.PersistentVolumeAccessMode]bool{}
+	for _, mode := range volume.Spec.AccessModes {
+		pvModesMap[mode] = true
+	}
+
+	for _, mode := range claim.Spec.AccessModes {
+		_, ok := pvModesMap[mode]
+		if !ok {
+			return false
+		}
+	}
+	return true
 }

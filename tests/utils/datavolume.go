@@ -322,6 +322,30 @@ func NewDataVolumeWithExternalPopulation(dataVolumeName, size, storageClassName 
 			Name: dataVolumeName,
 		},
 		Spec: cdiv1.DataVolumeSpec{
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				VolumeMode:       &volumeMode,
+				StorageClassName: &storageClassName,
+				AccessModes:      []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				DataSource:       dataSource,
+				DataSourceRef:    dataSourceRef,
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+	return dataVolume
+}
+
+// NewDataVolumeWithExternalPopulationAndStorageSpec initializes a DataVolume struct meant to be externally populated (with storage spec)
+func NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, size, storageClassName string, volumeMode corev1.PersistentVolumeMode, dataSource, dataSourceRef *corev1.TypedLocalObjectReference) *cdiv1.DataVolume {
+	dataVolume := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dataVolumeName,
+		},
+		Spec: cdiv1.DataVolumeSpec{
 			Storage: &cdiv1.StorageSpec{
 				VolumeMode:       &volumeMode,
 				StorageClassName: &storageClassName,
@@ -588,8 +612,41 @@ func NewDataVolumeForCloningWithEmptySize(dataVolumeName, namespace, pvcName str
 	return dv
 }
 
-// NewDataVolumeForCloningFromSnapshot initializes a DataVolume struct for cloning from a volume snapshot
-func NewDataVolumeForCloningFromSnapshot(dataVolumeName, size, namespace, snapshot string, storageClassName *string, volumeMode *k8sv1.PersistentVolumeMode) *cdiv1.DataVolume {
+// NewDataVolumeForSnapshotCloning initializes a DataVolume struct for cloning from a volume snapshot
+func NewDataVolumeForSnapshotCloning(dataVolumeName, size, namespace, snapshot string, storageClassName *string, volumeMode *k8sv1.PersistentVolumeMode) *cdiv1.DataVolume {
+	dv := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        dataVolumeName,
+			Annotations: map[string]string{},
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				Snapshot: &cdiv1.DataVolumeSourceSnapshot{
+					Namespace: namespace,
+					Name:      snapshot,
+				},
+			},
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+	if volumeMode != nil {
+		dv.Spec.PVC.VolumeMode = volumeMode
+	}
+	if storageClassName != nil {
+		dv.Spec.PVC.StorageClassName = storageClassName
+	}
+	return dv
+}
+
+// NewDataVolumeForSnapshotCloningAndStorageSpec initializes a DataVolume struct for cloning from a volume snapshot
+func NewDataVolumeForSnapshotCloningAndStorageSpec(dataVolumeName, size, namespace, snapshot string, storageClassName *string, volumeMode *k8sv1.PersistentVolumeMode) *cdiv1.DataVolume {
 	dv := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        dataVolumeName,
