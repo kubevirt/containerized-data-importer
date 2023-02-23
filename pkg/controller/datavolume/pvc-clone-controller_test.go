@@ -225,7 +225,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			storageProfile := createStorageProfile(scName, nil, BlockMode)
 
 			r := createCloneReconciler(testDv, srcPvc, sc, storageProfile)
-			dvPhaseTest(r.ReconcilerBase, r.updateStatusPhase, testDv, current, expected, pvcPhase, podPhase, ann, expectedEvent)
+			dvPhaseTest(r.ReconcilerBase, r, testDv, current, expected, pvcPhase, podPhase, ann, expectedEvent)
 		},
 			Entry("should switch to scheduled for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneScheduled, corev1.ClaimBound, corev1.PodPending, AnnCloneRequest, "Cloning from default/test into default/test-dv scheduled", AnnPriorityClassName, "p0-clone"),
 			Entry("should switch to clone in progress for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneInProgress, corev1.ClaimBound, corev1.PodRunning, AnnCloneRequest, "Cloning from default/test into default/test-dv in progress", AnnPriorityClassName, "p0-clone"),
@@ -561,8 +561,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			AnnDefaultStorageClass: "true",
 		}, map[string]string{}, "csi-plugin")
 
-		syncRes := func(dv *cdiv1.DataVolume) *dataVolumeCloneSyncResult {
-			return &dataVolumeCloneSyncResult{dataVolumeSyncResult: dataVolumeSyncResult{dv: dv, dvMutated: dv.DeepCopy()}}
+		syncState := func(dv *cdiv1.DataVolume) *dvSyncState {
+			return &dvSyncState{dv: dv, dvMutated: dv.DeepCopy()}
 		}
 
 		It("Validate clone without source as feasible, but not done", func() {
@@ -570,7 +570,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			storageProfile := createStorageProfile(scName, nil, FilesystemMode)
 			reconciler = createCloneReconciler(dv, storageProfile, sc)
 
-			done, err := reconciler.validateCloneAndSourcePVC(syncRes(dv))
+			done, err := reconciler.validateCloneAndSourcePVC(syncState(dv))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeFalse())
 		})
@@ -580,7 +580,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			storageProfile := createStorageProfile(scName, nil, FilesystemMode)
 			reconciler = createCloneReconciler(dv, storageProfile, sc)
 
-			done, err := reconciler.validateCloneAndSourcePVC(syncRes(dv))
+			done, err := reconciler.validateCloneAndSourcePVC(syncState(dv))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeFalse())
 
@@ -589,7 +589,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Create(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 
-			done, err = reconciler.validateCloneAndSourcePVC(syncRes(dv))
+			done, err = reconciler.validateCloneAndSourcePVC(syncState(dv))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeTrue())
 		})
@@ -604,10 +604,13 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc.GetAnnotations()[AnnPopulatedFor] = "test-dv"
 			reconciler = createCloneReconciler(dv, pvc, storageProfile, sc)
 
-			syncRes := dataVolumeCloneSyncResult{dataVolumeSyncResult: dataVolumeSyncResult{dv: dv, dvMutated: dv.DeepCopy(), pvc: pvc, pvcSpec: dv.Spec.PVC.DeepCopy()}}
-			reconciler.handlePrePopulation(syncRes.dvMutated, syncRes.pvc)
-			syncRes.dv = syncRes.dvMutated.DeepCopy()
-			result, err := reconciler.updateStatus(syncRes, nil)
+			syncState := dvSyncState{dv: dv, dvMutated: dv.DeepCopy(), pvc: pvc}
+			reconciler.handlePrePopulation(syncState.dvMutated, syncState.pvc)
+			err := reconciler.client.Update(context.TODO(), syncState.dvMutated)
+			Expect(err).ToNot(HaveOccurred())
+
+			result, err := reconciler.updateStatus(getReconcileRequest(dv), syncState.phaseSync, reconciler)
+
 			Expect(err).ToNot(HaveOccurred())
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 			Expect(err).ToNot(HaveOccurred())
@@ -625,7 +628,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				storageProfile := createStorageProfile(scName, nil, FilesystemMode)
 				reconciler = createCloneReconciler(dv, storageProfile, sc)
 
-				done, err := reconciler.validateCloneAndSourcePVC(syncRes(dv))
+				done, err := reconciler.validateCloneAndSourcePVC(syncState(dv))
 				Expect(err).ToNot(HaveOccurred())
 				Expect(done).To(BeFalse())
 
@@ -635,7 +638,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				err = reconciler.client.Create(context.TODO(), pvc)
 				Expect(err).ToNot(HaveOccurred())
 
-				done, err = reconciler.validateCloneAndSourcePVC(syncRes(dv))
+				done, err = reconciler.validateCloneAndSourcePVC(syncState(dv))
 				Expect(done).To(Equal(expectedResult))
 				if expectedResult == false {
 					Expect(err).To(HaveOccurred())
@@ -714,8 +717,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			AnnDefaultStorageClass: "true",
 		}, map[string]string{}, "csi-plugin")
 
-		syncRes := func(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, pvcSpec *corev1.PersistentVolumeClaimSpec) dataVolumeCloneSyncResult {
-			return dataVolumeCloneSyncResult{dataVolumeSyncResult: dataVolumeSyncResult{dv: dv, dvMutated: dv.DeepCopy(), pvc: pvc, pvcSpec: pvcSpec}}
+		syncState := func(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, pvcSpec *corev1.PersistentVolumeClaimSpec) *dvSyncState {
+			return &dvSyncState{dv: dv, dvMutated: dv.DeepCopy(), pvc: pvc, pvcSpec: pvcSpec}
 		}
 
 		// detectCloneSize tests
@@ -729,7 +732,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			reconciler := createCloneReconciler(dv, storageProfile, sc)
 			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
-			done, err := reconciler.detectCloneSize(syncRes(dv, targetPvc, pvcSpec), HostAssistedClone)
+			done, err := reconciler.detectCloneSize(syncState(dv, targetPvc, pvcSpec), HostAssistedClone)
 			Expect(err).To(HaveOccurred())
 			Expect(done).To(BeFalse())
 			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
@@ -746,7 +749,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
-			done, err := reconciler.detectCloneSize(syncRes(dv, pvc, pvcSpec), HostAssistedClone)
+			done, err := reconciler.detectCloneSize(syncState(dv, pvc, pvcSpec), HostAssistedClone)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeFalse())
 			By("Checking events recorded")
@@ -774,7 +777,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
-			done, err := reconciler.detectCloneSize(syncRes(dv, pvc, pvcSpec), HostAssistedClone)
+			done, err := reconciler.detectCloneSize(syncState(dv, pvc, pvcSpec), HostAssistedClone)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeFalse())
 			By("Checking events recorded")
@@ -810,7 +813,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			// Checks
 			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
-			done, err := reconciler.detectCloneSize(syncRes(dv, pvc, pvcSpec), HostAssistedClone)
+			done, err := reconciler.detectCloneSize(syncState(dv, pvc, pvcSpec), HostAssistedClone)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(Equal(ErrInvalidTermMsg))
 			Expect(done).To(BeFalse())
@@ -855,11 +858,11 @@ var _ = Describe("All DataVolume Tests", func() {
 			expectedSizeInt64, _ := expectedSize.AsInt64()
 
 			// Checks
-			syncRes := syncRes(dv, pvc, pvcSpec)
-			done, err := reconciler.detectCloneSize(syncRes, HostAssistedClone)
+			syncState := syncState(dv, pvc, pvcSpec)
+			done, err := reconciler.detectCloneSize(syncState, HostAssistedClone)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeTrue())
-			Expect(syncRes.dvMutated.Annotations[AnnPermissiveClone]).To(Equal("true"))
+			Expect(syncState.dvMutated.Annotations[AnnPermissiveClone]).To(Equal("true"))
 			targetSize := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 			targetSizeInt64, _ := targetSize.AsInt64()
 			Expect(targetSizeInt64).To(Equal(expectedSizeInt64))
@@ -885,11 +888,11 @@ var _ = Describe("All DataVolume Tests", func() {
 			expectedSizeInt64, _ := expectedSize.AsInt64()
 
 			// Checks
-			syncRes := syncRes(dv, pvc, pvcSpec)
-			done, err := reconciler.detectCloneSize(syncRes, HostAssistedClone)
+			syncState := syncState(dv, pvc, pvcSpec)
+			done, err := reconciler.detectCloneSize(syncState, HostAssistedClone)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeTrue())
-			Expect(syncRes.dvMutated.Annotations[AnnPermissiveClone]).To(Equal("true"))
+			Expect(syncState.dvMutated.Annotations[AnnPermissiveClone]).To(Equal("true"))
 			targetSize := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 			targetSizeInt64, _ := targetSize.AsInt64()
 			Expect(targetSizeInt64).To(Equal(expectedSizeInt64))
@@ -908,7 +911,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 				Expect(err).ToNot(HaveOccurred())
 				expectedSize := *pvc.Status.Capacity.Storage()
-				done, err := reconciler.detectCloneSize(syncRes(dv, pvc, pvcSpec), selectedCloneStrategy)
+				done, err := reconciler.detectCloneSize(syncState(dv, pvc, pvcSpec), selectedCloneStrategy)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(done).To(BeTrue())
 				Expect(pvc.Spec.Resources.Requests.Storage().Cmp(expectedSize)).To(Equal(0))

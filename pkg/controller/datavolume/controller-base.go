@@ -87,12 +87,23 @@ type Event struct {
 	message   string
 }
 
-type dataVolumeSyncResult struct {
+type statusPhaseSync struct {
+	phase  cdiv1.DataVolumePhase
+	pvcKey *client.ObjectKey
+	event  Event
+}
+
+type dvSyncResult struct {
+	result    *reconcile.Result
+	phaseSync *statusPhaseSync
+}
+
+type dvSyncState struct {
 	dv        *cdiv1.DataVolume
 	dvMutated *cdiv1.DataVolume
 	pvc       *corev1.PersistentVolumeClaim
 	pvcSpec   *corev1.PersistentVolumeClaimSpec
-	result    *reconcile.Result
+	dvSyncResult
 }
 
 // ReconcilerBase members
@@ -298,97 +309,115 @@ func getDataVolumeOp(dv *cdiv1.DataVolume) dataVolumeOp {
 	return dataVolumeNop
 }
 
-type dataVolumeSyncResultFunc func(*dataVolumeSyncResult) error
-
-func (r *ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (dataVolumeSyncResult, error) {
-	syncRes, syncErr := r.sync(log, req, cleanup, prepare)
-	if syncErr != nil {
-		return syncRes, syncErr
-	}
-	return syncRes, r.syncUpdate(log, &syncRes)
+type dvController interface {
+	sync(log logr.Logger, req reconcile.Request) (dvSyncResult, error)
+	updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error
 }
 
-func (r *ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (dataVolumeSyncResult, error) {
-	syncRes := dataVolumeSyncResult{}
+func (r *ReconcilerBase) reconcile(ctx context.Context, req reconcile.Request, dvc dvController) (reconcile.Result, error) {
+	log := r.log.WithValues("DataVolume", req.NamespacedName)
+	syncRes, syncErr := dvc.sync(log, req)
+	res, err := r.updateStatus(req, syncRes.phaseSync, dvc)
+	if syncErr != nil {
+		err = syncErr
+	}
+	if syncRes.result != nil {
+		res = *syncRes.result
+	}
+	return res, err
+}
+
+type dvSyncStateFunc func(*dvSyncState) error
+
+func (r *ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, cleanup, prepare dvSyncStateFunc) (dvSyncState, error) {
+	syncState, err := r.syncDvPvcState(log, req, cleanup, prepare)
+	if err == nil {
+		err = r.syncUpdate(log, &syncState)
+	}
+	return syncState, err
+}
+
+func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, cleanup, prepare dvSyncStateFunc) (dvSyncState, error) {
+	syncState := dvSyncState{}
 	dv, err := r.getDataVolume(req.NamespacedName)
 	if dv == nil || err != nil {
-		syncRes.result = &reconcile.Result{}
-		return syncRes, err
+		syncState.result = &reconcile.Result{}
+		return syncState, err
 	}
-	syncRes.dv = dv
-	syncRes.dvMutated = dv.DeepCopy()
-	syncRes.pvc, err = r.getPVC(dv)
+	syncState.dv = dv
+	syncState.dvMutated = dv.DeepCopy()
+	syncState.pvc, err = r.getPVC(req.NamespacedName)
 	if err != nil {
-		return syncRes, err
+		return syncState, err
 	}
 
 	if dv.DeletionTimestamp != nil {
 		log.Info("DataVolume marked for deletion, cleaning up")
 		if cleanup != nil {
-			if err := cleanup(&syncRes); err != nil {
-				return syncRes, err
+			if err := cleanup(&syncState); err != nil {
+				return syncState, err
 			}
 		}
-		syncRes.result = &reconcile.Result{}
-		return syncRes, nil
+		syncState.result = &reconcile.Result{}
+		return syncState, nil
 	}
 
 	if prepare != nil {
-		if err := prepare(&syncRes); err != nil {
-			return syncRes, err
+		if err := prepare(&syncState); err != nil {
+			return syncState, err
 		}
 	}
 
-	syncRes.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, dv)
+	syncState.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, dv)
 	if err != nil {
-		return syncRes, err
+		return syncState, err
 	}
 
-	if err := r.handleStaticVolume(&syncRes, log); err != nil || syncRes.result != nil {
-		return syncRes, err
+	if err := r.handleStaticVolume(&syncState, log); err != nil || syncState.result != nil {
+		return syncState, err
 	}
 
-	if syncRes.pvc != nil {
-		if err := r.garbageCollect(&syncRes, log); err != nil {
-			return syncRes, err
+	if syncState.pvc != nil {
+		if err := r.garbageCollect(&syncState, log); err != nil {
+			return syncState, err
 		}
-		if syncRes.result != nil || syncRes.dv == nil {
-			return syncRes, nil
+		if syncState.result != nil || syncState.dv == nil {
+			return syncState, nil
 		}
-		if err := r.validatePVC(dv, syncRes.pvc); err != nil {
-			return syncRes, err
+		if err := r.validatePVC(dv, syncState.pvc); err != nil {
+			return syncState, err
 		}
-		r.handlePrePopulation(syncRes.dvMutated, syncRes.pvc)
+		r.handlePrePopulation(syncState.dvMutated, syncState.pvc)
 	}
 
-	return syncRes, nil
+	return syncState, nil
 }
 
-func (r *ReconcilerBase) syncUpdate(log logr.Logger, syncRes *dataVolumeSyncResult) error {
-	if syncRes.dv == nil || syncRes.dvMutated == nil {
+func (r *ReconcilerBase) syncUpdate(log logr.Logger, syncState *dvSyncState) error {
+	if syncState.dv == nil || syncState.dvMutated == nil {
 		return nil
 	}
-	if !reflect.DeepEqual(syncRes.dv.Status, syncRes.dvMutated.Status) {
+	if !reflect.DeepEqual(syncState.dv.Status, syncState.dvMutated.Status) {
 		return fmt.Errorf("status update is not allowed in sync phase")
 	}
-	if !reflect.DeepEqual(syncRes.dv.ObjectMeta, syncRes.dvMutated.ObjectMeta) {
-		if err := r.updateDataVolume(syncRes.dvMutated); err != nil {
-			r.log.Error(err, "Unable to sync update dv meta", "name", syncRes.dvMutated.Name)
+	if !reflect.DeepEqual(syncState.dv.ObjectMeta, syncState.dvMutated.ObjectMeta) {
+		if err := r.updateDataVolume(syncState.dvMutated); err != nil {
+			r.log.Error(err, "Unable to sync update dv meta", "name", syncState.dvMutated.Name)
 			return err
 		}
 		// Needed for emitEvent() DeepEqual check
-		syncRes.dv = syncRes.dvMutated.DeepCopy()
+		syncState.dv = syncState.dvMutated.DeepCopy()
 	}
 	return nil
 }
 
-func (r *ReconcilerBase) handleStaticVolume(syncRes *dataVolumeSyncResult, log logr.Logger) error {
-	if _, ok := syncRes.dvMutated.Annotations[cc.AnnCheckStaticVolume]; !ok {
+func (r *ReconcilerBase) handleStaticVolume(syncState *dvSyncState, log logr.Logger) error {
+	if _, ok := syncState.dvMutated.Annotations[cc.AnnCheckStaticVolume]; !ok {
 		return nil
 	}
 
-	if syncRes.pvc == nil {
-		volumes, err := r.getAvailableVolumesForDV(syncRes, log)
+	if syncState.pvc == nil {
+		volumes, err := r.getAvailableVolumesForDV(syncState, log)
 		if err != nil {
 			return err
 		}
@@ -398,7 +427,7 @@ func (r *ReconcilerBase) handleStaticVolume(syncRes *dataVolumeSyncResult, log l
 			return nil
 		}
 
-		if err := r.handlePvcCreation(log, syncRes, func(_ *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+		if err := r.handlePvcCreation(log, syncState, func(_ *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
 			bs, err := json.Marshal(volumes)
 			if err != nil {
 				return err
@@ -410,19 +439,19 @@ func (r *ReconcilerBase) handleStaticVolume(syncRes *dataVolumeSyncResult, log l
 		}
 
 		// set result to make sure callers don't do anything else in sync
-		syncRes.result = &reconcile.Result{}
+		syncState.result = &reconcile.Result{}
 		return nil
 	}
 
-	volumeAnno, ok := syncRes.pvc.Annotations[cc.AnnPersistentVolumeList]
+	volumeAnno, ok := syncState.pvc.Annotations[cc.AnnPersistentVolumeList]
 	if !ok {
 		// etiher did not create the PVC here OR bind to expected PV succeeded
 		return nil
 	}
 
-	if syncRes.pvc.Spec.VolumeName == "" {
+	if syncState.pvc.Spec.VolumeName == "" {
 		// set result to make sure callers don't do anything else in sync
-		syncRes.result = &reconcile.Result{}
+		syncState.result = &reconcile.Result{}
 		return nil
 	}
 
@@ -432,44 +461,44 @@ func (r *ReconcilerBase) handleStaticVolume(syncRes *dataVolumeSyncResult, log l
 	}
 
 	for _, v := range volumes {
-		if v == syncRes.pvc.Spec.VolumeName {
-			pvcCpy := syncRes.pvc.DeepCopy()
+		if v == syncState.pvc.Spec.VolumeName {
+			pvcCpy := syncState.pvc.DeepCopy()
 			// handle as "populatedFor" going foreward
-			cc.AddAnnotation(pvcCpy, cc.AnnPopulatedFor, syncRes.dvMutated.Name)
+			cc.AddAnnotation(pvcCpy, cc.AnnPopulatedFor, syncState.dvMutated.Name)
 			delete(pvcCpy.Annotations, cc.AnnPersistentVolumeList)
 			if err := r.updatePVC(pvcCpy); err != nil {
 				return err
 			}
-			syncRes.pvc = pvcCpy
+			syncState.pvc = pvcCpy
 			return nil
 		}
 	}
 
 	// delete the pvc and hope for better luck...
-	pvcCpy := syncRes.pvc.DeepCopy()
+	pvcCpy := syncState.pvc.DeepCopy()
 	if err := r.client.Delete(context.TODO(), pvcCpy, &client.DeleteOptions{}); err != nil {
 		return err
 	}
 
-	syncRes.pvc = pvcCpy
+	syncState.pvc = pvcCpy
 
-	return fmt.Errorf("DataVolume bound to unexpected PV %s", syncRes.pvc.Spec.VolumeName)
+	return fmt.Errorf("DataVolume bound to unexpected PV %s", syncState.pvc.Spec.VolumeName)
 }
 
-func (r *ReconcilerBase) getAvailableVolumesForDV(syncRes *dataVolumeSyncResult, log logr.Logger) ([]string, error) {
+func (r *ReconcilerBase) getAvailableVolumesForDV(syncState *dvSyncState, log logr.Logger) ([]string, error) {
 	pvList := &corev1.PersistentVolumeList{}
-	fields := client.MatchingFields{claimRefField: claimRefIndexKeyFunc(syncRes.dv.Namespace, syncRes.dv.Name)}
+	fields := client.MatchingFields{claimRefField: claimRefIndexKeyFunc(syncState.dv.Namespace, syncState.dv.Name)}
 	if err := r.client.List(context.TODO(), pvList, fields); err != nil {
 		return nil, err
 	}
-	if syncRes.pvcSpec == nil {
+	if syncState.pvcSpec == nil {
 		return nil, fmt.Errorf("missing pvc spec")
 	}
 	var pvNames []string
 	for _, pv := range pvList.Items {
 		if pv.Status.Phase == corev1.VolumeAvailable {
 			pvc := &corev1.PersistentVolumeClaim{
-				Spec: *syncRes.pvcSpec,
+				Spec: *syncState.pvcSpec,
 			}
 			if err := checkVolumeSatisfyClaim(&pv, pvc); err != nil {
 				continue
@@ -511,9 +540,8 @@ func (r *ReconcilerBase) validatePVC(dv *cdiv1.DataVolume, pvc *corev1.Persisten
 	return nil
 }
 
-func (r *ReconcilerBase) getPVC(dv *cdiv1.DataVolume) (*corev1.PersistentVolumeClaim, error) {
+func (r *ReconcilerBase) getPVC(key types.NamespacedName) (*corev1.PersistentVolumeClaim, error) {
 	pvc := &corev1.PersistentVolumeClaim{}
-	key := types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}
 	if err := r.client.Get(context.TODO(), key, pvc); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
@@ -571,7 +599,7 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 		datavolume.Status.Progress = "N/A"
 	}
 
-	if datavolume.Spec.Source.PVC != nil {
+	if datavolume.Spec.Source != nil && datavolume.Spec.Source.PVC != nil {
 		podNamespace = datavolume.Spec.Source.PVC.Namespace
 	} else {
 		podNamespace = datavolume.Namespace
@@ -597,6 +625,34 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 	return nil
 }
 
+func (r *ReconcilerBase) syncDataVolumeStatusPhaseWithEvent(syncState *dvSyncState, phase cdiv1.DataVolumePhase, pvc *corev1.PersistentVolumeClaim, event Event) error {
+	if syncState.phaseSync != nil {
+		return fmt.Errorf("phaseSync is already set")
+	}
+	syncState.phaseSync = &statusPhaseSync{phase: phase, event: event}
+	if pvc != nil {
+		key := client.ObjectKeyFromObject(pvc)
+		syncState.phaseSync.pvcKey = &key
+	}
+	return nil
+}
+
+func (r *ReconcilerBase) updateDataVolumeStatusPhaseSync(ps *statusPhaseSync, dv *cdiv1.DataVolume, dvCopy *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+	var condPvc *corev1.PersistentVolumeClaim
+	var err error
+	if ps.pvcKey != nil {
+		if pvc == nil || *ps.pvcKey != client.ObjectKeyFromObject(pvc) {
+			condPvc, err = r.getPVC(*ps.pvcKey)
+			if err != nil {
+				return err
+			}
+		} else {
+			condPvc = pvc
+		}
+	}
+	return r.updateDataVolumeStatusPhaseWithEvent(ps.phase, dv, dvCopy, condPvc, ps.event)
+}
+
 func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 	phase cdiv1.DataVolumePhase,
 	dataVolume *cdiv1.DataVolume,
@@ -619,17 +675,26 @@ func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, &event)
 }
 
-type updateStatusPhaseFunc func(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error
-
-func (r *ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, updateStatusPhase updateStatusPhaseFunc) (reconcile.Result, error) {
-	if syncRes.dv == nil {
-		return reconcile.Result{}, nil
+func (r ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPhaseSync, dvc dvController) (reconcile.Result, error) {
+	result := reconcile.Result{}
+	dv, err := r.getDataVolume(req.NamespacedName)
+	if dv == nil || err != nil {
+		return reconcile.Result{}, err
 	}
 
-	result := getReconcileResult(syncRes.result)
-	dataVolumeCopy := syncRes.dvMutated
+	dataVolumeCopy := dv.DeepCopy()
+
+	pvc, err := r.getPVC(req.NamespacedName)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if phaseSync != nil {
+		err = r.updateDataVolumeStatusPhaseSync(phaseSync, dv, dataVolumeCopy, pvc)
+		return reconcile.Result{}, err
+	}
+
 	curPhase := dataVolumeCopy.Status.Phase
-	pvc := syncRes.pvc
 	var event Event
 
 	if shouldSetDataVolumePending(pvc, dataVolumeCopy) {
@@ -637,12 +702,9 @@ func (r *ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, update
 	} else if pvc != nil {
 		dataVolumeCopy.Status.ClaimName = pvc.Name
 
-		// the following check is for a case where the request is to create a blank disk for a block device.
-		// in that case, we do not create a pod as there is no need to create a blank image.
-		// instead, we just mark the DV phase as 'Succeeded' so any consumer will be able to use it.
 		phase := pvc.Annotations[cc.AnnPodPhase]
 		if phase == string(cdiv1.Succeeded) {
-			if err := updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
+			if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
 				return reconcile.Result{}, err
 			}
 		} else {
@@ -670,7 +732,7 @@ func (r *ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, update
 				if pvcIsPopulated(pvc, dataVolumeCopy) {
 					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
 				} else {
-					if err := updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
+					if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
 						return reconcile.Result{}, err
 					}
 				}
@@ -697,7 +759,7 @@ func (r *ReconcilerBase) updateStatusCommon(syncRes dataVolumeSyncResult, update
 	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))
 	copy(currentCond, dataVolumeCopy.Status.Conditions)
 	r.updateConditions(dataVolumeCopy, pvc, "")
-	return result, r.emitEvent(syncRes.dv, dataVolumeCopy, curPhase, currentCond, &event)
+	return result, r.emitEvent(dv, dataVolumeCopy, curPhase, currentCond, &event)
 }
 
 func (r *ReconcilerBase) updateConditions(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, reason string) {
@@ -1023,27 +1085,22 @@ func (r *ReconcilerBase) shouldBeMarkedWaitForFirstConsumer(pvc *corev1.Persiste
 }
 
 // handlePvcCreation works as a wrapper for non-clone PVC creation and error handling
-func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncRes *dataVolumeSyncResult, pvcModifier pvcModifierFunc) error {
-	if syncRes.pvc != nil {
+func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncState *dvSyncState, pvcModifier pvcModifierFunc) error {
+	if syncState.pvc != nil {
 		return nil
 	}
-	if dvIsPrePopulated(syncRes.dvMutated) {
+	if dvIsPrePopulated(syncState.dvMutated) {
 		return nil
 	}
 	// Creating the PVC
-	newPvc, err := r.createPvcForDatavolume(syncRes.dvMutated, syncRes.pvcSpec, pvcModifier)
+	newPvc, err := r.createPvcForDatavolume(syncState.dvMutated, syncState.pvcSpec, pvcModifier)
 	if err != nil {
 		if cc.ErrQuotaExceeded(err) {
-			r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Pending, syncRes.dv, syncRes.dvMutated, nil,
-				Event{
-					eventType: corev1.EventTypeWarning,
-					reason:    cc.ErrExceededQuota,
-					message:   err.Error(),
-				})
+			r.syncDataVolumeStatusPhaseWithEvent(syncState, cdiv1.Pending, nil, Event{corev1.EventTypeWarning, cc.ErrExceededQuota, err.Error()})
 		}
 		return err
 	}
-	syncRes.pvc = newPvc
+	syncState.pvc = newPvc
 
 	return nil
 }

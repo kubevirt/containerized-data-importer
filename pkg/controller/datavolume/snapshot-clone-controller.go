@@ -123,17 +123,16 @@ func addDataVolumeSnapshotCloneControllerWatches(mgr manager.Manager, datavolume
 
 // Reconcile loop for the clone data volumes
 func (r *SnapshotCloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	log := r.log.WithValues("DataVolume", req.NamespacedName)
-	return r.updateStatus(r.sync(log, req))
+	return r.reconcile(ctx, req, r)
 }
 
-func (r *SnapshotCloneReconciler) prepare(syncRes *dataVolumeSyncResult) error {
-	dv := syncRes.dvMutated
+func (r *SnapshotCloneReconciler) prepare(syncState *dvSyncState) error {
+	dv := syncState.dvMutated
 	if err := r.populateSourceIfSourceRef(dv); err != nil {
 		return err
 	}
 	if dv.Status.Phase == cdiv1.Succeeded {
-		if err := r.cleanup(syncRes); err != nil {
+		if err := r.cleanup(syncState); err != nil {
 			return err
 		}
 	}
@@ -159,18 +158,16 @@ func (r *SnapshotCloneReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume
 	return nil
 }
 
-func (r *SnapshotCloneReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeCloneSyncResult, error) {
-	syncRes, syncErr := r.syncSnapshotClone(log, req)
-	// TODO _ I think it is bad form that the datavolume is updated even in the case of error
-	if err := r.syncUpdate(log, &syncRes.dataVolumeSyncResult); err != nil {
-		syncErr = err
+func (r *SnapshotCloneReconciler) sync(log logr.Logger, req reconcile.Request) (dvSyncResult, error) {
+	syncState, err := r.syncSnapshotClone(log, req)
+	if err == nil {
+		err = r.syncUpdate(log, &syncState)
 	}
-	return syncRes, syncErr
+	return syncState.dvSyncResult, err
 }
 
-func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconcile.Request) (dataVolumeCloneSyncResult, error) {
-	res, syncErr := r.syncCommon(log, req, r.cleanup, r.prepare)
-	syncRes := dataVolumeCloneSyncResult{dataVolumeSyncResult: res}
+func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconcile.Request) (dvSyncState, error) {
+	syncRes, syncErr := r.syncCommon(log, req, r.cleanup, r.prepare)
 	if syncErr != nil || syncRes.result != nil {
 		return syncRes, syncErr
 	}
@@ -273,15 +270,15 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 }
 
 // validateCloneAndSourceSnapshot checks if the source snapshot of a clone exists and does proper validation
-func (r *SnapshotCloneReconciler) validateCloneAndSourceSnapshot(syncRes *dataVolumeCloneSyncResult) (bool, error) {
-	datavolume := syncRes.dvMutated
+func (r *SnapshotCloneReconciler) validateCloneAndSourceSnapshot(syncState *dvSyncState) (bool, error) {
+	datavolume := syncState.dvMutated
 	nn := types.NamespacedName{Namespace: datavolume.Spec.Source.Snapshot.Namespace, Name: datavolume.Spec.Source.Snapshot.Name}
 	snapshot := &snapshotv1.VolumeSnapshot{}
 	err := r.client.Get(context.TODO(), nn, snapshot)
 	if err != nil {
 		// Clone without source
 		if k8serrors.IsNotFound(err) {
-			r.syncDataVolumeStatusPhaseWithEvent(syncRes, datavolume.Status.Phase, nil,
+			r.syncDataVolumeStatusPhaseWithEvent(syncState, datavolume.Status.Phase, nil,
 				Event{
 					eventType: corev1.EventTypeWarning,
 					reason:    CloneWithoutSource,
@@ -359,7 +356,7 @@ func (r *SnapshotCloneReconciler) reconcileRestoreSnapshot(log logr.Logger,
 	snapshot *snapshotv1.VolumeSnapshot,
 	pvcSpec *corev1.PersistentVolumeClaimSpec,
 	transferName string,
-	syncRes *dataVolumeCloneSyncResult) (reconcile.Result, error) {
+	syncRes *dvSyncState) (reconcile.Result, error) {
 
 	pvcName := datavolume.Name
 
@@ -407,7 +404,7 @@ func (r *SnapshotCloneReconciler) reconcileRestoreSnapshot(log logr.Logger,
 	return reconcile.Result{}, r.syncCloneStatusPhase(syncRes, cdiv1.CloneFromSnapshotSourceInProgress, nil)
 }
 
-func (r *SnapshotCloneReconciler) createTempHostAssistedSourcePvc(dv *cdiv1.DataVolume, snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec, syncRes *dataVolumeCloneSyncResult) error {
+func (r *SnapshotCloneReconciler) createTempHostAssistedSourcePvc(dv *cdiv1.DataVolume, snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec, syncState *dvSyncState) error {
 	tempPvcName := getTempHostAssistedSourcePvcName(dv)
 	tempHostAssistedSourcePvc, err := r.makePvcFromSnapshot(tempPvcName, dv, snapshot, targetPvcSpec)
 	if err != nil {
@@ -442,7 +439,7 @@ func (r *SnapshotCloneReconciler) createTempHostAssistedSourcePvc(dv *cdiv1.Data
 		}
 		if err := r.client.Create(context.TODO(), tempHostAssistedSourcePvc); err != nil {
 			if cc.ErrQuotaExceeded(err) {
-				r.syncDataVolumeStatusPhaseWithEvent(syncRes, cdiv1.Pending, nil,
+				r.syncDataVolumeStatusPhaseWithEvent(syncState, cdiv1.Pending, nil,
 					Event{
 						eventType: corev1.EventTypeWarning,
 						reason:    cc.ErrExceededQuota,
@@ -515,22 +512,8 @@ func getTempHostAssistedSourcePvcName(dv *cdiv1.DataVolume) string {
 	return fmt.Sprintf("%s-host-assisted-source-pvc", dv.GetUID())
 }
 
-func (r *SnapshotCloneReconciler) updateStatus(syncRes dataVolumeCloneSyncResult, syncErr error) (reconcile.Result, error) {
-	if ps := syncRes.phaseSync; ps != nil {
-		if err := r.updateDataVolumeStatusPhaseWithEvent(ps.phase, syncRes.dv, syncRes.dvMutated, ps.pvc, ps.event); err != nil {
-			syncErr = err
-		}
-		return getReconcileResult(syncRes.result), syncErr
-	}
-	res, err := r.updateStatusCommon(syncRes.dataVolumeSyncResult, r.updateStatusPhase)
-	if err != nil {
-		syncErr = err
-	}
-	return res, syncErr
-}
-
-func (r *SnapshotCloneReconciler) cleanup(syncRes *dataVolumeSyncResult) error {
-	dv := syncRes.dvMutated
+func (r *SnapshotCloneReconciler) cleanup(syncState *dvSyncState) error {
+	dv := syncState.dvMutated
 	r.log.V(3).Info("Cleanup initiated in dv snapshot clone controller")
 
 	if isCrossNamespaceClone(dv) {
