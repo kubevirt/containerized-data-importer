@@ -22,15 +22,12 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"reflect"
-	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
 func generateTestKey() (*rsa.PrivateKey, error) {
@@ -40,11 +37,6 @@ func generateTestKey() (*rsa.PrivateKey, error) {
 	}
 
 	return apiKeyPair, nil
-}
-
-func TestToken(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Token Suite", reporters.NewReporters())
 }
 
 var _ = Describe("Token test", func() {
