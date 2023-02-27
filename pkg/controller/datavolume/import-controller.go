@@ -200,47 +200,30 @@ func (r *ImportReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *
 
 // Reconcile loop for the import data volumes
 func (r *ImportReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	log := r.log.WithValues("DataVolume", req.NamespacedName)
-	return r.updateStatus(r.sync(log, req))
+	return r.reconcile(ctx, req, r)
 }
 
-func (r *ImportReconciler) sync(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
-	syncRes, syncErr := r.syncImport(log, req)
-	// TODO _ I think it is bad form that the datavolume is updated even in the case of error
-	if err := r.syncUpdate(log, &syncRes); err != nil {
-		syncErr = err
+func (r *ImportReconciler) sync(log logr.Logger, req reconcile.Request) (dvSyncResult, error) {
+	syncState, err := r.syncImport(log, req)
+	if err == nil {
+		err = r.syncUpdate(log, &syncState)
 	}
-	return syncRes, syncErr
+	return syncState.dvSyncResult, err
 }
 
-func (r *ImportReconciler) syncImport(log logr.Logger, req reconcile.Request) (dataVolumeSyncResult, error) {
-	syncRes, syncErr := r.syncCommon(log, req, nil, nil)
-	if syncErr != nil || syncRes.result != nil {
-		return syncRes, syncErr
+func (r *ImportReconciler) syncImport(log logr.Logger, req reconcile.Request) (dvSyncState, error) {
+	syncState, syncErr := r.syncCommon(log, req, nil, nil)
+	if syncErr != nil || syncState.result != nil {
+		return syncState, syncErr
 	}
-	if err := r.handlePvcCreation(log, &syncRes, r.updateAnnotations); err != nil {
+	if err := r.handlePvcCreation(log, &syncState, r.updateAnnotations); err != nil {
 		syncErr = err
 	}
-	if syncRes.pvc != nil && syncErr == nil {
-		r.setVddkAnnotations(&syncRes)
-		syncErr = r.maybeSetPvcMultiStageAnnotation(syncRes.pvc, syncRes.dvMutated)
+	if syncState.pvc != nil && syncErr == nil {
+		r.setVddkAnnotations(&syncState)
+		syncErr = r.maybeSetPvcMultiStageAnnotation(syncState.pvc, syncState.dvMutated)
 	}
-	return syncRes, syncErr
-}
-
-func (r *ImportReconciler) updateStatus(syncRes dataVolumeSyncResult, syncErr error) (reconcile.Result, error) {
-	// TODO FIXME - WE SHOULD ALWAYS UPDATE STATUS
-	// BUT THIS TEST FAILS WITHOUT IT
-	// [test_id:7737]when creating import dv with given valid url
-	if syncErr != nil {
-		r.log.Info("FIXME should not return because of this", "err", syncErr)
-		return getReconcileResult(syncRes.result), syncErr
-	}
-	res, err := r.updateStatusCommon(syncRes, r.updateStatusPhase)
-	if err != nil {
-		syncErr = err
-	}
-	return res, syncErr
+	return syncState, syncErr
 }
 
 func (r *ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
@@ -294,15 +277,15 @@ func (r *ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, 
 	return nil
 }
 
-func (r *ImportReconciler) setVddkAnnotations(syncRes *dataVolumeSyncResult) {
-	if cc.GetSource(syncRes.pvc) != cc.SourceVDDK {
+func (r *ImportReconciler) setVddkAnnotations(syncState *dvSyncState) {
+	if cc.GetSource(syncState.pvc) != cc.SourceVDDK {
 		return
 	}
-	if vddkHost := syncRes.pvc.Annotations[cc.AnnVddkHostConnection]; vddkHost != "" {
-		cc.AddAnnotation(syncRes.dvMutated, cc.AnnVddkHostConnection, vddkHost)
+	if vddkHost := syncState.pvc.Annotations[cc.AnnVddkHostConnection]; vddkHost != "" {
+		cc.AddAnnotation(syncState.dvMutated, cc.AnnVddkHostConnection, vddkHost)
 	}
-	if vddkVersion := syncRes.pvc.Annotations[cc.AnnVddkVersion]; vddkVersion != "" {
-		cc.AddAnnotation(syncRes.dvMutated, cc.AnnVddkVersion, vddkVersion)
+	if vddkVersion := syncState.pvc.Annotations[cc.AnnVddkVersion]; vddkVersion != "" {
+		cc.AddAnnotation(syncState.dvMutated, cc.AnnVddkVersion, vddkVersion)
 	}
 }
 

@@ -423,3 +423,7 @@ func CheckAccessModes(claim *v1.PersistentVolumeClaim, volume *v1.PersistentVolu
 	}
 	return true
 }
+
+func getReconcileRequest(obj client.Object) reconcile.Request {
+	return reconcile.Request{NamespacedName: client.ObjectKeyFromObject(obj)}
+}

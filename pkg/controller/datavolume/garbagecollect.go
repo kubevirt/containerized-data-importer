@@ -32,8 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-func (r *ReconcilerBase) garbageCollect(syncRes *dataVolumeSyncResult, log logr.Logger) error {
-	dataVolume := syncRes.dv
+func (r *ReconcilerBase) garbageCollect(syncState *dvSyncState, log logr.Logger) error {
+	dataVolume := syncState.dv
 	if dataVolume.Status.Phase != cdiv1.Succeeded {
 		return nil
 	}
@@ -51,10 +51,10 @@ func (r *ReconcilerBase) garbageCollect(syncRes *dataVolumeSyncResult, log logr.
 	}
 	// Current DV still has TTL, so reconcile will return with the needed RequeueAfter
 	if delta := getDeltaTTL(dataVolume, dvTTL); delta > 0 {
-		syncRes.result = &reconcile.Result{RequeueAfter: delta}
+		syncState.result = &reconcile.Result{RequeueAfter: delta}
 		return nil
 	}
-	if err := r.detachPvcDeleteDv(syncRes); err != nil {
+	if err := r.detachPvcDeleteDv(syncState); err != nil {
 		return err
 	}
 	return nil
@@ -101,18 +101,18 @@ func (r *ReconcilerBase) canUpdateFinalizers(ownerRef metav1.OwnerReference) (bo
 	return ssar.Status.Allowed, nil
 }
 
-func (r *ReconcilerBase) detachPvcDeleteDv(syncRes *dataVolumeSyncResult) error {
-	updatePvcOwnerRefs(syncRes.pvc, syncRes.dv)
-	delete(syncRes.pvc.Annotations, cc.AnnPopulatedFor)
-	if err := r.updatePVC(syncRes.pvc); err != nil {
+func (r *ReconcilerBase) detachPvcDeleteDv(syncState *dvSyncState) error {
+	updatePvcOwnerRefs(syncState.pvc, syncState.dv)
+	delete(syncState.pvc.Annotations, cc.AnnPopulatedFor)
+	if err := r.updatePVC(syncState.pvc); err != nil {
 		return err
 	}
-	if err := r.client.Delete(context.TODO(), syncRes.dv); err != nil {
+	if err := r.client.Delete(context.TODO(), syncState.dv); err != nil {
 		return err
 	}
-	syncRes.result = &reconcile.Result{}
-	syncRes.dv = nil
-	syncRes.dvMutated = nil
+	syncState.result = &reconcile.Result{}
+	syncState.dv = nil
+	syncState.dvMutated = nil
 	return nil
 }
 
