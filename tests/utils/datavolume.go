@@ -425,7 +425,6 @@ func NewDataVolumeCloneToBlockPVStorageAPI(dataVolumeName string, size string, s
 			Storage: &cdiv1.StorageSpec{
 				VolumeMode:       &volumeMode,
 				StorageClassName: &storageClassName,
-				AccessModes:      []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
 						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
