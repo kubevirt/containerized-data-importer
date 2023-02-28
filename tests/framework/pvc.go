@@ -137,14 +137,20 @@ func (f *Framework) CreateAndPopulateSourcePVC(pvcDef *k8sv1.PersistentVolumeCla
 	// Create the source PVC and populate it with a file, so we can verify the clone.
 	sourcePvc, err := f.CreatePVCFromDefinition(pvcDef)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	pod, err := f.CreatePod(f.NewPodWithPVC(podName, fillCommand+"&& sync", sourcePvc))
+
+	f.PopulatePVC(sourcePvc, podName, fillCommand)
+	return sourcePvc
+}
+
+// PopulatePVC populates a PVC using a pod with the provided pod name and command
+func (f *Framework) PopulatePVC(pvc *k8sv1.PersistentVolumeClaim, podName string, fillCommand string) {
+	pod, err := f.CreatePod(f.NewPodWithPVC(podName, fillCommand+"&& sync", pvc))
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	err = f.WaitTimeoutForPodStatus(pod.Name, k8sv1.PodSucceeded, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = f.DeletePod(pod)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	return sourcePvc
 }
 
 // VerifyTargetPVCContentMD5 provides a function to check the md5 of data on a PVC and ensure it matches that which is provided

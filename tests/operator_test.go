@@ -35,6 +35,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -61,8 +62,7 @@ var _ = Describe("ALL Operator tests", func() {
 						return depl.Status.ReadyReplicas
 					}, 5*time.Minute, 1*time.Second).Should(Equal(originalReplicaVal))
 				})
-
-				It("Alpha version of CDI CRD is removed even if it was briefly a storage version", func() {
+				It("[test_id:9696]Alpha version of CDI CRD is removed even if it was briefly a storage version", func() {
 					By("Scaling down CDI operator")
 					originalReplicaVal = scaleDeployment(f, deploymentName, 0)
 					Eventually(func() bool {
@@ -115,7 +115,25 @@ var _ = Describe("ALL Operator tests", func() {
 					}, 1*time.Minute, 2*time.Second).Should(BeTrue())
 				})
 
-				It("Alpha versions of datavolume CRD are removed, even if objects previously existed", func() {
+				It("[test_id:9704]Alpha versions of datavolume CRD are removed, previously existing objects remain and are unmodified", func() {
+					fillData := "123456789012345678901234567890123456789012345678901234567890"
+					fillDataFSMD5sum := "fabc176de7eb1b6ca90b3aa4c7e035f3"
+					testFile := utils.DefaultPvcMountPath + "/source.txt"
+					fillCommand := "echo \"" + fillData + "\" >> " + testFile
+
+					By("Creating datavolume without GC and custom changes")
+					dv := utils.NewDataVolumeWithHTTPImport("alpha-tests-dv", "500Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+					dv.Annotations[cc.AnnDeleteAfterCompletion] = "false"
+					dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+					Expect(err).ToNot(HaveOccurred())
+					f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
+					err = utils.WaitForDataVolumePhase(f, dv.Namespace, cdiv1.Succeeded, dv.Name)
+					Expect(err).ToNot(HaveOccurred())
+
+					pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					f.PopulatePVC(pvc, "modify-dv-contents", fillCommand)
+
 					By("Scaling down CDI operator")
 					originalReplicaVal = scaleDeployment(f, deploymentName, 0)
 					Eventually(func() bool {
@@ -135,11 +153,6 @@ var _ = Describe("ALL Operator tests", func() {
 					dvCrd, err = f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), dvCrd, metav1.UpdateOptions{})
 					Expect(err).ToNot(HaveOccurred())
 					Expect(dvCrd.Status.StoredVersions).Should(ContainElement("v1alpha1"))
-
-					By("Creating datavolume")
-					dv := utils.NewDataVolumeForUpload("delete-me", "1Gi")
-					dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
-					Expect(err).ToNot(HaveOccurred())
 
 					By("Making sure we can get datavolume in v1alpha1 version")
 					Eventually(func() error {
@@ -172,6 +185,10 @@ var _ = Describe("ALL Operator tests", func() {
 					By("Datavolume is still there")
 					_, err = f.CdiClient.CdiV1beta1().DataVolumes(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
+					By("Verify no import - the PVC still includes our custom changes")
+					md5Match, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, testFile, fillDataFSMD5sum)
+					Expect(err).To(BeNil())
+					Expect(md5Match).To(BeTrue())
 				})
 			})
 
@@ -1584,17 +1601,13 @@ func updateUninstallStrategy(f *framework.Framework, strategy *cdiv1.CDIUninstal
 	return result
 }
 
-func scaleDeployment(f *framework.Framework, deploymentName string, replicas int32) (originalReplicas int32) {
-	Eventually(func() error {
-		operatorDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		originalReplicas = *operatorDeployment.Spec.Replicas
-		operatorDeployment.Spec.Replicas = &[]int32{replicas}[0]
-		_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), operatorDeployment, metav1.UpdateOptions{})
-		return err
-	}, 1*time.Minute, 1*time.Second).Should(BeNil())
+func scaleDeployment(f *framework.Framework, deploymentName string, replicas int32) int32 {
+	operatorDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	originalReplicas := *operatorDeployment.Spec.Replicas
+	patch := fmt.Sprintf(`[{"op": "replace", "path": "/spec/replicas", "value": %d}]`, replicas)
+	_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Patch(context.TODO(), deploymentName, types.JSONPatchType, []byte(patch), metav1.PatchOptions{})
+	Expect(err).ToNot(HaveOccurred())
 	return originalReplicas
 }
 
