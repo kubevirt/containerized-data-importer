@@ -45,6 +45,7 @@ import (
 	cdiv1utils "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1/utils"
 	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
@@ -203,6 +204,9 @@ const (
 	AnnPodSidecarInjection = "sidecar.istio.io/inject"
 	// AnnPodSidecarInjectionDefault is the default value passed for AnnPodSidecarInjection
 	AnnPodSidecarInjectionDefault = "false"
+
+	// AnnImmediateBinding provides a const to indicate whether immediate binding should be performed on the PV (overrides global config)
+	AnnImmediateBinding = AnnAPIGroup + "/storage.bind.immediate.requested"
 
 	// CloneUniqueID is used as a special label to be used when we search for the pod
 	CloneUniqueID = "cdi.kubevirt.io/storage.clone.cloneUniqeId"
@@ -1183,4 +1187,17 @@ func GetCloneSourceNameAndNamespace(dv *cdiv1.DataVolume) (name, namespace strin
 	}
 
 	return sourceName, sourceNamespace
+}
+
+// IsWaitForFirstConsumerEnabled tells us if we should respect "real" WFFC behavior or just let our worker pods randomly spawn
+func IsWaitForFirstConsumerEnabled(obj metav1.Object, gates featuregates.FeatureGates) (bool, error) {
+	// when PVC requests immediateBinding it cannot honor wffc logic
+	_, isImmediateBindingRequested := obj.GetAnnotations()[AnnImmediateBinding]
+	pvcHonorWaitForFirstConsumer := !isImmediateBindingRequested
+	globalHonorWaitForFirstConsumer, err := gates.HonorWaitForFirstConsumerEnabled()
+	if err != nil {
+		return false, err
+	}
+
+	return pvcHonorWaitForFirstConsumer && globalHonorWaitForFirstConsumer, nil
 }

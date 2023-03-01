@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
@@ -125,6 +126,21 @@ func DeleteDataVolume(clientSet *cdiclientset.Clientset, namespace, name string)
 		}
 		return false, err
 	})
+}
+
+// CleanupDvPvc Deletes PVC if DV was GCed, otherwise wait for PVC to be gone
+func CleanupDvPvc(k8sClient *kubernetes.Clientset, cdiClient *cdiclientset.Clientset, namespace, name string) {
+	err := cdiClient.CdiV1beta1().DataVolumes(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	if apierrs.IsNotFound(err) {
+		// Must have been GCed, delete PVC
+		err = DeletePVC(k8sClient, namespace, name)
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+		return
+	}
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	deleted, err := WaitPVCDeleted(k8sClient, name, namespace, 2*time.Minute)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	gomega.Expect(deleted).To(gomega.BeTrue())
 }
 
 // NewCloningDataVolume initializes a DataVolume struct with PVC annotations
