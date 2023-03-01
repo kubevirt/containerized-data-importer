@@ -39,7 +39,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 
@@ -52,9 +51,6 @@ const (
 
 	// AnnOwnerRef is used when owner is in a different namespace
 	AnnOwnerRef = cc.AnnAPIGroup + "/storage.ownerRef"
-
-	// AnnImmediateBinding provides a const to indicate whether immediate binding should be performed on the PV (overrides global config)
-	AnnImmediateBinding = cc.AnnAPIGroup + "/storage.bind.immediate.requested"
 
 	// PodRunningReason is const that defines the pod was started as a reason
 	PodRunningReason = "Pod is running"
@@ -89,17 +85,6 @@ func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string, log logr.Logger)
 	}
 
 	return true
-}
-
-func isWaitForFirstConsumerEnabled(isImmediateBindingRequested bool, gates featuregates.FeatureGates) (bool, error) {
-	// when PVC requests immediateBinding it cannot honor wffc logic
-	pvcHonorWaitForFirstConsumer := !isImmediateBindingRequested
-	globalHonorWaitForFirstConsumer, err := gates.HonorWaitForFirstConsumerEnabled()
-	if err != nil {
-		return false, err
-	}
-
-	return pvcHonorWaitForFirstConsumer && globalHonorWaitForFirstConsumer, nil
 }
 
 // - when the SkipWFFCVolumesEnabled is true, the CDI controller will only handle BOUND the PVC

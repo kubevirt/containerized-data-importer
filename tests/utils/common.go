@@ -113,7 +113,7 @@ func IsHostpathProvisioner() bool {
 	if DefaultStorageClass == nil {
 		return false
 	}
-	return DefaultStorageClass.Provisioner == "kubevirt.io/hostpath-provisioner"
+	return DefaultStorageClass.Provisioner == "kubevirt.io.hostpath-provisioner"
 }
 
 // GetTestNamespaceList returns a list of namespaces that have been created by the functional tests.

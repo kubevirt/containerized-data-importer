@@ -116,10 +116,10 @@ var _ = Describe("Test PVC annotations status", func() {
 		r := createImportReconciler()
 		r.featureGates = &FakeFeatureGates{honorWaitForFirstConsumerEnabled: true}
 		testPvc := createPendingPvc("testPvc1", "default", map[string]string{
-			cc.AnnPodPhase:      string(corev1.PodPending),
-			cc.AnnEndpoint:      testEndPoint,
-			cc.AnnSource:        cc.SourceHTTP,
-			AnnImmediateBinding: "true",
+			cc.AnnPodPhase:         string(corev1.PodPending),
+			cc.AnnEndpoint:         testEndPoint,
+			cc.AnnSource:           cc.SourceHTTP,
+			cc.AnnImmediateBinding: "true",
 		}, nil)
 		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
@@ -127,10 +127,10 @@ var _ = Describe("Test PVC annotations status", func() {
 		r := createImportReconciler()
 		r.featureGates = &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}
 		testPvc := createPendingPvc("testPvc1", "default", map[string]string{
-			cc.AnnPodPhase:      string(corev1.PodPending),
-			cc.AnnEndpoint:      testEndPoint,
-			cc.AnnSource:        cc.SourceHTTP,
-			AnnImmediateBinding: "true",
+			cc.AnnPodPhase:         string(corev1.PodPending),
+			cc.AnnEndpoint:         testEndPoint,
+			cc.AnnSource:           cc.SourceHTTP,
+			cc.AnnImmediateBinding: "true",
 		}, nil)
 		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})

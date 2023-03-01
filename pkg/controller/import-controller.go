@@ -170,8 +170,7 @@ func (r *ImportReconciler) shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim,
 		return false, nil
 	}
 
-	_, isImmediateBindingRequested := pvc.Annotations[AnnImmediateBinding]
-	waitForFirstConsumerEnabled, err := isWaitForFirstConsumerEnabled(isImmediateBindingRequested, r.featureGates)
+	waitForFirstConsumerEnabled, err := cc.IsWaitForFirstConsumerEnabled(pvc, r.featureGates)
 	if err != nil {
 		return false, err
 	}

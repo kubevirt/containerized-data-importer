@@ -24,7 +24,6 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	cont "kubevirt.io/containerized-data-importer/pkg/controller"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
@@ -1624,7 +1623,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume := utils.NewCloningDataVolume(dataVolumeName, "10Mi", sourcePvc)
 			dataVolume.Spec.PVC = nil
 			dataVolume.Spec.Storage = &storageSpec
-			dataVolume.Annotations[cont.AnnImmediateBinding] = "true"
+			dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
 
 			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
@@ -2314,8 +2313,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Cleaning up")
-			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
+			utils.CleanupDvPvc(f.K8sClient, f.CdiClient, f.Namespace.Name, dataVolume.Name)
 			Eventually(func() bool {
 				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				return k8serrors.IsNotFound(err)
@@ -2389,7 +2387,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			size := "1Gi"
 
 			dataVolume := dvFunc(dvName, size, url())
-			dataVolume.Annotations[cont.AnnImmediateBinding] = "true"
+			dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -2413,8 +2411,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Cleaning up")
-			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
+			utils.CleanupDvPvc(f.K8sClient, f.CdiClient, f.Namespace.Name, dataVolume.Name)
 			Eventually(func() bool {
 				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				return k8serrors.IsNotFound(err)

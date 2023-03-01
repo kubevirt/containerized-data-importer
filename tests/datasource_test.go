@@ -13,6 +13,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -80,7 +81,7 @@ var _ = Describe("DataSource", func() {
 
 		By("Create clone DV with SourceRef pointing the DataSource")
 		dv := utils.NewDataVolumeWithSourceRef("clone-dv", "1Gi", ds.Namespace, ds.Name)
-		dv.Annotations[controller.AnnImmediateBinding] = "true"
+		dv.Annotations[cc.AnnImmediateBinding] = "true"
 		Expect(dv).ToNot(BeNil())
 		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
@@ -172,10 +173,6 @@ var _ = Describe("DataSource", func() {
 	})
 })
 
-// Delete PVC if DV was GCed, otherwise delete both
 func deleteDvPvc(f *framework.Framework, pvcName string) {
-	err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, pvcName)
-	Expect(err).ToNot(HaveOccurred())
-	err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvcName)
-	Expect(err).ToNot(HaveOccurred())
+	utils.CleanupDvPvc(f.K8sClient, f.CdiClient, f.Namespace.Name, pvcName)
 }
