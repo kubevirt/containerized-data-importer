@@ -338,7 +338,6 @@ type dvController interface {
 	updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error
 }
 
-<<<<<<< HEAD
 func (r *ReconcilerBase) reconcile(ctx context.Context, req reconcile.Request, dvc dvController) (reconcile.Result, error) {
 	log := r.log.WithValues("DataVolume", req.NamespacedName)
 	syncRes, syncErr := dvc.sync(log, req)
@@ -365,15 +364,6 @@ func (r *ReconcilerBase) syncCommon(log logr.Logger, req reconcile.Request, clea
 func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, cleanup, prepare dvSyncStateFunc) (dvSyncState, error) {
 	syncState := dvSyncState{}
 	dv, err := r.getDataVolume(req.NamespacedName)
-=======
-func (r ReconcilerBase) sync(log logr.Logger, req reconcile.Request, cleanup, prepare dataVolumeSyncResultFunc) (*dataVolumeSyncResult, error) {
-	syncRes := &dataVolumeSyncResult{}
-<<<<<<< HEAD
-	dv, err := getDataVolume(r.client, req.NamespacedName)
->>>>>>> 67bd1f823 (Rebase and add utests)
-=======
-	dv, err := r.getDataVolume(req.NamespacedName)
->>>>>>> 3f19b15ae (Transferring annotations in smart clone and passing dv instead of client)
 	if dv == nil || err != nil {
 		syncState.result = &reconcile.Result{}
 		return syncState, err
