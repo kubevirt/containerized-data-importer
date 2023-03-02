@@ -69,6 +69,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"topolvm.io":         createTopoLVMCapabilities(),
 	// OpenStack Cinder
 	"cinder.csi.openstack.org": createCinderVolumeCapabilities(),
+	// OpenStack manila
+	"manila.csi.openstack.org": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
 }
 
 // ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
