@@ -22,10 +22,12 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/pointer"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -33,8 +35,9 @@ import (
 )
 
 const (
-	dsName  = "test-datasource"
-	pvcName = "test-pvc"
+	dsName       = "test-datasource"
+	pvcName      = "test-pvc"
+	snapshotName = "test-snapshot"
 )
 
 var _ = Describe("All DataSource Tests", func() {
@@ -64,10 +67,10 @@ var _ = Describe("All DataSource Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("Should update Ready condition when DataSource has no source pvc", func() {
+		It("Should update Ready condition when DataSource has no source", func() {
 			ds = createDataSource()
 			reconciler = createDataSourceReconciler(ds)
-			verifyConditions("No source pvc", false, noPvc)
+			verifyConditions("No source", false, noSource)
 		})
 
 		It("Should update Ready condition when DataSource has source pvc", func() {
@@ -103,12 +106,43 @@ var _ = Describe("All DataSource Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			verifyConditions("Source PVC Deleted", false, NotFound)
 		})
+
+		It("Should update Ready condition when DataSource has source snapshot", func() {
+			ds = createDataSource()
+			ds.Spec.Source.Snapshot = &cdiv1.DataVolumeSourceSnapshot{Namespace: metav1.NamespaceDefault, Name: snapshotName}
+			reconciler = createDataSourceReconciler(ds)
+			verifyConditions("Source snapshot does not exist", false, NotFound)
+
+			snap := &snapshotv1.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      snapshotName,
+					Namespace: metav1.NamespaceDefault,
+				},
+				Spec: snapshotv1.VolumeSnapshotSpec{},
+				Status: &snapshotv1.VolumeSnapshotStatus{
+					ReadyToUse: pointer.Bool(false),
+				},
+			}
+			err := reconciler.client.Create(context.TODO(), snap)
+			Expect(err).ToNot(HaveOccurred())
+			verifyConditions("Source snapshot not ready", false, "SnapshotNotReady")
+
+			snap.Status.ReadyToUse = pointer.Bool(true)
+			err = reconciler.client.Update(context.TODO(), snap)
+			Expect(err).ToNot(HaveOccurred())
+			verifyConditions("Source snapshot ready", true, ready)
+
+			err = reconciler.client.Delete(context.TODO(), snap)
+			Expect(err).ToNot(HaveOccurred())
+			verifyConditions("Source snapshot Deleted", false, NotFound)
+		})
 	})
 })
 
 func createDataSourceReconciler(objects ...runtime.Object) *DataSourceReconciler {
 	s := scheme.Scheme
 	cdiv1.AddToScheme(s)
+	snapshotv1.AddToScheme(s)
 	cl := fake.NewFakeClientWithScheme(s, objects...)
 	r := &DataSourceReconciler{
 		client: cl,

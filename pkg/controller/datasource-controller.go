@@ -22,8 +22,10 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -50,8 +52,8 @@ type DataSourceReconciler struct {
 }
 
 const (
-	ready = "Ready"
-	noPvc = "NoPvc"
+	ready    = "Ready"
+	noSource = "NoSource"
 )
 
 // Reconcile loop for DataSourceReconciler
@@ -75,35 +77,16 @@ func (r *DataSourceReconciler) update(ctx context.Context, dataSource *cdiv1.Dat
 		dataSource.Status.Conditions = nil
 	}
 	dataSourceCopy := dataSource.DeepCopy()
-	sourcePVC := dataSource.Spec.Source.PVC
-	if sourcePVC != nil {
-		dv := &cdiv1.DataVolume{}
-		ns := cc.GetNamespace(sourcePVC.Namespace, dataSource.Namespace)
-		isReady := false
-		if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: sourcePVC.Name}, dv); err != nil {
-			if !k8serrors.IsNotFound(err) {
-				return err
-			}
-			pvc := &corev1.PersistentVolumeClaim{}
-			if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: sourcePVC.Name}, pvc); err != nil {
-				if !k8serrors.IsNotFound(err) {
-					return err
-				}
-				r.log.Info("PVC not found", "name", sourcePVC.Name)
-				updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "PVC not found", cc.NotFound)
-			} else {
-				isReady = true
-			}
-		} else if dv.Status.Phase == cdiv1.Succeeded {
-			isReady = true
-		} else {
-			updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, fmt.Sprintf("Import DataVolume phase %s", dv.Status.Phase), string(dv.Status.Phase))
+	if sourcePVC := dataSource.Spec.Source.PVC; sourcePVC != nil {
+		if err := r.handlePvcSource(ctx, sourcePVC, dataSource); err != nil {
+			return err
 		}
-		if isReady {
-			updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionTrue, "DataSource is ready to be consumed", ready)
+	} else if sourceSnapshot := dataSource.Spec.Source.Snapshot; sourceSnapshot != nil {
+		if err := r.handleSnapshotSource(ctx, sourceSnapshot, dataSource); err != nil {
+			return err
 		}
 	} else {
-		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "No source PVC set", noPvc)
+		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "No source PVC set", noSource)
 	}
 
 	if !reflect.DeepEqual(dataSource, dataSourceCopy) {
@@ -111,6 +94,54 @@ func (r *DataSourceReconciler) update(ctx context.Context, dataSource *cdiv1.Dat
 			return err
 		}
 	}
+	return nil
+}
+
+func (r *DataSourceReconciler) handlePvcSource(ctx context.Context, sourcePVC *cdiv1.DataVolumeSourcePVC, dataSource *cdiv1.DataSource) error {
+	dv := &cdiv1.DataVolume{}
+	ns := cc.GetNamespace(sourcePVC.Namespace, dataSource.Namespace)
+	isReady := false
+	if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: sourcePVC.Name}, dv); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+		pvc := &corev1.PersistentVolumeClaim{}
+		if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: sourcePVC.Name}, pvc); err != nil {
+			if !k8serrors.IsNotFound(err) {
+				return err
+			}
+			r.log.Info("PVC not found", "name", sourcePVC.Name)
+			updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "PVC not found", cc.NotFound)
+		} else {
+			isReady = true
+		}
+	} else if dv.Status.Phase == cdiv1.Succeeded {
+		isReady = true
+	} else {
+		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, fmt.Sprintf("Import DataVolume phase %s", dv.Status.Phase), string(dv.Status.Phase))
+	}
+	if isReady {
+		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionTrue, "DataSource is ready to be consumed", ready)
+	}
+
+	return nil
+}
+
+func (r *DataSourceReconciler) handleSnapshotSource(ctx context.Context, sourceSnapshot *cdiv1.DataVolumeSourceSnapshot, dataSource *cdiv1.DataSource) error {
+	snapshot := &snapshotv1.VolumeSnapshot{}
+	ns := cc.GetNamespace(sourceSnapshot.Namespace, dataSource.Namespace)
+	if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: sourceSnapshot.Name}, snapshot); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+		r.log.Info("Snapshot not found", "name", sourceSnapshot.Name)
+		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "Snapshot not found", cc.NotFound)
+	} else if snapshot.Status != nil && snapshot.Status.ReadyToUse != nil && *snapshot.Status.ReadyToUse {
+		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionTrue, "DataSource is ready to be consumed", ready)
+	} else {
+		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "Snapshot phase is not ready", "SnapshotNotReady")
+	}
+
 	return nil
 }
 
@@ -159,16 +190,30 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 		predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool { return true },
 			DeleteFunc: func(e event.DeleteEvent) bool { return true },
-			UpdateFunc: func(e event.UpdateEvent) bool { return !sameDataSourcePvc(e.ObjectOld, e.ObjectNew) },
+			UpdateFunc: func(e event.UpdateEvent) bool { return !sameSourceSpec(e.ObjectOld, e.ObjectNew) },
 		},
 	); err != nil {
 		return err
 	}
 
 	const dataSourcePvcField = "spec.source.pvc"
+	const dataSourceSnapshotField = "spec.source.snapshot"
 
 	getKey := func(namespace, name string) string {
 		return namespace + "/" + name
+	}
+
+	appendMatchingDataSourceRequests := func(indexingKey string, obj client.Object, reqs []reconcile.Request) []reconcile.Request {
+		var dataSources cdiv1.DataSourceList
+		matchingFields := client.MatchingFields{indexingKey: getKey(obj.GetNamespace(), obj.GetName())}
+		if err := mgr.GetClient().List(context.TODO(), &dataSources, matchingFields); err != nil {
+			log.Error(err, "Unable to list DataSources", "matchingFields", matchingFields)
+			return reqs
+		}
+		for _, ds := range dataSources.Items {
+			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: ds.Namespace, Name: ds.Name}})
+		}
+		return reqs
 	}
 
 	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourcePvcField, func(obj client.Object) []string {
@@ -180,17 +225,19 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 	}); err != nil {
 		return err
 	}
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourceSnapshotField, func(obj client.Object) []string {
+		if snapshot := obj.(*cdiv1.DataSource).Spec.Source.Snapshot; snapshot != nil {
+			ns := cc.GetNamespace(snapshot.Namespace, obj.GetNamespace())
+			return []string{getKey(ns, snapshot.Name)}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
 
 	mapToDataSource := func(obj client.Object) (reqs []reconcile.Request) {
-		var dataSources cdiv1.DataSourceList
-		matchingFields := client.MatchingFields{dataSourcePvcField: getKey(obj.GetNamespace(), obj.GetName())}
-		if err := mgr.GetClient().List(context.TODO(), &dataSources, matchingFields); err != nil {
-			log.Error(err, "Unable to list DataSources", "matchingFields", matchingFields)
-			return
-		}
-		for _, ds := range dataSources.Items {
-			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: ds.Namespace, Name: ds.Name}})
-		}
+		reqs = appendMatchingDataSourceRequests(dataSourcePvcField, obj, reqs)
+		reqs = appendMatchingDataSourceRequests(dataSourceSnapshotField, obj, reqs)
 		return
 	}
 
@@ -215,7 +262,35 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 		predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool { return true },
 			DeleteFunc: func(e event.DeleteEvent) bool { return true },
-			UpdateFunc: func(e event.UpdateEvent) bool { return false },
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				pvcOld, okOld := e.ObjectOld.(*corev1.PersistentVolumeClaim)
+				pvcNew, okNew := e.ObjectNew.(*corev1.PersistentVolumeClaim)
+				return okOld && okNew && pvcOld.Status.Phase != pvcNew.Status.Phase
+			},
+		},
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetClient().List(context.TODO(), &snapshotv1.VolumeSnapshotList{}); err != nil {
+		if meta.IsNoMatchError(err) {
+			// Back out if there's no point to attempt watch
+			return nil
+		}
+		if !cc.IsErrCacheNotStarted(err) {
+			return err
+		}
+	}
+	if err := c.Watch(&source.Kind{Type: &snapshotv1.VolumeSnapshot{}},
+		handler.EnqueueRequestsFromMapFunc(mapToDataSource),
+		predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool { return true },
+			DeleteFunc: func(e event.DeleteEvent) bool { return true },
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				snapOld, okOld := e.ObjectOld.(*snapshotv1.VolumeSnapshot)
+				snapNew, okNew := e.ObjectNew.(*snapshotv1.VolumeSnapshot)
+				return okOld && okNew && !reflect.DeepEqual(snapOld.Status, snapNew.Status)
+			},
 		},
 	); err != nil {
 		return err
@@ -224,8 +299,19 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 	return nil
 }
 
-func sameDataSourcePvc(objOld, objNew client.Object) bool {
+func sameSourceSpec(objOld, objNew client.Object) bool {
 	dsOld, okOld := objOld.(*cdiv1.DataSource)
 	dsNew, okNew := objNew.(*cdiv1.DataSource)
-	return okOld && okNew && reflect.DeepEqual(dsOld.Spec.Source.PVC, dsNew.Spec.Source.PVC)
+
+	if !okOld || !okNew {
+		return false
+	}
+	if dsOld.Spec.Source.PVC != nil {
+		return reflect.DeepEqual(dsOld.Spec.Source.PVC, dsNew.Spec.Source.PVC)
+	}
+	if dsOld.Spec.Source.Snapshot != nil {
+		return reflect.DeepEqual(dsOld.Spec.Source.Snapshot, dsNew.Spec.Source.Snapshot)
+	}
+
+	return false
 }
