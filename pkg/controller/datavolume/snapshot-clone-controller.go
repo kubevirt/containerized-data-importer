@@ -525,6 +525,10 @@ func (r *SnapshotCloneReconciler) cleanup(syncState *dvSyncState) error {
 	dv := syncState.dvMutated
 	r.log.V(3).Info("Cleanup initiated in dv snapshot clone controller")
 
+	if err := r.populateSourceIfSourceRef(dv); err != nil {
+		return err
+	}
+
 	if isCrossNamespaceClone(dv) {
 		if err := r.cleanupTransfer(dv); err != nil {
 			return err

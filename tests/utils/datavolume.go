@@ -175,8 +175,8 @@ func NewDataVolumeWithSourceRef(dataVolumeName string, size, sourceRefNamespace,
 	}
 }
 
-// NewDataSource initializes a DataSource struct with PVC source
-func NewDataSource(dataSourceName, dataSourceNamespace, pvcName, pvcNamespace string) *cdiv1.DataSource {
+// NewPvcDataSource initializes a DataSource struct with PVC source
+func NewPvcDataSource(dataSourceName, dataSourceNamespace, pvcName, pvcNamespace string) *cdiv1.DataSource {
 	return &cdiv1.DataSource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dataSourceName,
@@ -187,6 +187,24 @@ func NewDataSource(dataSourceName, dataSourceNamespace, pvcName, pvcNamespace st
 				PVC: &cdiv1.DataVolumeSourcePVC{
 					Name:      pvcName,
 					Namespace: pvcNamespace,
+				},
+			},
+		},
+	}
+}
+
+// NewSnapshotDataSource initializes a DataSource struct with volumesnapshot source
+func NewSnapshotDataSource(dataSourceName, dataSourceNamespace, snapshotName, snapshotNamespace string) *cdiv1.DataSource {
+	return &cdiv1.DataSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dataSourceName,
+			Namespace: dataSourceNamespace,
+		},
+		Spec: cdiv1.DataSourceSpec{
+			Source: cdiv1.DataSourceSource{
+				Snapshot: &cdiv1.DataVolumeSourceSnapshot{
+					Name:      snapshotName,
+					Namespace: snapshotNamespace,
 				},
 			},
 		},

@@ -263,7 +263,7 @@ var _ = Describe("all clone tests", func() {
 				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
-				targetDS := utils.NewDataSource("test-datasource", pvc.Namespace, pvc.Name, pvc.Namespace)
+				targetDS := utils.NewPvcDataSource("test-datasource", pvc.Namespace, pvc.Name, pvc.Namespace)
 				By(fmt.Sprintf("Create new datasource %s", targetDS.Name))
 				targetDataSource, err := f.CdiClient.CdiV1beta1().DataSources(pvc.Namespace).Create(context.TODO(), targetDS, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -2856,6 +2856,34 @@ var _ = Describe("all clone tests", func() {
 				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("target resources requests storage size is smaller than the source"))
+			})
+		})
+
+		Context("sourceRef support", func() {
+			It("Should clone data from SourceRef snapshot DataSource", func() {
+				size := "1Gi"
+				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+				createSnapshot(size, nil, volumeMode)
+
+				targetDS := utils.NewSnapshotDataSource("test-datasource", snapshot.Namespace, snapshot.Name, snapshot.Namespace)
+				By(fmt.Sprintf("Create new datasource %s", targetDS.Name))
+				targetDataSource, err := f.CdiClient.CdiV1beta1().DataSources(snapshot.Namespace).Create(context.TODO(), targetDS, metav1.CreateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				targetDV := utils.NewDataVolumeWithSourceRef("target-dv", size, targetDataSource.Namespace, targetDataSource.Name)
+				By(fmt.Sprintf("Create new target datavolume %s", targetDV.Name))
+				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
+
+				By("Wait for clone DV Succeeded phase")
+				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)
+				Expect(err).ToNot(HaveOccurred())
+				By("Verify MD5")
+				path := utils.DefaultImagePath
+				same, err := f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDV), path, utils.UploadFileMD5, utils.UploadFileSize)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(same).To(BeTrue())
 			})
 		})
 	})
