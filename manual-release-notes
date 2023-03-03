@@ -1,2 +1,7 @@
 v1.56.0
-
+Stop forcing preallocation on block imports (#2598)
+Annotation to check for statically provisioned PVs when creating DataVolumes (#2605)
+Get rid of sync/updateStatus shared state (#2607)
+Respect bind.immediate annotation by not attempting fancy clones (#2612)
+Add manila csi to list of known provisioners (#2614)
+Add sourceRef support for VolumeSnapshot sources (#2616)
