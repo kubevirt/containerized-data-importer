@@ -2875,8 +2875,14 @@ func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolume
 	}
 	// Create targetPvc in new NS.
 	targetDV := utils.NewCloningDataVolume(targetDv, targetSize[0], srcPVCDef)
-	targetDV.Labels = map[string]string{"test-label-1": "test-label-key-1"}
-	targetDV.Annotations = map[string]string{"test-annotation-1": "test-annotation-key-1"}
+	if targetDV.GetLabels() == nil {
+		targetDV.SetLabels(make(map[string]string))
+	}
+	if targetDV.GetAnnotations() == nil {
+		targetDV.SetAnnotations(make(map[string]string))
+	}
+	targetDV.Labels["test-label-1"] = "test-label-key-1"
+	targetDV.Annotations["test-annotation-1"] = "test-annotation-key-1"
 
 	dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 	Expect(err).ToNot(HaveOccurred())
