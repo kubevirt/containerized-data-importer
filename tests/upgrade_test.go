@@ -41,7 +41,6 @@ var _ = Describe("[Upgrade]", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dv.Status.ClaimName).To(Equal(dvName))
 	},
-		table.Entry("[test_id:7714]with v1alpha1 datavolume", "olddv-v1alpha1"),
-		table.Entry("[test_id:7715]with v1beta1 datavolume", "olddv-v1beta1"),
+		table.Entry("[test_id:7715]with v1beta1 datavolume", "olddv"),
 	)
 })
