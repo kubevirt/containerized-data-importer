@@ -4,31 +4,14 @@ kind: Namespace
 metadata:
   name: cdi-testing-old-version-artifacts
 ---
-apiVersion: cdi.kubevirt.io/v1alpha1
-kind: DataVolume
-metadata:
-  name: olddv-v1alpha1
-  namespace: cdi-testing-old-version-artifacts
-  annotations:
-    cdi.kubevirt.io/storage.bind.immediate.requested: "true"
-spec:
-  source:
-      http:
-         url: "http://cdi-file-host.{{ .Namespace }}/tinyCore.iso"
-  pvc:
-    accessModes:
-      - ReadWriteOnce
-    resources:
-      requests:
-        storage: 500Mi
----
 apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
 metadata:
-  name: olddv-v1beta1
+  name: olddv
   namespace: cdi-testing-old-version-artifacts
   annotations:
     cdi.kubevirt.io/storage.bind.immediate.requested: "true"
+    cdi.kubevirt.io/storage.deleteAfterCompletion: "false"
 spec:
   source:
       http:
