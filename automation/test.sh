@@ -57,8 +57,16 @@ fi
 
 # Don't upgrade if we are using a random CR name, otherwise the upgrade will fail
 if [[ -z "$UPGRADE_FROM" ]] && [[ -z "$RANDOM_CR" ]]; then
-  export UPGRADE_FROM=$(get_latest_release "kubevirt/containerized-data-importer")
-  echo "Upgrading from verions: $UPGRADE_FROM"
+  release_regex='release-v[0-9]+\.[0-9]+'
+  if [[ "$PULL_BASE_REF" =~ $release_regex ]]; then
+    # If target branch is a release branch, upgrade from previous y release to current PR
+    # This is done to avoid downgrade from latest_gh_release to cherrypick_pr
+    ver=$(echo "$PULL_BASE_REF" | cut -d 'v' -f 2)
+    export UPGRADE_FROM=$(get_previous_y_release "kubevirt/containerized-data-importer" "$ver")
+  else
+    export UPGRADE_FROM=$(get_latest_release "kubevirt/containerized-data-importer")
+  fi
+  echo "Upgrading from versions: $UPGRADE_FROM"
 fi
 export KUBEVIRT_NUM_NODES=2
 
