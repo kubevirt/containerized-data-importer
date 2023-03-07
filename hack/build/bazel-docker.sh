@@ -50,7 +50,7 @@ ${CDI_CRI} run -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable $D
 
 echo "Starting rsyncd"
 # Start an rsyncd instance and make sure it gets stopped after the script exits
-RSYNC_CID_CDI=$(${CDI_CRI} run -d -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable $DISABLE_SECCOMP --expose 873 -P --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} /usr/bin/rsync --no-detach --daemon --verbose)
+RSYNC_CID_CDI=$(${CDI_CRI} run -d -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable $DISABLE_SECCOMP --cap-add SYS_CHROOT --expose 873 -P --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} /usr/bin/rsync --no-detach --daemon --verbose)
 
 function finish() {
     ${CDI_CRI} stop --time 1 ${RSYNC_CID_CDI} >/dev/null 2>&1
@@ -62,7 +62,7 @@ RSYNCD_PORT=$(${CDI_CRI} port $RSYNC_CID_CDI | cut -d':' -f2)
 
 rsynch_fail_count=0
 
-while ! rsync ${CDI_DIR}/${RSYNCTEMP} "rsync://root@127.0.0.1:${RSYNCD_PORT}/build/${RSYNCTEMP}" &>/dev/null; do
+while ! rsync ${CDI_DIR}/ "rsync://root@127.0.0.1:${RSYNCD_PORT}/build/" &>/dev/null; do
     if [[ "$rsynch_fail_count" -eq 0 ]]; then
         printf "Waiting for rsyncd to be ready"
         sleep .1
