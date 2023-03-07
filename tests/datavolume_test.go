@@ -73,6 +73,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	httpsTinyCoreVhdxURL := func() string {
 		return fmt.Sprintf(utils.HTTPSTinyCoreVhdxURL, f.CdiInstallNs)
 	}
+	httpsTinyCoreZstURL := func() string {
+		return fmt.Sprintf(utils.HTTPSTinyCoreZstURL, f.CdiInstallNs)
+	}
 	tinyCoreQcow2URL := func() string {
 		return fmt.Sprintf(utils.TinyCoreQcow2URL+".gz", f.CdiInstallNs)
 	}
@@ -592,6 +595,30 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:    cdiv1.DataVolumeBound,
 					Status:  v1.ConditionTrue,
 					Message: "PVC dv-https-import-qcow2 Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid zst url (https)", dataVolumeTestArguments{
+				name:             "dv-https-import-zst",
+				size:             "1Gi",
+				url:              httpsTinyCoreZstURL,
+				dvFunc:           createHTTPSDataVolume,
+				eventReason:      dvc.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-https-import-zst Bound",
 					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
