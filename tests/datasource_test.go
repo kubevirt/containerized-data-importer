@@ -217,7 +217,7 @@ var _ = Describe("DataSource", func() {
 			}
 		})
 
-		It("status conditions should be updated on snapshot create/update/delete", func() {
+		It("[test_id:9762] status conditions should be updated on snapshot create/update/delete", func() {
 			By("Create DataSource with no source")
 			ds := newDataSource(ds1Name)
 			ds, err := f.CdiClient.CdiV1beta1().DataSources(ds.Namespace).Create(context.TODO(), ds, metav1.CreateOptions{})
@@ -262,7 +262,7 @@ var _ = Describe("DataSource", func() {
 			_ = waitForReadyCondition(ds, corev1.ConditionFalse, "NoSource")
 		})
 
-		It("status conditions should be updated when several DataSources refer the same snapshot", func() {
+		It("[test_id:9763] status conditions should be updated when several DataSources refer the same snapshot", func() {
 			snapshot := createSnap(snap1Name)
 			ds1 := createSnapDs(ds1Name, snap1Name)
 			ds2 := createSnapDs(ds2Name, snap1Name)
