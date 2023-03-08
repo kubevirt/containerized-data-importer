@@ -429,8 +429,6 @@ func (r *ReconcilerBase) syncUpdate(log logr.Logger, syncState *dvSyncState) err
 			r.log.Error(err, "Unable to sync update dv meta", "name", syncState.dvMutated.Name)
 			return err
 		}
-		// Needed for emitEvent() DeepEqual check
-		syncState.dv = syncState.dvMutated.DeepCopy()
 	}
 	return nil
 }
@@ -847,13 +845,13 @@ func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy 
 	if !reflect.DeepEqual(dataVolume.ObjectMeta, dataVolumeCopy.ObjectMeta) {
 		return fmt.Errorf("meta update is not allowed in updateStatus phase")
 	}
-	// Only update the object if something actually changed in the status.
+	// Update status subresource only if changed
 	if !reflect.DeepEqual(dataVolume.Status, dataVolumeCopy.Status) {
-		if err := r.updateDataVolume(dataVolumeCopy); err != nil {
-			r.log.Error(err, "Unable to update datavolume", "name", dataVolumeCopy.Name)
+		if err := r.client.Status().Update(context.TODO(), dataVolumeCopy); err != nil {
+			r.log.Error(err, "unable to update datavolume status", "name", dataVolumeCopy.Name)
 			return err
 		}
-		// Emit the event only when the status change happens, not every time
+		// Emit the event only on status phase change
 		if event.eventType != "" && curPhase != dataVolumeCopy.Status.Phase {
 			r.recorder.Event(dataVolumeCopy, event.eventType, event.reason, event.message)
 		}
