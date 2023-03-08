@@ -114,7 +114,7 @@ func toGz(src, tgtDir, ext string) (string, error) {
 }
 
 func toZst(src, tgtDir, ext string) (string, error) {
-	tgtFile, tgtPath, _ := createTargetFile(src, tgtDir, image.ExtGz)
+	tgtFile, tgtPath, _ := createTargetFile(src, tgtDir, image.ExtZst)
 	defer tgtFile.Close()
 
 	w, err := zstd.NewWriter(tgtFile)
