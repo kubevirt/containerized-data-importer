@@ -25,6 +25,12 @@ var knownHeaders = Headers{
 		SizeOff: 0,
 		SizeLen: 0,
 	},
+	"zst": Header{
+		Format:      "zst",
+		magicNumber: []byte{0x28, 0xb5, 0x2f, 0xfd},
+		SizeOff:     0,
+		SizeLen:     0,
+	},
 	"qcow2": Header{
 		Format:      "qcow2",
 		magicNumber: []byte{'Q', 'F', 'I', 0xfb},

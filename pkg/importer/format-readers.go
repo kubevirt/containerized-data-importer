@@ -23,6 +23,7 @@ import (
 	"io"
 	"strconv"
 
+	"github.com/klauspost/compress/zstd"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ulikunitz/xz"
@@ -72,6 +73,7 @@ type FormatReaders struct {
 	Archived       bool
 	ArchiveXz      bool
 	ArchiveGz      bool
+	ArchiveZstd    bool
 	progressReader *prometheusutil.ProgressReader
 }
 
@@ -167,6 +169,12 @@ func (fr *FormatReaders) fileFormatSelector(hdr *image.Header) {
 			fr.Archived = true
 			fr.ArchiveGz = true
 		}
+	case "zst":
+		r, err = fr.zstReader()
+		if err == nil {
+			fr.Archived = true
+			fr.ArchiveZstd = true
+		}
 	case "qcow2":
 		r, err = fr.qcow2NopReader(hdr)
 		fr.Convert = true
@@ -206,6 +214,15 @@ func (fr *FormatReaders) gzReader() (io.ReadCloser, error) {
 	}
 	klog.V(2).Infof("gzip: extracting %q\n", gz.Name)
 	return gz, nil
+}
+
+// Return the zst reader.
+func (fr *FormatReaders) zstReader() (io.ReadCloser, error) {
+	zst, err := zstd.NewReader(fr.TopReader())
+	if err != nil {
+		return nil, errors.Wrap(err, "could not create zst reader")
+	}
+	return zst.IOReadCloser(), nil
 }
 
 // Return the size of the endpoint "through the eye" of the previous reader. Note: there is no
