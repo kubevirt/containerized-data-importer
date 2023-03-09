@@ -2570,7 +2570,7 @@ var _ = Describe("all clone tests", func() {
 		})
 	})
 
-	var _ = Describe("Clone from volumesnapshot source", func() {
+	var _ = Describe("[rfe_id:9453] Clone from volumesnapshot source", func() {
 		f := framework.NewFramework(namespacePrefix)
 
 		var snapshot *snapshotv1.VolumeSnapshot
@@ -2684,10 +2684,10 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
 		},
-			Entry("with filesystem single clone", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 1, true),
-			Entry("with filesystem multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 5, false),
-			Entry("with block single clone", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 1, false),
-			Entry("with block multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 5, false),
+			Entry("[test_id:9703] with filesystem single clone", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 1, true),
+			Entry("[test_id:9708] with filesystem multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 5, false),
+			Entry("[test_id:9709] with block single clone", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 1, false),
+			Entry("[test_id:9710] with block multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 5, false),
 		)
 
 		Context("Fallback to host assisted", func() {
@@ -2704,7 +2704,7 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			DescribeTable("Should sucessfully clone using host assisted", func(volumeMode v1.PersistentVolumeMode, repeat int, crossNamespace bool) {
+			DescribeTable("Should successfully clone using host assisted", func(volumeMode v1.PersistentVolumeMode, repeat int, crossNamespace bool) {
 				var i int
 				var err error
 
@@ -2753,10 +2753,10 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(same).To(BeTrue())
 			},
-				Entry("with filesystem single clone", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 1, true),
-				Entry("with filesystem multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 5, false),
-				Entry("with block single clone", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 1, false),
-				Entry("with block multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 5, false),
+				Entry("[test_id:9714] with filesystem single clone", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 1, true),
+				Entry("[test_id:9715] with filesystem multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 5, false),
+				Entry("[test_id:9716] with block single clone", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 1, false),
+				Entry("[test_id:9717] with block multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 5, false),
 			)
 		})
 
@@ -2811,7 +2811,7 @@ var _ = Describe("all clone tests", func() {
 		})
 
 		Context("Clone without a source snapshot", func() {
-			It("Should finish the clone after creating the source snapshot", func() {
+			It("[test_id:9718] Should finish the clone after creating the source snapshot", func() {
 				size := "1Gi"
 				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
 				By("Create the clone before the source snapshot")
@@ -2845,7 +2845,7 @@ var _ = Describe("all clone tests", func() {
 		})
 
 		Context("Validate source snapshot", func() {
-			It("Should reject when input size is lower than recommended restore size", func() {
+			It("[test_id:9719] Should reject when input size is lower than recommended restore size", func() {
 				recommendedSnapSize := "2Gi"
 				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
 
@@ -2860,7 +2860,7 @@ var _ = Describe("all clone tests", func() {
 		})
 
 		Context("sourceRef support", func() {
-			It("Should clone data from SourceRef snapshot DataSource", func() {
+			It("[test_id:9758] Should clone data from SourceRef snapshot DataSource", func() {
 				size := "1Gi"
 				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
 				createSnapshot(size, nil, volumeMode)
