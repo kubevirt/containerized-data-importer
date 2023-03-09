@@ -47,7 +47,7 @@ const (
 	// HTTPSTinyCoreQcow2URL provides a test (https) url for the tineyCore qcow2 image
 	HTTPSTinyCoreQcow2URL = "https://cdi-file-host.%s/tinyCore.qcow2"
 	// HTTPSTinyCoreZstURL provides a test (https) url for the tineyCore zst image
-	HTTPSTinyCoreZstURL = "https://cdi-file-host.%s/tinyCore.zst"
+	HTTPSTinyCoreZstURL = "https://cdi-file-host.%s/tinyCore.iso.zst"
 	// TinyCoreQcow2URLRateLimit provides a test url for the tineyCore qcow2 image via rate-limiting proxy
 	TinyCoreQcow2URLRateLimit = "http://cdi-file-host.%s:82/tinyCore.qcow2"
 	// TinyCoreQcow2GzURLRateLimit provides a test url for the tineyCore qcow2.gz image via rate-limiting proxy
