@@ -141,6 +141,7 @@ var _ = Describe("Population tests", func() {
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			By("Verifying pvc was created")
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
@@ -249,6 +250,7 @@ var _ = Describe("Population tests", func() {
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			By("Verifying pvc was created")
 			targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
@@ -320,10 +322,12 @@ var _ = Describe("Population tests", func() {
 			}, timeout, pollingInterval).Should(BeTrue())
 
 			By(fmt.Sprintf("Creating target datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.SnapshotSCName, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), dataSource, nil)
+			// PVC API because some provisioners only allow exact match between source size and restore size
+			dataVolume := utils.NewDataVolumeWithExternalPopulation(dataVolumeName, snapshot.Status.RestoreSize.String(), f.SnapshotSCName, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), dataSource, nil)
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			By("Verifying pvc was created")
 			targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)

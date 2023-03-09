@@ -1306,6 +1306,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
 			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)

@@ -490,6 +490,7 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
 				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
 
 				By("Wait for target PVC Bound phase")
 				utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
@@ -583,10 +584,11 @@ var _ = Describe("all clone tests", func() {
 
 				targetDV := utils.NewDataVolumeCloneToBlockPVStorageAPI("target-dv", "2Gi", sourcePvc.Namespace, sourcePvc.Name, f.BlockSCName)
 
-				tagretDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
+				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
-				targetPvc, err := utils.WaitForPVC(f.K8sClient, tagretDataVolume.Namespace, tagretDataVolume.Name)
+				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
 				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
 
 				By("Wait for target PVC Bound phase")
 				utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
@@ -683,11 +685,7 @@ var _ = Describe("all clone tests", func() {
 
 				targetDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
 				Expect(err).ToNot(HaveOccurred())
-				// As of now, csi and smart clone check the values before the pvc is created, and the network clone
-				// checks it in the upload phase, so it needs a PVC, this might be improved
-				if cloneType == "network" {
-					f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv)
-				}
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv)
 
 				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.ErrIncompatiblePVC))
 			})
@@ -1932,6 +1930,7 @@ var _ = Describe("all clone tests", func() {
 			controller.AddAnnotation(targetDV, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
@@ -2641,6 +2640,11 @@ var _ = Describe("all clone tests", func() {
 		DescribeTable("Should sucessfully clone without falling back to host assisted", func(volumeMode v1.PersistentVolumeMode, repeat int, crossNamespace bool) {
 			var i int
 			var err error
+
+			defaultSc := utils.DefaultStorageClass.GetName()
+			if crossNamespace && f.IsBindingModeWaitForFirstConsumer(&defaultSc) {
+				Skip("only host assisted is applicable with WFFC cross namespace")
+			}
 
 			targetNs := f.Namespace
 			if crossNamespace {
