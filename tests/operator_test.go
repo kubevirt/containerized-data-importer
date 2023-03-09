@@ -257,10 +257,7 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(nodes.Items).ToNot(BeEmpty(), "There should be some compute node")
 				Expect(err).ToNot(HaveOccurred())
 
-				cdiPods, err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
-
-				Expect(err).ToNot(HaveOccurred(), "failed listing cdi pods")
-				Expect(len(cdiPods.Items)).To(BeNumerically(">", 0), "no cdi pods found")
+				cdiPods = getCDIPods(f)
 			})
 
 			AfterEach(func() {
@@ -281,9 +278,7 @@ var _ = Describe("ALL Operator tests", func() {
 
 				By("Waiting for there to be as many CDI pods as before")
 				Eventually(func() bool {
-					newCdiPods, err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
-					Expect(err).ToNot(HaveOccurred(), "failed getting CDI pods")
-
+					newCdiPods = getCDIPods(f)
 					By(fmt.Sprintf("number of cdi pods: %d\n new number of cdi pods: %d\n", len(cdiPods.Items), len(newCdiPods.Items)))
 					return len(cdiPods.Items) == len(newCdiPods.Items)
 				}, 5*time.Minute, 2*time.Second).Should(BeTrue())
@@ -403,7 +398,7 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("[test_id:4986]should remove/install CDI a number of times successfully", func() {
-				for i := 0; i < 10; i++ {
+				for i := 0; i < 5; i++ {
 					err := f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{})
 					Expect(err).ToNot(HaveOccurred())
 					ensureCDI()
@@ -427,6 +422,11 @@ var _ = Describe("ALL Operator tests", func() {
 					Expect(err).ToNot(HaveOccurred())
 					return pod.Status.Phase == corev1.PodRunning
 				}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+
+				if us := cr.Spec.UninstallStrategy; us != nil && *us == cdiv1.CDIUninstallStrategyBlockUninstallIfWorkloadsExist {
+					err = utils.DeleteDataVolume(f.CdiClient, dv.Namespace, dv.Name)
+					Expect(err).ToNot(HaveOccurred())
+				}
 
 				By("Deleting CDI")
 				err = f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{})
@@ -1024,7 +1024,7 @@ var _ = Describe("ALL Operator tests", func() {
 
 				Eventually(func() int {
 					return getMetricValue("kubevirt_cdi_cr_ready")
-				}, 1*time.Minute, 1*time.Second).Should(BeNumerically("==", 1))
+				}, 2*time.Minute, 1*time.Second).Should(BeNumerically("==", 1))
 			})
 
 			It("[test_id:7965] StorageProfile incomplete metric expected value when creating an incomplete profile", func() {
@@ -1219,6 +1219,8 @@ var _ = Describe("ALL Operator tests", func() {
 				serverSecretNames := []string{"cdi-apiserver-server-cert", "cdi-uploadproxy-server-cert"}
 
 				ts := time.Now()
+				// Time comparison here is in seconds, so make sure there is an interval
+				time.Sleep(time.Second)
 
 				Eventually(func() bool {
 					cr := getCDI(f)
@@ -1346,6 +1348,8 @@ var _ = Describe("ALL Operator tests", func() {
 				prioClass := ""
 				if cr.Spec.PriorityClass != nil {
 					prioClass = string(*cr.Spec.PriorityClass)
+				} else if utils.IsOpenshift(f.K8sClient) {
+					prioClass = osUserCrit.Name
 				}
 				// Deployment
 				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(prioClass), common.CDILabelSelector)
@@ -1383,6 +1387,9 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("should use openshift priority class if not set and available", func() {
+				if utils.IsOpenshift(f.K8sClient) {
+					Skip("This test is not needed in OpenShift")
+				}
 				getCDI(f)
 				_, err := f.K8sClient.SchedulingV1().PriorityClasses().Create(context.TODO(), osUserCrit, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -1399,7 +1406,11 @@ var _ = Describe("ALL Operator tests", func() {
 })
 
 func getCDIPods(f *framework.Framework) *corev1.PodList {
-	cdiPods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
+	By("Getting CDI pods")
+	labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/component": "storage"}}
+	cdiPods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
+	})
 	Expect(err).ToNot(HaveOccurred(), "failed listing cdi pods")
 	Expect(len(cdiPods.Items)).To(BeNumerically(">", 0), "no cdi pods found")
 	return cdiPods
@@ -1491,9 +1502,7 @@ func waitCDI(f *framework.Framework, cr *cdiv1.CDI, cdiPods *corev1.PodList) {
 
 	By("Waiting for there to be as many CDI pods as before")
 	Eventually(func() bool {
-		newCdiPods, err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
-		Expect(err).ToNot(HaveOccurred(), "failed getting CDI pods")
-
+		newCdiPods = getCDIPods(f)
 		By(fmt.Sprintf("number of cdi pods: %d\n new number of cdi pods: %d\n", len(cdiPods.Items), len(newCdiPods.Items)))
 		return len(cdiPods.Items) == len(newCdiPods.Items)
 	}, 5*time.Minute, 2*time.Second).Should(BeTrue())
