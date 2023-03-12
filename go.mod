@@ -1,6 +1,6 @@
 module kubevirt.io/containerized-data-importer
 
-go 1.18
+go 1.19
 
 require (
 	github.com/appscode/jsonpatch v1.0.1
