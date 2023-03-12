@@ -38,7 +38,7 @@ const (
 	ConfigMapName = "cdi-config"
 )
 
-//SetOwnerRuntime makes the current "active" CDI CR the owner of the object using runtime lib client
+// SetOwnerRuntime makes the current "active" CDI CR the owner of the object using runtime lib client
 func SetOwnerRuntime(client client.Client, object metav1.Object) error {
 	namespace := util.GetNamespace()
 	configMap := &corev1.ConfigMap{}

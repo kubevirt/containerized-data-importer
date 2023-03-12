@@ -6,7 +6,7 @@ import (
 	"os/exec"
 )
 
-//RunKubectlCommand runs a kubectl Cmd and returns output and err
+// RunKubectlCommand runs a kubectl Cmd and returns output and err
 func (f *Framework) RunKubectlCommand(args ...string) (string, error) {
 	cmd := f.CreateKubectlCommand(args...)
 	outBytes, err := cmd.CombinedOutput()
