@@ -13,10 +13,10 @@ import (
 )
 
 // Known size.Size() exceptions due to:
-//   1) .gz and .xz not supporting size in their headers (but that's ok if they are wrapped by tar
-//      or the underlying file is a qcow2 file), and
-//   2) in tinyCore.iso where the returned size is smaller than the original. Note: this is not
-//      the case for larger iso files such as windows.
+//  1. .gz and .xz not supporting size in their headers (but that's ok if they are wrapped by tar
+//     or the underlying file is a qcow2 file), and
+//  2. in tinyCore.iso where the returned size is smaller than the original. Note: this is not
+//     the case for larger iso files such as windows.
 var sizeExceptions = map[string]struct{}{
 	".iso":    {},
 	".iso.gz": {},

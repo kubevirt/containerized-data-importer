@@ -649,7 +649,7 @@ func (f *Framework) ExpectEvent(dataVolumeNamespace string) gomega.AsyncAssertio
 	}, timeout, pollingInterval)
 }
 
-//runKubectlCommand ...
+// runKubectlCommand ...
 func (f *Framework) runKubectlCommand(args ...string) (string, error) {
 	var errb bytes.Buffer
 	cmd := f.createKubectlCommand(args...)

@@ -53,7 +53,7 @@ const (
 	ExpectationsTimeout = 5 * time.Minute
 )
 
-//UpdateTaintBackoff provides a variable to hold a wait.Backoff item
+// UpdateTaintBackoff provides a variable to hold a wait.Backoff item
 var UpdateTaintBackoff = wait.Backoff{
 	Steps:    5,
 	Duration: 100 * time.Millisecond,

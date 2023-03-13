@@ -64,7 +64,7 @@ func generateGoFile(outputDir string, crds map[string]*extv1.CustomResourceDefin
 	fmt.Printf("output file: %s\n", file.Name())
 
 	file.WriteString("package resources\n\n")
-	file.WriteString("//CDICRDs is a map containing yaml strings of all CRDs\n")
+	file.WriteString("// CDICRDs is a map containing yaml strings of all CRDs\n")
 	file.WriteString("var CDICRDs map[string]string = map[string]string{\n")
 
 	crdnames := make([]string, 0)
