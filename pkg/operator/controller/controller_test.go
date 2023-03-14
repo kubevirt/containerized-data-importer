@@ -20,6 +20,7 @@ import (
 	"context"
 	generrors "errors"
 	"fmt"
+	"os"
 	"reflect"
 	"time"
 
@@ -276,6 +277,8 @@ var _ = Describe("Controller", func() {
 				doReconcile(args)
 				Expect(setDeploymentsReady(args)).To(BeTrue())
 
+				runbookURLTemplate := getRunbookURLTemplate()
+
 				rule := &promv1.PrometheusRule{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "prometheus-cdi-rules",
@@ -291,7 +294,7 @@ var _ = Describe("Controller", func() {
 					For:   "5m",
 					Annotations: map[string]string{
 						"summary":     "CDI operator is down",
-						"runbook_url": runbookURLBasePath + "CDIOperatorDown",
+						"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIOperatorDown"),
 					},
 					Labels: map[string]string{
 						"severity":                      "warning",
@@ -304,6 +307,63 @@ var _ = Describe("Controller", func() {
 				Expect(rule.Spec.Groups[0].Rules).To(ContainElement(cdiDownAlert))
 				Expect(rule.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 				validateEvents(args.reconciler, createReadyEventValidationMap())
+			})
+
+			It("should use the default runbook URL template when no ENV Variable is set", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				rule := &promv1.PrometheusRule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "prometheus-cdi-rules",
+						Namespace: cdiNamespace,
+					},
+				}
+				obj, err := getObject(args.client, rule)
+				Expect(err).ToNot(HaveOccurred())
+				rule = obj.(*promv1.PrometheusRule)
+
+				for _, group := range rule.Spec.Groups {
+					for _, rule := range group.Rules {
+						if rule.Alert != "" {
+							if rule.Annotations["runbook_url"] != "" {
+								Expect(rule.Annotations["runbook_url"]).To(Equal(fmt.Sprintf(defaultRunbookURLTemplate, rule.Alert)))
+							}
+						}
+					}
+				}
+			})
+
+			It("should use the desired runbook URL template when its ENV Variable is set", func() {
+				desiredRunbookURLTemplate := "desired/runbookURL/template/%s"
+				os.Setenv(runbookURLTemplateEnv, desiredRunbookURLTemplate)
+
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				rule := &promv1.PrometheusRule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "prometheus-cdi-rules",
+						Namespace: cdiNamespace,
+					},
+				}
+				obj, err := getObject(args.client, rule)
+				Expect(err).ToNot(HaveOccurred())
+				rule = obj.(*promv1.PrometheusRule)
+
+				for _, group := range rule.Spec.Groups {
+					for _, rule := range group.Rules {
+						if rule.Alert != "" {
+							if rule.Annotations["runbook_url"] != "" {
+								Expect(rule.Annotations["runbook_url"]).To(Equal(fmt.Sprintf(desiredRunbookURLTemplate, rule.Alert)))
+							}
+						}
+					}
+				}
+
+				os.Unsetenv(runbookURLTemplateEnv)
 			})
 
 			It("should create prometheus service monitor", func() {
