@@ -22,13 +22,22 @@ var (
 // The values chosen are valid, but the pod will likely not be schedulable.
 func (f *Framework) TestNodePlacementValues() sdkapi.NodePlacement {
 	nodes, _ := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+
+	nodeName := nodes.Items[0].Name
+	for _, node := range nodes.Items {
+		if _, hasLabel := node.Labels["node-role.kubernetes.io/worker"]; hasLabel {
+			nodeName = node.Name
+			break
+		}
+	}
+
 	affinityTestValue = &v1.Affinity{
 		NodeAffinity: &v1.NodeAffinity{
 			RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
 				NodeSelectorTerms: []v1.NodeSelectorTerm{
 					{
 						MatchExpressions: []v1.NodeSelectorRequirement{
-							{Key: "kubernetes.io/hostname", Operator: v1.NodeSelectorOpIn, Values: []string{nodes.Items[0].Name}},
+							{Key: "kubernetes.io/hostname", Operator: v1.NodeSelectorOpIn, Values: []string{nodeName}},
 						},
 					},
 				},
