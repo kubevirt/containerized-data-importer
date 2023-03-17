@@ -982,21 +982,6 @@ func buildHTTPClient() *http.Client {
 	return httpClient
 }
 
-func passDataVolumeInstancetypeLabelstoPVC(dataVolumeLabels, pvcLabels map[string]string) map[string]string {
-	instancetypeLabels := []string{
-		cc.LabelDefaultInstancetype,
-		cc.LabelDefaultInstancetypeKind,
-		cc.LabelDefaultPreference,
-		cc.LabelDefaultPreferenceKind,
-	}
-	for _, label := range instancetypeLabels {
-		if dvLabel, hasLabel := dataVolumeLabels[label]; hasLabel {
-			pvcLabels[label] = dvLabel
-		}
-	}
-	return pvcLabels
-}
-
 // newPersistentVolumeClaim creates a new PVC for the DataVolume resource.
 // It also sets the appropriate OwnerReferences on the resource
 // which allows handleObject to discover the DataVolume resource
@@ -1008,7 +993,9 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 	if util.ResolveVolumeMode(targetPvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
 		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
 	}
-	labels = passDataVolumeInstancetypeLabelstoPVC(dataVolume.GetLabels(), labels)
+	for k, v := range dataVolume.Labels {
+		labels[k] = v
+	}
 
 	annotations := make(map[string]string)
 	for k, v := range dataVolume.ObjectMeta.Annotations {

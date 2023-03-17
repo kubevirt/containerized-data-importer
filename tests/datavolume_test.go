@@ -1161,6 +1161,31 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[test_id:8045]for clone DataVolume", createCloneDataVolume, fillCommand),
 		)
 
+		table.DescribeTable("Should pass all DV labels and annotations to the PVC", func(dvFunc func(string, string, string) *cdiv1.DataVolume, url string) {
+			dataVolume := dvFunc("pass-all-labels-dv", "1Gi", url)
+			dataVolume.Labels = map[string]string{"test-label-1": "test-label-1", "test-label-2": "test-label-2"}
+			dataVolume.Annotations = map[string]string{"test-annotation-1": "test-annotation-1", "test-annotation-2": "test-annotation-2"}
+
+			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			// verify PVC was created
+			By("verifying pvc was created and is Bound")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			// All labels and annotations passed
+			Expect(pvc.Labels["test-label-1"]).To(Equal("test-label-1"))
+			Expect(pvc.Labels["test-label-2"]).To(Equal("test-label-2"))
+			Expect(pvc.Annotations["test-annotation-1"]).To(Equal("test-annotation-1"))
+			Expect(pvc.Annotations["test-annotation-2"]).To(Equal("test-annotation-2"))
+		},
+			table.Entry("for import DataVolume", utils.NewDataVolumeWithHTTPImport, tinyCoreIsoURL()),
+			table.Entry("for upload DataVolume", createUploadDataVolume, tinyCoreIsoURL()),
+			table.Entry("for clone DataVolume", createCloneDataVolume, fillCommand),
+		)
+
 		It("Should handle a pre populated DV", func() {
 			By(fmt.Sprintf("initializing dataVolume marked as prePopulated %s", dataVolumeName))
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", cirrosURL())

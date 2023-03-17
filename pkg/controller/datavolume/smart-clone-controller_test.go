@@ -212,8 +212,10 @@ var _ = Describe("All smart clone tests", func() {
 		It("Should create PVC if snapshot ready", func() {
 			dv := newCloneDataVolume("test-dv")
 			q, _ := resource.ParseQuantity("500Mi")
-			// Set annotation on DV which we can verify on PVC later
-			dv.GetAnnotations()["test"] = "test-value"
+			// Set annotation and label on DV which we can verify on PVC later
+			dv.Annotations["test"] = "test-value"
+			dv.Labels = map[string]string{"test": "test-label"}
+
 			snapshot := createSnapshotVolume(dv.Name, dv.Namespace, nil)
 			snapshot.Spec.Source = snapshotv1.VolumeSnapshotSource{
 				PersistentVolumeClaimName: &[]string{"source"}[0],
@@ -234,8 +236,9 @@ var _ = Describe("All smart clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Labels[common.AppKubernetesVersionLabel]).To(Equal("v0.0.0-tests"))
 			Expect(pvc.Labels[common.KubePersistentVolumeFillingUpSuppressLabelKey]).To(Equal(common.KubePersistentVolumeFillingUpSuppressLabelValue))
+			Expect(pvc.Labels["test"]).To(Equal("test-label"))
 			// Verify PVC's annotation
-			Expect(pvc.GetAnnotations()["test"]).To(Equal("test-value"))
+			Expect(pvc.Annotations["test"]).To(Equal("test-value"))
 			event := <-reconciler.recorder.(*record.FakeRecorder).Events
 			Expect(event).To(ContainSubstring("Creating PVC for smart-clone is in progress"))
 		})

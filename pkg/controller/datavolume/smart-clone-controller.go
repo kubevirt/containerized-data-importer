@@ -238,7 +238,8 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	newPvc, err := newPvcFromSnapshot(snapshot.Name, snapshot, targetPvcSpec)
+
+	newPvc, err := newPvcFromSnapshot(dataVolume, snapshot.Name, snapshot, targetPvcSpec)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -352,7 +353,7 @@ func (r *SmartCloneReconciler) getTargetPVC(dataVolume *cdiv1.DataVolume) (*core
 	return pvc, nil
 }
 
-func newPvcFromSnapshot(name string, snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
+func newPvcFromSnapshot(dv *cdiv1.DataVolume, name string, snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
 	targetPvcSpecCopy := targetPvcSpec.DeepCopy()
 	restoreSize := snapshot.Status.RestoreSize
 	if restoreSize == nil {
@@ -369,22 +370,31 @@ func newPvcFromSnapshot(name string, snapshot *snapshotv1.VolumeSnapshot, target
 		common.CDILabelKey:       common.CDILabelValue,
 		common.CDIComponentLabel: common.SmartClonerCDILabel,
 	}
+	for k, v := range dv.Labels {
+		labels[k] = v
+	}
+
+	annotations := map[string]string{
+		AnnSmartCloneRequest:          "true",
+		cc.AnnRunningCondition:        string(corev1.ConditionFalse),
+		cc.AnnRunningConditionMessage: cc.CloneComplete,
+		cc.AnnRunningConditionReason:  "Completed",
+		annSmartCloneSnapshot:         key,
+	}
+	for k, v := range dv.ObjectMeta.Annotations {
+		annotations[k] = v
+	}
+
 	if util.ResolveVolumeMode(targetPvcSpecCopy.VolumeMode) == corev1.PersistentVolumeFilesystem {
 		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
 	}
 
 	target := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: snapshot.Namespace,
-			Labels:    labels,
-			Annotations: map[string]string{
-				AnnSmartCloneRequest:          "true",
-				cc.AnnRunningCondition:        string(corev1.ConditionFalse),
-				cc.AnnRunningConditionMessage: cc.CloneComplete,
-				cc.AnnRunningConditionReason:  "Completed",
-				annSmartCloneSnapshot:         key,
-			},
+			Name:        name,
+			Namespace:   snapshot.Namespace,
+			Labels:      labels,
+			Annotations: annotations,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			DataSource: &corev1.TypedLocalObjectReference{
