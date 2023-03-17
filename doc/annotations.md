@@ -5,6 +5,7 @@ All annotations associated with Containerized Data Importer (CDI) have a prefix 
 Source describes the type of data source CDI will be collecting the data from. Based on the value of source, additional annotations may be required to successfully import the data. The full annotation for source is: cdi.kubevirt.io/storage.import.source. The following values are currently available:
 * http
 * S3
+* GCS
 * registry
 * none (don't import, but create data based on the contentType annotation)
 

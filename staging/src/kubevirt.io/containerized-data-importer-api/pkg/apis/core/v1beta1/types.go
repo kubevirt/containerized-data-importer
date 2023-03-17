@@ -124,10 +124,11 @@ const (
 	DataVolumeArchive DataVolumeContentType = "archive"
 )
 
-// DataVolumeSource represents the source for our Data Volume, this can be HTTP, Imageio, S3, Registry or an existing PVC
+// DataVolumeSource represents the source for our Data Volume, this can be HTTP, Imageio, S3, GCS, Registry or an existing PVC
 type DataVolumeSource struct {
 	HTTP     *DataVolumeSourceHTTP     `json:"http,omitempty"`
 	S3       *DataVolumeSourceS3       `json:"s3,omitempty"`
+	GCS      *DataVolumeSourceGCS      `json:"gcs,omitempty"`
 	Registry *DataVolumeSourceRegistry `json:"registry,omitempty"`
 	PVC      *DataVolumeSourcePVC      `json:"pvc,omitempty"`
 	Upload   *DataVolumeSourceUpload   `json:"upload,omitempty"`
@@ -169,6 +170,14 @@ type DataVolumeSourceS3 struct {
 	// CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate
 	// +optional
 	CertConfigMap string `json:"certConfigMap,omitempty"`
+}
+
+// DataVolumeSourceGCS provides the parameters to create a Data Volume from an GCS source
+type DataVolumeSourceGCS struct {
+	//URL is the url of the GCS source
+	URL string `json:"url"`
+	//SecretRef provides the secret reference needed to access the GCS source
+	SecretRef string `json:"secretRef,omitempty"`
 }
 
 // DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source

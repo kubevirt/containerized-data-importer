@@ -140,6 +140,13 @@ const (
 	// ImporterSecretExtraHeadersDir is where the secrets containing extra HTTP headers will be mounted
 	ImporterSecretExtraHeadersDir = "/extraheaders"
 
+	// ImporterGoogleCredentialFileVar provides a constant to capture our env variable "GOOGLE_APPLICATION_CREDENTIALS"
+	ImporterGoogleCredentialFileVar = "GOOGLE_APPLICATION_CREDENTIALS"
+	// ImporterGoogleCredentialDir provides a constant to capture our secret mount Dir
+	ImporterGoogleCredentialDir = "/google"
+	// ImporterGoogleCredentialFile provides a constant to capture our credentials.json file
+	ImporterGoogleCredentialFile = "/google/credentials.json"
+
 	// CloningLabelValue provides a constant to use as a label value for pod affinity (controller pkg only)
 	CloningLabelValue = "host-assisted-cloning"
 	// CloningTopologyKey  (controller pkg only)

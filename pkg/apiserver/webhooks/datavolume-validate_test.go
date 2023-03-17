@@ -58,6 +58,18 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(true))
 		})
 
+		It("should accept DataVolume with GS source on create", func() {
+			dataVolume := newHTTPDataVolume("testDV", "gs://www.example.com")
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(true))
+		})
+
+		It("should reject DataVolume with GCS source on create", func() {
+			dataVolume := newHTTPDataVolume("testDV", "gcs://www.example.com")
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
 		It("should reject DataVolume when target pvc exists", func() {
 			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
 			pvc := &corev1.PersistentVolumeClaim{

@@ -48,7 +48,7 @@ func (DataVolumeCheckpoint) SwaggerDoc() map[string]string {
 
 func (DataVolumeSource) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "DataVolumeSource represents the source for our Data Volume, this can be HTTP, Imageio, S3, Registry or an existing PVC",
+		"": "DataVolumeSource represents the source for our Data Volume, this can be HTTP, Imageio, S3, GCS, Registry or an existing PVC",
 	}
 }
 
@@ -86,6 +86,14 @@ func (DataVolumeSourceS3) SwaggerDoc() map[string]string {
 		"url":           "URL is the url of the S3 source",
 		"secretRef":     "SecretRef provides the secret reference needed to access the S3 source",
 		"certConfigMap": "CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate\n+optional",
+	}
+}
+
+func (DataVolumeSourceGCS) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":          "DataVolumeSourceGCS provides the parameters to create a Data Volume from an GCS source",
+		"url":       "URL is the url of the GCS source",
+		"secretRef": "SecretRef provides the secret reference needed to access the GCS source",
 	}
 }
 

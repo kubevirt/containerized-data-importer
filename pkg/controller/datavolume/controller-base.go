@@ -304,7 +304,7 @@ func getDataVolumeOp(log logr.Logger, dv *cdiv1.DataVolume, client client.Client
 	if src.Upload != nil {
 		return dataVolumeUpload
 	}
-	if src.HTTP != nil || src.S3 != nil || src.Registry != nil || src.Blank != nil || src.Imageio != nil || src.VDDK != nil {
+	if src.HTTP != nil || src.S3 != nil || src.GCS != nil || src.Registry != nil || src.Blank != nil || src.Imageio != nil || src.VDDK != nil {
 		return dataVolumeImport
 	}
 

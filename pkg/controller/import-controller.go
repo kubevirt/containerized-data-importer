@@ -1137,6 +1137,15 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 		pod.Spec.Volumes = append(pod.Spec.Volumes, createConfigMapVolume(ProxyCertVolName, GetImportProxyConfigMapName(args.pvc.Name)))
 	}
 
+	if args.podEnvVar.source == cc.SourceGCS && args.podEnvVar.secretName != "" {
+		vm := corev1.VolumeMount{
+			Name:      SecretVolName,
+			MountPath: common.ImporterGoogleCredentialDir,
+		}
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
+		pod.Spec.Volumes = append(pod.Spec.Volumes, createSecretVolume(SecretVolName, args.podEnvVar.secretName))
+	}
+
 	for index, header := range args.podEnvVar.secretExtraHeaders {
 		vm := corev1.VolumeMount{
 			Name:      fmt.Sprintf(secretExtraHeadersVolumeName, index),
@@ -1208,6 +1217,17 @@ func createConfigMapVolume(certVolName, objRef string) corev1.Volume {
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: objRef,
 				},
+			},
+		},
+	}
+}
+
+func createSecretVolume(thisVolName, objRef string) corev1.Volume {
+	return corev1.Volume{
+		Name: thisVolName,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: objRef,
 			},
 		},
 	}
@@ -1297,7 +1317,7 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 			Value: strconv.FormatBool(podEnvVar.preallocation),
 		},
 	}
-	if podEnvVar.secretName != "" {
+	if podEnvVar.secretName != "" && podEnvVar.source != cc.SourceGCS {
 		env = append(env, corev1.EnvVar{
 			Name: common.ImporterAccessKeyID,
 			ValueFrom: &corev1.EnvVarSource{
@@ -1320,6 +1340,12 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 			},
 		})
 
+	}
+	if podEnvVar.secretName != "" && podEnvVar.source == cc.SourceGCS {
+		env = append(env, corev1.EnvVar{
+			Name:  common.ImporterGoogleCredentialFileVar,
+			Value: common.ImporterGoogleCredentialFile,
+		})
 	}
 	if podEnvVar.certConfigMap != "" {
 		env = append(env, corev1.EnvVar{

@@ -145,6 +145,14 @@ func (r *ImportReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *
 		}
 		return nil
 	}
+	if dataVolume.Spec.Source.GCS != nil {
+		annotations[cc.AnnEndpoint] = dataVolume.Spec.Source.GCS.URL
+		annotations[cc.AnnSource] = cc.SourceGCS
+		if dataVolume.Spec.Source.GCS.SecretRef != "" {
+			annotations[cc.AnnSecret] = dataVolume.Spec.Source.GCS.SecretRef
+		}
+		return nil
+	}
 	if dataVolume.Spec.Source.Registry != nil {
 		annotations[cc.AnnSource] = cc.SourceRegistry
 		pullMethod := dataVolume.Spec.Source.Registry.PullMethod

@@ -56,7 +56,8 @@ func validateSourceURL(sourceURL string) string {
 	if err != nil {
 		return fmt.Sprintf("Invalid source URL: %s", sourceURL)
 	}
-	if url.Scheme != "http" && url.Scheme != "https" {
+
+	if url.Scheme != "http" && url.Scheme != "https" && url.Scheme != "gs" {
 		return fmt.Sprintf("Invalid source URL scheme: %s", sourceURL)
 	}
 	return ""
@@ -195,14 +196,17 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 		})
 		return causes
 	}
-	// if source types are HTTP, Imageio, S3 or VDDK, check if URL is valid
-	if spec.Source.HTTP != nil || spec.Source.S3 != nil || spec.Source.Imageio != nil || spec.Source.VDDK != nil {
+	// if source types are HTTP, Imageio, S3, GCS or VDDK, check if URL is valid
+	if spec.Source.HTTP != nil || spec.Source.S3 != nil || spec.Source.GCS != nil || spec.Source.Imageio != nil || spec.Source.VDDK != nil {
 		if spec.Source.HTTP != nil {
 			url = spec.Source.HTTP.URL
 			sourceType = field.Child("source", "HTTP", "url").String()
 		} else if spec.Source.S3 != nil {
 			url = spec.Source.S3.URL
 			sourceType = field.Child("source", "S3", "url").String()
+		} else if spec.Source.GCS != nil {
+			url = spec.Source.GCS.URL
+			sourceType = field.Child("source", "GCS", "url").String()
 		} else if spec.Source.Imageio != nil {
 			url = spec.Source.Imageio.URL
 			sourceType = field.Child("source", "Imageio", "url").String()
