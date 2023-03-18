@@ -281,11 +281,13 @@ var _ = Describe("all clone tests", func() {
 			DescribeTable("[test_id:1355]Should clone data across different namespaces", func(targetSize string) {
 				pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 				pvcDef.Namespace = f.Namespace.Name
+
 				sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 				targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
 					framework.NsPrefixLabel: f.NsPrefix,
 				})
 				Expect(err).NotTo(HaveOccurred())
+
 				f.AddNamespaceToDelete(targetNs)
 				doFileBasedCloneTest(f, pvcDef, targetNs, "target-dv", targetSize)
 			},
@@ -2653,6 +2655,8 @@ var _ = Describe("all clone tests", func() {
 
 			for i = 0; i < repeat; i++ {
 				dataVolume := utils.NewDataVolumeForSnapshotCloningAndStorageSpec(fmt.Sprintf("clone-from-snap-%d", i), size, snapshot.Namespace, snapshot.Name, nil, &volumeMode)
+				dataVolume.Labels = map[string]string{"test-label-1": "test-label-value-1"}
+				dataVolume.Annotations = map[string]string{"test-annotation-1": "test-annotation-value-1"}
 				By(fmt.Sprintf("Create new datavolume %s which will clone from volumesnapshot", dataVolume.Name))
 				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
@@ -2670,6 +2674,9 @@ var _ = Describe("all clone tests", func() {
 				Expect(ok).To(BeFalse())
 				Expect(pvc.Spec.DataSource.Kind).To(Equal("VolumeSnapshot"))
 				Expect(pvc.Spec.DataSourceRef.Kind).To(Equal("VolumeSnapshot"))
+				// All labels and annotations passed
+				Expect(pvc.Labels["test-label-1"]).To(Equal("test-label-value-1"))
+				Expect(pvc.Annotations["test-annotation-1"]).To(Equal("test-annotation-value-1"))
 			}
 
 			By("Verify MD5 on one of the DVs")
@@ -2895,6 +2902,15 @@ func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolume
 	}
 	// Create targetPvc in new NS.
 	targetDV := utils.NewCloningDataVolume(targetDv, targetSize[0], srcPVCDef)
+	if targetDV.GetLabels() == nil {
+		targetDV.SetLabels(make(map[string]string))
+	}
+	if targetDV.GetAnnotations() == nil {
+		targetDV.SetAnnotations(make(map[string]string))
+	}
+	targetDV.Labels["test-label-1"] = "test-label-key-1"
+	targetDV.Annotations["test-annotation-1"] = "test-annotation-key-1"
+
 	dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -2915,6 +2931,10 @@ func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolume
 
 	es := resource.MustParse(targetSize[0])
 	Expect(es.Cmp(*targetPvc.Status.Capacity.Storage()) <= 0).To(BeTrue())
+
+	// All labels and annotations passed
+	Expect(targetPvc.Labels["test-label-1"]).To(Equal("test-label-key-1"))
+	Expect(targetPvc.Annotations["test-annotation-1"]).To(Equal("test-annotation-key-1"))
 }
 
 func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClaim, targetNs *v1.Namespace, targetDv string) {

@@ -488,7 +488,7 @@ func (r *SnapshotCloneReconciler) getStorageClassCorrespondingToSnapClass(driver
 }
 
 func (r *SnapshotCloneReconciler) makePvcFromSnapshot(pvcName string, dv *cdiv1.DataVolume, snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
-	newPvc, err := newPvcFromSnapshot(pvcName, snapshot, targetPvcSpec)
+	newPvc, err := newPvcFromSnapshot(dv, pvcName, snapshot, targetPvcSpec)
 	if err != nil {
 		return nil, err
 	}
