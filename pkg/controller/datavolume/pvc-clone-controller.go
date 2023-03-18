@@ -1253,6 +1253,11 @@ func (r *PvcCloneReconciler) makeSizeDetectionPodSpec(
 	if container == nil {
 		return nil
 	}
+	imagePullSecrets, err := cc.GetImagePullSecrets(r.client)
+	if err != nil {
+		return nil
+	}
+
 	// Assemble the pod
 	pod := &corev1.Pod{
 		ObjectMeta: *objectMeta,
@@ -1268,6 +1273,7 @@ func (r *PvcCloneReconciler) makeSizeDetectionPodSpec(
 			Tolerations:       workloadNodePlacement.Tolerations,
 			Affinity:          workloadNodePlacement.Affinity,
 			PriorityClassName: cc.GetPriorityClass(sourcePvc),
+			ImagePullSecrets:  imagePullSecrets,
 		},
 	}
 

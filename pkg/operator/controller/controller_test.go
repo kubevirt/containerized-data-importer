@@ -1244,7 +1244,9 @@ var _ = Describe("Controller", func() {
 
 			Entry("verify - unused deployment deleted",
 				func() (client.Object, error) {
-					deployment := utils.CreateDeployment("fake-cdi-deployment", "app", "containerized-data-importer", "fake-sa", int32(1), &sdkapi.NodePlacement{})
+					const imagePullSecretName = "fake-registry-key"
+					var imagePullSecrets = []corev1.LocalObjectReference{{Name: imagePullSecretName}}
+					deployment := utils.CreateDeployment("fake-cdi-deployment", "app", "containerized-data-importer", "fake-sa", imagePullSecrets, int32(1), &sdkapi.NodePlacement{})
 					return deployment, nil
 				}),
 			Entry("verify - unused service deleted",

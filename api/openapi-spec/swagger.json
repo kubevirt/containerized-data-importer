@@ -4044,6 +4044,17 @@
      }
     }
    },
+   "v1.LocalObjectReference": {
+    "description": "LocalObjectReference contains enough information to let you locate the referenced object inside the same namespace.",
+    "type": "object",
+    "properties": {
+     "name": {
+      "description": "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+      "type": "string"
+     }
+    },
+    "x-kubernetes-map-type": "atomic"
+   },
    "v1.ManagedFieldsEntry": {
     "description": "ManagedFieldsEntry is a workflow-id, a FieldSet and the group version of the resource that the fieldset applies to.",
     "type": "object",
@@ -4893,6 +4904,14 @@
       "description": "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
       "$ref": "#/definitions/v1beta1.FilesystemOverhead"
      },
+     "imagePullSecrets": {
+      "description": "The imagePullSecrets used to pull the container images",
+      "type": "array",
+      "items": {
+       "default": {},
+       "$ref": "#/definitions/v1.LocalObjectReference"
+      }
+     },
      "importProxy": {
       "description": "ImportProxy contains importer pod proxy configuration.",
       "$ref": "#/definitions/v1beta1.ImportProxy"
@@ -4938,6 +4957,14 @@
      "filesystemOverhead": {
       "description": "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A percentage value is between 0 and 1",
       "$ref": "#/definitions/v1beta1.FilesystemOverhead"
+     },
+     "imagePullSecrets": {
+      "description": "The imagePullSecrets used to pull the container images",
+      "type": "array",
+      "items": {
+       "default": {},
+       "$ref": "#/definitions/v1.LocalObjectReference"
+      }
      },
      "importProxy": {
       "description": "ImportProxy contains importer pod proxy configuration.",

@@ -376,6 +376,7 @@ func (CDIConfigSpec) SwaggerDoc() map[string]string {
 		"insecureRegistries":       "InsecureRegistries is a list of TLS disabled registries",
 		"dataVolumeTTLSeconds":     "DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected. The default is 0 sec. To disable GC use -1.\n+optional",
 		"tlsSecurityProfile":       "TLSSecurityProfile is used by operators to apply cluster-wide TLS security settings to operands.",
+		"imagePullSecrets":         "The imagePullSecrets used to pull the container images",
 	}
 }
 
@@ -388,6 +389,7 @@ func (CDIConfigStatus) SwaggerDoc() map[string]string {
 		"defaultPodResourceRequirements": "ResourceRequirements describes the compute resource requirements.",
 		"filesystemOverhead":             "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A percentage value is between 0 and 1",
 		"preallocation":                  "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+		"imagePullSecrets":               "The imagePullSecrets used to pull the container images",
 	}
 }
 

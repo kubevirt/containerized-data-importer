@@ -83,6 +83,9 @@ func (r *ReconcileCDI) getNamespacedArgs(cr *cdiv1.CDI) *cdinamespaced.FactoryAr
 		if cr.Spec.ImagePullPolicy != "" {
 			result.PullPolicy = string(cr.Spec.ImagePullPolicy)
 		}
+		if cr.Spec.Config != nil && len(cr.Spec.Config.ImagePullSecrets) > 0 {
+			result.ImagePullSecrets = cr.Spec.Config.ImagePullSecrets
+		}
 		if cr.Spec.PriorityClass != nil && string(*cr.Spec.PriorityClass) != "" {
 			result.PriorityClassName = string(*cr.Spec.PriorityClass)
 		} else {

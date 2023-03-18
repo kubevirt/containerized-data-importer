@@ -97,6 +97,10 @@ func (r *CDIConfigReconciler) Reconcile(_ context.Context, req reconcile.Request
 		return reconcile.Result{}, err
 	}
 
+	if err := r.reconcileImagePullSecrets(config); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	if err := r.reconcileFilesystemOverhead(config); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -229,6 +233,11 @@ func (r *CDIConfigReconciler) reconcileStorageClass(config *cdiv1.CDIConfig) err
 	log.Info("No default storage class found, setting scratch space to blank")
 	// No storage class found, blank it out.
 	config.Status.ScratchSpaceStorageClass = ""
+	return nil
+}
+
+func (r *CDIConfigReconciler) reconcileImagePullSecrets(config *cdiv1.CDIConfig) error {
+	config.Status.ImagePullSecrets = config.Spec.ImagePullSecrets
 	return nil
 }
 

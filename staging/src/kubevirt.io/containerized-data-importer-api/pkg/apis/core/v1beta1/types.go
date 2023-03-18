@@ -775,6 +775,8 @@ type CDIConfigSpec struct {
 	DataVolumeTTLSeconds *int32 `json:"dataVolumeTTLSeconds,omitempty"`
 	// TLSSecurityProfile is used by operators to apply cluster-wide TLS security settings to operands.
 	TLSSecurityProfile *ocpconfigv1.TLSSecurityProfile `json:"tlsSecurityProfile,omitempty"`
+	// The imagePullSecrets used to pull the container images
+	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 }
 
 // CDIConfigStatus provides the most recently observed status of the CDI Config resource
@@ -792,6 +794,8 @@ type CDIConfigStatus struct {
 	FilesystemOverhead *FilesystemOverhead `json:"filesystemOverhead,omitempty"`
 	// Preallocation controls whether storage for DataVolumes should be allocated in advance.
 	Preallocation bool `json:"preallocation,omitempty"`
+	// The imagePullSecrets used to pull the container images
+	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 }
 
 // CDIConfigList provides the needed parameters to do request a list of CDIConfigs from the system

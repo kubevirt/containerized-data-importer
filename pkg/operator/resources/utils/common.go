@@ -87,23 +87,26 @@ func CreatePortsContainer(name, image, pullPolicy string, ports []corev1.Contain
 }
 
 // CreateDeployment creates deployment
-func CreateDeployment(name, matchKey, matchValue, serviceAccountName string, replicas int32, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
+func CreateDeployment(name, matchKey, matchValue, serviceAccountName string, imagePullSecrets []corev1.LocalObjectReference, replicas int32, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
 	podSpec := corev1.PodSpec{
 		SecurityContext: &corev1.PodSecurityContext{
 			RunAsNonRoot: &[]bool{true}[0],
 		},
+		ImagePullSecrets: imagePullSecrets,
 	}
 	deployment := ResourceBuilder.CreateDeployment(name, "", matchKey, matchValue, serviceAccountName, replicas, podSpec, infraNodePlacement)
 	return deployment
 }
 
 // CreateOperatorDeployment creates operator deployment
-func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAccount string, numReplicas int32) *appsv1.Deployment {
+func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAccount string, imagePullSecrets []corev1.LocalObjectReference, numReplicas int32) *appsv1.Deployment {
+
 	podSpec := corev1.PodSpec{
 		SecurityContext: &corev1.PodSecurityContext{
 			RunAsNonRoot: &[]bool{true}[0],
 		},
-		NodeSelector: map[string]string{"kubernetes.io/os": "linux"},
+		ImagePullSecrets: imagePullSecrets,
+		NodeSelector:     map[string]string{"kubernetes.io/os": "linux"},
 		Tolerations: []corev1.Toleration{
 			{
 				Key:      "CriticalAddonsOnly",

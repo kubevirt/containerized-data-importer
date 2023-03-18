@@ -497,6 +497,11 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 		return nil, err
 	}
 
+	imagePullSecrets, err := cc.GetImagePullSecrets(r.client)
+	if err != nil {
+		return nil, err
+	}
+
 	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(r.client)
 	if err != nil {
 		return nil, err
@@ -514,7 +519,7 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 		sourceVolumeMode = corev1.PersistentVolumeFilesystem
 	}
 
-	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerKey, serverCABundle, pvc, podResourceRequirements, workloadNodePlacement)
+	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, imagePullSecrets, sourcePvcName, sourcePvcNamespace, ownerKey, serverCABundle, pvc, podResourceRequirements, workloadNodePlacement)
 	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 
 	if err := r.client.Create(context.TODO(), pod); err != nil {
@@ -527,7 +532,7 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 }
 
 // MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
-func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerRefAnno string,
+func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, sourcePvcName, sourcePvcNamespace, ownerRefAnno string,
 	serverCACert []byte, targetPvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements,
 	workloadNodePlacement *sdkapi.NodePlacement) *corev1.Pod {
 
@@ -617,7 +622,8 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 					},
 				},
 			},
-			RestartPolicy: corev1.RestartPolicyOnFailure,
+			ImagePullSecrets: imagePullSecrets,
+			RestartPolicy:    corev1.RestartPolicyOnFailure,
 			Volumes: []corev1.Volume{
 				{
 					Name: cc.DataVolName,

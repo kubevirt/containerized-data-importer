@@ -39,7 +39,7 @@ func createUploadProxyResources(args *FactoryArgs) []client.Object {
 		createUploadProxyService(),
 		createUploadProxyRoleBinding(),
 		createUploadProxyRole(),
-		createUploadProxyDeployment(args.UploadProxyImage, args.Verbosity, args.PullPolicy, args.PriorityClassName, args.InfraNodePlacement),
+		createUploadProxyDeployment(args.UploadProxyImage, args.Verbosity, args.PullPolicy, args.ImagePullSecrets, args.PriorityClassName, args.InfraNodePlacement),
 	}
 }
 
@@ -84,9 +84,9 @@ func createUploadProxyRole() *rbacv1.Role {
 	return utils.ResourceBuilder.CreateRole(uploadProxyResourceName, rules)
 }
 
-func createUploadProxyDeployment(image, verbosity, pullPolicy, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
+func createUploadProxyDeployment(image, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
-	deployment := utils.CreateDeployment(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, uploadProxyResourceName, int32(1), infraNodePlacement)
+	deployment := utils.CreateDeployment(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, uploadProxyResourceName, imagePullSecrets, int32(1), infraNodePlacement)
 	if priorityClassName != "" {
 		deployment.Spec.Template.Spec.PriorityClassName = priorityClassName
 	}
