@@ -57,6 +57,8 @@ const (
 
 	cloneSourcePodFinalizer = "cdi.kubevirt.io/cloneSource"
 
+	hostAssistedCloneSource = "cdi.kubevirt.io/hostAssistedSourcePodCloneSource"
+
 	uploadClientCertDuration = 365 * 24 * time.Hour
 )
 
@@ -477,7 +479,7 @@ func (r *CloneReconciler) cleanup(pvc *corev1.PersistentVolumeClaim, log logr.Lo
 
 // CreateCloneSourcePod creates our cloning src pod which will be used for out of band cloning to read the contents of the src PVC
 func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*corev1.Pod, error) {
-	exists, sourcePvcNamespace, sourcePvcName := ParseCloneRequestAnnotation(pvc)
+	exists, _, _ := ParseCloneRequestAnnotation(pvc)
 	if !exists {
 		return nil, errors.Errorf("bad CloneRequest Annotation")
 	}
@@ -519,7 +521,7 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 		sourceVolumeMode = corev1.PersistentVolumeFilesystem
 	}
 
-	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, imagePullSecrets, sourcePvcName, sourcePvcNamespace, ownerKey, serverCABundle, pvc, podResourceRequirements, workloadNodePlacement)
+	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, ownerKey, imagePullSecrets, serverCABundle, pvc, sourcePvc, podResourceRequirements, workloadNodePlacement)
 	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 
 	if err := r.client.Create(context.TODO(), pod); err != nil {
@@ -532,9 +534,13 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 }
 
 // MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
-func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, sourcePvcName, sourcePvcNamespace, ownerRefAnno string,
-	serverCACert []byte, targetPvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements,
+func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image, pullPolicy, ownerRefAnno string, imagePullSecrets []corev1.LocalObjectReference,
+	serverCACert []byte, targetPvc, sourcePvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements,
 	workloadNodePlacement *sdkapi.NodePlacement) *corev1.Pod {
+
+	sourcePvcName := sourcePvc.GetName()
+	sourcePvcNamespace := sourcePvc.GetNamespace()
+	sourcePvcUID := string(sourcePvc.GetUID())
 
 	var ownerID string
 	cloneSourcePodName := targetPvc.Annotations[AnnCloneSourcePod]
@@ -565,6 +571,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 				// this label is used when searching for a pvc's cloner source pod.
 				cc.CloneUniqueID:          cloneSourcePodName,
 				common.PrometheusLabelKey: common.PrometheusLabelValue,
+				hostAssistedCloneSource:   sourcePvcUID,
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -648,6 +655,25 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 
 	if pod.Spec.Affinity.PodAffinity == nil {
 		pod.Spec.Affinity.PodAffinity = &corev1.PodAffinity{}
+	}
+
+	if len(sourcePvc.Spec.AccessModes) == 1 && sourcePvc.Spec.AccessModes[0] == corev1.ReadWriteOnce {
+		pod.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(
+			pod.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
+			corev1.PodAffinityTerm{
+				LabelSelector: &metav1.LabelSelector{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      hostAssistedCloneSource,
+							Operator: metav1.LabelSelectorOpIn,
+							Values:   []string{sourcePvcUID},
+						},
+					},
+				},
+				Namespaces:  []string{sourcePvcNamespace},
+				TopologyKey: corev1.LabelHostname,
+			},
+		)
 	}
 
 	pod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(

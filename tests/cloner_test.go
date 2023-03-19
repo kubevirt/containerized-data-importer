@@ -26,6 +26,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	ctrl "kubevirt.io/containerized-data-importer/pkg/controller"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/token"
@@ -50,6 +51,7 @@ const (
 	verifyPodDeletedTimeout          = 270 * time.Second
 	controllerSkipPVCCompleteTimeout = 270 * time.Second
 	crossVolumeModeCloneMD5NumBytes  = 100000
+	hostAssistedCloneSource          = "cdi.kubevirt.io/hostAssistedSourcePodCloneSource"
 )
 
 var _ = Describe("all clone tests", func() {
@@ -95,6 +97,7 @@ var _ = Describe("all clone tests", func() {
 			}
 
 		})
+
 		It("[test_id:6693]Should clone imported data and retain transfer pods after completion", func() {
 			smartApplicable := f.IsSnapshotStorageClassAvailable()
 			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
@@ -127,6 +130,8 @@ var _ = Describe("all clone tests", func() {
 			cloner, err := utils.FindPodBySuffixOnce(f.K8sClient, targetDataVolume.Namespace, common.ClonerSourcePodNameSuffix, common.CDILabelSelector)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cloner.DeletionTimestamp).To(BeNil())
+			// The Pod should be associated with the host-assisted clone source
+			Expect(cloner.GetLabels()[hostAssistedCloneSource]).To(Equal(string(pvc.GetUID())))
 
 			By("Find upload pod after completion")
 			uploader, err := utils.FindPodByPrefixOnce(f.K8sClient, targetDataVolume.Namespace, "cdi-upload-", common.CDILabelSelector)
@@ -944,21 +949,25 @@ var _ = Describe("all clone tests", func() {
 				tinyCoreIsoURL := func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
 
 				var (
-					sourceDv, targetDv1, targetDv2, targetDv3 *cdiv1.DataVolume
-					err                                       error
+					sourceDv  *cdiv1.DataVolume
+					targetDvs []*cdiv1.DataVolume
+					err       error
 				)
 
 				AfterEach(func() {
-					dvs := []*cdiv1.DataVolume{sourceDv, targetDv1, targetDv2, targetDv3}
-					for _, dv := range dvs {
+					targetDvs = append(targetDvs, sourceDv)
+					for _, dv := range targetDvs {
 						cleanDv(f, dv)
 						if dv != nil && dv.Status.Phase == cdiv1.Succeeded {
 							validateCloneType(f, dv)
 						}
 					}
+					targetDvs = nil
 				})
 
 				It("[rfe_id:1277][test_id:1899][crit:High][vendor:cnv-qe@redhat.com][level:component] Should allow multiple cloning operations in parallel", func() {
+					const NumOfClones int = 3
+
 					By("Creating a source from a real image")
 					sourceDv = utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", tinyCoreIsoURL())
 					sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
@@ -978,28 +987,20 @@ var _ = Describe("all clone tests", func() {
 					_, err = utils.WaitPodDeleted(f.K8sClient, "execute-command", f.Namespace.Name, verifyPodDeletedTimeout)
 					Expect(err).ToNot(HaveOccurred())
 
-					// By not waiting for completion, we will start 3 transfers in parallell
-					By("Cloning from the source DataVolume to target1")
-					targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
-					targetDv1.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
-					targetDv1, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv1)
-					Expect(err).ToNot(HaveOccurred())
+					// By not waiting for completion, we will start 3 transfers in parallel
+					By("Cloning #NumOfClones times in parallel")
+					for i := 1; i <= NumOfClones; i++ {
+						By("Cloning from the source DataVolume to target" + strconv.Itoa(i))
+						targetDv := utils.NewDataVolumeForImageCloning("target-dv"+strconv.Itoa(i), "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+						targetDv.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+						targetDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
+						Expect(err).ToNot(HaveOccurred())
+						f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv)
+						targetDvs = append(targetDvs, targetDv)
+					}
 
-					By("Cloning from the source DataVolume to target2 in parallel")
-					targetDv2 = utils.NewDataVolumeForImageCloning("target-dv2", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
-					targetDv2.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
-					targetDv2, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv2)
-					Expect(err).ToNot(HaveOccurred())
-
-					By("Cloning from the source DataVolume to target3 in parallel")
-					targetDv3 = utils.NewDataVolumeForImageCloning("target-dv3", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
-					targetDv3.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
-					targetDv3, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv3)
-					Expect(err).ToNot(HaveOccurred())
-
-					dvs := []*cdiv1.DataVolume{targetDv1, targetDv2, targetDv3}
-					for _, dv := range dvs {
-						f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
+					podsNodeName := make(map[string]string)
+					for _, dv := range targetDvs {
 						By("Waiting for clone to be completed")
 						err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
 						Expect(err).ToNot(HaveOccurred())
@@ -1007,7 +1008,7 @@ var _ = Describe("all clone tests", func() {
 
 					if cloneType == "network" {
 						// Make sure we don't have high number of restart counts on source pods
-						for _, dv := range dvs {
+						for _, dv := range targetDvs {
 							pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
 							Expect(err).ToNot(HaveOccurred())
 							clonerPodName := controller.CreateCloneSourcePodName(pvc)
@@ -1019,19 +1020,38 @@ var _ = Describe("all clone tests", func() {
 						}
 					}
 
-					for _, dv := range dvs {
+					for _, dv := range targetDvs {
 						By("Verifying MD5 sum matches")
 						matchFile := filepath.Join(testBaseDir, "disk.img")
 						Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), matchFile, md5sum[:32])).To(BeTrue())
+
+						pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+
+						if cloneSourcePod := pvc.Annotations[ctrl.AnnCloneSourcePod]; cloneSourcePod != "" {
+							By(fmt.Sprintf("Getting pod %s/%s", dv.Namespace, cloneSourcePod))
+							pod, err := f.K8sClient.CoreV1().Pods(dv.Namespace).Get(context.TODO(), cloneSourcePod, metav1.GetOptions{})
+							Expect(err).ToNot(HaveOccurred())
+							podsNodeName[dv.Name] = pod.Spec.NodeName
+						}
+
 						By("Deleting verifier pod")
 						err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
 						Expect(err).ToNot(HaveOccurred())
 						_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
 						Expect(err).ToNot(HaveOccurred())
 					}
+
+					// All pods should be in the same node
+					if len(podsNodeName) > 0 {
+						Expect(podsNodeName[targetDvs[0].Name]).To(Equal(podsNodeName[targetDvs[1].Name]))
+						Expect(podsNodeName[targetDvs[1].Name]).To(Equal(podsNodeName[targetDvs[2].Name]))
+					}
 				})
 
 				It("[rfe_id:1277][test_id:1899][crit:High][vendor:cnv-qe@redhat.com][level:component] Should allow multiple cloning operations in parallel for block devices", func() {
+					const NumOfClones int = 3
+
 					if !f.IsBlockVolumeStorageClassAvailable() {
 						Skip("Storage Class for block volume is not available")
 					}
@@ -1050,32 +1070,23 @@ var _ = Describe("all clone tests", func() {
 					fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
 					// By not waiting for completion, we will start 3 transfers in parallell
-					By("Cloning from the source DataVolume to target1")
-					targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
-					targetDv1, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv1)
-					Expect(err).ToNot(HaveOccurred())
-					f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv1)
+					By("Cloning #NumOfClones times in parallel")
+					for i := 1; i <= NumOfClones; i++ {
+						By("Cloning from the source DataVolume to target" + strconv.Itoa(i))
+						targetDv := utils.NewDataVolumeForImageCloning("target-dv"+strconv.Itoa(i), "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+						targetDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
+						Expect(err).ToNot(HaveOccurred())
+						f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv)
+						targetDvs = append(targetDvs, targetDv)
+					}
 
-					By("Cloning from the source DataVolume to target2 in parallel")
-					targetDv2 = utils.NewDataVolumeForImageCloning("target-dv2", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
-					targetDv2, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv2)
-					Expect(err).ToNot(HaveOccurred())
-					f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv2)
-
-					By("Cloning from the source DataVolume to target3 in parallel")
-					targetDv3 = utils.NewDataVolumeForImageCloning("target-dv3", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
-					targetDv3, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv3)
-					Expect(err).ToNot(HaveOccurred())
-					f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv3)
-
-					dvs := []*cdiv1.DataVolume{targetDv1, targetDv2, targetDv3}
-					for _, dv := range dvs {
+					for _, dv := range targetDvs {
 						By("Waiting for clone to be completed")
 						err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
 						Expect(err).ToNot(HaveOccurred())
 					}
 
-					for _, dv := range dvs {
+					for _, dv := range targetDvs {
 						By("Verifying MD5 sum matches")
 						Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), testBaseDir, md5sum[:32])).To(BeTrue())
 						By("Deleting verifier pod")
@@ -1673,6 +1684,7 @@ var _ = Describe("all clone tests", func() {
 				By("Waiting for clone to be completed")
 				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
 				Expect(err).ToNot(HaveOccurred())
+
 				matchFile := filepath.Join(testBaseDir, "disk.img")
 				Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), matchFile, md5sum[:32])).To(BeTrue())
 				err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
