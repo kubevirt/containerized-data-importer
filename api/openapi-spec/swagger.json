@@ -5531,10 +5531,6 @@
      "url"
     ],
     "properties": {
-     "certConfigMap": {
-      "description": "CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate",
-      "type": "string"
-     },
      "secretRef": {
       "description": "SecretRef provides the secret reference needed to access the GCS source",
       "type": "string"
