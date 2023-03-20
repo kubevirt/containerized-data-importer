@@ -25,6 +25,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"kubevirt.io/hostpath-provisioner": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
 	// nfs-csi
 	"nfs.csi.k8s.io": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
+	"k8s-sigs.io/nfs-subdir-external-provisioner": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
 	// ceph-rbd
 	"kubernetes.io/rbd":                  createRbdCapabilities(),
 	"rbd.csi.ceph.com":                   createRbdCapabilities(),
