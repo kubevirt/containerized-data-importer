@@ -59,13 +59,13 @@ var _ = Describe("Validating Webhook", func() {
 		})
 
 		It("should accept DataVolume with GS source on create", func() {
-			dataVolume := newHTTPDataVolume("testDV", "gs://www.example.com")
+			dataVolume := newGCSDataVolume("testDV", "gs://www.example.com")
 			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(true))
 		})
 
 		It("should reject DataVolume with GCS source on create", func() {
-			dataVolume := newHTTPDataVolume("testDV", "gcs://www.example.com")
+			dataVolume := newGCSDataVolume("testDV", "gcs://www.example.com")
 			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))
 		})
@@ -852,6 +852,14 @@ func newHTTPDataVolume(name, url string) *cdiv1.DataVolume {
 	}
 	pvc := newPVCSpec(pvcSizeDefault)
 	return newDataVolume(name, httpSource, pvc)
+}
+
+func newGCSDataVolume(name, url string) *cdiv1.DataVolume {
+	gcsSource := cdiv1.DataVolumeSource{
+		GCS: &cdiv1.DataVolumeSourceGCS{URL: url},
+	}
+	pvc := newPVCSpec(pvcSizeDefault)
+	return newDataVolume(name, gcsSource, pvc)
 }
 
 func newRegistryDataVolume(name, url string) *cdiv1.DataVolume {

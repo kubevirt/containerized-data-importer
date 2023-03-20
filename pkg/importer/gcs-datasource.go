@@ -160,12 +160,10 @@ func (sd *GCSDataSource) Close() error {
 // Create a Cloud Storage Client
 func getGcsClient(ctx context.Context, keyFile string, options ...option.ClientOption) (*storage.Client, error) {
 	klog.V(3).Infoln("GCS Importer: Creating Client")
-	if keyFile != "" {
-		klog.V(3).Infoln("GCS Importer: Creating Client: Authenticated")
-		return storage.NewClient(ctx, options...)
+	if keyFile == "" {
+		options = append(options, option.WithoutAuthentication())
+		klog.V(3).Infoln("GCS Importer: Authentication: Anonymous")
 	}
-	klog.V(3).Infoln("GCS Importer: Creating Client: Anonymous")
-	options = append(options, option.WithoutAuthentication())
 	return storage.NewClient(ctx, options...)
 }
 
