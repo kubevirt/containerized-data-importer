@@ -45,6 +45,12 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		originalMetricVal      int
 	)
 
+	waitForIncompleteMetricInitialization := func() {
+		Eventually(func() int {
+			return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles_total")
+		}, 2*time.Minute, 1*time.Second).ShouldNot(Equal(-1))
+	}
+
 	BeforeEach(func() {
 		if !f.IsPrometheusAvailable() {
 			Skip("This test depends on prometheus infra being available")
@@ -52,6 +58,8 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 		cr = getCDI(f)
 		cdiPods = getCDIPods(f)
+
+		waitForIncompleteMetricInitialization()
 		originalMetricVal = getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles_total")
 	})
 
@@ -104,7 +112,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				return getMetricValue(f, "kubevirt_cdi_cr_ready")
 			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", 0))
 
-			By("Check that the CDINotReady alert is firing")
+			By("Check that the CDINotReady alert is triggered")
 			waitForPrometheusAlert(f, "CDINotReady")
 
 			By("Revert CDI CR changes")
@@ -145,7 +153,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles_total")
 			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", expectedIncomplete))
 
-			By("Check that the CDIStorageProfilesIncomplete alert is firing")
+			By("Check that the CDIStorageProfilesIncomplete alert is triggered")
 			waitForPrometheusAlert(f, "CDIStorageProfilesIncomplete")
 
 			By("Fix profiles to be complete and test metric value equals original")
@@ -243,7 +251,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				return getMetricValue(f, "kubevirt_cdi_operator_up_total")
 			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", 0))
 
-			By("Waiting for CDIOperatorDown alert to fire")
+			By("Waiting for CDIOperatorDown alert to be triggered")
 			waitForPrometheusAlert(f, "CDIOperatorDown")
 
 			By("Ensuring original value of replicas restored")
@@ -291,10 +299,10 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 func dataVolumeUnusualRestartTest(f *framework.Framework) {
 	By("Test metric for unusual restart count")
 	Eventually(func() bool {
-		return getMetricValue(f, "cdi_datavolume_unusual_restart_count") == 1
+		return getMetricValue(f, "kubevirt_cdi_import_dv_unusual_restartcount_total") == 1
 	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 
-	By("checking that the CDIDataVolumeUnusualRestartCount alert is firing")
+	By("checking that the CDIDataVolumeUnusualRestartCount alert is triggered")
 	waitForPrometheusAlert(f, "CDIDataVolumeUnusualRestartCount")
 }
 
@@ -375,27 +383,8 @@ func setPrometheusRule(f *framework.Framework, promRule *promv1.PrometheusRule) 
 	}, 5*time.Minute, 1*time.Second).Should(BeNil())
 }
 
-func setPrometheusRuleAlertDuration(f *framework.Framework, promRule *promv1.PrometheusRule, alertName, duration string) {
-	By("Patch our rule so alert fires a little faster")
-	for i, group := range promRule.Spec.Groups {
-		if group.Name == "cdi.rules" {
-			for j, rule := range group.Rules {
-				if rule.Alert == alertName {
-					By(fmt.Sprintf("Patch alert %s to %s", alertName, duration))
-					rule.For = duration
-					promRule.Spec.Groups[i].Rules[j] = rule
-					break
-				}
-			}
-			break
-		}
-	}
-
-	setPrometheusRule(f, promRule)
-}
-
 func waitForPrometheusAlert(f *framework.Framework, alertName string) {
-	By("Wait for alert fired")
+	By("Wait for alert to be triggered")
 	Eventually(func() bool {
 		result, err := getPrometheusAlerts(f)
 		if err != nil {
@@ -408,7 +397,7 @@ func waitForPrometheusAlert(f *framework.Framework, alertName string) {
 			if name == alertName {
 				state := alert.(map[string]interface{})["state"].(string)
 				By(fmt.Sprintf("Alert %s state %s", name, state))
-				return state == "firing"
+				return state == "pending" || state == "firing"
 			}
 		}
 
