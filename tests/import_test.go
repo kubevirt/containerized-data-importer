@@ -3,7 +3,6 @@ package tests_test
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -1001,32 +1000,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		}, timeout, pollingInterval).Should(BeNumerically(">", common.UnusualRestartCountThreshold))
 
 		if f.IsPrometheusAvailable() {
-			By("Test metric for unusual restart count")
-			Eventually(func() bool {
-				var result map[string]interface{}
-				resp := f.MakePrometheusHTTPRequest("query?query=kubevirt_cdi_import_dv_unusual_restartcount_total>0")
-				defer resp.Body.Close()
-				bodyBytes, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return false
-				}
-				err = json.Unmarshal(bodyBytes, &result)
-				if err != nil {
-					return false
-				}
-				if len(result["data"].(map[string]interface{})["result"].([]interface{})) == 0 {
-					return false
-				}
-				values := result["data"].(map[string]interface{})["result"].([]interface{})[0].(map[string]interface{})["value"].([]interface{})
-				for _, v := range values {
-					if s, ok := v.(string); ok {
-						if s == "1" {
-							return true
-						}
-					}
-				}
-				return false
-			}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+			dataVolumeUnusualRestartTest(f)
 		}
 	})
 })
