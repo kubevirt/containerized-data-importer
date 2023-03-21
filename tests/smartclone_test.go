@@ -137,6 +137,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SmartClonePVCInProgress))
 		// Wait for operation Succeeded
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 		// Verify PVC's content
