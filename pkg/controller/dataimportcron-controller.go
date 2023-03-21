@@ -943,7 +943,7 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	dv.Name = dataVolumeName
 	dv.Namespace = cron.Namespace
 	r.setDataImportCronResourceLabels(cron, dv)
-	passCronAnnotationToDv(cron, dv, cc.AnnImmediateBinding)
+	cc.AddAnnotation(dv, cc.AnnImmediateBinding, "true")
 	passCronAnnotationToDv(cron, dv, cc.AnnPodRetainAfterCompletion)
 
 	passCronLabelToDv(cron, dv, cc.LabelDefaultInstancetype)
