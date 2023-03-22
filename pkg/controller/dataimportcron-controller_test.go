@@ -317,10 +317,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			reconciler = createDataImportCronReconciler(cron)
 			verifyConditions("Before DesiredDigest is set", false, false, false, noImport, noDigest, "")
 
-			if cron.Annotations == nil {
-				cron.Annotations = make(map[string]string)
-			}
-			cron.Annotations[AnnSourceDesiredDigest] = testDigest
+			AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
 			err := reconciler.client.Update(context.TODO(), cron)
 			Expect(err).ToNot(HaveOccurred())
 			dataSource = &cdiv1.DataSource{}
@@ -338,6 +335,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(*dv.Spec.Source.Registry.URL).To(Equal(testRegistryURL + "@" + testDigest))
+			Expect(dv.Annotations[AnnImmediateBinding]).To(Equal("true"))
 
 			dv.Status.Phase = cdiv1.ImportScheduled
 			err = reconciler.client.Update(context.TODO(), dv)
@@ -405,14 +403,10 @@ var _ = Describe("All DataImportCron Tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 			}
 
-			if cron.Annotations == nil {
-				cron.Annotations = make(map[string]string)
-			}
-
 			pvc := &corev1.PersistentVolumeClaim{}
 			lastTs := ""
 			verifyDigestUpdate := func(idx int) {
-				cron.Annotations[AnnSourceDesiredDigest] = digests[idx]
+				AddAnnotation(cron, AnnSourceDesiredDigest, digests[idx])
 				err := reconciler.client.Update(context.TODO(), cron)
 				Expect(err).ToNot(HaveOccurred())
 				dataSource = &cdiv1.DataSource{}
@@ -574,6 +568,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(*dv.Spec.Source.Registry.URL).To(Equal("docker://" + testDockerRef))
+			Expect(dv.Annotations[AnnImmediateBinding]).To(Equal("true"))
 			dv.Status.Phase = cdiv1.Succeeded
 			dv.Status.Conditions = updateReadyCondition(dv.Status.Conditions, corev1.ConditionTrue, "", "")
 			err = reconciler.client.Update(context.TODO(), dv)
