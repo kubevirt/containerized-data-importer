@@ -372,7 +372,7 @@ var _ = Describe("Import Proxy tests", func() {
 
 			By(fmt.Sprintf("Create new DataImportCron %s, url %s", cronName, *reg.URL))
 			dic := utils.NewDataImportCron(cronName, "5Gi", scheduleEveryMinute, dataSourceName, 1, reg)
-			dic.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+			controller.AddAnnotation(dic, controller.AnnPodRetainAfterCompletion, "true")
 			retentionPolicy := cdiv1.DataImportCronRetainNone
 			dic.Spec.RetentionPolicy = &retentionPolicy
 
