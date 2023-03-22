@@ -236,6 +236,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 	ep, _ := util.ParseEnvVar(common.ImporterEndpoint, false)
 	acc, _ := util.ParseEnvVar(common.ImporterAccessKeyID, false)
 	sec, _ := util.ParseEnvVar(common.ImporterSecretKey, false)
+	keyf, _ := util.ParseEnvVar(common.ImporterGoogleCredentialFileVar, false)
 	diskID, _ := util.ParseEnvVar(common.ImporterDiskID, false)
 	uuid, _ := util.ParseEnvVar(common.ImporterUUID, false)
 	backingFile, _ := util.ParseEnvVar(common.ImporterBackingFile, false)
@@ -267,6 +268,12 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 		ds, err := importer.NewS3DataSource(ep, acc, sec, certDir)
 		if err != nil {
 			errorCannotConnectDataSource(err, "s3")
+		}
+		return ds
+	case cc.SourceGCS:
+		ds, err := importer.NewGCSDataSource(ep, keyf)
+		if err != nil {
+			errorCannotConnectDataSource(err, "gcs")
 		}
 		return ds
 	case cc.SourceVDDK:

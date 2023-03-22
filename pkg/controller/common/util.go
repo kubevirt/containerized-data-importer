@@ -237,6 +237,8 @@ const (
 	SourceHTTP = "http"
 	// SourceS3 is the source type S3
 	SourceS3 = "s3"
+	// SourceGCS is the source type GCS
+	SourceGCS = "gcs"
 	// SourceGlance is the source type of glance
 	SourceGlance = "glance"
 	// SourceNone means there is no source.
@@ -820,6 +822,7 @@ func GetSource(pvc *corev1.PersistentVolumeClaim) string {
 	case
 		SourceHTTP,
 		SourceS3,
+		SourceGCS,
 		SourceGlance,
 		SourceNone,
 		SourceRegistry,

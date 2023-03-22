@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "data-processor.go",
         "format-readers.go",
+        "gcs-datasource.go",
         "http-datasource.go",
         "imageio-datasource.go",
         "registry-datasource.go",
@@ -24,6 +25,7 @@ go_library(
         "//pkg/util:go_default_library",
         "//pkg/util/prometheus:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
+        "//vendor/cloud.google.com/go/storage:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/aws:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/aws/credentials:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/aws/session:go_default_library",
@@ -41,6 +43,7 @@ go_library(
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/github.com/prometheus/client_golang/prometheus:go_default_library",
         "//vendor/github.com/ulikunitz/xz:go_default_library",
+        "//vendor/google.golang.org/api/option:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/api/resource:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
     ] + select({
@@ -69,6 +72,7 @@ go_test(
     srcs = [
         "data-processor_test.go",
         "format-readers_test.go",
+        "gcs-datasource_test.go",
         "http-datasource_test.go",
         "imageio-datasource_test.go",
         "importer_suite_test.go",
@@ -89,6 +93,7 @@ go_test(
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//tests/reporters:go_default_library",
         "//tests/utils:go_default_library",
+        "//vendor/cloud.google.com/go/storage:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/service/s3:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",
         "//vendor/github.com/onsi/ginkgo/extensions/table:go_default_library",

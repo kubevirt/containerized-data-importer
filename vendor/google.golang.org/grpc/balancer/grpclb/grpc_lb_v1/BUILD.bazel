@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "load_balancer.pb.go",
+        "load_balancer_grpc.pb.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/google.golang.org/grpc/balancer/grpclb/grpc_lb_v1",
+    importpath = "google.golang.org/grpc/balancer/grpclb/grpc_lb_v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/golang/protobuf/proto:go_default_library",
+        "//vendor/google.golang.org/grpc:go_default_library",
+        "//vendor/google.golang.org/grpc/codes:go_default_library",
+        "//vendor/google.golang.org/grpc/status:go_default_library",
+        "//vendor/google.golang.org/protobuf/reflect/protoreflect:go_default_library",
+        "//vendor/google.golang.org/protobuf/runtime/protoimpl:go_default_library",
+        "//vendor/google.golang.org/protobuf/types/known/durationpb:go_default_library",
+        "//vendor/google.golang.org/protobuf/types/known/timestamppb:go_default_library",
+    ],
+)

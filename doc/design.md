@@ -73,6 +73,8 @@ The controller scans PVCs within its namespace by looking for specific annotatio
 - [import-kubevirt-block-datavolume.yaml](../manifests/example/import-kubevirt-block-datavolume.yaml)
 - [import-kubevirt-datavolume-secret.yaml](../manifests/example/import-kubevirt-datavolume-secret.yaml)
 - [import-kubevirt-datavolume.yaml](../manifests/example/import-kubevirt-datavolume.yaml)
+- [import-kubevirt-datavolume-gcs-secret.yaml](../manifests/example/import-kubevirt-datavolume-gcs-secret.yaml)
+- [import-kubevirt-datavolume-gcs.yaml](../manifests/example/import-kubevirt-datavolume-gcs.yaml)
 - [registry-image-block-datavolume.yaml](../manifests/example/registry-image-block-datavolume.yaml)
 - [registry-image-datavolume.yaml](../manifests/example/registry-image-datavolume.yaml)
 - [upload-block-datavolume-token.yaml](../manifests/example/upload-block-datavolume-token.yaml)

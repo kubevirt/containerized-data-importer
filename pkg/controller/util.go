@@ -46,8 +46,11 @@ import (
 )
 
 const (
-	// CertVolName is the name of the volumecontaining certs
+	// CertVolName is the name of the volume containing certs
 	CertVolName = "cdi-cert-vol"
+
+	// SecretVolName is the name of the volume containing gcs key
+	SecretVolName = "cdi-secret-vol"
 
 	// AnnOwnerRef is used when owner is in a different namespace
 	AnnOwnerRef = cc.AnnAPIGroup + "/storage.ownerRef"

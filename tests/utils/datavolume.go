@@ -75,6 +75,10 @@ const (
 	TarArchiveURL = "http://cdi-file-host.%s/archive.tar"
 	// CirrosURL provides the standard cirros image qcow image
 	CirrosURL = "http://cdi-file-host.%s/cirros-qcow2.img"
+	// CirrosGCSQCOWURL provides the standard cirros image qcow image for GCS
+	CirrosGCSQCOWURL = "http://cdi-file-host.%s/gcs-bucket/cirros-qcow2.img"
+	// CirrosGCSRAWURL provides the standard cirros image raw image for GCS
+	CirrosGCSRAWURL = "http://cdi-file-host.%s/gcs-bucket/cirros.raw"
 	// ImageioURL provides URL of oVirt engine hosting imageio
 	ImageioURL = "https://imageio.%s:12346/ovirt-engine/api"
 	// ImageioRootURL provides the base path to fakeovirt, for inventory modifications
@@ -804,6 +808,33 @@ func NewDataVolumeWithVddkWarmImport(dataVolumeName string, size string, backing
 					},
 				},
 			},
+		},
+	}
+}
+
+// NewDataVolumeWithGCSImport initializes a DataVolume struct with GCS HTTP annotations
+func NewDataVolumeWithGCSImport(dataVolumeName string, size string, gcsURL string) *cdiv1.DataVolume {
+	claimSpec := &k8sv1.PersistentVolumeClaimSpec{
+		AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+		Resources: k8sv1.ResourceRequirements{
+			Requests: k8sv1.ResourceList{
+				k8sv1.ResourceStorage: resource.MustParse(size),
+			},
+		},
+	}
+
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        dataVolumeName,
+			Annotations: map[string]string{},
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				GCS: &cdiv1.DataVolumeSourceGCS{
+					URL: gcsURL,
+				},
+			},
+			PVC: claimSpec,
 		},
 	}
 }
