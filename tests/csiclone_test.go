@@ -1,11 +1,13 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -49,12 +51,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone)
 
 		dataVolume, md5 := createDataVolume("dv-csi-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, f.CsiCloneSCName, f)
-		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(string(cdiv1.CSICloneInProgress)))
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 		// Verify PVC's content
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, md5)
+		// Verify csi clone took place
+		verifyCSIClone(dataVolume, f)
 	})
 
 	It("Verify DataVolume CSI Cloning - volumeMode block - Positive flow", func() {
@@ -66,12 +69,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone)
 
 		dataVolume, expectedMd5 := createDataVolume("dv-csi-clone-test-1", utils.DefaultPvcMountPath, v1.PersistentVolumeBlock, f.CsiCloneSCName, f)
-		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CSICloneInProgress))
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 		// Verify PVC's content
 		verifyPVC(dataVolume, f, utils.DefaultPvcMountPath, expectedMd5)
+		// Verify csi clone took place
+		verifyCSIClone(dataVolume, f)
 	})
 
 	It("[posneg:negative][test_id:6655] Support for CSI Clone strategy in storage profile with SC HPP - negative", func() {
@@ -125,12 +129,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify clone completed after quota increase")
-		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(string(cdiv1.CSICloneInProgress)))
 		// Wait for operation Succeeded
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 		// Verify PVC's content
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, md5)
+		// Verify csi clone took place
+		verifyCSIClone(dataVolume, f)
 
 		err = f.DeleteStorageQuota()
 		Expect(err).ToNot(HaveOccurred())
@@ -156,4 +162,11 @@ func createDataVolumeDontWait(dataVolumeName, testPath string, volumeMode v1.Per
 	Expect(err).ToNot(HaveOccurred())
 
 	return dataVolume, md5
+}
+
+func verifyCSIClone(dataVolume *cdiv1.DataVolume, f *framework.Framework) {
+	targetPvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	Expect(targetPvc.Spec.DataSource.Kind).To(Equal("PersistentVolumeClaim"))
+	Expect(targetPvc.Spec.DataSourceRef.Kind).To(Equal("PersistentVolumeClaim"))
 }

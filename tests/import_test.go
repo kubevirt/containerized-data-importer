@@ -621,6 +621,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 		var importer *v1.Pod
 		By("Find importer pod")
