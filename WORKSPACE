@@ -138,10 +138,10 @@ http_archive(
 # Pull base image fedora33
 container_pull(
     name = "fedora",
-    digest = "sha256:f5f3351d2a5d87d1e2b30d6b1ffb518bb6b2d7c21cecaba4ba7d419f2bc305d7",
-    registry = "quay.io",
-    repository = "fedora/fedora",
-    tag = "33-x86_64",
+    digest = "sha256:0917716c5c92a4d57ed58db867b8889e7834d542d89cac8dac2f0b30606a34f9",
+    registry = "index.docker.io",
+    repository = "fedora",
+    tag = "33",
 )
 
 #No need to update this one until we re-enable the cinder lane, as only the lvm pod uses this.
