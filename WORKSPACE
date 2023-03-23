@@ -168,18 +168,18 @@ container_pull(
 # Pull base image container registry
 container_pull(
     name = "registry",
-    digest = "sha256:b1165286043f2745f45ea637873d61939bff6d9a59f76539d6228abf79f87774",
-    registry = "index.docker.io",
-    repository = "library/registry",
-    tag = "2",
+    digest = "sha256:5c98b00f91e8daed324cb680661e9d647f09d825778493ffb2618ff36bec2a9e",
+    registry = "quay.io",
+    repository = "libpod/registry",
+    tag = "2.8",
 )
 
 container_pull(
     name = "registry-aarch64",
-    digest = "sha256:c11a277a91045f91866550314a988f937366bc2743859aa0f6ec8ef57b0458ce",
-    registry = "index.docker.io",
-    repository = "library/registry",
-    tag = "2",
+    digest = "sha256:f4e803a2d37afca6d059961f28d73c57cbe6fdb3a44ba6ae7ad463811f43b81c",
+    registry = "quay.io",
+    repository = "libpod/registry",
+    tag = "2.8",
 )
 
 http_file(
