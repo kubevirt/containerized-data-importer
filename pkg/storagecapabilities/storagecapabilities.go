@@ -59,9 +59,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"kubernetes.io/portworx-volume":        {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
 	// Portworx CSI
 	"pxd.openstorage.org/shared": createOpenStorageSharedVolumeCapabilities(),
-	"pxd.openstorage.org":        createOpenStorageVolumeCapabilities(),
+	"pxd.openstorage.org":        createRWOBlockAndFilesystemCapabilities(),
 	"pxd.portworx.com/shared":    createOpenStorageSharedVolumeCapabilities(),
-	"pxd.portworx.com":           createOpenStorageVolumeCapabilities(),
+	"pxd.portworx.com":           createRWOBlockAndFilesystemCapabilities(),
 	// Trident
 	"csi.trident.netapp.io/ontap-nas": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"csi.trident.netapp.io/ontap-san": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
@@ -69,9 +69,11 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"topolvm.cybozu.com": createTopoLVMCapabilities(),
 	"topolvm.io":         createTopoLVMCapabilities(),
 	// OpenStack Cinder
-	"cinder.csi.openstack.org": createCinderVolumeCapabilities(),
+	"cinder.csi.openstack.org": createRWOBlockAndFilesystemCapabilities(),
 	// OpenStack manila
 	"manila.csi.openstack.org": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
+	// ovirt csi
+	"csi.ovirt.org": createRWOBlockAndFilesystemCapabilities(),
 }
 
 // ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
@@ -228,13 +230,6 @@ func createTopoLVMCapabilities() []StorageCapabilities {
 	}
 }
 
-func createOpenStorageVolumeCapabilities() []StorageCapabilities {
-	return []StorageCapabilities{
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
-	}
-}
-
 func createOpenStorageSharedVolumeCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
 		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
@@ -242,7 +237,7 @@ func createOpenStorageSharedVolumeCapabilities() []StorageCapabilities {
 	}
 }
 
-func createCinderVolumeCapabilities() []StorageCapabilities {
+func createRWOBlockAndFilesystemCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
 		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
 		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
