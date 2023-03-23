@@ -91,8 +91,6 @@ func main() {
 	volumeMode := v1.PersistentVolumeBlock
 	if _, err := os.Stat(common.WriteBlockPath); os.IsNotExist(err) {
 		volumeMode = v1.PersistentVolumeFilesystem
-	} else {
-		preallocation = true
 	}
 
 	// With writeback cache mode it's possible that the process will exit before all writes have been commited to storage.
