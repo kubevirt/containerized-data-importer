@@ -915,7 +915,7 @@ func WaitForDataVolumeGC(ci ClientsIface, namespace string, pvcName string, ttl 
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("DataVolume %s was not garbage collected within %v err %s", pvcName, timeout, err.Error())
+		return fmt.Errorf("DataVolume %s was not garbage collected within %v err [%s] actual phase=%s", pvcName, timeout, err.Error(), actualPhase)
 	}
 	if _, err := ci.K8s().CoreV1().PersistentVolumeClaims(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{}); err != nil {
 		return err
