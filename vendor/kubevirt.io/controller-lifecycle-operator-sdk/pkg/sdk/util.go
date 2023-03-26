@@ -170,6 +170,28 @@ func CheckDeploymentReady(deployment *appsv1.Deployment) bool {
 	return true
 }
 
+func CheckDeploymentRequiresIntervention(deployment *appsv1.Deployment) bool {
+	var progressing, available bool
+	if cond := GetDeploymentCondition(deployment.Status, appsv1.DeploymentAvailable); cond != nil && cond.Status == v1.ConditionTrue {
+		available = true
+	}
+	if cond := GetDeploymentCondition(deployment.Status, appsv1.DeploymentProgressing); cond != nil && cond.Status == v1.ConditionTrue {
+		progressing = true
+	}
+
+	return !progressing && !available
+}
+
+func GetDeploymentCondition(status appsv1.DeploymentStatus, condType appsv1.DeploymentConditionType) *appsv1.DeploymentCondition {
+	for i := range status.Conditions {
+		c := status.Conditions[i]
+		if c.Type == condType {
+			return &c
+		}
+	}
+	return nil
+}
+
 func NewDefaultInstance(obj client.Object) client.Object {
 	typ := reflect.ValueOf(obj).Elem().Type()
 	return reflect.New(typ).Interface().(client.Object)

@@ -56,7 +56,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed
 	kubevirt.io/containerized-data-importer-api v0.0.0
-	kubevirt.io/controller-lifecycle-operator-sdk v0.2.4
+	kubevirt.io/controller-lifecycle-operator-sdk v0.2.5
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90
 	kubevirt.io/qe-tools v0.1.6
 	libguestfs.org/libnbd v1.11.5

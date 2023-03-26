@@ -2045,8 +2045,8 @@ k8s.io/utils v0.0.0-20210930125809-cb0fa318a74b/go.mod h1:jPW/WVKK9YHAvNhRxK0md/
 k8s.io/utils v0.0.0-20211116205334-6203023598ed/go.mod h1:jPW/WVKK9YHAvNhRxK0md/EJ228hCsBRufyofKtW8HA=
 k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed h1:jAne/RjBTyawwAy0utX5eqigAwz/lQhTmy+Hr/Cpue4=
 k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed/go.mod h1:jPW/WVKK9YHAvNhRxK0md/EJ228hCsBRufyofKtW8HA=
-kubevirt.io/controller-lifecycle-operator-sdk v0.2.4 h1:H+VDfGgc85S6MsstwXxCtiwTfOnD/QMtO8m/zGM5Thg=
-kubevirt.io/controller-lifecycle-operator-sdk v0.2.4/go.mod h1:JlY8c5nFxNZCo3ns1pFqstPJbjgBFh6+9FuL2/5cDfk=
+kubevirt.io/controller-lifecycle-operator-sdk v0.2.5 h1:3rMW6BF4rN7+MphXRaRBR5Zio3P4i6CYlVD7bnNf+yM=
+kubevirt.io/controller-lifecycle-operator-sdk v0.2.5/go.mod h1:JlY8c5nFxNZCo3ns1pFqstPJbjgBFh6+9FuL2/5cDfk=
 kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 h1:QMrd0nKP0BGbnxTqakhDZAUhGKxPiPiN5gSDqKUmGGc=
 kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90/go.mod h1:018lASpFYBsYN6XwmA2TIrPCx6e0gviTd/ZNtSitKgc=
 kubevirt.io/qe-tools v0.1.6 h1:S6z9CATmgV2/z9CWetij++Rhu7l/Z4ObZqerLdNMo0Y=
