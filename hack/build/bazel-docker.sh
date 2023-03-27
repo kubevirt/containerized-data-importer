@@ -53,8 +53,8 @@ echo "Starting rsyncd"
 RSYNC_CID_CDI=$(${CDI_CRI} run -d -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable $DISABLE_SECCOMP --expose 873 -P --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} /usr/bin/rsync --no-detach --daemon --verbose)
 
 function finish() {
-    ${CDI_CRI} stop ${RSYNC_CID_CDI} >/dev/null 2>&1 &
-    ${CDI_CRI} rm -f ${RSYNC_CID_CDI} >/dev/null 2>&1 &
+    ${CDI_CRI} stop --time 1 ${RSYNC_CID_CDI} >/dev/null 2>&1
+    ${CDI_CRI} rm -f ${RSYNC_CID_CDI} >/dev/null 2>&1
 }
 trap finish EXIT
 
