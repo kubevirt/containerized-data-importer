@@ -461,7 +461,7 @@ func (f *Framework) CreateQuotaInSpecifiedNs(ns string, requestCPU, requestMemor
 		if err != nil {
 			return false, err
 		}
-		return len(quota.Status.Hard) == 4, nil
+		return len(quota.Status.Used) == 4, nil
 	})
 }
 
@@ -485,7 +485,14 @@ func (f *Framework) UpdateQuotaInNs(requestCPU, requestMemory, limitsCPU, limits
 	if err != nil {
 		ginkgo.Fail("Unable to set resource quota " + err.Error())
 	}
-	return err
+	return wait.PollImmediate(5*time.Second, nsDeleteTime, func() (bool, error) {
+		quota, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Get(context.TODO(), "test-quota", metav1.GetOptions{})
+		if err != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "ERROR: GET ResourceQuota failed once, retrying: %v\n", err.Error())
+			return false, nil
+		}
+		return len(quota.Status.Used) == 4, nil
+	})
 }
 
 // CreateStorageQuota creates a quota to limit pvc count and cumulative storage capacity
@@ -513,7 +520,7 @@ func (f *Framework) CreateStorageQuota(numPVCs, requestStorage int64) error {
 			fmt.Fprintf(ginkgo.GinkgoWriter, "ERROR: GET ResourceQuota failed once, retrying: %v\n", err.Error())
 			return false, nil
 		}
-		return len(quota.Status.Hard) == 2, nil
+		return len(quota.Status.Used) == 2, nil
 	})
 }
 
@@ -543,7 +550,7 @@ func (f *Framework) UpdateStorageQuota(numPVCs, requestStorage int64) error {
 		}
 		requestStorageUpdated := resource.NewQuantity(requestStorage, resource.DecimalSI).Cmp(quota.Status.Hard[v1.ResourceRequestsStorage])
 		numPVCsUpdated := resource.NewQuantity(numPVCs, resource.DecimalSI).Cmp(quota.Status.Hard[v1.ResourcePersistentVolumeClaims])
-		return requestStorageUpdated+numPVCsUpdated == 0, nil
+		return len(quota.Status.Used) == 2 && requestStorageUpdated+numPVCsUpdated == 0, nil
 	})
 }
 
