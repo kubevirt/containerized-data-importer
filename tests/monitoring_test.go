@@ -370,19 +370,6 @@ func getPrometheusRule(f *framework.Framework) *promv1.PrometheusRule {
 	return promRule
 }
 
-func setPrometheusRule(f *framework.Framework, promRule *promv1.PrometheusRule) {
-	Eventually(func() error {
-		err := f.CrClient.Delete(context.TODO(), promRule)
-		if err != nil && !errors.IsNotFound(err) {
-			return err
-		}
-
-		promRule.ResourceVersion = ""
-		promRule.UID = ""
-		return f.CrClient.Create(context.TODO(), promRule)
-	}, 5*time.Minute, 1*time.Second).Should(BeNil())
-}
-
 func waitForPrometheusAlert(f *framework.Framework, alertName string) {
 	By("Wait for alert to be triggered")
 	Eventually(func() bool {

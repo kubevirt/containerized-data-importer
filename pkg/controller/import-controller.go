@@ -38,8 +38,6 @@ import (
 )
 
 const (
-	importControllerAgentName = "import-controller"
-
 	// ErrImportFailedPVC provides a const to indicate an import to the PVC failed
 	ErrImportFailedPVC = "ErrImportFailed"
 	// ImportSucceededPVC provides a const to indicate an import to the PVC failed
@@ -69,7 +67,7 @@ type ImportReconciler struct {
 	image              string
 	verbose            string
 	pullPolicy         string
-	filesystemOverhead string
+	filesystemOverhead string //nolint:unused // TODO: check if need to remove this field
 	cdiNamespace       string
 	featureGates       featuregates.FeatureGates
 	installerLabels    map[string]string

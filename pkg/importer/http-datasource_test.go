@@ -29,7 +29,6 @@ import (
 var (
 	cirrosFileName          = "cirros-qcow2.img"
 	diskimageTarFileName    = "cirros.tar"
-	cirrosQCow2TarFileName  = "cirros.qcow2.tar"
 	tinyCoreGz              = "tinyCore.iso.gz"
 	tinyCoreXz              = "tinyCore.iso.xz"
 	cirrosData, _           = readFile(cirrosFilePath)

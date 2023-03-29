@@ -657,7 +657,7 @@ type MockCancelService struct {
 }
 
 type MockExtendService struct {
-	client *MockOvirtClient
+	client *MockOvirtClient //nolint:unused // TODO: check if need to remove this field
 }
 
 type MockFinalizeService struct {
@@ -665,14 +665,10 @@ type MockFinalizeService struct {
 }
 
 type MockGetService struct {
-	client *MockOvirtClient
+	client *MockOvirtClient //nolint:unused // TODO: check if need to remove this field
 }
 
 type MockStorageDomainsService struct {
-	client *MockOvirtClient
-}
-
-type MockImageTransfersService struct {
 	client *MockOvirtClient
 }
 
@@ -699,7 +695,7 @@ type MockImageTransferServiceCancelResponse struct {
 }
 
 type MockImageTransferServiceExtendResponse struct {
-	srv *ovirtsdk4.ImageTransferServiceExtendResponse
+	srv *ovirtsdk4.ImageTransferServiceExtendResponse //nolint:unused // TODO: check if need to remove this field
 }
 
 type MockImageTransferServiceFinalizeResponse struct {
@@ -865,15 +861,6 @@ var mockFinalizeHook func() error
 
 func failMockOvirtClient(ep string, accessKey string, secKey string, certDir string) (ConnectionInterface, error) {
 	return nil, errors.New("Failed to create client")
-}
-
-func createErrMockOvirtClient(ep string, accessKey string, secKey string) (ConnectionInterface, error) {
-	return &MockOvirtClient{
-		ep:     ep,
-		accKey: accessKey,
-		secKey: secKey,
-		doErr:  true,
-	}, nil
 }
 
 func createCert() string {

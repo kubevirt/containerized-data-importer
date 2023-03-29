@@ -86,7 +86,7 @@ type UploadReconciler struct {
 	image                  string
 	verbose                string
 	pullPolicy             string
-	uploadProxyServiceName string
+	uploadProxyServiceName string //nolint:unused // TODO: check if need to remove this field
 	serverCertGenerator    generator.CertGenerator
 	clientCAFetcher        fetcher.CertBundleFetcher
 	featureGates           featuregates.FeatureGates
