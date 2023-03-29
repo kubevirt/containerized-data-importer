@@ -830,8 +830,7 @@ func getRegistryImportImage(pvc *corev1.PersistentVolumeClaim) (string, error) {
 
 // getValueFromAnnotation returns the value of an annotation
 func getValueFromAnnotation(pvc *corev1.PersistentVolumeClaim, annotation string) string {
-	value, _ := pvc.Annotations[annotation]
-	return value
+	return pvc.Annotations[annotation]
 }
 
 // If this pod is going to transfer one checkpoint in a multi-stage import, attach the checkpoint name to the pod name so

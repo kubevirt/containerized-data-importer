@@ -102,10 +102,7 @@ func isLocalStorageOperator(sc *storagev1.StorageClass) bool {
 }
 
 func knownNoProvisioner(sc *storagev1.StorageClass) bool {
-	if isLocalStorageOperator(sc) {
-		return true
-	}
-	return false
+	return isLocalStorageOperator(sc)
 }
 
 func capabilitiesForNoProvisioner(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {

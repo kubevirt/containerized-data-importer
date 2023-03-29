@@ -2329,7 +2329,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				}
 			}
 			Expect(err).ToNot(HaveOccurred())
-			progressRegExp := regexp.MustCompile("\\d{1,3}\\.?\\d{1,2}%")
+			progressRegExp := regexp.MustCompile(`\d{1,3}\.?\d{1,2}%`)
 			Eventually(func() bool {
 				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -2604,7 +2604,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			// here we want to have more than 0, to be sure it started
-			progressRegExp := regexp.MustCompile("[1-9]\\d{0,2}\\.?\\d{1,2}%")
+			progressRegExp := regexp.MustCompile(`[1-9]\d{0,2}\.?\d{1,2}%`)
 			Eventually(func() bool {
 				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())

@@ -173,7 +173,7 @@ func executeWithLimits(limits *ProcessLimitValues, callback func(string), logErr
 		if logErr {
 			klog.Errorf("%s failed output is:\n", command)
 			klog.Errorf("%s\n", string(output))
-			klog.Errorf("%s\n", string(errBuf.Bytes()))
+			klog.Errorf("%s\n", errBuf.String())
 		}
 		return errBuf.Bytes(), errors.Wrapf(err, "%s execution failed", command)
 	}

@@ -214,8 +214,6 @@ func (f *Framework) AfterEach() {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "On failure, artifacts will be collected in %s/%d_*\n", f.reporter.artifactsDir, f.reporter.FailureCount)
 		f.reporter.Dump(f.K8sClient, f.CdiClient, ginkgo.CurrentGinkgoTestDescription().Duration)
 	}
-
-	return
 }
 
 // CreateNamespace instantiates a new namespace object with a unique name and the passed-in label(s).

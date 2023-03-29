@@ -80,7 +80,6 @@ func (ft formatTable) initializeTestFiles(inFile, outDir string) error {
 		e := errors.Wrapf(err, msg, format...)
 		klog.Error(e)
 		errChan <- e
-		return
 	}
 
 	for _, fList := range ft {

@@ -85,7 +85,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 	if spec.PVC == nil && spec.Storage == nil {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Missing Data volume PVC"),
+			Message: "Missing Data volume PVC",
 			Field:   field.Child("PVC").String(),
 		})
 		return causes
@@ -93,7 +93,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 	if spec.PVC != nil && spec.Storage != nil {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Duplicate storage definition, both target storage and target pvc defined"),
+			Message: "Duplicate storage definition, both target storage and target pvc defined",
 			Field:   field.Child("PVC", "Storage").String(),
 		})
 		return causes
@@ -112,7 +112,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 		if len(accessModes) == 0 {
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("Required value: at least 1 access mode is required"),
+				Message: "Required value: at least 1 access mode is required",
 				Field:   field.Child("PVC", "accessModes").String(),
 			})
 			return causes
@@ -120,7 +120,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 		if len(accessModes) > 1 {
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("PVC multiple accessModes"),
+				Message: "PVC multiple accessModes",
 				Field:   field.Child("PVC", "accessModes").String(),
 			})
 			return causes
@@ -129,7 +129,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 		if accessModes[0] != v1.ReadWriteOnce && accessModes[0] != v1.ReadOnlyMany && accessModes[0] != v1.ReadWriteMany {
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("Unsupported value: \"%s\": supported values: \"ReadOnlyMany\", \"ReadWriteMany\", \"ReadWriteOnce\"", string(accessModes[0])),
+				Message: fmt.Sprintf(`Unsupported value: "%s": supported values: "ReadOnlyMany", "ReadWriteMany", "ReadWriteOnce"`, string(accessModes[0])),
 				Field:   field.Child("PVC", "accessModes").String(),
 			})
 			return causes
@@ -160,7 +160,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 	if (spec.Source == nil && spec.SourceRef == nil) || (spec.Source != nil && spec.SourceRef != nil) {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Data volume should have either Source or SourceRef, or be externally populated"),
+			Message: "Data volume should have either Source or SourceRef, or be externally populated",
 			Field:   field.Child("source").String(),
 		})
 		return causes
@@ -183,7 +183,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 	if numberOfSources == 0 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Missing Data volume source"),
+			Message: "Missing Data volume source",
 			Field:   field.Child("source").String(),
 		})
 		return causes
@@ -191,7 +191,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 	if numberOfSources > 1 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Multiple Data volume sources"),
+			Message: "Multiple Data volume sources",
 			Field:   field.Child("source").String(),
 		})
 		return causes
@@ -240,7 +240,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 		sourceType = field.Child("contentType").String()
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("SourceType cannot be blank and the contentType be archive"),
+			Message: "SourceType cannot be blank and the contentType be archive",
 			Field:   sourceType,
 		})
 		return causes
@@ -330,7 +330,7 @@ func validateDataVolumeSourceRegistry(sourceRegistry *cdiv1.DataVolumeSourceRegi
 	if (sourceURL == nil && sourceIS == nil) || (sourceURL != nil && sourceIS != nil) {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Source registry should have either URL or ImageStream"),
+			Message: "Source registry should have either URL or ImageStream",
 			Field:   field.Child("source", "Registry").String(),
 		})
 		return causes
@@ -368,7 +368,7 @@ func validateDataVolumeSourceRegistry(sourceRegistry *cdiv1.DataVolumeSourceRegi
 	if sourceIS != nil && *sourceIS == "" {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Source registry ImageStream is not valid"),
+			Message: "Source registry ImageStream is not valid",
 			Field:   field.Child("source", "Registry", "importMethod").String(),
 		})
 		return causes
@@ -377,7 +377,7 @@ func validateDataVolumeSourceRegistry(sourceRegistry *cdiv1.DataVolumeSourceRegi
 	if sourceIS != nil && (importMethod == nil || *importMethod != cdiv1.RegistryPullNode) {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Source registry ImageStream is supported only with node pull import method"),
+			Message: "Source registry ImageStream is supported only with node pull import method",
 			Field:   field.Child("source", "Registry", "importMethod").String(),
 		})
 		return causes
@@ -390,7 +390,7 @@ func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.Ad
 	if spec.SourceRef.Kind == "" {
 		return &metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Missing sourceRef kind"),
+			Message: "Missing sourceRef kind",
 			Field:   field.Child("sourceRef", "Kind").String(),
 		}
 	}
@@ -404,7 +404,7 @@ func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.Ad
 	if spec.SourceRef.Name == "" {
 		return &metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Missing sourceRef name"),
+			Message: "Missing sourceRef name",
 			Field:   field.Child("sourceRef", "Name").String(),
 		}
 	}
@@ -474,14 +474,14 @@ func validateDataSource(dataSource *v1.TypedLocalObjectReference, field *k8sfiel
 	if len(dataSource.Name) == 0 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Required value: DataSource/DataSourceRef name"),
+			Message: "Required value: DataSource/DataSourceRef name",
 			Field:   field.Child("name", "").String(),
 		})
 	}
 	if len(dataSource.Kind) == 0 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Required value: DataSource/DataSourceRef kind"),
+			Message: "Required value: DataSource/DataSourceRef kind",
 			Field:   field.Child("kind").String(),
 		})
 	}
@@ -492,7 +492,7 @@ func validateDataSource(dataSource *v1.TypedLocalObjectReference, field *k8sfiel
 	if len(apiGroup) == 0 && dataSource.Kind != "PersistentVolumeClaim" {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Required value: DataSource/DataSourceRef apiGroup when kind is not 'PersistentVolumeClaim'"),
+			Message: "Required value: DataSource/DataSourceRef apiGroup when kind is not 'PersistentVolumeClaim'",
 			Field:   field.Child("apiGroup", "").String(),
 		})
 	}
@@ -567,7 +567,7 @@ func validateExternalPopulation(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path
 	if spec.Source != nil || spec.SourceRef != nil {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("External population is incompatible with Source and SourceRef"),
+			Message: "External population is incompatible with Source and SourceRef",
 			Field:   field.Child("source").String(),
 		})
 	}
@@ -576,7 +576,7 @@ func validateExternalPopulation(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path
 		if !apiequality.Semantic.DeepEqual(dataSource, dataSourceRef) {
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("DataSourceRef and DataSource must match"),
+				Message: "DataSourceRef and DataSource must match",
 				Field:   "",
 			})
 		}
@@ -634,7 +634,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 			var causes []metav1.StatusCause
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueDuplicate,
-				Message: fmt.Sprintf("Cannot update DataVolume Spec"),
+				Message: "Cannot update DataVolume Spec",
 				Field:   k8sfield.NewPath("DataVolume").Child("Spec").String(),
 			})
 			return toRejectedAdmissionResponse(causes)

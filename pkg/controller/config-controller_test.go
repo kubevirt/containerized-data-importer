@@ -409,8 +409,7 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(configMap.Labels[common.AppKubernetesComponentLabel]).To(Equal("storage"))
 
-		cmCert, _ := configMap.Data[common.ImportProxyConfigMapKey]
-		Expect(string(cmCert)).To(Equal(certificate))
+		Expect(configMap.Data[common.ImportProxyConfigMapKey]).To(Equal(certificate))
 	})
 })
 
@@ -859,7 +858,7 @@ var _ = Describe("GetImportProxyConfig", func() {
 		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
 		cdiConfig.Status.ImportProxy = nil
 		_, err := GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP)
-		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("failed to get field, the CDIConfig ImportProxy is nil\n")))
+		Expect(err.Error()).To(ContainSubstring("failed to get field, the CDIConfig ImportProxy is nil\n"))
 	})
 })
 

@@ -37,7 +37,7 @@ var (
 	logCheckLeaderRegEx  = regexp.MustCompile("Attempting to acquire leader lease")
 	logIsLeaderRegex     = regexp.MustCompile("Successfully acquired leadership lease")
 	logImporterStarting  = regexp.MustCompile("Converting to Raw")
-	logImporterCompleted = regexp.MustCompile("\\] \\d\\d\\.\\d{1,2}")
+	logImporterCompleted = regexp.MustCompile(`\] \d\d\.\d{1,2}`)
 
 	// These are constants we want to take the pointer of
 	disableOperator = int32(0)
