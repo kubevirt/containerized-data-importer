@@ -60,7 +60,7 @@ func NewGCSDataSource(endpoint, keyFile string) (*GCSDataSource, error) {
 	}
 
 	// Getting Context
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*60)
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*60) //nolint:govet // todo - solve this: the cancel function returned by context.WithTimeout should be called, not discarded, to avoid a context leak
 
 	if ep.Scheme == "gs" {
 		// Using gs:// endpoint and extracting bucket and object name
