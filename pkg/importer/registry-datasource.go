@@ -81,6 +81,11 @@ func (rd *RegistryDataSource) Info() (ProcessingPhase, error) {
 
 // Transfer is called to transfer the data from the source registry to a temporary location.
 func (rd *RegistryDataSource) Transfer(path string) (ProcessingPhase, error) {
+	rd.imageDir = filepath.Join(path, containerDiskImageDir)
+	if err := CleanAll(rd.imageDir); err != nil {
+		return ProcessingPhaseError, err
+	}
+
 	size, err := util.GetAvailableSpace(path)
 	if err != nil {
 		return ProcessingPhaseError, err
@@ -89,7 +94,6 @@ func (rd *RegistryDataSource) Transfer(path string) (ProcessingPhase, error) {
 		//Path provided is invalid.
 		return ProcessingPhaseError, ErrInvalidPath
 	}
-	rd.imageDir = filepath.Join(path, containerDiskImageDir)
 
 	klog.V(1).Infof("Copying registry image to scratch space.")
 	err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.certDir, rd.insecureTLS)

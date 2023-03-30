@@ -82,7 +82,7 @@ func ParseEnvVar(envVarName string, decode bool) (string, error) {
 		if err != nil {
 			return "", errors.Errorf("error decoding environment variable %q", envVarName)
 		}
-		value = fmt.Sprintf("%s", v)
+		value = string(v)
 	}
 	return value, nil
 }
@@ -122,20 +122,17 @@ func GetAvailableSpace(path string) (int64, error) {
 // GetAvailableSpaceBlock gets the amount of available space at the block device path specified.
 func GetAvailableSpaceBlock(deviceName string) (int64, error) {
 	// Check if the file exists and is a device file.
-	info, err := os.Stat(deviceName)
-	if os.IsNotExist(err) {
-		return int64(-1), nil
+	if ok, err := IsDevice(deviceName); !ok || err != nil {
+		return int64(-1), err
 	}
-	if !isDevice(info.Mode()) {
-		return int64(-1), nil
-	}
+
 	// Device exists, attempt to get size.
 	cmd := exec.Command(blockdevFileName, "--getsize64", deviceName)
 	var out bytes.Buffer
 	var errBuf bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf
-	err = cmd.Run()
+	err := cmd.Run()
 	if err != nil {
 		return int64(-1), errors.Errorf("%v, %s", err, errBuf.String())
 	}
@@ -146,12 +143,18 @@ func GetAvailableSpaceBlock(deviceName string) (int64, error) {
 	return i, nil
 }
 
-// isDevice returns true if it's a device file
-func isDevice(fileMode os.FileMode) bool {
-	if (fileMode & os.ModeDevice) != 0 {
-		return true
+// IsDevice returns true if it's a device file
+func IsDevice(deviceName string) (bool, error) {
+	info, err := os.Stat(deviceName)
+	if err == nil {
+		return (info.Mode() & os.ModeDevice) != 0, nil
 	}
-	return false
+
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+
+	return false, err
 }
 
 // MinQuantity calculates the minimum of two quantities.

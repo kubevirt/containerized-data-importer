@@ -100,20 +100,37 @@ var _ = Describe("Clean dir", func() {
 		os.RemoveAll(tmpDir)
 	})
 
-	It("Should error on cleaning non existing directory", func() {
-		err = CleanDir("/invalid")
-		Expect(err).To(HaveOccurred())
+	It("Should be okay to delete a non existing file", func() {
+		err = CleanAll("/invalid")
+		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("Should cleaning files in valid directory", func() {
-		_, err = os.Create(filepath.Join(tmpDir, "newfile1"))
-		Expect(err).NotTo(HaveOccurred())
-		_, err = os.Create(filepath.Join(tmpDir, "newfile2"))
+	It("Should clean a file", func() {
+		f := filepath.Join(tmpDir, "newfile1")
+		_, err = os.Create(f)
 		Expect(err).NotTo(HaveOccurred())
 		dir, err := ioutil.ReadDir(tmpDir)
 		Expect(err).NotTo(HaveOccurred())
+		Expect(1).To(Equal(len(dir)))
+		err = CleanAll(f)
+		Expect(err).NotTo(HaveOccurred())
+		dir, err = os.ReadDir(tmpDir)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(0).To(Equal(len(dir)))
+	})
+
+	It("Should clean a directory", func() {
+		td := filepath.Join(tmpDir, "xx")
+		err = os.Mkdir(td, os.ModePerm)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = os.Create(filepath.Join(td, "newfile1"))
+		Expect(err).NotTo(HaveOccurred())
+		_, err = os.Create(filepath.Join(td, "newfile2"))
+		Expect(err).NotTo(HaveOccurred())
+		dir, err := os.ReadDir(td)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(2).To(Equal(len(dir)))
-		err = CleanDir(tmpDir)
+		err = CleanAll(td)
 		Expect(err).NotTo(HaveOccurred())
 		dir, err = ioutil.ReadDir(tmpDir)
 		Expect(err).NotTo(HaveOccurred())

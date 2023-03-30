@@ -167,7 +167,7 @@ var _ = Describe("VDDK data source", func() {
 
 		mockSinkBuffer = bytes.Repeat([]byte{0x00}, int(dp.Size))
 
-		phase, err := dp.TransferFile(".")
+		phase, err := dp.TransferFile("target")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseResize))
 
@@ -193,7 +193,7 @@ var _ = Describe("VDDK data source", func() {
 
 		mockSinkBuffer = bytes.Repeat([]byte{0x00}, int(snap1.Size))
 
-		phase, err := snap1.TransferFile(".")
+		phase, err := snap1.TransferFile("target")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseResize))
 
