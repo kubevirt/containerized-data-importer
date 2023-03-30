@@ -27208,6 +27208,13 @@ func schema_pkg_apis_core_v1beta1_StorageProfileSpec(ref common.ReferenceCallbac
 							},
 						},
 					},
+					"dataImportCronSourceFormat": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DataImportCronSourceFormat defines the format of the DataImportCron-created disk image sources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},
@@ -27256,6 +27263,13 @@ func schema_pkg_apis_core_v1beta1_StorageProfileStatus(ref common.ReferenceCallb
 									},
 								},
 							},
+						},
+					},
+					"dataImportCronSourceFormat": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DataImportCronSourceFormat defines the format of the DataImportCron-created disk image sources",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 				},

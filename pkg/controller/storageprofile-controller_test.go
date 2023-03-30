@@ -311,8 +311,29 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		table.Entry("Clone", cdiv1.CloneStrategyCsiClone),
 	)
 
+	table.DescribeTable("should set advised source format for dataimportcrons", func(provisioner string, expectedFormat cdiv1.DataImportCronSourceFormat) {
+		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
+		reconciler := createStorageProfileReconciler(storageClass)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+
+		storageProfileList := &cdiv1.StorageProfileList{}
+		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(storageProfileList.Items).To(HaveLen(1))
+
+		sp := storageProfileList.Items[0]
+		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
+		Expect(*sp.Status.DataImportCronSourceFormat).To(Equal(expectedFormat))
+	},
+		table.Entry("provisioners where snapshot source is more appropriate", "rook-ceph.rbd.csi.ceph.com", cdiv1.DataImportCronSourceFormatSnapshot),
+		table.Entry("provisioners where there is no known preferred format", "format.unknown.provisioner.csi.com", cdiv1.DataImportCronSourceFormatPvc),
+	)
+
 	table.DescribeTable("Should set the IncompleteProfileGauge correctly", func(provisioner string, count int) {
-		reconciler := createStorageProfileReconciler(CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner))
+		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
+		reconciler := createStorageProfileReconciler(storageClass)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}

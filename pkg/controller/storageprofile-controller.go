@@ -85,6 +85,7 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 	storageProfile.Status.StorageClass = &sc.Name
 	storageProfile.Status.Provisioner = &sc.Provisioner
 	storageProfile.Status.CloneStrategy = r.reconcileCloneStrategy(sc, storageProfile.Spec.CloneStrategy)
+	storageProfile.Status.DataImportCronSourceFormat = r.reconcileDataImportCronSourceFormat(sc, storageProfile.Spec.DataImportCronSourceFormat)
 
 	var claimPropertySets []cdiv1.ClaimPropertySet
 
@@ -145,7 +146,7 @@ func (r *StorageProfileReconciler) getStorageProfile(sc *storagev1.StorageClass)
 
 func (r *StorageProfileReconciler) reconcilePropertySets(sc *storagev1.StorageClass) []cdiv1.ClaimPropertySet {
 	claimPropertySets := []cdiv1.ClaimPropertySet{}
-	capabilities, found := storagecapabilities.Get(r.client, sc)
+	capabilities, found := storagecapabilities.GetCapabilities(r.client, sc)
 	if found {
 		for i := range capabilities {
 			claimPropertySet := cdiv1.ClaimPropertySet{
@@ -158,30 +159,47 @@ func (r *StorageProfileReconciler) reconcilePropertySets(sc *storagev1.StorageCl
 	return claimPropertySets
 }
 
-func (r *StorageProfileReconciler) reconcileCloneStrategy(sc *storagev1.StorageClass, clonestrategy *cdiv1.CDICloneStrategy) *cdiv1.CDICloneStrategy {
-
-	if clonestrategy == nil {
-		if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "copy" {
-			strategy := cdiv1.CloneStrategyHostAssisted
-			return &strategy
-		} else if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "snapshot" {
-			strategy := cdiv1.CloneStrategySnapshot
-			return &strategy
-		} else if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "csi-clone" {
-			strategy := cdiv1.CloneStrategyCsiClone
-			return &strategy
-		} else {
-			return clonestrategy
-		}
+func (r *StorageProfileReconciler) reconcileCloneStrategy(sc *storagev1.StorageClass, desiredCloneStrategy *cdiv1.CDICloneStrategy) *cdiv1.CDICloneStrategy {
+	if desiredCloneStrategy != nil {
+		return desiredCloneStrategy
 	}
-	return clonestrategy
+
+	var strategy cdiv1.CDICloneStrategy
+	if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "copy" {
+		strategy = cdiv1.CloneStrategyHostAssisted
+	} else if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "snapshot" {
+		strategy = cdiv1.CloneStrategySnapshot
+	} else if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "csi-clone" {
+		strategy = cdiv1.CloneStrategyCsiClone
+	} else {
+		return nil
+	}
+
+	return &strategy
+}
+
+func (r *StorageProfileReconciler) reconcileDataImportCronSourceFormat(sc *storagev1.StorageClass, desiredFormat *cdiv1.DataImportCronSourceFormat) *cdiv1.DataImportCronSourceFormat {
+	if desiredFormat != nil {
+		return desiredFormat
+	}
+
+	// This can be changed later on
+	// for example, if at some point we're confident snapshot sources should be the default
+	defaultFormat := cdiv1.DataImportCronSourceFormatPvc
+	format, ok := storagecapabilities.GetAdvisedSourceFormat(sc)
+	if !ok {
+		return &defaultFormat
+	}
+
+	return &format
 }
 
 func (r *StorageProfileReconciler) createEmptyStorageProfile(sc *storagev1.StorageClass) (*cdiv1.StorageProfile, error) {
 	storageProfile := MakeEmptyStorageProfileSpec(sc.Name)
 	util.SetRecommendedLabels(storageProfile, r.installerLabels, "cdi-controller")
-	// uncachedClient is used to directly get the resource, SetOwnerRuntime requires some cluster-scoped resources
-	// normal/cached client does list resource, a cdi user might not have the rights to list cluster scope resource
+	// uncachedClient is used to directly get the config map
+	// the controller runtime client caches objects that are read once, and thus requires a list/watch
+	// should be cheaper than watching
 	if err := operator.SetOwnerRuntime(r.uncachedClient, storageProfile); err != nil {
 		return nil, err
 	}

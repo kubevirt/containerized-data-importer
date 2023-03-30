@@ -180,19 +180,21 @@ func (StorageProfile) SwaggerDoc() map[string]string {
 
 func (StorageProfileSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                  "StorageProfileSpec defines specification for StorageProfile",
-		"cloneStrategy":     "CloneStrategy defines the preferred method for performing a CDI clone",
-		"claimPropertySets": "ClaimPropertySets is a provided set of properties applicable to PVC",
+		"":                           "StorageProfileSpec defines specification for StorageProfile",
+		"cloneStrategy":              "CloneStrategy defines the preferred method for performing a CDI clone",
+		"claimPropertySets":          "ClaimPropertySets is a provided set of properties applicable to PVC",
+		"dataImportCronSourceFormat": "DataImportCronSourceFormat defines the format of the DataImportCron-created disk image sources",
 	}
 }
 
 func (StorageProfileStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                  "StorageProfileStatus provides the most recently observed status of the StorageProfile",
-		"storageClass":      "The StorageClass name for which capabilities are defined",
-		"provisioner":       "The Storage class provisioner plugin name",
-		"cloneStrategy":     "CloneStrategy defines the preferred method for performing a CDI clone",
-		"claimPropertySets": "ClaimPropertySets computed from the spec and detected in the system",
+		"":                           "StorageProfileStatus provides the most recently observed status of the StorageProfile",
+		"storageClass":               "The StorageClass name for which capabilities are defined",
+		"provisioner":                "The Storage class provisioner plugin name",
+		"cloneStrategy":              "CloneStrategy defines the preferred method for performing a CDI clone",
+		"claimPropertySets":          "ClaimPropertySets computed from the spec and detected in the system",
+		"dataImportCronSourceFormat": "DataImportCronSourceFormat defines the format of the DataImportCron-created disk image sources",
 	}
 }
 
