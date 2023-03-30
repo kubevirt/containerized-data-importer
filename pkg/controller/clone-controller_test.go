@@ -438,7 +438,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
 		By("Verifying no source pod exists")
 		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
-		Expect(err).To(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).To(BeNil())
 		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).To(HaveOccurred())

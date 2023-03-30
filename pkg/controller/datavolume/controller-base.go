@@ -797,7 +797,7 @@ func (r *ReconcilerBase) updateConditions(dataVolume *cdiv1.DataVolume, pvc *cor
 		anno = make(map[string]string)
 	}
 
-	readyStatus := corev1.ConditionUnknown
+	var readyStatus corev1.ConditionStatus
 	switch dataVolume.Status.Phase {
 	case cdiv1.Succeeded:
 		readyStatus = corev1.ConditionTrue
