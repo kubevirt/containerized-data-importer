@@ -154,8 +154,7 @@ func (hs *HTTPDataSource) Transfer(path string) (ProcessingPhase, error) {
 			return ProcessingPhaseError, err
 		}
 		size, err := util.GetAvailableSpace(path)
-		if size <= int64(0) {
-			//Path provided is invalid.
+		if err != nil || size <= 0 {
 			return ProcessingPhaseError, ErrInvalidPath
 		}
 		err = util.StreamDataToFile(hs.readers.TopReader(), file)

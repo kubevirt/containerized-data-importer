@@ -285,7 +285,7 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 			}
 
 			defer deleteTransfer(ot.Name)
-			ot = doTransfer(ot)
+			doTransfer(ot)
 
 			targetHash = getHash(f.Namespace, dataVolume.Name)
 			Expect(sourceMD5).To(Equal(targetHash))
@@ -360,7 +360,7 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 					}
 
 					defer deleteTransfer(ot.Name)
-					ot = doTransfer(ot)
+					doTransfer(ot)
 
 					tn := sourceName
 					if targetName != nil {
@@ -470,7 +470,7 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			rq.Spec.Hard[corev1.ResourceRequestsStorage] = *resource.NewQuantity(bq, resource.DecimalSI)
-			rq, err = f.K8sClient.CoreV1().ResourceQuotas(targetNs.Name).Update(context.TODO(), rq, metav1.UpdateOptions{})
+			_, err = f.K8sClient.CoreV1().ResourceQuotas(targetNs.Name).Update(context.TODO(), rq, metav1.UpdateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			Eventually(func() bool {

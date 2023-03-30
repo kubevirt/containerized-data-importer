@@ -855,6 +855,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
 			expectedSize, err := inflateSizeWithOverhead(reconciler.client, int64(100), pvcSpec)
+			Expect(err).ToNot(HaveOccurred())
 			expectedSizeInt64, _ := expectedSize.AsInt64()
 
 			// Checks
@@ -885,6 +886,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv)
 			Expect(err).ToNot(HaveOccurred())
 			expectedSize, err := inflateSizeWithOverhead(reconciler.client, int64(100), pvcSpec)
+			Expect(err).ToNot(HaveOccurred())
 			expectedSizeInt64, _ := expectedSize.AsInt64()
 
 			// Checks
@@ -973,7 +975,7 @@ func createCloneReconcilerWithoutConfig(objects ...runtime.Object) *PvcCloneReco
 	objs = append(objs, MakeEmptyCDICR())
 
 	// Create a fake client to mock API calls.
-	cl := fake.NewFakeClientWithScheme(s, objs...)
+	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
 
 	rec := record.NewFakeRecorder(10)
 

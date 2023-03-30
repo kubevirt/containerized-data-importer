@@ -92,6 +92,7 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 	DescribeTable("Should set proxyURL to override if no ingress or route exists", func(authority bool) {
 		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
+		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		override := "www.override-something.org.tt.test"
@@ -126,6 +127,7 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 			),
 		)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
+		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		override := "www.override-something.org.tt.test"
@@ -888,7 +890,7 @@ func createConfigReconciler(objects ...runtime.Object) (*CDIConfigReconciler, *c
 	objs = append(objs, cdi)
 
 	// Create a fake client to mock API calls.
-	cl := fake.NewFakeClientWithScheme(s, objs...)
+	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
 
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	r := &CDIConfigReconciler{

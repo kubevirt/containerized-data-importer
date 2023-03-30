@@ -544,6 +544,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			timestamp := time.Now().Format(time.RFC3339)
 			cron.Annotations[AnnNextCronTime] = timestamp
 			err = reconciler.client.Update(context.TODO(), cron)
+			Expect(err).ToNot(HaveOccurred())
 
 			_, err = reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
@@ -692,11 +693,11 @@ func createDataImportCronReconcilerWithoutConfig(objects ...runtime.Object) *Dat
 	objs = append(objs, objects...)
 
 	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
-	imagev1.AddToScheme(s)
-	extv1.AddToScheme(s)
+	_ = cdiv1.AddToScheme(s)
+	_ = imagev1.Install(s)
+	_ = extv1.AddToScheme(s)
 
-	cl := fake.NewFakeClientWithScheme(s, objs...)
+	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
 	rec := record.NewFakeRecorder(1)
 	r := &DataImportCronReconciler{
 		client:         cl,

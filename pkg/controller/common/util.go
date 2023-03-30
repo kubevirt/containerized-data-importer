@@ -1111,11 +1111,12 @@ func CreateStorageClassWithProvisioner(name string, annotations, labels map[stri
 // CreateClient creates a fake client
 func CreateClient(objs ...runtime.Object) client.Client {
 	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
-	corev1.AddToScheme(s)
-	storagev1.AddToScheme(s)
-	ocpconfigv1.AddToScheme(s)
-	return fake.NewFakeClientWithScheme(s, objs...)
+	_ = cdiv1.AddToScheme(s)
+	_ = corev1.AddToScheme(s)
+	_ = storagev1.AddToScheme(s)
+	_ = ocpconfigv1.Install(s)
+
+	return fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
 }
 
 // ErrQuotaExceeded checked is the error is of exceeded quota

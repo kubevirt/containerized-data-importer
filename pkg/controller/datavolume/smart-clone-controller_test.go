@@ -321,7 +321,7 @@ func createSmartCloneReconciler(objects ...runtime.Object) *SmartCloneReconciler
 	}
 
 	// Create a fake client to mock API calls.
-	cl := fake.NewFakeClientWithScheme(s, objs...)
+	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
 
 	rec := record.NewFakeRecorder(1)
 	// Create a ReconcileMemcached object with the scheme and fake client.

@@ -209,7 +209,7 @@ func doFaker(args []string) {
 }
 
 func doSpinner(args []string) {
-	for {
+	for { //nolint:staticcheck
 
 	}
 }
@@ -220,7 +220,7 @@ func doHog(args []string) {
 	for i := 0; i < (1 << 20); i++ {
 		bytes := make([]byte, 1024)
 		rand.Read(bytes)
-		arrays = append(arrays, bytes)
+		arrays = append(arrays, bytes) //nolint:staticcheck
 	}
 }
 

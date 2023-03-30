@@ -143,7 +143,7 @@ func createDataSourceReconciler(objects ...runtime.Object) *DataSourceReconciler
 	s := scheme.Scheme
 	cdiv1.AddToScheme(s)
 	snapshotv1.AddToScheme(s)
-	cl := fake.NewFakeClientWithScheme(s, objects...)
+	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	r := &DataSourceReconciler{
 		client: cl,
 		scheme: s,

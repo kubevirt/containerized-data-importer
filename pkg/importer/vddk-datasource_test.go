@@ -142,6 +142,7 @@ var _ = Describe("VDDK data source", func() {
 
 	It("VDDK delta copy should return immediately if there are no changed blocks", func() {
 		dp, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "checkpoint-2", "", v1.PersistentVolumeFilesystem)
+		Expect(err).ToNot(HaveOccurred())
 		dp.ChangedBlocks = &types.DiskChangeInfo{
 			StartOffset: 0,
 			Length:      0,
@@ -154,6 +155,7 @@ var _ = Describe("VDDK data source", func() {
 
 	It("VDDK full copy should successfully copy the same bytes passed in", func() {
 		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
+		Expect(err).ToNot(HaveOccurred())
 		dp.Size = 40 << 20
 		sourceBytes := bytes.Repeat([]byte{0x55}, int(dp.Size))
 		replaceExport := currentExport
@@ -180,6 +182,7 @@ var _ = Describe("VDDK data source", func() {
 
 		// Copy base disk ("snapshot 1")
 		snap1, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "", "", v1.PersistentVolumeFilesystem)
+		Expect(err).ToNot(HaveOccurred())
 		snap1.Size = 40 << 20
 		sourceBytes := bytes.Repeat([]byte{0x55}, int(snap1.Size))
 		replaceExport := currentExport
@@ -203,6 +206,7 @@ var _ = Describe("VDDK data source", func() {
 
 		// Write some data to the first snapshot, then copy the delta from difference between the two snapshots
 		snap2, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "checkpoint-2", "", v1.PersistentVolumeFilesystem)
+		Expect(err).ToNot(HaveOccurred())
 		snap2.Size = 40 << 20
 		copy(sourceBytes[1024:2048], bytes.Repeat([]byte{0xAA}, 1024))
 		snap2.ChangedBlocks = &types.DiskChangeInfo{

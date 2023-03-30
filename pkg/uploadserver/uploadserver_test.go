@@ -82,7 +82,7 @@ func newHTTPClient(clientKeyPair *triple.KeyPair, serverCACert *x509.Certificate
 		Certificates: []tls.Certificate{clientCert},
 		RootCAs:      caCertPool,
 	}
-	tlsConfig.BuildNameToCertificate()
+	tlsConfig.BuildNameToCertificate() //nolint:staticcheck // TODO: handle this deprecation
 
 	transport := &http.Transport{TLSClientConfig: tlsConfig}
 	client := &http.Client{Transport: transport}

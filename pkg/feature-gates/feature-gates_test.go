@@ -83,7 +83,7 @@ func createFeatureGatesAndClient(objects ...runtime.Object) (FeatureGates, clien
 	cdiv1.AddToScheme(s)
 
 	// Create a fake client to mock API calls.
-	cl := fake.NewFakeClientWithScheme(s, objs...)
+	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
 
 	// Create a NewFeatureGates with fake client.
 	return NewFeatureGates(cl), cl

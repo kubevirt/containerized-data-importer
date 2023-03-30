@@ -3266,7 +3266,7 @@ func EnableGcAndAnnotateLegacyDv(f *framework.Framework, dvName, dvNamespace str
 
 	By("Add true DeleteAfterCompletion annotation to DV")
 	controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "true")
-	dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
+	_, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	VerifyGC(f, dvName, dvNamespace, false, nil)
 }
