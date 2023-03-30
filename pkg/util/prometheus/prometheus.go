@@ -65,7 +65,10 @@ func (r *ProgressReader) updateProgress() bool {
 			currentProgress = float64(r.Current) / float64(r.total) * 100.0
 		}
 		metric := &dto.Metric{}
-		r.progress.WithLabelValues(r.ownerUID).Write(metric)
+		if err := r.progress.WithLabelValues(r.ownerUID).Write(metric); err != nil {
+			klog.Errorf("updateProgress: failed to read metric; %v", err)
+			return true // true ==> to try again // todo - how to avoid endless loop in case it's a constant error?
+		}
 		if currentProgress > *metric.Counter.Value {
 			r.progress.WithLabelValues(r.ownerUID).Add(currentProgress - *metric.Counter.Value)
 		}

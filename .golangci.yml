@@ -1,5 +1,3 @@
 linters:
   # enable:
   # - ginkgolinter # TODO: enable and fix warnings # enforces standards of using ginkgo and gomega
-  disable:
-  - errcheck # TODO: part of default linters. Fix warnings and remove this line # errcheck is a program for checking for unchecked errors in Go code. These unchecked errors can be critical bugs in some cases [fast: false, auto-fix: false]

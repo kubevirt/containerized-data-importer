@@ -198,7 +198,10 @@ func sender(w http.ResponseWriter, resp *http.Response) {
 	defer resp.Body.Close()
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
+	_, err := io.Copy(w, resp.Body)
+	if err != nil {
+		klog.Errorf("failed to send response; %v", err)
+	}
 }
 
 func copyHeader(dst, src http.Header) {

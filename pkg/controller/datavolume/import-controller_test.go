@@ -1199,7 +1199,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		It("Should properly update progress if http endpoint returns matching data", func() {
 			dv.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", dv.GetUID())))
+				_, _ = fmt.Fprintf(w, "import_progress{ownerUID=\"%v\"} 13.45", dv.GetUID()) // ignore error here
 				w.WriteHeader(200)
 			}))
 			defer ts.Close()
@@ -1218,7 +1218,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
 			dv.Status.Progress = cdiv1.DataVolumeProgress("2.3%")
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", "b856691e-1038-11e9-a5ab-55500d15501")))
+				_, _ = w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", "b856691e-1038-11e9-a5ab-55500d15501")))
 				w.WriteHeader(200)
 			}))
 			defer ts.Close()
@@ -1411,9 +1411,9 @@ func createImportReconcilerWithoutConfig(objects ...runtime.Object) *ImportRecon
 
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
-	snapshotv1.AddToScheme(s)
-	extv1.AddToScheme(s)
+	_ = cdiv1.AddToScheme(s)
+	_ = snapshotv1.AddToScheme(s)
+	_ = extv1.AddToScheme(s)
 
 	objs = append(objs, MakeEmptyCDICR())
 

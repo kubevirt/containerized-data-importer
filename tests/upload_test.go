@@ -87,9 +87,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	AfterEach(func() {
 		By("Stop port forwarding")
 		if portForwardCmd != nil {
-			err = portForwardCmd.Process.Kill()
-			Expect(err).ToNot(HaveOccurred())
-			portForwardCmd.Wait()
+			Expect(portForwardCmd.Process.Kill()).To(Succeed())
+			Expect(portForwardCmd.Wait()).To(Succeed())
 			portForwardCmd = nil
 		}
 
@@ -638,9 +637,8 @@ var _ = Describe("Block PV upload Test", func() {
 	AfterEach(func() {
 		By("Stop port forwarding")
 		if portForwardCmd != nil {
-			err = portForwardCmd.Process.Kill()
-			Expect(err).ToNot(HaveOccurred())
-			portForwardCmd.Wait()
+			Expect(portForwardCmd.Process.Kill()).To(Succeed())
+			Expect(portForwardCmd.Wait()).To(Succeed())
 			portForwardCmd = nil
 		}
 
@@ -739,9 +737,8 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		By("Stop port forwarding")
 		if portForwardCmd != nil {
-			err = portForwardCmd.Process.Kill()
-			Expect(err).ToNot(HaveOccurred())
-			portForwardCmd.Wait()
+			Expect(portForwardCmd.Process.Kill()).To(Succeed())
+			Expect(portForwardCmd.Wait()).To(Succeed())
 			portForwardCmd = nil
 		}
 
@@ -953,9 +950,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	AfterEach(func() {
 		By("Stop port forwarding")
 		if portForwardCmd != nil {
-			err = portForwardCmd.Process.Kill()
-			Expect(err).ToNot(HaveOccurred())
-			portForwardCmd.Wait()
+			Expect(portForwardCmd.Process.Kill()).To(Succeed())
+			Expect(portForwardCmd.Wait()).To(Succeed())
 			portForwardCmd = nil
 		}
 
@@ -1382,9 +1378,8 @@ var _ = Describe("Preallocation", func() {
 	AfterEach(func() {
 		if portForwardCmd != nil {
 			By("Delete port forward")
-			err = portForwardCmd.Process.Kill()
-			Expect(err).ToNot(HaveOccurred())
-			portForwardCmd.Wait()
+			Expect(portForwardCmd.Process.Kill()).To(Succeed())
+			Expect(portForwardCmd.Wait()).To(Succeed())
 			portForwardCmd = nil
 		}
 

@@ -66,7 +66,11 @@ var _ = Describe("DataImportCron", func() {
 	table.DescribeTable("should", func(retention, createErrorDv bool, repeat int) {
 		reg, err := getDataVolumeSourceRegistry(f)
 		Expect(err).To(BeNil())
-		defer utils.RemoveInsecureRegistry(f.CrClient, *reg.URL)
+		defer func() {
+			if err := utils.RemoveInsecureRegistry(f.CrClient, *reg.URL); err != nil {
+				_, _ = fmt.Fprintf(GinkgoWriter, "failed to remove registry; %v", err)
+			}
+		}()
 
 		By(fmt.Sprintf("Create new DataImportCron %s, url %s", cronName, *reg.URL))
 		cron = utils.NewDataImportCron(cronName, "5Gi", scheduleEveryMinute, dataSourceName, importsToKeep, *reg)
@@ -234,7 +238,11 @@ var _ = Describe("DataImportCron", func() {
 	It("[test_id:7406] succeed garbage collecting old PVCs when importing new ones", func() {
 		reg, err := getDataVolumeSourceRegistry(f)
 		Expect(err).To(BeNil())
-		defer utils.RemoveInsecureRegistry(f.CrClient, *reg.URL)
+		defer func() {
+			if err := utils.RemoveInsecureRegistry(f.CrClient, *reg.URL); err != nil {
+				_, _ = fmt.Fprintf(GinkgoWriter, "failed to remove registry; %v", err)
+			}
+		}()
 
 		garbagePVCs := 3
 		for i := 0; i < garbagePVCs; i++ {

@@ -522,7 +522,7 @@ func validateDataSourceRef(dataSource *v1.TypedObjectReference, field *k8sfield.
 	if len(dataSource.Kind) == 0 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Required value: DataSourceRef kind"),
+			Message: "Required value: DataSourceRef kind",
 			Field:   field.Child("kind").String(),
 		})
 	}

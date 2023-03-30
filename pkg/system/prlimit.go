@@ -150,7 +150,10 @@ func executeWithLimits(limits *ProcessLimitValues, callback func(string), logErr
 	if err != nil {
 		return nil, errors.Wrapf(err, "Couldn't start %s", command)
 	}
-	defer cmd.Process.Kill()
+	defer func() {
+		err = cmd.Process.Kill()
+		klog.Errorf("failed to kill the process; %v", err)
+	}()
 
 	go processScanner(scanner, &buf, stdoutDone, callback)
 	go processScanner(errScanner, &errBuf, stderrDone, callback)

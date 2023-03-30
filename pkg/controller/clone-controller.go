@@ -244,7 +244,7 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 			return 0, err
 		}
 
-		pods, err := cc.GetPodsUsingPVCs(r.client, sourcePvc.Namespace, sets.NewString(sourcePvc.Name), true)
+		pods, err := cc.GetPodsUsingPVCs(r.client, sourcePvc.Namespace, sets.New[string](sourcePvc.Name), true)
 		if err != nil {
 			return 0, err
 		}

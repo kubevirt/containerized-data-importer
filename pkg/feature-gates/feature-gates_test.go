@@ -80,7 +80,9 @@ func createFeatureGatesAndClient(objects ...runtime.Object) (FeatureGates, clien
 
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
+	if err := cdiv1.AddToScheme(s); err != nil {
+		panic(err)
+	}
 
 	// Create a fake client to mock API calls.
 	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()

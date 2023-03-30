@@ -125,8 +125,11 @@ var _ = Describe("Auth config tests", func() {
 		aggregatorClient := aggregatorapifake.NewSimpleClientset()
 		cdiClient := cdiclientfake.NewSimpleClientset()
 		authorizer := &testAuthorizer{}
-		authConfigWatcher := NewAuthConfigWatcher(ctx, client)
-		cdiConfigTLSWatcher := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
+		authConfigWatcher, err := NewAuthConfigWatcher(ctx, client)
+		Expect(err).ToNot(HaveOccurred())
+
+		cdiConfigTLSWatcher, err := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
+		Expect(err).ToNot(HaveOccurred())
 
 		installerLabels := map[string]string{
 			common.AppKubernetesPartOfLabel:  "testing",
@@ -163,7 +166,8 @@ var _ = Describe("Auth config tests", func() {
 		aggregatorClient := aggregatorapifake.NewSimpleClientset()
 		cdiClient := cdiclientfake.NewSimpleClientset()
 		authorizer := &testAuthorizer{}
-		acw := NewAuthConfigWatcher(ctx, client).(*authConfigWatcher)
+		acw, err := NewAuthConfigWatcher(ctx, client)
+		Expect(err).ToNot(HaveOccurred())
 
 		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, authorizer, acw, nil, nil, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
@@ -179,7 +183,7 @@ var _ = Describe("Auth config tests", func() {
 
 		// behavior of this changed in 16.4 used to wait then check so now explicitly waiting
 		time.Sleep(100 * time.Millisecond)
-		cache.WaitForCacheSync(ctx.Done(), acw.informer.HasSynced)
+		cache.WaitForCacheSync(ctx.Done(), acw.(*authConfigWatcher).informer.HasSynced)
 
 		verifyAuthConfig(cm, app.authConfigWatcher.GetAuthConfig())
 	})
@@ -209,10 +213,12 @@ var _ = Describe("Auth config tests", func() {
 		aggregatorClient := aggregatorapifake.NewSimpleClientset()
 		cdiClient := cdiclientfake.NewSimpleClientset(cdiConfig)
 		authorizer := &testAuthorizer{}
-		acw := NewAuthConfigWatcher(ctx, client).(*authConfigWatcher)
-		ctw := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
+		acw, err := NewAuthConfigWatcher(ctx, client)
+		Expect(err).ToNot(HaveOccurred())
+		ctw, err := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
+		Expect(err).ToNot(HaveOccurred())
 
-		_, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, authorizer, acw, ctw, nil, map[string]string{})
+		_, err = NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, authorizer, acw, ctw, nil, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		// 'Old' has TLS 1.0 as min version
@@ -244,8 +250,11 @@ var _ = Describe("Auth config tests", func() {
 		aggregatorClient := aggregatorapifake.NewSimpleClientset()
 		cdiClient := cdiclientfake.NewSimpleClientset()
 		authorizer := &testAuthorizer{}
-		acw := NewAuthConfigWatcher(ctx, client).(*authConfigWatcher)
-		ctw := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
+		acw, err := NewAuthConfigWatcher(ctx, client)
+		Expect(err).ToNot(HaveOccurred())
+
+		ctw, err := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
+		Expect(err).ToNot(HaveOccurred())
 		certWatcher := NewFakeCertWatcher()
 
 		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, authorizer, acw, ctw, certWatcher, map[string]string{})
@@ -275,7 +284,8 @@ var _ = Describe("Auth config tests", func() {
 		kubeobjects = append(kubeobjects, f())
 
 		client := k8sfake.NewSimpleClientset(kubeobjects...)
-		authConfigWatcher := NewAuthConfigWatcher(ctx, client)
+		authConfigWatcher, err := NewAuthConfigWatcher(ctx, client)
+		Expect(err).ToNot(HaveOccurred())
 
 		result := authConfigWatcher.GetAuthConfig().ValidateName(name)
 		Expect(result).To(Equal(allowed))

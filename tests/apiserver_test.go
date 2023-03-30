@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"os/exec"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -25,14 +26,18 @@ var _ = Describe("cdi-apiserver tests", func() {
 	f := framework.NewFramework("cdi-apiserver-test", framework.Config{})
 
 	Context("with apiserver", func() {
+		var cmd *exec.Cmd
+		AfterEach(func() {
+			afterCMD(cmd)
+		})
 
 		It("should serve an openapi spec", func() {
-			hostPort, cmd, err := startServicePortForward(f, "cdi-api")
+			var (
+				err      error
+				hostPort string
+			)
+			hostPort, cmd, err = startServicePortForward(f, "cdi-api")
 			Expect(err).ToNot(HaveOccurred())
-			defer func() {
-				cmd.Process.Kill()
-				cmd.Wait()
-			}()
 
 			url := fmt.Sprintf("https://%s/openapi/v2", hostPort)
 
@@ -66,7 +71,11 @@ var _ = Describe("cdi-apiserver tests", func() {
 			origSpec = config.Spec.DeepCopy()
 		})
 
+		var cmd *exec.Cmd
+
 		AfterEach(func() {
+			afterCMD(cmd)
+
 			By("Restoring CDIConfig to original state")
 			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 				origSpec.DeepCopyInto(config)
@@ -86,22 +95,22 @@ var _ = Describe("cdi-apiserver tests", func() {
 		})
 
 		It("[test_id:9062]should fail reaching server when TLS profile requires minimal TLS version higher than our client's", func() {
-			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			Expect(utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 				config.TLSSecurityProfile = &ocpconfigv1.TLSSecurityProfile{
 					// Modern profile requires TLS 1.3
 					// https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility
 					Type:   ocpconfigv1.TLSProfileModernType,
 					Modern: &ocpconfigv1.ModernTLSProfile{},
 				}
-			})
+			})).To(Succeed())
+
+			var (
+				err      error
+				hostPort string
+			)
+			hostPort, cmd, err = startServicePortForward(f, "cdi-api")
 			Expect(err).ToNot(HaveOccurred())
 
-			hostPort, cmd, err := startServicePortForward(f, "cdi-api")
-			Expect(err).ToNot(HaveOccurred())
-			defer func() {
-				cmd.Process.Kill()
-				cmd.Wait()
-			}()
 			url := fmt.Sprintf("https://%s/healthz", hostPort)
 			client := &http.Client{
 				Transport: &http.Transport{

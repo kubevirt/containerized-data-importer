@@ -98,7 +98,7 @@ func createConsumerPod(targetPvc *k8sv1.PersistentVolumeClaim, f *Framework) {
 	err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, namespace, k8sv1.ClaimBound, targetPvc.Name)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-	utils.DeletePodNoGrace(f.K8sClient, executorPod, namespace)
+	gomega.Expect(utils.DeletePodNoGrace(f.K8sClient, executorPod, namespace)).Should(gomega.Succeed())
 }
 
 // VerifyPVCIsEmpty verifies a passed in PVC is empty, returns true if the PVC is empty, false if it is not. Optionaly, specify node for the pod.

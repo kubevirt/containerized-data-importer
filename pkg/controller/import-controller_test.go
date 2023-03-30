@@ -619,9 +619,8 @@ var _ = Describe("Update PVC from POD", func() {
 				common.VddkConfigDataKey: "test",
 			},
 		}
-		reconciler.client.Create(context.TODO(), configmap)
-		err = reconciler.createImporterPod(pvc)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(reconciler.client.Create(context.TODO(), configmap)).To(Succeed())
+		Expect(reconciler.createImporterPod(pvc)).To(Succeed())
 	})
 
 	It("Should not mark PVC as waiting for VDDK configmap, if already present", func() {

@@ -144,7 +144,9 @@ func runFakeCommandWithTimeout(duration time.Duration, f limitFunction, command 
 	cmd.Stderr = &buf
 	err := cmd.Start()
 	Expect(err).NotTo(HaveOccurred())
-	defer cmd.Process.Kill()
+	defer func() {
+		_ = cmd.Process.Kill()
+	}()
 
 	err = f(cmd.Process.Pid)
 	Expect(err).NotTo(HaveOccurred())

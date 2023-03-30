@@ -683,7 +683,10 @@ func cleanupTransfer(conn ConnectionInterface, it *ovirtsdk4.ImageTransfer) erro
 			}
 			// If transfer request can't be sent, blindly cancel and try again
 			klog.Warningf("Unable to read image transfer response, %d retries remaining.", retries)
-			cancelTransfer()
+			cancelTransferErr := cancelTransfer()
+			if cancelTransferErr != nil {
+				klog.Warningf("Unable to cancel image transfer; %v", cancelTransferErr)
+			}
 			time.Sleep(delay)
 			continue
 		}
@@ -691,7 +694,10 @@ func cleanupTransfer(conn ConnectionInterface, it *ovirtsdk4.ImageTransfer) erro
 		imageTransfer, available := imageTransferResponse.ImageTransfer()
 		if !available {
 			klog.Warningf("Unable to refresh image transfer, %d retries remaining.", retries)
-			cancelTransfer()
+			cancelTransferErr := cancelTransfer()
+			if cancelTransferErr != nil {
+				klog.Warningf("Unable to cancel image transfer; %v", cancelTransferErr)
+			}
 			time.Sleep(delay)
 			continue
 		}
@@ -699,7 +705,10 @@ func cleanupTransfer(conn ConnectionInterface, it *ovirtsdk4.ImageTransfer) erro
 		transferPhase, available := imageTransfer.Phase()
 		if !available {
 			klog.Warningf("Unable to get transfer phase, %d retries remaining.", retries)
-			cancelTransfer()
+			cancelTransferErr := cancelTransfer()
+			if cancelTransferErr != nil {
+				klog.Warningf("Unable to cancel image transfer; %v", cancelTransferErr)
+			}
 			time.Sleep(delay)
 			continue
 		}
@@ -725,7 +734,10 @@ func cleanupTransfer(conn ConnectionInterface, it *ovirtsdk4.ImageTransfer) erro
 		action, available := phaseActions[transferPhase]
 		if !available {
 			klog.Warningf("Unknown transfer phase '%s', %d retries remaining.", transferPhase, retries)
-			cancelTransfer()
+			cancelTransferErr := cancelTransfer()
+			if cancelTransferErr != nil {
+				klog.Warningf("Unable to cancel image transfer; %v", cancelTransferErr)
+			}
 			time.Sleep(delay)
 			continue
 		}

@@ -872,11 +872,18 @@ func createConfigReconciler(objects ...runtime.Object) (*CDIConfigReconciler, *c
 	objs = append(objs, cdiConfig)
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
-	networkingv1.AddToScheme(s)
-	routev1.AddToScheme(s)
-	storagev1.AddToScheme(s)
-	ocpconfigv1.AddToScheme(s)
+	schemeInitFuncs := []func(*runtime.Scheme) error{
+		cdiv1.AddToScheme,
+		networkingv1.AddToScheme,
+		routev1.Install,
+		storagev1.AddToScheme,
+		ocpconfigv1.Install,
+	}
+	for _, f := range schemeInitFuncs {
+		if err := f(s); err != nil {
+			panic(fmt.Errorf("failed to initiate the scheme %w", err))
+		}
+	}
 
 	cdi := &cdiv1.CDI{
 		ObjectMeta: metav1.ObjectMeta{

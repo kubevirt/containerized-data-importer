@@ -268,17 +268,17 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 	})
 
 	AfterEach(func() {
-		f.RunKubectlCommand("delete", "-f", manifestFile, "-n", f.CdiInstallNs)
+		_, err := f.RunKubectlCommand("delete", "-f", manifestFile, "-n", f.CdiInstallNs)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		matchingVals := []string{defaultUrl}
 		if origUploadProxyOverride != nil {
 			matchingVals = append(matchingVals, *origUploadProxyOverride)
 		}
 		By("Restoring original UploadProxyURLOverride")
-		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+		Expect(utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 			config.UploadProxyURLOverride = origUploadProxyOverride
-		})
-		Expect(err).ToNot(HaveOccurred())
+		})).To(Succeed())
 
 		Eventually(func() string {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -538,7 +538,7 @@ var _ = Describe("CDIConfig instance management", func() {
 			Expect(err).ToNot(HaveOccurred())
 			// Save the UID, so we can check it against a new one.
 			orgUID := config.GetUID()
-			GinkgoWriter.Write([]byte(fmt.Sprintf("Original CDIConfig UID: %s\n", orgUID)))
+			_, _ = fmt.Fprintf(GinkgoWriter, "Original CDIConfig UID: %s\n", orgUID)
 			By("Deleting the object")
 			err = f.CdiClient.CdiV1beta1().CDIConfigs().Delete(context.TODO(), config.Name, metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
@@ -548,7 +548,7 @@ var _ = Describe("CDIConfig instance management", func() {
 				if err != nil {
 					return false
 				}
-				GinkgoWriter.Write([]byte(fmt.Sprintf("New CDIConfig UID: %s\n", newConfig.GetUID())))
+				_, _ = fmt.Fprintf(GinkgoWriter, "New CDIConfig UID: %s\n", newConfig.GetUID())
 				return orgUID != newConfig.GetUID() && !apiequality.Semantic.DeepEqual(newConfig.Status, cdiv1.CDIConfigStatus{})
 			}, time.Second*30, time.Second).Should(BeTrue())
 		})

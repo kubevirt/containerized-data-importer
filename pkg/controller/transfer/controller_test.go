@@ -55,8 +55,8 @@ func checkCompleteTrue(ot *cdiv1.ObjectTransfer) {
 
 func createReconciler(objects ...client.Object) *transfer.ObjectTransferReconciler {
 	s := scheme.Scheme
-	corev1.AddToScheme(s)
-	cdiv1.AddToScheme(s)
+	_ = corev1.AddToScheme(s)
+	_ = cdiv1.AddToScheme(s)
 
 	var runtimeObjects []runtime.Object
 	for _, obj := range objects {

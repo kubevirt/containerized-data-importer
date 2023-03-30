@@ -299,7 +299,10 @@ func (app *cdiAPIApp) uploadHandler(request *restful.Request, response *restful.
 		return
 	} else if !allowed {
 		klog.Infof("Rejected Request: %s", reason)
-		response.WriteErrorString(http.StatusUnauthorized, reason)
+		writeErr := response.WriteErrorString(http.StatusUnauthorized, reason)
+		if writeErr != nil {
+			klog.Error("uploadHandler: failed to send response", err)
+		}
 		return
 	}
 
@@ -307,16 +310,14 @@ func (app *cdiAPIApp) uploadHandler(request *restful.Request, response *restful.
 	defer request.Request.Body.Close()
 	body, err := io.ReadAll(request.Request.Body)
 	if err != nil {
-		klog.Error(err)
-		response.WriteError(http.StatusBadRequest, err)
+		writeErrorResponse(response, http.StatusBadRequest, err)
 		return
 	}
 
 	uploadToken := &cdiuploadv1.UploadTokenRequest{}
 	err = json.Unmarshal(body, uploadToken)
 	if err != nil {
-		klog.Error(err)
-		response.WriteError(http.StatusBadRequest, err)
+		writeErrorResponse(response, http.StatusBadRequest, err)
 		return
 	}
 
@@ -331,16 +332,14 @@ func (app *cdiAPIApp) uploadHandler(request *restful.Request, response *restful.
 		},
 	}
 
-	token, err := app.tokenGenerator.Generate(tokenData)
+	tkn, err := app.tokenGenerator.Generate(tokenData)
 	if err != nil {
-		klog.Error(err)
-		response.WriteError(http.StatusInternalServerError, err)
+		writeErrorResponse(response, http.StatusInternalServerError, err)
 		return
 	}
 
-	uploadToken.Status.Token = token
-	response.WriteAsJson(uploadToken)
-
+	uploadToken.Status.Token = tkn
+	writeJSONResponse(response, uploadToken)
 }
 
 func uploadTokenAPIGroup() metav1.APIGroup {
@@ -418,7 +417,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 					Verbs:        []string{"create"},
 					ShortNames:   []string{"utr", "utrs"},
 				})
-				response.WriteAsJson(list)
+				writeJSONResponse(response, list)
 			}).
 			Operation("getAPIResources-"+v).
 			Doc("Get a CDI API resources").
@@ -440,7 +439,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 	ws.Route(ws.GET("/").
 		Produces("application/json").Writes(metav1.RootPaths{}).
 		To(func(request *restful.Request, response *restful.Response) {
-			response.WriteAsJson(&metav1.RootPaths{
+			writeJSONResponse(response, &metav1.RootPaths{
 				Paths: paths,
 			})
 		}).
@@ -453,7 +452,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 	ws.Route(ws.GET(groupPath).
 		Produces("application/json").Writes(metav1.APIGroup{}).
 		To(func(request *restful.Request, response *restful.Response) {
-			response.WriteAsJson(uploadTokenAPIGroup())
+			writeJSONResponse(response, uploadTokenAPIGroup())
 		}).
 		Operation("getUploadAPIGroup").
 		Doc("Get a CDI API Group").
@@ -468,7 +467,8 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 			list.Kind = "APIGroupList"
 			list.APIVersion = "v1"
 			list.Groups = append(list.Groups, uploadTokenAPIGroup())
-			response.WriteAsJson(list)
+
+			writeJSONResponse(response, list)
 		}).
 		Operation("getUploadAPIs").
 		Doc("Get a CDI API GroupList").
@@ -488,7 +488,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 					panic(fmt.Errorf("failed to build swagger: %s", err))
 				}
 			})
-			response.WriteAsJson(openapispec)
+			writeJSONResponse(response, openapispec)
 		}))
 
 	ws.Route(ws.GET(healthzPath).To(app.healthzHandler))
@@ -497,7 +497,11 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 }
 
 func (app *cdiAPIApp) healthzHandler(req *restful.Request, resp *restful.Response) {
-	io.WriteString(resp, "OK")
+	_, writeErr := io.WriteString(resp, "OK")
+	if writeErr != nil {
+		klog.Error("failed to send response", writeErr)
+	}
+
 }
 
 func (app *cdiAPIApp) createDataVolumeValidatingWebhook() error {
@@ -522,4 +526,19 @@ func (app *cdiAPIApp) createObjectTransferValidatingWebhook() error {
 func (app *cdiAPIApp) createDataImportCronValidatingWebhook() error {
 	app.container.ServeMux.Handle(dataImportCronValidatePath, webhooks.NewDataImportCronValidatingWebhook(app.client, app.cdiClient))
 	return nil
+}
+
+func writeErrorResponse(response *restful.Response, httpStatus int, err error) {
+	klog.Error(err)
+	writeErr := response.WriteError(httpStatus, err)
+	if writeErr != nil {
+		klog.Error("failed to send response", writeErr)
+	}
+}
+
+func writeJSONResponse(response *restful.Response, value any) {
+	writeErr := response.WriteAsJson(value)
+	if writeErr != nil {
+		klog.Error("failed to send response", writeErr)
+	}
 }

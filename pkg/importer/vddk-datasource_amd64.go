@@ -102,7 +102,10 @@ func createNbdKitWrapper(vmware *VMwareClient, diskFileName string) (*NbdKitWrap
 	handle, err := libnbd.Create()
 	if err != nil {
 		klog.Errorf("Unable to create libnbd handle: %v", err)
-		n.KillNbdkit()
+		errKillNbdkit := n.KillNbdkit()
+		if errKillNbdkit != nil {
+			klog.Errorf("can't kill Nbdkit; %v", err)
+		}
 		return nil, err
 	}
 
@@ -115,7 +118,10 @@ func createNbdKitWrapper(vmware *VMwareClient, diskFileName string) (*NbdKitWrap
 	err = handle.ConnectUri("nbd+unix://?socket=" + nbdUnixSocket)
 	if err != nil {
 		klog.Errorf("Unable to connect to socket %s: %v", socket, err)
-		n.KillNbdkit()
+		errKillNbdkit := n.KillNbdkit()
+		if errKillNbdkit != nil {
+			klog.Errorf("can't kill Nbdkit; %v", err)
+		}
 		return nil, err
 	}
 
@@ -299,10 +305,14 @@ func createVMwareClient(endpoint string, accessKey string, secKey string, thumbp
 }
 
 // Close disconnects from VMware
-func (vmware *VMwareClient) Close() {
+func (vmware *VMwareClient) Close() error {
 	vmware.cancel()
-	vmware.conn.Logout(vmware.context)
+	if err := vmware.conn.Logout(vmware.context); err != nil {
+		return err
+	}
+
 	klog.Info("Logged out of VMware.")
+	return nil
 }
 
 // getDiskFileName returns the name of a disk's backing file
@@ -757,9 +767,13 @@ func (sink *VDDKFileSink) ZeroRange(offset uint64, length uint32) error {
 
 // Close closes the file after a transfer is complete.
 func (sink *VDDKFileSink) Close() {
-	sink.writer.Flush()
-	sink.file.Sync()
-	sink.file.Close()
+	logOnError(sink.writer.Flush())
+	logOnError(sink.file.Sync())
+	logOnError(sink.file.Close())
+}
+
+func logOnError(err error) {
+	klog.Error(err)
 }
 
 /* Section: CDI data source */
@@ -806,7 +820,7 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		klog.Errorf("Unable to log in to VMware: %v", err)
 		return nil, err
 	}
-	defer vmware.Close()
+	defer func() { _ = vmware.Close() }()
 
 	// Find disk object for backingFile disk image path
 	backingFileObject, err := vmware.FindDiskFromName(backingFile)

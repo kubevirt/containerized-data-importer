@@ -265,7 +265,7 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 			// Don't create the POD if the PVC is completed already
 			log.V(1).Info("PVC is already complete")
 		} else if pvc.DeletionTimestamp == nil {
-			podsUsingPVC, err := cc.GetPodsUsingPVCs(r.client, pvc.Namespace, sets.NewString(pvc.Name), false)
+			podsUsingPVC, err := cc.GetPodsUsingPVCs(r.client, pvc.Namespace, sets.New[string](pvc.Name), false)
 			if err != nil {
 				return reconcile.Result{}, err
 			}

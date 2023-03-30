@@ -67,10 +67,14 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	util.MarshallObject(csv, os.Stdout)
+	if err = util.MarshallObject(csv, os.Stdout); err != nil {
+		panic(err)
+	}
 
 	if *dumpCRDs {
 		cidCrd := cdioperator.NewCdiCrd()
-		util.MarshallObject(cidCrd, os.Stdout)
+		if err = util.MarshallObject(cidCrd, os.Stdout); err != nil {
+			panic(err)
+		}
 	}
 }

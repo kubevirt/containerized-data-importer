@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"k8s.io/klog/v2"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -783,7 +784,10 @@ func (service *MockDiskSnapshotSlice) Slice() []*ovirtsdk4.DiskSnapshot {
 
 func (conn *MockOvirtClient) Cancel() ImageTransferServiceCancelRequestInterface {
 	if mockCancelHook != nil {
-		mockCancelHook()
+		if err := mockCancelHook(); err != nil {
+			klog.Error(err)
+			return nil
+		}
 	} else {
 		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_CANCELLED)
 	}
@@ -874,10 +878,9 @@ func createCert() string {
 	Expect(err).ToNot(HaveOccurred())
 
 	certBytes := bytes.Buffer{}
-	pem.Encode(&certBytes, &pem.Block{Type: cert.CertificateBlockType, Bytes: keyPair.Cert.Raw})
 
-	err = os.WriteFile(path.Join(tempDir, "tls.crt"), certBytes.Bytes(), 0644)
-	Expect(err).ToNot(HaveOccurred())
+	Expect(pem.Encode(&certBytes, &pem.Block{Type: cert.CertificateBlockType, Bytes: keyPair.Cert.Raw})).To(Succeed())
+	Expect(os.WriteFile(path.Join(tempDir, "tls.crt"), certBytes.Bytes(), 0644)).To(Succeed())
 
 	return tempDir
 }
@@ -972,7 +975,7 @@ func createDefaultTestExtentData() []byte {
 func defaultRangeRequestHandler(start, end int64, w http.ResponseWriter, data []byte) {
 	w.Header().Add("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, end-start+1))
 	w.Header().Add("Content-Length", fmt.Sprintf("%d", end-start+1))
-	w.Write(data[start : end+1])
+	_, _ = w.Write(data[start : end+1])
 }
 
 func hangupRangeRequestHandler(start, end int64, w http.ResponseWriter, data []byte) {

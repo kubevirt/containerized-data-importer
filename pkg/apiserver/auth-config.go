@@ -79,13 +79,15 @@ func (ac *AuthConfig) ValidateName(name string) bool {
 }
 
 // NewAuthConfigWatcher crates a new authConfigWatcher
-func NewAuthConfigWatcher(ctx context.Context, client kubernetes.Interface) AuthConfigWatcher {
-	informerFactory := informers.NewFilteredSharedInformerFactory(client,
+func NewAuthConfigWatcher(ctx context.Context, client kubernetes.Interface) (AuthConfigWatcher, error) {
+	informerFactory := informers.NewSharedInformerFactoryWithOptions(client,
 		common.DefaultResyncPeriod,
-		metav1.NamespaceSystem,
-		func(options *metav1.ListOptions) {
-			options.FieldSelector = "metadata.name=" + configMapName
-		},
+		informers.WithNamespace(metav1.NamespaceSystem),
+		informers.WithTweakListOptions(
+			func(options *metav1.ListOptions) {
+				options.FieldSelector = "metadata.name=" + configMapName
+			},
+		),
 	)
 
 	configMapInformer := informerFactory.Core().V1().ConfigMaps().Informer()
@@ -94,7 +96,7 @@ func NewAuthConfigWatcher(ctx context.Context, client kubernetes.Interface) Auth
 		informer: configMapInformer,
 	}
 
-	configMapInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := configMapInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			klog.V(3).Infof("configMapInformer add callback: %+v", obj)
 			acw.updateConfig(obj.(*corev1.ConfigMap))
@@ -108,6 +110,9 @@ func NewAuthConfigWatcher(ctx context.Context, client kubernetes.Interface) Auth
 			klog.Errorf("Configmap %s deleted", cm.Name)
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	go informerFactory.Start(ctx.Done())
 
@@ -115,7 +120,7 @@ func NewAuthConfigWatcher(ctx context.Context, client kubernetes.Interface) Auth
 	cache.WaitForCacheSync(ctx.Done(), configMapInformer.HasSynced)
 	klog.V(3).Infoln("Cache sync complete")
 
-	return acw
+	return acw, nil
 }
 
 func (acw *authConfigWatcher) GetAuthConfig() *AuthConfig {

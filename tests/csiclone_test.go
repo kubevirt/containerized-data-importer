@@ -39,7 +39,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 	AfterEach(func() {
 		if originalProfileSpec != nil {
 			By("Restore the profile")
-			utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)
+			Expect(utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)).To(Succeed())
 		}
 	})
 
@@ -49,7 +49,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		}
 
 		By(fmt.Sprintf("configure storage profile %s", f.CsiCloneSCName))
-		utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone)
+		Expect(
+			utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone),
+		).To(Succeed())
 
 		dataVolume, md5 := createDataVolume("dv-csi-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, f.CsiCloneSCName, f)
 		// Wait for operation Succeeded
@@ -67,7 +69,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		}
 
 		By(fmt.Sprintf("configure storage profile %s", f.CsiCloneSCName))
-		utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone)
+		Expect(
+			utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone),
+		).To(Succeed())
 
 		dataVolume, expectedMd5 := createDataVolume("dv-csi-clone-test-1", utils.DefaultPvcMountPath, v1.PersistentVolumeBlock, f.CsiCloneSCName, f)
 		// Wait for operation Succeeded
@@ -88,7 +92,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		}
 
 		By(fmt.Sprintf("configure storage profile %s", cloneStorageClassName))
-		utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, cloneStorageClassName, originalProfileSpec, cdiv1.CloneStrategyCsiClone)
+		Expect(
+			utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, cloneStorageClassName, originalProfileSpec, cdiv1.CloneStrategyCsiClone),
+		).To(Succeed())
 
 		dataVolume, _ := createDataVolumeDontWait("dv-csi-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, cloneStorageClassName, f)
 		waitForDvPhase(cdiv1.CloneScheduled, dataVolume, f)
@@ -101,11 +107,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		}
 
 		By("Configure namespace quota")
-		err := f.CreateStorageQuota(int64(2), int64(1024*1024*1024))
-		Expect(err).ToNot(HaveOccurred())
+		Expect(f.CreateStorageQuota(int64(2), int64(1024*1024*1024))).To(Succeed())
 
 		By(fmt.Sprintf("configure storage profile %s", f.CsiCloneSCName))
-		utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone)
+		Expect(
+			utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone),
+		).To(Succeed())
 
 		dataVolume, md5 := createDataVolumeDontWait("dv-csi-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, f.CsiCloneSCName, f)
 		By("Verify Quota was exceeded in events and dv conditions")
@@ -126,8 +133,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
 
 		By("Increase quota")
-		err = f.UpdateStorageQuota(int64(2), int64(2*1024*1024*1024))
-		Expect(err).ToNot(HaveOccurred())
+		Expect(f.UpdateStorageQuota(int64(2), int64(2*1024*1024*1024))).To(Succeed())
 
 		By("Verify clone completed after quota increase")
 		// Wait for operation Succeeded
@@ -139,8 +145,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		// Verify csi clone took place
 		verifyCSIClone(dataVolume, f)
 
-		err = f.DeleteStorageQuota()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(f.DeleteStorageQuota()).To(Succeed())
 	})
 
 })

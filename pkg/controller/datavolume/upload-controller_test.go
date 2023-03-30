@@ -86,9 +86,9 @@ func createUploadReconcilerWithoutConfig(objects ...runtime.Object) *UploadRecon
 
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
-	snapshotv1.AddToScheme(s)
-	extv1.AddToScheme(s)
+	_ = cdiv1.AddToScheme(s)
+	_ = snapshotv1.AddToScheme(s)
+	_ = extv1.AddToScheme(s)
 
 	objs = append(objs, MakeEmptyCDICR())
 

@@ -94,7 +94,12 @@ var _ = Describe("Transport Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(hasInsecReg).To(BeTrue())
 
-			defer utils.RemoveInsecureRegistry(f.CrClient, ep())
+			defer func() {
+				if err := utils.RemoveInsecureRegistry(f.CrClient, ep()); err != nil {
+					_, _ = fmt.Fprintf(GinkgoWriter, "failed to remove registry; %v", err)
+				}
+			}()
+
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", pvcAnn[controller.AnnEndpoint]))

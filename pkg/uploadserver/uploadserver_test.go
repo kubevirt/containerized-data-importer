@@ -346,7 +346,7 @@ var _ = Describe("Upload server tests", func() {
 			ch := make(chan struct{})
 
 			go func() {
-				server.Run()
+				_ = server.Run()
 				close(ch)
 			}()
 

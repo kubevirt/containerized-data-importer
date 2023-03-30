@@ -440,7 +440,7 @@ func AddVolumeDevices() []v1.VolumeDevice {
 }
 
 // GetPodsUsingPVCs returns Pods currently using PVCs
-func GetPodsUsingPVCs(c client.Client, namespace string, names sets.String, allowReadOnly bool) ([]v1.Pod, error) {
+func GetPodsUsingPVCs(c client.Client, namespace string, names sets.Set[string], allowReadOnly bool) ([]v1.Pod, error) {
 	pl := &v1.PodList{}
 	// hopefully using cached client here
 	err := c.List(context.TODO(), pl, &client.ListOptions{Namespace: namespace})
@@ -900,8 +900,8 @@ func SetRestrictedSecurityContext(podSpec *v1.PodSpec) {
 			container.SecurityContext.SeccompProfile = &v1.SeccompProfile{
 				Type: v1.SeccompProfileTypeRuntimeDefault,
 			}
-			container.SecurityContext.AllowPrivilegeEscalation = pointer.BoolPtr(false)
-			container.SecurityContext.RunAsNonRoot = pointer.BoolPtr(true)
+			container.SecurityContext.AllowPrivilegeEscalation = pointer.Bool(false)
+			container.SecurityContext.RunAsNonRoot = pointer.Bool(true)
 			container.SecurityContext.RunAsUser = pointer.Int64(common.QemuSubGid)
 			if len(container.VolumeMounts) > 0 {
 				hasVolumeMounts = true

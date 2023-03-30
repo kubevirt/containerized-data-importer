@@ -294,7 +294,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		secret := &corev1.Secret{}
-		reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: sourcePod.Namespace, Name: sourcePod.Name}, secret)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: sourcePod.Namespace, Name: sourcePod.Name}, secret)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -706,7 +706,11 @@ func createCloneReconciler(objects ...runtime.Object) *CloneReconciler {
 
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
+	err := cdiv1.AddToScheme(s)
+	if err != nil {
+		panic(err)
+	}
+
 	rec := record.NewFakeRecorder(1)
 	// Create a fake client to mock API calls.
 	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()

@@ -62,8 +62,8 @@ func CreateContainer(name, image, verbosity, pullPolicy string) corev1.Container
 		SeccompProfile: &corev1.SeccompProfile{
 			Type: corev1.SeccompProfileTypeRuntimeDefault,
 		},
-		AllowPrivilegeEscalation: pointer.BoolPtr(false),
-		RunAsNonRoot:             pointer.BoolPtr(true),
+		AllowPrivilegeEscalation: pointer.Bool(false),
+		RunAsNonRoot:             pointer.Bool(true),
 	}
 	return *container
 }
@@ -80,8 +80,8 @@ func CreatePortsContainer(name, image, pullPolicy string, ports []corev1.Contain
 		SeccompProfile: &corev1.SeccompProfile{
 			Type: corev1.SeccompProfileTypeRuntimeDefault,
 		},
-		AllowPrivilegeEscalation: pointer.BoolPtr(false),
-		RunAsNonRoot:             pointer.BoolPtr(true),
+		AllowPrivilegeEscalation: pointer.Bool(false),
+		RunAsNonRoot:             pointer.Bool(true),
 	}
 	return *container
 }

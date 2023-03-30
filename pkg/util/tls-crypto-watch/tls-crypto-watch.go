@@ -57,7 +57,7 @@ type cdiConfigTLSWatcher struct {
 }
 
 // NewCdiConfigTLSWatcher crates a new cdiConfigTLSWatcher
-func NewCdiConfigTLSWatcher(ctx context.Context, cdiClient cdiclient.Interface) CdiConfigTLSWatcher {
+func NewCdiConfigTLSWatcher(ctx context.Context, cdiClient cdiclient.Interface) (CdiConfigTLSWatcher, error) {
 	cdiInformerFactory := informers.NewFilteredSharedInformerFactory(cdiClient,
 		common.DefaultResyncPeriod,
 		metav1.NamespaceAll,
@@ -73,7 +73,7 @@ func NewCdiConfigTLSWatcher(ctx context.Context, cdiClient cdiclient.Interface) 
 		config:   DefaultCryptoConfig(),
 	}
 
-	cdiConfigInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := cdiConfigInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			klog.V(3).Infof("cdiConfigInformer add callback: %+v", obj)
 			ctw.updateConfig(obj.(*cdiv1.CDIConfig))
@@ -88,13 +88,17 @@ func NewCdiConfigTLSWatcher(ctx context.Context, cdiClient cdiclient.Interface) 
 		},
 	})
 
+	if err != nil {
+		return nil, err
+	}
+
 	go cdiInformerFactory.Start(ctx.Done())
 
 	klog.V(3).Infoln("Waiting for cache sync")
 	cache.WaitForCacheSync(ctx.Done(), cdiConfigInformer.HasSynced)
 	klog.V(3).Infoln("Cache sync complete")
 
-	return ctw
+	return ctw, nil
 }
 
 func (ctw *cdiConfigTLSWatcher) GetCdiTLSConfig() *CryptoConfig {
