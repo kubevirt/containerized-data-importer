@@ -122,7 +122,7 @@ func UpdateReadyCondition(conditions []cdiv1.DataVolumeCondition, status corev1.
 	return updateCondition(conditions, cdiv1.DataVolumeReady, status, message, reason)
 }
 
-func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim, reason string) []cdiv1.DataVolumeCondition {
+func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim, message, reason string) []cdiv1.DataVolumeCondition {
 	if pvc != nil {
 		pvcCondition := getPVCCondition(pvc.GetAnnotations())
 		switch pvc.Status.Phase {
@@ -149,10 +149,13 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 			conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 		}
 	} else {
+		if message == "" {
+			message = "No PVC found"
+		}
 		if reason == "" {
 			reason = cc.NotFound
 		}
-		conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionUnknown, "No PVC found", reason)
+		conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionUnknown, message, reason)
 		conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 	}
 	return conditions

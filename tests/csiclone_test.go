@@ -121,13 +121,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		boundCondition := &cdiv1.DataVolumeCondition{
 			Type:    cdiv1.DataVolumeBound,
 			Status:  v1.ConditionUnknown,
-			Message: "No PVC found",
+			Message: "exceeded quota",
 			Reason:  cc.ErrExceededQuota,
 		}
 		readyCondition := &cdiv1.DataVolumeCondition{
 			Type:    cdiv1.DataVolumeReady,
 			Status:  v1.ConditionFalse,
-			Message: "",
+			Message: "exceeded quota",
 			Reason:  cc.ErrExceededQuota,
 		}
 		utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)

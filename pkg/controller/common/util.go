@@ -354,8 +354,11 @@ func GetStorageClassByName(client client.Client, name *string) (*storagev1.Stora
 	if name != nil {
 		storageClass := &storagev1.StorageClass{}
 		if err := client.Get(context.TODO(), types.NamespacedName{Name: *name}, storageClass); err != nil {
+			if k8serrors.IsNotFound(err) {
+				return nil, nil
+			}
 			klog.V(3).Info("Unable to retrieve storage class", "storage class name", *name)
-			return nil, errors.New("unable to retrieve storage class")
+			return nil, errors.Errorf("unable to retrieve storage class %s", *name)
 		}
 		return storageClass, nil
 	}
@@ -392,7 +395,7 @@ func GetFilesystemOverheadForStorageClass(client client.Client, storageClassName
 	}
 
 	targetStorageClass, err := GetStorageClassByName(client, storageClassName)
-	if err != nil {
+	if err != nil || targetStorageClass == nil {
 		klog.V(3).Info("Storage class", storageClassName, "not found, trying default storage class")
 		targetStorageClass, err = GetStorageClassByName(client, nil)
 		if err != nil {

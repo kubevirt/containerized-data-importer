@@ -373,8 +373,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			reconciler = createCloneReconciler(dv, pvc, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("unable to retrieve storage class"))
+			Expect(err).ToNot(HaveOccurred())
 			Expect(snapclass).To(BeEmpty())
 		})
 
