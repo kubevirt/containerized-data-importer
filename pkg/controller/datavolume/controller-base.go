@@ -491,7 +491,7 @@ func (r *ReconcilerBase) handleStaticVolume(syncState *dvSyncState, log logr.Log
 		return nil
 	}
 
-	if syncState.pvc.Spec.VolumeName == "" {
+	if cc.IsUnbound(syncState.pvc) {
 		// set result to make sure callers don't do anything else in sync
 		syncState.result = &reconcile.Result{}
 		return nil

@@ -1148,7 +1148,7 @@ func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState, cloneType c
 	}
 
 	// Parse size into a 'Quantity' struct and, if needed, inflate it with filesystem overhead
-	targetCapacity, err := inflateSizeWithOverhead(r.client, targetSize, syncState.pvcSpec)
+	targetCapacity, err := cc.InflateSizeWithOverhead(r.client, targetSize, syncState.pvcSpec)
 	if err != nil {
 		return false, err
 	}

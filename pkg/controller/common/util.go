@@ -21,6 +21,8 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1215,4 +1217,44 @@ func IsWaitForFirstConsumerEnabled(obj metav1.Object, gates featuregates.Feature
 	}
 
 	return pvcHonorWaitForFirstConsumer && globalHonorWaitForFirstConsumer, nil
+}
+
+// GetRequiredSpace calculates space required taking file system overhead into account
+func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
+	// the `image` has to be aligned correctly, so the space requested has to be aligned to
+	// next value that is a multiple of a block size
+	alignedSize := util.RoundUp(requestedSpace, util.DefaultAlignBlockSize)
+
+	// count overhead as a percentage of the whole/new size, including aligned image
+	// and the space required by filesystem metadata
+	spaceWithOverhead := int64(math.Ceil(float64(alignedSize) / (1 - filesystemOverhead)))
+	return spaceWithOverhead
+}
+
+// InflateSizeWithOverhead inflates a storage size with proper overhead calculations
+func InflateSizeWithOverhead(c client.Client, imgSize int64, pvcSpec *v1.PersistentVolumeClaimSpec) (resource.Quantity, error) {
+	var returnSize resource.Quantity
+
+	if util.ResolveVolumeMode(pvcSpec.VolumeMode) == v1.PersistentVolumeFilesystem {
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, pvcSpec.StorageClassName)
+		if err != nil {
+			return resource.Quantity{}, err
+		}
+		// Parse filesystem overhead (percentage) into a 64-bit float
+		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
+
+		// Merge the previous values into a 'resource.Quantity' struct
+		requiredSpace := GetRequiredSpace(fsOverheadFloat, imgSize)
+		returnSize = *resource.NewScaledQuantity(requiredSpace, 0)
+	} else {
+		// Inflation is not needed with 'Block' mode
+		returnSize = *resource.NewScaledQuantity(imgSize, 0)
+	}
+
+	return returnSize, nil
+}
+
+// IsUnbound returns if the pvc is not bound yet
+func IsUnbound(pvc *v1.PersistentVolumeClaim) bool {
+	return pvc.Spec.VolumeName == ""
 }
