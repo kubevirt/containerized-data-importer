@@ -686,7 +686,7 @@ func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNa
 
 // validateContentTypes compares the content type of a clone DV against its source PVC's one
 func validateContentTypes(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
-	sourceContentType := cdiv1.DataVolumeContentType(GetContentType(sourcePVC))
+	sourceContentType := cdiv1.DataVolumeContentType(GetPVCContentType(sourcePVC))
 	targetContentType := spec.ContentType
 	if targetContentType == "" {
 		targetContentType = cdiv1.DataVolumeKubeVirt
@@ -1051,7 +1051,7 @@ func CreateImporterTestPod(pvc *corev1.PersistentVolumeClaim, dvname string, scr
 
 	ep, _ := GetEndpoint(pvc)
 	source := GetSource(pvc)
-	contentType := GetContentType(pvc)
+	contentType := GetPVCContentType(pvc)
 	imageSize, _ := GetRequestedImageSize(pvc)
 	volumeMode := GetVolumeMode(pvc)
 
@@ -1126,12 +1126,8 @@ func ErrQuotaExceeded(err error) bool {
 	return strings.Contains(err.Error(), "exceeded quota:")
 }
 
-// GetContentType returns the content type of the source image. If invalid or not set, default to kubevirt
-func GetContentType(pvc *corev1.PersistentVolumeClaim) string {
-	contentType, found := pvc.Annotations[AnnContentType]
-	if !found {
-		return string(cdiv1.DataVolumeKubeVirt)
-	}
+// GetContentType returns the content type. If invalid or not set, default to kubevirt
+func GetContentType(contentType string) string {
 	switch contentType {
 	case
 		string(cdiv1.DataVolumeKubeVirt),
@@ -1140,6 +1136,16 @@ func GetContentType(pvc *corev1.PersistentVolumeClaim) string {
 		contentType = string(cdiv1.DataVolumeKubeVirt)
 	}
 	return contentType
+}
+
+// GetPVCContentType returns the content type of the source image. If invalid or not set, default to kubevirt
+func GetPVCContentType(pvc *corev1.PersistentVolumeClaim) string {
+	contentType, found := pvc.Annotations[AnnContentType]
+	if !found {
+		return string(cdiv1.DataVolumeKubeVirt)
+	}
+
+	return GetContentType(contentType)
 }
 
 // GetNamespace returns the given namespace if not empty, otherwise the default namespace

@@ -1022,7 +1022,7 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		annotations[k] = v
 	}
 	annotations[cc.AnnPodRestarts] = "0"
-	annotations[cc.AnnContentType] = string(getContentType(dataVolume))
+	annotations[cc.AnnContentType] = cc.GetContentType(string(dataVolume.Spec.ContentType))
 	if dataVolume.Spec.PriorityClassName != "" {
 		annotations[cc.AnnPriorityClassName] = dataVolume.Spec.PriorityClassName
 	}
@@ -1060,13 +1060,6 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 	}
 
 	return pvc, nil
-}
-
-func getContentType(dv *cdiv1.DataVolume) cdiv1.DataVolumeContentType {
-	if dv.Spec.ContentType == cdiv1.DataVolumeArchive {
-		return cdiv1.DataVolumeArchive
-	}
-	return cdiv1.DataVolumeKubeVirt
 }
 
 // Whenever the controller updates a DV, we must make sure to nil out spec.source when using other population methods
