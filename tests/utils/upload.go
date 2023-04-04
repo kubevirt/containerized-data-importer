@@ -3,14 +3,17 @@ package utils
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/kubernetes"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiuploadv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )
 
@@ -69,6 +72,45 @@ func UploadArchivePVCDefinition() *k8sv1.PersistentVolumeClaim {
 	annotations[uploadContentTypeAnnotation] = string(cdiv1.DataVolumeArchive)
 	pvc := NewPVCDefinition("upload-archive-test", "1Gi", annotations, nil)
 	return pvc
+}
+
+// UploadPopulationPVCDefinition creates a PVC with upload datasourceref
+func UploadPopulationPVCDefinition() *k8sv1.PersistentVolumeClaim {
+	pvcDef := NewPVCDefinition("upload-populator-pvc-test", "1Gi", nil, nil)
+	apiGroup := cc.AnnAPIGroup
+	pvcDef.Spec.DataSourceRef = &k8sv1.TypedObjectReference{
+		APIGroup: &apiGroup,
+		Kind:     cdiv1.VolumeUploadSourceRef,
+		Name:     "upload-populator-test",
+	}
+	return pvcDef
+}
+
+// UploadPopulationBlockPVCDefinition creates a PVC with upload datasourceref
+// and volumeMode 'Block'
+func UploadPopulationBlockPVCDefinition(storageClassName string) *k8sv1.PersistentVolumeClaim {
+	pvcDef := UploadPopulationPVCDefinition()
+	pvcDef.Spec.StorageClassName = &storageClassName
+	volumeMode := corev1.PersistentVolumeBlock
+	pvcDef.Spec.VolumeMode = &volumeMode
+	return pvcDef
+}
+
+// UploadPopulatorCR creates an upload source CR
+func UploadPopulatorCR(namespace, contentType string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind":       cdiv1.VolumeUploadSourceRef,
+			"apiVersion": "cdi.kubevirt.io/v1beta1",
+			"metadata": map[string]interface{}{
+				"name":      "upload-populator-test",
+				"namespace": namespace,
+			},
+			"spec": map[string]interface{}{
+				"contentType": contentType,
+			},
+		},
+	}
 }
 
 // UploadBlockPVCDefinition creates a PVC with the upload target annotation for block PV
