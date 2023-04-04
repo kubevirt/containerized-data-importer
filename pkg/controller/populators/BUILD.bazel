@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "import-populator.go",
         "populator-base.go",
+        "upload-populator.go",
         "util.go",
     ],
     importpath = "kubevirt.io/containerized-data-importer/pkg/controller/populators",
