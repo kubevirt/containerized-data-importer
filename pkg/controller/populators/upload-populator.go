@@ -115,7 +115,38 @@ func (r *UploadPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	pvc.Annotations[cc.AnnPopulatorKind] = cdiv1.VolumeUploadSourceRef
 }
 
+func (r *UploadPopulatorReconciler) updatePVCPrimeNameAnnotation(pvc *corev1.PersistentVolumeClaim, pvcPrimeName string) (bool, error) {
+	if _, ok := pvc.Annotations[AnnPVCPrimeName]; ok {
+		return false, nil
+	}
+
+	if pvc.Annotations == nil {
+		pvc.Annotations = make(map[string]string)
+	}
+	pvc.Annotations[AnnPVCPrimeName] = pvcPrimeName
+	if err := r.client.Update(context.TODO(), pvc); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (r *UploadPopulatorReconciler) removePVCPrimeNameAnnotation(pvc *corev1.PersistentVolumeClaim) error {
+	if _, ok := pvc.Annotations[AnnPVCPrimeName]; !ok {
+		return nil
+	}
+
+	delete(pvc.Annotations, AnnPVCPrimeName)
+	return r.client.Update(context.TODO(), pvc)
+}
+
 func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
+	updated, err := r.updatePVCPrimeNameAnnotation(pvc, pvcPrime.Name)
+	if updated || err != nil {
+		// wait for the annotation to be updated
+		return reconcile.Result{}, err
+	}
+
 	// Wait upload completes
 	phase := pvcPrime.Annotations[cc.AnnPodPhase]
 	switch phase {
@@ -123,6 +154,10 @@ func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		// We'll get called later once it succeeds
 		r.recorder.Eventf(pvcPrime, corev1.EventTypeWarning, errUploadFailed, fmt.Sprintf(messageUploadFailed, pvc.Name))
 	case string(corev1.PodSucceeded):
+		err := r.removePVCPrimeNameAnnotation(pvc)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 		// Once the upload is succeeded, we rebind the PV from PVC' to target PVC
 		if err := r.rebindPV(pvc, pvcPrime); err != nil {
 			return reconcile.Result{}, err
