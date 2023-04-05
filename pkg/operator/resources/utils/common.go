@@ -21,9 +21,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
 
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 	utils "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/resources"
 )
 
@@ -87,14 +87,18 @@ func CreatePortsContainer(name, image, pullPolicy string, ports []corev1.Contain
 }
 
 // CreateDeployment creates deployment
-func CreateDeployment(name, matchKey, matchValue, serviceAccountName string, imagePullSecrets []corev1.LocalObjectReference, replicas int32, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
+func CreateDeployment(name, matchKey, matchValue, serviceAccountName string, imagePullSecrets []corev1.LocalObjectReference, infraNodePlacement *cdiv1.InfraNodePlacement) *appsv1.Deployment {
 	podSpec := corev1.PodSpec{
 		SecurityContext: &corev1.PodSecurityContext{
 			RunAsNonRoot: &[]bool{true}[0],
 		},
 		ImagePullSecrets: imagePullSecrets,
 	}
-	deployment := ResourceBuilder.CreateDeployment(name, "", matchKey, matchValue, serviceAccountName, replicas, podSpec, infraNodePlacement)
+	var replicas int32 = 1
+	if infraNodePlacement != nil && infraNodePlacement.Replicas != nil {
+		replicas = *infraNodePlacement.Replicas
+	}
+	deployment := ResourceBuilder.CreateDeployment(name, "", matchKey, matchValue, serviceAccountName, replicas, podSpec, infraNodePlacement.NodePlacement)
 	return deployment
 }
 

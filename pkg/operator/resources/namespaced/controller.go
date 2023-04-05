@@ -27,8 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
@@ -162,9 +161,9 @@ func createControllerServiceAccount() *corev1.ServiceAccount {
 	return utils.ResourceBuilder.CreateServiceAccount(common.ControllerServiceAccountName)
 }
 
-func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
+func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *cdiv1.InfraNodePlacement) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
-	deployment := utils.CreateDeployment(controllerResourceName, "app", "containerized-data-importer", common.ControllerServiceAccountName, imagePullSecrets, int32(1), infraNodePlacement)
+	deployment := utils.CreateDeployment(controllerResourceName, "app", "containerized-data-importer", common.ControllerServiceAccountName, imagePullSecrets, infraNodePlacement)
 	if priorityClassName != "" {
 		deployment.Spec.Template.Spec.PriorityClassName = priorityClassName
 	}

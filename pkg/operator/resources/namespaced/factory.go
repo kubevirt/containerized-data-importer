@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	utils "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/resources"
 )
@@ -43,7 +43,7 @@ type FactoryArgs struct {
 	ImagePullSecrets       []corev1.LocalObjectReference
 	PriorityClassName      string
 	Namespace              string
-	InfraNodePlacement     *sdkapi.NodePlacement
+	InfraNodePlacement     *cdiv1.InfraNodePlacement
 }
 
 type factoryFunc func(*FactoryArgs) []client.Object

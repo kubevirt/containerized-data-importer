@@ -27,8 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
@@ -47,7 +46,13 @@ func createAPIServerResources(args *FactoryArgs) []client.Object {
 		createAPIServerRoleBinding(),
 		createAPIServerRole(),
 		createAPIServerService(),
-		createAPIServerDeployment(args.APIServerImage, args.Verbosity, args.PullPolicy, args.ImagePullSecrets, args.PriorityClassName, args.InfraNodePlacement),
+		createAPIServerDeployment(
+			args.APIServerImage,
+			args.Verbosity,
+			args.PullPolicy,
+			args.ImagePullSecrets,
+			args.PriorityClassName,
+			args.InfraNodePlacement),
 	}
 }
 
@@ -92,9 +97,9 @@ func createAPIServerService() *corev1.Service {
 	return service
 }
 
-func createAPIServerDeployment(image, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
+func createAPIServerDeployment(image, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *cdiv1.InfraNodePlacement) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
-	deployment := utils.CreateDeployment(apiServerRessouceName, cdiLabel, apiServerRessouceName, apiServerRessouceName, imagePullSecrets, 1, infraNodePlacement)
+	deployment := utils.CreateDeployment(apiServerRessouceName, cdiLabel, apiServerRessouceName, apiServerRessouceName, imagePullSecrets, infraNodePlacement)
 	if priorityClassName != "" {
 		deployment.Spec.Template.Spec.PriorityClassName = priorityClassName
 	}

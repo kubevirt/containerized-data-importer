@@ -5042,7 +5042,7 @@
      "infra": {
       "description": "Rules on which nodes CDI infrastructure pods will be scheduled",
       "default": {},
-      "$ref": "#/definitions/api.NodePlacement"
+      "$ref": "#/definitions/v1beta1.InfraNodePlacement"
      },
      "priorityClass": {
       "description": "PriorityClass of the CDI control plane",
@@ -5913,6 +5913,17 @@
       "description": "Digest of the currently imported image",
       "type": "string",
       "default": ""
+     }
+    }
+   },
+   "v1beta1.InfraNodePlacement": {
+    "description": "InfraNodePlacement provides information about replicas and placement for CDI components",
+    "type": "object",
+    "properties": {
+     "replicas": {
+      "description": "replicas indicates how many replicas should be created for each CDI infrastructure component (like cdi-api or cdi-deployment, cdi-uploadserver). Defaults to 1.",
+      "type": "integer",
+      "format": "int32"
      }
     }
    },

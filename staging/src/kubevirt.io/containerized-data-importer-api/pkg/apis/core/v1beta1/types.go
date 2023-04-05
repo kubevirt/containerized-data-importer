@@ -669,7 +669,7 @@ type CDISpec struct {
 	// CDIUninstallStrategy defines the state to leave CDI on uninstall
 	UninstallStrategy *CDIUninstallStrategy `json:"uninstallStrategy,omitempty"`
 	// Rules on which nodes CDI infrastructure pods will be scheduled
-	Infra sdkapi.NodePlacement `json:"infra,omitempty"`
+	Infra InfraNodePlacement `json:"infra,omitempty"`
 	// Restrict on which nodes CDI workload pods will be scheduled
 	Workloads sdkapi.NodePlacement `json:"workload,omitempty"`
 	// Clone strategy override: should we use a host-assisted copy even if snapshots are available?
@@ -844,4 +844,15 @@ type ImportProxy struct {
 	// 	   -----END CERTIFICATE-----
 	// +optional
 	TrustedCAProxy *string `json:"trustedCAProxy,omitempty"`
+}
+
+// InfraNodePlacement provides information about replicas and placement for CDI components
+type InfraNodePlacement struct {
+	// nodePlacement describes scheduling configuration for specific CDI components
+	//+optional
+	*sdkapi.NodePlacement `json:",omitempty"`
+	// replicas indicates how many replicas should be created for each CDI infrastructure
+	// component (like cdi-api or cdi-deployment, cdi-uploadserver). Defaults to 1.
+	//+optional
+	Replicas *int32 `json:"replicas,omitempty"`
 }

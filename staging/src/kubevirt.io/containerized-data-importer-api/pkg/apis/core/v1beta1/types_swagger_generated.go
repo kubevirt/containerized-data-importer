@@ -417,3 +417,10 @@ func (ImportProxy) SwaggerDoc() map[string]string {
 		"trustedCAProxy": "TrustedCAProxy is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle.\nThe TrustedCAProxy ConfigMap is consumed by the DataImportCron controller for creating cronjobs, and by the import controller referring a copy of the ConfigMap in the import namespace.\nHere is an example of the ConfigMap (in yaml):\n\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: my-ca-proxy-cm\n  namespace: cdi\ndata:\n  ca.pem: |",
 	}
 }
+
+func (InfraNodePlacement) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":         "InfraNodePlacement provides information about replicas and placement for CDI components",
+		"replicas": "replicas indicates how many replicas should be created for each CDI infrastructure\ncomponent (like cdi-api or cdi-deployment, cdi-uploadserver). Defaults to 1.\n+optional",
+	}
+}

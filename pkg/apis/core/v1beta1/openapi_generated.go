@@ -526,6 +526,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.FilesystemOverhead":       schema_pkg_apis_core_v1beta1_FilesystemOverhead(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportProxy":              schema_pkg_apis_core_v1beta1_ImportProxy(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportStatus":             schema_pkg_apis_core_v1beta1_ImportStatus(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.InfraNodePlacement":       schema_pkg_apis_core_v1beta1_InfraNodePlacement(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransfer":           schema_pkg_apis_core_v1beta1_ObjectTransfer(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransferCondition":  schema_pkg_apis_core_v1beta1_ObjectTransferCondition(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransferList":       schema_pkg_apis_core_v1beta1_ObjectTransferList(ref),
@@ -23152,7 +23153,7 @@ func schema_pkg_apis_core_v1beta1_CDISpec(ref common.ReferenceCallback) common.O
 						SchemaProps: spec.SchemaProps{
 							Description: "Rules on which nodes CDI infrastructure pods will be scheduled",
 							Default:     map[string]interface{}{},
-							Ref:         ref("kubevirt.io/controller-lifecycle-operator-sdk/api.NodePlacement"),
+							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.InfraNodePlacement"),
 						},
 					},
 					"workload": {
@@ -23192,7 +23193,7 @@ func schema_pkg_apis_core_v1beta1_CDISpec(ref common.ReferenceCallback) common.O
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDICertConfig", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfigSpec", "kubevirt.io/controller-lifecycle-operator-sdk/api.NodePlacement"},
+			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDICertConfig", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfigSpec", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.InfraNodePlacement", "kubevirt.io/controller-lifecycle-operator-sdk/api.NodePlacement"},
 	}
 }
 
@@ -24750,6 +24751,26 @@ func schema_pkg_apis_core_v1beta1_ImportStatus(ref common.ReferenceCallback) com
 					},
 				},
 				Required: []string{"DataVolumeName", "Digest"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_InfraNodePlacement(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "InfraNodePlacement provides information about replicas and placement for CDI components",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"replicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "replicas indicates how many replicas should be created for each CDI infrastructure component (like cdi-api or cdi-deployment, cdi-uploadserver). Defaults to 1.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
 			},
 		},
 	}

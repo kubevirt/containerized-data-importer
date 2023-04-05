@@ -1209,6 +1209,12 @@ spec:
                       each of the indicated key-value pairs as labels (it can have
                       additional labels as well). See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector'
                     type: object
+                  replicas:
+                    description: replicas indicates how many replicas should be created
+                      for each CDI infrastructure component (like cdi-api or cdi-deployment,
+                      cdi-uploadserver). Defaults to 1.
+                    format: int32
+                    type: integer
                   tolerations:
                     description: tolerations is a list of tolerations applied to the
                       relevant kind of pods See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
@@ -3438,6 +3444,12 @@ spec:
                       each of the indicated key-value pairs as labels (it can have
                       additional labels as well). See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector'
                     type: object
+                  replicas:
+                    description: replicas indicates how many replicas should be created
+                      for each CDI infrastructure component (like cdi-api or cdi-deployment,
+                      cdi-uploadserver). Defaults to 1.
+                    format: int32
+                    type: integer
                   tolerations:
                     description: tolerations is a list of tolerations applied to the
                       relevant kind of pods See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
