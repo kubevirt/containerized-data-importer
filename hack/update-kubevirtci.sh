@@ -17,7 +17,7 @@
 SCRIPT_ROOT="$(cd "$(dirname $0)/../" && pwd -P)"
 
 # the kubevirtci tag to vendor from (https://github.com/kubevirt/kubevirtci/tags)
-kubevirtci_release_tag=2301092234-680012f
+kubevirtci_release_tag=2303092154-4b9b02c
 
 # remove previous cluster-up dir entirely before vendoring
 rm -rf ${SCRIPT_ROOT}/cluster-up
