@@ -11,10 +11,15 @@ if ! [[ $num_nodes =~ $re ]] || [[ $num_nodes -lt 1 ]] ; then
 fi
 
 function configure_storage() {
-  #Make sure local is not default
-  _kubectl patch storageclass local -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+  # Make sure no default storage class
+  _kubectl annotate storageclasses --all storageclass.kubernetes.io/is-default-class-
   if [[ $KUBEVIRT_STORAGE == "rook-ceph-default" ]] ; then
     echo "Using builtin rook/ceph provisioner"
+    if [[ $CEPH_WFFC == "true" ]] ; then
+      _kubectl patch storageclass rook-ceph-block-wffc -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+    else
+      _kubectl patch storageclass rook-ceph-block -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+    fi
   # ceph will be deprecated once changes to test lanes merged
   elif [[ $KUBEVIRT_STORAGE == "ceph" ]] ; then
     echo "Installing ceph storage"
@@ -27,7 +32,7 @@ function configure_storage() {
     configure_nfs_csi
   else
     echo "Using local volume storage"
-    #Make sure local is default
+    # Make sure local is default
     _kubectl patch storageclass local -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
   fi
 }
