@@ -123,6 +123,11 @@ func (is *ImageioDataSource) Info() (ProcessingPhase, error) {
 // Transfer is called to transfer the data from the source to a scratch location.
 func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 	defer is.cleanupTransfer()
+	file := filepath.Join(path, tempFile)
+	err := CleanAll(file)
+	if err != nil {
+		return ProcessingPhaseError, err
+	}
 	// we know that there won't be archives
 	size, _ := util.GetAvailableSpace(path)
 	if size <= int64(0) {
@@ -130,8 +135,7 @@ func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, ErrInvalidPath
 	}
 	is.readers.StartProgressUpdate()
-	file := filepath.Join(path, tempFile)
-	err := util.StreamDataToFile(is.readers.TopReader(), file)
+	err = util.StreamDataToFile(is.readers.TopReader(), file)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -161,6 +165,12 @@ func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 
 // TransferFile is called to transfer the data from the source to the passed in file.
 func (is *ImageioDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+	if !is.IsDeltaCopy() {
+		if err := CleanAll(fileName); err != nil {
+			return ProcessingPhaseError, err
+		}
+	}
+
 	defer is.cleanupTransfer()
 	is.readers.StartProgressUpdate()
 

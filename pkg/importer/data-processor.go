@@ -117,8 +117,6 @@ type DataProcessor struct {
 	availableSpace int64
 	// storage overhead is the amount of overhead of the storage used
 	filesystemOverhead float64
-	// needsDataCleanup decides if the contents of the data directory should be deleted (need to avoid this during delta copy stages in a warm migration)
-	needsDataCleanup bool
 	// preallocation is the flag controlling preallocation setting of qemu-img
 	preallocation bool
 	// preallocationApplied is used to pass information whether preallocation has been performed, or not
@@ -129,15 +127,6 @@ type DataProcessor struct {
 
 // NewDataProcessor create a new instance of a data processor using the passed in data provider.
 func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratchDataDir, requestImageSize string, filesystemOverhead float64, preallocation bool) *DataProcessor {
-	needsDataCleanup := true
-	vddkSource, isVddk := dataSource.(*VDDKDataSource)
-	if isVddk {
-		needsDataCleanup = !vddkSource.IsDeltaCopy()
-	}
-	imageioSource, isImageio := dataSource.(*ImageioDataSource)
-	if isImageio {
-		needsDataCleanup = !imageioSource.IsDeltaCopy()
-	}
 	dp := &DataProcessor{
 		currentPhase:       ProcessingPhaseInfo,
 		source:             dataSource,
@@ -146,7 +135,6 @@ func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratch
 		scratchDataDir:     scratchDataDir,
 		requestImageSize:   requestImageSize,
 		filesystemOverhead: filesystemOverhead,
-		needsDataCleanup:   needsDataCleanup,
 		preallocation:      preallocation,
 	}
 	// Calculate available space before doing anything.
@@ -166,21 +154,6 @@ func (dp *DataProcessor) RegisterPhaseExecutor(pp ProcessingPhase, executor func
 
 // ProcessData is the main synchronous processing loop
 func (dp *DataProcessor) ProcessData() error {
-	if size, _ := util.GetAvailableSpace(dp.scratchDataDir); size > int64(0) {
-		// Clean up before trying to write, in case a previous attempt left a mess. Note the deferred cleanup is intentional.
-		if err := CleanDir(dp.scratchDataDir); err != nil {
-			return errors.Wrap(err, "Failure cleaning up temporary scratch space")
-		}
-		// Attempt to be a good citizen and clean up my mess at the end.
-		defer CleanDir(dp.scratchDataDir)
-	}
-
-	if size, _ := util.GetAvailableSpace(dp.dataDir); size > int64(0) && dp.needsDataCleanup {
-		// Clean up data dir before trying to write in case a previous attempt failed and left some stuff behind.
-		if err := CleanDir(dp.dataDir); err != nil {
-			return errors.Wrap(err, "Failure cleaning up target space")
-		}
-	}
 	return dp.ProcessDataWithPause()
 }
 
@@ -296,6 +269,10 @@ func (dp *DataProcessor) validate(url *url.URL) error {
 // convert is called when convert the image from the url to a RAW disk image. Source formats include RAW/QCOW2 (Raw to raw conversion is a copy)
 func (dp *DataProcessor) convert(url *url.URL) (ProcessingPhase, error) {
 	err := dp.validate(url)
+	if err != nil {
+		return ProcessingPhaseError, err
+	}
+	err = CleanAll(dp.dataFile)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}

@@ -327,7 +327,7 @@ func (f *Framework) GetDiskGroup(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 
 // VerifyTargetPVCArchiveContent provides a function to check if the number of files extracted from an archive matches the passed in value
 func (f *Framework) VerifyTargetPVCArchiveContent(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, count string) (bool, error) {
-	cmd := "ls " + utils.DefaultPvcMountPath + " | wc -l"
+	cmd := "ls -I lost+found " + utils.DefaultPvcMountPath + " | wc -l"
 
 	return f.verifyInPod(namespace, pvc, cmd, func(output, stderr string) (bool, error) {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: file count found %s\n", string(output))

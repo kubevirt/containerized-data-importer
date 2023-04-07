@@ -113,6 +113,11 @@ func (sd *GCSDataSource) Info() (ProcessingPhase, error) {
 // Transfer is called to transfer the data from the source to a temporary location.
 func (sd *GCSDataSource) Transfer(path string) (ProcessingPhase, error) {
 	klog.V(3).Infoln("GCS Importer: Transfer")
+	file := filepath.Join(path, tempFile)
+
+	if err := CleanAll(file); err != nil {
+		return ProcessingPhaseError, err
+	}
 
 	size, _ := util.GetAvailableSpace(path)
 
@@ -122,7 +127,6 @@ func (sd *GCSDataSource) Transfer(path string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, ErrInvalidPath
 	}
 
-	file := filepath.Join(path, tempFile)
 	err := util.StreamDataToFile(sd.readers.TopReader(), file)
 
 	if err != nil {
@@ -136,6 +140,10 @@ func (sd *GCSDataSource) Transfer(path string) (ProcessingPhase, error) {
 
 // TransferFile is called to transfer the data from the source to the passed in file.
 func (sd *GCSDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+	if err := CleanAll(fileName); err != nil {
+		return ProcessingPhaseError, err
+	}
+
 	err := util.StreamDataToFile(sd.readers.TopReader(), fileName)
 	if err != nil {
 		return ProcessingPhaseError, err
