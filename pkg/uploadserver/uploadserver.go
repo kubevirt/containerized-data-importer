@@ -457,9 +457,6 @@ func filesystemCloneProcessor(stream io.ReadCloser, dest string) error {
 
 	// Clone to file system
 	destDir := common.ImporterVolumePath
-	if err := importer.CleanDir(destDir); err != nil {
-		return errors.Wrapf(err, "error removing contents of %s", destDir)
-	}
 	if err := util.UnArchiveTar(newSnappyReadCloser(stream), destDir); err != nil {
 		return errors.Wrapf(err, "error unarchiving to %s", destDir)
 	}
