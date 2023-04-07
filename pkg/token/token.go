@@ -44,7 +44,7 @@ type Operation string
 
 // Payload is the data inside our token
 type Payload struct {
-	Operation Operation                   `json:"opertation,omitempty"`
+	Operation Operation                   `json:"operation,omitempty"`
 	Name      string                      `json:"name,omitempty"`
 	Namespace string                      `json:"namespace,omitempty"`
 	Resource  metav1.GroupVersionResource `json:"resource,omitempty"`
