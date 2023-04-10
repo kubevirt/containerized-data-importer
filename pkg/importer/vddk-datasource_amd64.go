@@ -928,6 +928,12 @@ func (vs *VDDKDataSource) IsDeltaCopy() bool {
 
 // TransferFile is called to transfer the data from the source to the file passed in.
 func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+	if !vs.IsDeltaCopy() {
+		if err := CleanAll(fileName); err != nil {
+			return ProcessingPhaseError, err
+		}
+	}
+
 	if vs.ChangedBlocks != nil { // Warm migration pre-checks
 		if len(vs.ChangedBlocks.ChangedArea) < 1 { // No changes? Immediately return success.
 			klog.Infof("No changes reported between snapshot %s and snapshot %s, marking transfer complete.", vs.PreviousSnapshot, vs.CurrentSnapshot)
