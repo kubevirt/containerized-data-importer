@@ -75,6 +75,7 @@ type TargetCertRechecker interface {
 	RecheckChannel() <-chan struct{}
 }
 
+// EnsureTargetCertKeyPair ensures that the current target cert/key is valid, (re)creating if necessary
 func (c RotatedSelfSignedCertKeySecret) EnsureTargetCertKeyPair(ctx context.Context, signingCertKeyPair *crypto.CA, caBundleCerts []*x509.Certificate) error {
 	// at this point our trust bundle has been updated.  We don't know for sure that consumers have updated, but that's why we have a second
 	// validity percentage.  We always check to see if we need to sign.  Often we are signing with an old key or we have no target
@@ -129,24 +130,24 @@ func needNewTargetCertKeyPair(annotations map[string]string, signer *crypto.CA, 
 }
 
 // needNewTargetCertKeyPairForTime returns true when
-// 1. when notAfter or notBefore is missing in the annotation
-// 2. when notAfter or notBefore is malformed
-// 3. when now is after the notAfter
-// 4. when now is after notAfter+refresh AND the signer has been valid
-//    for more than 5% of the "extra" time we renew the target
+//  1. when notAfter or notBefore is missing in the annotation
+//  2. when notAfter or notBefore is malformed
+//  3. when now is after the notAfter
+//  4. when now is after notAfter+refresh AND the signer has been valid
+//     for more than 5% of the "extra" time we renew the target
 //
-//in other words, we rotate if
+// in other words, we rotate if
 //
-//our old CA is gone from the bundle (then we are pretty late to the renewal party)
-//or the cert expired (then we are also pretty late)
-//or we are over the renewal percentage of the validity, but only if the new CA at least 10% into its age.
-//Maybe worth a go doc.
+// our old CA is gone from the bundle (then we are pretty late to the renewal party)
+// or the cert expired (then we are also pretty late)
+// or we are over the renewal percentage of the validity, but only if the new CA at least 10% into its age.
+// Maybe worth a go doc.
 //
-//So in general we need to see a signing CA at least aged 10% within 1-percentage of the cert validity.
+// So in general we need to see a signing CA at least aged 10% within 1-percentage of the cert validity.
 //
-//Hence, if the CAs are rotated too fast (like CA percentage around 10% or smaller), we will not hit the time to make use of the CA. Or if the cert renewal percentage is at 90%, there is not much time either.
+// Hence, if the CAs are rotated too fast (like CA percentage around 10% or smaller), we will not hit the time to make use of the CA. Or if the cert renewal percentage is at 90%, there is not much time either.
 //
-//So with a cert percentage of 75% and equally long CA and cert validities at the worst case we start at 85% of the cert to renew, trying again every minute.
+// So with a cert percentage of 75% and equally long CA and cert validities at the worst case we start at 85% of the cert to renew, trying again every minute.
 func needNewTargetCertKeyPairForTime(annotations map[string]string, signer *crypto.CA, refresh time.Duration, refreshOnlyWhenExpired bool) string {
 	notBefore, notAfter, reason := getValidityFromAnnotations(annotations)
 	if len(reason) > 0 {

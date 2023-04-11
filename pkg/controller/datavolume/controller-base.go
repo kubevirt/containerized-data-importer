@@ -164,26 +164,46 @@ const (
 	dataVolumePopulator
 )
 
+type indexArgs struct {
+	obj          client.Object
+	field        string
+	extractValue client.IndexerFunc
+}
+
+func getIndexArgs() []indexArgs {
+	return []indexArgs{
+		{
+			obj:   &cdiv1.DataVolume{},
+			field: dvPhaseField,
+			extractValue: func(obj client.Object) []string {
+				return []string{string(obj.(*cdiv1.DataVolume).Status.Phase)}
+			},
+		},
+		{
+			obj:   &corev1.PersistentVolume{},
+			field: claimRefField,
+			extractValue: func(obj client.Object) []string {
+				if pv, ok := obj.(*corev1.PersistentVolume); ok {
+					if pv.Spec.ClaimRef != nil && pv.Spec.ClaimRef.Namespace != "" && pv.Spec.ClaimRef.Name != "" {
+						return []string{claimRefIndexKeyFunc(pv.Spec.ClaimRef.Namespace, pv.Spec.ClaimRef.Name)}
+					}
+				}
+				return nil
+			},
+		},
+	}
+}
+
 func claimRefIndexKeyFunc(namespace, name string) string {
 	return namespace + "/" + name
 }
 
 // CreateCommonIndexes creates indexes used by all controllers
 func CreateCommonIndexes(mgr manager.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, dvPhaseField, func(obj client.Object) []string {
-		return []string{string(obj.(*cdiv1.DataVolume).Status.Phase)}
-	}); err != nil {
-		return err
-	}
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &corev1.PersistentVolume{}, claimRefField, func(obj client.Object) []string {
-		if pv, ok := obj.(*corev1.PersistentVolume); ok {
-			if pv.Spec.ClaimRef != nil && pv.Spec.ClaimRef.Namespace != "" && pv.Spec.ClaimRef.Name != "" {
-				return []string{claimRefIndexKeyFunc(pv.Spec.ClaimRef.Namespace, pv.Spec.ClaimRef.Name)}
-			}
+	for _, ia := range getIndexArgs() {
+		if err := mgr.GetFieldIndexer().IndexField(context.TODO(), ia.obj, ia.field, ia.extractValue); err != nil {
+			return err
 		}
-		return nil
-	}); err != nil {
-		return err
 	}
 	return nil
 }

@@ -19,7 +19,10 @@ import (
 // Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
 // +openshift:compatibility-gen:level=1
 type Build struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata is the standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
 	// spec is all the inputs used to execute the build.
@@ -825,53 +828,53 @@ type JenkinsPipelineBuildStrategy struct {
 //
 // 1. Shell script:
 //
-//        "postCommit": {
-//          "script": "rake test --verbose",
-//        }
+//	   "postCommit": {
+//	     "script": "rake test --verbose",
+//	   }
 //
-//     The above is a convenient form which is equivalent to:
+//	The above is a convenient form which is equivalent to:
 //
-//        "postCommit": {
-//          "command": ["/bin/sh", "-ic"],
-//          "args":    ["rake test --verbose"]
-//        }
+//	   "postCommit": {
+//	     "command": ["/bin/sh", "-ic"],
+//	     "args":    ["rake test --verbose"]
+//	   }
 //
 // 2. A command as the image entrypoint:
 //
-//        "postCommit": {
-//          "commit": ["rake", "test", "--verbose"]
-//        }
+//	   "postCommit": {
+//	     "commit": ["rake", "test", "--verbose"]
+//	   }
 //
-//     Command overrides the image entrypoint in the exec form, as documented in
-//     Docker: https://docs.docker.com/engine/reference/builder/#entrypoint.
+//	Command overrides the image entrypoint in the exec form, as documented in
+//	Docker: https://docs.docker.com/engine/reference/builder/#entrypoint.
 //
 // 3. Pass arguments to the default entrypoint:
 //
-//        "postCommit": {
-// 		      "args": ["rake", "test", "--verbose"]
-// 	      }
+//	       "postCommit": {
+//			      "args": ["rake", "test", "--verbose"]
+//		      }
 //
-//     This form is only useful if the image entrypoint can handle arguments.
+//	    This form is only useful if the image entrypoint can handle arguments.
 //
 // 4. Shell script with arguments:
 //
-//        "postCommit": {
-//          "script": "rake test $1",
-//          "args":   ["--verbose"]
-//        }
+//	   "postCommit": {
+//	     "script": "rake test $1",
+//	     "args":   ["--verbose"]
+//	   }
 //
-//     This form is useful if you need to pass arguments that would otherwise be
-//     hard to quote properly in the shell script. In the script, $0 will be
-//     "/bin/sh" and $1, $2, etc, are the positional arguments from Args.
+//	This form is useful if you need to pass arguments that would otherwise be
+//	hard to quote properly in the shell script. In the script, $0 will be
+//	"/bin/sh" and $1, $2, etc, are the positional arguments from Args.
 //
 // 5. Command with arguments:
 //
-//        "postCommit": {
-//          "command": ["rake", "test"],
-//          "args":    ["--verbose"]
-//        }
+//	   "postCommit": {
+//	     "command": ["rake", "test"],
+//	     "args":    ["--verbose"]
+//	   }
 //
-//     This form is equivalent to appending the arguments to the Command slice.
+//	This form is equivalent to appending the arguments to the Command slice.
 //
 // It is invalid to provide both Script and Command simultaneously. If none of
 // the fields are specified, the hook is not executed.
@@ -938,7 +941,10 @@ type ImageLabel struct {
 // Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
 // +openshift:compatibility-gen:level=1
 type BuildConfig struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata is the standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
 	// spec holds all the input necessary to produce a new build, and the conditions when
@@ -1158,6 +1164,9 @@ const (
 // +openshift:compatibility-gen:level=1
 type BuildList struct {
 	metav1.TypeMeta `json:",inline"`
+
+	// metadata is the standard list's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
 	// items is a list of builds
@@ -1172,6 +1181,9 @@ type BuildList struct {
 // +openshift:compatibility-gen:level=1
 type BuildConfigList struct {
 	metav1.TypeMeta `json:",inline"`
+
+	// metadata is the standard list's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
 	// items is a list of build configs
@@ -1245,7 +1257,10 @@ type SourceStrategyOptions struct {
 // Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
 // +openshift:compatibility-gen:level=1
 type BuildRequest struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata is the standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
 	// revision is the information from the source for a specific repo snapshot.
@@ -1286,7 +1301,10 @@ type BuildRequest struct {
 // Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
 // +openshift:compatibility-gen:level=1
 type BinaryBuildRequestOptions struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata is the standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
 	// asFile determines if the binary should be created as a file within the source rather than extracted as an archive

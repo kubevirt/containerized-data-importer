@@ -19,14 +19,15 @@ package datavolume
 import (
 	"context"
 	"fmt"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
-	. "github.com/onsi/gomega"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -1416,8 +1417,15 @@ func createImportReconcilerWithoutConfig(objects ...runtime.Object) *ImportRecon
 
 	objs = append(objs, MakeEmptyCDICR())
 
-	// Create a fake client to mock API calls.
-	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
+	builder := fake.NewClientBuilder().
+		WithScheme(s).
+		WithRuntimeObjects(objs...)
+
+	for _, ia := range getIndexArgs() {
+		builder = builder.WithIndex(ia.obj, ia.field, ia.extractValue)
+	}
+
+	cl := builder.Build()
 
 	rec := record.NewFakeRecorder(10)
 

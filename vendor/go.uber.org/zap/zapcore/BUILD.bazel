@@ -19,6 +19,7 @@ go_library(
         "level_strings.go",
         "marshaler.go",
         "memory_encoder.go",
+        "reflected_encoder.go",
         "sampler.go",
         "tee.go",
         "write_syncer.go",

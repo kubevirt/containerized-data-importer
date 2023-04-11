@@ -51,7 +51,7 @@ var _ = Describe("checkStaticVolume tests", func() {
 		}
 
 		populatorDef := func() *cdiv1.DataVolume {
-			dataSourceRef := &corev1.TypedLocalObjectReference{
+			dataSourceRef := &corev1.TypedObjectReference{
 				Kind: "PersistentVolumeClaim",
 				Name: "doesnotmatter",
 			}

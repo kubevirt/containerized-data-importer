@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/emicklei/go-restful"
+	"github.com/emicklei/go-restful/v3"
 	"k8s.io/kube-openapi/pkg/common"
 
 	cdicorev1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"

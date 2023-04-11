@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/rsa"
 	"flag"
 	"fmt"
@@ -22,7 +21,6 @@ import (
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -145,10 +143,15 @@ func getRequiredEnvVar(name string) string {
 	return val
 }
 
-func start(ctx context.Context, cfg *rest.Config) {
+func start() {
 	klog.Info("Starting CDI controller components")
 
 	namespace := util.GetNamespace()
+
+	cfg, err := clientcmd.BuildConfigFromFlags(kubeURL, kubeconfig)
+	if err != nil {
+		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
+	}
 
 	client, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
@@ -208,6 +211,8 @@ func start(ctx context.Context, cfg *rest.Config) {
 		klog.Errorf("Unable to create shared indexes: %v", err)
 		os.Exit(1)
 	}
+
+	ctx := signals.SetupSignalHandler()
 
 	// TODO: Current DV controller had threadiness 3, should we do the same here, defaults to one thread.
 	if _, err := dvc.NewImportController(ctx, mgr, log, installerLabels); err != nil {
@@ -285,26 +290,11 @@ func main() {
 	logf.SetLogger(zap.New(zap.Level(zapcore.Level(-1*verbosityLevel)), zap.UseDevMode(debug)))
 	logf.Log.WithName("main").Info("Verbosity level", "verbose", verbose, "debug", debug)
 
-	cfg, err := clientcmd.BuildConfigFromFlags(kubeURL, kubeconfig)
-	if err != nil {
-		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
-	}
-
-	ctx := signals.SetupSignalHandler()
-
-	err = startLeaderElection(context.TODO(), cfg, func() {
-		start(ctx, cfg)
-	})
-
-	if err != nil {
-		klog.Fatalf("Unable to start leader election: %v\n", errors.WithStack(err))
-	}
-
 	if err = createReadyFile(); err != nil {
 		klog.Fatalf("Error creating ready file: %+v", err)
 	}
 
-	<-ctx.Done()
+	start()
 
 	deleteReadyFile()
 

@@ -595,7 +595,7 @@ var _ = Describe("Validating Webhook", func() {
 		It("should accept DataVolume without source if dataSourceRef is correctly populated", func() {
 			pvc := newPVCSpec(pvcSizeDefault)
 			dataVolume := newDataVolumeWithSourceRef("test-dv", nil, nil, pvc)
-			dataVolume.Spec.PVC.DataSourceRef = &corev1.TypedLocalObjectReference{
+			dataVolume.Spec.PVC.DataSourceRef = &corev1.TypedObjectReference{
 				Kind: "PersistentVolumeClaim",
 				Name: dataVolume.Name,
 			}
@@ -625,7 +625,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 			pvc := newPVCSpec(pvcSizeDefault)
 			dataVolume := newDataVolumeWithSourceRef("test-dv", &blankSource, nil, pvc)
-			dataVolume.Spec.PVC.DataSourceRef = &corev1.TypedLocalObjectReference{
+			dataVolume.Spec.PVC.DataSourceRef = &corev1.TypedObjectReference{
 				Kind: "PersistentVolumeClaim",
 				Name: dataVolume.Name,
 			}
@@ -654,9 +654,23 @@ var _ = Describe("Validating Webhook", func() {
 				Kind: "PersistentVolumeClaim",
 				Name: dataVolume.Name,
 			}
-			dataVolume.Spec.PVC.DataSourceRef = &corev1.TypedLocalObjectReference{
+			dataVolume.Spec.PVC.DataSourceRef = &corev1.TypedObjectReference{
 				Kind: "PersistentVolumeClaim",
 				Name: dataVolume.Name + "-test",
+			}
+
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with cross namespace dataSourceRef", func() {
+			namespace := "foo"
+			pvc := newPVCSpec(pvcSizeDefault)
+			dataVolume := newDataVolumeWithSourceRef("test-dv", nil, nil, pvc)
+			dataVolume.Spec.PVC.DataSourceRef = &corev1.TypedObjectReference{
+				Namespace: &namespace,
+				Kind:      "PersistentVolumeClaim",
+				Name:      dataVolume.Name,
 			}
 
 			resp := validateDataVolumeCreate(dataVolume)

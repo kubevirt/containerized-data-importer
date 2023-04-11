@@ -44,6 +44,7 @@ type RotatedSigningCASecret struct {
 	EventRecorder events.Recorder
 }
 
+// EnsureSigningCertKeyPair ensures that the current signing cert/key is valid, (re)creating if necessary
 func (c RotatedSigningCASecret) EnsureSigningCertKeyPair(ctx context.Context) (*crypto.CA, error) {
 	originalSigningCertKeyPairSecret, err := c.Lister.Secrets(c.Namespace).Get(c.Name)
 	if err != nil && !apierrors.IsNotFound(err) {

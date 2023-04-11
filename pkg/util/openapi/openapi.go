@@ -1,7 +1,7 @@
 package openapi
 
 import (
-	"github.com/emicklei/go-restful"
+	"github.com/emicklei/go-restful/v3"
 	"k8s.io/kube-openapi/pkg/builder"
 	"k8s.io/kube-openapi/pkg/common"
 	k8sspec "k8s.io/kube-openapi/pkg/validation/spec"

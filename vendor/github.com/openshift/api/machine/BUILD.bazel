@@ -7,6 +7,8 @@ go_library(
     importpath = "github.com/openshift/api/machine",
     visibility = ["//visibility:public"],
     deps = [
+        "//vendor/github.com/openshift/api/machine/v1:go_default_library",
+        "//vendor/github.com/openshift/api/machine/v1alpha1:go_default_library",
         "//vendor/github.com/openshift/api/machine/v1beta1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime/schema:go_default_library",

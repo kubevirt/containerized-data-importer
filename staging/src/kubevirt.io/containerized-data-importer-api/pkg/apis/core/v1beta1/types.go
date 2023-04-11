@@ -103,7 +103,7 @@ type StorageSpec struct {
 	// * While DataSource ignores disallowed values (dropping them), DataSourceRef preserves all values, and generates an error if a disallowed value is specified.
 	// (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
 	// +optional
-	DataSourceRef *corev1.TypedLocalObjectReference `json:"dataSourceRef,omitempty"`
+	DataSourceRef *corev1.TypedObjectReference `json:"dataSourceRef,omitempty"`
 }
 
 // DataVolumeCheckpoint defines a stage in a warm migration.

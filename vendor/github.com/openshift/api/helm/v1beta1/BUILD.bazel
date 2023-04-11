@@ -5,8 +5,10 @@ go_library(
     srcs = [
         "doc.go",
         "register.go",
-        "types_helm.go",
+        "types_helm_chart_repository.go",
+        "types_project_helm_chart_repository.go",
         "zz_generated.deepcopy.go",
+        "zz_generated.swagger_doc_generated.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/openshift/api/helm/v1beta1",
     importpath = "github.com/openshift/api/helm/v1beta1",

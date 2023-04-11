@@ -34,8 +34,8 @@ const (
 )
 
 var (
-	logCheckLeaderRegEx  = regexp.MustCompile("Attempting to acquire leader lease")
-	logIsLeaderRegex     = regexp.MustCompile("Successfully acquired leadership lease")
+	logCheckLeaderRegEx  = regexp.MustCompile("attempting to acquire leader lease")
+	logIsLeaderRegex     = regexp.MustCompile("successfully acquired lease")
 	logImporterStarting  = regexp.MustCompile("Converting to Raw")
 	logImporterCompleted = regexp.MustCompile(`\] \d\d\.\d{1,2}`)
 )

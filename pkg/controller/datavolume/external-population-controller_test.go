@@ -79,7 +79,7 @@ var _ = Describe("All external-population tests", func() {
 	var _ = Describe("Using populator", func() {
 		// Sample populator's DataSourceRef
 		apiGroup := populatorGroupName
-		dataSourceRef := &corev1.TypedLocalObjectReference{
+		dataSourceRef := &corev1.TypedObjectReference{
 			APIGroup: &apiGroup,
 			Kind:     populatorKind,
 			Name:     samplePopulatorName,
@@ -354,8 +354,15 @@ func createPopulatorReconcilerWithoutConfig(objects ...runtime.Object) *Populato
 
 	objs = append(objs, MakeEmptyCDICR())
 
-	// Create a fake client to mock API calls.
-	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
+	builder := fake.NewClientBuilder().
+		WithScheme(s).
+		WithRuntimeObjects(objs...)
+
+	for _, ia := range getIndexArgs() {
+		builder = builder.WithIndex(ia.obj, ia.field, ia.extractValue)
+	}
+
+	cl := builder.Build()
 
 	rec := record.NewFakeRecorder(10)
 
@@ -377,7 +384,7 @@ func createPopulatorReconcilerWithoutConfig(objects ...runtime.Object) *Populato
 	return r
 }
 
-func newPopulatorDataVolume(name string, dataSource, dataSourceRef *corev1.TypedLocalObjectReference) *cdiv1.DataVolume {
+func newPopulatorDataVolume(name string, dataSource *corev1.TypedLocalObjectReference, dataSourceRef *corev1.TypedObjectReference) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
 		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{

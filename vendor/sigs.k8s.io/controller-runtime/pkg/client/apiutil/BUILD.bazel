@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "apimachinery.go",
         "dynamicrestmapper.go",
+        "lazyrestmapper.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/sigs.k8s.io/controller-runtime/pkg/client/apiutil",
     importpath = "sigs.k8s.io/controller-runtime/pkg/client/apiutil",

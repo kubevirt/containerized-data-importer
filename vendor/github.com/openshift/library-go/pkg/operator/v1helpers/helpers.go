@@ -383,3 +383,103 @@ func InjectObservedProxyIntoContainers(podSpec *corev1.PodSpec, containerNames [
 
 	return nil
 }
+
+func InjectTrustedCAIntoContainers(podSpec *corev1.PodSpec, configMapName string, containerNames []string) error {
+	podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
+		Name: "non-standard-root-system-trust-ca-bundle",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: configMapName,
+				},
+				Items: []corev1.KeyToPath{
+					{Key: "ca-bundle.crt", Path: "tls-ca-bundle.pem"},
+				},
+			},
+		},
+	})
+
+	for _, containerName := range containerNames {
+		for i := range podSpec.InitContainers {
+			if podSpec.InitContainers[i].Name == containerName {
+				podSpec.InitContainers[i].VolumeMounts = append(podSpec.InitContainers[i].VolumeMounts, corev1.VolumeMount{
+					Name:      "non-standard-root-system-trust-ca-bundle",
+					MountPath: "/etc/pki/ca-trust/extracted/pem",
+					ReadOnly:  true,
+				})
+			}
+		}
+		for i := range podSpec.Containers {
+			if podSpec.Containers[i].Name == containerName {
+				podSpec.Containers[i].VolumeMounts = append(podSpec.Containers[i].VolumeMounts, corev1.VolumeMount{
+					Name:      "non-standard-root-system-trust-ca-bundle",
+					MountPath: "/etc/pki/ca-trust/extracted/pem",
+					ReadOnly:  true,
+				})
+			}
+		}
+	}
+
+	return nil
+}
+
+func SetCondition(conditions *[]metav1.Condition, newCondition metav1.Condition) {
+	if conditions == nil {
+		conditions = &[]metav1.Condition{}
+	}
+	existingCondition := FindCondition(*conditions, newCondition.Type)
+	if existingCondition == nil {
+		newCondition.LastTransitionTime = metav1.NewTime(time.Now())
+		*conditions = append(*conditions, newCondition)
+		return
+	}
+
+	if existingCondition.Status != newCondition.Status {
+		existingCondition.Status = newCondition.Status
+		existingCondition.LastTransitionTime = metav1.NewTime(time.Now())
+	}
+
+	existingCondition.Reason = newCondition.Reason
+	existingCondition.Message = newCondition.Message
+}
+
+func RemoveCondition(conditions *[]metav1.Condition, conditionType string) {
+	if conditions == nil {
+		conditions = &[]metav1.Condition{}
+	}
+	newConditions := []metav1.Condition{}
+	for _, condition := range *conditions {
+		if condition.Type != conditionType {
+			newConditions = append(newConditions, condition)
+		}
+	}
+
+	*conditions = newConditions
+}
+
+func FindCondition(conditions []metav1.Condition, conditionType string) *metav1.Condition {
+	for i := range conditions {
+		if conditions[i].Type == conditionType {
+			return &conditions[i]
+		}
+	}
+
+	return nil
+}
+
+func IsConditionTrue(conditions []metav1.Condition, conditionType string) bool {
+	return IsConditionPresentAndEqual(conditions, conditionType, metav1.ConditionTrue)
+}
+
+func IsConditionFalse(conditions []metav1.Condition, conditionType string) bool {
+	return IsConditionPresentAndEqual(conditions, conditionType, metav1.ConditionFalse)
+}
+
+func IsConditionPresentAndEqual(conditions []metav1.Condition, conditionType string, status metav1.ConditionStatus) bool {
+	for _, condition := range conditions {
+		if condition.Type == conditionType {
+			return condition.Status == status
+		}
+	}
+	return false
+}

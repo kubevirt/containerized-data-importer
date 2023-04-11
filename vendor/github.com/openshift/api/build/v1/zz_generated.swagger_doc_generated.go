@@ -13,6 +13,7 @@ package v1
 // AUTO-GENERATED FUNCTIONS START HERE
 var map_BinaryBuildRequestOptions = map[string]string{
 	"":                        "BinaryBuildRequestOptions are the options required to fully speficy a binary build request\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
+	"metadata":                "metadata is the standard object's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
 	"asFile":                  "asFile determines if the binary should be created as a file within the source rather than extracted as an archive",
 	"revision.commit":         "revision.commit is the value identifying a specific commit",
 	"revision.message":        "revision.message is the description of a specific commit",
@@ -44,9 +45,10 @@ func (BitbucketWebHookCause) SwaggerDoc() map[string]string {
 }
 
 var map_Build = map[string]string{
-	"":       "Build encapsulates the inputs needed to produce a new deployable image, as well as the status of the execution and a reference to the Pod which executed the build.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
-	"spec":   "spec is all the inputs used to execute the build.",
-	"status": "status is the current status of the build.",
+	"":         "Build encapsulates the inputs needed to produce a new deployable image, as well as the status of the execution and a reference to the Pod which executed the build.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
+	"metadata": "metadata is the standard object's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+	"spec":     "spec is all the inputs used to execute the build.",
+	"status":   "status is the current status of the build.",
 }
 
 func (Build) SwaggerDoc() map[string]string {
@@ -68,9 +70,10 @@ func (BuildCondition) SwaggerDoc() map[string]string {
 }
 
 var map_BuildConfig = map[string]string{
-	"":       "Build configurations define a build process for new container images. There are three types of builds possible - a container image build using a Dockerfile, a Source-to-Image build that uses a specially prepared base image that accepts source code that it can make runnable, and a custom build that can run // arbitrary container images as a base and accept the build parameters. Builds run on the cluster and on completion are pushed to the container image registry specified in the \"output\" section. A build can be triggered via a webhook, when the base image changes, or when a user manually requests a new build be // created.\n\nEach build created by a build configuration is numbered and refers back to its parent configuration. Multiple builds can be triggered at once. Builds that do not have \"output\" set can be used to test code or run a verification build.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
-	"spec":   "spec holds all the input necessary to produce a new build, and the conditions when to trigger them.",
-	"status": "status holds any relevant information about a build config",
+	"":         "Build configurations define a build process for new container images. There are three types of builds possible - a container image build using a Dockerfile, a Source-to-Image build that uses a specially prepared base image that accepts source code that it can make runnable, and a custom build that can run // arbitrary container images as a base and accept the build parameters. Builds run on the cluster and on completion are pushed to the container image registry specified in the \"output\" section. A build can be triggered via a webhook, when the base image changes, or when a user manually requests a new build be // created.\n\nEach build created by a build configuration is numbered and refers back to its parent configuration. Multiple builds can be triggered at once. Builds that do not have \"output\" set can be used to test code or run a verification build.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
+	"metadata": "metadata is the standard object's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+	"spec":     "spec holds all the input necessary to produce a new build, and the conditions when to trigger them.",
+	"status":   "status holds any relevant information about a build config",
 }
 
 func (BuildConfig) SwaggerDoc() map[string]string {
@@ -78,8 +81,9 @@ func (BuildConfig) SwaggerDoc() map[string]string {
 }
 
 var map_BuildConfigList = map[string]string{
-	"":      "BuildConfigList is a collection of BuildConfigs.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
-	"items": "items is a list of build configs",
+	"":         "BuildConfigList is a collection of BuildConfigs.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
+	"metadata": "metadata is the standard list's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+	"items":    "items is a list of build configs",
 }
 
 func (BuildConfigList) SwaggerDoc() map[string]string {
@@ -109,8 +113,9 @@ func (BuildConfigStatus) SwaggerDoc() map[string]string {
 }
 
 var map_BuildList = map[string]string{
-	"":      "BuildList is a collection of Builds.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
-	"items": "items is a list of builds",
+	"":         "BuildList is a collection of Builds.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
+	"metadata": "metadata is the standard list's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+	"items":    "items is a list of builds",
 }
 
 func (BuildList) SwaggerDoc() map[string]string {
@@ -156,7 +161,7 @@ func (BuildOutput) SwaggerDoc() map[string]string {
 }
 
 var map_BuildPostCommitSpec = map[string]string{
-	"":        "A BuildPostCommitSpec holds a build post commit hook specification. The hook executes a command in a temporary container running the build output image, immediately after the last layer of the image is committed and before the image is pushed to a registry. The command is executed with the current working directory ($PWD) set to the image's WORKDIR.\n\nThe build will be marked as failed if the hook execution fails. It will fail if the script or command return a non-zero exit code, or if there is any other error related to starting the temporary container.\n\nThere are five different ways to configure the hook. As an example, all forms below are equivalent and will execute `rake test --verbose`.\n\n1. Shell script:\n\n       \"postCommit\": {\n         \"script\": \"rake test --verbose\",\n       }\n\n    The above is a convenient form which is equivalent to:\n\n       \"postCommit\": {\n         \"command\": [\"/bin/sh\", \"-ic\"],\n         \"args\":    [\"rake test --verbose\"]\n       }\n\n2. A command as the image entrypoint:\n\n       \"postCommit\": {\n         \"commit\": [\"rake\", \"test\", \"--verbose\"]\n       }\n\n    Command overrides the image entrypoint in the exec form, as documented in\n    Docker: https://docs.docker.com/engine/reference/builder/#entrypoint.\n\n3. Pass arguments to the default entrypoint:\n\n       \"postCommit\": {\n\t\t      \"args\": [\"rake\", \"test\", \"--verbose\"]\n\t      }\n\n    This form is only useful if the image entrypoint can handle arguments.\n\n4. Shell script with arguments:\n\n       \"postCommit\": {\n         \"script\": \"rake test $1\",\n         \"args\":   [\"--verbose\"]\n       }\n\n    This form is useful if you need to pass arguments that would otherwise be\n    hard to quote properly in the shell script. In the script, $0 will be\n    \"/bin/sh\" and $1, $2, etc, are the positional arguments from Args.\n\n5. Command with arguments:\n\n       \"postCommit\": {\n         \"command\": [\"rake\", \"test\"],\n         \"args\":    [\"--verbose\"]\n       }\n\n    This form is equivalent to appending the arguments to the Command slice.\n\nIt is invalid to provide both Script and Command simultaneously. If none of the fields are specified, the hook is not executed.",
+	"":        "A BuildPostCommitSpec holds a build post commit hook specification. The hook executes a command in a temporary container running the build output image, immediately after the last layer of the image is committed and before the image is pushed to a registry. The command is executed with the current working directory ($PWD) set to the image's WORKDIR.\n\nThe build will be marked as failed if the hook execution fails. It will fail if the script or command return a non-zero exit code, or if there is any other error related to starting the temporary container.\n\nThere are five different ways to configure the hook. As an example, all forms below are equivalent and will execute `rake test --verbose`.\n\n1. Shell script:\n\n\t   \"postCommit\": {\n\t     \"script\": \"rake test --verbose\",\n\t   }\n\n\tThe above is a convenient form which is equivalent to:\n\n\t   \"postCommit\": {\n\t     \"command\": [\"/bin/sh\", \"-ic\"],\n\t     \"args\":    [\"rake test --verbose\"]\n\t   }\n\n2. A command as the image entrypoint:\n\n\t   \"postCommit\": {\n\t     \"commit\": [\"rake\", \"test\", \"--verbose\"]\n\t   }\n\n\tCommand overrides the image entrypoint in the exec form, as documented in\n\tDocker: https://docs.docker.com/engine/reference/builder/#entrypoint.\n\n3. Pass arguments to the default entrypoint:\n\n\t       \"postCommit\": {\n\t\t\t      \"args\": [\"rake\", \"test\", \"--verbose\"]\n\t\t      }\n\n\t    This form is only useful if the image entrypoint can handle arguments.\n\n4. Shell script with arguments:\n\n\t   \"postCommit\": {\n\t     \"script\": \"rake test $1\",\n\t     \"args\":   [\"--verbose\"]\n\t   }\n\n\tThis form is useful if you need to pass arguments that would otherwise be\n\thard to quote properly in the shell script. In the script, $0 will be\n\t\"/bin/sh\" and $1, $2, etc, are the positional arguments from Args.\n\n5. Command with arguments:\n\n\t   \"postCommit\": {\n\t     \"command\": [\"rake\", \"test\"],\n\t     \"args\":    [\"--verbose\"]\n\t   }\n\n\tThis form is equivalent to appending the arguments to the Command slice.\n\nIt is invalid to provide both Script and Command simultaneously. If none of the fields are specified, the hook is not executed.",
 	"command": "command is the command to run. It may not be specified with Script. This might be needed if the image doesn't have `/bin/sh`, or if you do not want to use a shell. In all other cases, using Script might be more convenient.",
 	"args":    "args is a list of arguments that are provided to either Command, Script or the container image's default entrypoint. The arguments are placed immediately after the command to be run.",
 	"script":  "script is a shell script to be run with `/bin/sh -ic`. It may not be specified with Command. Use Script when a shell script is appropriate to execute the post build hook, for example for running unit tests with `rake test`. If you need control over the image entrypoint, or if the image does not have `/bin/sh`, use Command and/or Args. The `-i` flag is needed to support CentOS and RHEL images that use Software Collections (SCL), in order to have the appropriate collections enabled in the shell. E.g., in the Ruby image, this is necessary to make `ruby`, `bundle` and other binaries available in the PATH.",
@@ -168,6 +173,7 @@ func (BuildPostCommitSpec) SwaggerDoc() map[string]string {
 
 var map_BuildRequest = map[string]string{
 	"":                      "BuildRequest is the resource used to pass parameters to build generator\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
+	"metadata":              "metadata is the standard object's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
 	"revision":              "revision is the information from the source for a specific repo snapshot.",
 	"triggeredByImage":      "triggeredByImage is the Image that triggered this build.",
 	"from":                  "from is the reference to the ImageStreamTag that triggered the build.",

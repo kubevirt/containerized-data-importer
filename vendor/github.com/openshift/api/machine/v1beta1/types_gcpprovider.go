@@ -25,13 +25,56 @@ const (
 	RestartPolicyNever GCPRestartPolicyType = "Never"
 )
 
+// SecureBootPolicy represents the secure boot configuration for the GCP machine.
+type SecureBootPolicy string
+
+const (
+	// SecureBootPolicyEnabled enables the secure boot configuration for the GCP machine.
+	SecureBootPolicyEnabled SecureBootPolicy = "Enabled"
+	// SecureBootPolicyDisabled disables the secure boot configuration for the GCP machine.
+	SecureBootPolicyDisabled SecureBootPolicy = "Disabled"
+)
+
+// VirtualizedTrustedPlatformModulePolicy represents the virtualized trusted platform module configuration for the GCP machine.
+type VirtualizedTrustedPlatformModulePolicy string
+
+const (
+	// VirtualizedTrustedPlatformModulePolicyEnabled enables the virtualized trusted platform module configuration for the GCP machine.
+	VirtualizedTrustedPlatformModulePolicyEnabled VirtualizedTrustedPlatformModulePolicy = "Enabled"
+	// VirtualizedTrustedPlatformModulePolicyDisabled disables the virtualized trusted platform module configuration for the GCP machine.
+	VirtualizedTrustedPlatformModulePolicyDisabled VirtualizedTrustedPlatformModulePolicy = "Disabled"
+)
+
+// IntegrityMonitoringPolicy represents the integrity monitoring configuration for the GCP machine.
+type IntegrityMonitoringPolicy string
+
+const (
+	// IntegrityMonitoringPolicyEnabled enables integrity monitoring for the GCP machine.
+	IntegrityMonitoringPolicyEnabled IntegrityMonitoringPolicy = "Enabled"
+	// IntegrityMonitoringPolicyDisabled disables integrity monitoring for the GCP machine.
+	IntegrityMonitoringPolicyDisabled IntegrityMonitoringPolicy = "Disabled"
+)
+
+// ConfidentialComputePolicy represents the confidential compute configuration for the GCP machine.
+type ConfidentialComputePolicy string
+
+const (
+	// ConfidentialComputePolicyEnabled enables confidential compute for the GCP machine.
+	ConfidentialComputePolicyEnabled ConfidentialComputePolicy = "Enabled"
+	// ConfidentialComputePolicyDisabled disables confidential compute for the GCP machine.
+	ConfidentialComputePolicyDisabled ConfidentialComputePolicy = "Disabled"
+)
+
 // GCPMachineProviderSpec is the type that will be embedded in a Machine.Spec.ProviderSpec field
 // for an GCP virtual machine. It is used by the GCP machine actuator to create a single Machine.
 // Compatibility level 2: Stable within a major release for a minimum of 9 months or 3 minor releases (whichever is longer).
 // +openshift:compatibility-gen:level=2
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type GCPMachineProviderSpec struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+
+	// metadata is the standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// UserDataSecret contains a local reference to a secret that contains the
 	// UserData to apply to the instance
@@ -95,6 +138,17 @@ type GCPMachineProviderSpec struct {
 	// +kubebuilder:validation:Enum=Always;Never;
 	// +optional
 	RestartPolicy GCPRestartPolicyType `json:"restartPolicy,omitempty"`
+
+	// ShieldedInstanceConfig is the Shielded VM configuration for the VM
+	// +optional
+	ShieldedInstanceConfig GCPShieldedInstanceConfig `json:"shieldedInstanceConfig,omitempty"`
+
+	// confidentialCompute Defines whether the instance should have confidential compute enabled.
+	// If enabled OnHostMaintenance is required to be set to "Terminate".
+	// If omitted, the platform chooses a default, which is subject to change over time, currently that default is false.
+	// +kubebuilder:validation:Enum=Enabled;Disabled
+	// +optional
+	ConfidentialCompute ConfidentialComputePolicy `json:"confidentialCompute,omitempty"`
 }
 
 // GCPDisk describes disks for GCP.
@@ -199,25 +253,32 @@ type GCPMachineProviderStatus struct {
 	// Conditions is a set of conditions associated with the Machine to indicate
 	// errors or other status
 	// +optional
-	Conditions []GCPMachineProviderCondition `json:"conditions,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
-// GCPMachineProviderCondition is a condition in a GCPMachineProviderStatus
-type GCPMachineProviderCondition struct {
-	// Type is the type of the condition.
-	Type ConditionType `json:"type"`
-	// Status is the status of the condition.
-	Status corev1.ConditionStatus `json:"status"`
-	// LastProbeTime is the last time we probed the condition.
+// GCPShieldedInstanceConfig describes the shielded VM configuration of the instance on GCP.
+// Shielded VM configuration allow users to enable and disable Secure Boot, vTPM, and Integrity Monitoring.
+type GCPShieldedInstanceConfig struct {
+	// SecureBoot Defines whether the instance should have secure boot enabled.
+	// Secure Boot verify the digital signature of all boot components, and halting the boot process if signature verification fails.
+	// If omitted, the platform chooses a default, which is subject to change over time, currently that default is Disabled.
+	// +kubebuilder:validation:Enum=Enabled;Disabled
+	//+optional
+	SecureBoot SecureBootPolicy `json:"secureBoot,omitempty"`
+
+	// VirtualizedTrustedPlatformModule enable virtualized trusted platform module measurements to create a known good boot integrity policy baseline.
+	// The integrity policy baseline is used for comparison with measurements from subsequent VM boots to determine if anything has changed.
+	// This is required to be set to "Enabled" if IntegrityMonitoring is enabled.
+	// If omitted, the platform chooses a default, which is subject to change over time, currently that default is Enabled.
+	// +kubebuilder:validation:Enum=Enabled;Disabled
 	// +optional
-	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
-	// LastTransitionTime is the last time the condition transitioned from one status to another.
+	VirtualizedTrustedPlatformModule VirtualizedTrustedPlatformModulePolicy `json:"virtualizedTrustedPlatformModule,omitempty"`
+
+	// IntegrityMonitoring determines whether the instance should have integrity monitoring that verify the runtime boot integrity.
+	// Compares the most recent boot measurements to the integrity policy baseline and return
+	// a pair of pass/fail results depending on whether they match or not.
+	// If omitted, the platform chooses a default, which is subject to change over time, currently that default is Enabled.
+	// +kubebuilder:validation:Enum=Enabled;Disabled
 	// +optional
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
-	// Reason is a unique, one-word, CamelCase reason for the condition's last transition.
-	// +optional
-	Reason string `json:"reason,omitempty"`
-	// Message is a human-readable message indicating details about last transition.
-	// +optional
-	Message string `json:"message,omitempty"`
+	IntegrityMonitoring IntegrityMonitoringPolicy `json:"integrityMonitoring,omitempty"`
 }
