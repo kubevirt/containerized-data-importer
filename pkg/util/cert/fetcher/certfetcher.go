@@ -9,10 +9,6 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
-const (
-	baseCertPath = "/var/run/certs"
-)
-
 // CertFetcher is an interface for retreiving certs
 type CertFetcher interface {
 	KeyBytes() ([]byte, error)

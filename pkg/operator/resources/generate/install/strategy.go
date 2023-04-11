@@ -46,7 +46,7 @@ type Strategy struct {
 	certificateSecrets              []*corev1.Secret
 	sccs                            []*secv1.SecurityContextConstraints
 	configMaps                      []*corev1.ConfigMap
-	cdi                             []*cdiv1.CDI
+	cdi                             []*cdiv1.CDI //nolint:unused // TODO: check if need to remove this field
 }
 
 // ServiceAccounts returns list of Service Accounts

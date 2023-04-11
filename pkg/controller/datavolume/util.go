@@ -349,13 +349,6 @@ func setAnnOwnedByDataVolume(dest, obj metav1.Object) error {
 	return nil
 }
 
-func getReconcileResult(result *reconcile.Result) reconcile.Result {
-	if result != nil {
-		return *result
-	}
-	return reconcile.Result{}
-}
-
 // adapted from k8s.io/kubernetes/pkg/controller/volume/persistentvolume/pv_controller.go
 // checkVolumeSatisfyClaim checks if the volume requested by the claim satisfies the requirements of the claim
 func checkVolumeSatisfyClaim(volume *v1.PersistentVolume, claim *v1.PersistentVolumeClaim) error {

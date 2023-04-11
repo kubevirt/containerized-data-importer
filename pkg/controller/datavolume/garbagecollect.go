@@ -67,7 +67,7 @@ func (r *ReconcilerBase) isGarbageCollectionAllowed(dv *cdiv1.DataVolume, log lo
 		return false, nil
 	}
 	for _, ref := range dv.OwnerReferences {
-		if ref.BlockOwnerDeletion == nil || *ref.BlockOwnerDeletion == false {
+		if ref.BlockOwnerDeletion == nil || !*ref.BlockOwnerDeletion {
 			continue
 		}
 		if allowed, err := r.canUpdateFinalizers(ref); !allowed || err != nil {
@@ -141,7 +141,7 @@ func findOwnerRef(refs []metav1.OwnerReference, uid types.UID) int {
 func getDeltaTTL(dv *cdiv1.DataVolume, ttl int32) time.Duration {
 	delta := time.Second * time.Duration(ttl)
 	if cond := FindConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions); cond != nil {
-		delta -= time.Now().Sub(cond.LastTransitionTime.Time)
+		delta -= time.Since(cond.LastTransitionTime.Time)
 	}
 	return delta
 }

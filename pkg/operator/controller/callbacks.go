@@ -341,7 +341,7 @@ func olderVersionsExist(desiredVersion string, crd *extv1.CustomResourceDefiniti
 
 func desiredIsStorage(desiredVersion string, crd *extv1.CustomResourceDefinition) bool {
 	specVersion := getSpecVersion(desiredVersion, crd)
-	return specVersion != nil && specVersion.Storage == true
+	return specVersion != nil && specVersion.Storage
 }
 
 func newestVersion(crd *extv1.CustomResourceDefinition) string {

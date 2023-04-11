@@ -451,7 +451,7 @@ func copyDiskImage(f *framework.Framework, pod *v1.Pod, name string) {
 	path := getSnapshotPath(name)
 	dest := fmt.Sprintf("%s:/images/%s", pod.Name, name)
 	out, err := f.RunKubectlCommand("cp", "-n", pod.Namespace, "-c", "imageiotest", path, dest)
-	gomega.Expect(err).To(gomega.BeNil(), fmt.Sprintf("%s", out))
+	gomega.Expect(err).ToNot(gomega.HaveOccurred(), out)
 }
 
 // Add ticket to imageiotest API, so importer can download it

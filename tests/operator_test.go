@@ -61,10 +61,7 @@ var _ = Describe("ALL Operator tests", func() {
 					originalReplicaVal = scaleDeployment(f, deploymentName, 0)
 					Eventually(func() bool {
 						_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, deploymentName, common.CDILabelSelector)
-						if !errors.IsNotFound(err) {
-							return false
-						}
-						return true
+						return errors.IsNotFound(err)
 					}, 20*time.Second, 1*time.Second).Should(BeTrue())
 
 					By("Appending v1alpha1 version as stored version")

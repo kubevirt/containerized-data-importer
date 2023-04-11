@@ -1045,13 +1045,6 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	return r
 }
 
-func createFeatureGates() featuregates.FeatureGates {
-	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
-	cl := fake.NewFakeClientWithScheme(s, cc.MakeEmptyCDIConfigSpec(common.ConfigName))
-	return featuregates.NewFeatureGates(cl)
-}
-
 func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar {
 	env := []corev1.EnvVar{
 		{

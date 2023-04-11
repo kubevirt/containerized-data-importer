@@ -68,10 +68,7 @@ func (f *Framework) runOcCommand(args ...string) (string, error) {
 // IsPrometheusAvailable decides whether or not we will run prometheus alert/metric tests
 func (f *Framework) IsPrometheusAvailable() bool {
 	_, err := f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), "prometheuses.monitoring.coreos.com", metav1.GetOptions{})
-	if k8serrors.IsNotFound(err) {
-		return false
-	}
-	return true
+	return !k8serrors.IsNotFound(err)
 }
 
 // MakePrometheusHTTPRequest makes a request to the prometheus api and returns the response
@@ -115,19 +112,13 @@ func (f *Framework) getPrometheusURL() string {
 	if utils.IsOpenshift(f.K8sClient) {
 		gomega.Eventually(func() bool {
 			host, err = f.runOcCommand("-n", "openshift-monitoring", "get", "route", "prometheus-k8s", "--template", "{{.spec.host}}")
-			if err != nil {
-				return false
-			}
-			return true
+			return err == nil
 		}, 10*time.Second, time.Second).Should(gomega.BeTrue())
 		url = fmt.Sprintf("https://%s", host)
 	} else {
 		gomega.Eventually(func() bool {
 			port, err = f.runGoCLICommand("ports", "prometheus")
-			if err != nil {
-				return false
-			}
-			return true
+			return err == nil
 		}, 10*time.Second, time.Second).Should(gomega.BeTrue())
 		port = strings.TrimSpace(port)
 		gomega.Expect(port).ToNot(gomega.BeEmpty())

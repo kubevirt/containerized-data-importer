@@ -38,8 +38,6 @@ import (
 )
 
 const (
-	importControllerAgentName = "import-controller"
-
 	// ErrImportFailedPVC provides a const to indicate an import to the PVC failed
 	ErrImportFailedPVC = "ErrImportFailed"
 	// ImportSucceededPVC provides a const to indicate an import to the PVC failed
@@ -69,7 +67,7 @@ type ImportReconciler struct {
 	image              string
 	verbose            string
 	pullPolicy         string
-	filesystemOverhead string
+	filesystemOverhead string //nolint:unused // TODO: check if need to remove this field
 	cdiNamespace       string
 	featureGates       featuregates.FeatureGates
 	installerLabels    map[string]string
@@ -830,8 +828,7 @@ func getRegistryImportImage(pvc *corev1.PersistentVolumeClaim) (string, error) {
 
 // getValueFromAnnotation returns the value of an annotation
 func getValueFromAnnotation(pvc *corev1.PersistentVolumeClaim, annotation string) string {
-	value, _ := pvc.Annotations[annotation]
-	return value
+	return pvc.Annotations[annotation]
 }
 
 // If this pod is going to transfer one checkpoint in a multi-stage import, attach the checkpoint name to the pod name so

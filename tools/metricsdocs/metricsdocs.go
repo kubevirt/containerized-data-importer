@@ -2,10 +2,8 @@ package main
 
 import (
 	"fmt"
-	"sort"
-	"strings"
-
 	"kubevirt.io/containerized-data-importer/pkg/monitoring"
+	"sort"
 )
 
 // constant parts of the file
@@ -84,14 +82,6 @@ func (m metricList) Less(i, j int) bool {
 // Swap implements sort.Interface.Swap
 func (m metricList) Swap(i, j int) {
 	m[i], m[j] = m[j], m[i]
-}
-
-func (m *metricList) add(line string) {
-	split := strings.Split(line, " ")
-	name := split[2]
-	split[3] = strings.Title(split[3])
-	description := strings.Join(split[3:], " ")
-	*m = append(*m, monitoring.MetricOpts{Name: name, Help: description})
 }
 
 func (m metricList) writeOut() {

@@ -1,0 +1,8 @@
+linters:
+  # enable:
+  # - ginkgolinter # TODO: enable and fix warnings # enforces standards of using ginkgo and gomega
+  disable:
+  - errcheck # TODO: part of default linters. Fix warnings and remove this line # errcheck is a program for checking for unchecked errors in Go code. These unchecked errors can be critical bugs in some cases [fast: false, auto-fix: false]
+  - ineffassign # TODO: part of default linters. Fix warnings and remove this line # Detects when assignments to existing variables are not used [fast: true, auto-fix: false]
+  - staticcheck # TODO: part of default linters. Fix warnings and remove this line # (megacheck): It's a set of rules from staticcheck. It's not the same thing as the staticcheck binary. The author of staticcheck doesn't support or approve the use of staticcheck as a library inside golangci-lint. [fast: false, auto-fix: false]
+  - typecheck # TODO: part of default linters. Fix warnings and remove this line #: Like the front-end of a Go compiler, parses and type-checks Go code [fast: false, auto-fix: false]

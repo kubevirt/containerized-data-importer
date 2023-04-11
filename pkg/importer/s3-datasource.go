@@ -198,7 +198,7 @@ func getS3Client(endpoint, accessKey, secKey string, certDir string, urlScheme s
 
 func extractRegion(s string) string {
 	var region string
-	r, _ := regexp.Compile("s3\\.(.+)\\.amazonaws\\.com")
+	r, _ := regexp.Compile(`s3\.(.+)\.amazonaws\.com`)
 	if matches := r.FindStringSubmatch(s); matches != nil {
 		region = matches[1]
 	} else {

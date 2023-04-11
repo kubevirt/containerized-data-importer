@@ -1,7 +1,6 @@
 package datavolume
 
 import (
-	"fmt"
 	"strconv"
 
 	. "github.com/onsi/ginkgo"
@@ -55,7 +54,7 @@ var _ = Describe("resolveVolumeSize", func() {
 		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", httpSource, storageSpec)
 		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, pvcSpec)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Datavolume Spec is not valid - missing storage size")))
+		Expect(err.Error()).To(ContainSubstring("Datavolume Spec is not valid - missing storage size"))
 		Expect(requestedVolumeSize).To(BeNil())
 	})
 

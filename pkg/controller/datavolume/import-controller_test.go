@@ -19,16 +19,14 @@ package datavolume
 import (
 	"context"
 	"fmt"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
-	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -56,9 +54,7 @@ const (
 )
 
 var (
-	alwaysReady        = func() bool { return true }
-	noResyncPeriodFunc = func() time.Duration { return 0 }
-	dvImportLog        = logf.Log.WithName("datavolume-import-controller-test")
+	dvImportLog = logf.Log.WithName("datavolume-import-controller-test")
 )
 
 var _ = Describe("All DataVolume Tests", func() {

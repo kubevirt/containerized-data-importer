@@ -2,20 +2,15 @@ package controller
 
 import (
 	"fmt"
-	"strings"
-	"testing"
-
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
-
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -400,16 +395,6 @@ var _ = Describe("check PVC", func() {
 	)
 })
 
-func addOwnerToDV(dv *cdiv1.DataVolume, ownerName string) {
-	dv.ObjectMeta.OwnerReferences = []metav1.OwnerReference{
-		{
-			APIVersion: "v1",
-			Kind:       "VirtualMachine",
-			Name:       ownerName,
-		},
-	}
-}
-
 func createDataVolumeWithStorageClass(name, ns, storageClassName string) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
@@ -421,18 +406,6 @@ func createDataVolumeWithStorageClass(name, ns, storageClassName string) *cdiv1.
 			PVC: &corev1.PersistentVolumeClaimSpec{
 				StorageClassName: &storageClassName,
 			},
-		},
-	}
-}
-
-func createDataVolume(name, ns string) *cdiv1.DataVolume {
-	return &cdiv1.DataVolume{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
-		},
-		Spec: cdiv1.DataVolumeSpec{
-			Source: &cdiv1.DataVolumeSource{},
 		},
 	}
 }
@@ -464,55 +437,6 @@ func createDataVolumeWithStorageClassPreallocation(name, ns, storageClassName st
 			},
 		},
 	}
-}
-
-func createScratchPvc(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, storageClassName string) *v1.PersistentVolumeClaim {
-	t := true
-	labels := map[string]string{
-		"cdi-controller": pod.Name,
-		"app":            "containerized-data-importer",
-	}
-	annotations := make(map[string]string)
-	if len(pvc.GetAnnotations()) > 0 {
-		for k, v := range pvc.GetAnnotations() {
-			if strings.Contains(k, common.KubeVirtAnnKey) && !strings.Contains(k, common.CDIAnnKey) {
-				annotations[k] = v
-			}
-		}
-	}
-
-	return &v1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        pvc.Name + "-scratch",
-			Namespace:   pvc.Namespace,
-			Labels:      labels,
-			Annotations: annotations,
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion:         "v1",
-					Kind:               "Pod",
-					Name:               pod.Name,
-					UID:                pod.GetUID(),
-					Controller:         &t,
-					BlockOwnerDeletion: &t,
-				},
-			},
-		},
-		Spec: v1.PersistentVolumeClaimSpec{
-			AccessModes:      []v1.PersistentVolumeAccessMode{"ReadWriteOnce"},
-			Resources:        pvc.Spec.Resources,
-			StorageClassName: &storageClassName,
-		},
-	}
-}
-
-func getPvcKey(pvc *corev1.PersistentVolumeClaim, t *testing.T) string {
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(pvc)
-	if err != nil {
-		t.Errorf("Unexpected error getting key for pvc %v: %v", pvc.Name, err)
-		return ""
-	}
-	return key
 }
 
 func createCDIConfig(name string) *cdiv1.CDIConfig {

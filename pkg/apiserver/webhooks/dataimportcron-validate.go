@@ -68,7 +68,7 @@ func (wh *dataImportCronValidatingWebhook) Admit(ar admissionv1.AdmissionReview)
 			var causes []metav1.StatusCause
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueDuplicate,
-				Message: fmt.Sprintf("Cannot update DataImportCron Spec"),
+				Message: "Cannot update DataImportCron Spec",
 				Field:   k8sfield.NewPath("DataImportCron").Child("Spec").String(),
 			})
 			return toRejectedAdmissionResponse(causes)
@@ -91,7 +91,7 @@ func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *a
 	if spec.Template.Spec.Source == nil || spec.Template.Spec.Source.Registry == nil {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Missing registry source"),
+			Message: "Missing registry source",
 			Field:   field.Child("Template").String(),
 		})
 		return causes
@@ -100,10 +100,10 @@ func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *a
 	if spec.Template.Spec.SourceRef != nil ||
 		spec.Template.Spec.ContentType != "" ||
 		len(spec.Template.Spec.Checkpoints) > 0 ||
-		spec.Template.Spec.FinalCheckpoint == true {
+		spec.Template.Spec.FinalCheckpoint {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Unsettable fields: SourceRef, ContentType, Checkpoints, FinalCheckpoint"),
+			Message: "Unsettable fields: SourceRef, ContentType, Checkpoints, FinalCheckpoint",
 			Field:   field.Child("Template").String(),
 		})
 		return causes
@@ -117,7 +117,7 @@ func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *a
 	if _, err := cronexpr.Parse(spec.Schedule); err != nil {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Illegal cron schedule"),
+			Message: "Illegal cron schedule",
 			Field:   field.Child("Schedule").String(),
 		})
 		return causes
@@ -126,7 +126,7 @@ func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *a
 	if spec.ImportsToKeep != nil && *spec.ImportsToKeep < 0 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Illegal ImportsToKeep value"),
+			Message: "Illegal ImportsToKeep value",
 			Field:   field.Child("ImportsToKeep").String(),
 		})
 		return causes
@@ -137,7 +137,7 @@ func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *a
 		*spec.GarbageCollect != cdiv1.DataImportCronGarbageCollectOutdated {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Illegal GarbageCollect value"),
+			Message: "Illegal GarbageCollect value",
 			Field:   field.Child("GarbageCollect").String(),
 		})
 		return causes
@@ -146,7 +146,7 @@ func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *a
 	if spec.ManagedDataSource == "" {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Illegal ManagedDataSource value"),
+			Message: "Illegal ManagedDataSource value",
 			Field:   field.Child("ManagedDataSource").String(),
 		})
 		return causes

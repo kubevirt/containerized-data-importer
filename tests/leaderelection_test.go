@@ -37,12 +37,7 @@ var (
 	logCheckLeaderRegEx  = regexp.MustCompile("Attempting to acquire leader lease")
 	logIsLeaderRegex     = regexp.MustCompile("Successfully acquired leadership lease")
 	logImporterStarting  = regexp.MustCompile("Converting to Raw")
-	logImporterCompleted = regexp.MustCompile("\\] \\d\\d\\.\\d{1,2}")
-
-	// These are constants we want to take the pointer of
-	disableOperator = int32(0)
-	enableOperator  = int32(1)
-	scale2          = int32(2)
+	logImporterCompleted = regexp.MustCompile(`\] \d\d\.\d{1,2}`)
 )
 
 func checkLogForRegEx(regEx *regexp.Regexp, log string) bool {
@@ -251,12 +246,6 @@ func getDeployments(f *framework.Framework) *appsv1.DeploymentList {
 	deployments, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{LabelSelector: common.CDILabelSelector})
 	Expect(err).ToNot(HaveOccurred())
 	return deployments
-}
-
-func getOperatorDeployment(f *framework.Framework) *appsv1.Deployment {
-	deployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), cdiOperatorName, metav1.GetOptions{})
-	Expect(err).ToNot(HaveOccurred())
-	return deployment
 }
 
 func getPods(f *framework.Framework) *v1.PodList {

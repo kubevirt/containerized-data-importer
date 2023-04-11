@@ -614,12 +614,3 @@ func replaceAvailableSpaceBlockFunc(replacement func(string) (int64, error), f f
 	}()
 	f()
 }
-
-func replaceAvailableSpaceFunc(replacement func(string) (int64, error), f func()) {
-	origFunc := getAvailableSpaceFunc
-	getAvailableSpaceFunc = replacement
-	defer func() {
-		getAvailableSpaceFunc = origFunc
-	}()
-	f()
-}

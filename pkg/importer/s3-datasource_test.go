@@ -203,7 +203,7 @@ var _ = Describe("S3 data source", func() {
 
 // MockS3Client is a mock AWS S3 client
 type MockS3Client struct {
-	endpoint string
+	endpoint string //nolint:unused // TODO: check if need to remove this field
 	accKey   string
 	secKey   string
 	certDir  string

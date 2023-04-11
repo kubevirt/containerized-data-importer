@@ -92,10 +92,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				By("Verifying kubectl create")
 				Eventually(func() bool {
 					_, err := f.RunKubectlCommand("create", "-f", destinationFile, "-n", f.Namespace.Name)
-					if err != nil {
-						return true
-					}
-					return false
+					return err != nil
 				}, timeout, pollingInterval).Should(BeTrue())
 
 			},
@@ -130,10 +127,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				Eventually(func() bool {
 					out, err := f.RunKubectlCommand("create", "-f", destinationFile, "-n", f.Namespace.Name)
 					By("out: " + out)
-					if err != nil {
-						return true
-					}
-					return false
+					return err != nil
 				}, timeout, pollingInterval).Should(BeTrue())
 
 			},
@@ -156,10 +150,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				By("Verifying kubectl apply")
 				Eventually(func() bool {
 					_, err := f.RunKubectlCommand("create", "-f", destinationFile, "-n", f.Namespace.Name)
-					if err != nil {
-						return true
-					}
-					return false
+					return err != nil
 				}, timeout, pollingInterval).Should(BeTrue())
 			},
 				table.Entry("[test_id:1033]fail with zero PVC size", "0"),
@@ -187,10 +178,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			Eventually(func() bool {
 
 				_, err := f.RunKubectlCommand("create", "-f", datavolumeTestFile, "-n", f.Namespace.Name)
-				if err != nil {
-					return true
-				}
-				return false
+				return err != nil
 			}, timeout, pollingInterval).Should(BeTrue())
 
 		})
@@ -213,10 +201,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			Eventually(func() bool {
 
 				_, err := f.RunKubectlCommand("create", "-f", datavolumeTestFile, "-n", f.Namespace.Name)
-				if err != nil {
-					return true
-				}
-				return false
+				return err != nil
 			}, timeout, pollingInterval).Should(BeTrue())
 
 		})
@@ -239,10 +224,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			Eventually(func() bool {
 
 				_, err := f.RunKubectlCommand("create", "-f", "manifests/dvImageio.yaml", "-n", f.Namespace.Name)
-				if err != nil {
-					return true
-				}
-				return false
+				return err != nil
 			}, timeout, pollingInterval).Should(BeTrue())
 
 		})
@@ -265,10 +247,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			Eventually(func() bool {
 
 				_, err := f.RunKubectlCommand("create", "-f", "manifests/dvVddk.yaml", "-n", f.Namespace.Name)
-				if err != nil {
-					return true
-				}
-				return false
+				return err != nil
 			}, timeout, pollingInterval).Should(BeTrue())
 
 		})
@@ -340,7 +319,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				Expect(dverr).ToNot(HaveOccurred(), "datavolume %s phase %s", dv.Name, dv.Status.Phase)
 			}
 			Expect(err).ToNot(HaveOccurred())
-			progressRegExp := regexp.MustCompile("\\d{1,3}\\.?\\d{1,2}%")
+			progressRegExp := regexp.MustCompile(`\d{1,3}\.?\d{1,2}%`)
 			Eventually(func() bool {
 				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())

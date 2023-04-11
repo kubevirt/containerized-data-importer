@@ -40,8 +40,6 @@ type UserCloneAuthFunc func(client SubjectAccessReviewsProxy, sourceNamespace, p
 // ServiceAccountCloneAuthFunc represents a serviceaccount clone auth func
 type ServiceAccountCloneAuthFunc func(client SubjectAccessReviewsProxy, pvcNamespace, pvcName, saNamespace, saName string) (bool, string, error)
 
-type getResourceAttributesFunc func(namespace, name string) []authorization.ResourceAttributes
-
 // CanUserClonePVC checks if a user has "appropriate" permission to clone from the given PVC
 func CanUserClonePVC(client SubjectAccessReviewsProxy, sourceNamespace, pvcName, targetNamespace string,
 	userInfo authentication.UserInfo) (bool, string, error) {

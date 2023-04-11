@@ -797,37 +797,3 @@ func createUploadService(pvc *corev1.PersistentVolumeClaim) *corev1.Service {
 	}
 	return service
 }
-
-func createUploadServerCertSecret(pvc *corev1.PersistentVolumeClaim) *corev1.Secret {
-	name := "cdi-upload-" + pvc.Name
-	pod := createUploadPod(pvc)
-	blockOwnerDeletion := true
-	isController := true
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: pvc.Namespace,
-			Annotations: map[string]string{
-				annCreatedByUpload: "yes",
-			},
-			Labels: map[string]string{
-				common.CDILabelKey:       common.CDILabelValue,
-				common.CDIComponentLabel: common.UploadServerCDILabel,
-			},
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion:         "v1",
-					Kind:               "Pod",
-					Name:               pod.Name,
-					UID:                pod.GetUID(),
-					BlockOwnerDeletion: &blockOwnerDeletion,
-					Controller:         &isController,
-				},
-			},
-		},
-		Data: map[string][]byte{
-			"tls.key": []byte("key"),
-			"tls.crt": []byte("cert"),
-		},
-	}
-}

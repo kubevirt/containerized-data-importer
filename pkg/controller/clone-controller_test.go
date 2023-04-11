@@ -42,7 +42,6 @@ import (
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
-	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
 var (
@@ -721,71 +720,6 @@ func createCloneReconciler(objects ...runtime.Object) *CloneReconciler {
 			common.AppKubernetesVersionLabel: "v0.0.0-tests",
 		},
 	}
-}
-
-func testCreateClientKeyAndCert(ca *triple.KeyPair, commonName string, organizations []string) ([]byte, []byte, error) {
-	return []byte("foo"), []byte("bar"), nil
-}
-
-func createClonePvc(sourceNamespace, sourceName, targetNamespace, targetName string, annotations, labels map[string]string) *corev1.PersistentVolumeClaim {
-	return createClonePvcWithSize(sourceNamespace, sourceName, targetNamespace, targetName, annotations, labels, "1G")
-}
-
-func createClonePvcWithSize(sourceNamespace, sourceName, targetNamespace, targetName string, annotations, labels map[string]string, size string) *corev1.PersistentVolumeClaim {
-	tokenData := &token.Payload{
-		Operation: token.OperationClone,
-		Name:      sourceName,
-		Namespace: sourceNamespace,
-		Resource: metav1.GroupVersionResource{
-			Group:    "",
-			Version:  "v1",
-			Resource: "persistentvolumeclaims",
-		},
-		Params: map[string]string{
-			"targetNamespace": targetNamespace,
-			"targetName":      targetName,
-		},
-	}
-
-	g := token.NewGenerator(common.CloneTokenIssuer, cc.GetAPIServerKey(), 5*time.Minute)
-
-	tokenString, err := g.Generate(tokenData)
-	if err != nil {
-		panic("error generating token")
-	}
-
-	if annotations == nil {
-		annotations = make(map[string]string)
-	}
-
-	annotations[cc.AnnCloneRequest] = fmt.Sprintf("%s/%s", sourceNamespace, sourceName)
-	annotations[cc.AnnCloneToken] = tokenString
-	annotations[AnnUploadClientName] = "FOOBAR"
-
-	return &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        targetName,
-			Namespace:   targetNamespace,
-			Annotations: annotations,
-			Labels:      labels,
-			UID:         "pvc-uid",
-		},
-		Spec: corev1.PersistentVolumeClaimSpec{
-			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany, corev1.ReadWriteOnce},
-			Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceName(corev1.ResourceStorage): resource.MustParse(size),
-				},
-			},
-		},
-	}
-}
-
-func createCloneBlockPvc(sourceNamespace, sourceName, targetNamespace, targetName string, annotations, labels map[string]string) *corev1.PersistentVolumeClaim {
-	pvc := createClonePvc(sourceNamespace, sourceName, targetNamespace, targetName, annotations, labels)
-	VolumeMode := corev1.PersistentVolumeBlock
-	pvc.Spec.VolumeMode = &VolumeMode
-	return pvc
 }
 
 func createSourcePod(pvc *corev1.PersistentVolumeClaim, pvcUID string) *corev1.Pod {

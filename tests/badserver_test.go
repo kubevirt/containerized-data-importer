@@ -2,8 +2,6 @@ package tests
 
 import (
 	"fmt"
-	"time"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -16,7 +14,6 @@ import (
 
 var _ = Describe("Problematic server responses", func() {
 	f := framework.NewFramework("badserver-func-test")
-	const dvWaitTimeout = 500 * time.Second
 	var dataVolume *cdiv1.DataVolume
 
 	DescribeTable("Importing from cdi bad web server", func(pathname string) {
