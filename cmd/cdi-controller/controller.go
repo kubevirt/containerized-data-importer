@@ -272,6 +272,10 @@ func start() {
 		klog.Errorf("Unable to create common populator indexes: %v", err)
 		os.Exit(1)
 	}
+	if _, err := populators.NewImportPopulator(ctx, mgr, log, installerLabels); err != nil {
+		klog.Errorf("Unable to setup import populator: %v", err)
+		os.Exit(1)
+	}
 
 	klog.V(1).Infoln("created cdi controllers")
 

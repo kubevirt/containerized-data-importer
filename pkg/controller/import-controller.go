@@ -186,10 +186,6 @@ func (r *ImportReconciler) shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim,
 		nil
 }
 
-func isImageStream(pvc *corev1.PersistentVolumeClaim) bool {
-	return pvc.Annotations[cc.AnnRegistryImageStream] == "true"
-}
-
 // Reconcile the reconcile loop for the CDIConfig object.
 func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("PVC", req.NamespacedName)
@@ -246,7 +242,7 @@ func (r *ImportReconciler) findImporterPod(pvc *corev1.PersistentVolumeClaim, lo
 		}
 		return nil, nil
 	}
-	if !metav1.IsControlledBy(pod, pvc) && !isImageStream(pvc) {
+	if !metav1.IsControlledBy(pod, pvc) && !cc.IsImageStream(pvc) {
 		return nil, errors.Errorf("Pod is not owned by PVC")
 	}
 	log.V(1).Info("Pod is owned by PVC", pod.Name, pvc.Name)
@@ -538,7 +534,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 
 	// If importing from image stream, add finalizer. Note we don't watch the importer pod in this case,
 	// so to prevent a deadlock we add finalizer only if the pod is not retained after completion.
-	if isImageStream(pvc) && pvc.GetAnnotations()[cc.AnnPodRetainAfterCompletion] != "true" {
+	if cc.IsImageStream(pvc) && pvc.GetAnnotations()[cc.AnnPodRetainAfterCompletion] != "true" {
 		cc.AddFinalizer(pvc, importPodImageStreamFinalizer)
 		if err := r.updatePVC(pvc, r.log); err != nil {
 			return err
@@ -819,7 +815,7 @@ func getRegistryImportImage(pvc *corev1.PersistentVolumeClaim) (string, error) {
 	if err != nil {
 		return "", nil
 	}
-	if isImageStream(pvc) {
+	if cc.IsImageStream(pvc) {
 		return ep, nil
 	}
 	url, err := url.Parse(ep)
@@ -989,7 +985,7 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 		unauthorized: authentication required
 	When we don't set pod OwnerReferences, all works well.
 	*/
-	if isImageStream(args.pvc) {
+	if cc.IsImageStream(args.pvc) {
 		pod.Annotations[cc.AnnOpenShiftImageLookup] = "*"
 	} else {
 		blockOwnerDeletion := true
@@ -1016,6 +1012,9 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 	})
 
 	cc.SetRestrictedSecurityContext(&pod.Spec)
+	// We explicitly define a NodeName for dynamically provisioned PVCs
+	// when the PVC is being handled by a populator (PVC')
+	cc.SetNodeNameIfPopulator(args.pvc, &pod.Spec)
 
 	return pod
 }
@@ -1174,6 +1173,9 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 	}
 
 	cc.SetRestrictedSecurityContext(&pod.Spec)
+	// We explicitly define a NodeName for dynamically provisioned PVCs
+	// when the PVC is being handled by a populator (PVC')
+	cc.SetNodeNameIfPopulator(args.pvc, &pod.Spec)
 
 	return pod
 }
