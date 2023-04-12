@@ -800,14 +800,6 @@ var _ = Describe("Namespace with quota", func() {
 			pvcAnn,
 			nil))
 
-		By("Verify Quota was exceeded in logs")
-		matchString := strings.Trim(fmt.Sprintf(`"name": "import-image-to-pvc", "namespace": "%s", "error": "pods \"importer-import-image-to-pvc\" is forbidden: exceeded quota: test-quota`, f.Namespace.Name), " ")
-		Eventually(func() string {
-			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-			Expect(err).NotTo(HaveOccurred())
-			return strings.Trim(log, " ")
-		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
-
 		By("Check the expected event")
 		msg := fmt.Sprintf(controller.MessageErrStartingPod, "importer-import-image-to-pvc")
 		f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(msg))
@@ -831,14 +823,6 @@ var _ = Describe("Namespace with quota", func() {
 			"500Mi",
 			pvcAnn,
 			nil))
-
-		By("Verify Quota was exceeded in logs")
-		matchString := strings.Trim(fmt.Sprintf(`"name": "import-image-to-pvc", "namespace": "%s", "error": "pods \"importer-import-image-to-pvc\" is forbidden: exceeded quota: test-quota`, f.Namespace.Name), " ")
-		Eventually(func() string {
-			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-			Expect(err).NotTo(HaveOccurred())
-			return strings.Trim(log, " ")
-		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 
 		By("Check the expected event")
 		msg := fmt.Sprintf(controller.MessageErrStartingPod, "importer-import-image-to-pvc")

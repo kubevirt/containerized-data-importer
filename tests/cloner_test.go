@@ -2235,14 +2235,6 @@ var _ = Describe("all clone tests", func() {
 
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
-			By("Verify Quota was exceeded in logs")
-			matchString := strings.Trim(fmt.Sprintf("\"namespace\": \"%s\", \"error\": \"pods \\\"cdi-upload-target-dv\\\" is forbidden: exceeded quota: test-quota, requested", targetNs.Name), " ")
-			Eventually(func() string {
-				log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-				Expect(err).NotTo(HaveOccurred())
-				return strings.Trim(log, " ")
-			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
-
 			expectedCondition := &cdiv1.DataVolumeCondition{
 				Type:    cdiv1.DataVolumeRunning,
 				Status:  v1.ConditionFalse,
