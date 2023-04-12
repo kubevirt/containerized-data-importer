@@ -1,3 +1,19 @@
+/*
+Copyright 2023 The CDI Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package populators
 
 import (
@@ -8,7 +24,6 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
@@ -17,12 +32,12 @@ const (
 
 	// errCreatingPVCPrime provides a const to indicate we failed to create PVC prime for population
 	errCreatingPVCPrime = "ErrCreatingPVCPrime"
-	// createdPVCPrimeSucceesfully provides a const to indicate we created PVC prime for population
-	createdPVCPrimeSucceesfully = "CreatedPVCPrimeSucceesfully"
 
-	// AnnSelectedNode annotation is added to a PVC that has been triggered by scheduler to
-	// be dynamically provisioned. Its value is the name of the selected node.
-	AnnSelectedNode = "volume.kubernetes.io/selected-node"
+	// createdPVCPrimeSuccessfully provides a const to indicate we created PVC prime for population (reason)
+	createdPVCPrimeSuccessfully = "CreatedPVCPrimeSuccessfully"
+	// messageCreatedPVCPrimeSuccessfully provides a const to indicate we created PVC prime for population (message)
+	messageCreatedPVCPrimeSuccessfully = "PVC Prime created successfully"
+
 	// annMigratedTo annotation is added to a PVC and PV that is supposed to be
 	// dynamically provisioned/deleted by by its corresponding CSI driver
 	// through the CSIMigration feature flags. When this annotation is set the
@@ -43,16 +58,22 @@ func isPVCPrimeDataSourceRefKind(pvc *corev1.PersistentVolumeClaim, kind string)
 	if owner == nil || owner.Kind != "PersistentVolumeClaim" {
 		return false
 	}
-	_, ok := pvc.Annotations[cc.AnnUploadRequest]
-	if ok {
-		return kind == cdiv1.UploadSourceRef
-	}
-	return false
+	populatorKind, _ := pvc.Annotations[cc.AnnPopulatorKind]
+	return populatorKind == kind
 }
 
 // PVCPrimeName returns the name of the PVC' of a given pvc
 func PVCPrimeName(targetPVC *corev1.PersistentVolumeClaim) string {
 	return fmt.Sprintf("%s-%s", primePvcPrefix, targetPVC.UID)
+}
+
+func getPopulatorIndexKey(namespace, kind, name string) string {
+	return namespace + "/" + kind + "/" + name
+}
+
+func isPVCOwnedByDataVolume(pvc *corev1.PersistentVolumeClaim) bool {
+	owner := metav1.GetControllerOf(pvc)
+	return (owner != nil && owner.Kind == "DataVolume") || cc.HasAnnOwnedByDataVolume(pvc)
 }
 
 func checkIntreeStorageClass(pvc *corev1.PersistentVolumeClaim, sc *storagev1.StorageClass) bool {
@@ -70,4 +91,9 @@ func checkIntreeStorageClass(pvc *corev1.PersistentVolumeClaim, sc *storagev1.St
 
 	// The SC is in-tree & PVC is not migrated
 	return true
+}
+
+func isPVBoundToPVC(pv *corev1.PersistentVolume, pvc *corev1.PersistentVolumeClaim) bool {
+	claimRef := pv.Spec.ClaimRef
+	return claimRef.Name == pvc.Name && claimRef.Namespace == pvc.Namespace && claimRef.UID == pvc.UID
 }

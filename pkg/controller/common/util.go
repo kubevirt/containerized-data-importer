@@ -187,6 +187,10 @@ const (
 	// AnnPersistentVolumeList is an annotation storing a list of PV names
 	AnnPersistentVolumeList = AnnAPIGroup + "/storage.persistentVolumeList"
 
+	// AnnPopulatorKind annotation is added to a PVC' to specify the population kind, so it's later
+	// checked by the common populator watches.
+	AnnPopulatorKind = AnnAPIGroup + "/storage.populator.kind"
+
 	//AnnDefaultStorageClass is the annotation indicating that a storage class is the default one.
 	AnnDefaultStorageClass = "storageclass.kubernetes.io/is-default-class"
 
@@ -209,6 +213,10 @@ const (
 
 	// AnnImmediateBinding provides a const to indicate whether immediate binding should be performed on the PV (overrides global config)
 	AnnImmediateBinding = AnnAPIGroup + "/storage.bind.immediate.requested"
+
+	// AnnSelectedNode annotation is added to a PVC that has been triggered by scheduler to
+	// be dynamically provisioned. Its value is the name of the selected node.
+	AnnSelectedNode = "volume.kubernetes.io/selected-node"
 
 	// CloneUniqueID is used as a special label to be used when we search for the pod
 	CloneUniqueID = "cdi.kubevirt.io/storage.clone.cloneUniqeId"
@@ -916,6 +924,15 @@ func SetRestrictedSecurityContext(podSpec *v1.PodSpec) {
 			podSpec.SecurityContext = &v1.PodSecurityContext{}
 		}
 		podSpec.SecurityContext.FSGroup = pointer.Int64(common.QemuSubGid)
+	}
+}
+
+// SetNodeNameIfPopulator sets NodeName in a pod spec when the PVC is being handled by a CDI volume populator
+func SetNodeNameIfPopulator(pvc *corev1.PersistentVolumeClaim, podSpec *v1.PodSpec) {
+	_, isPopulator := pvc.Annotations[AnnPopulatorKind]
+	nodeName, _ := pvc.Annotations[AnnSelectedNode]
+	if isPopulator && nodeName != "" {
+		podSpec.NodeName = nodeName
 	}
 }
 
