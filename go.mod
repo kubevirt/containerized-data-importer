@@ -11,10 +11,8 @@ require (
 	github.com/coreos/prometheus-operator v0.38.1-0.20200424145508-7e176fda06cc
 	github.com/docker/go-units v0.4.0
 	github.com/emicklei/go-restful v2.16.0+incompatible
-	github.com/emicklei/go-restful-openapi v1.2.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v1.2.3
-	github.com/go-openapi/spec v0.19.3
 	github.com/golang/snappy v0.0.3
 	github.com/google/uuid v1.3.0
 	github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
