@@ -55,6 +55,7 @@ go_test(
         "//pkg/controller:go_default_library",
         "//pkg/controller/common:go_default_library",
         "//pkg/controller/datavolume:go_default_library",
+        "//pkg/controller/populators:go_default_library",
         "//pkg/feature-gates:go_default_library",
         "//pkg/image:go_default_library",
         "//pkg/operator/resources/utils:go_default_library",
