@@ -54,9 +54,7 @@ func (p *SnapshotClonePhase) Reconcile(ctx context.Context) (*reconcile.Result, 
 			return nil, fmt.Errorf("source snapshot does not exist")
 		}
 
-		if snapshot.Status == nil ||
-			snapshot.Status.ReadyToUse == nil ||
-			!*snapshot.Status.ReadyToUse {
+		if !cc.IsSnapshotReady(snapshot) {
 			return &reconcile.Result{}, nil
 		}
 

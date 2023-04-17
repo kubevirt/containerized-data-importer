@@ -2625,31 +2625,17 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			snapClass := f.GetSnapshotClass()
-			snapshot = &snapshotv1.VolumeSnapshot{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "snap-" + snapSourceDv.Name,
-					Namespace: f.Namespace.Name,
-				},
-				Spec: snapshotv1.VolumeSnapshotSpec{
-					Source: snapshotv1.VolumeSnapshotSource{
-						PersistentVolumeClaimName: &pvc.Name,
-					},
-					VolumeSnapshotClassName: &snapClass.Name,
-				},
-			}
+			snapshot = utils.NewVolumeSnapshot("snap-"+snapSourceDv.Name, f.Namespace.Name, pvc.Name, &snapClass.Name)
 			err = f.CrClient.Create(context.TODO(), snapshot)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func() bool {
-				err = f.CrClient.Get(context.TODO(), client.ObjectKeyFromObject(snapshot), snapshot)
-				if err != nil {
-					return false
-				}
-				return snapshot.Status != nil && snapshot.Status.ReadyToUse != nil && *snapshot.Status.ReadyToUse
-			}, 10*time.Second, 1*time.Second).Should(BeTrue())
+			snapshot = utils.WaitSnapshotReady(f.CrClient, snapshot)
 			By("Snapshot ready, no need to keep PVC around")
 			err = f.DeletePVC(pvc)
 			Expect(err).ToNot(HaveOccurred())
+			deleted, err := utils.WaitPVCDeleted(f.K8sClient, pvc.Name, f.Namespace.Name, 2*time.Minute)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(deleted).To(BeTrue())
 		}
 
 		BeforeEach(func() {

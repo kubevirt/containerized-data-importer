@@ -309,7 +309,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				AnnDefaultStorageClass: "true",
 			})
 			reconciler = createCloneReconciler(dv, sc)
-			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
+			snapclass, err := GetSnapshotClassForSmartClone(dv.Name, dv.Spec.PVC.StorageClassName, reconciler.log, reconciler.client)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(snapclass).To(BeEmpty())
 		})
@@ -321,7 +321,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				AnnDefaultStorageClass: "true",
 			})
 			reconciler = createCloneReconciler(dv, sc, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			snapshotClass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
+			snapshotClass, err := GetSnapshotClassForSmartClone(dv.Name, dv.Spec.PVC.StorageClassName, reconciler.log, reconciler.client)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(snapshotClass).To(BeEmpty())
 		})
@@ -371,7 +371,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.Spec.PVC.StorageClassName = &scName
 			pvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			reconciler = createCloneReconciler(dv, pvc, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
+			snapclass, err := GetSnapshotClassForSmartClone(dv.Name, dv.Spec.PVC.StorageClassName, reconciler.log, reconciler.client)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(snapclass).To(BeEmpty())
 		})
@@ -385,7 +385,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.Spec.PVC.StorageClassName = &scName
 			pvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			reconciler = createCloneReconciler(sc, dv, pvc)
-			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
+			snapclass, err := GetSnapshotClassForSmartClone(dv.Name, dv.Spec.PVC.StorageClassName, reconciler.log, reconciler.client)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(snapclass).To(BeEmpty())
 		})
@@ -401,7 +401,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			expectedSnapshotClass := "snap-class"
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
 			reconciler = createCloneReconciler(sc, dv, pvc, snapClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			snapclass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
+			snapclass, err := GetSnapshotClassForSmartClone(dv.Name, dv.Spec.PVC.StorageClassName, reconciler.log, reconciler.client)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(snapclass).To(Equal(expectedSnapshotClass))
 		})

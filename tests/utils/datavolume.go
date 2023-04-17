@@ -181,6 +181,30 @@ func NewDataVolumeWithSourceRef(dataVolumeName string, size, sourceRefNamespace,
 	}
 }
 
+// NewDataVolumeWithSourceRefAndStorageAPI initializes a DataVolume struct with DataSource SourceRef and storage defaults-inferring API
+func NewDataVolumeWithSourceRefAndStorageAPI(dataVolumeName string, size, sourceRefNamespace, sourceRefName string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        dataVolumeName,
+			Annotations: map[string]string{},
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			SourceRef: &cdiv1.DataVolumeSourceRef{
+				Kind:      cdiv1.DataVolumeDataSource,
+				Namespace: &sourceRefNamespace,
+				Name:      sourceRefName,
+			},
+			Storage: &cdiv1.StorageSpec{
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+}
+
 // NewPvcDataSource initializes a DataSource struct with PVC source
 func NewPvcDataSource(dataSourceName, dataSourceNamespace, pvcName, pvcNamespace string) *cdiv1.DataSource {
 	return &cdiv1.DataSource{

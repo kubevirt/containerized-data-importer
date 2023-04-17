@@ -303,18 +303,7 @@ var _ = Describe("Population tests", func() {
 
 			By("Creating Snapshot")
 			snapshotClassName := getSnapshotClassName()
-			snapshot := &snapshotv1.VolumeSnapshot{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "snapshot-" + pvcDef.Name,
-					Namespace: pvcDef.Namespace,
-				},
-				Spec: snapshotv1.VolumeSnapshotSpec{
-					Source: snapshotv1.VolumeSnapshotSource{
-						PersistentVolumeClaimName: &pvcDef.Name,
-					},
-					VolumeSnapshotClassName: &snapshotClassName,
-				},
-			}
+			snapshot := utils.NewVolumeSnapshot("snapshot-"+pvcDef.Name, pvcDef.Namespace, pvcDef.Name, &snapshotClassName)
 			snapshotAPIGroup := snapshotAPIName
 			dataSource := &corev1.TypedLocalObjectReference{
 				APIGroup: &snapshotAPIGroup,
@@ -325,11 +314,7 @@ var _ = Describe("Population tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Waiting for Snapshot to be ready to use")
-			Eventually(func() bool {
-				err := f.CrClient.Get(context.TODO(), crclient.ObjectKeyFromObject(snapshot), snapshot)
-				Expect(err).ToNot(HaveOccurred())
-				return snapshot.Status != nil && snapshot.Status.ReadyToUse != nil && *snapshot.Status.ReadyToUse
-			}, timeout, pollingInterval).Should(BeTrue())
+			snapshot = utils.WaitSnapshotReady(f.CrClient, snapshot)
 
 			By(fmt.Sprintf("Creating target datavolume %s", dataVolumeName))
 			// PVC API because some provisioners only allow exact match between source size and restore size
