@@ -150,7 +150,7 @@ func (c *clientCreator) CreateClient() (*http.Client, error) {
 		Certificates: []tls.Certificate{clientCert},
 		RootCAs:      caCertPool,
 	}
-	tlsConfig.BuildNameToCertificate()
+	tlsConfig.BuildNameToCertificate() //nolint:staticcheck // todo: BuildNameToCertificate() is deprecated - check this
 
 	transport := &http.Transport{TLSClientConfig: tlsConfig}
 	return &http.Client{Transport: transport, Timeout: proxyRequestTimeout}, nil

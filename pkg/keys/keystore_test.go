@@ -93,7 +93,7 @@ func checkAction(expected, actual core.Action) {
 	}
 
 	switch a := actual.(type) {
-	case core.CreateAction:
+	case core.CreateActionImpl:
 		e, _ := expected.(core.CreateAction)
 		expObject := e.GetObject()
 		object := a.GetObject()
@@ -102,7 +102,7 @@ func checkAction(expected, actual core.Action) {
 			Fail(fmt.Sprintf("Action %s %s has wrong object\nDiff:\n %s",
 				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expObject, object)))
 		}
-	case core.UpdateAction:
+	case core.UpdateActionImpl:
 		e, _ := expected.(core.UpdateAction)
 		expObject := e.GetObject()
 		object := a.GetObject()

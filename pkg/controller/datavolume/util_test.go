@@ -113,9 +113,9 @@ func createDataVolumeWithStorageAPI(name, ns string, source *cdiv1.DataVolumeSou
 func createClient(objs ...runtime.Object) client.Client {
 	// Register cdi types with the runtime scheme.
 	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
+	_ = cdiv1.AddToScheme(s)
 	// Register other types with the runtime scheme.
-	ocpconfigv1.AddToScheme(s)
+	_ = ocpconfigv1.Install(s)
 	// Create a fake client to mock API calls.
-	return fake.NewFakeClientWithScheme(s, objs...)
+	return fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
 }

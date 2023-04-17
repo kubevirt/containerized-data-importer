@@ -250,7 +250,7 @@ func (app *cdiAPIApp) getTLSConfig() (*tls.Config, error) {
 			return fmt.Errorf("no valid subject specified")
 		},
 	}
-	tlsConfig.BuildNameToCertificate()
+	tlsConfig.BuildNameToCertificate() //nolint:staticcheck // todo: BuildNameToCertificate() is deprecated - check this
 
 	return tlsConfig, nil
 }

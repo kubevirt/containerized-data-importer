@@ -62,7 +62,7 @@ func createReconciler(objects ...client.Object) *transfer.ObjectTransferReconcil
 	for _, obj := range objects {
 		runtimeObjects = append(runtimeObjects, obj)
 	}
-	cl := fake.NewFakeClientWithScheme(s, runtimeObjects...)
+	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(runtimeObjects...).Build()
 
 	return &transfer.ObjectTransferReconciler{
 		Client:   cl,

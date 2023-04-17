@@ -70,10 +70,11 @@ var _ = Describe("ALL Operator tests", func() {
 					oldVer := cdiCrd.Spec.Versions[0].DeepCopy()
 					oldVer.Name = "v1alpha1"
 					cdiCrd.Spec.Versions[0].Storage = false
-					oldVer.Storage = false
+					oldVer.Storage = true
 					cdiCrd.Spec.Versions = append(cdiCrd.Spec.Versions, *oldVer)
 
-					cdiCrd, err = f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), cdiCrd, metav1.UpdateOptions{})
+					_, err = f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), cdiCrd, metav1.UpdateOptions{})
+					Expect(err).ToNot(HaveOccurred())
 
 					By("Restoring CRD with newer version as storage")
 					cdiCrd, err = f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), "cdis.cdi.kubevirt.io", metav1.GetOptions{})

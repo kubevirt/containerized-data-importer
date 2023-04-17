@@ -1014,7 +1014,7 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 
 	// Register cdi types with the runtime scheme.
 	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
+	_ = cdiv1.AddToScheme(s)
 
 	objs = append(objs, cc.MakeEmptyCDICR())
 
@@ -1025,7 +1025,7 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	objs = append(objs, cdiConfig)
 
 	// Create a fake client to mock API calls.
-	cl := fake.NewFakeClientWithScheme(s, objs...)
+	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
 
 	// Increase this if you have more than one event that fires.
 	rec := record.NewFakeRecorder(1)

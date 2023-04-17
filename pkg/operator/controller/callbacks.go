@@ -315,7 +315,7 @@ func reconcileHandleOldVersion(args *callbacks.ReconcileCallbackArgs) error {
 	desiredVersion := newestVersion(desiredCrd)
 
 	if olderVersionsExist(desiredVersion, currentCrd) {
-		desiredCrd = restoreOlderVersions(currentCrd, desiredCrd)
+		restoreOlderVersions(currentCrd, desiredCrd)
 		if !desiredIsStorage(desiredVersion, currentCrd) {
 			// Let kubernetes add it
 			return nil

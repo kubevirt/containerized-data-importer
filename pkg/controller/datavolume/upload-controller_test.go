@@ -93,7 +93,7 @@ func createUploadReconcilerWithoutConfig(objects ...runtime.Object) *UploadRecon
 	objs = append(objs, MakeEmptyCDICR())
 
 	// Create a fake client to mock API calls.
-	cl := fake.NewFakeClientWithScheme(s, objs...)
+	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
 
 	rec := record.NewFakeRecorder(10)
 

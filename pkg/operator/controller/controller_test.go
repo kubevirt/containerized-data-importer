@@ -1568,7 +1568,7 @@ func createClient(objs ...client.Object) client.Client {
 	for _, obj := range objs {
 		runtimeObjs = append(runtimeObjs, obj)
 	}
-	return fakeClient.NewFakeClientWithScheme(scheme.Scheme, runtimeObjs...)
+	return fakeClient.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(runtimeObjs...).Build()
 }
 
 func createCDI(name, uid string) *cdiv1.CDI {

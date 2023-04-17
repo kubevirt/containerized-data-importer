@@ -22,7 +22,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -797,7 +797,7 @@ func (r *ReconcilerBase) updateConditions(dataVolume *cdiv1.DataVolume, pvc *cor
 		anno = make(map[string]string)
 	}
 
-	readyStatus := corev1.ConditionUnknown
+	var readyStatus corev1.ConditionStatus
 	switch dataVolume.Status.Phase {
 	case cdiv1.Succeeded:
 		readyStatus = corev1.ConditionTrue
@@ -926,7 +926,7 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 			return err
 		}
 		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}

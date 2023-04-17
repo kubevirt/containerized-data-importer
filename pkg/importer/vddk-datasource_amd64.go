@@ -340,7 +340,9 @@ func (vmware *VMwareClient) FindDiskInSnapshotTree(snapshots []types.VirtualMach
 		if disk := vmware.FindDiskInSnapshot(snapshot.Snapshot, fileName); disk != nil {
 			return disk
 		}
-		return vmware.FindDiskInSnapshotTree(snapshot.ChildSnapshotList, fileName)
+		if disk := vmware.FindDiskInSnapshotTree(snapshot.ChildSnapshotList, fileName); disk != nil {
+			return disk
+		}
 	}
 	return nil
 }
@@ -717,7 +719,8 @@ func (sink *VDDKFileSink) ZeroRange(offset uint64, length uint32) error {
 	if sink.isBlock { // Try to punch a hole in block device destination
 		err = punch(offset, length)
 	} else {
-		info, err := sink.file.Stat()
+		var info os.FileInfo
+		info, err = sink.file.Stat()
 		if err != nil {
 			klog.Errorf("Unable to stat destination file: %v", err)
 		} else { // Filesystem

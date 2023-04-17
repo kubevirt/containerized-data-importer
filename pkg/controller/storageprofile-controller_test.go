@@ -342,10 +342,10 @@ func createStorageProfileReconciler(objects ...runtime.Object) *StorageProfileRe
 	objs = append(objs, cdiConfig)
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
+	_ = cdiv1.AddToScheme(s)
 
 	// Create a fake client to mock API calls.
-	cl := fake.NewFakeClientWithScheme(s, objs...)
+	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
 
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	r := &StorageProfileReconciler{

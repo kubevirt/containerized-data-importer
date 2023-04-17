@@ -221,7 +221,7 @@ var _ = Describe("Auth config tests", func() {
 
 		cdiConfig.Spec.TLSSecurityProfile = nil
 		// Should roll us back to 'Intermediate' profile (default) instead of the initial 'Old'
-		cdiConfig, err = cdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), cdiConfig, metav1.UpdateOptions{})
+		_, err = cdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), cdiConfig, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		// behavior of this changed in 16.4 used to wait then check so now explicitly waiting

@@ -556,6 +556,9 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 	var reader io.ReadCloser
 	if extentsFeature {
 		req, err := http.NewRequest("GET", transferURL+"/extents", nil)
+		if err != nil {
+			return nil, uint64(0), it, conn, err
+		}
 		req = req.WithContext(ctx)
 
 		resp, err := client.Do(req)
@@ -589,6 +592,9 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 		}
 	} else {
 		req, err := http.NewRequest("GET", transferURL, nil)
+		if err != nil {
+			return nil, uint64(0), it, conn, errors.Wrap(err, "Sending request failed")
+		}
 		req = req.WithContext(ctx)
 
 		resp, err := client.Do(req)

@@ -121,6 +121,9 @@ func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pu
 		Scheme: mgr.GetScheme(),
 		Mapper: mgr.GetRESTMapper(),
 	})
+	if err != nil {
+		return nil, err
+	}
 	client := mgr.GetClient()
 	reconciler := &ImportReconciler{
 		client:          client,

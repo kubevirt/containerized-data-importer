@@ -123,10 +123,12 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		By("Verifying no source pod exists")
 		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
 		Expect(sourcePod).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying no source pod exists")
 		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).To(BeNil())
 		By("Verifying the PVC now has a source pod name")
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
@@ -152,6 +154,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
 		By("Verifying no source pod exists")
 		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).To(BeNil())
 		result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
@@ -201,6 +204,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
 		By("Verifying no source pod exists")
 		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).To(BeNil())
 		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
@@ -306,6 +310,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
 		By("Verifying no source pod exists")
 		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).To(BeNil())
 		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
@@ -326,6 +331,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
 		By("Verifying no source pod exists")
 		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).To(BeNil())
 		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
@@ -354,7 +360,8 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		sourcePod.Status.Phase = corev1.PodSucceeded
 		err = reconciler.client.Update(context.TODO(), sourcePod)
 		Expect(err).ToNot(HaveOccurred())
-		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
+		_, err = reconciler.findCloneSourcePod(testPvc)
+		Expect(err).ToNot(HaveOccurred())
 
 		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
@@ -431,6 +438,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
 		By("Verifying no source pod exists")
 		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).To(BeNil())
 		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).To(HaveOccurred())
@@ -701,7 +709,7 @@ func createCloneReconciler(objects ...runtime.Object) *CloneReconciler {
 	cdiv1.AddToScheme(s)
 	rec := record.NewFakeRecorder(1)
 	// Create a fake client to mock API calls.
-	cl := fake.NewFakeClientWithScheme(s, objs...)
+	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
 
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	return &CloneReconciler{

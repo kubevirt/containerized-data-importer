@@ -189,7 +189,7 @@ var _ = Describe("Imageio client preparation", func() {
 	It("should load the cert", func() {
 		activeCAs, err := loadCA(tempDir)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(activeCAs.Subjects())).Should(Equal(1))
+		Expect(len(activeCAs.Subjects())).Should(Equal(1)) // nolint:staticcheck // todo: Subjects() is deprecated - check this
 	})
 
 	It("should return error if dir is empty", func() {
@@ -549,6 +549,7 @@ var _ = Describe("Imageio extents", func() {
 		ticketTime := time.Now()
 		time.Sleep(1 * time.Millisecond)
 		err = source.renewExtentsTicket(it.MustId(), extentsReader)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(renewalTime.Equal(ticketTime)).To(BeFalse())
 	})
 

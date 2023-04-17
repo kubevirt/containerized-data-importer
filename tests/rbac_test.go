@@ -171,7 +171,7 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		dv := utils.NewDataVolumeWithHTTPImport("test-"+user, "1Gi", "http://nonexistant.url")
-		dv, err = cdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Create(context.TODO(), dv, metav1.CreateOptions{})
+		_, err = cdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Create(context.TODO(), dv, metav1.CreateOptions{})
 		Expect(err).To(HaveOccurred())
 
 		dvl, err := cdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
