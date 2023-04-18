@@ -20,7 +20,7 @@ spec:
     - name: v1
       schema:
         openAPIV3Schema:
-          description: "Config provides information to configure the config operator. It handles installation, migration or synchronization of cloud based cluster configurations like AWS or Azure. \n Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer)."
+          description: "Config specifies the behavior of the config operator which is responsible for creating the initial configuration of other components on the cluster.  The operator also handles installation, migration or synchronization of cloud configurations for AWS and Azure cloud based clusters \n Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer)."
           type: object
           required:
             - spec
@@ -67,7 +67,7 @@ spec:
                     - Trace
                     - TraceAll
                 unsupportedConfigOverrides:
-                  description: 'unsupportedConfigOverrides holds a sparse config that will override any previously set options.  It only needs to be the fields to override it will end up overlaying in the following order: 1. hardcoded defaults 2. observedConfig 3. unsupportedConfigOverrides'
+                  description: unsupportedConfigOverrides overrides the final configuration that was computed by the operator. Red Hat does not support the use of this field. Misuse of this field could lead to unexpected behavior or conflict with other configuration options. Seek guidance from the Red Hat support before using this field. Use of this property blocks cluster upgrades, it must be removed before upgrading your cluster.
                   type: object
                   nullable: true
                   x-kubernetes-preserve-unknown-fields: true

@@ -292,25 +292,7 @@ func createDeployment(args *FactoryArgs) []client.Object {
 			args.NamespacedArgs.Verbosity,
 			args.NamespacedArgs.PullPolicy,
 			args.NamespacedArgs.ImagePullSecrets),
-		createOperatorLeaderElectionConfigMap(args.NamespacedArgs.Namespace),
 	}
-}
-
-func createOperatorLeaderElectionConfigMap(namespace string) *corev1.ConfigMap {
-	return &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "ConfigMap",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cdi-operator-leader-election-helper",
-			Namespace: namespace,
-			Labels: map[string]string{
-				"operator.cdi.kubevirt.io": "",
-			},
-		},
-	}
-
 }
 
 func createCRD(args *FactoryArgs) []client.Object {

@@ -79,7 +79,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 	var causes []metav1.StatusCause
 	var sourceType string
 	var url string
-	var dataSourceRef *v1.TypedLocalObjectReference
+	var dataSourceRef *v1.TypedObjectReference
 	var dataSource *v1.TypedLocalObjectReference
 
 	if spec.PVC == nil && spec.Storage == nil {
@@ -467,21 +467,21 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.Da
 	return nil
 }
 
-// validateDataSource validates a DataSource/DataSourceRef in a DataVolume spec
+// validateDataSource validates a DataSource in a DataVolume spec
 func validateDataSource(dataSource *v1.TypedLocalObjectReference, field *k8sfield.Path) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 
 	if len(dataSource.Name) == 0 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: "Required value: DataSource/DataSourceRef name",
+			Message: "Required value: DataSource name",
 			Field:   field.Child("name", "").String(),
 		})
 	}
 	if len(dataSource.Kind) == 0 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: "Required value: DataSource/DataSourceRef kind",
+			Message: "Required value: DataSource kind",
 			Field:   field.Child("kind").String(),
 		})
 	}
@@ -492,7 +492,48 @@ func validateDataSource(dataSource *v1.TypedLocalObjectReference, field *k8sfiel
 	if len(apiGroup) == 0 && dataSource.Kind != "PersistentVolumeClaim" {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: "Required value: DataSource/DataSourceRef apiGroup when kind is not 'PersistentVolumeClaim'",
+			Message: "Required value: DataSource apiGroup when kind is not 'PersistentVolumeClaim'",
+			Field:   field.Child("apiGroup", "").String(),
+		})
+	}
+
+	return causes
+}
+
+// validateDataSource validates a DataSourceRef in a DataVolume spec
+func validateDataSourceRef(dataSource *v1.TypedObjectReference, field *k8sfield.Path) []metav1.StatusCause {
+	var causes []metav1.StatusCause
+
+	if dataSource.Namespace != nil && len(*dataSource.Namespace) != 0 {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: "Invalid value: DataSourceRef namespace not supported",
+			Field:   field.Child("namespace", "").String(),
+		})
+	}
+
+	if len(dataSource.Name) == 0 {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: "Required value: DataSourceRef name",
+			Field:   field.Child("name", "").String(),
+		})
+	}
+	if len(dataSource.Kind) == 0 {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Required value: DataSourceRef kind"),
+			Field:   field.Child("kind").String(),
+		})
+	}
+	apiGroup := ""
+	if dataSource.APIGroup != nil {
+		apiGroup = *dataSource.APIGroup
+	}
+	if len(apiGroup) == 0 && dataSource.Kind != "PersistentVolumeClaim" {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: "Required value: DataSourceRef apiGroup when kind is not 'PersistentVolumeClaim'",
 			Field:   field.Child("apiGroup", "").String(),
 		})
 	}
@@ -561,7 +602,7 @@ func validateStorageSize(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) (*met
 }
 
 // validateExternalPopulation validates a DataVolume meant to be externally populated
-func validateExternalPopulation(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path, dataSource, dataSourceRef *v1.TypedLocalObjectReference) []metav1.StatusCause {
+func validateExternalPopulation(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path, dataSource *v1.TypedLocalObjectReference, dataSourceRef *v1.TypedObjectReference) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 
 	if spec.Source != nil || spec.SourceRef != nil {
@@ -585,7 +626,7 @@ func validateExternalPopulation(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path
 		causes = append(causes, validateDataSource(dataSource, field.Child("dataSource"))...)
 	}
 	if dataSourceRef != nil {
-		causes = append(causes, validateDataSource(dataSourceRef, field.Child("dataSourceRef"))...)
+		causes = append(causes, validateDataSourceRef(dataSourceRef, field.Child("dataSourceRef"))...)
 	}
 
 	return causes

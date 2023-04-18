@@ -44,7 +44,7 @@ var _ = Describe("Population tests", func() {
 
 	sampleGVR := schema.GroupVersionResource{Group: populatorGroupName, Version: populatorAPIVersion, Resource: populatorResource}
 	apiGroup := populatorGroupName
-	dataSourceRef := &corev1.TypedLocalObjectReference{
+	dataSourceRef := &corev1.TypedObjectReference{
 		APIGroup: &apiGroup,
 		Kind:     populatorKind,
 		Name:     samplePopulatorName,

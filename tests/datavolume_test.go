@@ -1857,7 +1857,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
-			Expect(*pvc.Spec.StorageClassName).To(And(Not(BeNil())), Equal(defaultScName))
+			Expect(*pvc.Spec.StorageClassName).To(SatisfyAll(Not(BeNil()), Equal(defaultScName)))
 		})
 
 		It("[test_id:8170]Import succeeds when storage class is not specified, but access mode is", func() {
@@ -1886,7 +1886,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.AccessModes).To(Equal(expectedMode))
-			Expect(*pvc.Spec.StorageClassName).To(And(Not(BeNil())), Equal(defaultScName))
+			Expect(*pvc.Spec.StorageClassName).To(SatisfyAll(Not(BeNil()), Equal(defaultScName)))
 		})
 
 		It("[test_id:8169]Import succeeds when storage class is not specified, but volume mode is", func() {
@@ -1916,7 +1916,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
 			Expect(*pvc.Spec.VolumeMode).To(Equal(expectedVolumeMode))
-			Expect(*pvc.Spec.StorageClassName).To(And(Not(BeNil())), Equal(defaultScName))
+			Expect(*pvc.Spec.StorageClassName).To(SatisfyAll(Not(BeNil()), Equal(defaultScName)))
 		})
 
 		It("[test_id:5912]Import fails creating a PVC from DV without accessModes and volume mode, no profile", func() {
@@ -2156,7 +2156,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(expectedSize.Value()))
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
-			Expect(*pvc.Spec.StorageClassName).To(And(Not(BeNil())), Equal(defaultScName))
+			Expect(*pvc.Spec.StorageClassName).To(SatisfyAll(Not(BeNil()), Equal(defaultScName)))
 		})
 
 		It("[test_id:6100]Upload pvc should not have size corrected on block volume", func() {
@@ -2240,7 +2240,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(expectedSize.Value()))
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
-			Expect(*pvc.Spec.StorageClassName).To(And(Not(BeNil())), Equal(defaultScName))
+			Expect(*pvc.Spec.StorageClassName).To(SatisfyAll(Not(BeNil()), Equal(defaultScName)))
 		})
 
 		It("[test_id:6487]Clone pod should not have size corrected on block, when no volumeMode on DV", func() {

@@ -356,7 +356,7 @@ func NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName string, size string, ht
 }
 
 // NewDataVolumeWithExternalPopulation initializes a DataVolume struct meant to be externally populated
-func NewDataVolumeWithExternalPopulation(dataVolumeName, size, storageClassName string, volumeMode corev1.PersistentVolumeMode, dataSource, dataSourceRef *corev1.TypedLocalObjectReference) *cdiv1.DataVolume {
+func NewDataVolumeWithExternalPopulation(dataVolumeName, size, storageClassName string, volumeMode corev1.PersistentVolumeMode, dataSource *corev1.TypedLocalObjectReference, dataSourceRef *corev1.TypedObjectReference) *cdiv1.DataVolume {
 	dataVolume := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
@@ -380,7 +380,7 @@ func NewDataVolumeWithExternalPopulation(dataVolumeName, size, storageClassName 
 }
 
 // NewDataVolumeWithExternalPopulationAndStorageSpec initializes a DataVolume struct meant to be externally populated (with storage spec)
-func NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, size, storageClassName string, volumeMode corev1.PersistentVolumeMode, dataSource, dataSourceRef *corev1.TypedLocalObjectReference) *cdiv1.DataVolume {
+func NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, size, storageClassName string, volumeMode corev1.PersistentVolumeMode, dataSource *corev1.TypedLocalObjectReference, dataSourceRef *corev1.TypedObjectReference) *cdiv1.DataVolume {
 	dataVolume := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,

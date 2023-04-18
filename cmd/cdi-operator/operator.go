@@ -88,7 +88,7 @@ func main() {
 		LeaderElection:             true,
 		LeaderElectionNamespace:    namespace,
 		LeaderElectionID:           "cdi-operator-leader-election-helper",
-		LeaderElectionResourceLock: "configmapsleases",
+		LeaderElectionResourceLock: "leases",
 	}
 
 	// Create a new Manager to provide shared dependencies and start components

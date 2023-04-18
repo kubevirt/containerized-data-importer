@@ -80,7 +80,8 @@ type possiblyErroringFakeCtrlRuntimeClient struct {
 func (p *possiblyErroringFakeCtrlRuntimeClient) Get(
 	ctx context.Context,
 	key client.ObjectKey,
-	cron client.Object) error {
+	cron client.Object,
+	opts ...client.GetOption) error {
 	if p.shouldError {
 		return errors.New("Arbitrary unit test error that isn't NotFound")
 	}

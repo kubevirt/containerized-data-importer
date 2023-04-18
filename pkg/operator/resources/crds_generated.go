@@ -178,6 +178,27 @@ spec:
                     description: ResourceRequirements describes the compute resource
                       requirements.
                     properties:
+                      claims:
+                        description: "Claims lists the names of resources, defined
+                          in spec.resourceClaims, that are used by this container.
+                          \n This is an alpha field and requires enabling the DynamicResourceAllocation
+                          feature gate. \n This field is immutable."
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: Name must match the name of one entry in
+                                pod.spec.resourceClaims of the Pod where this field
+                                is used. It makes that resource available inside a
+                                container.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                       limits:
                         additionalProperties:
                           anyOf:
@@ -630,9 +651,7 @@ spec:
                                         this field and the ones listed in the namespaces
                                         field. null selector and null or empty namespaces
                                         list means "this pod's namespace". An empty
-                                        selector ({}) matches all namespaces. This
-                                        field is beta-level and is only honored when
-                                        PodAffinityNamespaceSelector feature is enabled.
+                                        selector ({}) matches all namespaces.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -690,7 +709,7 @@ spec:
                                         listed in this field and the ones selected
                                         by namespaceSelector. null or empty namespaces
                                         list and null namespaceSelector means "this
-                                        pod's namespace"
+                                        pod's namespace".
                                       items:
                                         type: string
                                       type: array
@@ -795,9 +814,7 @@ spec:
                                     field and the ones listed in the namespaces field.
                                     null selector and null or empty namespaces list
                                     means "this pod's namespace". An empty selector
-                                    ({}) matches all namespaces. This field is beta-level
-                                    and is only honored when PodAffinityNamespaceSelector
-                                    feature is enabled.
+                                    ({}) matches all namespaces.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -853,7 +870,7 @@ spec:
                                     term is applied to the union of the namespaces
                                     listed in this field and the ones selected by
                                     namespaceSelector. null or empty namespaces list
-                                    and null namespaceSelector means "this pod's namespace"
+                                    and null namespaceSelector means "this pod's namespace".
                                   items:
                                     type: string
                                   type: array
@@ -958,9 +975,7 @@ spec:
                                         this field and the ones listed in the namespaces
                                         field. null selector and null or empty namespaces
                                         list means "this pod's namespace". An empty
-                                        selector ({}) matches all namespaces. This
-                                        field is beta-level and is only honored when
-                                        PodAffinityNamespaceSelector feature is enabled.
+                                        selector ({}) matches all namespaces.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -1018,7 +1033,7 @@ spec:
                                         listed in this field and the ones selected
                                         by namespaceSelector. null or empty namespaces
                                         list and null namespaceSelector means "this
-                                        pod's namespace"
+                                        pod's namespace".
                                       items:
                                         type: string
                                       type: array
@@ -1123,9 +1138,7 @@ spec:
                                     field and the ones listed in the namespaces field.
                                     null selector and null or empty namespaces list
                                     means "this pod's namespace". An empty selector
-                                    ({}) matches all namespaces. This field is beta-level
-                                    and is only honored when PodAffinityNamespaceSelector
-                                    feature is enabled.
+                                    ({}) matches all namespaces.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -1181,7 +1194,7 @@ spec:
                                     term is applied to the union of the namespaces
                                     listed in this field and the ones selected by
                                     namespaceSelector. null or empty namespaces list
-                                    and null namespaceSelector means "this pod's namespace"
+                                    and null namespaceSelector means "this pod's namespace".
                                   items:
                                     type: string
                                   type: array
@@ -1576,9 +1589,7 @@ spec:
                                         this field and the ones listed in the namespaces
                                         field. null selector and null or empty namespaces
                                         list means "this pod's namespace". An empty
-                                        selector ({}) matches all namespaces. This
-                                        field is beta-level and is only honored when
-                                        PodAffinityNamespaceSelector feature is enabled.
+                                        selector ({}) matches all namespaces.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -1636,7 +1647,7 @@ spec:
                                         listed in this field and the ones selected
                                         by namespaceSelector. null or empty namespaces
                                         list and null namespaceSelector means "this
-                                        pod's namespace"
+                                        pod's namespace".
                                       items:
                                         type: string
                                       type: array
@@ -1741,9 +1752,7 @@ spec:
                                     field and the ones listed in the namespaces field.
                                     null selector and null or empty namespaces list
                                     means "this pod's namespace". An empty selector
-                                    ({}) matches all namespaces. This field is beta-level
-                                    and is only honored when PodAffinityNamespaceSelector
-                                    feature is enabled.
+                                    ({}) matches all namespaces.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -1799,7 +1808,7 @@ spec:
                                     term is applied to the union of the namespaces
                                     listed in this field and the ones selected by
                                     namespaceSelector. null or empty namespaces list
-                                    and null namespaceSelector means "this pod's namespace"
+                                    and null namespaceSelector means "this pod's namespace".
                                   items:
                                     type: string
                                   type: array
@@ -1904,9 +1913,7 @@ spec:
                                         this field and the ones listed in the namespaces
                                         field. null selector and null or empty namespaces
                                         list means "this pod's namespace". An empty
-                                        selector ({}) matches all namespaces. This
-                                        field is beta-level and is only honored when
-                                        PodAffinityNamespaceSelector feature is enabled.
+                                        selector ({}) matches all namespaces.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -1964,7 +1971,7 @@ spec:
                                         listed in this field and the ones selected
                                         by namespaceSelector. null or empty namespaces
                                         list and null namespaceSelector means "this
-                                        pod's namespace"
+                                        pod's namespace".
                                       items:
                                         type: string
                                       type: array
@@ -2069,9 +2076,7 @@ spec:
                                     field and the ones listed in the namespaces field.
                                     null selector and null or empty namespaces list
                                     means "this pod's namespace". An empty selector
-                                    ({}) matches all namespaces. This field is beta-level
-                                    and is only honored when PodAffinityNamespaceSelector
-                                    feature is enabled.
+                                    ({}) matches all namespaces.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -2127,7 +2132,7 @@ spec:
                                     term is applied to the union of the namespaces
                                     listed in this field and the ones selected by
                                     namespaceSelector. null or empty namespaces list
-                                    and null namespaceSelector means "this pod's namespace"
+                                    and null namespaceSelector means "this pod's namespace".
                                   items:
                                     type: string
                                   type: array
@@ -2407,6 +2412,27 @@ spec:
                     description: ResourceRequirements describes the compute resource
                       requirements.
                     properties:
+                      claims:
+                        description: "Claims lists the names of resources, defined
+                          in spec.resourceClaims, that are used by this container.
+                          \n This is an alpha field and requires enabling the DynamicResourceAllocation
+                          feature gate. \n This field is immutable."
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: Name must match the name of one entry in
+                                pod.spec.resourceClaims of the Pod where this field
+                                is used. It makes that resource available inside a
+                                container.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                       limits:
                         additionalProperties:
                           anyOf:
@@ -2859,9 +2885,7 @@ spec:
                                         this field and the ones listed in the namespaces
                                         field. null selector and null or empty namespaces
                                         list means "this pod's namespace". An empty
-                                        selector ({}) matches all namespaces. This
-                                        field is beta-level and is only honored when
-                                        PodAffinityNamespaceSelector feature is enabled.
+                                        selector ({}) matches all namespaces.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -2919,7 +2943,7 @@ spec:
                                         listed in this field and the ones selected
                                         by namespaceSelector. null or empty namespaces
                                         list and null namespaceSelector means "this
-                                        pod's namespace"
+                                        pod's namespace".
                                       items:
                                         type: string
                                       type: array
@@ -3024,9 +3048,7 @@ spec:
                                     field and the ones listed in the namespaces field.
                                     null selector and null or empty namespaces list
                                     means "this pod's namespace". An empty selector
-                                    ({}) matches all namespaces. This field is beta-level
-                                    and is only honored when PodAffinityNamespaceSelector
-                                    feature is enabled.
+                                    ({}) matches all namespaces.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -3082,7 +3104,7 @@ spec:
                                     term is applied to the union of the namespaces
                                     listed in this field and the ones selected by
                                     namespaceSelector. null or empty namespaces list
-                                    and null namespaceSelector means "this pod's namespace"
+                                    and null namespaceSelector means "this pod's namespace".
                                   items:
                                     type: string
                                   type: array
@@ -3187,9 +3209,7 @@ spec:
                                         this field and the ones listed in the namespaces
                                         field. null selector and null or empty namespaces
                                         list means "this pod's namespace". An empty
-                                        selector ({}) matches all namespaces. This
-                                        field is beta-level and is only honored when
-                                        PodAffinityNamespaceSelector feature is enabled.
+                                        selector ({}) matches all namespaces.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -3247,7 +3267,7 @@ spec:
                                         listed in this field and the ones selected
                                         by namespaceSelector. null or empty namespaces
                                         list and null namespaceSelector means "this
-                                        pod's namespace"
+                                        pod's namespace".
                                       items:
                                         type: string
                                       type: array
@@ -3352,9 +3372,7 @@ spec:
                                     field and the ones listed in the namespaces field.
                                     null selector and null or empty namespaces list
                                     means "this pod's namespace". An empty selector
-                                    ({}) matches all namespaces. This field is beta-level
-                                    and is only honored when PodAffinityNamespaceSelector
-                                    feature is enabled.
+                                    ({}) matches all namespaces.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -3410,7 +3428,7 @@ spec:
                                     term is applied to the union of the namespaces
                                     listed in this field and the ones selected by
                                     namespaceSelector. null or empty namespaces list
-                                    and null namespaceSelector means "this pod's namespace"
+                                    and null namespaceSelector means "this pod's namespace".
                                   items:
                                     type: string
                                   type: array
@@ -3805,9 +3823,7 @@ spec:
                                         this field and the ones listed in the namespaces
                                         field. null selector and null or empty namespaces
                                         list means "this pod's namespace". An empty
-                                        selector ({}) matches all namespaces. This
-                                        field is beta-level and is only honored when
-                                        PodAffinityNamespaceSelector feature is enabled.
+                                        selector ({}) matches all namespaces.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -3865,7 +3881,7 @@ spec:
                                         listed in this field and the ones selected
                                         by namespaceSelector. null or empty namespaces
                                         list and null namespaceSelector means "this
-                                        pod's namespace"
+                                        pod's namespace".
                                       items:
                                         type: string
                                       type: array
@@ -3970,9 +3986,7 @@ spec:
                                     field and the ones listed in the namespaces field.
                                     null selector and null or empty namespaces list
                                     means "this pod's namespace". An empty selector
-                                    ({}) matches all namespaces. This field is beta-level
-                                    and is only honored when PodAffinityNamespaceSelector
-                                    feature is enabled.
+                                    ({}) matches all namespaces.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -4028,7 +4042,7 @@ spec:
                                     term is applied to the union of the namespaces
                                     listed in this field and the ones selected by
                                     namespaceSelector. null or empty namespaces list
-                                    and null namespaceSelector means "this pod's namespace"
+                                    and null namespaceSelector means "this pod's namespace".
                                   items:
                                     type: string
                                   type: array
@@ -4133,9 +4147,7 @@ spec:
                                         this field and the ones listed in the namespaces
                                         field. null selector and null or empty namespaces
                                         list means "this pod's namespace". An empty
-                                        selector ({}) matches all namespaces. This
-                                        field is beta-level and is only honored when
-                                        PodAffinityNamespaceSelector feature is enabled.
+                                        selector ({}) matches all namespaces.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -4193,7 +4205,7 @@ spec:
                                         listed in this field and the ones selected
                                         by namespaceSelector. null or empty namespaces
                                         list and null namespaceSelector means "this
-                                        pod's namespace"
+                                        pod's namespace".
                                       items:
                                         type: string
                                       type: array
@@ -4298,9 +4310,7 @@ spec:
                                     field and the ones listed in the namespaces field.
                                     null selector and null or empty namespaces list
                                     means "this pod's namespace". An empty selector
-                                    ({}) matches all namespaces. This field is beta-level
-                                    and is only honored when PodAffinityNamespaceSelector
-                                    feature is enabled.
+                                    ({}) matches all namespaces.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -4356,7 +4366,7 @@ spec:
                                     term is applied to the union of the namespaces
                                     listed in this field and the ones selected by
                                     namespaceSelector. null or empty namespaces list
-                                    and null namespaceSelector means "this pod's namespace"
+                                    and null namespaceSelector means "this pod's namespace".
                                   items:
                                     type: string
                                   type: array
@@ -4608,6 +4618,26 @@ spec:
               podResourceRequirements:
                 description: ResourceRequirements describes the compute resource requirements.
                 properties:
+                  claims:
+                    description: "Claims lists the names of resources, defined in
+                      spec.resourceClaims, that are used by this container. \n This
+                      is an alpha field and requires enabling the DynamicResourceAllocation
+                      feature gate. \n This field is immutable."
+                    items:
+                      description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                      properties:
+                        name:
+                          description: Name must match the name of one entry in pod.spec.resourceClaims
+                            of the Pod where this field is used. It makes that resource
+                            available inside a container.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
                   limits:
                     additionalProperties:
                       anyOf:
@@ -4740,6 +4770,26 @@ spec:
               defaultPodResourceRequirements:
                 description: ResourceRequirements describes the compute resource requirements.
                 properties:
+                  claims:
+                    description: "Claims lists the names of resources, defined in
+                      spec.resourceClaims, that are used by this container. \n This
+                      is an alpha field and requires enabling the DynamicResourceAllocation
+                      feature gate. \n This field is immutable."
+                    items:
+                      description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                      properties:
+                        name:
+                          description: Name must match the name of one entry in pod.spec.resourceClaims
+                            of the Pod where this field is used. It makes that resource
+                            available inside a container.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
                   limits:
                     additionalProperties:
                       anyOf:
@@ -4981,20 +5031,23 @@ spec:
                         description: PVC is the PVC specification
                         properties:
                           accessModes:
-                            description: 'AccessModes contains the desired access
+                            description: 'accessModes contains the desired access
                               modes the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1'
                             items:
                               type: string
                             type: array
                           dataSource:
-                            description: 'This field can be used to specify either:
-                              * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
+                            description: 'dataSource field can be used to specify
+                              either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
                               * An existing PVC (PersistentVolumeClaim) If the provisioner
                               or an external controller can support the specified
                               data source, it will create a new volume based on the
-                              contents of the specified data source. If the AnyVolumeDataSource
-                              feature gate is enabled, this field will always have
-                              the same contents as the DataSourceRef field.'
+                              contents of the specified data source. When the AnyVolumeDataSource
+                              feature gate is enabled, dataSource contents will be
+                              copied to dataSourceRef, and dataSourceRef contents
+                              will be copied to dataSource when dataSourceRef.namespace
+                              is not specified. If the namespace is specified, then
+                              dataSourceRef will not be copied to dataSource.'
                             properties:
                               apiGroup:
                                 description: APIGroup is the group for the resource
@@ -5014,27 +5067,34 @@ spec:
                             type: object
                             x-kubernetes-map-type: atomic
                           dataSourceRef:
-                            description: 'Specifies the object from which to populate
-                              the volume with data, if a non-empty volume is desired.
-                              This may be any local object from a non-empty API group
-                              (non core object) or a PersistentVolumeClaim object.
-                              When this field is specified, volume binding will only
-                              succeed if the type of the specified object matches
-                              some installed volume populator or dynamic provisioner.
-                              This field will replace the functionality of the DataSource
+                            description: 'dataSourceRef specifies the object from
+                              which to populate the volume with data, if a non-empty
+                              volume is desired. This may be any object from a non-empty
+                              API group (non core object) or a PersistentVolumeClaim
+                              object. When this field is specified, volume binding
+                              will only succeed if the type of the specified object
+                              matches some installed volume populator or dynamic provisioner.
+                              This field will replace the functionality of the dataSource
                               field and as such if both fields are non-empty, they
                               must have the same value. For backwards compatibility,
-                              both fields (DataSource and DataSourceRef) will be set
-                              to the same value automatically if one of them is empty
-                              and the other is non-empty. There are two important
-                              differences between DataSource and DataSourceRef: *
-                              While DataSource only allows two specific types of objects,
-                              DataSourceRef allows any non-core object, as well as
-                              PersistentVolumeClaim objects. * While DataSource ignores
-                              disallowed values (dropping them), DataSourceRef preserves
-                              all values, and generates an error if a disallowed value
-                              is specified. (Alpha) Using this field requires the
-                              AnyVolumeDataSource feature gate to be enabled.'
+                              when namespace isn''t specified in dataSourceRef, both
+                              fields (dataSource and dataSourceRef) will be set to
+                              the same value automatically if one of them is empty
+                              and the other is non-empty. When namespace is specified
+                              in dataSourceRef, dataSource isn''t set to the same
+                              value and must be empty. There are three important differences
+                              between dataSource and dataSourceRef: * While dataSource
+                              only allows two specific types of objects, dataSourceRef
+                              allows any non-core object, as well as PersistentVolumeClaim
+                              objects. * While dataSource ignores disallowed values
+                              (dropping them), dataSourceRef preserves all values,
+                              and generates an error if a disallowed value is specified.
+                              * While dataSource only allows local objects, dataSourceRef
+                              allows objects in any namespaces. (Beta) Using this
+                              field requires the AnyVolumeDataSource feature gate
+                              to be enabled. (Alpha) Using the namespace field of
+                              dataSourceRef requires the CrossNamespaceVolumeDataSource
+                              feature gate to be enabled.'
                             properties:
                               apiGroup:
                                 description: APIGroup is the group for the resource
@@ -5048,19 +5108,51 @@ spec:
                               name:
                                 description: Name is the name of resource being referenced
                                 type: string
+                              namespace:
+                                description: Namespace is the namespace of resource
+                                  being referenced Note that when a namespace is specified,
+                                  a gateway.networking.k8s.io/ReferenceGrant object
+                                  is required in the referent namespace to allow that
+                                  namespace's owner to accept the reference. See the
+                                  ReferenceGrant documentation for details. (Alpha)
+                                  This field requires the CrossNamespaceVolumeDataSource
+                                  feature gate to be enabled.
+                                type: string
                             required:
                             - kind
                             - name
                             type: object
-                            x-kubernetes-map-type: atomic
                           resources:
-                            description: 'Resources represents the minimum resources
+                            description: 'resources represents the minimum resources
                               the volume should have. If RecoverVolumeExpansionFailure
                               feature is enabled users are allowed to specify resource
                               requirements that are lower than previous value but
                               must still be higher than capacity recorded in the status
                               field of the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
                             properties:
+                              claims:
+                                description: "Claims lists the names of resources,
+                                  defined in spec.resourceClaims, that are used by
+                                  this container. \n This is an alpha field and requires
+                                  enabling the DynamicResourceAllocation feature gate.
+                                  \n This field is immutable."
+                                items:
+                                  description: ResourceClaim references one entry
+                                    in PodSpec.ResourceClaims.
+                                  properties:
+                                    name:
+                                      description: Name must match the name of one
+                                        entry in pod.spec.resourceClaims of the Pod
+                                        where this field is used. It makes that resource
+                                        available inside a container.
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                                type: array
+                                x-kubernetes-list-map-keys:
+                                - name
+                                x-kubernetes-list-type: map
                               limits:
                                 additionalProperties:
                                   anyOf:
@@ -5086,8 +5178,8 @@ spec:
                                 type: object
                             type: object
                           selector:
-                            description: A label query over volumes to consider for
-                              binding.
+                            description: selector is a label query over volumes to
+                              consider for binding.
                             properties:
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
@@ -5133,8 +5225,8 @@ spec:
                             type: object
                             x-kubernetes-map-type: atomic
                           storageClassName:
-                            description: 'Name of the StorageClass required by the
-                              claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
+                            description: 'storageClassName is the name of the StorageClass
+                              required by the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
                             type: string
                           volumeMode:
                             description: volumeMode defines what type of volume is
@@ -5142,7 +5234,7 @@ spec:
                               when not included in claim spec.
                             type: string
                           volumeName:
-                            description: VolumeName is the binding reference to the
+                            description: volumeName is the binding reference to the
                               PersistentVolume backing this claim.
                             type: string
                         type: object
@@ -5427,15 +5519,47 @@ spec:
                               name:
                                 description: Name is the name of resource being referenced
                                 type: string
+                              namespace:
+                                description: Namespace is the namespace of resource
+                                  being referenced Note that when a namespace is specified,
+                                  a gateway.networking.k8s.io/ReferenceGrant object
+                                  is required in the referent namespace to allow that
+                                  namespace's owner to accept the reference. See the
+                                  ReferenceGrant documentation for details. (Alpha)
+                                  This field requires the CrossNamespaceVolumeDataSource
+                                  feature gate to be enabled.
+                                type: string
                             required:
                             - kind
                             - name
                             type: object
-                            x-kubernetes-map-type: atomic
                           resources:
                             description: 'Resources represents the minimum resources
                               the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
                             properties:
+                              claims:
+                                description: "Claims lists the names of resources,
+                                  defined in spec.resourceClaims, that are used by
+                                  this container. \n This is an alpha field and requires
+                                  enabling the DynamicResourceAllocation feature gate.
+                                  \n This field is immutable."
+                                items:
+                                  description: ResourceClaim references one entry
+                                    in PodSpec.ResourceClaims.
+                                  properties:
+                                    name:
+                                      description: Name must match the name of one
+                                        entry in pod.spec.resourceClaims of the Pod
+                                        where this field is used. It makes that resource
+                                        available inside a container.
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                                type: array
+                                x-kubernetes-list-map-keys:
+                                - name
+                                x-kubernetes-list-type: map
                               limits:
                                 additionalProperties:
                                   anyOf:
@@ -5910,20 +6034,22 @@ spec:
                 description: PVC is the PVC specification
                 properties:
                   accessModes:
-                    description: 'AccessModes contains the desired access modes the
+                    description: 'accessModes contains the desired access modes the
                       volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1'
                     items:
                       type: string
                     type: array
                   dataSource:
-                    description: 'This field can be used to specify either: * An existing
-                      VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
+                    description: 'dataSource field can be used to specify either:
+                      * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
                       * An existing PVC (PersistentVolumeClaim) If the provisioner
                       or an external controller can support the specified data source,
                       it will create a new volume based on the contents of the specified
-                      data source. If the AnyVolumeDataSource feature gate is enabled,
-                      this field will always have the same contents as the DataSourceRef
-                      field.'
+                      data source. When the AnyVolumeDataSource feature gate is enabled,
+                      dataSource contents will be copied to dataSourceRef, and dataSourceRef
+                      contents will be copied to dataSource when dataSourceRef.namespace
+                      is not specified. If the namespace is specified, then dataSourceRef
+                      will not be copied to dataSource.'
                     properties:
                       apiGroup:
                         description: APIGroup is the group for the resource being
@@ -5943,24 +6069,31 @@ spec:
                     type: object
                     x-kubernetes-map-type: atomic
                   dataSourceRef:
-                    description: 'Specifies the object from which to populate the
-                      volume with data, if a non-empty volume is desired. This may
-                      be any local object from a non-empty API group (non core object)
-                      or a PersistentVolumeClaim object. When this field is specified,
-                      volume binding will only succeed if the type of the specified
-                      object matches some installed volume populator or dynamic provisioner.
-                      This field will replace the functionality of the DataSource
-                      field and as such if both fields are non-empty, they must have
-                      the same value. For backwards compatibility, both fields (DataSource
-                      and DataSourceRef) will be set to the same value automatically
-                      if one of them is empty and the other is non-empty. There are
-                      two important differences between DataSource and DataSourceRef:
-                      * While DataSource only allows two specific types of objects,
-                      DataSourceRef allows any non-core object, as well as PersistentVolumeClaim
-                      objects. * While DataSource ignores disallowed values (dropping
-                      them), DataSourceRef preserves all values, and generates an
-                      error if a disallowed value is specified. (Alpha) Using this
-                      field requires the AnyVolumeDataSource feature gate to be enabled.'
+                    description: 'dataSourceRef specifies the object from which to
+                      populate the volume with data, if a non-empty volume is desired.
+                      This may be any object from a non-empty API group (non core
+                      object) or a PersistentVolumeClaim object. When this field is
+                      specified, volume binding will only succeed if the type of the
+                      specified object matches some installed volume populator or
+                      dynamic provisioner. This field will replace the functionality
+                      of the dataSource field and as such if both fields are non-empty,
+                      they must have the same value. For backwards compatibility,
+                      when namespace isn''t specified in dataSourceRef, both fields
+                      (dataSource and dataSourceRef) will be set to the same value
+                      automatically if one of them is empty and the other is non-empty.
+                      When namespace is specified in dataSourceRef, dataSource isn''t
+                      set to the same value and must be empty. There are three important
+                      differences between dataSource and dataSourceRef: * While dataSource
+                      only allows two specific types of objects, dataSourceRef allows
+                      any non-core object, as well as PersistentVolumeClaim objects.
+                      * While dataSource ignores disallowed values (dropping them),
+                      dataSourceRef preserves all values, and generates an error if
+                      a disallowed value is specified. * While dataSource only allows
+                      local objects, dataSourceRef allows objects in any namespaces.
+                      (Beta) Using this field requires the AnyVolumeDataSource feature
+                      gate to be enabled. (Alpha) Using the namespace field of dataSourceRef
+                      requires the CrossNamespaceVolumeDataSource feature gate to
+                      be enabled.'
                     properties:
                       apiGroup:
                         description: APIGroup is the group for the resource being
@@ -5974,18 +6107,46 @@ spec:
                       name:
                         description: Name is the name of resource being referenced
                         type: string
+                      namespace:
+                        description: Namespace is the namespace of resource being
+                          referenced Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant
+                          object is required in the referent namespace to allow that
+                          namespace's owner to accept the reference. See the ReferenceGrant
+                          documentation for details. (Alpha) This field requires the
+                          CrossNamespaceVolumeDataSource feature gate to be enabled.
+                        type: string
                     required:
                     - kind
                     - name
                     type: object
-                    x-kubernetes-map-type: atomic
                   resources:
-                    description: 'Resources represents the minimum resources the volume
+                    description: 'resources represents the minimum resources the volume
                       should have. If RecoverVolumeExpansionFailure feature is enabled
                       users are allowed to specify resource requirements that are
                       lower than previous value but must still be higher than capacity
                       recorded in the status field of the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
                     properties:
+                      claims:
+                        description: "Claims lists the names of resources, defined
+                          in spec.resourceClaims, that are used by this container.
+                          \n This is an alpha field and requires enabling the DynamicResourceAllocation
+                          feature gate. \n This field is immutable."
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: Name must match the name of one entry in
+                                pod.spec.resourceClaims of the Pod where this field
+                                is used. It makes that resource available inside a
+                                container.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                       limits:
                         additionalProperties:
                           anyOf:
@@ -6010,7 +6171,8 @@ spec:
                         type: object
                     type: object
                   selector:
-                    description: A label query over volumes to consider for binding.
+                    description: selector is a label query over volumes to consider
+                      for binding.
                     properties:
                       matchExpressions:
                         description: matchExpressions is a list of label selector
@@ -6055,8 +6217,8 @@ spec:
                     type: object
                     x-kubernetes-map-type: atomic
                   storageClassName:
-                    description: 'Name of the StorageClass required by the claim.
-                      More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
+                    description: 'storageClassName is the name of the StorageClass
+                      required by the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
                     type: string
                   volumeMode:
                     description: volumeMode defines what type of volume is required
@@ -6064,7 +6226,7 @@ spec:
                       in claim spec.
                     type: string
                   volumeName:
-                    description: VolumeName is the binding reference to the PersistentVolume
+                    description: volumeName is the binding reference to the PersistentVolume
                       backing this claim.
                     type: string
                 type: object
@@ -6341,15 +6503,43 @@ spec:
                       name:
                         description: Name is the name of resource being referenced
                         type: string
+                      namespace:
+                        description: Namespace is the namespace of resource being
+                          referenced Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant
+                          object is required in the referent namespace to allow that
+                          namespace's owner to accept the reference. See the ReferenceGrant
+                          documentation for details. (Alpha) This field requires the
+                          CrossNamespaceVolumeDataSource feature gate to be enabled.
+                        type: string
                     required:
                     - kind
                     - name
                     type: object
-                    x-kubernetes-map-type: atomic
                   resources:
                     description: 'Resources represents the minimum resources the volume
                       should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
                     properties:
+                      claims:
+                        description: "Claims lists the names of resources, defined
+                          in spec.resourceClaims, that are used by this container.
+                          \n This is an alpha field and requires enabling the DynamicResourceAllocation
+                          feature gate. \n This field is immutable."
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: Name must match the name of one entry in
+                                pod.spec.resourceClaims of the Pod where this field
+                                is used. It makes that resource available inside a
+                                container.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                       limits:
                         additionalProperties:
                           anyOf:

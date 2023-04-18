@@ -8,34 +8,35 @@ conventions](https://github.com/openshift/enhancements/blob/master/CONVENTIONS.m
 and then follow the instructions below to regenerate CRDs (if necessary) and
 submit a pull request with your new API definitions and generated files.
 
-## pull request process
+### required labels
 
-Pull requests that change API types in this repo that have corresponding "internal" API objects in the 
-[openshift/origin](https://github.com/openshift/origin) repo must be paired with a pull request to
-[openshift/origin](https://github.com/openshift/origin).
+In addition to the standard `lgtm` and `approved` labels this repository requires either:
 
-To ensure the corresponding origin pull request is ready to merge as soon as the pull request to this repo is merged:
-1. Base your pull request to this repo on latest [openshift/api#master](https://github.com/openshift/api/commits/master) and ensure CI is green
-2. Base your pull request to openshift/origin on latest [openshift/origin#master](https://github.com/openshift/origin/commits/master)
-3. In your openshift/origin pull request:
-   1. Add a TMP commit that points [glide.yaml](https://github.com/openshift/origin/blob/master/glide.yaml#L39-L41) at your fork of openshift/api, and the branch of your pull request:
+`bugzilla/valid-bug` - applied if your PR references a valid bugzilla bug
 
-      ```
-      - package: github.com/openshift/api
-        repo:    https://github.com/<your-username>/api.git
-        version: "<your-openshift-api-branch>"
-      ```
+OR
 
-    2. Update your `bump(*)` commit to include the result of running `hack/update-deps.sh`, which will pull in the changes from your openshift/api pull request
-    3. Make sure CI is green on your openshift/origin pull request 
-    4. Get LGTM on your openshift/api pull request (for API changes) and your openshift/origin pull request (for code changes)
+`qe-approved`, `docs-approved`, and `px-approved` - these labels can be applied by anyone in the openshift org via the `/label` command.
 
-Once both pull requests are ready, the openshift/api pull request can be merged.
+Who should apply these qe/docs/px labels?
+- For a no-FF team who is merging a feature before code freeze, they need to get those labels applied to their api repo PR by the appropriate teams (i.e. qe, docs, px)
+- For a FF(traditional) team who is merging a feature before FF, they can self-apply the labels(via /label commands), they are basically irrelevant for those teams
+- For a FF team who is merging a feature after FF, the PR should be rejected barring an exception
 
-Then do the following with your openshift/origin pull request:
-1. Drop the TMP commit (pointing glide back at openshift/api#master)
-2. Rerun `hack/update-deps.sh` and update your `bump(*)` commit
-3. It can then be tagged and merged by CI
+Why are these labels needed?
+
+We need a way for no-FF teams to be able to merge post-FF that does not require a BZ.  For non-shared repos that mechanism is the 
+qe/docs/px-approved labels.  We are expanding that mechanism to shared repos because the alternative would be that no-FF teams would
+put a dummy `bugzilla/valid-bug` label on their feature PRs in order to be able to merge them after feature freeze.  Since most
+individuals can't apply a `bugzilla/valid-bug` label to a PR, this introduces additional obstacles on those PRs.  Conversely, anyone
+can apply the docs/qe/px-approved labels, so "FF" teams that need to apply these labels to merge can do so w/o needing to involve
+anyone additional.
+
+Does this mean feature-freeze teams can use the no-FF process to merge code?
+
+No, signing a team up to be a no-FF team includes some basic education on the process and includes ensuring the associated QE+Docs
+participants are aware the team is moving to that model.  If you'd like to sign your team up, please speak with Gina Hargan who will
+be happy to help on-board your team.
 
 ## generating CRD schemas
 

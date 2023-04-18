@@ -28,7 +28,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/emicklei/go-restful"
+	"github.com/emicklei/go-restful/v3"
 
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
