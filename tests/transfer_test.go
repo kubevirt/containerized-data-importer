@@ -402,7 +402,7 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 			Entry("with same namespace and explicit name", false, &[]string{"target-name"}[0]),
 		)
 
-		It("[posneg:negative][test_id:5734]should handle quota failure", func() {
+		It("[posneg:negative][test_id:5734]should report quota failure on dv transfer and succeed once quota is large enough", func() {
 			sq := int64(100 * 1024 * 1024)
 			bq := int64(1024 * 1024 * 1024)
 			dataVolume := createDV(f.Namespace.Name, "source-dv")
@@ -425,9 +425,17 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 					},
 				},
 			}
+			quotaUpdated := func() int {
+				quota, err := f.K8sClient.CoreV1().ResourceQuotas(targetNs.Name).Get(context.TODO(), rq.Name, metav1.GetOptions{})
+				if err != nil {
+					return -1
+				}
+				return len(quota.Status.Used)
+			}
 
 			rq, err = f.K8sClient.CoreV1().ResourceQuotas(targetNs.Name).Create(context.TODO(), rq, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
+			Eventually(quotaUpdated, 2*time.Minute, 2*time.Second).Should(BeNumerically("==", 1))
 
 			ot := &cdiv1.ObjectTransfer{
 				ObjectMeta: metav1.ObjectMeta{
@@ -472,6 +480,7 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 			rq.Spec.Hard[corev1.ResourceRequestsStorage] = *resource.NewQuantity(bq, resource.DecimalSI)
 			_, err = f.K8sClient.CoreV1().ResourceQuotas(targetNs.Name).Update(context.TODO(), rq, metav1.UpdateOptions{})
 			Expect(err).ToNot(HaveOccurred())
+			Eventually(quotaUpdated, 2*time.Minute, 2*time.Second).Should(BeNumerically("==", 1))
 
 			Eventually(func() bool {
 				ot2, err := f.CdiClient.CdiV1beta1().ObjectTransfers().Get(context.TODO(), ot.Name, metav1.GetOptions{})
