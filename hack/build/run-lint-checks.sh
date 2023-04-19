@@ -38,6 +38,7 @@ for p in "${LINTABLE[@]}"; do
     fi
 done
 
+set -e
 ./hack/build/run-linters.sh
 
 exit ${ec}
