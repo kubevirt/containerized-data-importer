@@ -12,6 +12,7 @@ go_library(
         "objecttransfer.go",
         "storageprofile.go",
         "volumeimportsource.go",
+        "volumeuploadsource.go",
     ],
     importpath = "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/core/v1beta1",
     visibility = ["//visibility:public"],

@@ -7139,4 +7139,62 @@ status:
   conditions: null
   storedVersions: null
 `,
+	"volumeuploadsource": `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.11.3
+  creationTimestamp: null
+  name: volumeuploadsources.cdi.kubevirt.io
+spec:
+  group: cdi.kubevirt.io
+  names:
+    kind: VolumeUploadSource
+    listKind: VolumeUploadSourceList
+    plural: volumeuploadsources
+    singular: volumeuploadsource
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: VolumeUploadSource is a specification to populate PersistentVolumeClaims
+          with upload data
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: VolumeUploadSourceSpec defines specification for VolumeUploadSource
+            properties:
+              contentType:
+                description: DataVolumeContentType represents the types of the imported
+                  data
+                type: string
+            type: object
+          status:
+            description: VolumeUploadSourceStatus provides the most recently observed
+              status of the VolumeUploadSource
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null
+`,
 }

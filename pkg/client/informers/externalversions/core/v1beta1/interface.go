@@ -40,6 +40,8 @@ type Interface interface {
 	StorageProfiles() StorageProfileInformer
 	// VolumeImportSources returns a VolumeImportSourceInformer.
 	VolumeImportSources() VolumeImportSourceInformer
+	// VolumeUploadSources returns a VolumeUploadSourceInformer.
+	VolumeUploadSources() VolumeUploadSourceInformer
 }
 
 type version struct {
@@ -91,4 +93,9 @@ func (v *version) StorageProfiles() StorageProfileInformer {
 // VolumeImportSources returns a VolumeImportSourceInformer.
 func (v *version) VolumeImportSources() VolumeImportSourceInformer {
 	return &volumeImportSourceInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// VolumeUploadSources returns a VolumeUploadSourceInformer.
+func (v *version) VolumeUploadSources() VolumeUploadSourceInformer {
+	return &volumeUploadSourceInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

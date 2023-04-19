@@ -35,3 +35,15 @@ func createVolumeImportSourceCRD() *extv1.CustomResourceDefinition {
 	_ = k8syaml.NewYAMLToJSONDecoder(strings.NewReader(resources.CDICRDs["volumeimportsource"])).Decode(&crd)
 	return &crd
 }
+
+// NewVolumeUploadSourceCrd - provides VolumeUploadSource CRD
+func NewVolumeUploadSourceCrd() *extv1.CustomResourceDefinition {
+	return createVolumeUploadSourceCRD()
+}
+
+// createVolumeUploadSourceCRD creates the VolumeUploadSource schema
+func createVolumeUploadSourceCRD() *extv1.CustomResourceDefinition {
+	crd := extv1.CustomResourceDefinition{}
+	_ = k8syaml.NewYAMLToJSONDecoder(strings.NewReader(resources.CDICRDs["volumeuploadsource"])).Decode(&crd)
+	return &crd
+}
