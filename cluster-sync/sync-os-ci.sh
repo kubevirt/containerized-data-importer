@@ -9,7 +9,14 @@ source ./hack/build/config.sh
 source ./hack/build/common.sh
 source ./cluster-up/hack/common.sh
 source ./cluster-up/cluster/${KUBEVIRT_PROVIDER}/provider.sh
-source ./cluster-sync/${KUBEVIRT_PROVIDER}/provider.sh
+
+if [ "${KUBEVIRT_PROVIDER}" = "external" ]; then
+   CDI_SYNC_PROVIDER="external"
+else
+   CDI_SYNC_PROVIDER="kubevirtci"
+fi
+
+source ./cluster-sync/${CDI_SYNC_PROVIDER}/provider.sh
 
 CDI_INSTALL="install-operator"
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}

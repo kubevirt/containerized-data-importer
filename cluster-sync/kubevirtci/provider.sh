@@ -20,10 +20,6 @@ function configure_storage() {
     else
       _kubectl patch storageclass rook-ceph-block -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
     fi
-  # ceph will be deprecated once changes to test lanes merged
-  elif [[ $KUBEVIRT_STORAGE == "ceph" ]] ; then
-    echo "Installing ceph storage"
-    configure_ceph
   elif [[ $KUBEVIRT_STORAGE == "hpp" ]] ; then
     echo "Installing hostpath provisioner storage"
     configure_hpp
