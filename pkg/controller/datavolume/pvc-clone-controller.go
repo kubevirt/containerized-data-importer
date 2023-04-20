@@ -111,7 +111,6 @@ func NewPvcCloneController(
 		},
 		sccs: sccs,
 	}
-	reconciler.Reconciler = reconciler
 
 	dataVolumeCloneController, err := controller.New(pvcCloneControllerName, mgr, controller.Options{
 		Reconciler: reconciler,

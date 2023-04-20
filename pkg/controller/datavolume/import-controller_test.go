@@ -1295,7 +1295,7 @@ var _ = Describe("All DataVolume Tests", func() {
 })
 
 func dvPhaseTest(reconciler ReconcilerBase, dvc dvController, testDv runtime.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann, expectedEvent string, extraAnnotations ...string) {
-	_, err := reconciler.Reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+	_, err := dvc.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 	Expect(err).ToNot(HaveOccurred())
 	dv := &cdiv1.DataVolume{}
 	err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
@@ -1443,7 +1443,6 @@ func createImportReconcilerWithoutConfig(objects ...runtime.Object) *ImportRecon
 			},
 		},
 	}
-	r.Reconciler = r
 	return r
 }
 

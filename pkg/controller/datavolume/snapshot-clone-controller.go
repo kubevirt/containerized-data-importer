@@ -83,7 +83,6 @@ func NewSnapshotCloneController(
 			tokenGenerator: newLongTermCloneTokenGenerator(tokenPrivateKey),
 		},
 	}
-	reconciler.Reconciler = reconciler
 
 	dataVolumeCloneController, err := controller.New(snapshotCloneControllerName, mgr, controller.Options{
 		Reconciler: reconciler,

@@ -282,7 +282,6 @@ func createSnapshotCloneReconcilerWithoutConfig(objects ...runtime.Object) *Snap
 			tokenGenerator: &FakeGenerator{token: "foobar"},
 		},
 	}
-	r.Reconciler = r
 	return r
 }
 

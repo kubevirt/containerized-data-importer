@@ -69,7 +69,6 @@ func NewPopulatorController(ctx context.Context, mgr manager.Manager, log logr.L
 			installerLabels: installerLabels,
 		},
 	}
-	reconciler.Reconciler = reconciler
 
 	datavolumeController, err := controller.New(populatorControllerName, mgr, controller.Options{Reconciler: reconciler})
 	if err != nil {

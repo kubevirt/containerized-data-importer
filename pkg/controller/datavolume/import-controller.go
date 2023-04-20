@@ -85,7 +85,6 @@ func NewImportController(
 			installerLabels: installerLabels,
 		},
 	}
-	reconciler.Reconciler = reconciler
 
 	datavolumeController, err := controller.New(importControllerName, mgr, controller.Options{
 		Reconciler: reconciler,
