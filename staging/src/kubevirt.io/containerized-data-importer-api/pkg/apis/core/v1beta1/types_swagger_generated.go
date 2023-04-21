@@ -307,6 +307,41 @@ func (DataImportCronList) SwaggerDoc() map[string]string {
 	}
 }
 
+func (VolumeImportSource) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":       "VolumeImportSource works as a specification to populate PersistentVolumeClaims with data\nimported from an HTTP/S3/Registry/Blank/ImageIO/VDDK source\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion",
+		"status": "+optional",
+	}
+}
+
+func (VolumeImportSourceSpec) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":              "VolumeImportSourceSpec defines the Spec field for VolumeImportSource",
+		"source":        "Source is the src of the data to be imported in the target PVC",
+		"preallocation": "Preallocation controls whether storage for the target PVC should be allocated in advance.",
+		"contentType":   "ContentType represents the type of the imported data (Kubevirt or archive)",
+	}
+}
+
+func (ImportSourceType) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "ImportSourceType contains each one of the source types allowed in a VolumeImportSource",
+	}
+}
+
+func (VolumeImportSourceStatus) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "VolumeImportSourceStatus provides the most recently observed status of the VolumeImportSource",
+	}
+}
+
+func (VolumeImportSourceList) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":      "VolumeImportSourceList provides the needed parameters to do request a list of Import Sources from the system\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
+		"items": "Items provides a list of DataSources",
+	}
+}
+
 func (CDI) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":       "CDI is the CDI Operator CRD\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion\n+kubebuilder:resource:shortName=cdi;cdis,scope=Cluster\n+kubebuilder:printcolumn:name=\"Age\",type=\"date\",JSONPath=\".metadata.creationTimestamp\"\n+kubebuilder:printcolumn:name=\"Phase\",type=\"string\",JSONPath=\".status.phase\"",

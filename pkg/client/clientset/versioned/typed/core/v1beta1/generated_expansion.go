@@ -31,3 +31,5 @@ type DataVolumeExpansion interface{}
 type ObjectTransferExpansion interface{}
 
 type StorageProfileExpansion interface{}
+
+type VolumeImportSourceExpansion interface{}
