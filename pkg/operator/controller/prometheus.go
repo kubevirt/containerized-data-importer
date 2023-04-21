@@ -18,14 +18,16 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 
 	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/go-logr/logr"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -47,7 +49,8 @@ const (
 	rbacName                  = "cdi-monitoring"
 	monitorName               = "service-monitor-cdi"
 	defaultMonitoringNs       = "monitoring"
-	runbookURLBasePath        = "https://kubevirt.io/monitoring/runbooks/"
+	defaultRunbookURLTemplate = "https://kubevirt.io/monitoring/runbooks/%s"
+	runbookURLTemplateEnv     = "RUNBOOK_URL_TEMPLATE"
 	severityAlertLabelKey     = "severity"
 	healthImpactAlertLabelKey = "operator_health_impact"
 	partOfAlertLabelKey       = "kubernetes_operator_part_of"
@@ -85,7 +88,7 @@ func ensurePrometheusResourcesExist(c client.Client, scheme *runtime.Scheme, own
 		}
 
 		if err := c.Create(context.TODO(), desired); err != nil {
-			if errors.IsAlreadyExists(err) {
+			if k8serrors.IsAlreadyExists(err) {
 				current := sdk.NewDefaultInstance(desired)
 				nn := client.ObjectKeyFromObject(desired)
 				if err := c.Get(context.TODO(), nn, current); err != nil {
@@ -122,7 +125,7 @@ func isPrometheusDeployed(logger logr.Logger, c client.Client, namespace string)
 		if meta.IsNoMatchError(err) {
 			logger.V(3).Info("No match error for PrometheusRule, must not have prometheus deployed")
 			return false, nil
-		} else if !errors.IsNotFound(err) {
+		} else if !k8serrors.IsNotFound(err) {
 			return false, err
 		}
 	}
@@ -140,7 +143,7 @@ func getRecordRules(namespace string) []promv1.Rule {
 	return recordRules
 }
 
-func getAlertRules() []promv1.Rule {
+func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 	return []promv1.Rule{
 		generateAlertRule(
 			"CDIOperatorDown",
@@ -148,7 +151,7 @@ func getAlertRules() []promv1.Rule {
 			"5m",
 			map[string]string{
 				"summary":     "CDI operator is down",
-				"runbook_url": runbookURLBasePath + "CDIOperatorDown",
+				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIOperatorDown"),
 			},
 			map[string]string{
 				severityAlertLabelKey:     "warning",
@@ -163,7 +166,7 @@ func getAlertRules() []promv1.Rule {
 			"5m",
 			map[string]string{
 				"summary":     "CDI is not available to use",
-				"runbook_url": runbookURLBasePath + "CDINotReady",
+				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDINotReady"),
 			},
 			map[string]string{
 				severityAlertLabelKey:     "warning",
@@ -178,7 +181,7 @@ func getAlertRules() []promv1.Rule {
 			"5m",
 			map[string]string{
 				"summary":     "Cluster has DataVolumes (PVC population request) with an unusual restart count, meaning they are probably failing and need to be investigated",
-				"runbook_url": runbookURLBasePath + "CDIDataVolumeUnusualRestartCount",
+				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIDataVolumeUnusualRestartCount"),
 			},
 			map[string]string{
 				severityAlertLabelKey:     "warning",
@@ -193,7 +196,7 @@ func getAlertRules() []promv1.Rule {
 			"5m",
 			map[string]string{
 				"summary":     "Incomplete StorageProfiles exist, accessMode/volumeMode cannot be inferred by CDI for PVC population request",
-				"runbook_url": runbookURLBasePath + "CDIStorageProfilesIncomplete",
+				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIStorageProfilesIncomplete"),
 			},
 			map[string]string{
 				severityAlertLabelKey:     "info",
@@ -208,7 +211,7 @@ func getAlertRules() []promv1.Rule {
 			"15m",
 			map[string]string{
 				"summary":     "DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule",
-				"runbook_url": runbookURLBasePath + "CDIDataImportCronOutdated",
+				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIDataImportCronOutdated"),
 			},
 			map[string]string{
 				severityAlertLabelKey:     "info",
@@ -221,6 +224,8 @@ func getAlertRules() []promv1.Rule {
 }
 
 func newPrometheusRule(namespace string) *promv1.PrometheusRule {
+	runbookURLTemplate := getRunbookURLTemplate()
+
 	return &promv1.PrometheusRule{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ruleName,
@@ -234,7 +239,7 @@ func newPrometheusRule(namespace string) *promv1.PrometheusRule {
 			Groups: []promv1.RuleGroup{
 				{
 					Name:  "cdi.rules",
-					Rules: append(getRecordRules(namespace), getAlertRules()...),
+					Rules: append(getRecordRules(namespace), getAlertRules(runbookURLTemplate)...),
 				},
 			},
 		},
@@ -394,4 +399,17 @@ func (r *ReconcileCDI) watchPrometheusResources() error {
 	}
 
 	return nil
+}
+
+func getRunbookURLTemplate() string {
+	runbookURLTemplate, exists := os.LookupEnv(runbookURLTemplateEnv)
+	if !exists {
+		runbookURLTemplate = defaultRunbookURLTemplate
+	}
+
+	if strings.Count(runbookURLTemplate, "%s") != 1 {
+		panic(errors.New("runbook URL template must have exactly 1 %s substring"))
+	}
+
+	return runbookURLTemplate
 }
