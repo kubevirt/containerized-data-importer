@@ -72,11 +72,11 @@ var _ = Describe("Import populator tests", func() {
 		AnnDefaultStorageClass: "true",
 	}, map[string]string{}, "csi-plugin")
 
-	getVolumeImportSource := func(preallocation bool) *cdiv1.VolumeImportSource {
+	getVolumeImportSource := func(preallocation bool, namespace string) *cdiv1.VolumeImportSource {
 		return &cdiv1.VolumeImportSource{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      samplePopulatorName,
-				Namespace: metav1.NamespaceDefault,
+				Namespace: namespace,
 			},
 			Spec: cdiv1.VolumeImportSourceSpec{
 				ContentType:   cdiv1.DataVolumeKubeVirt,
@@ -121,12 +121,19 @@ var _ = Describe("Import populator tests", func() {
 		Kind:     cdiv1.VolumeImportSourceRef,
 		Name:     samplePopulatorName,
 	}
+	nsName := "test-import"
+	namespacedDataSourceRef := &corev1.TypedObjectReference{
+		APIGroup:  &apiGroup,
+		Kind:      cdiv1.VolumeImportSourceRef,
+		Name:      samplePopulatorName,
+		Namespace: &nsName,
+	}
 
 	var _ = Describe("Import populator reconcile", func() {
 		It("should trigger succeeded event when podPhase is succeeded during population", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimPending)
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
-			volumeImportSource := getVolumeImportSource(true)
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
 			pvcPrime := getPVCPrime(targetPvc, nil)
 			pvcPrime.Annotations = map[string]string{AnnPodPhase: string(corev1.PodSucceeded)}
 
@@ -148,10 +155,35 @@ var _ = Describe("Import populator tests", func() {
 			Expect(found).To(BeTrue())
 		})
 
+		It("should ignore namespaced dataSourceRefs", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = namespacedDataSourceRef
+			volumeImportSource := getVolumeImportSource(true, nsName)
+			pvcPrime := getPVCPrime(targetPvc, nil)
+			pvcPrime.Annotations = map[string]string{AnnPodPhase: string(corev1.PodSucceeded)}
+
+			By("Reconcile")
+			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, volumeImportSource, sc)
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Checking PVC was ignored")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, importSucceeded) {
+					found = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(found).To(BeFalse())
+		})
+
 		It("Should trigger failed import event when pod phase is podfailed", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimPending)
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
-			volumeImportSource := getVolumeImportSource(true)
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
 			pvcPrime := getPVCPrime(targetPvc, nil)
 			pvcPrime.Annotations = map[string]string{AnnPodPhase: string(corev1.PodFailed)}
 
@@ -174,9 +206,9 @@ var _ = Describe("Import populator tests", func() {
 		})
 
 		It("Should retrigger reconcile while import pod is running", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimPending)
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
-			volumeImportSource := getVolumeImportSource(true)
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
 			pvcPrime := getPVCPrime(targetPvc, nil)
 			pvcPrime.Annotations = map[string]string{AnnPodPhase: string(corev1.PodRunning)}
 
@@ -189,9 +221,9 @@ var _ = Describe("Import populator tests", func() {
 		})
 
 		It("Should create PVC Prime with proper import annotations", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
-			volumeImportSource := getVolumeImportSource(true)
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
 
 			By("Reconcile")
 			reconciler = createImportPopulatorReconciler(targetPvc, volumeImportSource, sc)
@@ -224,7 +256,7 @@ var _ = Describe("Import populator tests", func() {
 		})
 
 		It("shouldn't error when reconciling PVC with non-import DataSourceRef", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
 			targetPvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
 				APIGroup: &apiGroup,
 				Kind:     "BadPopulator",
@@ -239,7 +271,7 @@ var _ = Describe("Import populator tests", func() {
 		})
 
 		It("shouldn't error when reconciling PVC without DataSourceRef", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
 
 			By("Reconcile")
 			reconciler = createImportPopulatorReconciler(targetPvc, sc)
@@ -249,7 +281,7 @@ var _ = Describe("Import populator tests", func() {
 		})
 
 		It("Should just return when VolumeImportSource is not available", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
 
 			By("Reconcile")
@@ -262,7 +294,7 @@ var _ = Describe("Import populator tests", func() {
 
 	var _ = Describe("Import populator progress report", func() {
 		It("should set 100.0% if pod phase is succeeded", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
 			pvcPrime := getPVCPrime(targetPvc, nil)
 
 			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, sc)
@@ -272,7 +304,7 @@ var _ = Describe("Import populator tests", func() {
 		})
 
 		It("should return error if no metrics in pod", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
 			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, targetPvc.Name)
 			targetPvc.Annotations = map[string]string{AnnImportPod: importPodName}
 			pvcPrime := getPVCPrime(targetPvc, nil)
@@ -287,7 +319,7 @@ var _ = Describe("Import populator tests", func() {
 		})
 
 		It("should not error if no endpoint exists", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
 			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, targetPvc.Name)
 			targetPvc.Annotations = map[string]string{AnnImportPod: importPodName}
 			pvcPrime := getPVCPrime(targetPvc, nil)
@@ -302,7 +334,7 @@ var _ = Describe("Import populator tests", func() {
 		})
 
 		It("should not error if pod is not running", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
 			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, targetPvc.Name)
 			targetPvc.Annotations = map[string]string{AnnImportPod: importPodName}
 			pvcPrime := getPVCPrime(targetPvc, nil)
@@ -314,14 +346,14 @@ var _ = Describe("Import populator tests", func() {
 		})
 
 		It("should report progress in target PVC if http endpoint returns matching data", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
 			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, targetPvc.Name)
 			targetPvc.Annotations = map[string]string{AnnImportPod: importPodName}
 			targetPvc.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
 			pvcPrime := getPVCPrime(targetPvc, nil)
 
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", targetPvc.GetUID())))
+				_, _ = w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", targetPvc.GetUID())))
 				w.WriteHeader(200)
 			}))
 			defer ts.Close()
@@ -361,14 +393,22 @@ func createImportPopulatorReconcilerWithoutConfig(objects ...runtime.Object) *Im
 
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
-	snapshotv1.AddToScheme(s)
-	extv1.AddToScheme(s)
+	_ = cdiv1.AddToScheme(s)
+	_ = snapshotv1.AddToScheme(s)
+	_ = extv1.AddToScheme(s)
 
 	objs = append(objs, MakeEmptyCDICR())
 
 	// Create a fake client to mock API calls.
-	cl := fake.NewFakeClientWithScheme(s, objs...)
+	builder := fake.NewClientBuilder().
+		WithScheme(s).
+		WithRuntimeObjects(objs...)
+
+	for _, ia := range getIndexArgs() {
+		builder = builder.WithIndex(ia.obj, ia.field, ia.extractValue)
+	}
+
+	cl := builder.Build()
 
 	rec := record.NewFakeRecorder(10)
 

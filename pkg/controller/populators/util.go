@@ -46,11 +46,28 @@ const (
 	annMigratedTo = "pv.kubernetes.io/migrated-to"
 )
 
-// IsPVCDataSourceRefKind returns if the PVC has DataSourceRef that
+// IsPVCDataSourceRefKind returns if the PVC has a valid DataSourceRef that
 // is equal to the given kind
 func IsPVCDataSourceRefKind(pvc *corev1.PersistentVolumeClaim, kind string) bool {
 	dataSourceRef := pvc.Spec.DataSourceRef
-	return dataSourceRef != nil && dataSourceRef.APIGroup != nil && *dataSourceRef.APIGroup == cc.AnnAPIGroup && dataSourceRef.Kind == kind
+	return isDataSourceRefValid(dataSourceRef) && dataSourceRef.Kind == kind
+}
+
+func isDataSourceRefValid(dataSourceRef *corev1.TypedObjectReference) bool {
+	return dataSourceRef != nil && dataSourceRef.APIGroup != nil &&
+		*dataSourceRef.APIGroup == cc.AnnAPIGroup && dataSourceRef.Name != ""
+}
+
+func getPopulationSourceNamespace(pvc *corev1.PersistentVolumeClaim) string {
+	namespace := pvc.GetNamespace()
+	// The populator CR can be in a different namespace from the target PVC
+	// if the CrossNamespaceVolumeDataSource feature gate is enabled in the
+	// kube-apiserver and the kube-controller-manager.
+	dataSourceRef := pvc.Spec.DataSourceRef
+	if dataSourceRef != nil && dataSourceRef.Namespace != nil && *dataSourceRef.Namespace != "" {
+		namespace = *pvc.Spec.DataSourceRef.Namespace
+	}
+	return namespace
 }
 
 func isPVCPrimeDataSourceRefKind(pvc *corev1.PersistentVolumeClaim, kind string) bool {
@@ -58,7 +75,7 @@ func isPVCPrimeDataSourceRefKind(pvc *corev1.PersistentVolumeClaim, kind string)
 	if owner == nil || owner.Kind != "PersistentVolumeClaim" {
 		return false
 	}
-	populatorKind, _ := pvc.Annotations[cc.AnnPopulatorKind]
+	populatorKind := pvc.Annotations[cc.AnnPopulatorKind]
 	return populatorKind == kind
 }
 
@@ -67,13 +84,8 @@ func PVCPrimeName(targetPVC *corev1.PersistentVolumeClaim) string {
 	return fmt.Sprintf("%s-%s", primePvcPrefix, targetPVC.UID)
 }
 
-func getPopulatorIndexKey(namespace, kind, name string) string {
-	return namespace + "/" + kind + "/" + name
-}
-
-func isPVCOwnedByDataVolume(pvc *corev1.PersistentVolumeClaim) bool {
-	owner := metav1.GetControllerOf(pvc)
-	return (owner != nil && owner.Kind == "DataVolume") || cc.HasAnnOwnedByDataVolume(pvc)
+func getPopulatorIndexKey(apiGroup, kind, namespace, name string) string {
+	return fmt.Sprintf("%s/%s/%s/%s", apiGroup, kind, namespace, name)
 }
 
 func checkIntreeStorageClass(pvc *corev1.PersistentVolumeClaim, sc *storagev1.StorageClass) bool {

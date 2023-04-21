@@ -68,18 +68,37 @@ type populatorController interface {
 	reconcileTargetPVC(pvc, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error)
 }
 
+type indexArgs struct {
+	obj          client.Object
+	field        string
+	extractValue client.IndexerFunc
+}
+
+func getIndexArgs() []indexArgs {
+	return []indexArgs{
+		{
+			obj:   &corev1.PersistentVolumeClaim{},
+			field: dataSourceRefField,
+			extractValue: func(obj client.Object) []string {
+				pvc := obj.(*corev1.PersistentVolumeClaim)
+				dataSourceRef := pvc.Spec.DataSourceRef
+				if isDataSourceRefValid(dataSourceRef) {
+					namespace := getPopulationSourceNamespace(pvc)
+					apiGroup := *dataSourceRef.APIGroup
+					return []string{getPopulatorIndexKey(apiGroup, dataSourceRef.Kind, namespace, dataSourceRef.Name)}
+				}
+				return nil
+			},
+		},
+	}
+}
+
 // CreateCommonPopulatorIndexes creates indexes used by all populators
 func CreateCommonPopulatorIndexes(mgr manager.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &corev1.PersistentVolumeClaim{}, dataSourceRefField, func(obj client.Object) []string {
-		pvc := obj.(*corev1.PersistentVolumeClaim)
-		dataSourceRef := pvc.Spec.DataSourceRef
-		if dataSourceRef != nil && dataSourceRef.APIGroup != nil &&
-			*dataSourceRef.APIGroup == cc.AnnAPIGroup && dataSourceRef.Name != "" {
-			return []string{getPopulatorIndexKey(obj.GetNamespace(), pvc.Spec.DataSourceRef.Kind, pvc.Spec.DataSourceRef.Name)}
+	for _, ia := range getIndexArgs() {
+		if err := mgr.GetFieldIndexer().IndexField(context.TODO(), ia.obj, ia.field, ia.extractValue); err != nil {
+			return err
 		}
-		return nil
-	}); err != nil {
-		return err
 	}
 	return nil
 }
@@ -106,7 +125,9 @@ func addCommonPopulatorsWatches(mgr manager.Manager, c controller.Controller, lo
 
 	mapDataSourceRefToPVC := func(obj client.Object) (reqs []reconcile.Request) {
 		var pvcs corev1.PersistentVolumeClaimList
-		matchingFields := client.MatchingFields{dataSourceRefField: getPopulatorIndexKey(obj.GetNamespace(), sourceKind, obj.GetName())}
+		matchingFields := client.MatchingFields{
+			dataSourceRefField: getPopulatorIndexKey(cc.AnnAPIGroup, sourceKind, obj.GetNamespace(), obj.GetName()),
+		}
 		if err := mgr.GetClient().List(context.TODO(), &pvcs, matchingFields); err != nil {
 			log.Error(err, "Unable to list PVCs", "matchingFields", matchingFields)
 			return reqs
@@ -241,8 +262,8 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 	}
 	util.SetRecommendedLabels(pvcPrime, r.installerLabels, "cdi-controller")
 
-	requestedSize, _ := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-	// disk or image size, inflate it with overhead
+	// disk or image size, inflate it with overhead if necessary
+	requestedSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 	requestedSize, err := cc.InflateSizeWithOverhead(r.client, requestedSize.Value(), &pvc.Spec)
 	if err != nil {
 		return nil, err
@@ -297,15 +318,23 @@ func (r *ReconcilerBase) reconcileCommon(pvc *corev1.PersistentVolumeClaim, popu
 
 	// We should ignore PVCs that aren't for this populator to handle
 	dataSourceRef := pvc.Spec.DataSourceRef
-	if dataSourceRef == nil || !IsPVCDataSourceRefKind(pvc, r.sourceKind) || dataSourceRef.Name == "" {
+	if !IsPVCDataSourceRefKind(pvc, r.sourceKind) {
 		log.V(1).Info("reconciled unexpected PVC, ignoring")
 		return nil, nil
 	}
+	// TODO: Remove this check once we support cross-namespace dataSourceRef
+	if dataSourceRef.Namespace != nil {
+		log.V(1).Info("cross-namespace dataSourceRef not supported yet, ignoring")
+		return nil, nil
+	}
+
 	// Wait until dataSourceRef exists
-	populationSource, err := populator.getPopulationSource(pvc.Namespace, dataSourceRef.Name)
+	namespace := getPopulationSourceNamespace(pvc)
+	populationSource, err := populator.getPopulationSource(namespace, dataSourceRef.Name)
 	if populationSource == nil {
 		return nil, err
 	}
+	// Check storage class
 	ready, waitForFirstConsumer, err := r.handleStorageClass(pvc)
 	if !ready || err != nil {
 		return nil, err

@@ -22,7 +22,7 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math"
 	"net/http"
 	"regexp"
@@ -937,7 +937,7 @@ func SetRestrictedSecurityContext(podSpec *v1.PodSpec) {
 // SetNodeNameIfPopulator sets NodeName in a pod spec when the PVC is being handled by a CDI volume populator
 func SetNodeNameIfPopulator(pvc *corev1.PersistentVolumeClaim, podSpec *v1.PodSpec) {
 	_, isPopulator := pvc.Annotations[AnnPopulatorKind]
-	nodeName, _ := pvc.Annotations[AnnSelectedNode]
+	nodeName := pvc.Annotations[AnnSelectedNode]
 	if isPopulator && nodeName != "" {
 		podSpec.NodeName = nodeName
 	}
@@ -1369,7 +1369,7 @@ func GetProgressReportFromURL(url string, regExp *regexp.Regexp, httpClient *htt
 		return "", err
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}

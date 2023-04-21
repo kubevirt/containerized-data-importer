@@ -121,7 +121,7 @@ func (r *ImportPopulatorReconciler) getPopulationSource(namespace, name string) 
 
 // Import-specific implementation of reconcileTargetPVC
 func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
-	phase, _ := pvcPrime.Annotations[cc.AnnPodPhase]
+	phase := pvcPrime.Annotations[cc.AnnPodPhase]
 	if err := r.updateImportProgress(phase, pvc, pvcPrime); err != nil {
 		return reconcile.Result{}, err
 	}
