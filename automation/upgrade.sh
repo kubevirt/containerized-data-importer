@@ -18,7 +18,7 @@
 #
 
 set -ex
-export TARGET=k8s-1.25
+export TARGET=k8s-1.26-centos9
 export KUBEVIRT_STORAGE=hpp
 export MULTI_UPGRADE=true
 export CDI_E2E_SKIP=Destructive

@@ -30,12 +30,7 @@ function configure_storage() {
     _kubectl apply -f https://github.com/kubevirt/hostpath-provisioner-operator/releases/download/$HPP_RELEASE/hostpathprovisioner_cr.yaml -n hostpath-provisioner
     _kubectl apply -f https://github.com/kubevirt/hostpath-provisioner-operator/releases/download/$HPP_RELEASE/storageclass-wffc.yaml
     _kubectl patch storageclass hostpath-provisioner -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
-  elif [[ $KUBEVIRT_STORAGE == "ceph" ]] ; then
-    echo "Installing hostpath provisioner storage"
-    configure_ceph
   else
     echo "Local storage not needed for external provider..."
   fi
 }
-
-
