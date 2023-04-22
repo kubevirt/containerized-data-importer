@@ -103,7 +103,7 @@ func addSmartCloneControllerWatches(mgr manager.Manager, smartCloneController co
 	}
 
 	// check if volume snapshots exist
-	err := mgr.GetClient().List(context.TODO(), &snapshotv1.VolumeSnapshotList{})
+	err := mgr.GetClient().List(context.TODO(), &snapshotv1.VolumeSnapshotList{}, &client.ListOptions{Limit: 1})
 	if meta.IsNoMatchError(err) {
 		return nil
 	}
@@ -353,24 +353,15 @@ func (r *SmartCloneReconciler) getTargetPVC(dataVolume *cdiv1.DataVolume) (*core
 	return pvc, nil
 }
 
-func newPvcFromSnapshot(dv *cdiv1.DataVolume, name string, snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
+func newPvcFromSnapshot(obj metav1.Object, name string, snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
 	targetPvcSpecCopy := targetPvcSpec.DeepCopy()
 	restoreSize := snapshot.Status.RestoreSize
 	if restoreSize == nil || restoreSize.Sign() == -1 {
 		return nil, fmt.Errorf("snapshot has no RestoreSize")
 	}
 	if restoreSize.IsZero() {
-		// Don't error out if the restoreSize is 0. Use the size from the DataVolume instead
-		if dv.Spec.PVC != nil {
-			reqSize := dv.Spec.PVC.Resources.Requests[corev1.ResourceStorage]
-			restoreSize = &reqSize
-		} else if dv.Spec.Storage != nil {
-			reqSize := dv.Spec.Storage.Resources.Requests[corev1.ResourceStorage]
-			restoreSize = &reqSize
-		}
-		if restoreSize.IsZero() {
-			return nil, fmt.Errorf("unable to determine restore size of PVC")
-		}
+		reqSize := targetPvcSpec.Resources.Requests[corev1.ResourceStorage]
+		restoreSize = &reqSize
 	}
 
 	key, err := cache.MetaNamespaceKeyFunc(snapshot)
@@ -383,7 +374,7 @@ func newPvcFromSnapshot(dv *cdiv1.DataVolume, name string, snapshot *snapshotv1.
 		common.CDILabelKey:       common.CDILabelValue,
 		common.CDIComponentLabel: common.SmartClonerCDILabel,
 	}
-	for k, v := range dv.Labels {
+	for k, v := range obj.GetLabels() {
 		labels[k] = v
 	}
 
@@ -394,7 +385,7 @@ func newPvcFromSnapshot(dv *cdiv1.DataVolume, name string, snapshot *snapshotv1.
 		cc.AnnRunningConditionReason:  "Completed",
 		annSmartCloneSnapshot:         key,
 	}
-	for k, v := range dv.ObjectMeta.Annotations {
+	for k, v := range obj.GetAnnotations() {
 		annotations[k] = v
 	}
 
