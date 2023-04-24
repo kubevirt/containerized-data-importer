@@ -78,7 +78,6 @@ func NewUploadController(
 			installerLabels: installerLabels,
 		},
 	}
-	reconciler.Reconciler = reconciler
 
 	datavolumeController, err := controller.New(uploadControllerName, mgr, controller.Options{
 		Reconciler: reconciler,

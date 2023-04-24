@@ -118,6 +118,5 @@ func createUploadReconcilerWithoutConfig(objects ...runtime.Object) *UploadRecon
 			},
 		},
 	}
-	r.Reconciler = r
 	return r
 }

@@ -1007,7 +1007,6 @@ func createCloneReconcilerWithoutConfig(objects ...runtime.Object) *PvcCloneReco
 		},
 		sccs: sccs,
 	}
-	r.Reconciler = r
 	return r
 }
 

@@ -108,7 +108,6 @@ type dvSyncState struct {
 
 // ReconcilerBase members
 type ReconcilerBase struct {
-	reconcile.Reconciler
 	client          client.Client
 	recorder        record.EventRecorder
 	scheme          *runtime.Scheme
@@ -354,6 +353,7 @@ func getSourceRefOp(log logr.Logger, dv *cdiv1.DataVolume, client client.Client)
 }
 
 type dvController interface {
+	reconcile.Reconciler
 	sync(log logr.Logger, req reconcile.Request) (dvSyncResult, error)
 	updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error
 }

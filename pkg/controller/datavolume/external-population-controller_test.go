@@ -380,7 +380,6 @@ func createPopulatorReconcilerWithoutConfig(objects ...runtime.Object) *Populato
 			},
 		},
 	}
-	r.Reconciler = r
 	return r
 }
 
