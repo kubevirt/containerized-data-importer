@@ -50,6 +50,7 @@ const (
 	NbdkitGzipFilter         NbdkitFilter = "gzip"
 	NbdkitRetryFilter        NbdkitFilter = "retry"
 	NbdkitCacheExtentsFilter NbdkitFilter = "cacheextents"
+	NbdkitReadAheadFilter    NbdkitFilter = "readahead"
 )
 
 // Nbdkit represents struct for an nbdkit instance
@@ -113,6 +114,9 @@ func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraH
 		redactArgs: redactArgs,
 		Socket:     socket,
 	}
+	// QEMU generally reads through the extents in order, making the readahead
+	// filter quite appropriate.
+	n.AddFilter(NbdkitReadAheadFilter)
 	// Should be last filter
 	n.AddFilter(NbdkitRetryFilter)
 	return n
