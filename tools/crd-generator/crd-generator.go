@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -50,22 +51,21 @@ func main() {
 var variable = "\t\"%s\": `%s`,\n"
 
 func generateGoFile(outputDir string, crds map[string]*extv1.CustomResourceDefinition) {
-	filepath := filepath.Join(outputDir, "crds_generated.go")
-	os.Remove(filepath)
-	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY, 0644)
+	filePath := filepath.Join(outputDir, "crds_generated.go")
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	defer func() {
 		if err = file.Close(); err != nil {
 			log.Fatal(err)
 		}
 	}()
 	if err != nil {
-		panic(fmt.Errorf("failed to create go file %v, %v", filepath, err))
+		panic(fmt.Errorf("failed to create go file %v, %v", filePath, err))
 	}
 	fmt.Printf("output file: %s\n", file.Name())
 
-	file.WriteString("package resources\n\n")
-	file.WriteString("// CDICRDs is a map containing yaml strings of all CRDs\n")
-	file.WriteString("var CDICRDs map[string]string = map[string]string{\n")
+	writeOrPanic(file, "package resources\n\n")
+	writeOrPanic(file, "// CDICRDs is a map containing yaml strings of all CRDs\n")
+	writeOrPanic(file, "var CDICRDs map[string]string = map[string]string{\n")
 
 	crdnames := make([]string, 0)
 	for crdname := range crds {
@@ -76,9 +76,9 @@ func generateGoFile(outputDir string, crds map[string]*extv1.CustomResourceDefin
 		crd := crds[crdname]
 		crd.Status = extv1.CustomResourceDefinitionStatus{}
 		b, _ := yaml.Marshal(crd)
-		file.WriteString(fmt.Sprintf(variable, crdname, strings.ReplaceAll(string(b), "`", "` + \"`\" + `")))
+		writeOrPanic(file, fmt.Sprintf(variable, crdname, strings.ReplaceAll(string(b), "`", "` + \"`\" + `")))
 	}
-	file.WriteString("}\n")
+	writeOrPanic(file, "}\n")
 
 }
 
@@ -100,4 +100,10 @@ func getCRD(filename string) (string, *extv1.CustomResourceDefinition) {
 		panic(fmt.Errorf("failed to parse crd from file %v, %v", filename, err))
 	}
 	return crd.Spec.Names.Singular, &crd
+}
+
+func writeOrPanic(f io.StringWriter, str string) {
+	if _, err := f.WriteString(str); err != nil {
+		panic(fmt.Errorf("failed to write string to file; %w", err))
+	}
 }

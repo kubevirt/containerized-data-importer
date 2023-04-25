@@ -570,7 +570,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			storageProfile := createStorageProfile(scName, nil, FilesystemMode)
 			reconciler = createCloneReconciler(dv, storageProfile, sc)
 
-			done, err := reconciler.validateCloneAndSourcePVC(syncState(dv))
+			done, err := reconciler.validateCloneAndSourcePVC(syncState(dv), reconciler.log)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeFalse())
 		})
@@ -580,7 +580,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			storageProfile := createStorageProfile(scName, nil, FilesystemMode)
 			reconciler = createCloneReconciler(dv, storageProfile, sc)
 
-			done, err := reconciler.validateCloneAndSourcePVC(syncState(dv))
+			done, err := reconciler.validateCloneAndSourcePVC(syncState(dv), reconciler.log)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeFalse())
 
@@ -589,7 +589,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Create(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 
-			done, err = reconciler.validateCloneAndSourcePVC(syncState(dv))
+			done, err = reconciler.validateCloneAndSourcePVC(syncState(dv), reconciler.log)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(done).To(BeTrue())
 		})
@@ -628,7 +628,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				storageProfile := createStorageProfile(scName, nil, FilesystemMode)
 				reconciler = createCloneReconciler(dv, storageProfile, sc)
 
-				done, err := reconciler.validateCloneAndSourcePVC(syncState(dv))
+				done, err := reconciler.validateCloneAndSourcePVC(syncState(dv), reconciler.log)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(done).To(BeFalse())
 
@@ -638,7 +638,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				err = reconciler.client.Create(context.TODO(), pvc)
 				Expect(err).ToNot(HaveOccurred())
 
-				done, err = reconciler.validateCloneAndSourcePVC(syncState(dv))
+				done, err = reconciler.validateCloneAndSourcePVC(syncState(dv), reconciler.log)
 				Expect(done).To(Equal(expectedResult))
 				if expectedResult == false {
 					Expect(err).To(HaveOccurred())
@@ -968,9 +968,9 @@ func createCloneReconcilerWithoutConfig(objects ...runtime.Object) *PvcCloneReco
 
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
-	snapshotv1.AddToScheme(s)
-	extv1.AddToScheme(s)
+	_ = cdiv1.AddToScheme(s)
+	_ = snapshotv1.AddToScheme(s)
+	_ = extv1.AddToScheme(s)
 
 	objs = append(objs, MakeEmptyCDICR())
 

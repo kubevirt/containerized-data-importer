@@ -196,7 +196,11 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 			reg, err := getDataVolumeSourceRegistry(f)
 			Expect(err).To(BeNil())
-			defer utils.RemoveInsecureRegistry(f.CrClient, *reg.URL)
+			defer func() {
+				if err := utils.RemoveInsecureRegistry(f.CrClient, *reg.URL); err != nil {
+					_, _ = fmt.Fprintf(GinkgoWriter, "failed to remove registry; %v", err)
+				}
+			}()
 
 			for i := 1; i < numCrons+1; i++ {
 				cron := utils.NewDataImportCron(fmt.Sprintf("cron-test-%d", i), "5Gi", scheduleOnceAYear, fmt.Sprintf("datasource-test-%d", i), 1, *reg)

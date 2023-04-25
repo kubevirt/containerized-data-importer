@@ -173,7 +173,7 @@ func (f *Framework) BeforeEach() {
 
 	if utils.IsStaticNfsWithInternalClusterServer() {
 		ginkgo.By("Creating NFS PVs before the test")
-		createNFSPVs(f.K8sClient, f.CdiInstallNs)
+		gomega.Expect(createNFSPVs(f.K8sClient, f.CdiInstallNs)).To(gomega.Succeed())
 	}
 
 	f.updateCDIConfig()
@@ -196,7 +196,7 @@ func (f *Framework) AfterEach() {
 
 		if utils.IsStaticNfsWithInternalClusterServer() {
 			ginkgo.By("Deleting NFS PVs after the test")
-			deleteNFSPVs(f.K8sClient, f.CdiInstallNs)
+			gomega.Expect(deleteNFSPVs(f.K8sClient, f.CdiInstallNs)).To(gomega.Succeed())
 			// manually clear out the NFS directories as we use delete retain policy.
 			nfsServerPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "nfs-server", "app=nfs-server")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())

@@ -314,7 +314,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	if dv != nil {
 		switch dv.Status.Phase {
 		case cdiv1.Succeeded:
-			if r.updatePvc(ctx, dataImportCron, pvc); err != nil {
+			if err = r.updatePvc(ctx, dataImportCron, pvc); err != nil {
 				return res, err
 			}
 			importSucceeded = true
@@ -327,7 +327,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, fmt.Sprintf("Import DataVolume phase %s", dvPhase), dvPhase)
 		}
 	} else if pvc != nil {
-		if r.updatePvc(ctx, dataImportCron, pvc); err != nil {
+		if err = r.updatePvc(ctx, dataImportCron, pvc); err != nil {
 			return res, err
 		}
 		importSucceeded = true

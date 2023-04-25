@@ -58,14 +58,15 @@ var _ = Describe("Http data source", func() {
 		if dp != nil {
 			resultBuffer := make([]byte, len(flushRead))
 			if dp.readers != nil {
+
 				By("flushing data from readers we can finish test")
-				dp.readers.read(resultBuffer)
+				_, err = dp.readers.read(resultBuffer)
+				Expect(err).Should(Or(Not(HaveOccurred()), MatchError("EOF")))
 			}
 			By("[AfterEach] closing data provider")
-			err = dp.Close()
-			Expect(err).NotTo(HaveOccurred())
+			Expect(dp.Close()).To(Succeed())
 		}
-		os.RemoveAll(tmpDir)
+		Expect(os.RemoveAll(tmpDir)).To(Succeed())
 		By("[AfterEach] closing test server")
 		ts.Close()
 	})
@@ -181,7 +182,7 @@ var _ = Describe("Http data source", func() {
 				Expect(err).NotTo(HaveOccurred())
 				body, err := io.ReadAll(response.Body)
 				Expect(err).NotTo(HaveOccurred())
-				w.Write(body)
+				_, _ = w.Write(body)
 			} else {
 				w.WriteHeader(500)
 			}

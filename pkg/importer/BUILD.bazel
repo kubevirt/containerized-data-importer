@@ -101,6 +101,7 @@ go_test(
         "//vendor/github.com/ovirt/go-ovirt:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/api/resource:go_default_library",
+        "//vendor/k8s.io/klog/v2:go_default_library",
     ] + select({
         "@io_bazel_rules_go//go/platform:amd64": [
             "//vendor/github.com/vmware/govmomi/vim25:go_default_library",

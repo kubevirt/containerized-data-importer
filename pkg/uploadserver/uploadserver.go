@@ -201,8 +201,12 @@ func (app *uploadServerApp) Run() error {
 		klog.Errorf("HTTP server returned error %s", err.Error())
 	case <-app.doneChan:
 		klog.Info("Shutting down http server after successful upload")
-		healthzServer.Shutdown(context.Background())
-		uploadServer.Shutdown(context.Background())
+		if err := healthzServer.Shutdown(context.Background()); err != nil {
+			klog.Errorf("failed to shutdown healthzServer; %v", err)
+		}
+		if err := uploadServer.Shutdown(context.Background()); err != nil {
+			klog.Errorf("failed to shutdown uploadServer; %v", err)
+		}
 	}
 
 	return err
@@ -261,7 +265,9 @@ func (app *uploadServerApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *uploadServerApp) healthzHandler(w http.ResponseWriter, r *http.Request) {
-	io.WriteString(w, "OK")
+	if _, err := io.WriteString(w, "OK"); err != nil {
+		klog.Errorf("healthzHandler: failed to send response; %v", err)
+	}
 }
 
 func (app *uploadServerApp) validateShouldHandleRequest(w http.ResponseWriter, r *http.Request) bool {
@@ -339,7 +345,12 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 			} else {
 				w.WriteHeader(http.StatusInternalServerError)
 			}
-			w.Write([]byte(fmt.Sprintf("Saving stream failed: %s", err.Error())))
+
+			_, writeErr := fmt.Fprintf(w, "Saving stream failed: %s", err.Error())
+			if writeErr != nil {
+				klog.Errorf("failed to send response; %v", err)
+			}
+
 			app.uploading = false
 			app.mutex.Unlock()
 			return

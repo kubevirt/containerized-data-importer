@@ -170,7 +170,10 @@ func (app *uploadProxyApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *uploadProxyApp) handleHealthzRequest(w http.ResponseWriter, r *http.Request) {
-	io.WriteString(w, "OK")
+	_, err := io.WriteString(w, "OK")
+	if err != nil {
+		klog.Errorf("handleHealthzRequest: failed to send response; %v", err)
+	}
 }
 
 func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Request) {
@@ -208,7 +211,10 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 		klog.Error(err)
 		w.WriteHeader(http.StatusServiceUnavailable)
 		// Return the error to the caller in the body.
-		w.Write([]byte(err.Error()))
+		_, err = fmt.Fprint(w, err.Error())
+		if err != nil {
+			klog.Errorf("handleUploadRequest: failed to send error response: %v", err)
+		}
 		return
 	}
 
@@ -217,7 +223,10 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 		klog.Error(err)
 		w.WriteHeader(http.StatusServiceUnavailable)
 		// Return the error to the caller in the body.
-		w.Write([]byte(err.Error()))
+		_, err = fmt.Fprint(w, err.Error())
+		if err != nil {
+			klog.Errorf("handleUploadRequest: failed to send error response: %v", err)
+		}
 		return
 	}
 

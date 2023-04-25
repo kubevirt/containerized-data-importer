@@ -4,6 +4,7 @@ import (
 	"github.com/emicklei/go-restful/v3"
 	"k8s.io/kube-openapi/pkg/builder"
 	"k8s.io/kube-openapi/pkg/common"
+	"k8s.io/kube-openapi/pkg/common/restfuladapter"
 	k8sspec "k8s.io/kube-openapi/pkg/validation/spec"
 )
 
@@ -50,5 +51,5 @@ func createConfig(getDefinitions common.GetOpenAPIDefinitions) *common.Config {
 // LoadOpenAPISpec creates a swagger doc for given webservice(s)
 func LoadOpenAPISpec(webServices []*restful.WebService, getDefinitions common.GetOpenAPIDefinitions) (*k8sspec.Swagger, error) {
 	config := createConfig(getDefinitions)
-	return builder.BuildOpenAPISpec(webServices, config)
+	return builder.BuildOpenAPISpecFromRoutes(restfuladapter.AdaptWebServices(webServices), config)
 }

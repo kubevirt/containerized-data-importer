@@ -60,7 +60,9 @@ func MarshallObject(obj interface{}, writer io.Writer) error {
 			unstructured.RemoveNestedField(deployment, "spec", "template", "metadata", "creationTimestamp")
 			unstructured.RemoveNestedField(deployment, "status")
 		}
-		unstructured.SetNestedSlice(r.Object, deployments, "spec", "install", "spec", "deployments")
+		if err = unstructured.SetNestedSlice(r.Object, deployments, "spec", "install", "spec", "deployments"); err != nil {
+			return err
+		}
 	}
 
 	jsonBytes, err = json.Marshal(r.Object)

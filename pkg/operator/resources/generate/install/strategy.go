@@ -159,13 +159,18 @@ func newInstallStrategyConfigMap(objects []runtime.Object, reqLogger logr.Logger
 		return nil, err
 	}
 
+	manifests, err := dumpInstallStrategy(strategy)
+	if err != nil {
+		return nil, err
+	}
+
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cdi-install-strategy",
 			Namespace: namespace,
 		},
 		Data: map[string]string{
-			"manifests": string(dumpInstallStrategyToBytes(strategy)),
+			"manifests": manifests,
 		},
 	}
 	util.SetRecommendedLabels(configMap, installerLabels, "cdi-operator")
@@ -196,57 +201,98 @@ func DumpInstallStrategyToConfigMap(clientset client.Client, objects []runtime.O
 	return nil
 }
 
-func dumpInstallStrategyToBytes(strategy *Strategy) []byte {
+func dumpSlice[T any](s []T, writer io.Writer) error {
+	for _, entry := range s {
+		if err := marshallObject(entry, writer); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func dumpInstallStrategy(strategy *Strategy) (string, error) {
 	var b bytes.Buffer
 	writer := bufio.NewWriter(&b)
 
-	for _, entry := range strategy.serviceAccounts {
-		marshallObject(entry, writer)
+	err := dumpSlice(strategy.serviceAccounts, writer)
+	if err != nil {
+		return "", err
 	}
-	for _, entry := range strategy.clusterRoles {
-		marshallObject(entry, writer)
+
+	err = dumpSlice(strategy.clusterRoles, writer)
+	if err != nil {
+		return "", err
 	}
-	for _, entry := range strategy.clusterRoleBindings {
-		marshallObject(entry, writer)
+
+	err = dumpSlice(strategy.clusterRoleBindings, writer)
+	if err != nil {
+		return "", err
 	}
-	for _, entry := range strategy.roles {
-		marshallObject(entry, writer)
+
+	err = dumpSlice(strategy.roles, writer)
+	if err != nil {
+		return "", err
 	}
-	for _, entry := range strategy.roleBindings {
-		marshallObject(entry, writer)
+	err = dumpSlice(strategy.roleBindings, writer)
+	if err != nil {
+		return "", err
+
 	}
-	for _, entry := range strategy.crds {
-		marshallObject(entry, writer)
+	err = dumpSlice(strategy.crds, writer)
+	if err != nil {
+		return "", err
+
 	}
-	for _, entry := range strategy.services {
-		marshallObject(entry, writer)
+	err = dumpSlice(strategy.services, writer)
+	if err != nil {
+		return "", err
+
 	}
-	for _, entry := range strategy.certificateSecrets {
-		marshallObject(entry, writer)
+	err = dumpSlice(strategy.certificateSecrets, writer)
+	if err != nil {
+		return "", err
+
 	}
-	for _, entry := range strategy.validatingWebhookConfigurations {
-		marshallObject(entry, writer)
+	err = dumpSlice(strategy.validatingWebhookConfigurations, writer)
+	if err != nil {
+		return "", err
+
 	}
-	for _, entry := range strategy.mutatingWebhookConfigurations {
-		marshallObject(entry, writer)
+	err = dumpSlice(strategy.mutatingWebhookConfigurations, writer)
+	if err != nil {
+		return "", err
 	}
-	for _, entry := range strategy.apiServices {
-		marshallObject(entry, writer)
+
+	err = dumpSlice(strategy.apiServices, writer)
+	if err != nil {
+		return "", err
 	}
-	for _, entry := range strategy.deployments {
-		marshallObject(entry, writer)
+	err = dumpSlice(strategy.deployments, writer)
+	if err != nil {
+		return "", err
 	}
-	for _, entry := range strategy.daemonSets {
-		marshallObject(entry, writer)
+
+	err = dumpSlice(strategy.daemonSets, writer)
+	if err != nil {
+		return "", err
+
 	}
-	for _, entry := range strategy.sccs {
-		marshallObject(entry, writer)
+	err = dumpSlice(strategy.sccs, writer)
+	if err != nil {
+		return "", err
 	}
-	for _, entry := range strategy.configMaps {
-		marshallObject(entry, writer)
+
+	err = dumpSlice(strategy.configMaps, writer)
+	if err != nil {
+		return "", err
 	}
-	writer.Flush()
-	return b.Bytes()
+
+	err = writer.Flush()
+	if err != nil {
+		return "", err
+	}
+
+	return b.String(), nil
 }
 
 func generateCurrentInstallStrategy(resources []runtime.Object, reqLogger logr.Logger) (*Strategy, error) {
@@ -318,7 +364,10 @@ func marshallObject(obj interface{}, writer io.Writer) error {
 				unstructured.RemoveNestedField(template, "spec", "pvc", "dataSource")
 			}
 		}
-		unstructured.SetNestedSlice(r.Object, templates, "spec", "dataVolumeTemplates")
+		err = unstructured.SetNestedSlice(r.Object, templates, "spec", "dataVolumeTemplates")
+		if err != nil {
+			return err
+		}
 	}
 	objects, exists, err := unstructured.NestedSlice(r.Object, "objects")
 	if err != nil {
@@ -338,7 +387,10 @@ func marshallObject(obj interface{}, writer io.Writer) error {
 				}
 			}
 		}
-		unstructured.SetNestedSlice(r.Object, objects, "objects")
+		err = unstructured.SetNestedSlice(r.Object, objects, "objects")
+		if err != nil {
+			return err
+		}
 	}
 
 	deployments, exists, err := unstructured.NestedSlice(r.Object, "spec", "install", "spec", "deployments")
@@ -352,7 +404,10 @@ func marshallObject(obj interface{}, writer io.Writer) error {
 			unstructured.RemoveNestedField(deployment, "spec", "template", "metadata", "creationTimestamp")
 			unstructured.RemoveNestedField(deployment, "status")
 		}
-		unstructured.SetNestedSlice(r.Object, deployments, "spec", "install", "spec", "deployments")
+		err = unstructured.SetNestedSlice(r.Object, deployments, "spec", "install", "spec", "deployments")
+		if err != nil {
+			return err
+		}
 	}
 
 	// remove "managed by operator" label...
@@ -362,7 +417,10 @@ func marshallObject(obj interface{}, writer io.Writer) error {
 	}
 	if exists {
 		delete(labels, "app.kubernetes.io/managed-by")
-		unstructured.SetNestedMap(r.Object, labels, "metadata", "labels")
+		err = unstructured.SetNestedMap(r.Object, labels, "metadata", "labels")
+		if err != nil {
+			return err
+		}
 	}
 
 	jsonBytes, err = json.Marshal(r.Object)

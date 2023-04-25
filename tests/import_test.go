@@ -437,7 +437,6 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", fu
 var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite-prometheus", func() {
 	var prometheusURL string
 	var portForwardCmd *exec.Cmd
-	var err error
 	client := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -452,12 +451,7 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	AfterEach(func() {
 		By("Stop port forwarding")
-		if portForwardCmd != nil {
-			err = portForwardCmd.Process.Kill()
-			Expect(err).ToNot(HaveOccurred())
-			portForwardCmd.Wait()
-			portForwardCmd = nil
-		}
+		afterCMD(portForwardCmd)
 	})
 
 	It("[test_id:4970]Import pod should have prometheus stats available while importing", func() {
@@ -547,7 +541,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 
 	AfterEach(func() {
 		if pvc != nil {
-			f.DeletePVC(pvc)
+			Expect(f.DeletePVC(pvc)).To(Succeed())
 		}
 	})
 

@@ -97,7 +97,7 @@ func FindPodByPrefixOnce(clientSet *kubernetes.Clientset, namespace, prefix, lab
 func findPodByCompFunc(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string, compFunc func(string, string) bool) (*k8sv1.Pod, error) {
 	var result *k8sv1.Pod
 	var err error
-	wait.PollImmediate(2*time.Second, podCreateTime, func() (bool, error) {
+	_ = wait.PollImmediate(2*time.Second, podCreateTime, func() (bool, error) {
 		result, err = findPodByCompFuncOnce(clientSet, namespace, prefix, labelSelector, compFunc)
 		if result != nil {
 			return true, err

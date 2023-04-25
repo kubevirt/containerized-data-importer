@@ -128,7 +128,7 @@ var _ = Describe("Cert rotation tests", func() {
 			cm := newCertManagerForTest(client, namespace)
 
 			ctx, cancel := context.WithCancel(context.Background())
-			cm.(*certManager).Start(ctx)
+			Expect(cm.(*certManager).Start(ctx)).To(Succeed())
 
 			checkCerts(client, namespace, false)
 
@@ -153,7 +153,7 @@ var _ = Describe("Cert rotation tests", func() {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			cm.(*certManager).Start(ctx)
+			Expect(cm.(*certManager).Start(ctx)).To(Succeed())
 
 			certs := cert.CreateCertificateDefinitions(&cert.FactoryArgs{Namespace: namespace})
 			err := cm.Sync(certs)

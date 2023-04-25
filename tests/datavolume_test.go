@@ -1494,7 +1494,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 				By(fmt.Sprintf("waiting for datavolume to match phase %s", cdiv1.ImportInProgress))
-				utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
+				Expect(utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)).To(Succeed())
 
 				By("verifying pvc and pod were created")
 				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
@@ -2631,7 +2631,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, timeout, pollingInterval).Should(BeNumerically(">=", 1))
 
 			By("Restore the file, import should progress")
-			utils.WaitTimeoutForPodReady(f.K8sClient, fileHostPod.Name, fileHostPod.Namespace, utils.PodWaitForTime)
+			Expect(utils.WaitTimeoutForPodReady(f.K8sClient, fileHostPod.Name, fileHostPod.Namespace, utils.PodWaitForTime)).To(Succeed())
 			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
 				"/bin/sh",
 				"-c",
@@ -2669,7 +2669,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			pvcUID := pvc.GetUID()
 
 			By("Wait for import to start")
-			utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
+			Expect(utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)).To(Succeed())
 
 			By(fmt.Sprintf("Deleting PVC %v (id: %v)", pvc.Name, pvcUID))
 			err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvc.Name)

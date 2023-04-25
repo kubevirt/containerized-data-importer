@@ -121,8 +121,15 @@ func main() {
 
 	ctx := signals.SetupSignalHandler()
 
-	authConfigWatcher := apiserver.NewAuthConfigWatcher(ctx, client)
-	cdiConfigTLSWatcher := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
+	authConfigWatcher, err := apiserver.NewAuthConfigWatcher(ctx, client)
+	if err != nil {
+		klog.Fatalf("Unable to create authConfigWatcher: %v\n", errors.WithStack(err))
+	}
+
+	cdiConfigTLSWatcher, err := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
+	if err != nil {
+		klog.Fatalf("Unable to create cdiConfigTLSWatcher: %v\n", errors.WithStack(err))
+	}
 
 	authorizor, err := apiserver.NewAuthorizorFromConfig(cfg, authConfigWatcher)
 	if err != nil {
@@ -149,7 +156,11 @@ func main() {
 		klog.Fatalf("Upload api failed to initialize: %v\n", errors.WithStack(err))
 	}
 
-	go certWatcher.Start(ctx.Done())
+	go func() {
+		if err := certWatcher.Start(ctx.Done()); err != nil {
+			klog.Errorf("cert watcher failed: %v\n", errors.WithStack(err))
+		}
+	}()
 
 	err = cdiAPIApp.Start(ctx.Done())
 	if err != nil {

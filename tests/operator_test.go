@@ -54,15 +54,16 @@ var _ = Describe("ALL Operator tests", func() {
 						depl, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 						Expect(err).ToNot(HaveOccurred())
 						return depl.Status.ReadyReplicas
-					}, 5*time.Minute, 1*time.Second).Should(Equal(originalReplicaVal))
+					}).WithTimeout(5 * time.Minute).WithPolling(10 * time.Second).Should(Equal(originalReplicaVal))
 				})
 				It("[test_id:9696]Alpha version of CDI CRD is removed even if it was briefly a storage version", func() {
 					By("Scaling down CDI operator")
 					originalReplicaVal = scaleDeployment(f, deploymentName, 0)
-					Eventually(func() bool {
+					Eventually(func(g Gomega) {
 						_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, deploymentName, common.CDILabelSelector)
-						return errors.IsNotFound(err)
-					}, 20*time.Second, 1*time.Second).Should(BeTrue())
+						_, _ = fmt.Fprintf(GinkgoWriter, "couldn't scale down CDI operator deployment; %v\n", err)
+						g.Expect(errors.IsNotFound(err)).Should(BeTrue())
+					}).WithTimeout(time.Second * 60).WithPolling(time.Second * 5).Should(Succeed())
 
 					By("Appending v1alpha1 version as stored version")
 					cdiCrd, err := f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), "cdis.cdi.kubevirt.io", metav1.GetOptions{})
@@ -95,16 +96,14 @@ var _ = Describe("ALL Operator tests", func() {
 					By("Scaling up CDI operator")
 					scaleDeployment(f, deploymentName, originalReplicaVal)
 					By("Eventually, CDI will restore v1beta1 to be the only stored version")
-					Eventually(func() bool {
+					Eventually(func(g Gomega) {
 						cdiCrd, err = f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), "cdis.cdi.kubevirt.io", metav1.GetOptions{})
-						Expect(err).ToNot(HaveOccurred())
+						g.Expect(err).ToNot(HaveOccurred())
 						for _, ver := range cdiCrd.Spec.Versions {
-							if !(ver.Name == "v1beta1" && ver.Storage == true) {
-								return false
-							}
+							g.Expect(ver.Name).Should(Equal("v1beta1"))
+							g.Expect(ver.Storage).Should(BeTrue())
 						}
-						return true
-					}, 1*time.Minute, 2*time.Second).Should(BeTrue())
+					}, 1*time.Minute, 2*time.Second).Should(Succeed())
 				})
 
 				It("[test_id:9704]Alpha versions of datavolume CRD are removed, previously existing objects remain and are unmodified", func() {
@@ -131,7 +130,7 @@ var _ = Describe("ALL Operator tests", func() {
 					Eventually(func() bool {
 						_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, deploymentName, common.CDILabelSelector)
 						return errors.IsNotFound(err)
-					}, 20*time.Second, 1*time.Second).Should(BeTrue())
+					}).WithTimeout(time.Second * 60).WithPolling(time.Second * 5).Should(BeTrue())
 
 					By("Appending v1alpha1 version as stored version")
 					dvCrd, err := f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), "datavolumes.cdi.kubevirt.io", metav1.GetOptions{})

@@ -121,7 +121,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
 
 			By("Wait for target datavolume phase Succeeded")
-			utils.WaitForDataVolumePhaseWithTimeout(f, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)
+			Expect(utils.WaitForDataVolumePhaseWithTimeout(f, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)).Should(Succeed())
 
 			By("Find cloner source pod after completion")
 			cloner, err := utils.FindPodBySuffixOnce(f.K8sClient, targetDataVolume.Namespace, common.ClonerSourcePodNameSuffix, common.CDILabelSelector)
@@ -192,7 +192,7 @@ var _ = Describe("all clone tests", func() {
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
 
 				By("Wait for target datavolume phase Succeeded")
-				utils.WaitForDataVolumePhaseWithTimeout(f, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)
+				Expect(utils.WaitForDataVolumePhaseWithTimeout(f, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)).Should(Succeed())
 				verifyGCFunc(targetDV.Name)
 
 				if additionalTestFunc != nil {
@@ -238,7 +238,7 @@ var _ = Describe("all clone tests", func() {
 				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
 				Expect(err).ToNot(HaveOccurred())
 				fmt.Fprintf(GinkgoWriter, "INFO: wait for target DV phase Succeeded: %s\n", targetPvc.Name)
-				utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetDV.Name, 3*90*time.Second)
+				Expect(utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetDV.Name, 3*90*time.Second)).Should(Succeed())
 				sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, pvc, true)
 				fmt.Fprintf(GinkgoWriter, "INFO: %s\n", sourcePvcDiskGroup)
 				Expect(err).ToNot(HaveOccurred())
@@ -275,7 +275,7 @@ var _ = Describe("all clone tests", func() {
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
 
 				By("Wait for target datavolume phase Succeeded")
-				utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetDV.Name, 3*90*time.Second)
+				Expect(utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, targetDV.Name, 3*90*time.Second)).To(Succeed())
 			})
 
 			DescribeTable("[test_id:1355]Should clone data across different namespaces", func(targetSize string) {
@@ -469,7 +469,7 @@ var _ = Describe("all clone tests", func() {
 				}, 60, 1).Should(BeTrue())
 
 				fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
-				utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
+				Expect(utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)).Should(Succeed())
 				completeClone(f, f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum, "")
 			})
 
@@ -495,7 +495,7 @@ var _ = Describe("all clone tests", func() {
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
 
 				By("Wait for target PVC Bound phase")
-				utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
+				Expect(utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)).To(Succeed())
 				By("Wait for target DV Succeeded phase")
 				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, "target-dv", cloneCompleteTimeout)
 				Expect(err).ToNot(HaveOccurred())
@@ -542,7 +542,7 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				By("Wait for target PVC Bound phase")
-				utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
+				Expect(utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)).To(Succeed())
 				By("Wait for target DV Succeeded phase")
 				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, "target-dv", cloneCompleteTimeout)
 				Expect(err).ToNot(HaveOccurred())
@@ -593,7 +593,9 @@ var _ = Describe("all clone tests", func() {
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
 
 				By("Wait for target PVC Bound phase")
-				utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
+				Expect(
+					utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name),
+				).To(Succeed())
 				By("Wait for target DV Succeeded phase")
 				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, "target-dv", cloneCompleteTimeout)
 				Expect(err).ToNot(HaveOccurred())
@@ -676,7 +678,9 @@ var _ = Describe("all clone tests", func() {
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 				By("Waiting for import to be completed")
-				utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+				Expect(
+					utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second),
+				).Should(Succeed())
 
 				By("Cloning from the source DataVolume to under sized target")
 				targetDv := utils.NewDataVolumeForImageCloningAndStorageSpec("target-dv", "100Mi",
@@ -842,9 +846,9 @@ var _ = Describe("all clone tests", func() {
 						spec, err := utils.GetStorageProfileSpec(f.CdiClient, wffcStorageClass.Name)
 						Expect(err).ToNot(HaveOccurred())
 						if cloneType == "csivolumeclone" {
-							utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, wffcStorageClass.Name, spec, cdiv1.CloneStrategyCsiClone)
+							Expect(utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, wffcStorageClass.Name, spec, cdiv1.CloneStrategyCsiClone)).Should(Succeed())
 						} else if cloneType == "snapshot" {
-							utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, wffcStorageClass.Name, spec, cdiv1.CloneStrategySnapshot)
+							Expect(utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, wffcStorageClass.Name, spec, cdiv1.CloneStrategySnapshot)).Should(Succeed())
 						}
 					}
 				})
@@ -966,12 +970,14 @@ var _ = Describe("all clone tests", func() {
 					f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 					By("Waiting for import to be completed")
-					utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+					Expect(
+						utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second),
+					).Should(Succeed())
 
 					By("Calculating the md5sum of the source data volume")
 					md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+utils.DefaultImagePath)
 					Expect(err).ToNot(HaveOccurred())
-					fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
+					_, _ = fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
 					err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), "execute-command", metav1.DeleteOptions{})
 					Expect(err).ToNot(HaveOccurred())
@@ -1042,12 +1048,12 @@ var _ = Describe("all clone tests", func() {
 					f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 					By("Waiting for import to be completed")
-					utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+					Expect(utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)).To(Succeed())
 
 					By("Calculating the md5sum of the source data volume")
 					md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
 					Expect(err).ToNot(HaveOccurred())
-					fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
+					_, _ = fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
 					// By not waiting for completion, we will start 3 transfers in parallell
 					By("Cloning from the source DataVolume to target1")
@@ -1097,12 +1103,14 @@ var _ = Describe("all clone tests", func() {
 				originalProfileSpec = spec
 
 				By(fmt.Sprintf("configure storage profile %s", cloneStorageClassName))
-				utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, cloneStorageClassName, originalProfileSpec, cdiv1.CloneStrategyHostAssisted)
+				Expect(
+					utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, cloneStorageClassName, originalProfileSpec, cdiv1.CloneStrategyHostAssisted),
+				).Should(Succeed())
 
 			})
 			AfterEach(func() {
 				By("[AfterEach] Restore the profile")
-				utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)
+				Expect(utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)).Should(Succeed())
 			})
 			ClonerBehavior(cloneStorageClassName, "network")
 		})
@@ -1123,7 +1131,7 @@ var _ = Describe("all clone tests", func() {
 			})
 			AfterEach(func() {
 				By("[AfterEach] Restore the profile")
-				utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)
+				Expect(utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)).Should(Succeed())
 			})
 			ClonerBehavior(cloneStorageClassName, "snapshot")
 		})
@@ -1141,11 +1149,13 @@ var _ = Describe("all clone tests", func() {
 				originalProfileSpec = spec
 
 				By(fmt.Sprintf("configure storage profile %s", cloneStorageClassName))
-				utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, cloneStorageClassName, originalProfileSpec, cdiv1.CloneStrategyCsiClone)
+				Expect(
+					utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, cloneStorageClassName, originalProfileSpec, cdiv1.CloneStrategyCsiClone),
+				).Should(Succeed())
 			})
 			AfterEach(func() {
 				By("[AfterEach] Restore the profile")
-				utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)
+				Expect(utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)).Should(Succeed())
 			})
 			ClonerBehavior(cloneStorageClassName, "csivolumeclone")
 		})
@@ -1198,13 +1208,15 @@ var _ = Describe("all clone tests", func() {
 				originalProfileSpec = spec
 
 				By(fmt.Sprintf("configure storage profile %s", cloneStorageClassName))
-				utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, cloneStorageClassName, originalProfileSpec, cdiv1.CloneStrategyHostAssisted)
+				Expect(
+					utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, cloneStorageClassName, originalProfileSpec, cdiv1.CloneStrategyHostAssisted),
+				).To(Succeed())
 
 			})
 
 			AfterEach(func() {
 				By("[AfterEach] Restore the profile")
-				utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)
+				Expect(utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)).To(Succeed())
 			})
 
 			DescribeTable("Should clone with different overheads in target and source", func(sourceOverHead, targetOverHead string) {
@@ -1645,12 +1657,14 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 			By("Waiting for import to be completed")
-			utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+			Expect(
+				utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second),
+			).To(Succeed())
 
 			By("Calculating the md5sum of the source data volume")
 			md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+utils.DefaultImagePath)
 			Expect(err).ToNot(HaveOccurred())
-			fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
+			_, _ = fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
 			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), "execute-command", metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
@@ -1693,8 +1707,9 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 			By("Waiting for import to be completed")
-			utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
-
+			Expect(
+				utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second),
+			).To(Succeed())
 			By("Calculating the md5sum of the source data volume")
 			md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
 			retry := 0
@@ -1765,8 +1780,9 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 			By("Waiting for import to be completed")
-			utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
-
+			Expect(
+				utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second),
+			).To(Succeed())
 			if utils.IsStaticNfsWithInternalClusterServer() {
 				pvDef := framework.NfsPvDef(1, framework.ExtraNfsDiskPrefix, utils.NfsService.Spec.ClusterIP, framework.BiggerNfsPvSize)
 				pv, err := utils.CreatePVFromDefinition(f.K8sClient, pvDef)
@@ -1835,13 +1851,15 @@ var _ = Describe("all clone tests", func() {
 			filesystem := v1.PersistentVolumeFilesystem
 			sourceDv.Spec.PVC.VolumeMode = &filesystem
 			sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
-			fmt.Fprintf(GinkgoWriter, "sourceDv %v", sourceDv)
+			_, _ = fmt.Fprintf(GinkgoWriter, "sourceDv %v", sourceDv)
 
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 			By("Waiting for import to be completed")
-			utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+			Expect(
+				utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second),
+			).To(Succeed())
 
 			By("Calculating the md5sum of the source data volume")
 			md5sum, err := f.GetMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(sourceDv), utils.DefaultImagePath, 0)
@@ -1888,12 +1906,14 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 			By("Waiting for import to be completed")
-			utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+			Expect(
+				utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second),
+			).To(Succeed())
 
 			By("Calculating the md5sum of the source data volume")
 			md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
 			Expect(err).ToNot(HaveOccurred())
-			fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
+			_, _ = fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
 			By("Cloning from the source DataVolume to under sized target")
 			targetDv = utils.NewDataVolumeForImageCloning("target-dv", "50Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
@@ -1951,15 +1971,17 @@ var _ = Describe("all clone tests", func() {
 			targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 
-			fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
-			utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
+			By(fmt.Sprintf("INFO: wait for PVC claim phase: %s\n", targetPvc.Name))
+			// skipping error check because in some cases (e.g. on ceph), the PVC is never on "bound" phase, or it is
+			// for a very short period that we'll probably' miss
+			_ = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
 
-			err = utils.WaitForDataVolumePhaseWithTimeout(f, targetNs.Name, cdiv1.Succeeded, "target-dv", 3*90*time.Second)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(
+				utils.WaitForDataVolumePhaseWithTimeout(f, targetNs.Name, cdiv1.Succeeded, "target-dv", 3*90*time.Second),
+			).Should(Succeed())
 			Expect(f.VerifyTargetPVCContentMD5(targetNs, targetPvc, testBaseDir, sourceMD5, ss.Value())).To(BeTrue())
 			By("Deleting verifier pod")
-			err = utils.DeleteVerifierPod(f.K8sClient, targetNs.Name)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(utils.DeleteVerifierPod(f.K8sClient, targetNs.Name)).Should(Succeed())
 
 			validateCloneType(f, dataVolume)
 
@@ -2128,9 +2150,8 @@ var _ = Describe("all clone tests", func() {
 			f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(msg))
 			f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(controller.ErrExceededQuota))
 
-			err = f.UpdateQuotaInNs(int64(1), int64(512*1024*1024), int64(4), int64(512*1024*1024))
-			Expect(err).NotTo(HaveOccurred())
-			utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetDV.Name)
+			Expect(f.UpdateQuotaInNs(int64(1), int64(512*1024*1024), int64(4), int64(512*1024*1024))).To(Succeed())
+			Expect(utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetDV.Name)).To(Succeed())
 			targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 			sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, sourcePvc, true)
@@ -2334,7 +2355,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindIfWaitForFirstConsumer(targetPvc)
 
 			fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
-			utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
+			Expect(utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)).To(Succeed())
 
 			By("Wait for upload pod")
 			err = utils.WaitTimeoutForPodReadyPollPeriod(f.K8sClient, utils.UploadPodName(targetPvc), targetNs.Name, utils.PodWaitIntervalFast, utils.PodWaitForTime)
@@ -2344,7 +2365,7 @@ var _ = Describe("all clone tests", func() {
 			// exit code 137 = 128 + 9, it means parent process issued kill -9, in our case it is not a problem
 			_, _, err = f.ExecShellInPod(utils.UploadPodName(targetPvc), targetNs.Name, "kill 1")
 			Expect(err).To(Or(
-				BeNil(),
+				Not(HaveOccurred()),
 				WithTransform(errAsString, ContainSubstring("137"))))
 
 			By("Verify retry annotation on PVC")
@@ -2502,23 +2523,19 @@ var _ = Describe("all clone tests", func() {
 			By("[BeforeEach] Forcing Host Assisted cloning")
 			var cloneStrategy cdiv1.CDICloneStrategy = cdiv1.CloneStrategyHostAssisted
 			cdiCr.Spec.CloneStrategyOverride = &cloneStrategy
-			_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &cdiCr, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
+			Expect(f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &cdiCr, metav1.UpdateOptions{})).Error().ToNot(HaveOccurred())
 
-			err = utils.WaitForCDICrCloneStrategy(f.CdiClient, cloneStrategy)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(utils.WaitForCDICrCloneStrategy(f.CdiClient, cloneStrategy)).To(Succeed())
 		})
 
 		AfterEach(func() {
 			if sourcePvc != nil {
 				By("[AfterEach] Clean up source PVC")
-				err := f.DeletePVC(sourcePvc)
-				Expect(err).ToNot(HaveOccurred())
+				Expect(f.DeletePVC(sourcePvc)).To(Succeed())
 			}
 			if targetPvc != nil {
 				By("[AfterEach] Clean up target PVC")
-				err := f.DeletePVC(targetPvc)
-				Expect(err).ToNot(HaveOccurred())
+				Expect(f.DeletePVC(targetPvc)).To(Succeed())
 			}
 
 			By("[AfterEach] Restoring CDI CR spec to original state")
@@ -2528,8 +2545,7 @@ var _ = Describe("all clone tests", func() {
 
 			newCdiCr := crList.Items[0]
 			newCdiCr.Spec = *cdiCrSpec
-			_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &newCdiCr, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
+			Expect(f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &newCdiCr, metav1.UpdateOptions{})).Error().ToNot(HaveOccurred())
 
 			if cdiCrSpec.CloneStrategyOverride == nil {
 				err = utils.WaitForCDICrCloneStrategyNil(f.CdiClient)
@@ -2788,10 +2804,10 @@ var _ = Describe("all clone tests", func() {
 					sc, err = f.CreateWFFCVariationOfStorageClass(sc)
 					Expect(err).ToNot(HaveOccurred())
 					wffcStorageClass = sc
-					Eventually(func() bool {
+					Eventually(func() error {
 						_, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), wffcStorageClass.Name, metav1.GetOptions{})
-						return err == nil
-					}, time.Minute, time.Second).Should(BeTrue())
+						return err
+					}, time.Minute, time.Second).Should(Succeed())
 				}
 			})
 
@@ -2810,8 +2826,7 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				By("Waiting for clone to be completed")
-				err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
-				Expect(err).ToNot(HaveOccurred())
+				Expect(utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)).To(Succeed())
 				By("Check host assisted clone is taking place")
 				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -2847,11 +2862,11 @@ var _ = Describe("all clone tests", func() {
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(cloneDV)
 
 				By("Wait for clone PVC Bound phase")
-				err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, cloneDV.Name)
-				Expect(err).ToNot(HaveOccurred())
+				Expect(utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, cloneDV.Name)).To(Succeed())
 				By("Wait for clone DV Succeeded phase")
-				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, cloneDV.Name, cloneCompleteTimeout)
-				Expect(err).ToNot(HaveOccurred())
+				Expect(
+					utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, cloneDV.Name, cloneCompleteTimeout),
+				).To(Succeed())
 
 				By("Verify MD5")
 				path := utils.DefaultImagePath
@@ -2928,10 +2943,10 @@ func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolume
 	Expect(err).ToNot(HaveOccurred())
 	f.ForceBindIfWaitForFirstConsumer(targetPvc)
 
-	fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
-	utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
+	_, _ = fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
+	Expect(utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)).To(Succeed())
 	sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, srcPVCDef, true)
-	fmt.Fprintf(GinkgoWriter, "INFO: %s\n", sourcePvcDiskGroup)
+	_, _ = fmt.Fprintf(GinkgoWriter, "INFO: %s\n", sourcePvcDiskGroup)
 	Expect(err).ToNot(HaveOccurred())
 
 	completeClone(f, targetNs, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum, sourcePvcDiskGroup)
@@ -2991,11 +3006,11 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 	}
 
-	fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
-	utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
+	_, _ = fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
+	Expect(utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)).Should(Succeed())
 	sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, srcPVCDef, true)
-	fmt.Fprintf(GinkgoWriter, "INFO: %s\n", sourcePvcDiskGroup)
 	Expect(err).ToNot(HaveOccurred())
+	_, _ = fmt.Fprintf(GinkgoWriter, "INFO: %s\n", sourcePvcDiskGroup)
 
 	completeClone(f, targetNs, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum, sourcePvcDiskGroup)
 }
@@ -3084,15 +3099,15 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 		v := token.NewValidator("cdi-deployment", objs[0].(*rsa.PublicKey), time.Minute)
 
 		By("checking long token added")
-		Eventually(func() bool {
+		Eventually(func(g Gomega) bool {
 			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(targetNs.Name).Get(context.TODO(), targetPvc.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
+			g.Expect(err).ToNot(HaveOccurred())
 			t, ok := pvc.Annotations[controller.AnnExtendedCloneToken]
 			if !ok {
 				return false
 			}
 			_, err = v.Validate(t)
-			Expect(err).ToNot(HaveOccurred())
+			g.Expect(err).ToNot(HaveOccurred())
 			return true
 		}, 10*time.Second, assertionPollInterval).Should(BeTrue())
 	}
@@ -3250,8 +3265,7 @@ func VerifyDisabledGC(f *framework.Framework, dvName, dvNamespace string) {
 		Expect(err).NotTo(HaveOccurred())
 		return log
 	}, timeout, pollingInterval).Should(ContainSubstring(matchString))
-	_, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
-	Expect(err).ToNot(HaveOccurred())
+	Expect(f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})).Error().ToNot(HaveOccurred())
 }
 
 // EnableGcAndAnnotateLegacyDv enables garbage collection, annotates the DV and verifies it is garbage collected
@@ -3272,8 +3286,7 @@ func EnableGcAndAnnotateLegacyDv(f *framework.Framework, dvName, dvNamespace str
 
 	By("Add true DeleteAfterCompletion annotation to DV")
 	controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "true")
-	_, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
-	Expect(err).ToNot(HaveOccurred())
+	Expect(f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})).Error().ToNot(HaveOccurred())
 	VerifyGC(f, dvName, dvNamespace, false, nil)
 }
 

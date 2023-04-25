@@ -1125,7 +1125,10 @@ func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncState *dvSyncSta
 	newPvc, err := r.createPvcForDatavolume(syncState.dvMutated, syncState.pvcSpec, pvcModifier)
 	if err != nil {
 		if cc.ErrQuotaExceeded(err) {
-			r.syncDataVolumeStatusPhaseWithEvent(syncState, cdiv1.Pending, nil, Event{corev1.EventTypeWarning, cc.ErrExceededQuota, err.Error()})
+			syncErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, cdiv1.Pending, nil, Event{corev1.EventTypeWarning, cc.ErrExceededQuota, err.Error()})
+			if syncErr != nil {
+				log.Error(syncErr, "failed to sync DataVolume status with event")
+			}
 		}
 		return err
 	}

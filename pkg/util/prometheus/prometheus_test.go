@@ -57,7 +57,7 @@ var _ = Describe("Update Progress", func() {
 		By("Verifying the initial value is 0")
 		progress.WithLabelValues(ownerUID).Add(0)
 		metric := &dto.Metric{}
-		progress.WithLabelValues(ownerUID).Write(metric)
+		Expect(progress.WithLabelValues(ownerUID).Write(metric)).To(Succeed())
 		Expect(*metric.Counter.Value).To(Equal(float64(0)))
 		By("Calling updateProgress with value")
 		promReader := &ProgressReader{
@@ -71,7 +71,7 @@ var _ = Describe("Update Progress", func() {
 		}
 		result := promReader.updateProgress()
 		Expect(true).To(Equal(result))
-		progress.WithLabelValues(ownerUID).Write(metric)
+		Expect(progress.WithLabelValues(ownerUID).Write(metric)).To(Succeed())
 		Expect(*metric.Counter.Value).To(Equal(float64(45)))
 	})
 
@@ -89,7 +89,7 @@ var _ = Describe("Update Progress", func() {
 		}
 		result := promReader.updateProgress()
 		Expect(false).To(Equal(result))
-		progress.WithLabelValues(ownerUID).Write(metric)
+		Expect(progress.WithLabelValues(ownerUID).Write(metric)).Should(Succeed())
 		Expect(*metric.Counter.Value).To(Equal(float64(0)))
 	})
 
@@ -108,7 +108,7 @@ var _ = Describe("Update Progress", func() {
 		}
 		result := promReader.updateProgress()
 		Expect(false).To(Equal(result))
-		progress.WithLabelValues(ownerUID).Write(metric)
+		Expect(progress.WithLabelValues(ownerUID).Write(metric)).Should(Succeed())
 		Expect(*metric.Counter.Value).To(Equal(float64(100)))
 	})
 

@@ -80,12 +80,20 @@ type args struct {
 }
 
 func init() {
-	cdiv1.AddToScheme(scheme.Scheme)
-	extv1.AddToScheme(scheme.Scheme)
-	apiregistrationv1.AddToScheme(scheme.Scheme)
-	promv1.AddToScheme(scheme.Scheme)
-	secv1.Install(scheme.Scheme)
-	routev1.Install(scheme.Scheme)
+	schemeInitFuncs := []func(*runtime.Scheme) error{
+		cdiv1.AddToScheme,
+		extv1.AddToScheme,
+		apiregistrationv1.AddToScheme,
+		promv1.AddToScheme,
+		secv1.Install,
+		routev1.Install,
+	}
+
+	for _, f := range schemeInitFuncs {
+		if err := f(scheme.Scheme); err != nil {
+			panic(fmt.Errorf("failed to initiate the scheme %w", err))
+		}
+	}
 }
 
 type modifyResource func(toModify client.Object) (client.Object, client.Object, error)
@@ -793,12 +801,11 @@ var _ = Describe("Controller", func() {
 					Expect(args.cdi.Status.Phase).Should(Equal(sdkapi.PhaseDeployed))
 
 					//Modify CRD to be of previousVersion
-					crSetVersion(args.reconciler.reconciler, args.cdi, prevVersion)
+					Expect(crSetVersion(args.reconciler.reconciler, args.cdi, prevVersion)).To(Succeed())
 					//marc CDI CR for deltetion
 					args.cdi.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
 					args.cdi.Finalizers = append(args.cdi.Finalizers, "keepmearound")
-					err := args.client.Update(context.TODO(), args.cdi)
-					Expect(err).ToNot(HaveOccurred())
+					Expect(args.client.Update(context.TODO(), args.cdi)).To(Succeed())
 
 					doReconcile(args)
 
@@ -821,9 +828,8 @@ var _ = Describe("Controller", func() {
 					Expect(args.cdi.Status.Phase).Should(Equal(sdkapi.PhaseDeployed))
 
 					//Modify CRD to be of previousVersion
-					crSetVersion(args.reconciler.reconciler, args.cdi, prevVersion)
-					err := args.client.Update(context.TODO(), args.cdi)
-					Expect(err).ToNot(HaveOccurred())
+					Expect(crSetVersion(args.reconciler.reconciler, args.cdi, prevVersion)).To(Succeed())
+					Expect(args.client.Update(context.TODO(), args.cdi)).To(Succeed())
 					setDeploymentsDegraded(args)
 
 					//begin upgrade
@@ -831,8 +837,7 @@ var _ = Describe("Controller", func() {
 
 					//mark CDI CR for deltetion
 					args.cdi.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
-					err = args.client.Update(context.TODO(), args.cdi)
-					Expect(err).ToNot(HaveOccurred())
+					Expect(args.client.Update(context.TODO(), args.cdi)).To(Succeed())
 
 					doReconcileExpectDelete(args)
 
@@ -860,9 +865,8 @@ var _ = Describe("Controller", func() {
 			Expect(args.cdi.Status.Phase).Should(Equal(sdkapi.PhaseDeployed))
 
 			//Modify CRD to be of previousVersion
-			crSetVersion(args.reconciler.reconciler, args.cdi, prevVersion)
-			err := args.client.Update(context.TODO(), args.cdi)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(crSetVersion(args.reconciler.reconciler, args.cdi, prevVersion)).To(Succeed())
+			Expect(args.client.Update(context.TODO(), args.cdi)).To(Succeed())
 
 			setDeploymentsDegraded(args)
 
@@ -871,8 +875,7 @@ var _ = Describe("Controller", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			//update object via client, with curObject
-			err = args.client.Update(context.TODO(), oModified)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(args.client.Update(context.TODO(), oModified)).To(Succeed())
 
 			//verify object is modified
 			storedObj, err := getObject(args.client, oModified)
@@ -886,8 +889,7 @@ var _ = Describe("Controller", func() {
 			Expect(args.cdi.Status.Phase).Should(Equal(sdkapi.PhaseUpgrading))
 
 			//change deployment to ready
-			isReady := setDeploymentsReady(args)
-			Expect(isReady).Should(Equal(true))
+			Expect(setDeploymentsReady(args)).Should(BeTrue())
 
 			doReconcile(args)
 			Expect(args.cdi.Status.Phase).Should(Equal(sdkapi.PhaseDeployed))
@@ -1264,9 +1266,8 @@ var _ = Describe("Controller", func() {
 			Expect(args.cdi.Status.Phase).Should(Equal(sdkapi.PhaseDeployed))
 
 			//Modify CRD to be of previousVersion
-			crSetVersion(args.reconciler.reconciler, args.cdi, prevVersion)
-			err := args.client.Update(context.TODO(), args.cdi)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(crSetVersion(args.reconciler.reconciler, args.cdi, prevVersion)).To(Succeed())
+			Expect(args.client.Update(context.TODO(), args.cdi)).To(Succeed())
 
 			setDeploymentsDegraded(args)
 			unusedObj, err := createObj()
@@ -1277,8 +1278,7 @@ var _ = Describe("Controller", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			//add unused object via client, with curObject
-			err = args.client.Create(context.TODO(), unusedObj)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(args.client.Create(context.TODO(), unusedObj)).To(Succeed())
 
 			doReconcile(args)
 
@@ -1290,15 +1290,14 @@ var _ = Describe("Controller", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			//change deployment to ready
-			isReady := setDeploymentsReady(args)
-			Expect(isReady).Should(Equal(true))
+			Expect(setDeploymentsReady(args)).Should(BeTrue())
 
 			doReconcile(args)
 			Expect(args.cdi.Status.Phase).Should(Equal(sdkapi.PhaseDeployed))
 
 			//verify that object no longer exists after upgrade
 			_, err = getObject(args.client, unusedObj)
-			Expect(errors.IsNotFound(err)).Should(Equal(true))
+			Expect(errors.IsNotFound(err)).Should(BeTrue())
 
 		},
 

@@ -47,7 +47,10 @@ func noAcceptRanges(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Length", contentLength[0])
 
-	io.Copy(w, resp.Body)
+	_, err = io.Copy(w, resp.Body)
+	if err != nil {
+		panic(fmt.Errorf("noAcceptRanges: failed to write the response; %w", err))
+	}
 }
 
 func redirect(w http.ResponseWriter, r *http.Request) {

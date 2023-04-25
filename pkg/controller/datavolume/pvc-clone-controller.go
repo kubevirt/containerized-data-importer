@@ -119,11 +119,13 @@ func NewPvcCloneController(
 		return nil, err
 	}
 
-	if err := addDataVolumeCloneControllerWatches(mgr, dataVolumeCloneController); err != nil {
+	if err = addDataVolumeCloneControllerWatches(mgr, dataVolumeCloneController); err != nil {
 		return nil, err
 	}
 
-	mgr.Add(sccs)
+	if err = mgr.Add(sccs); err != nil {
+		return nil, err
+	}
 	return dataVolumeCloneController, nil
 }
 
@@ -292,7 +294,7 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 	}
 
 	// Check if source PVC exists and do proper validation before attempting to clone
-	if done, err := r.validateCloneAndSourcePVC(&syncRes); err != nil {
+	if done, err := r.validateCloneAndSourcePVC(&syncRes, log); err != nil {
 		return syncRes, err
 	} else if !done {
 		return syncRes, nil
@@ -366,12 +368,15 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 		newPvc, err := r.createPvcForDatavolume(datavolume, pvcSpec, r.updateAnnotations)
 		if err != nil {
 			if cc.ErrQuotaExceeded(err) {
-				r.syncDataVolumeStatusPhaseWithEvent(&syncRes, cdiv1.Pending, nil,
+				syncErr = r.syncDataVolumeStatusPhaseWithEvent(&syncRes, cdiv1.Pending, nil,
 					Event{
 						eventType: corev1.EventTypeWarning,
 						reason:    cc.ErrExceededQuota,
 						message:   err.Error(),
 					})
+				if syncErr != nil {
+					log.Error(syncErr, "failed to sync DataVolume status with event")
+				}
 			}
 			return syncRes, err
 		}
@@ -533,12 +538,15 @@ func (r *PvcCloneReconciler) reconcileCsiClonePvc(log logr.Logger,
 		}
 		if err := r.client.Create(context.TODO(), cloneTargetPvc); err != nil && !k8serrors.IsAlreadyExists(err) {
 			if cc.ErrQuotaExceeded(err) {
-				r.syncDataVolumeStatusPhaseWithEvent(syncRes, cdiv1.Pending, nil,
+				syncErr := r.syncDataVolumeStatusPhaseWithEvent(syncRes, cdiv1.Pending, nil,
 					Event{
 						eventType: corev1.EventTypeWarning,
 						reason:    cc.ErrExceededQuota,
 						message:   err.Error(),
 					})
+				if syncErr != nil {
+					log.Error(syncErr, "failed to sync DataVolume status with event")
+				}
 			}
 			return reconcile.Result{}, err
 		}
@@ -686,7 +694,7 @@ func (r *PvcCloneReconciler) isSourcePVCPopulated(dv *cdiv1.DataVolume) (bool, e
 }
 
 func (r *PvcCloneReconciler) sourceInUse(dv *cdiv1.DataVolume, eventReason string) (bool, error) {
-	pods, err := cc.GetPodsUsingPVCs(r.client, dv.Spec.Source.PVC.Namespace, sets.NewString(dv.Spec.Source.PVC.Name), false)
+	pods, err := cc.GetPodsUsingPVCs(r.client, dv.Spec.Source.PVC.Namespace, sets.New[string](dv.Spec.Source.PVC.Name), false)
 	if err != nil {
 		return false, err
 	}
@@ -1037,18 +1045,21 @@ func (r *PvcCloneReconciler) getPreferredCloneStrategyForStorageClass(storageCla
 }
 
 // validateCloneAndSourcePVC checks if the source PVC of a clone exists and does proper validation
-func (r *PvcCloneReconciler) validateCloneAndSourcePVC(syncState *dvSyncState) (bool, error) {
+func (r *PvcCloneReconciler) validateCloneAndSourcePVC(syncState *dvSyncState, log logr.Logger) (bool, error) {
 	datavolume := syncState.dvMutated
 	sourcePvc, err := r.findSourcePvc(datavolume)
 	if err != nil {
 		// Clone without source
 		if k8serrors.IsNotFound(err) {
-			r.syncDataVolumeStatusPhaseWithEvent(syncState, datavolume.Status.Phase, nil,
+			syncErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, datavolume.Status.Phase, nil,
 				Event{
 					eventType: corev1.EventTypeWarning,
 					reason:    CloneWithoutSource,
 					message:   fmt.Sprintf(MessageCloneWithoutSource, "pvc", datavolume.Spec.Source.PVC.Name),
 				})
+			if syncErr != nil {
+				log.Error(syncErr, "failed to sync DataVolume status with event")
+			}
 			return false, nil
 		}
 		return false, err

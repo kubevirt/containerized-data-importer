@@ -141,8 +141,8 @@ var _ = Describe("All DataSource Tests", func() {
 
 func createDataSourceReconciler(objects ...runtime.Object) *DataSourceReconciler {
 	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
-	snapshotv1.AddToScheme(s)
+	_ = cdiv1.AddToScheme(s)
+	_ = snapshotv1.AddToScheme(s)
 	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	r := &DataSourceReconciler{
 		client: cl,

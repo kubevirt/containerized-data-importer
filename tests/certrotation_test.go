@@ -26,13 +26,19 @@ var _ = Describe("Cert rotation tests", func() {
 	f := framework.NewFramework("certrotation-test")
 
 	Context("with port forward", func() {
+		var cmd *exec.Cmd
+
+		AfterEach(func() {
+			afterCMD(cmd)
+		})
+
 		DescribeTable("check secrets re read", func(serviceName, secretName string) {
-			hostPort, cmd, err := startServicePortForward(f, serviceName)
+			var (
+				err      error
+				hostPort string
+			)
+			hostPort, cmd, err = startServicePortForward(f, serviceName)
 			Expect(err).ToNot(HaveOccurred())
-			defer func() {
-				cmd.Process.Kill()
-				cmd.Wait()
-			}()
 
 			var conn *tls.Conn
 
@@ -146,4 +152,15 @@ func startServicePortForward(f *framework.Framework, serviceName string) (string
 	}
 
 	return hostPort, cmd, nil
+}
+
+func afterCMD(cmd *exec.Cmd) {
+	if cmd != nil {
+		ExpectWithOffset(1, cmd.Process.Kill()).Should(Succeed())
+		err := cmd.Wait()
+		if err != nil {
+			_, ok := err.(*exec.ExitError)
+			ExpectWithOffset(1, ok).Should(BeTrue())
+		}
+	}
 }

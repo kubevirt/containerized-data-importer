@@ -92,7 +92,11 @@ func main() {
 		klog.Fatalf("Unable to get apiserver public key %v\n", errors.WithStack(err))
 	}
 
-	cdiConfigTLSWatcher := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
+	cdiConfigTLSWatcher, err := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
+	if err != nil {
+		klog.Fatalf("Unable to create cdiConfigTLSWatcher: %v\n", errors.WithStack(err))
+	}
+
 	certWatcher, err := certwatcher.New(uploadProxyEnvs.ServerCertFile, uploadProxyEnvs.ServerKeyFile)
 	if err != nil {
 		klog.Fatalf("Unable to create certwatcher: %v\n", errors.WithStack(err))
@@ -116,7 +120,14 @@ func main() {
 		klog.Fatalf("UploadProxy failed to initialize: %v\n", errors.WithStack(err))
 	}
 
-	go certWatcher.Start(ctx.Done())
+	go func() {
+		if err := certWatcher.Start(ctx.Done()); err != nil {
+			klog.Errorf("failed to close certWatcher, %v", err)
+		}
+		if err := ctx.Err(); err != nil {
+			klog.Errorf("certWatcher failed; %v", err)
+		}
+	}()
 
 	err = uploadProxy.Start()
 	if err != nil {

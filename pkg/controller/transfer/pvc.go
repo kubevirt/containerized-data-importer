@@ -75,7 +75,7 @@ func (h *pvcTransferHandler) ReconcilePending(ot *cdiv1.ObjectTransfer) (time.Du
 		return 0, nil
 	}
 
-	pods, err := cc.GetPodsUsingPVCs(h.reconciler.Client, pvc.Namespace, sets.NewString(pvc.Name), false)
+	pods, err := cc.GetPodsUsingPVCs(h.reconciler.Client, pvc.Namespace, sets.New[string](pvc.Name), false)
 	if err != nil {
 		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}

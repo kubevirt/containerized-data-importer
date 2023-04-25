@@ -228,12 +228,15 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 		targetHostAssistedPvc, err := r.createPvcForDatavolume(datavolume, pvcSpec, r.updateAnnotations)
 		if err != nil {
 			if cc.ErrQuotaExceeded(err) {
-				r.syncDataVolumeStatusPhaseWithEvent(&syncRes, cdiv1.Pending, nil,
+				syncEventErr := r.syncDataVolumeStatusPhaseWithEvent(&syncRes, cdiv1.Pending, nil,
 					Event{
 						eventType: corev1.EventTypeWarning,
 						reason:    cc.ErrExceededQuota,
 						message:   err.Error(),
 					})
+				if syncEventErr != nil {
+					r.log.Error(syncEventErr, "failed sync status phase")
+				}
 			}
 			return syncRes, err
 		}
@@ -277,12 +280,15 @@ func (r *SnapshotCloneReconciler) validateCloneAndSourceSnapshot(syncState *dvSy
 	if err != nil {
 		// Clone without source
 		if k8serrors.IsNotFound(err) {
-			r.syncDataVolumeStatusPhaseWithEvent(syncState, datavolume.Status.Phase, nil,
+			syncEventErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, datavolume.Status.Phase, nil,
 				Event{
 					eventType: corev1.EventTypeWarning,
 					reason:    CloneWithoutSource,
 					message:   fmt.Sprintf(MessageCloneWithoutSource, "snapshot", datavolume.Spec.Source.Snapshot.Name),
 				})
+			if syncEventErr != nil {
+				r.log.Error(syncEventErr, "failed sync status phase")
+			}
 			return false, nil
 		}
 		return false, err
@@ -392,12 +398,15 @@ func (r *SnapshotCloneReconciler) reconcileRestoreSnapshot(log logr.Logger,
 		}
 		if err := r.client.Create(context.TODO(), newPvc); err != nil {
 			if cc.ErrQuotaExceeded(err) {
-				r.syncDataVolumeStatusPhaseWithEvent(syncRes, cdiv1.Pending, nil,
+				syncEventErr := r.syncDataVolumeStatusPhaseWithEvent(syncRes, cdiv1.Pending, nil,
 					Event{
 						eventType: corev1.EventTypeWarning,
 						reason:    cc.ErrExceededQuota,
 						message:   err.Error(),
 					})
+				if syncEventErr != nil {
+					r.log.Error(syncEventErr, "failed sync status phase")
+				}
 			}
 			return reconcile.Result{}, err
 		}
@@ -447,12 +456,15 @@ func (r *SnapshotCloneReconciler) createTempHostAssistedSourcePvc(dv *cdiv1.Data
 		}
 		if err := r.client.Create(context.TODO(), tempHostAssistedSourcePvc); err != nil {
 			if cc.ErrQuotaExceeded(err) {
-				r.syncDataVolumeStatusPhaseWithEvent(syncState, cdiv1.Pending, nil,
+				syncEventErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, cdiv1.Pending, nil,
 					Event{
 						eventType: corev1.EventTypeWarning,
 						reason:    cc.ErrExceededQuota,
 						message:   err.Error(),
 					})
+				if syncEventErr != nil {
+					r.log.Error(syncEventErr, "failed sync status phase")
+				}
 			}
 			return err
 		}

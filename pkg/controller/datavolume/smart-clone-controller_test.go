@@ -185,7 +185,7 @@ var _ = Describe("All smart clone tests", func() {
 			ts := metav1.Now()
 			dv.DeletionTimestamp = &ts
 			snapshot := createSnapshotVolume("invalid", dv.Namespace, nil)
-			setAnnOwnedByDataVolume(snapshot, dv)
+			Expect(setAnnOwnedByDataVolume(snapshot, dv)).To(Succeed())
 
 			reconciler := createSmartCloneReconciler(dv, snapshot)
 			_, err := reconciler.reconcileSnapshot(reconciler.log, snapshot)
@@ -203,7 +203,7 @@ var _ = Describe("All smart clone tests", func() {
 			snapshot.Status = &snapshotv1.VolumeSnapshotStatus{
 				ReadyToUse: &[]bool{false}[0],
 			}
-			setAnnOwnedByDataVolume(snapshot, dv)
+			Expect(setAnnOwnedByDataVolume(snapshot, dv)).To(Succeed())
 
 			reconciler := createSmartCloneReconciler(dv, snapshot)
 			_, err := reconciler.reconcileSnapshot(reconciler.log, snapshot)
@@ -225,7 +225,7 @@ var _ = Describe("All smart clone tests", func() {
 				ReadyToUse:  &[]bool{true}[0],
 				RestoreSize: &q,
 			}
-			setAnnOwnedByDataVolume(snapshot, dv)
+			Expect(setAnnOwnedByDataVolume(snapshot, dv)).To(Succeed())
 
 			reconciler := createSmartCloneReconciler(dv, snapshot)
 			_, err := reconciler.reconcileSnapshot(reconciler.log, snapshot)
@@ -233,8 +233,7 @@ var _ = Describe("All smart clone tests", func() {
 
 			pvc := &corev1.PersistentVolumeClaim{}
 			nn := types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}
-			err = reconciler.client.Get(context.TODO(), nn, pvc)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(reconciler.client.Get(context.TODO(), nn, pvc)).To(Succeed())
 			Expect(pvc.Labels[common.AppKubernetesVersionLabel]).To(Equal("v0.0.0-tests"))
 			Expect(pvc.Labels[common.KubePersistentVolumeFillingUpSuppressLabelKey]).To(Equal(common.KubePersistentVolumeFillingUpSuppressLabelValue))
 			Expect(pvc.Labels["test"]).To(Equal("test-label"))
@@ -312,8 +311,8 @@ func createSmartCloneReconciler(objects ...runtime.Object) *SmartCloneReconciler
 
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
-	cdiv1.AddToScheme(s)
-	snapshotv1.AddToScheme(s)
+	_ = cdiv1.AddToScheme(s)
+	_ = snapshotv1.AddToScheme(s)
 
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
