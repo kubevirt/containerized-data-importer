@@ -79,6 +79,8 @@ ${SCRIPT_ROOT}/bin/openapi-spec-generator >${SCRIPT_ROOT}/api/openapi-spec/swagg
 
 echo "************* running controller-gen to generate schema yaml ********************"
 (
+    mkdir -p "${SCRIPT_ROOT}/_out/manifests/schema"
+    find "${SCRIPT_ROOT}/_out/manifests/schema/" -type f -exec rm {} -f \;
     cd ./staging/src/kubevirt.io/containerized-data-importer-api
     controller-gen crd:crdVersions=v1 output:dir=${SCRIPT_ROOT}/_out/manifests/schema paths=./pkg/apis/core/...
 )
