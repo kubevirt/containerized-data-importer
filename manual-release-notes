@@ -1,3 +1,5 @@
+1.54.3
+backport tar handling from #2410
 1.54.2
 More targeted cleanup of target/scratch pvcs
 1.54.1
