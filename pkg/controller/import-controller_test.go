@@ -954,7 +954,7 @@ var _ = Describe("GetContentType", func() {
 	pvcInvalidValue := cc.CreatePvc("testPVCInvalidValue", "default", map[string]string{cc.AnnContentType: "iaminvalid"}, nil)
 
 	table.DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult cdiv1.DataVolumeContentType) {
-		result := cc.GetContentType(pvc)
+		result := cc.GetPVCContentType(pvc)
 		Expect(result).To(BeEquivalentTo(expectedResult))
 	},
 		table.Entry("return kubevirt contenttype if no annotation provided", pvcNoAnno, cdiv1.DataVolumeKubeVirt),

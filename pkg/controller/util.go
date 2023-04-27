@@ -135,6 +135,13 @@ func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.
 			}
 		}
 	}
+	// When the original PVC is being handled by a populator, copy AnnSelectedNode to avoid issues with k8s scheduler
+	_, isPopulator := pvc.Annotations[cc.AnnPopulatorKind]
+	selectedNode := pvc.Annotations[cc.AnnSelectedNode]
+	if isPopulator && selectedNode != "" {
+		annotations[cc.AnnSelectedNode] = selectedNode
+	}
+
 	pvcDef := &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,

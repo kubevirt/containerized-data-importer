@@ -42,6 +42,19 @@ func (f *Framework) CreateBoundPVCFromDefinition(def *k8sv1.PersistentVolumeClai
 	return pvc
 }
 
+// CreateScheduledPVCFromDefinition is a wrapper around utils.CreatePVCFromDefinition that also triggeres
+// the scheduler to dynamically provision a pvc with WaitForFirstConsumer storage class by
+// executing f.ForceBindIfWaitForFirstConsumer(pvc)
+func (f *Framework) CreateScheduledPVCFromDefinition(def *k8sv1.PersistentVolumeClaim) *k8sv1.PersistentVolumeClaim {
+	pvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, def)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	pvc, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, pvc.Name)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+	f.ForceSchedulingIfWaitForFirstConsumerPopulationPVC(pvc)
+	return pvc
+}
+
 // DeletePVC is a wrapper around utils.DeletePVC
 func (f *Framework) DeletePVC(pvc *k8sv1.PersistentVolumeClaim) error {
 	return utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvc.Name)
@@ -82,6 +95,13 @@ func (f *Framework) ForceBindIfWaitForFirstConsumer(targetPvc *k8sv1.PersistentV
 	}
 }
 
+// ForceSchedulingIfWaitForFirstConsumerPopulationPVC creates a Pod with the passed in PVC mounted under /dev/pvc, which forces the PVC to be scheduled for provisioning.
+func (f *Framework) ForceSchedulingIfWaitForFirstConsumerPopulationPVC(targetPvc *k8sv1.PersistentVolumeClaim) {
+	if f.IsBindingModeWaitForFirstConsumer(targetPvc.Spec.StorageClassName) {
+		createConsumerPodForPopulationPVC(targetPvc, f)
+	}
+}
+
 func createConsumerPod(targetPvc *k8sv1.PersistentVolumeClaim, f *Framework) {
 	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: creating \"consumer-pod\" to force binding PVC: %s\n", targetPvc.Name)
 	namespace := targetPvc.Namespace
@@ -99,6 +119,26 @@ func createConsumerPod(targetPvc *k8sv1.PersistentVolumeClaim, f *Framework) {
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	gomega.Expect(utils.DeletePodNoGrace(f.K8sClient, executorPod, namespace)).Should(gomega.Succeed())
+}
+
+func createConsumerPodForPopulationPVC(targetPvc *k8sv1.PersistentVolumeClaim, f *Framework) {
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: creating \"consumer-pod\" to get 'selected-node' annotation on PVC: %s\n", targetPvc.Name)
+	namespace := targetPvc.Namespace
+
+	err := utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetPvc.Namespace, k8sv1.ClaimPending, targetPvc.Name)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+	podName := naming.GetResourceName("consumer-pod", targetPvc.Name)
+	executorPod, err := f.CreateNoopPodWithPVC(podName, namespace, targetPvc)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+	selectedNode, status, err := utils.WaitForPVCAnnotation(f.K8sClient, namespace, targetPvc, controller.AnnSelectedNode)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	gomega.Expect(status).To(gomega.BeTrue())
+	gomega.Expect(selectedNode).ToNot(gomega.BeEmpty())
+
+	err = utils.DeletePodNoGrace(f.K8sClient, executorPod, namespace)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 }
 
 // VerifyPVCIsEmpty verifies a passed in PVC is empty, returns true if the PVC is empty, false if it is not. Optionaly, specify node for the pod.

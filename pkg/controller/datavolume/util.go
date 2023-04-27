@@ -19,8 +19,6 @@ package datavolume
 import (
 	"context"
 	"fmt"
-	"math"
-	"strconv"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -38,7 +36,6 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -254,44 +251,9 @@ func resolveVolumeSize(c client.Client, dvSpec cdiv1.DataVolumeSpec, pvcSpec *v1
 	}
 
 	// disk or image size, inflate it with overhead
-	requestedSize, err := inflateSizeWithOverhead(c, requestedSize.Value(), pvcSpec)
+	requestedSize, err := cc.InflateSizeWithOverhead(c, requestedSize.Value(), pvcSpec)
 
 	return &requestedSize, err
-}
-
-// inflateSizeWithOverhead inflates a storage size with proper overhead calculations
-func inflateSizeWithOverhead(c client.Client, imgSize int64, pvcSpec *v1.PersistentVolumeClaimSpec) (resource.Quantity, error) {
-	var returnSize resource.Quantity
-
-	if util.ResolveVolumeMode(pvcSpec.VolumeMode) == v1.PersistentVolumeFilesystem {
-		fsOverhead, err := cc.GetFilesystemOverheadForStorageClass(c, pvcSpec.StorageClassName)
-		if err != nil {
-			return resource.Quantity{}, err
-		}
-		// Parse filesystem overhead (percentage) into a 64-bit float
-		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
-
-		// Merge the previous values into a 'resource.Quantity' struct
-		requiredSpace := GetRequiredSpace(fsOverheadFloat, imgSize)
-		returnSize = *resource.NewScaledQuantity(requiredSpace, 0)
-	} else {
-		// Inflation is not needed with 'Block' mode
-		returnSize = *resource.NewScaledQuantity(imgSize, 0)
-	}
-
-	return returnSize, nil
-}
-
-// GetRequiredSpace calculates space required taking file system overhead into account
-func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
-	// the `image` has to be aligned correctly, so the space requested has to be aligned to
-	// next value that is a multiple of a block size
-	alignedSize := util.RoundUp(requestedSpace, util.DefaultAlignBlockSize)
-
-	// count overhead as a percentage of the whole/new size, including aligned image
-	// and the space required by filesystem metadata
-	spaceWithOverhead := int64(math.Ceil(float64(alignedSize) / (1 - filesystemOverhead)))
-	return spaceWithOverhead
 }
 
 func createStorageProfile(name string,

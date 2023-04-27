@@ -1123,7 +1123,7 @@ func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState, cloneType c
 	// is "block", we simply extract the value from the original PVC's spec.
 	if cloneType == HostAssistedClone &&
 		cc.GetVolumeMode(sourcePvc) == corev1.PersistentVolumeFilesystem &&
-		cc.GetContentType(sourcePvc) == string(cdiv1.DataVolumeKubeVirt) {
+		cc.GetPVCContentType(sourcePvc) == string(cdiv1.DataVolumeKubeVirt) {
 		var available bool
 		// If available, we first try to get the virtual size from previous iterations
 		targetSize, available = getSizeFromAnnotations(sourcePvc)
@@ -1148,7 +1148,7 @@ func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState, cloneType c
 	}
 
 	// Parse size into a 'Quantity' struct and, if needed, inflate it with filesystem overhead
-	targetCapacity, err := inflateSizeWithOverhead(r.client, targetSize, syncState.pvcSpec)
+	targetCapacity, err := cc.InflateSizeWithOverhead(r.client, targetSize, syncState.pvcSpec)
 	if err != nil {
 		return false, err
 	}

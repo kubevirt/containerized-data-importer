@@ -57,3 +57,11 @@ type ObjectTransferListerExpansion interface{}
 // StorageProfileListerExpansion allows custom methods to be added to
 // StorageProfileLister.
 type StorageProfileListerExpansion interface{}
+
+// VolumeImportSourceListerExpansion allows custom methods to be added to
+// VolumeImportSourceLister.
+type VolumeImportSourceListerExpansion interface{}
+
+// VolumeImportSourceNamespaceListerExpansion allows custom methods to be added to
+// VolumeImportSourceNamespaceLister.
+type VolumeImportSourceNamespaceListerExpansion interface{}

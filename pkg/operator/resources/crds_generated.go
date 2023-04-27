@@ -6925,4 +6925,218 @@ status:
   conditions: null
   storedVersions: null
 `,
+	"volumeimportsource": `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.11.3
+  creationTimestamp: null
+  name: volumeimportsources.cdi.kubevirt.io
+spec:
+  group: cdi.kubevirt.io
+  names:
+    kind: VolumeImportSource
+    listKind: VolumeImportSourceList
+    plural: volumeimportsources
+    singular: volumeimportsource
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: VolumeImportSource works as a specification to populate PersistentVolumeClaims
+          with data imported from an HTTP/S3/Registry/Blank/ImageIO/VDDK source
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: VolumeImportSourceSpec defines the Spec field for VolumeImportSource
+            properties:
+              contentType:
+                description: ContentType represents the type of the imported data
+                  (Kubevirt or archive)
+                type: string
+              preallocation:
+                description: Preallocation controls whether storage for the target
+                  PVC should be allocated in advance.
+                type: boolean
+              source:
+                description: Source is the src of the data to be imported in the target
+                  PVC
+                properties:
+                  blank:
+                    description: DataVolumeBlankImage provides the parameters to create
+                      a new raw blank image for the PVC
+                    type: object
+                  gcs:
+                    description: DataVolumeSourceGCS provides the parameters to create
+                      a Data Volume from an GCS source
+                    properties:
+                      secretRef:
+                        description: SecretRef provides the secret reference needed
+                          to access the GCS source
+                        type: string
+                      url:
+                        description: URL is the url of the GCS source
+                        type: string
+                    required:
+                    - url
+                    type: object
+                  http:
+                    description: DataVolumeSourceHTTP can be either an http or https
+                      endpoint, with an optional basic auth user name and password,
+                      and an optional configmap containing additional CAs
+                    properties:
+                      certConfigMap:
+                        description: CertConfigMap is a configmap reference, containing
+                          a Certificate Authority(CA) public key, and a base64 encoded
+                          pem certificate
+                        type: string
+                      extraHeaders:
+                        description: ExtraHeaders is a list of strings containing
+                          extra headers to include with HTTP transfer requests
+                        items:
+                          type: string
+                        type: array
+                      secretExtraHeaders:
+                        description: SecretExtraHeaders is a list of Secret references,
+                          each containing an extra HTTP header that may include sensitive
+                          information
+                        items:
+                          type: string
+                        type: array
+                      secretRef:
+                        description: SecretRef A Secret reference, the secret should
+                          contain accessKeyId (user name) base64 encoded, and secretKey
+                          (password) also base64 encoded
+                        type: string
+                      url:
+                        description: URL is the URL of the http(s) endpoint
+                        type: string
+                    required:
+                    - url
+                    type: object
+                  imageio:
+                    description: DataVolumeSourceImageIO provides the parameters to
+                      create a Data Volume from an imageio source
+                    properties:
+                      certConfigMap:
+                        description: CertConfigMap provides a reference to the CA
+                          cert
+                        type: string
+                      diskId:
+                        description: DiskID provides id of a disk to be imported
+                        type: string
+                      secretRef:
+                        description: SecretRef provides the secret reference needed
+                          to access the ovirt-engine
+                        type: string
+                      url:
+                        description: URL is the URL of the ovirt-engine
+                        type: string
+                    required:
+                    - diskId
+                    - url
+                    type: object
+                  registry:
+                    description: DataVolumeSourceRegistry provides the parameters
+                      to create a Data Volume from an registry source
+                    properties:
+                      certConfigMap:
+                        description: CertConfigMap provides a reference to the Registry
+                          certs
+                        type: string
+                      imageStream:
+                        description: ImageStream is the name of image stream for import
+                        type: string
+                      pullMethod:
+                        description: PullMethod can be either "pod" (default import),
+                          or "node" (node docker cache based import)
+                        type: string
+                      secretRef:
+                        description: SecretRef provides the secret reference needed
+                          to access the Registry source
+                        type: string
+                      url:
+                        description: 'URL is the url of the registry source (starting
+                          with the scheme: docker, oci-archive)'
+                        type: string
+                    type: object
+                  s3:
+                    description: DataVolumeSourceS3 provides the parameters to create
+                      a Data Volume from an S3 source
+                    properties:
+                      certConfigMap:
+                        description: CertConfigMap is a configmap reference, containing
+                          a Certificate Authority(CA) public key, and a base64 encoded
+                          pem certificate
+                        type: string
+                      secretRef:
+                        description: SecretRef provides the secret reference needed
+                          to access the S3 source
+                        type: string
+                      url:
+                        description: URL is the url of the S3 source
+                        type: string
+                    required:
+                    - url
+                    type: object
+                  vddk:
+                    description: DataVolumeSourceVDDK provides the parameters to create
+                      a Data Volume from a Vmware source
+                    properties:
+                      backingFile:
+                        description: BackingFile is the path to the virtual hard disk
+                          to migrate from vCenter/ESXi
+                        type: string
+                      initImageURL:
+                        description: InitImageURL is an optional URL to an image containing
+                          an extracted VDDK library, overrides v2v-vmware config map
+                        type: string
+                      secretRef:
+                        description: SecretRef provides a reference to a secret containing
+                          the username and password needed to access the vCenter or
+                          ESXi host
+                        type: string
+                      thumbprint:
+                        description: Thumbprint is the certificate thumbprint of the
+                          vCenter or ESXi host
+                        type: string
+                      url:
+                        description: URL is the URL of the vCenter or ESXi host with
+                          the VM to migrate
+                        type: string
+                      uuid:
+                        description: UUID is the UUID of the virtual machine that
+                          the backing file is attached to in vCenter/ESXi
+                        type: string
+                    type: object
+                type: object
+            type: object
+          status:
+            description: VolumeImportSourceStatus provides the most recently observed
+              status of the VolumeImportSource
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null
+`,
 }

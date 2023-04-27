@@ -42,7 +42,7 @@ func (h *pvcTransferHandler) ReconcilePending(ot *cdiv1.ObjectTransfer) (time.Du
 		return 0, nil
 	}
 
-	if pvc.Spec.VolumeName == "" || pvc.Status.Phase != corev1.ClaimBound {
+	if cc.IsUnbound(pvc) || pvc.Status.Phase != corev1.ClaimBound {
 		if err := h.reconciler.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "PVC not bound", ""); err != nil {
 			return 0, err
 		}

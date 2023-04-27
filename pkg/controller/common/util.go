@@ -20,7 +20,13 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"fmt"
+	"io"
+	"math"
+	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -98,6 +104,9 @@ const (
 	AnnCurrentPodID = AnnAPIGroup + "/storage.checkpoint.pod.id"
 	// AnnMultiStageImportDone marks a multi-stage import as totally finished
 	AnnMultiStageImportDone = AnnAPIGroup + "/storage.checkpoint.done"
+
+	// AnnImportProgressReporting stores the current progress of the import process as a percetange
+	AnnImportProgressReporting = AnnAPIGroup + "/storage.import.progress"
 
 	// AnnPreallocationRequested provides a const to indicate whether preallocation should be performed on the PV
 	AnnPreallocationRequested = AnnAPIGroup + "/storage.preallocation.requested"
@@ -185,6 +194,10 @@ const (
 	// AnnPersistentVolumeList is an annotation storing a list of PV names
 	AnnPersistentVolumeList = AnnAPIGroup + "/storage.persistentVolumeList"
 
+	// AnnPopulatorKind annotation is added to a PVC' to specify the population kind, so it's later
+	// checked by the common populator watches.
+	AnnPopulatorKind = AnnAPIGroup + "/storage.populator.kind"
+
 	//AnnDefaultStorageClass is the annotation indicating that a storage class is the default one.
 	AnnDefaultStorageClass = "storageclass.kubernetes.io/is-default-class"
 
@@ -207,6 +220,10 @@ const (
 
 	// AnnImmediateBinding provides a const to indicate whether immediate binding should be performed on the PV (overrides global config)
 	AnnImmediateBinding = AnnAPIGroup + "/storage.bind.immediate.requested"
+
+	// AnnSelectedNode annotation is added to a PVC that has been triggered by scheduler to
+	// be dynamically provisioned. Its value is the name of the selected node.
+	AnnSelectedNode = "volume.kubernetes.io/selected-node"
 
 	// CloneUniqueID is used as a special label to be used when we search for the pod
 	CloneUniqueID = "cdi.kubevirt.io/storage.clone.cloneUniqeId"
@@ -535,11 +552,11 @@ func IsPopulated(pvc *v1.PersistentVolumeClaim, c client.Client) (bool, error) {
 	})
 }
 
-// GetPreallocation retuns the preallocation setting for DV, falling back to StorageClass and global setting (in this order)
-func GetPreallocation(client client.Client, dataVolume *cdiv1.DataVolume) bool {
+// GetPreallocation retuns the preallocation setting for the specified object (DV or VolumeImportSource), falling back to StorageClass and global setting (in this order)
+func GetPreallocation(client client.Client, preallocation *bool) bool {
 	// First, the DV's preallocation
-	if dataVolume.Spec.Preallocation != nil {
-		return *dataVolume.Spec.Preallocation
+	if preallocation != nil {
+		return *preallocation
 	}
 
 	cdiconfig := &cdiv1.CDIConfig{}
@@ -684,7 +701,7 @@ func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNa
 
 // validateContentTypes compares the content type of a clone DV against its source PVC's one
 func validateContentTypes(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
-	sourceContentType := cdiv1.DataVolumeContentType(GetContentType(sourcePVC))
+	sourceContentType := cdiv1.DataVolumeContentType(GetPVCContentType(sourcePVC))
 	targetContentType := spec.ContentType
 	if targetContentType == "" {
 		targetContentType = cdiv1.DataVolumeKubeVirt
@@ -917,6 +934,15 @@ func SetRestrictedSecurityContext(podSpec *v1.PodSpec) {
 	}
 }
 
+// SetNodeNameIfPopulator sets NodeName in a pod spec when the PVC is being handled by a CDI volume populator
+func SetNodeNameIfPopulator(pvc *corev1.PersistentVolumeClaim, podSpec *v1.PodSpec) {
+	_, isPopulator := pvc.Annotations[AnnPopulatorKind]
+	nodeName := pvc.Annotations[AnnSelectedNode]
+	if isPopulator && nodeName != "" {
+		podSpec.NodeName = nodeName
+	}
+}
+
 // CreatePvc creates PVC
 func CreatePvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
 	return CreatePvcInStorageClass(name, ns, nil, annotations, labels, v1.ClaimBound)
@@ -1049,7 +1075,7 @@ func CreateImporterTestPod(pvc *corev1.PersistentVolumeClaim, dvname string, scr
 
 	ep, _ := GetEndpoint(pvc)
 	source := GetSource(pvc)
-	contentType := GetContentType(pvc)
+	contentType := GetPVCContentType(pvc)
 	imageSize, _ := GetRequestedImageSize(pvc)
 	volumeMode := GetVolumeMode(pvc)
 
@@ -1124,12 +1150,8 @@ func ErrQuotaExceeded(err error) bool {
 	return strings.Contains(err.Error(), "exceeded quota:")
 }
 
-// GetContentType returns the content type of the source image. If invalid or not set, default to kubevirt
-func GetContentType(pvc *corev1.PersistentVolumeClaim) string {
-	contentType, found := pvc.Annotations[AnnContentType]
-	if !found {
-		return string(cdiv1.DataVolumeKubeVirt)
-	}
+// GetContentType returns the content type. If invalid or not set, default to kubevirt
+func GetContentType(contentType string) string {
 	switch contentType {
 	case
 		string(cdiv1.DataVolumeKubeVirt),
@@ -1138,6 +1160,16 @@ func GetContentType(pvc *corev1.PersistentVolumeClaim) string {
 		contentType = string(cdiv1.DataVolumeKubeVirt)
 	}
 	return contentType
+}
+
+// GetPVCContentType returns the content type of the source image. If invalid or not set, default to kubevirt
+func GetPVCContentType(pvc *corev1.PersistentVolumeClaim) string {
+	contentType, found := pvc.Annotations[AnnContentType]
+	if !found {
+		return string(cdiv1.DataVolumeKubeVirt)
+	}
+
+	return GetContentType(contentType)
 }
 
 // GetNamespace returns the given namespace if not empty, otherwise the default namespace
@@ -1215,4 +1247,226 @@ func IsWaitForFirstConsumerEnabled(obj metav1.Object, gates featuregates.Feature
 	}
 
 	return pvcHonorWaitForFirstConsumer && globalHonorWaitForFirstConsumer, nil
+}
+
+// GetRequiredSpace calculates space required taking file system overhead into account
+func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
+	// the `image` has to be aligned correctly, so the space requested has to be aligned to
+	// next value that is a multiple of a block size
+	alignedSize := util.RoundUp(requestedSpace, util.DefaultAlignBlockSize)
+
+	// count overhead as a percentage of the whole/new size, including aligned image
+	// and the space required by filesystem metadata
+	spaceWithOverhead := int64(math.Ceil(float64(alignedSize) / (1 - filesystemOverhead)))
+	return spaceWithOverhead
+}
+
+// InflateSizeWithOverhead inflates a storage size with proper overhead calculations
+func InflateSizeWithOverhead(c client.Client, imgSize int64, pvcSpec *v1.PersistentVolumeClaimSpec) (resource.Quantity, error) {
+	var returnSize resource.Quantity
+
+	if util.ResolveVolumeMode(pvcSpec.VolumeMode) == v1.PersistentVolumeFilesystem {
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, pvcSpec.StorageClassName)
+		if err != nil {
+			return resource.Quantity{}, err
+		}
+		// Parse filesystem overhead (percentage) into a 64-bit float
+		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
+
+		// Merge the previous values into a 'resource.Quantity' struct
+		requiredSpace := GetRequiredSpace(fsOverheadFloat, imgSize)
+		returnSize = *resource.NewScaledQuantity(requiredSpace, 0)
+	} else {
+		// Inflation is not needed with 'Block' mode
+		returnSize = *resource.NewScaledQuantity(imgSize, 0)
+	}
+
+	return returnSize, nil
+}
+
+// IsUnbound returns if the pvc is not bound yet
+func IsUnbound(pvc *v1.PersistentVolumeClaim) bool {
+	return pvc.Spec.VolumeName == ""
+}
+
+// IsImageStream returns true if registry source is ImageStream
+func IsImageStream(pvc *corev1.PersistentVolumeClaim) bool {
+	return pvc.Annotations[AnnRegistryImageStream] == "true"
+}
+
+// ShouldIgnorePod checks if a pod should be ignored.
+// If this is a completed pod that was used for one checkpoint of a multi-stage import, it
+// should be ignored by pod lookups as long as the retainAfterCompletion annotation is set.
+func ShouldIgnorePod(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim) bool {
+	retain := pvc.ObjectMeta.Annotations[AnnPodRetainAfterCompletion]
+	checkpoint := pvc.ObjectMeta.Annotations[AnnCurrentCheckpoint]
+	if checkpoint != "" && pod.Status.Phase == corev1.PodSucceeded {
+		return retain == "true"
+	}
+	return false
+}
+
+// BuildHTTPClient generates an http client that accepts any certificate, since we are using
+// it to get prometheus data it doesn't matter if someone can intercept the data. Once we have
+// a mechanism to properly sign the server, we can update this method to get a proper client.
+func BuildHTTPClient(httpClient *http.Client) *http.Client {
+	if httpClient == nil {
+		defaultTransport := http.DefaultTransport.(*http.Transport)
+		// Create new Transport that ignores self-signed SSL
+		tr := &http.Transport{
+			Proxy:                 defaultTransport.Proxy,
+			DialContext:           defaultTransport.DialContext,
+			MaxIdleConns:          defaultTransport.MaxIdleConns,
+			IdleConnTimeout:       defaultTransport.IdleConnTimeout,
+			ExpectContinueTimeout: defaultTransport.ExpectContinueTimeout,
+			TLSHandshakeTimeout:   defaultTransport.TLSHandshakeTimeout,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+		}
+		httpClient = &http.Client{
+			Transport: tr,
+		}
+	}
+	return httpClient
+}
+
+// ErrConnectionRefused checks for connection refused errors
+func ErrConnectionRefused(err error) bool {
+	return strings.Contains(err.Error(), "connection refused")
+}
+
+// GetPodMetricsPort returns, if exists, the metrics port from the passed pod
+func GetPodMetricsPort(pod *corev1.Pod) (int, error) {
+	for _, container := range pod.Spec.Containers {
+		for _, port := range container.Ports {
+			if port.Name == "metrics" {
+				return int(port.ContainerPort), nil
+			}
+		}
+	}
+	return 0, errors.New("Metrics port not found in pod")
+}
+
+// GetMetricsURL builds the metrics URL according to the specified pod
+func GetMetricsURL(pod *corev1.Pod) (string, error) {
+	if pod == nil {
+		return "", nil
+	}
+	port, err := GetPodMetricsPort(pod)
+	if err != nil || pod.Status.PodIP == "" {
+		return "", err
+	}
+	url := fmt.Sprintf("https://%s:%d/metrics", pod.Status.PodIP, port)
+	return url, nil
+}
+
+// GetProgressReportFromURL fetches the progress report from the passed URL according to an specific regular expression
+func GetProgressReportFromURL(url string, regExp *regexp.Regexp, httpClient *http.Client) (string, error) {
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		if ErrConnectionRefused(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	// Parse the progress from the body
+	progressReport := ""
+	match := regExp.FindStringSubmatch(string(body))
+	if match != nil {
+		progressReport = match[1]
+	}
+	return progressReport, nil
+}
+
+// UpdateHTTPAnnotations updates the passed annotations for proper http import
+func UpdateHTTPAnnotations(annotations map[string]string, http *cdiv1.DataVolumeSourceHTTP) {
+	annotations[AnnEndpoint] = http.URL
+	annotations[AnnSource] = SourceHTTP
+
+	if http.SecretRef != "" {
+		annotations[AnnSecret] = http.SecretRef
+	}
+	if http.CertConfigMap != "" {
+		annotations[AnnCertConfigMap] = http.CertConfigMap
+	}
+	for index, header := range http.ExtraHeaders {
+		annotations[fmt.Sprintf("%s.%d", AnnExtraHeaders, index)] = header
+	}
+	for index, header := range http.SecretExtraHeaders {
+		annotations[fmt.Sprintf("%s.%d", AnnSecretExtraHeaders, index)] = header
+	}
+}
+
+// UpdateS3Annotations updates the passed annotations for proper S3 import
+func UpdateS3Annotations(annotations map[string]string, s3 *cdiv1.DataVolumeSourceS3) {
+	annotations[AnnEndpoint] = s3.URL
+	annotations[AnnSource] = SourceS3
+	if s3.SecretRef != "" {
+		annotations[AnnSecret] = s3.SecretRef
+	}
+	if s3.CertConfigMap != "" {
+		annotations[AnnCertConfigMap] = s3.CertConfigMap
+	}
+}
+
+// UpdateGCSAnnotations updates the passed annotations for proper GCS import
+func UpdateGCSAnnotations(annotations map[string]string, gcs *cdiv1.DataVolumeSourceGCS) {
+	annotations[AnnEndpoint] = gcs.URL
+	annotations[AnnSource] = SourceGCS
+	if gcs.SecretRef != "" {
+		annotations[AnnSecret] = gcs.SecretRef
+	}
+}
+
+// UpdateRegistryAnnotations updates the passed annotations for proper registry import
+func UpdateRegistryAnnotations(annotations map[string]string, registry *cdiv1.DataVolumeSourceRegistry) {
+	annotations[AnnSource] = SourceRegistry
+	pullMethod := registry.PullMethod
+	if pullMethod != nil && *pullMethod != "" {
+		annotations[AnnRegistryImportMethod] = string(*pullMethod)
+	}
+	url := registry.URL
+	if url != nil && *url != "" {
+		annotations[AnnEndpoint] = *url
+	} else {
+		imageStream := registry.ImageStream
+		if imageStream != nil && *imageStream != "" {
+			annotations[AnnEndpoint] = *imageStream
+			annotations[AnnRegistryImageStream] = "true"
+		}
+	}
+	secretRef := registry.SecretRef
+	if secretRef != nil && *secretRef != "" {
+		annotations[AnnSecret] = *secretRef
+	}
+	certConfigMap := registry.CertConfigMap
+	if certConfigMap != nil && *certConfigMap != "" {
+		annotations[AnnCertConfigMap] = *certConfigMap
+	}
+}
+
+// UpdateVDDKAnnotations updates the passed annotations for proper VDDK import
+func UpdateVDDKAnnotations(annotations map[string]string, vddk *cdiv1.DataVolumeSourceVDDK) {
+	annotations[AnnEndpoint] = vddk.URL
+	annotations[AnnSource] = SourceVDDK
+	annotations[AnnSecret] = vddk.SecretRef
+	annotations[AnnBackingFile] = vddk.BackingFile
+	annotations[AnnUUID] = vddk.UUID
+	annotations[AnnThumbprint] = vddk.Thumbprint
+	if vddk.InitImageURL != "" {
+		annotations[AnnVddkInitImageURL] = vddk.InitImageURL
+	}
+}
+
+// UpdateImageIOAnnotations updates the passed annotations for proper imageIO import
+func UpdateImageIOAnnotations(annotations map[string]string, imageio *cdiv1.DataVolumeSourceImageIO) {
+	annotations[AnnEndpoint] = imageio.URL
+	annotations[AnnSource] = SourceImageio
+	annotations[AnnSecret] = imageio.SecretRef
+	annotations[AnnCertConfigMap] = imageio.CertConfigMap
+	annotations[AnnDiskID] = imageio.DiskID
 }

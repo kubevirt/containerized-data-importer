@@ -734,8 +734,8 @@ func ParseCloneRequestAnnotation(pvc *corev1.PersistentVolumeClaim) (exists bool
 
 // ValidateCanCloneSourceAndTargetContentType validates the pvcs passed has the same content type.
 func ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc *corev1.PersistentVolumeClaim) (cdiv1.DataVolumeContentType, error) {
-	sourceContentType := cc.GetContentType(sourcePvc)
-	targetContentType := cc.GetContentType(targetPvc)
+	sourceContentType := cc.GetPVCContentType(sourcePvc)
+	targetContentType := cc.GetPVCContentType(targetPvc)
 	if sourceContentType != targetContentType {
 		return "", fmt.Errorf("source contentType (%s) and target contentType (%s) do not match", sourceContentType, targetContentType)
 	}

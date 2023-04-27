@@ -32,6 +32,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -1389,6 +1390,420 @@ var _ = Describe("Preallocation", func() {
 		ok, err := f.VerifyImagePreallocated(f.Namespace, pvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(ok).To(BeTrue())
+	})
+})
+
+var _ = Describe("Import populator", func() {
+	f := framework.NewFramework(namespacePrefix)
+
+	var (
+		err                error
+		pvc                *v1.PersistentVolumeClaim
+		pvcPrime           *v1.PersistentVolumeClaim
+		tinyCoreIsoURL     = func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
+		tinyCoreArchiveURL = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
+		trustedRegistryURL = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
+		imageioURL         = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
+		vcenterURL         = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
+	)
+
+	// importPopulationPVCDefinition creates a PVC with import datasourceref
+	importPopulationPVCDefinition := func() *v1.PersistentVolumeClaim {
+		pvcDef := utils.NewPVCDefinition("import-populator-pvc-test", "1Gi", nil, nil)
+		apiGroup := controller.AnnAPIGroup
+		pvcDef.Spec.DataSourceRef = &v1.TypedObjectReference{
+			APIGroup: &apiGroup,
+			Kind:     cdiv1.VolumeImportSourceRef,
+			Name:     "import-populator-test",
+		}
+		return pvcDef
+	}
+
+	// importPopulatorCR creates an import source CR
+	importPopulatorCR := func(namespace string, contentType cdiv1.DataVolumeContentType, preallocation bool, source *cdiv1.ImportSourceType) *cdiv1.VolumeImportSource {
+		return &cdiv1.VolumeImportSource{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "import-populator-test",
+				Namespace: namespace,
+			},
+			Spec: cdiv1.VolumeImportSourceSpec{
+				Source:        source,
+				ContentType:   contentType,
+				Preallocation: &preallocation,
+			},
+		}
+	}
+
+	// ImporSource creation functions
+
+	createHTTPImportPopulatorCR := func(contentType cdiv1.DataVolumeContentType, preallocation bool) error {
+		By("Creating Import Populator CR with HTTP source")
+		url := tinyCoreArchiveURL()
+		if contentType == cdiv1.DataVolumeKubeVirt {
+			url = tinyCoreIsoURL()
+		}
+		source := &cdiv1.ImportSourceType{
+			HTTP: &cdiv1.DataVolumeSourceHTTP{
+				URL: url,
+			},
+		}
+		importPopulatorCR := importPopulatorCR(f.Namespace.Name, contentType, preallocation, source)
+		_, err := f.CdiClient.CdiV1beta1().VolumeImportSources(f.Namespace.Name).Create(
+			context.TODO(), importPopulatorCR, metav1.CreateOptions{})
+		return err
+	}
+
+	createRegistryImportPopulatorCR := func(contentType cdiv1.DataVolumeContentType, preallocation bool) error {
+		By("Creating Import Populator CR with Registry source")
+		registryURL := trustedRegistryURL()
+		pullMethod := cdiv1.RegistryPullNode
+		source := &cdiv1.ImportSourceType{
+			Registry: &cdiv1.DataVolumeSourceRegistry{
+				URL:        &registryURL,
+				PullMethod: &pullMethod,
+			},
+		}
+		importPopulatorCR := importPopulatorCR(f.Namespace.Name, contentType, preallocation, source)
+		_, err := f.CdiClient.CdiV1beta1().VolumeImportSources(f.Namespace.Name).Create(
+			context.TODO(), importPopulatorCR, metav1.CreateOptions{})
+		return err
+	}
+
+	createImageIOImportPopulatorCR := func(contentType cdiv1.DataVolumeContentType, preallocation bool) error {
+		By("Creating Import Populator CR with ImageIO source")
+		cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+		Expect(err).To(BeNil())
+		stringData := map[string]string{
+			common.KeyAccess: "admin@internal",
+			common.KeySecret: "12345",
+		}
+		tests.CreateImageIoDefaultInventory(f)
+		s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, "mysecret"))
+		source := &cdiv1.ImportSourceType{
+			Imageio: &cdiv1.DataVolumeSourceImageIO{
+				URL:           imageioURL(),
+				SecretRef:     s.Name,
+				CertConfigMap: cm,
+				DiskID:        "123",
+			},
+		}
+		importPopulatorCR := importPopulatorCR(f.Namespace.Name, contentType, preallocation, source)
+		_, err = f.CdiClient.CdiV1beta1().VolumeImportSources(f.Namespace.Name).Create(
+			context.TODO(), importPopulatorCR, metav1.CreateOptions{})
+		return err
+	}
+
+	createVDDKImportPopulatorCR := func(contentType cdiv1.DataVolumeContentType, preallocation bool) error {
+		By("Creating Import Populator CR with VDDK source")
+		// Find vcenter-simulator pod
+		pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "vcenter-deployment", "app=vcenter")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pod).ToNot(BeNil())
+
+		// Get test VM UUID
+		id, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
+		Expect(err).To(BeNil())
+		vmid, err := uuid.Parse(strings.TrimSpace(id))
+		Expect(err).To(BeNil())
+
+		// Get disk name
+		disk, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
+		Expect(err).To(BeNil())
+		disk = strings.TrimSpace(disk)
+		Expect(err).To(BeNil())
+
+		// Create VDDK login secret
+		stringData := map[string]string{
+			common.KeyAccess: "user",
+			common.KeySecret: "pass",
+		}
+		backingFile := disk
+		secretRef := "vddksecret"
+		thumbprint := "testprint"
+		s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, secretRef))
+		source := &cdiv1.ImportSourceType{
+			VDDK: &cdiv1.DataVolumeSourceVDDK{
+				BackingFile: backingFile,
+				SecretRef:   s.Name,
+				Thumbprint:  thumbprint,
+				URL:         vcenterURL(),
+				UUID:        vmid.String(),
+			},
+		}
+
+		importPopulatorCR := importPopulatorCR(f.Namespace.Name, contentType, preallocation, source)
+		_, err = f.CdiClient.CdiV1beta1().VolumeImportSources(f.Namespace.Name).Create(
+			context.TODO(), importPopulatorCR, metav1.CreateOptions{})
+		return err
+	}
+
+	createBlankImportPopulatorCR := func(contentType cdiv1.DataVolumeContentType, preallocation bool) error {
+		By("Creating Import Populator CR with blank source")
+		source := &cdiv1.ImportSourceType{
+			Blank: &cdiv1.DataVolumeBlankImage{},
+		}
+		importPopulatorCR := importPopulatorCR(f.Namespace.Name, contentType, preallocation, source)
+		_, err := f.CdiClient.CdiV1beta1().VolumeImportSources(f.Namespace.Name).Create(
+			context.TODO(), importPopulatorCR, metav1.CreateOptions{})
+		return err
+	}
+
+	verifyCleanup := func(pvc *v1.PersistentVolumeClaim) {
+		if pvc != nil {
+			Eventually(func() bool {
+				// Make sure the pvc doesn't exist. The after each should have called delete.
+				_, err := f.FindPVC(pvc.Name)
+				return err != nil
+			}, timeout, pollingInterval).Should(BeTrue())
+		}
+	}
+
+	BeforeEach(func() {
+		verifyCleanup(pvc)
+	})
+
+	AfterEach(func() {
+		By("Deleting verifier pod")
+		err := utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = f.CdiClient.CdiV1beta1().VolumeImportSources(f.Namespace.Name).Delete(context.TODO(), "import-populator-test", metav1.DeleteOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		By("Delete import population PVC")
+		err = f.DeletePVC(pvc)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	DescribeTable("should import fileSystem PVC", func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error, preallocation bool) {
+		pvc = importPopulationPVCDefinition()
+		pvc = f.CreateScheduledPVCFromDefinition(pvc)
+		err = volumeImportSourceFunc(cdiv1.DataVolumeKubeVirt, preallocation)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC prime was created")
+		pvcPrime, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, populators.PVCPrimeName(pvc))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify target PVC is bound")
+		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify content")
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(expectedMD5))
+
+		if preallocation {
+			By("Verifying the image is preallocated")
+			ok, err := f.VerifyImagePreallocated(f.Namespace, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(ok).To(BeTrue())
+		} else {
+			By("Verifying the image is sparse")
+			Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
+		}
+
+		if utils.DefaultStorageCSIRespectsFsGroup {
+			// CSI storage class, it should respect fsGroup
+			By("Checking that disk image group is qemu")
+			Expect(f.GetDiskGroup(f.Namespace, pvc, false)).To(Equal("107"))
+		}
+
+		By("Verifying permissions are 660")
+		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
+
+		By("Verify 100.0% annotation")
+		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnImportProgressReporting)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeTrue())
+		Expect(progress).Should(BeEquivalentTo("100.0%"))
+
+		By("Wait for PVC prime to be deleted")
+		Eventually(func() bool {
+			// Make sure pvcPrime was deleted after import population
+			_, err := f.FindPVC(pvcPrime.Name)
+			return err != nil && k8serrors.IsNotFound(err)
+		}, timeout, pollingInterval).Should(BeTrue())
+	},
+		Entry("with HTTP image and preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, true),
+		Entry("with HTTP image without preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, false),
+		Entry("with Registry image and preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, true),
+		Entry("with Registry image without preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, false),
+		Entry("with ImageIO image with preallocation", utils.ImageioMD5, createImageIOImportPopulatorCR, true),
+		Entry("with ImageIO image without preallocation", utils.ImageioMD5, createImageIOImportPopulatorCR, false),
+		Entry("with VDDK image with preallocation", utils.VcenterMD5, createVDDKImportPopulatorCR, true),
+		Entry("with VDDK image without preallocation", utils.VcenterMD5, createVDDKImportPopulatorCR, false),
+		Entry("with Blank image with preallocation", utils.BlankMD5, createBlankImportPopulatorCR, true),
+		Entry("with Blank image without preallocation", utils.BlankMD5, createBlankImportPopulatorCR, false),
+	)
+
+	DescribeTable("should import Block PVC", func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error) {
+		if !f.IsBlockVolumeStorageClassAvailable() {
+			Skip("Storage Class for block volume is not available")
+		}
+
+		pvc = importPopulationPVCDefinition()
+		volumeMode := v1.PersistentVolumeBlock
+		pvc.Spec.VolumeMode = &volumeMode
+		pvc = f.CreateScheduledPVCFromDefinition(pvc)
+		err = volumeImportSourceFunc(cdiv1.DataVolumeKubeVirt, true)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC prime was created")
+		pvcPrime, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, populators.PVCPrimeName(pvc))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify target PVC is bound")
+		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify content")
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultPvcMountPath, utils.MD5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(expectedMD5))
+		By("Verifying the image is sparse")
+		Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultPvcMountPath)).To(BeTrue())
+
+		By("Verify 100.0% annotation")
+		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnImportProgressReporting)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeTrue())
+		Expect(progress).Should(BeEquivalentTo("100.0%"))
+
+		By("Wait for PVC prime to be deleted")
+		Eventually(func() bool {
+			// Make sure pvcPrime was deleted after import population
+			_, err := f.FindPVC(pvcPrime.Name)
+			return err != nil && k8serrors.IsNotFound(err)
+		}, timeout, pollingInterval).Should(BeTrue())
+	},
+		Entry("with HTTP image", utils.TinyCoreMD5, createHTTPImportPopulatorCR),
+		Entry("with Registry image", utils.TinyCoreMD5, createRegistryImportPopulatorCR),
+		Entry("with ImageIO image", utils.ImageioMD5, createImageIOImportPopulatorCR),
+		Entry("with VDDK image", utils.VcenterMD5, createVDDKImportPopulatorCR),
+		Entry("with Blank image", utils.BlankMD5, createBlankImportPopulatorCR),
+	)
+
+	It("should import archive", func() {
+		pvc = importPopulationPVCDefinition()
+		pvc = f.CreateScheduledPVCFromDefinition(pvc)
+		err = createHTTPImportPopulatorCR(cdiv1.DataVolumeArchive, true)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC prime was created")
+		pvcPrime, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, populators.PVCPrimeName(pvc))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify target PVC is bound")
+		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify content")
+		same, err := f.VerifyTargetPVCArchiveContent(f.Namespace, pvc, "3")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(same).To(BeTrue())
+
+		By("Verify 100.0% annotation")
+		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnImportProgressReporting)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeTrue())
+		Expect(progress).Should(BeEquivalentTo("100.0%"))
+
+		By("Wait for PVC prime to be deleted")
+		Eventually(func() bool {
+			// Make sure pvcPrime was deleted after import population
+			_, err := f.FindPVC(pvcPrime.Name)
+			return err != nil && k8serrors.IsNotFound(err)
+		}, timeout, pollingInterval).Should(BeTrue())
+	})
+
+	It("Should handle static allocated PVC with import populator", func() {
+		pvc = importPopulationPVCDefinition()
+		pvc = f.CreateScheduledPVCFromDefinition(pvc)
+		err = createHTTPImportPopulatorCR(cdiv1.DataVolumeKubeVirt, true)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC prime was created")
+		pvcPrime, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, populators.PVCPrimeName(pvc))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify target PVC is bound")
+		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+		pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		pvName := pvc.Spec.VolumeName
+
+		By("Verify content")
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(utils.TinyCoreMD5))
+		By("Verifying the image is sparse")
+		Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
+		sourceMD5 := md5
+
+		By("Retaining PV")
+		pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimRetain
+		_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Forcing cleanup")
+		err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+		Expect(err).ToNot(HaveOccurred())
+		err = f.CdiClient.CdiV1beta1().VolumeImportSources(f.Namespace.Name).Delete(context.TODO(), "import-populator-test", metav1.DeleteOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
+			Expect(err).ToNot(HaveOccurred())
+		}
+		Eventually(func() bool {
+			// Make sure pvcPrime was deleted after import population
+			_, err := f.FindPVC(pvcPrime.Name)
+			return err != nil && k8serrors.IsNotFound(err)
+		}, timeout, pollingInterval).Should(BeTrue())
+
+		err = f.DeletePVC(pvc)
+		Expect(err).ToNot(HaveOccurred())
+		verifyCleanup(pvc)
+
+		By("Making PV available")
+		Eventually(func() bool {
+			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pv.Spec.ClaimRef.Namespace).To(Equal(pvc.Namespace))
+			Expect(pv.Spec.ClaimRef.Name).To(Equal(pvc.Name))
+			if pv.Status.Phase == v1.VolumeAvailable {
+				return true
+			}
+			pv.Spec.ClaimRef.ResourceVersion = ""
+			pv.Spec.ClaimRef.UID = ""
+			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return false
+		}, timeout, pollingInterval).Should(BeTrue())
+
+		// Start the whole process again, but with unscheduled PVC
+		pvc = importPopulationPVCDefinition()
+		pvc, err = f.CreatePVCFromDefinition(pvc)
+		Expect(err).ToNot(HaveOccurred())
+		err = createHTTPImportPopulatorCR(cdiv1.DataVolumeKubeVirt, true)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC prime is not created anymore")
+		_, err = f.FindPVC(populators.PVCPrimeName(pvc))
+		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+		By("Verify target PVC is bound")
+		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify content")
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, sourceMD5, utils.MD5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(same).To(BeTrue())
 	})
 })
 

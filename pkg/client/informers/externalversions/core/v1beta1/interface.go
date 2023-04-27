@@ -38,6 +38,8 @@ type Interface interface {
 	ObjectTransfers() ObjectTransferInformer
 	// StorageProfiles returns a StorageProfileInformer.
 	StorageProfiles() StorageProfileInformer
+	// VolumeImportSources returns a VolumeImportSourceInformer.
+	VolumeImportSources() VolumeImportSourceInformer
 }
 
 type version struct {
@@ -84,4 +86,9 @@ func (v *version) ObjectTransfers() ObjectTransferInformer {
 // StorageProfiles returns a StorageProfileInformer.
 func (v *version) StorageProfiles() StorageProfileInformer {
 	return &storageProfileInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// VolumeImportSources returns a VolumeImportSourceInformer.
+func (v *version) VolumeImportSources() VolumeImportSourceInformer {
+	return &volumeImportSourceInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

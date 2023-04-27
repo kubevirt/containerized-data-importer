@@ -115,91 +115,32 @@ func (r *ImportReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *
 		annotations[cc.AnnFinalCheckpoint] = strconv.FormatBool(checkpoint.IsFinal)
 	}
 
-	if dataVolume.Spec.Source.HTTP != nil {
-		annotations[cc.AnnEndpoint] = dataVolume.Spec.Source.HTTP.URL
-		annotations[cc.AnnSource] = cc.SourceHTTP
-
-		if dataVolume.Spec.Source.HTTP.SecretRef != "" {
-			annotations[cc.AnnSecret] = dataVolume.Spec.Source.HTTP.SecretRef
-		}
-		if dataVolume.Spec.Source.HTTP.CertConfigMap != "" {
-			annotations[cc.AnnCertConfigMap] = dataVolume.Spec.Source.HTTP.CertConfigMap
-		}
-		for index, header := range dataVolume.Spec.Source.HTTP.ExtraHeaders {
-			annotations[fmt.Sprintf("%s.%d", cc.AnnExtraHeaders, index)] = header
-		}
-		for index, header := range dataVolume.Spec.Source.HTTP.SecretExtraHeaders {
-			annotations[fmt.Sprintf("%s.%d", cc.AnnSecretExtraHeaders, index)] = header
-		}
+	if http := dataVolume.Spec.Source.HTTP; http != nil {
+		cc.UpdateHTTPAnnotations(annotations, http)
 		return nil
 	}
-	if dataVolume.Spec.Source.S3 != nil {
-		annotations[cc.AnnEndpoint] = dataVolume.Spec.Source.S3.URL
-		annotations[cc.AnnSource] = cc.SourceS3
-		if dataVolume.Spec.Source.S3.SecretRef != "" {
-			annotations[cc.AnnSecret] = dataVolume.Spec.Source.S3.SecretRef
-		}
-		if dataVolume.Spec.Source.S3.CertConfigMap != "" {
-			annotations[cc.AnnCertConfigMap] = dataVolume.Spec.Source.S3.CertConfigMap
-		}
+	if s3 := dataVolume.Spec.Source.S3; s3 != nil {
+		cc.UpdateS3Annotations(annotations, s3)
 		return nil
 	}
-	if dataVolume.Spec.Source.GCS != nil {
-		annotations[cc.AnnEndpoint] = dataVolume.Spec.Source.GCS.URL
-		annotations[cc.AnnSource] = cc.SourceGCS
-		if dataVolume.Spec.Source.GCS.SecretRef != "" {
-			annotations[cc.AnnSecret] = dataVolume.Spec.Source.GCS.SecretRef
-		}
+	if gcs := dataVolume.Spec.Source.GCS; gcs != nil {
+		cc.UpdateGCSAnnotations(annotations, gcs)
 		return nil
 	}
-	if dataVolume.Spec.Source.Registry != nil {
-		annotations[cc.AnnSource] = cc.SourceRegistry
-		pullMethod := dataVolume.Spec.Source.Registry.PullMethod
-		if pullMethod != nil && *pullMethod != "" {
-			annotations[cc.AnnRegistryImportMethod] = string(*pullMethod)
-		}
-		url := dataVolume.Spec.Source.Registry.URL
-		if url != nil && *url != "" {
-			annotations[cc.AnnEndpoint] = *url
-		} else {
-			imageStream := dataVolume.Spec.Source.Registry.ImageStream
-			if imageStream != nil && *imageStream != "" {
-				annotations[cc.AnnEndpoint] = *imageStream
-				annotations[cc.AnnRegistryImageStream] = "true"
-			}
-		}
-		secretRef := dataVolume.Spec.Source.Registry.SecretRef
-		if secretRef != nil && *secretRef != "" {
-			annotations[cc.AnnSecret] = *secretRef
-		}
-		certConfigMap := dataVolume.Spec.Source.Registry.CertConfigMap
-		if certConfigMap != nil && *certConfigMap != "" {
-			annotations[cc.AnnCertConfigMap] = *certConfigMap
-		}
+	if registry := dataVolume.Spec.Source.Registry; registry != nil {
+		cc.UpdateRegistryAnnotations(annotations, registry)
+		return nil
+	}
+	if imageio := dataVolume.Spec.Source.Imageio; imageio != nil {
+		cc.UpdateImageIOAnnotations(annotations, imageio)
+		return nil
+	}
+	if vddk := dataVolume.Spec.Source.VDDK; vddk != nil {
+		cc.UpdateVDDKAnnotations(annotations, vddk)
 		return nil
 	}
 	if dataVolume.Spec.Source.Blank != nil {
 		annotations[cc.AnnSource] = cc.SourceNone
-		return nil
-	}
-	if dataVolume.Spec.Source.Imageio != nil {
-		annotations[cc.AnnEndpoint] = dataVolume.Spec.Source.Imageio.URL
-		annotations[cc.AnnSource] = cc.SourceImageio
-		annotations[cc.AnnSecret] = dataVolume.Spec.Source.Imageio.SecretRef
-		annotations[cc.AnnCertConfigMap] = dataVolume.Spec.Source.Imageio.CertConfigMap
-		annotations[cc.AnnDiskID] = dataVolume.Spec.Source.Imageio.DiskID
-		return nil
-	}
-	if dataVolume.Spec.Source.VDDK != nil {
-		annotations[cc.AnnEndpoint] = dataVolume.Spec.Source.VDDK.URL
-		annotations[cc.AnnSource] = cc.SourceVDDK
-		annotations[cc.AnnSecret] = dataVolume.Spec.Source.VDDK.SecretRef
-		annotations[cc.AnnBackingFile] = dataVolume.Spec.Source.VDDK.BackingFile
-		annotations[cc.AnnUUID] = dataVolume.Spec.Source.VDDK.UUID
-		annotations[cc.AnnThumbprint] = dataVolume.Spec.Source.VDDK.Thumbprint
-		if dataVolume.Spec.Source.VDDK.InitImageURL != "" {
-			annotations[cc.AnnVddkInitImageURL] = dataVolume.Spec.Source.VDDK.InitImageURL
-		}
 		return nil
 	}
 	return errors.Errorf("no source set for import datavolume")

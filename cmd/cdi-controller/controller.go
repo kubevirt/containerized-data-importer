@@ -35,6 +35,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/pkg/controller/transfer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
@@ -264,6 +265,15 @@ func start() {
 	}
 	if _, err := controller.NewDataSourceController(mgr, log, installerLabels); err != nil {
 		klog.Errorf("Unable to setup datasource controller: %v", err)
+		os.Exit(1)
+	}
+	// Populator controllers and indexes
+	if err := populators.CreateCommonPopulatorIndexes(mgr); err != nil {
+		klog.Errorf("Unable to create common populator indexes: %v", err)
+		os.Exit(1)
+	}
+	if _, err := populators.NewImportPopulator(ctx, mgr, log, installerLabels); err != nil {
+		klog.Errorf("Unable to setup import populator: %v", err)
 		os.Exit(1)
 	}
 

@@ -56,6 +56,10 @@ func (c *FakeCdiV1beta1) StorageProfiles() v1beta1.StorageProfileInterface {
 	return &FakeStorageProfiles{c}
 }
 
+func (c *FakeCdiV1beta1) VolumeImportSources(namespace string) v1beta1.VolumeImportSourceInterface {
+	return &FakeVolumeImportSources{c, namespace}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeCdiV1beta1) RESTClient() rest.Interface {

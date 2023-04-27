@@ -11,6 +11,7 @@ go_library(
         "datavolume.go",
         "factory.go",
         "object-transfer.go",
+        "populationsources.go",
         "rbac.go",
         "storageprofile.go",
         "uploadproxy.go",

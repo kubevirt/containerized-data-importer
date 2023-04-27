@@ -19,15 +19,12 @@ package datavolume
 import (
 	"context"
 	"crypto/rsa"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"reflect"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -491,7 +488,7 @@ func (r *ReconcilerBase) handleStaticVolume(syncState *dvSyncState, log logr.Log
 		return nil
 	}
 
-	if syncState.pvc.Spec.VolumeName == "" {
+	if cc.IsUnbound(syncState.pvc) {
 		// set result to make sure callers don't do anything else in sync
 		syncState.result = &reconcile.Result{}
 		return nil
@@ -893,7 +890,7 @@ func (r *ReconcilerBase) getPodFromPvc(namespace string, pvc *corev1.PersistentV
 
 	pvcUID := pvc.GetUID()
 	for _, pod := range pods.Items {
-		if shouldIgnorePod(&pod, pvc) {
+		if cc.ShouldIgnorePod(&pod, pvc) {
 			continue
 		}
 		for _, or := range pod.OwnerReferences {
@@ -919,87 +916,26 @@ func (r *ReconcilerBase) addOwnerRef(pvc *corev1.PersistentVolumeClaim, dv *cdiv
 	return r.updatePVC(pvc)
 }
 
-// If this is a completed pod that was used for one checkpoint of a multi-stage import, it
-// should be ignored by pod lookups as long as the retainAfterCompletion annotation is set.
-func shouldIgnorePod(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim) bool {
-	retain := pvc.ObjectMeta.Annotations[cc.AnnPodRetainAfterCompletion]
-	checkpoint := pvc.ObjectMeta.Annotations[cc.AnnCurrentCheckpoint]
-	if checkpoint != "" && pod.Status.Phase == corev1.PodSucceeded {
-		return retain == "true"
-	}
-	return false
-}
-
 func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) error {
-	httpClient := buildHTTPClient()
-	// Example value: import_progress{ownerUID="b856691e-1038-11e9-a5ab-525500d15501"} 13.45
-	var importRegExp = regexp.MustCompile("progress\\{ownerUID\\=\"" + string(dataVolumeCopy.UID) + "\"\\} (\\d{1,3}\\.?\\d*)")
-
-	port, err := getPodMetricsPort(pod)
-	if err == nil && pod.Status.PodIP != "" {
-		url := fmt.Sprintf("https://%s:%d/metrics", pod.Status.PodIP, port)
-		resp, err := httpClient.Get(url)
-		if err != nil {
-			if errConnectionRefused(err) {
-				return nil
-			}
-			return err
-		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-
-		match := importRegExp.FindStringSubmatch(string(body))
-		if match == nil {
-			// No match
-			return nil
-		}
-		if f, err := strconv.ParseFloat(match[1], 64); err == nil {
-			dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress(fmt.Sprintf("%.2f%%", f))
-		}
+	httpClient = cc.BuildHTTPClient(httpClient)
+	url, err := cc.GetMetricsURL(pod)
+	if err != nil {
+		return err
+	}
+	if url == "" {
 		return nil
 	}
-	return err
-}
 
-func errConnectionRefused(err error) bool {
-	return strings.Contains(err.Error(), "connection refused")
-}
-
-func getPodMetricsPort(pod *corev1.Pod) (int, error) {
-	for _, container := range pod.Spec.Containers {
-		for _, port := range container.Ports {
-			if port.Name == "metrics" {
-				return int(port.ContainerPort), nil
-			}
+	// Example value: import_progress{ownerUID="b856691e-1038-11e9-a5ab-525500d15501"} 13.45
+	var importRegExp = regexp.MustCompile("progress\\{ownerUID\\=\"" + string(dataVolumeCopy.UID) + "\"\\} (\\d{1,3}\\.?\\d*)")
+	if progressReport, err := cc.GetProgressReportFromURL(url, importRegExp, httpClient); err != nil {
+		return err
+	} else if progressReport != "" {
+		if f, err := strconv.ParseFloat(progressReport, 64); err == nil {
+			dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress(fmt.Sprintf("%.2f%%", f))
 		}
 	}
-	return 0, errors.New("Metrics port not found in pod")
-}
-
-// buildHTTPClient generates an http client that accepts any certificate, since we are using
-// it to get prometheus data it doesn't matter if someone can intercept the data. Once we have
-// a mechanism to properly sign the server, we can update this method to get a proper client.
-func buildHTTPClient() *http.Client {
-	if httpClient == nil {
-		defaultTransport := http.DefaultTransport.(*http.Transport)
-		// Create new Transport that ignores self-signed SSL
-		tr := &http.Transport{
-			Proxy:                 defaultTransport.Proxy,
-			DialContext:           defaultTransport.DialContext,
-			MaxIdleConns:          defaultTransport.MaxIdleConns,
-			IdleConnTimeout:       defaultTransport.IdleConnTimeout,
-			ExpectContinueTimeout: defaultTransport.ExpectContinueTimeout,
-			TLSHandshakeTimeout:   defaultTransport.TLSHandshakeTimeout,
-			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-		}
-		httpClient = &http.Client{
-			Transport: tr,
-		}
-	}
-	return httpClient
+	return nil
 }
 
 // newPersistentVolumeClaim creates a new PVC for the DataVolume resource.
@@ -1022,11 +958,11 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		annotations[k] = v
 	}
 	annotations[cc.AnnPodRestarts] = "0"
-	annotations[cc.AnnContentType] = string(getContentType(dataVolume))
+	annotations[cc.AnnContentType] = cc.GetContentType(string(dataVolume.Spec.ContentType))
 	if dataVolume.Spec.PriorityClassName != "" {
 		annotations[cc.AnnPriorityClassName] = dataVolume.Spec.PriorityClassName
 	}
-	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(r.client, dataVolume))
+	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(r.client, dataVolume.Spec.Preallocation))
 
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1060,13 +996,6 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 	}
 
 	return pvc, nil
-}
-
-func getContentType(dv *cdiv1.DataVolume) cdiv1.DataVolumeContentType {
-	if dv.Spec.ContentType == cdiv1.DataVolumeArchive {
-		return cdiv1.DataVolumeArchive
-	}
-	return cdiv1.DataVolumeKubeVirt
 }
 
 // Whenever the controller updates a DV, we must make sure to nil out spec.source when using other population methods
