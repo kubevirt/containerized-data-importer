@@ -189,6 +189,16 @@ func getIndexArgs() []indexArgs {
 				return nil
 			},
 		},
+		{
+			obj:   &corev1.PersistentVolume{},
+			field: claimStorageClassNameField,
+			extractValue: func(obj client.Object) []string {
+				if pv, ok := obj.(*corev1.PersistentVolume); ok && pv.Status.Phase == corev1.VolumeAvailable {
+					return []string{pv.Spec.StorageClassName}
+				}
+				return nil
+			},
+		},
 	}
 }
 
@@ -202,14 +212,6 @@ func CreateCommonIndexes(mgr manager.Manager) error {
 		if err := mgr.GetFieldIndexer().IndexField(context.TODO(), ia.obj, ia.field, ia.extractValue); err != nil {
 			return err
 		}
-	}
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &corev1.PersistentVolume{}, claimStorageClassNameField, func(obj client.Object) []string {
-		if pv, ok := obj.(*corev1.PersistentVolume); ok {
-			return []string{pv.Spec.StorageClassName}
-		}
-		return nil
-	}); err != nil {
-		return err
 	}
 	return nil
 }
@@ -319,6 +321,7 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 				if storage != nil &&
 					storage.StorageClassName != nil &&
 					*storage.StorageClassName == pv.Spec.StorageClassName &&
+					pv.Status.Phase == corev1.VolumeAvailable &&
 					getDataVolumeOp(mgr.GetLogger(), &dv, mgr.GetClient()) == op {
 					reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
 				}
@@ -443,10 +446,12 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 		}
 	}
 
-	syncState.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, dv)
+	syncState.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, dv, syncState.pvc)
 	if err != nil {
-		r.syncDataVolumeStatusPhaseWithEvent(&syncState, cdiv1.PhaseUnset, nil,
-			Event{corev1.EventTypeWarning, cc.ErrClaimNotValid, err.Error()})
+		if syncErr := r.syncDataVolumeStatusPhaseWithEvent(&syncState, cdiv1.PhaseUnset, nil,
+			Event{corev1.EventTypeWarning, cc.ErrClaimNotValid, err.Error()}); syncErr != nil {
+			log.Error(syncErr, "failed to sync DataVolume status with event")
+		}
 		return syncState, err
 	}
 

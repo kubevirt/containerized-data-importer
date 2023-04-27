@@ -234,7 +234,7 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 		return reconcile.Result{}, nil
 	}
 
-	targetPvcSpec, err := renderPvcSpec(r.client, r.recorder, r.log, dataVolume)
+	targetPvcSpec, err := renderPvcSpec(r.client, r.recorder, r.log, dataVolume, nil)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
