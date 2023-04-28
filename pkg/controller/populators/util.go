@@ -105,7 +105,8 @@ func checkIntreeStorageClass(pvc *corev1.PersistentVolumeClaim, sc *storagev1.St
 	return true
 }
 
-func isPVBoundToPVC(pv *corev1.PersistentVolume, pvc *corev1.PersistentVolumeClaim) bool {
+// IsPVBoundToPVC returns true if the passed PVC and PV are bound to each other
+func IsPVBoundToPVC(pv *corev1.PersistentVolume, pvc *corev1.PersistentVolumeClaim) bool {
 	claimRef := pv.Spec.ClaimRef
 	return claimRef.Name == pvc.Name && claimRef.Namespace == pvc.Namespace && claimRef.UID == pvc.UID
 }
