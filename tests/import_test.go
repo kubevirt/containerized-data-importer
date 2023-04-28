@@ -1770,30 +1770,29 @@ var _ = Describe("Import populator", func() {
 		verifyCleanup(pvc)
 
 		By("Making PV available")
-		Eventually(func() bool {
+		Eventually(func() v1.PersistentVolumePhase {
 			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pv.Spec.ClaimRef.Namespace).To(Equal(pvc.Namespace))
 			Expect(pv.Spec.ClaimRef.Name).To(Equal(pvc.Name))
-			if pv.Status.Phase == v1.VolumeAvailable {
-				return true
+			if pv.Status.Phase != v1.VolumeAvailable {
+				pv.Spec.ClaimRef.ResourceVersion = ""
+				pv.Spec.ClaimRef.UID = ""
+				_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
 			}
-			pv.Spec.ClaimRef.ResourceVersion = ""
-			pv.Spec.ClaimRef.UID = ""
-			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			return false
-		}, timeout, pollingInterval).Should(BeTrue())
+			return pv.Status.Phase
+		}, timeout, pollingInterval).Should(Equal(v1.VolumeAvailable))
 
 		// Start the whole process again, but with unscheduled PVC
-		pvc = importPopulationPVCDefinition()
-		pvc, err = f.CreatePVCFromDefinition(pvc)
+		pvc, err = f.CreatePVCFromDefinition(importPopulationPVCDefinition())
 		Expect(err).ToNot(HaveOccurred())
 		err = createHTTPImportPopulatorCR(cdiv1.DataVolumeKubeVirt, true)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify PVC prime is not created anymore")
 		_, err = f.FindPVC(populators.PVCPrimeName(pvc))
+		Expect(err).To(HaveOccurred())
 		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 
 		By("Verify target PVC is bound")

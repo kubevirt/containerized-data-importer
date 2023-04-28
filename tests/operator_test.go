@@ -1131,8 +1131,11 @@ func waitCDI(f *framework.Framework, cr *cdiv1.CDI, cdiPods *corev1.PodList) {
 	By("Waiting for there to be as many CDI pods as before")
 	Eventually(func() bool {
 		newCdiPods = getCDIPods(f)
-		By(fmt.Sprintf("number of cdi pods: %d\n new number of cdi pods: %d\n", len(cdiPods.Items), len(newCdiPods.Items)))
-		return len(cdiPods.Items) == len(newCdiPods.Items)
+		fmt.Fprintf(GinkgoWriter, "number of cdi pods: %d\n new number of cdi pods: %d\n", len(cdiPods.Items), len(newCdiPods.Items))
+		for _, pod := range newCdiPods.Items {
+			fmt.Fprintf(GinkgoWriter, "pod %s/%s\n", pod.Namespace, pod.Name)
+		}
+		return len(newCdiPods.Items) == len(cdiPods.Items)
 	}, 5*time.Minute, 2*time.Second).Should(BeTrue())
 
 	for _, newCdiPod := range newCdiPods.Items {

@@ -1021,7 +1021,7 @@ var _ = Describe("all clone tests", func() {
 							Expect(err).ToNot(HaveOccurred())
 							restartCount := cloner.Status.ContainerStatuses[0].RestartCount
 							fmt.Fprintf(GinkgoWriter, "INFO: restart count on clone source pod %s: %d\n", clonerPodName, restartCount)
-							Expect(restartCount).To(BeNumerically("<", 2))
+							Expect(restartCount).To(BeNumerically("<", int32(2)))
 						}
 					}
 
