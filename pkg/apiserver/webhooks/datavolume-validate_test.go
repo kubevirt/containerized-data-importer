@@ -59,19 +59,19 @@ var _ = Describe("Validating Webhook", func() {
 		It("should accept DataVolume with HTTP source on create", func() {
 			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should accept DataVolume with GS source on create", func() {
 			dataVolume := newGCSDataVolume("testDV", "gs://www.example.com")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should reject DataVolume with GCS source on create", func() {
 			dataVolume := newGCSDataVolume("testDV", "gcs://www.example.com")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume when target pvc exists", func() {
@@ -84,13 +84,13 @@ var _ = Describe("Validating Webhook", func() {
 				Spec: *dataVolume.Spec.PVC,
 			}
 			resp := validateDataVolumeCreate(dataVolume, pvc)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should accept DataVolume with Registry source URL on create", func() {
 			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should accept DataVolume with Registry source ImageStream and node PullMethod on create", func() {
@@ -102,7 +102,7 @@ var _ = Describe("Validating Webhook", func() {
 			pvc := newPVCSpec(pvcSizeDefault)
 			dataVolume := newDataVolume("testDV", registrySource, pvc)
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should reject DataVolume with Registry source ImageStream and pod PullMethod on create", func() {
@@ -113,7 +113,7 @@ var _ = Describe("Validating Webhook", func() {
 			pvc := newPVCSpec(pvcSizeDefault)
 			dataVolume := newDataVolume("testDV", registrySource, pvc)
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with Registry source on create with no url or ImageStream", func() {
@@ -121,7 +121,7 @@ var _ = Describe("Validating Webhook", func() {
 			pvc := newPVCSpec(pvcSizeDefault)
 			dataVolume := newDataVolume("testDV", registrySource, pvc)
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with Registry source on create with both url and ImageStream", func() {
@@ -133,26 +133,26 @@ var _ = Describe("Validating Webhook", func() {
 			pvc := newPVCSpec(pvcSizeDefault)
 			dataVolume := newDataVolume("testDV", registrySource, pvc)
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with Registry source on create with non-kubevirt contentType", func() {
 			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
 			dataVolume.Spec.ContentType = cdiv1.DataVolumeArchive
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with Registry source on create with illegal source URL", func() {
 			dataVolume := newRegistryDataVolume("testDV", "docker/::registry:5000/test")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with Registry source on create with illegal transport in source URL", func() {
 			dataVolume := newRegistryDataVolume("testDV", "joker://registry:5000/test")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with Registry source on create with illegal importMethod", func() {
@@ -160,7 +160,7 @@ var _ = Describe("Validating Webhook", func() {
 			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
 			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should accept DataVolume with Registry source on create with supported importMethod", func() {
@@ -168,7 +168,7 @@ var _ = Describe("Validating Webhook", func() {
 			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
 			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should accept DataVolume with PVC source on create", func() {
@@ -181,7 +181,7 @@ var _ = Describe("Validating Webhook", func() {
 				Spec: *dataVolume.Spec.PVC,
 			}
 			resp := validateDataVolumeCreate(dataVolume, pvc)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should accept DataVolume with PVC initialized create", func() {
@@ -197,31 +197,31 @@ var _ = Describe("Validating Webhook", func() {
 				Spec: *dataVolume.Spec.PVC,
 			}
 			resp := validateDataVolumeCreate(dataVolume, pvc)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should accept DataVolume with PVC source on create if PVC does not exist", func() {
 			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should reject invalid DataVolume source PVC namespace on create", func() {
 			dataVolume := newPVCDataVolume("testDV", "", "test")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject invalid DataVolume source PVC name on create", func() {
 			dataVolume := newPVCDataVolume("testDV", "testNamespace", "")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with name length greater than 253 characters", func() {
 			dataVolume := newHTTPDataVolume(longName, "http://www.example.com")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		DescribeTable("should", func(scName *string, expected bool) {
@@ -259,31 +259,31 @@ var _ = Describe("Validating Webhook", func() {
 		It("should reject DataVolume source with invalid URL on create", func() {
 			dataVolume := newHTTPDataVolume("testDV", "invalidurl")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with multiple sources on create", func() {
 			dataVolume := newDataVolumeWithMultipleSources("testDV")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with empty PVC create", func() {
 			dataVolume := newDataVolumeWithEmptyPVCSpec("testDV", "http://www.example.com")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with PVC size 0", func() {
 			dataVolume := newDataVolumeWithPVCSizeZero("testDV", "http://www.example.com")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should accept DataVolume with Blank source and no content type", func() {
 			dataVolume := newBlankDataVolume("blank")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 
 		})
 
@@ -291,7 +291,7 @@ var _ = Describe("Validating Webhook", func() {
 			dataVolume := newBlankDataVolume("blank")
 			dataVolume.Spec.ContentType = cdiv1.DataVolumeKubeVirt
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 
 		})
 
@@ -299,7 +299,7 @@ var _ = Describe("Validating Webhook", func() {
 			dataVolume := newBlankDataVolume("blank")
 			dataVolume.Spec.ContentType = cdiv1.DataVolumeArchive
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 
 		})
 
@@ -307,15 +307,14 @@ var _ = Describe("Validating Webhook", func() {
 			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
 			dataVolume.Spec.ContentType = "invalid"
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should accept DataVolume with archive contentType", func() {
 			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
 			dataVolume.Spec.ContentType = cdiv1.DataVolumeArchive
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(true))
-
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should reject invalid DataVolume spec update", func() {
@@ -344,7 +343,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateAdmissionReview(ar)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should accept object meta update", func() {
@@ -373,7 +372,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateAdmissionReview(ar)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should reject DataVolume spec PVC size update", func() {
@@ -407,7 +406,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateAdmissionReview(ar)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should accept DataVolume spec PVC size format update", func() {
@@ -441,7 +440,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateAdmissionReview(ar)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		DescribeTable("should validate clones", func(storageSpec *cdiv1.StorageSpec, pvcSpec *corev1.PersistentVolumeClaimSpec, expected bool) {
@@ -482,7 +481,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 			dv := newDataVolumeWithStorageSpec("testDV", httpSource, nil, storage)
 			resp := validateDataVolumeCreate(dv)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should allow empty Requests when using Storage API with DataVolumeSourceRef", func() {
@@ -515,7 +514,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 			dv := newDataVolumeWithStorageSpec("testDV", nil, sourceRef, storage)
 			resp := validateDataVolumeCreateEx(dv, []runtime.Object{pvc}, []runtime.Object{dataSource}, nil)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should reject snapshot clone when input size is lower than recommended restore size", func() {
@@ -544,7 +543,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 			dv := newDataVolumeWithStorageSpec("testDV", snapSource, nil, storage)
 			resp := validateDataVolumeCreateEx(dv, nil, nil, []runtime.Object{snapshot})
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject snapshot clone when no input size/recommended restore size", func() {
@@ -564,7 +563,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 			dv := newDataVolumeWithStorageSpec("testDV", snapSource, nil, storage)
 			resp := validateDataVolumeCreateEx(dv, nil, nil, []runtime.Object{snapshot})
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		DescribeTable("should", func(oldFinalCheckpoint bool, oldCheckpoints []string, newFinalCheckpoint bool, newCheckpoints []string, modifyDV func(*cdiv1.DataVolume), expectedSuccess bool, sourceFunc func() *cdiv1.DataVolumeSource) {
@@ -619,7 +618,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should accept DataVolume without source if dataSourceRef is correctly populated", func() {
@@ -631,7 +630,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should reject DataVolume with populated source and dataSource", func() {
@@ -646,7 +645,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with populated source and dataSourceRef", func() {
@@ -661,7 +660,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with badly populated dataSource", func() {
@@ -674,7 +673,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with if dataSource and dataSourceRef are different", func() {
@@ -690,7 +689,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with cross namespace dataSourceRef", func() {
@@ -704,7 +703,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 	})
 
@@ -735,7 +734,7 @@ var _ = Describe("Validating Webhook", func() {
 				Spec: *newPVCSpec(pvcSizeDefault),
 			}
 			resp := validateDataVolumeCreateEx(dataVolume, []runtime.Object{pvc}, []runtime.Object{dataSource}, nil)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		},
 			Entry("accept DataVolume with PVC and sourceRef on create", &testNamespace),
 			Entry("accept DataVolume with PVC and sourceRef nil namespace on create", nil),
@@ -746,7 +745,7 @@ var _ = Describe("Validating Webhook", func() {
 			ns := "testNamespace"
 			dataVolume := newDataSourceDataVolume("testDV", &ns, "test")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with SourceRef on create if DataSource exists but its PVC field is not populated", func() {
@@ -763,7 +762,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource}, nil)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should accept DataVolume with SourceRef on create if DataSource exists but PVC does not exist", func() {
@@ -783,7 +782,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource}, nil)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should accept DataVolume with SourceRef on create if DataSource exists but snapshot does not exist", func() {
@@ -803,25 +802,25 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource}, nil)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should reject DataVolume with empty SourceRef name on create", func() {
 			dataVolume := newDataSourceDataVolume("testDV", &testNamespace, "")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with both source and sourceRef on create", func() {
 			dataVolume := newDataVolumeWithBothSourceAndSourceRef("testDV", "testNamespace", "test")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should reject DataVolume with no source or sourceRef on create", func() {
 			dataVolume := newDataVolumeWithNoSourceOrSourceRef("testDV")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 	})
 })

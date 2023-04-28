@@ -73,7 +73,7 @@ var _ = Describe("Format Readers", func() {
 		fr, err = NewFormatReaders(f, uint64(0))
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying there are currently 2 readers")
-		Expect(len(fr.readers)).To(Equal(2))
+		Expect(fr.readers).To(HaveLen(2))
 		fr.appendReader(rType, r)
 		By("Verifying there expected number of readers are there")
 		Expect(numRdrs).To(Equal(len(fr.readers)))

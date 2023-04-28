@@ -135,7 +135,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
 
-			Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
+			Expect(pvc.Spec.AccessModes).To(HaveLen(1))
 			Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadWriteOnce))
 			Expect(pvc.Spec.StorageClassName).To(BeNil())
 			Expect(pvc.Spec.VolumeMode).ToNot(BeNil())
@@ -156,7 +156,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
-			Expect(pvc.Spec.StorageClassName).ToNot(Equal("defaultSc"))
+			Expect(pvc.Spec.StorageClassName).To(HaveValue(Equal("defaultSc")))
 		})
 
 		It("Should set params on a PVC from import DV.Storage", func() {
@@ -173,11 +173,11 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
-			Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
+			Expect(pvc.Spec.AccessModes).To(HaveLen(1))
 			Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadWriteOnce))
 			Expect(pvc.Spec.VolumeMode).ToNot(BeNil())
 			Expect(*pvc.Spec.VolumeMode).To(Equal(BlockMode))
-			Expect(pvc.Spec.StorageClassName).ToNot(Equal("defaultSc"))
+			Expect(pvc.Spec.StorageClassName).To(HaveValue(Equal("defaultSc")))
 		})
 
 		It("Should fail on missing size, without storageClass", func() {
@@ -237,7 +237,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
 
-			Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
+			Expect(pvc.Spec.AccessModes).To(HaveLen(1))
 			if contentType == cdiv1.DataVolumeKubeVirt {
 				Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadOnlyMany))
 				Expect(*pvc.Spec.VolumeMode).To(Equal(BlockMode))
@@ -310,7 +310,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
 
-			Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
+			Expect(pvc.Spec.AccessModes).To(HaveLen(1))
 			Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadWriteOnce))
 			Expect(*pvc.Spec.VolumeMode).To(Equal(FilesystemMode))
 		})
@@ -348,7 +348,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
-			Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
+			Expect(pvc.Spec.AccessModes).To(HaveLen(1))
 			Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadWriteOnce))
 			Expect(*pvc.Spec.VolumeMode).To(Equal(FilesystemMode))
 		})
@@ -382,7 +382,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
 
-			Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
+			Expect(pvc.Spec.AccessModes).To(HaveLen(1))
 			Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadWriteOnce))
 			Expect(*pvc.Spec.VolumeMode).To(Equal(FilesystemMode))
 		})
@@ -412,7 +412,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
 
-			Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
+			Expect(pvc.Spec.AccessModes).To(HaveLen(1))
 			Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadOnlyMany))
 			Expect(*pvc.Spec.VolumeMode).To(Equal(BlockMode))
 		})
@@ -454,7 +454,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
 
-			Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
+			Expect(pvc.Spec.AccessModes).To(HaveLen(1))
 			Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadOnlyMany))
 			Expect(*pvc.Spec.VolumeMode).To(Equal(BlockMode))
 			expectedSize := resource.MustParse("1G")
@@ -743,15 +743,15 @@ var _ = Describe("All DataVolume Tests", func() {
 			}),
 			Entry("should clear multistage migration annotations after copying the final checkpoint", true, nil, func(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) {
 				_, ok := pvc.GetAnnotations()[AnnCurrentCheckpoint]
-				Expect(ok).To(Equal(false))
+				Expect(ok).To(BeFalse())
 				_, ok = pvc.GetAnnotations()[AnnPreviousCheckpoint]
-				Expect(ok).To(Equal(false))
+				Expect(ok).To(BeFalse())
 				_, ok = pvc.GetAnnotations()[AnnFinalCheckpoint]
-				Expect(ok).To(Equal(false))
+				Expect(ok).To(BeFalse())
 				_, ok = pvc.GetAnnotations()[AnnCurrentPodID]
-				Expect(ok).To(Equal(false))
+				Expect(ok).To(BeFalse())
 				_, ok = pvc.GetAnnotations()[AnnCheckpointsCopied+".current"]
-				Expect(ok).To(Equal(false))
+				Expect(ok).To(BeFalse())
 			}),
 			Entry("should add a final 'done' annotation for overall multi-stage import", true, nil, func(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) {
 				Expect(pvc.GetAnnotations()[AnnMultiStageImportDone]).To(Equal("true"))
@@ -825,7 +825,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dv.Status.Phase).To(Equal(expected))
-			Expect(len(dv.Status.Conditions)).To(Equal(3))
+			Expect(dv.Status.Conditions).To(HaveLen(3))
 			boundCondition := FindConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
 			Expect(boundCondition.Status).To(Equal(corev1.ConditionUnknown))
 			Expect(boundCondition.Message).To(Equal("No PVC found"))
@@ -866,7 +866,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dv.Status.Phase).To(Equal(cdiv1.Pending))
-			Expect(len(dv.Status.Conditions)).To(Equal(3))
+			Expect(dv.Status.Conditions).To(HaveLen(3))
 			boundCondition := FindConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
 			Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
 			Expect(boundCondition.Message).To(Equal("PVC test-dv Pending"))
@@ -909,7 +909,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dv.Status.Phase).To(Equal(cdiv1.WaitForFirstConsumer))
 
-			Expect(len(dv.Status.Conditions)).To(Equal(3))
+			Expect(dv.Status.Conditions).To(HaveLen(3))
 			boundCondition := FindConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
 			Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
 			Expect(boundCondition.Message).To(Equal("PVC test-dv Pending"))
@@ -954,7 +954,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dv.Status.Phase).To(Equal(cdiv1.WaitForFirstConsumer))
 
-			Expect(len(dv.Status.Conditions)).To(Equal(3))
+			Expect(dv.Status.Conditions).To(HaveLen(3))
 			boundCondition := FindConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
 			Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
 			Expect(boundCondition.Message).To(Equal("PVC test-dv Pending"))
@@ -1006,7 +1006,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 			Expect(foundSuccess).To(BeTrue())
 			Expect(foundPending).To(BeTrue())
-			Expect(len(dv.Status.Conditions)).To(Equal(3))
+			Expect(dv.Status.Conditions).To(HaveLen(3))
 			boundCondition := FindConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
 			Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
 			Expect(boundCondition.Message).To(Equal("PVC test-dv Pending"))
@@ -1053,7 +1053,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 			Expect(foundPaused).To(BeTrue())
 			Expect(foundPending).To(BeTrue())
-			Expect(len(dv.Status.Conditions)).To(Equal(3))
+			Expect(dv.Status.Conditions).To(HaveLen(3))
 			boundCondition := FindConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
 			Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
 			Expect(boundCondition.Message).To(Equal("PVC test-dv Pending"))
@@ -1325,7 +1325,7 @@ func dvPhaseTest(reconciler ReconcilerBase, dvc dvController, testDv runtime.Obj
 	err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(dv.Status.Phase).To(Equal(expected))
-	Expect(len(dv.Status.Conditions)).To(Equal(3))
+	Expect(dv.Status.Conditions).To(HaveLen(3))
 	boundCondition := FindConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
 	Expect(boundCondition.Status).To(Equal(boundStatusByPVCPhase(pvcPhase)))
 	Expect(boundCondition.Message).To(Equal(boundMessageByPVCPhase(pvcPhase, "test-dv")))

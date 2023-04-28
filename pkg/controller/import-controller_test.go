@@ -232,7 +232,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		podList := &corev1.PodList{}
 		err = reconciler.client.List(context.TODO(), podList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(podList.Items)).To(Equal(1))
+		Expect(podList.Items).To(HaveLen(1))
 		By("Checking events recorded")
 		close(reconciler.recorder.(*record.FakeRecorder).Events)
 		found := false
@@ -757,7 +757,7 @@ var _ = Describe("Create Importer Pod", func() {
 		pod, err := createImporterPod(reconciler.log, reconciler.client, podArgs, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying PVC owns pod")
-		Expect(len(pod.GetOwnerReferences())).To(Equal(1))
+		Expect(pod.GetOwnerReferences()).To(HaveLen(1))
 		Expect(pod.GetOwnerReferences()[0].UID).To(Equal(pvc.GetUID()))
 		By("Verifying volume mode is correct")
 		if cc.GetVolumeMode(pvc) == corev1.PersistentVolumeBlock {
@@ -765,7 +765,7 @@ var _ = Describe("Create Importer Pod", func() {
 			Expect(pod.Spec.Containers[0].VolumeDevices[0].DevicePath).To(Equal(common.WriteBlockPath))
 			if scratchPvcName != nil {
 				By("Verifying scratch space is set if available")
-				Expect(len(pod.Spec.Containers[0].VolumeMounts)).To(Equal(1))
+				Expect(pod.Spec.Containers[0].VolumeMounts).To(HaveLen(1))
 				Expect(pod.Spec.Containers[0].VolumeMounts[0].Name).To(Equal(cc.ScratchVolName))
 				Expect(pod.Spec.Containers[0].VolumeMounts[0].MountPath).To(Equal(common.ScratchDataDir))
 			}
@@ -774,7 +774,7 @@ var _ = Describe("Create Importer Pod", func() {
 			Expect(pod.Spec.Containers[0].VolumeMounts[0].MountPath).To(Equal(common.ImporterDataDir))
 			if scratchPvcName != nil {
 				By("Verifying scratch space is set if available")
-				Expect(len(pod.Spec.Containers[0].VolumeMounts)).To(Equal(2))
+				Expect(pod.Spec.Containers[0].VolumeMounts).To(HaveLen(2))
 				Expect(pod.Spec.Containers[0].VolumeMounts[1].Name).To(Equal(cc.ScratchVolName))
 				Expect(pod.Spec.Containers[0].VolumeMounts[1].MountPath).To(Equal(common.ScratchDataDir))
 			}

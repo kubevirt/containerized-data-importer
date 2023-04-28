@@ -134,7 +134,7 @@ var _ = Describe("DataVolume Transfer Tests", func() {
 			err = getResource(r.Client, "", pvc.Name, pvc)
 			Expect(err).To(HaveOccurred())
 
-			Expect(pvc.OwnerReferences).To(HaveLen(0))
+			Expect(pvc.OwnerReferences).To(BeEmpty())
 			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferRunning))
 			checkCompleteFalse(xfer, "Running", "")
 		})

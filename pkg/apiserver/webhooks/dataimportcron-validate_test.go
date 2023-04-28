@@ -48,12 +48,12 @@ var _ = Describe("Validating Webhook", func() {
 		It("should accept DataImportCron with Registry source URL on create", func() {
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 		It("should accept DataImportCron with Registry source ImageStream and node PullMethod on create", func() {
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{ImageStream: &testImageStream, PullMethod: &registryPullNode})
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 		It("should reject DataImportCron with name length longer than 253 characters", func() {
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
@@ -61,85 +61,85 @@ var _ = Describe("Validating Webhook", func() {
 				"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-" +
 				"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should reject DataImportCron with Registry source ImageStream and pod PullMethod on create", func() {
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{ImageStream: &testImageStream})
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should reject DataImportCron with no Registry source URL or ImageStream on create", func() {
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{})
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should reject DataImportCron with no Registry source on create", func() {
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{})
 			cron.Spec.Template.Spec.Source.Registry = nil
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should reject DataImportCron with no source on create", func() {
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{})
 			cron.Spec.Template.Spec.Source = nil
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should reject DataImportCron with unsettable template field on create", func() {
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
 			ref := cdiv1.DataVolumeSourceRef{Kind: cdiv1.DataVolumeDataSource, Name: "noname"}
 			cron.Spec.Template.Spec.SourceRef = &ref
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should reject DataImportCron with both Registry source URL and ImageStream on create", func() {
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL, ImageStream: &testImageStream})
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should reject DataImportCron with illegal Registry source URL on create", func() {
 			url := "invalidurl"
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &url})
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should reject DataImportCron with Registry source URL illegal transport on create", func() {
 			url := "joker://registry:5000/test"
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &url})
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should reject DataImportCron with Registry source URL illegal importMethod on create", func() {
 			pullMethod := cdiv1.RegistryPullMethod("nosuch")
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL, PullMethod: &pullMethod})
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should reject DataImportCron with illegal cron schedule", func() {
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
 			cron.Spec.Schedule = "61 * * * *"
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should reject DataImportCron with illegal ManagedDataSource on create", func() {
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
 			cron.Spec.ManagedDataSource = ""
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should reject DataImportCron with illegal ImportsToKeep on create", func() {
 			var importsToKeep int32 = -1
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
 			cron.Spec.ImportsToKeep = &importsToKeep
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should reject DataImportCron with illegal GarbageCollect on create", func() {
 			garbageCollect := cdiv1.DataImportCronGarbageCollect("nosuch")
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
 			cron.Spec.GarbageCollect = &garbageCollect
 			resp := validateDataImportCronCreate(cron)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should reject invalid DataImportCron spec update", func() {
 			newCron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
@@ -168,7 +168,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateDataImportCron(ar)
-			Expect(resp.Allowed).To(Equal(false))
+			Expect(resp.Allowed).To(BeFalse())
 		})
 		It("should accept object meta update", func() {
 			newCron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
@@ -196,7 +196,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateDataImportCron(ar)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 		It("should accept status update", func() {
 			oldCron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
@@ -223,7 +223,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateDataImportCron(ar)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 		})
 	})
 })

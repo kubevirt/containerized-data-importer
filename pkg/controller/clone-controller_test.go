@@ -226,7 +226,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(sourcePod.Spec.Affinity).ToNot(BeNil())
 		Expect(sourcePod.Spec.Affinity.PodAffinity).ToNot(BeNil())
 		l := len(sourcePod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution)
-		Expect(l > 0).To(BeTrue())
+		Expect(l).To(BeNumerically(">", 0))
 		pa := sourcePod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution[l-1]
 		epa := corev1.WeightedPodAffinityTerm{
 			Weight: 100,

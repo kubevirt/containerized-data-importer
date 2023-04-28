@@ -178,7 +178,7 @@ var _ = Describe("ALL Operator tests", func() {
 					Expect(err).ToNot(HaveOccurred())
 					By("Verify no import - the PVC still includes our custom changes")
 					md5Match, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, testFile, fillDataFSMD5sum)
-					Expect(err).To(BeNil())
+					Expect(err).ToNot(HaveOccurred())
 					Expect(md5Match).To(BeTrue())
 				})
 			})
@@ -332,7 +332,7 @@ var _ = Describe("ALL Operator tests", func() {
 					LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
 				})
 				Expect(err).ToNot(HaveOccurred(), "failed listing cdi testing pods")
-				Expect(len(cdiTestPods.Items)).To(BeNumerically(">", 0), "no cdi testing pods found")
+				Expect(cdiTestPods.Items).ToNot(BeEmpty(), "no cdi testing pods found")
 
 				By("adding taints to all nodes")
 				criticalPodTaint := corev1.Taint{
@@ -484,7 +484,7 @@ var _ = Describe("ALL Operator tests", func() {
 
 			It("[test_id:8087]CDI CR deletion should delete DataImportCron CRD and all DataImportCrons", func() {
 				reg, err := getDataVolumeSourceRegistry(f)
-				Expect(err).To(BeNil())
+				Expect(err).ToNot(HaveOccurred())
 
 				By("Create new DataImportCron")
 				cron := utils.NewDataImportCron("cron-test", "5Gi", scheduleEveryMinute, "ds", 1, *reg)
@@ -1040,7 +1040,7 @@ func getCDIPods(f *framework.Framework) *corev1.PodList {
 		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
 	})
 	Expect(err).ToNot(HaveOccurred(), "failed listing cdi pods")
-	Expect(len(cdiPods.Items)).To(BeNumerically(">", 0), "no cdi pods found")
+	Expect(cdiPods.Items).ToNot(BeEmpty(), "no cdi pods found")
 	return cdiPods
 }
 

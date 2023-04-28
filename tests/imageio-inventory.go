@@ -65,7 +65,7 @@ func ResetImageIoInventory(f *framework.Framework, configurators ...string) {
 	gomega.Expect(pod).ToNot(gomega.BeNil())
 
 	_, err = f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "-c", "fakeovirt", "--", "/usr/bin/curl", "-s", "--cacert", "/app/imageio.crt", "-X", "POST", reset)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 }
 
 // CreateImageIoInventory encodes a sequence of mock responses for fakeovirt to return during the test.
@@ -75,7 +75,7 @@ func CreateImageIoInventory(f *framework.Framework, responseSequences []imageIoM
 	encoder := json.NewEncoder(responseSequenceJSON)
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(responseSequences)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	// Find the imageio simulator pod
 	pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "imageio-deployment", "app=imageio")
@@ -249,9 +249,9 @@ func createDiskResponseBody(data *imageIoInventoryData) string {
 			</storage_domains>
 		</disk>
 		`)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = diskTemplate.Execute(&disk, data)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	return disk.String()
 }
 
@@ -275,9 +275,9 @@ func createDiskSnapshotsResponseBody(data *imageIoInventoryData) string {
 			{{end}}
 		</disk_snapshots>
 		`)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = diskSnapshotsTemplate.Execute(&diskSnapshots, data)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	return diskSnapshots.String()
 }
 
@@ -292,9 +292,9 @@ func createStorageDomainsResponseBody(data *imageIoInventoryData) string {
 			</storagedomain>
 		</storagedomains>
 		`)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = storageDomainsTemplate.Execute(&storageDomains, data)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	return storageDomains.String()
 }
 
@@ -309,9 +309,9 @@ func createTransferResponseBody(snapshot *imageIoDiskSnapshot, phase string) str
 				<transfer_url>{{.TransferURL}}</transfer_url>
 			</image_transfer>
 		`)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = imageTransferTemplate.Execute(&imageTransfer, snapshot)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	return imageTransfer.String()
 }
 
@@ -429,7 +429,7 @@ func createResponseSequences(data *imageIoInventoryData) *bytes.Buffer {
 	encoder := json.NewEncoder(responseSequenceJSON)
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(responseSequences)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	return responseSequenceJSON
 }
@@ -443,7 +443,7 @@ func postInventoryStubs(f *framework.Framework, pod *v1.Pod, stubs *bytes.Buffer
 	command.Stdout = os.Stdout
 	command.Stderr = command.Stdout
 	err := command.Run()
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 }
 
 // Copy local disk image to imageiotest
@@ -471,7 +471,7 @@ func addTicket(f *framework.Framework, pod *v1.Pod, snapshot imageIoDiskSnapshot
 	encoder := json.NewEncoder(ticketBytes)
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(ticket)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	// Post to API in imageiotest container
 	command := f.CreateKubectlCommand("exec", "-i", "-n", pod.Namespace, pod.Name, "-c", "imageiotest", "--", "/usr/bin/curl", "-s", "--unix-socket", "/tmp/daemon.sock", "-X", "PUT", "-d", "@-", fmt.Sprintf("http://localhost:12345/tickets/%s", snapshot.SnapshotID))
@@ -479,7 +479,7 @@ func addTicket(f *framework.Framework, pod *v1.Pod, snapshot imageIoDiskSnapshot
 	command.Stdout = os.Stdout
 	command.Stderr = command.Stdout
 	err = command.Run()
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 }
 
 // Get snapshot path from test images directory
@@ -491,7 +491,7 @@ func getSnapshotPath(name string) string {
 func getSnapshotSize(snapshot string) uint64 {
 	path := getSnapshotPath(snapshot)
 	info, err := os.Stat(path)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	return uint64(info.Size())
 }
 

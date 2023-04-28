@@ -69,7 +69,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		podList := &corev1.PodList{}
 		err = reconciler.client.List(context.TODO(), podList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(podList.Items)).To(Equal(0))
+		Expect(podList.Items).To(BeEmpty())
 	})
 
 	It("Should return nil and not create a pod, if neither upload nor clone annotations exist", func() {
@@ -79,7 +79,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		podList := &corev1.PodList{}
 		err = reconciler.client.List(context.TODO(), podList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(podList.Items)).To(Equal(0))
+		Expect(podList.Items).To(BeEmpty())
 	})
 
 	It("Should requeue and not create a pod if target pvc in use", func() {
@@ -92,7 +92,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		podList := &corev1.PodList{}
 		err = reconciler.client.List(context.TODO(), podList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(podList.Items)).To(Equal(1))
+		Expect(podList.Items).To(HaveLen(1))
 		By("Checking events recorded")
 		close(reconciler.recorder.(*record.FakeRecorder).Events)
 		found := false
@@ -112,7 +112,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		podList := &corev1.PodList{}
 		err = reconciler.client.List(context.TODO(), podList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(podList.Items)).To(Equal(0))
+		Expect(podList.Items).To(BeEmpty())
 	})
 
 	It("Should return nil and remove any service and pod, if neither upload nor clone annotations exist", func() {
@@ -138,12 +138,12 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		podList := &corev1.PodList{}
 		err = reconciler.client.List(context.TODO(), podList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(podList.Items)).To(Equal(0))
+		Expect(podList.Items).To(BeEmpty())
 
 		serviceList := &corev1.ServiceList{}
 		err = reconciler.client.List(context.TODO(), serviceList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(serviceList.Items)).To(Equal(0))
+		Expect(serviceList.Items).To(BeEmpty())
 
 	})
 
@@ -170,12 +170,12 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		podList := &corev1.PodList{}
 		err = reconciler.client.List(context.TODO(), podList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(podList.Items)).To(Equal(0))
+		Expect(podList.Items).To(BeEmpty())
 
 		serviceList := &corev1.ServiceList{}
 		err = reconciler.client.List(context.TODO(), serviceList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(serviceList.Items)).To(Equal(0))
+		Expect(serviceList.Items).To(BeEmpty())
 
 	})
 
@@ -204,12 +204,12 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		podList := &corev1.PodList{}
 		err = reconciler.client.List(context.TODO(), podList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(podList.Items)).To(Equal(0))
+		Expect(podList.Items).To(BeEmpty())
 
 		serviceList := &corev1.ServiceList{}
 		err = reconciler.client.List(context.TODO(), serviceList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(serviceList.Items)).To(Equal(0))
+		Expect(serviceList.Items).To(BeEmpty())
 
 	})
 

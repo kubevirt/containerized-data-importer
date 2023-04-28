@@ -270,7 +270,7 @@ var _ = Describe("Controller", func() {
 				}
 
 				obj, err := getObject(args.client, route)
-				Expect(err).To(BeNil())
+				Expect(err).ToNot(HaveOccurred())
 				route = obj.(*routev1.Route)
 
 				Expect(route.Spec.To.Kind).Should(Equal("Service"))
@@ -578,7 +578,7 @@ var _ = Describe("Controller", func() {
 				}
 
 				obj, err := getObject(args.client, cm)
-				Expect(err).To(BeNil())
+				Expect(err).ToNot(HaveOccurred())
 				cm = obj.(*corev1.ConfigMap)
 
 				if cm.Data == nil {
@@ -588,12 +588,12 @@ var _ = Describe("Controller", func() {
 				data["foo.bar.com"] = ""
 
 				err = args.client.Update(context.TODO(), cm)
-				Expect(err).To(BeNil())
+				Expect(err).ToNot(HaveOccurred())
 
 				doReconcile(args)
 
 				obj, err = getObject(args.client, cm)
-				Expect(err).To(BeNil())
+				Expect(err).ToNot(HaveOccurred())
 				cm = obj.(*corev1.ConfigMap)
 
 				Expect(cm.Data).Should(Equal(data))
@@ -723,7 +723,7 @@ var _ = Describe("Controller", func() {
 
 			//change deployment to ready
 			isReady := setDeploymentsReady(args)
-			Expect(isReady).Should(Equal(true))
+			Expect(isReady).Should(BeTrue())
 
 			//now should be upgraded
 			if shouldUpgrade {
@@ -795,7 +795,7 @@ var _ = Describe("Controller", func() {
 
 					//set deployment to ready
 					isReady := setDeploymentsReady(args)
-					Expect(isReady).Should(Equal(true))
+					Expect(isReady).Should(BeTrue())
 
 					//verify on int version is set
 					Expect(args.cdi.Status.Phase).Should(Equal(sdkapi.PhaseDeployed))
@@ -881,7 +881,7 @@ var _ = Describe("Controller", func() {
 			storedObj, err := getObject(args.client, oModified)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(reflect.DeepEqual(storedObj, oModified)).Should(Equal(true))
+			Expect(reflect.DeepEqual(storedObj, oModified)).Should(BeTrue())
 
 			doReconcile(args)
 
@@ -898,7 +898,7 @@ var _ = Describe("Controller", func() {
 			storedObj, err = getObject(args.client, oModified)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(upgraded(storedObj, oOriginal)).Should(Equal(true))
+			Expect(upgraded(storedObj, oOriginal)).Should(BeTrue())
 
 		},
 			//Deployment update

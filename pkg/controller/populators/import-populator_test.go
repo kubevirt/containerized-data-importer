@@ -217,7 +217,7 @@ var _ = Describe("Import populator tests", func() {
 			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
 			Expect(err).To(Not(HaveOccurred()))
 			Expect(result).To(Not(BeNil()))
-			Expect(result.RequeueAfter > 0).To(BeTrue())
+			Expect(result.RequeueAfter).To(BeNumerically(">", 0))
 		})
 
 		It("Should create PVC Prime with proper import annotations", func() {

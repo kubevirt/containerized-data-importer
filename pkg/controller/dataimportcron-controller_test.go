@@ -124,7 +124,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			if dataSource != nil {
 				imports := cron.Status.CurrentImports
 				Expect(imports).ToNot(BeNil())
-				Expect(len(imports)).ToNot(BeZero())
+				Expect(imports).ToNot(BeEmpty())
 				dvName := imports[0].DataVolumeName
 				Expect(dvName).ToNot(BeEmpty())
 
@@ -286,8 +286,8 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(getEnvVar(env, common.ImportProxyHTTPS)).To(BeEmpty())
 			Expect(getEnvVar(env, common.ImportProxyNoProxy)).To(BeEmpty())
 
-			Expect(containers[0].VolumeMounts).To(HaveLen(0))
-			Expect(jobPodTemplateSpec.Volumes).To(HaveLen(0))
+			Expect(containers[0].VolumeMounts).To(BeEmpty())
+			Expect(jobPodTemplateSpec.Volumes).To(BeEmpty())
 		})
 
 		It("Should update CronJob on reconcile", func() {
@@ -304,7 +304,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				containers := cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers
-				Expect(len(containers)).ToNot(BeZero())
+				Expect(containers).ToNot(BeEmpty())
 				Expect(containers[0].Image).To(Equal(image))
 			}
 
@@ -328,7 +328,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 
 			imports := cron.Status.CurrentImports
 			Expect(imports).ToNot(BeNil())
-			Expect(len(imports)).ToNot(BeZero())
+			Expect(imports).ToNot(BeEmpty())
 			dvName := imports[0].DataVolumeName
 			Expect(dvName).ToNot(BeEmpty())
 			digest := imports[0].Digest
@@ -383,7 +383,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			dvList := &cdiv1.DataVolumeList{}
 			err = reconciler.client.List(context.TODO(), dvList, &client.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(len(dvList.Items)).To(Equal(0))
+			Expect(dvList.Items).To(BeEmpty())
 		})
 
 		It("Should not create DV if PVC exists on DesiredDigest update; Should update DIC and DAS, and GC LRU PVCs", func() {
@@ -439,7 +439,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				ts := pvc.Annotations[AnnLastUseTime]
 				Expect(ts).ToNot(BeEmpty())
-				Expect(ts > lastTs).To(BeTrue())
+				Expect(strings.Compare(ts, lastTs)).Should(Equal(1))
 				lastTs = ts
 			}
 
@@ -471,7 +471,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 
 			shouldReconcile, err := reconciler.shouldReconcileCron(context.TODO(), cron)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(shouldReconcile).To(Equal(true))
+			Expect(shouldReconcile).To(BeTrue())
 
 			_, err = reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
@@ -484,7 +484,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			cron1 := newDataImportCron(cronName + "1")
 			shouldReconcile, err = reconciler.shouldReconcileCron(context.TODO(), cron1)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(shouldReconcile).To(Equal(false))
+			Expect(shouldReconcile).To(BeFalse())
 			event := <-reconciler.recorder.(*record.FakeRecorder).Events
 			Expect(event).To(ContainSubstring(fmt.Sprintf(MessageDataSourceAlreadyManaged, dataSource.Name, cron.Name)))
 
@@ -493,14 +493,14 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			shouldReconcile, err = reconciler.shouldReconcileCron(context.TODO(), cron1)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(shouldReconcile).To(Equal(true))
+			Expect(shouldReconcile).To(BeTrue())
 
 			dataSource.Labels[common.DataImportCronLabel] = ""
 			err = reconciler.client.Update(context.TODO(), dataSource)
 			Expect(err).ToNot(HaveOccurred())
 			shouldReconcile, err = reconciler.shouldReconcileCron(context.TODO(), cron1)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(shouldReconcile).To(Equal(true))
+			Expect(shouldReconcile).To(BeTrue())
 		})
 
 		DescribeTable("Should fail when digest", func(digest, errorString string) {
@@ -562,7 +562,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 
 			imports := cron.Status.CurrentImports
 			Expect(imports).ToNot(BeNil())
-			Expect(len(imports)).ToNot(BeZero())
+			Expect(imports).ToNot(BeEmpty())
 			dvName := imports[0].DataVolumeName
 			Expect(dvName).ToNot(BeEmpty())
 			digest = imports[0].Digest
@@ -600,7 +600,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			dvList := &cdiv1.DataVolumeList{}
 			err = reconciler.client.List(context.TODO(), dvList, &client.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(len(dvList.Items)).ToNot(Equal(0))
+			Expect(dvList.Items).ToNot(BeEmpty())
 
 			// Test DV is reused
 			time.Sleep(1 * time.Second)
@@ -613,7 +613,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			imports = cron.Status.CurrentImports
-			Expect(len(imports)).ToNot(BeZero())
+			Expect(imports).ToNot(BeEmpty())
 			dvName = imports[0].DataVolumeName
 			Expect(dvName).ToNot(BeEmpty())
 
@@ -644,7 +644,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 
 			imports := cron.Status.CurrentImports
 			Expect(imports).ToNot(BeNil())
-			Expect(len(imports)).ToNot(BeZero())
+			Expect(imports).ToNot(BeEmpty())
 
 			dvName := imports[0].DataVolumeName
 			Expect(dvName).ToNot(BeEmpty())
