@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -38,6 +39,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/utils/pointer"
 
 	snapclientfake "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake"
 	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
@@ -51,6 +53,8 @@ var (
 )
 
 var _ = Describe("Validating Webhook", func() {
+	longName := "name-is-longer-than-253-" + strings.Repeat("0123456789", 23)
+
 	Context("with DataVolume admission review", func() {
 		It("should accept DataVolume with HTTP source on create", func() {
 			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
@@ -215,15 +219,42 @@ var _ = Describe("Validating Webhook", func() {
 		})
 
 		It("should reject DataVolume with name length greater than 253 characters", func() {
-			longName := "the-name-length-of-this-datavolume-is-greater-then-253-characters" +
-				"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-" +
-				"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
-			dataVolume := newHTTPDataVolume(
-				longName,
-				"http://www.example.com")
+			dataVolume := newHTTPDataVolume(longName, "http://www.example.com")
 			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))
 		})
+
+		DescribeTable("should", func(scName *string, expected bool) {
+			httpSource := &cdiv1.DataVolumeSource{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{URL: "http://www.example.com"},
+			}
+			storage := &cdiv1.StorageSpec{
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("500Mi"),
+					},
+				},
+				StorageClassName: scName,
+			}
+			dv := newDataVolumeWithStorageSpec("testDV", httpSource, nil, storage)
+			resp := validateDataVolumeCreate(dv)
+			Expect(resp.Allowed).To(Equal(expected))
+		},
+			Entry("should accept DataVolume with Storage spec blank StorageClassName", pointer.String(""), true),
+			Entry("should reject DataVolume with Storage spec too long StorageClassName", pointer.String(longName), false),
+			Entry("should accept DataVolume with Storage spec empty StorageClassName", nil, true),
+		)
+
+		DescribeTable("should", func(scName *string, expected bool) {
+			dv := newHTTPDataVolume("testDV", "http://www.example.com")
+			dv.Spec.PVC.StorageClassName = scName
+			resp := validateDataVolumeCreate(dv)
+			Expect(resp.Allowed).To(Equal(expected))
+		},
+			Entry("should accept DataVolume with PVC spec blank StorageClassName", pointer.String(""), true),
+			Entry("should reject DataVolume with PVC spec too long StorageClassName", pointer.String(longName), false),
+			Entry("should accept DataVolume with PVC spec empty StorageClassName", nil, true),
+		)
 
 		It("should reject DataVolume source with invalid URL on create", func() {
 			dataVolume := newHTTPDataVolume("testDV", "invalidurl")
@@ -277,7 +308,6 @@ var _ = Describe("Validating Webhook", func() {
 			dataVolume.Spec.ContentType = "invalid"
 			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))
-
 		})
 
 		It("should accept DataVolume with archive contentType", func() {

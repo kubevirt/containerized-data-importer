@@ -63,16 +63,15 @@ func validateSourceURL(sourceURL string) string {
 	return ""
 }
 
-func validateNameLength(name string, maxLen int) []metav1.StatusCause {
-	var causes []metav1.StatusCause
+func validateNameLength(name string, maxLen int) *metav1.StatusCause {
 	if len(name) > maxLen {
-		causes = append(causes, metav1.StatusCause{
+		return &metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: fmt.Sprintf("Name cannot be longer than %d characters", maxLen),
 			Field:   "",
-		})
+		}
 	}
-	return causes
+	return nil
 }
 
 func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admissionv1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec, namespace *string) []metav1.StatusCause {
@@ -101,6 +100,10 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 
 	cause, valid := validateStorageSize(spec, field)
 	if !valid {
+		causes = append(causes, *cause)
+		return causes
+	}
+	if cause := validateStorageClassName(spec, field); cause != nil {
 		causes = append(causes, *cause)
 		return causes
 	}
@@ -564,6 +567,22 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourceSnapshot(snapshot
 	return nil
 }
 
+func validateStorageClassName(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) *metav1.StatusCause {
+	var sc *string
+
+	if spec.PVC != nil {
+		sc = spec.PVC.StorageClassName
+	} else if spec.Storage != nil {
+		sc = spec.Storage.StorageClassName
+	}
+
+	if sc == nil || *sc == "" {
+		return nil
+	}
+
+	return validateNameLength(*sc, kvalidation.DNS1123SubdomainMaxLength)
+}
+
 func validateStorageSize(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) (*metav1.StatusCause, bool) {
 	var name string
 	var resources v1.ResourceRequirements
@@ -633,6 +652,8 @@ func validateExternalPopulation(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path
 }
 
 func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
+	var causes []metav1.StatusCause
+
 	klog.V(3).Infof("Got AdmissionReview %+v", ar)
 
 	if err := validateDataVolumeResource(ar); err != nil {
@@ -682,9 +703,9 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 		}
 	}
 
-	causes := validateNameLength(dv.Name, kvalidation.DNS1123SubdomainMaxLength)
-	if len(causes) > 0 {
+	if cause := validateNameLength(dv.Name, kvalidation.DNS1123SubdomainMaxLength); cause != nil {
 		klog.Infof("rejected DataVolume admission")
+		causes = append(causes, *cause)
 		return toRejectedAdmissionResponse(causes)
 	}
 

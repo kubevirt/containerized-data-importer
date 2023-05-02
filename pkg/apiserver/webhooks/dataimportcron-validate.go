@@ -40,6 +40,8 @@ type dataImportCronValidatingWebhook struct {
 }
 
 func (wh *dataImportCronValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
+	var causes []metav1.StatusCause
+
 	if ar.Request.Resource.Group != cdiv1.CDIGroupVersionKind.Group || ar.Request.Resource.Resource != "dataimportcrons" {
 		klog.V(3).Infof("Got unexpected resource type %s", ar.Request.Resource.Resource)
 		return toAdmissionResponseError(fmt.Errorf("unexpected resource: %s", ar.Request.Resource.Resource))
@@ -52,8 +54,8 @@ func (wh *dataImportCronValidatingWebhook) Admit(ar admissionv1.AdmissionReview)
 		return toAdmissionResponseError(err)
 	}
 
-	causes := validateNameLength(cron.Name, validation.DNS1035LabelMaxLength)
-	if len(causes) > 0 {
+	if cause := validateNameLength(cron.Name, validation.DNS1035LabelMaxLength); cause != nil {
+		causes = append(causes, *cause)
 		return toRejectedAdmissionResponse(causes)
 	}
 
@@ -152,8 +154,8 @@ func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *a
 		return causes
 	}
 
-	causes = validateNameLength(spec.ManagedDataSource, validation.DNS1035LabelMaxLength)
-	if len(causes) > 0 {
+	if cause := validateNameLength(spec.ManagedDataSource, validation.DNS1035LabelMaxLength); cause != nil {
+		causes = append(causes, *cause)
 		return causes
 	}
 

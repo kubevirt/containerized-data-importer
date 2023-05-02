@@ -73,6 +73,8 @@ const (
 	dvPhaseField = "status.phase"
 
 	claimRefField = "spec.claimRef"
+
+	claimStorageClassNameField = "spec.storageClassName"
 )
 
 var httpClient *http.Client
@@ -187,6 +189,16 @@ func getIndexArgs() []indexArgs {
 				return nil
 			},
 		},
+		{
+			obj:   &corev1.PersistentVolume{},
+			field: claimStorageClassNameField,
+			extractValue: func(obj client.Object) []string {
+				if pv, ok := obj.(*corev1.PersistentVolume); ok && pv.Status.Phase == corev1.VolumeAvailable {
+					return []string{pv.Spec.StorageClassName}
+				}
+				return nil
+			},
+		},
 	}
 }
 
@@ -286,6 +298,31 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 			}
 			for _, dv := range dvList.Items {
 				if getDataVolumeOp(mgr.GetLogger(), &dv, mgr.GetClient()) == op {
+					reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
+				}
+			}
+			return
+		},
+	),
+	); err != nil {
+		return err
+	}
+
+	// Watch for PV updates to reconcile the DVs waiting for available PV
+	if err := dataVolumeController.Watch(&source.Kind{Type: &corev1.PersistentVolume{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) (reqs []reconcile.Request) {
+			pv := obj.(*corev1.PersistentVolume)
+			dvList := &cdiv1.DataVolumeList{}
+			if err := mgr.GetClient().List(context.TODO(), dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
+				return
+			}
+			for _, dv := range dvList.Items {
+				storage := dv.Spec.Storage
+				if storage != nil &&
+					storage.StorageClassName != nil &&
+					*storage.StorageClassName == pv.Spec.StorageClassName &&
+					pv.Status.Phase == corev1.VolumeAvailable &&
+					getDataVolumeOp(mgr.GetLogger(), &dv, mgr.GetClient()) == op {
 					reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
 				}
 			}
@@ -409,8 +446,12 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 		}
 	}
 
-	syncState.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, dv)
+	syncState.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, dv, syncState.pvc)
 	if err != nil {
+		if syncErr := r.syncDataVolumeStatusPhaseWithEvent(&syncState, cdiv1.PhaseUnset, nil,
+			Event{corev1.EventTypeWarning, cc.ErrClaimNotValid, err.Error()}); syncErr != nil {
+			log.Error(syncErr, "failed to sync DataVolume status with event")
+		}
 		return syncState, err
 	}
 
@@ -707,10 +748,12 @@ func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 	dataVolumeCopy.Status.Phase = phase
 
 	reason := ""
+	message := ""
 	if pvc == nil {
 		reason = event.reason
+		message = event.message
 	}
-	r.updateConditions(dataVolumeCopy, pvc, reason)
+	r.updateConditions(dataVolumeCopy, pvc, reason, message)
 	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, &event)
 }
 
@@ -797,11 +840,11 @@ func (r ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPha
 
 	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))
 	copy(currentCond, dataVolumeCopy.Status.Conditions)
-	r.updateConditions(dataVolumeCopy, pvc, "")
+	r.updateConditions(dataVolumeCopy, pvc, "", "")
 	return result, r.emitEvent(dv, dataVolumeCopy, curPhase, currentCond, &event)
 }
 
-func (r *ReconcilerBase) updateConditions(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, reason string) {
+func (r *ReconcilerBase) updateConditions(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, reason, message string) {
 	var anno map[string]string
 
 	if dataVolume.Status.Conditions == nil {
@@ -824,8 +867,8 @@ func (r *ReconcilerBase) updateConditions(dataVolume *cdiv1.DataVolume, pvc *cor
 		readyStatus = corev1.ConditionFalse
 	}
 
-	dataVolume.Status.Conditions = updateBoundCondition(dataVolume.Status.Conditions, pvc, reason)
-	dataVolume.Status.Conditions = UpdateReadyCondition(dataVolume.Status.Conditions, readyStatus, "", reason)
+	dataVolume.Status.Conditions = updateBoundCondition(dataVolume.Status.Conditions, pvc, message, reason)
+	dataVolume.Status.Conditions = UpdateReadyCondition(dataVolume.Status.Conditions, readyStatus, message, reason)
 	dataVolume.Status.Conditions = updateRunningCondition(dataVolume.Status.Conditions, anno)
 }
 

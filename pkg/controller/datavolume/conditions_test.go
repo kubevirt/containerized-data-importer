@@ -135,7 +135,7 @@ var _ = Describe("updateReadyCondition", func() {
 var _ = Describe("updateBoundCondition", func() {
 	It("should create condition if it doesn't exist", func() {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
-		conditions = updateBoundCondition(conditions, nil, "")
+		conditions = updateBoundCondition(conditions, nil, "", "")
 		Expect(len(conditions)).To(Equal(2))
 		condition := FindConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
@@ -147,7 +147,7 @@ var _ = Describe("updateBoundCondition", func() {
 	It("should create condition with reason if it doesn't exist", func() {
 		reason := "exceeded quota"
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
-		conditions = updateBoundCondition(conditions, nil, reason)
+		conditions = updateBoundCondition(conditions, nil, "", reason)
 		Expect(len(conditions)).To(Equal(2))
 		condition := FindConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
@@ -156,11 +156,23 @@ var _ = Describe("updateBoundCondition", func() {
 		Expect(condition.Status).To(Equal(corev1.ConditionUnknown))
 	})
 
+	It("should create condition with message if one passed", func() {
+		message := "message"
+		conditions := make([]cdiv1.DataVolumeCondition, 0)
+		conditions = updateBoundCondition(conditions, nil, message, "")
+		Expect(len(conditions)).To(Equal(2))
+		condition := FindConditionByType(cdiv1.DataVolumeBound, conditions)
+		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
+		Expect(condition.Message).To(Equal(message))
+		Expect(condition.Reason).To(Equal(NotFound))
+		Expect(condition.Status).To(Equal(corev1.ConditionUnknown))
+	})
+
 	It("should be bound if PVC bound", func() {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
 		pvc := CreatePvc("test", corev1.NamespaceDefault, nil, nil)
 		pvc.Status.Phase = corev1.ClaimBound
-		conditions = updateBoundCondition(conditions, pvc, "")
+		conditions = updateBoundCondition(conditions, pvc, "", "")
 		Expect(len(conditions)).To(Equal(1))
 		condition := FindConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
@@ -173,7 +185,7 @@ var _ = Describe("updateBoundCondition", func() {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
 		pvc := CreatePvc("test", corev1.NamespaceDefault, map[string]string{AnnBoundCondition: "true"}, nil)
 		pvc.Status.Phase = corev1.ClaimBound
-		conditions = updateBoundCondition(conditions, pvc, "")
+		conditions = updateBoundCondition(conditions, pvc, "", "")
 		Expect(len(conditions)).To(Equal(1))
 		condition := FindConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
@@ -186,7 +198,7 @@ var _ = Describe("updateBoundCondition", func() {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
 		pvc := CreatePvc("test", corev1.NamespaceDefault, map[string]string{AnnBoundCondition: "false", AnnBoundConditionReason: "not bound", AnnBoundConditionMessage: "scratch PVC not bound"}, nil)
 		pvc.Status.Phase = corev1.ClaimBound
-		conditions = updateBoundCondition(conditions, pvc, "")
+		conditions = updateBoundCondition(conditions, pvc, "", "")
 		Expect(len(conditions)).To(Equal(2))
 		condition := FindConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
@@ -204,7 +216,7 @@ var _ = Describe("updateBoundCondition", func() {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
 		pvc := CreatePvc("test", corev1.NamespaceDefault, nil, nil)
 		pvc.Status.Phase = corev1.ClaimPending
-		conditions = updateBoundCondition(conditions, pvc, "")
+		conditions = updateBoundCondition(conditions, pvc, "", "")
 		Expect(len(conditions)).To(Equal(2))
 		condition := FindConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
@@ -222,7 +234,7 @@ var _ = Describe("updateBoundCondition", func() {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
 		pvc := CreatePvc("test", corev1.NamespaceDefault, map[string]string{AnnBoundCondition: "true"}, nil)
 		pvc.Status.Phase = corev1.ClaimPending
-		conditions = updateBoundCondition(conditions, pvc, "")
+		conditions = updateBoundCondition(conditions, pvc, "", "")
 		Expect(len(conditions)).To(Equal(2))
 		condition := FindConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
@@ -241,7 +253,7 @@ var _ = Describe("updateBoundCondition", func() {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
 		pvc := CreatePvc("test", corev1.NamespaceDefault, map[string]string{AnnBoundCondition: "false", AnnBoundConditionReason: reason, AnnBoundConditionMessage: "scratch PVC not bound"}, nil)
 		pvc.Status.Phase = corev1.ClaimPending
-		conditions = updateBoundCondition(conditions, pvc, "")
+		conditions = updateBoundCondition(conditions, pvc, "", "")
 		Expect(len(conditions)).To(Equal(2))
 		condition := FindConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
@@ -259,7 +271,7 @@ var _ = Describe("updateBoundCondition", func() {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
 		pvc := CreatePvc("test", corev1.NamespaceDefault, nil, nil)
 		pvc.Status.Phase = corev1.ClaimLost
-		conditions = updateBoundCondition(conditions, pvc, "")
+		conditions = updateBoundCondition(conditions, pvc, "", "")
 		Expect(len(conditions)).To(Equal(2))
 		condition := FindConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))

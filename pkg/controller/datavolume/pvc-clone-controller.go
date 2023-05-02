@@ -694,7 +694,7 @@ func (r *PvcCloneReconciler) isSourcePVCPopulated(dv *cdiv1.DataVolume) (bool, e
 }
 
 func (r *PvcCloneReconciler) sourceInUse(dv *cdiv1.DataVolume, eventReason string) (bool, error) {
-	pods, err := cc.GetPodsUsingPVCs(r.client, dv.Spec.Source.PVC.Namespace, sets.New[string](dv.Spec.Source.PVC.Name), false)
+	pods, err := cc.GetPodsUsingPVCs(r.client, dv.Spec.Source.PVC.Namespace, sets.New(dv.Spec.Source.PVC.Name), false)
 	if err != nil {
 		return false, err
 	}

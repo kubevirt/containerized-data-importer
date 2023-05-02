@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -381,19 +382,21 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			boundCondition := &cdiv1.DataVolumeCondition{
 				Type:    cdiv1.DataVolumeBound,
 				Status:  v1.ConditionUnknown,
-				Message: "No PVC found",
+				Message: "exceeded quota",
 				Reason:  controller.ErrExceededQuota,
 			}
 			readyCondition := &cdiv1.DataVolumeCondition{
 				Type:    cdiv1.DataVolumeReady,
 				Status:  v1.ConditionFalse,
-				Message: "",
+				Message: "exceeded quota",
 				Reason:  controller.ErrExceededQuota,
 			}
 			// for smart clone dv the dv can't be updated, only events will show the quota reason
 			if args.name == "dv-clone-test" && f.IsSnapshotStorageClassAvailable() {
 				expectedPhase = cdiv1.SnapshotForSmartCloneInProgress
+				boundCondition.Message = "in progress"
 				boundCondition.Reason = dvc.SnapshotForSmartCloneInProgress
+				readyCondition.Message = "in progress"
 				readyCondition.Reason = dvc.SnapshotForSmartCloneInProgress
 			}
 			waitForDvPhase(expectedPhase, dataVolume, f)
@@ -1702,7 +1705,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		createDataVolumeForImport := func(f *framework.Framework, storageSpec cdiv1.StorageSpec) *cdiv1.DataVolume {
 			dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
-				dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs))
+				dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
 
 			dataVolume.Spec.Storage = &storageSpec
 
@@ -2303,6 +2306,190 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				return pvc.Spec.Resources.Requests.Storage().Cmp(expectedSize) == 0
 			}, 1*time.Minute, 2*time.Second).Should(BeTrue())
 		})
+	})
+
+	Describe("Verify that when the required storage class is missing", func() {
+		var (
+			testSc *storagev1.StorageClass
+			pvName string
+		)
+
+		testScName := "test-sc"
+
+		updatePV := func(updateFunc func(*v1.PersistentVolume)) {
+			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			updateFunc(pv)
+			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		createPV := func(scName string) {
+			dv := utils.NewDataVolumeForBlankRawImage("blank-source", "106Mi")
+			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
+
+			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			pvName = pvc.Spec.VolumeName
+
+			By("retaining pv")
+			updatePV(func(pv *v1.PersistentVolume) {
+				pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimRetain
+			})
+
+			err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Delete(context.TODO(), pvc.Name, metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			updatePV(func(pv *v1.PersistentVolume) {
+				pv.Spec.StorageClassName = scName
+				pv.Spec.ClaimRef = nil
+			})
+		}
+
+		createStorageClass := func(scName string) {
+			var err error
+			By(fmt.Sprintf("creating storage class %s", scName))
+			sc := utils.DefaultStorageClass.DeepCopy()
+			sc.Name = scName
+			sc.ResourceVersion = ""
+			sc.Annotations[controller.AnnDefaultStorageClass] = "false"
+			testSc, err = f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		AfterEach(func() {
+			if testSc != nil {
+				err := f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), testScName, metav1.DeleteOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				testSc = nil
+			}
+
+			if pvName != "" {
+				updatePV(func(pv *v1.PersistentVolume) {
+					pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimDelete
+				})
+				pvName = ""
+			}
+		})
+
+		table.DescribeTable("import DV using StorageSpec without AccessModes, PVC is created only when", func(scName string, scFunc func(string)) {
+			By(fmt.Sprintf("verifying no storage class %s", testScName))
+			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
+			Expect(err).To(HaveOccurred())
+
+			By(fmt.Sprintf("creating new datavolume %s with StorageClassName %s", dataVolumeName, scName))
+			dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
+				dataVolumeName, "100Mi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
+			dataVolume.Spec.Storage.StorageClassName = pointer.String(scName)
+			dataVolume.Spec.Storage.AccessModes = nil
+
+			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying event occurred")
+			f.ExpectEvent(dataVolume.Namespace).Should(And(ContainSubstring(controller.ErrClaimNotValid), ContainSubstring("DataVolume spec is missing accessMode")))
+
+			By("verifying conditions")
+			boundCondition := &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeBound,
+				Status:  v1.ConditionUnknown,
+				Message: "DataVolume spec is missing accessMode",
+				Reason:  controller.ErrClaimNotValid,
+			}
+			readyCondition := &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeReady,
+				Status:  v1.ConditionFalse,
+				Message: "DataVolume spec is missing accessMode",
+				Reason:  controller.ErrClaimNotValid,
+			}
+			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
+
+			By("verifying pvc not created")
+			_, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+			scFunc(scName)
+
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+			By("waiting for pvc bound phase")
+			err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, dataVolume.Namespace, v1.ClaimBound, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("waiting for dv succeeded")
+			err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+		},
+			table.Entry("[test_id:9922]the storage class is created", testScName, createStorageClass),
+			table.Entry("[test_id:9924]PV with the SC name is created", testScName, createPV),
+			table.Entry("[test_id:9925]PV with the SC name (\"\" blank) is created", "", createPV),
+		)
+
+		newDataVolumeWithStorageSpec := func(scName string) *cdiv1.DataVolume {
+			dv := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
+				dataVolumeName, "100Mi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
+			dv.Spec.Storage.StorageClassName = pointer.String(scName)
+			return dv
+		}
+
+		newDataVolumeWithPvcSpec := func(scName string) *cdiv1.DataVolume {
+			dv := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "100Mi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
+			dv.Spec.PVC.StorageClassName = pointer.String(scName)
+			return dv
+		}
+
+		table.DescribeTable("import DV with AccessModes, PVC is pending until", func(scName string, scFunc func(string), dvFunc func(string) *cdiv1.DataVolume) {
+			By(fmt.Sprintf("verifying no storage class %s", testScName))
+			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
+			Expect(err).To(HaveOccurred())
+
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dvFunc(scName))
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying event occurred")
+			f.ExpectEvent(dataVolume.Namespace).Should(And(ContainSubstring("Pending"), ContainSubstring("PVC test-dv Pending")))
+
+			By("verifying conditions")
+			boundCondition := &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeBound,
+				Status:  v1.ConditionFalse,
+				Message: "PVC test-dv Pending",
+				Reason:  "Pending",
+			}
+			readyCondition := &cdiv1.DataVolumeCondition{
+				Type:   cdiv1.DataVolumeReady,
+				Status: v1.ConditionFalse,
+			}
+			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
+
+			By("verifying pvc created")
+			_, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			scFunc(scName)
+
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+			By("waiting for pvc bound phase")
+			err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, dataVolume.Namespace, v1.ClaimBound, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("waiting for dv succeeded")
+			err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+		},
+			table.Entry("[test_id:9926]the storage class is created (PvcSpec)", testScName, createStorageClass, newDataVolumeWithPvcSpec),
+			table.Entry("[test_id:9927]PV with the SC name is created (PvcSpec)", testScName, createPV, newDataVolumeWithPvcSpec),
+			table.Entry("[test_id:9928]PV with the SC name (\"\" blank) is created (PvcSpec)", "", createPV, newDataVolumeWithPvcSpec),
+			table.Entry("[test_id:9929]the storage class is created (StorageSpec)", testScName, createStorageClass, newDataVolumeWithStorageSpec),
+			table.Entry("[test_id:9930]PV with the SC name is created (StorageSpec)", testScName, createPV, newDataVolumeWithStorageSpec),
+			table.Entry("[test_id:9931]PV with the SC name (\"\" blank) is created (StorageSpec)", "", createPV, newDataVolumeWithStorageSpec),
+		)
 	})
 
 	Describe("Progress reporting on import datavolume", func() {
