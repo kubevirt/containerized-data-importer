@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -44,22 +45,31 @@ var _ = Describe("Population tests", func() {
 
 	sampleGVR := schema.GroupVersionResource{Group: populatorGroupName, Version: populatorAPIVersion, Resource: populatorResource}
 	apiGroup := populatorGroupName
+	dummyAPIGroup := "dummy.populator.io"
 	dataSourceRef := &corev1.TypedLocalObjectReference{
 		APIGroup: &apiGroup,
 		Kind:     populatorKind,
 		Name:     samplePopulatorName,
+	}
+	dummySourceRef := &corev1.TypedLocalObjectReference{
+		APIGroup: &dummyAPIGroup,
+		Kind:     "Dummy",
+		Name:     "dummyname",
 	}
 
 	// If the AnyVolumeDataSource feature gate is disabled, Kubernetes drops the contents of the dataSourceRef field.
 	// We can then determine if the feature is enabled or not by checking that field after creating a PVC.
 	isAnyVolumeDataSourceEnabled := func() bool {
 		pvc := utils.NewPVCDefinition("test", "10Mi", nil, nil)
-		pvc.Spec.DataSourceRef = dataSourceRef
+		pvc.Spec.DataSourceRef = dummySourceRef
 		pvc, err := f.CreatePVCFromDefinition(pvc)
 		Expect(err).ToNot(HaveOccurred())
 		enabled := pvc.Spec.DataSourceRef != nil
 		err = f.DeletePVC(pvc)
 		Expect(err).ToNot(HaveOccurred())
+		deleted, err := utils.WaitPVCDeleted(f.K8sClient, pvc.Name, pvc.Namespace, 10*time.Second)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(deleted).To(BeTrue())
 		return enabled
 	}
 
