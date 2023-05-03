@@ -1792,13 +1792,17 @@ var _ = Describe("Import populator", func() {
 		err = createHTTPImportPopulatorCR(cdiv1.DataVolumeKubeVirt, true)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Verify PVC prime is not created anymore")
-		_, err = f.FindPVC(populators.PVCPrimeName(pvc))
-		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
-
-		By("Verify target PVC is bound")
+		By("Verify target PVC is bound to the expected PV")
 		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
 		Expect(err).ToNot(HaveOccurred())
+		pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Spec.VolumeName).To(Equal(pvName))
+
+		pv, err = f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(populators.IsPVBoundToPVC(pv, pvc)).To(BeTrue())
+		Expect(pv.CreationTimestamp.Before(&pvc.CreationTimestamp)).To(BeTrue())
 
 		By("Verify content")
 		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, sourceMD5, utils.MD5PrefixSize)

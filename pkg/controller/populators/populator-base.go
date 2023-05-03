@@ -177,9 +177,9 @@ func (r *ReconcilerBase) rebindPV(targetPVC, pvcPrime *corev1.PersistentVolumeCl
 	}
 
 	// Examine the claimref for the PV and see if it's still bound to PVC'
-	if !isPVBoundToPVC(pv, pvcPrime) {
+	if !IsPVBoundToPVC(pv, pvcPrime) {
 		// Something is not right if the PV is neither bound to PVC' nor target PVC
-		if !isPVBoundToPVC(pv, targetPVC) {
+		if !IsPVBoundToPVC(pv, targetPVC) {
 			klog.Errorf("PV bound to unexpected PVC: Could not rebind to target PVC '%s'", targetPVC.Name)
 		}
 		return nil
