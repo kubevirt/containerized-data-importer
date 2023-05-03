@@ -684,7 +684,10 @@ type VolumeUploadSource struct {
 
 // VolumeUploadSourceSpec defines specification for VolumeUploadSource
 type VolumeUploadSourceSpec struct {
+	// ContentType represents the type of the upload data (Kubevirt or archive)
 	ContentType DataVolumeContentType `json:"contentType,omitempty"`
+	// Preallocation controls whether storage for the target PVC should be allocated in advance.
+	Preallocation *bool `json:"preallocation,omitempty"`
 }
 
 // VolumeUploadSourceStatus provides the most recently observed status of the VolumeUploadSource

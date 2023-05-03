@@ -18,6 +18,7 @@ package populators
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	. "github.com/onsi/ginkgo"
@@ -31,7 +32,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -47,8 +47,9 @@ import (
 )
 
 const (
-	testStorageClass = "test-sc"
-	pvcPrimeUID      = "pvcPrimeUID"
+	testPopulatorName = "upload-populator-test"
+	testStorageClass  = "test-sc"
+	pvcPrimeUID       = "pvcPrimeUID"
 )
 
 var (
@@ -56,9 +57,9 @@ var (
 )
 
 var _ = Describe("Datavolume controller reconcile loop", func() {
-	DescribeTable("should create PVC prime", func(contentType string) {
+	DescribeTable("should create PVC prime", func(contentType string, preallocation bool) {
 		pvc := newUploadPopulatorPVC("test-pvc")
-		volumeUploadSourceCR := newUploadPopulatorCR(contentType)
+		volumeUploadSourceCR := newUploadPopulatorCR(contentType, preallocation)
 		scName := "test-sc"
 		sc := cc.CreateStorageClassWithProvisioner(scName, map[string]string{cc.AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
 		r := createUploadPopulatorReconciler(pvc, volumeUploadSourceCR, sc)
@@ -74,6 +75,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(pvcPrime.GetAnnotations()[cc.AnnImmediateBinding]).To(Equal(""))
 		Expect(pvcPrime.GetAnnotations()[cc.AnnUploadRequest]).To(Equal(""))
 		Expect(pvcPrime.GetAnnotations()[cc.AnnContentType]).To(Equal(contentType))
+		Expect(pvcPrime.GetAnnotations()[cc.AnnPreallocationRequested]).To(Equal(strconv.FormatBool(preallocation)))
 		Expect(pvcPrime.GetAnnotations()[cc.AnnPopulatorKind]).To(Equal(cdiv1.VolumeUploadSourceRef))
 
 		_, err = r.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-pvc", Namespace: metav1.NamespaceDefault}})
@@ -84,8 +86,9 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(updatedPVC.GetAnnotations()).ToNot(BeNil())
 		Expect(updatedPVC.GetAnnotations()[AnnPVCPrimeName]).To(Equal(pvcPrime.Name))
 	},
-		Entry("kubevirt content type", "kubevirt"),
-		Entry("archive content type", "archive"),
+		Entry("kubevirt content type", "kubevirt", false),
+		Entry("kubevirt content type with preallocation", "kubevirt", true),
+		Entry("archive content type", "archive", false),
 	)
 
 	It("should set event if upload pod failed", func() {
@@ -94,7 +97,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		pvc.Annotations[AnnPVCPrimeName] = PVCPrimeName(pvc)
 		uploadPV := uploadPV(pvc)
 
-		volumeUploadSourceCR := newUploadPopulatorCR("")
+		volumeUploadSourceCR := newUploadPopulatorCR("", false)
 		scName := "test-sc"
 		sc := cc.CreateStorageClassWithProvisioner(scName, map[string]string{cc.AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
 		r := createUploadPopulatorReconciler(pvc, volumeUploadSourceCR, sc, uploadPV)
@@ -127,7 +130,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		pvc.Annotations[AnnPVCPrimeName] = PVCPrimeName(pvc)
 		uploadPV := uploadPV(pvc)
 
-		volumeUploadSourceCR := newUploadPopulatorCR("")
+		volumeUploadSourceCR := newUploadPopulatorCR("", false)
 		scName := "test-sc"
 		sc := cc.CreateStorageClassWithProvisioner(scName, map[string]string{cc.AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
 		r := createUploadPopulatorReconciler(pvc, volumeUploadSourceCR, sc, uploadPV)
@@ -164,7 +167,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		pvc.Spec.VolumeName = "test-pv"
 		pvcPrime := newUploadPopulatorPVC(PVCPrimeName(pvc))
 
-		volumeUploadSourceCR := newUploadPopulatorCR("")
+		volumeUploadSourceCR := newUploadPopulatorCR("", false)
 		scName := "test-sc"
 		sc := cc.CreateStorageClassWithProvisioner(scName, map[string]string{cc.AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
 		r := createUploadPopulatorReconciler(pvc, volumeUploadSourceCR, sc, pvcPrime)
@@ -185,7 +188,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 
 	It("should wait for selected node annotation in case of wffc", func() {
 		pvc := newUploadPopulatorPVC("test-pvc")
-		volumeUploadSourceCR := newUploadPopulatorCR("")
+		volumeUploadSourceCR := newUploadPopulatorCR("", false)
 		scName := "test-sc"
 		pvc.Spec.StorageClassName = &scName
 		sc := cc.CreateStorageClassWithProvisioner(scName, map[string]string{cc.AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
@@ -238,24 +241,21 @@ func newUploadPopulatorPVC(name string) *corev1.PersistentVolumeClaim {
 			DataSourceRef: &corev1.TypedObjectReference{
 				APIGroup: &apiGroup,
 				Kind:     cdiv1.VolumeUploadSourceRef,
-				Name:     "upload-populator-test",
+				Name:     testPopulatorName,
 			},
 		},
 	}
 }
 
-func newUploadPopulatorCR(contentType string) *unstructured.Unstructured {
-	return &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"kind":       cdiv1.VolumeUploadSourceRef,
-			"apiVersion": "cdi.kubevirt.io/v1beta1",
-			"metadata": map[string]interface{}{
-				"name":      "upload-populator-test",
-				"namespace": metav1.NamespaceDefault,
-			},
-			"spec": map[string]interface{}{
-				"contentType": contentType,
-			},
+func newUploadPopulatorCR(contentType string, preallocation bool) *cdiv1.VolumeUploadSource {
+	return &cdiv1.VolumeUploadSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testPopulatorName,
+			Namespace: metav1.NamespaceDefault,
+		},
+		Spec: cdiv1.VolumeUploadSourceSpec{
+			ContentType:   cdiv1.DataVolumeContentType(contentType),
+			Preallocation: &preallocation,
 		},
 	}
 }

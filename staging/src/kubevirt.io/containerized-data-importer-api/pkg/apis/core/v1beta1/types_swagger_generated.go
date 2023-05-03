@@ -351,7 +351,9 @@ func (VolumeUploadSource) SwaggerDoc() map[string]string {
 
 func (VolumeUploadSourceSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "VolumeUploadSourceSpec defines specification for VolumeUploadSource",
+		"":              "VolumeUploadSourceSpec defines specification for VolumeUploadSource",
+		"contentType":   "ContentType represents the type of the upload data (Kubevirt or archive)",
+		"preallocation": "Preallocation controls whether storage for the target PVC should be allocated in advance.",
 	}
 }
 

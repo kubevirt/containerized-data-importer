@@ -7177,9 +7177,13 @@ spec:
             description: VolumeUploadSourceSpec defines specification for VolumeUploadSource
             properties:
               contentType:
-                description: DataVolumeContentType represents the types of the imported
-                  data
+                description: ContentType represents the type of the upload data (Kubevirt
+                  or archive)
                 type: string
+              preallocation:
+                description: Preallocation controls whether storage for the target
+                  PVC should be allocated in advance.
+                type: boolean
             type: object
           status:
             description: VolumeUploadSourceStatus provides the most recently observed

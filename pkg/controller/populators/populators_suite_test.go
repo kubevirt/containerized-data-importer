@@ -14,7 +14,7 @@ import (
 
 func TestPopulators(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Populators controllers Suite", reporters.NewReporters())
+	RunSpecsWithDefaultAndCustomReporters(t, "Populators Suite", reporters.NewReporters())
 }
 
 var _ = BeforeSuite(func() {

@@ -267,17 +267,8 @@ func (app *uploadProxyApp) uploadReady(pvcName, pvcNamespace string) (*v1.Persis
 		}
 		// If using upload populator then need to check upload possibility to the PVC'
 		if populators.IsPVCDataSourceRefKind(pvc, cdiv1.VolumeUploadSourceRef) {
-			pvcPrimeName, ok := pvc.Annotations[populators.AnnPVCPrimeName]
-			if !ok {
-				// wait for pvcPrimeName annotation on the pvc
-				return false, nil
-			}
-			pvc, err = app.client.CoreV1().PersistentVolumeClaims(pvcNamespace).Get(context.TODO(), pvcPrimeName, metav1.GetOptions{})
-			if err != nil {
-				if k8serrors.IsNotFound(err) {
-					return false, fmt.Errorf("rejecting Upload Request for PVC %s, PVC' wasn't created yet", pvcName)
-				}
-
+			pvc, err = app.getPopulationPVC(pvc, pvcNamespace)
+			if pvc == nil || err != nil {
 				return false, err
 			}
 		}
@@ -381,4 +372,22 @@ func (app *uploadProxyApp) startTLS() error {
 
 	// wait for server to exit
 	return <-errChan
+}
+
+func (app *uploadProxyApp) getPopulationPVC(pvc *v1.PersistentVolumeClaim, pvcNamespace string) (*v1.PersistentVolumeClaim, error) {
+	pvcPrimeName, ok := pvc.Annotations[populators.AnnPVCPrimeName]
+	if !ok {
+		// wait for pvcPrimeName annotation on the pvc
+		return nil, nil
+	}
+	pvcPrime, err := app.client.CoreV1().PersistentVolumeClaims(pvcNamespace).Get(context.TODO(), pvcPrimeName, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, fmt.Errorf("rejecting Upload Request for PVC %s, PVC' wasn't created yet", pvc.Name)
+		}
+
+		return nil, err
+	}
+
+	return pvcPrime, nil
 }

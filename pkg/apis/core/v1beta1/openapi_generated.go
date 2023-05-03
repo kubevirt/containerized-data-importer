@@ -27671,8 +27671,16 @@ func schema_pkg_apis_core_v1beta1_VolumeUploadSourceSpec(ref common.ReferenceCal
 				Properties: map[string]spec.Schema{
 					"contentType": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Description: "ContentType represents the type of the upload data (Kubevirt or archive)",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"preallocation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Preallocation controls whether storage for the target PVC should be allocated in advance.",
+							Type:        []string{"boolean"},
+							Format:      "",
 						},
 					},
 				},

@@ -19,6 +19,7 @@ package populators
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -36,9 +37,9 @@ import (
 const (
 	uploadPopulatorName = "upload-populator"
 
-	// UploadFailed provides a const to indicate upload has failed
+	// errUploadFailed provides a const to indicate upload has failed
 	errUploadFailed = "UploadFailed"
-	// UploadSucceeded provides a const to indicate upload has succeeded
+	// uploadSucceeded provides a const to indicate upload has succeeded
 	uploadSucceeded = "UploadSucceeded"
 
 	// messageUploadFailed provides a const to form upload has failed message
@@ -113,6 +114,7 @@ func (r *UploadPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	uploadSource := source.(*cdiv1.VolumeUploadSource)
 	pvc.Annotations[cc.AnnContentType] = cc.GetContentType(string(uploadSource.Spec.ContentType))
 	pvc.Annotations[cc.AnnPopulatorKind] = cdiv1.VolumeUploadSourceRef
+	pvc.Annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(r.client, uploadSource.Spec.Preallocation))
 }
 
 func (r *UploadPopulatorReconciler) updatePVCPrimeNameAnnotation(pvc *corev1.PersistentVolumeClaim, pvcPrimeName string) (bool, error) {
