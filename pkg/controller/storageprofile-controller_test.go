@@ -140,30 +140,6 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(sp.Status.ClaimPropertySets).To(BeEmpty())
 	})
 
-	It("Should create storage profile with default claim property set for storage class", func() {
-		scProvisioner := "rook-ceph.rbd.csi.ceph.com"
-		reconciler := createStorageProfileReconciler(CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, scProvisioner))
-		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
-		Expect(err).ToNot(HaveOccurred())
-		storageProfileList := &cdiv1.StorageProfileList{}
-		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		Expect(storageProfileList.Items).To(HaveLen(1))
-		sp := storageProfileList.Items[0]
-		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
-
-		claimPropertySets := []cdiv1.ClaimPropertySet{}
-		capabilities := storagecapabilities.CapabilitiesByProvisionerKey[scProvisioner]
-		for i := range capabilities {
-			claimPropertySet := cdiv1.ClaimPropertySet{
-				AccessModes: []v1.PersistentVolumeAccessMode{capabilities[i].AccessMode},
-				VolumeMode:  &capabilities[i].VolumeMode,
-			}
-			claimPropertySets = append(claimPropertySets, claimPropertySet)
-		}
-		Expect(sp.Status.ClaimPropertySets).To(Equal(claimPropertySets))
-	})
-
 	It("Should find storage capabilities for no-provisioner LSO storage class", func() {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, lsoLabels, "kubernetes.io/no-provisioner")
 		pv := CreatePv("my-pv", storageClassName)

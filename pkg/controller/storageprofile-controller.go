@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -32,6 +35,10 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
+const (
+	eventInvolvedObjectField = "eventInvolvedObject"
+)
+
 var (
 	// IncompleteProfileGauge is the metric we use to alert about incomplete storage profiles
 	IncompleteProfileGauge = prometheus.NewGauge(
@@ -39,6 +46,9 @@ var (
 			Name: monitoring.MetricOptsList[monitoring.IncompleteProfile].Name,
 			Help: monitoring.MetricOptsList[monitoring.IncompleteProfile].Help,
 		})
+
+	accessModes = []v1.PersistentVolumeAccessMode{v1.ReadWriteMany, v1.ReadWriteOnce, v1.ReadOnlyMany}
+	volumeModes = []v1.PersistentVolumeMode{v1.PersistentVolumeBlock, v1.PersistentVolumeFilesystem}
 )
 
 // StorageProfileReconciler members
@@ -48,6 +58,7 @@ type StorageProfileReconciler struct {
 	uncachedClient  client.Client
 	scheme          *runtime.Scheme
 	log             logr.Logger
+	cdiNamespace    string
 	installerLabels map[string]string
 }
 
@@ -58,7 +69,7 @@ func (r *StorageProfileReconciler) Reconcile(_ context.Context, req reconcile.Re
 
 	storageClass := &storagev1.StorageClass{}
 	if err := r.client.Get(context.TODO(), req.NamespacedName, storageClass); err != nil {
-		if k8serrors.IsNotFound(err) {
+		if errors.IsNotFound(err) {
 			return reconcile.Result{}, r.deleteStorageProfile(req.NamespacedName.Name, log)
 		}
 		return reconcile.Result{}, err
@@ -98,14 +109,31 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 		}
 		claimPropertySets = storageProfile.Spec.ClaimPropertySets
 	} else {
-		claimPropertySets = r.reconcilePropertySets(sc)
+		claimPropertySets, err = r.reconcilePropertySets(sc)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
-	storageProfile.Status.ClaimPropertySets = claimPropertySets
+	if len(claimPropertySets) > 0 {
+		//FIXME: handle local storage
+		storageProfile.Status.ClaimPropertySets = claimPropertySets
+	} else if prevStorageProfile != nil {
+		//FIXME: add pending annotation and poll only if > 0
+		if err := r.pollPvcs(storageProfile); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
 
 	util.SetRecommendedLabels(storageProfile, r.installerLabels, "cdi-controller")
 	if err := r.updateStorageProfile(prevStorageProfile, storageProfile, log); err != nil {
 		return reconcile.Result{}, err
+	}
+
+	if prevStorageProfile == nil && len(claimPropertySets) == 0 {
+		if err := r.createDvs(storageProfile); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	return reconcile.Result{}, nil
@@ -114,7 +142,9 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 func (r *StorageProfileReconciler) updateStorageProfile(prevStorageProfile runtime.Object, storageProfile *cdiv1.StorageProfile, log logr.Logger) error {
 	if prevStorageProfile == nil {
 		return r.client.Create(context.TODO(), storageProfile)
-	} else if !reflect.DeepEqual(prevStorageProfile, storageProfile) {
+	}
+
+	if !reflect.DeepEqual(prevStorageProfile, storageProfile) {
 		// Updates have happened, update StorageProfile.
 		log.Info("Updating StorageProfile", "StorageProfile.Name", storageProfile.Name, "storageProfile", storageProfile)
 		return r.client.Update(context.TODO(), storageProfile)
@@ -128,7 +158,7 @@ func (r *StorageProfileReconciler) getStorageProfile(sc *storagev1.StorageClass)
 	storageProfile := &cdiv1.StorageProfile{}
 
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: sc.Name}, storageProfile); err != nil {
-		if k8serrors.IsNotFound(err) {
+		if errors.IsNotFound(err) {
 			storageProfile, err = r.createEmptyStorageProfile(sc)
 			if err != nil {
 				return nil, nil, err
@@ -143,19 +173,148 @@ func (r *StorageProfileReconciler) getStorageProfile(sc *storagev1.StorageClass)
 	return storageProfile, prevStorageProfile, nil
 }
 
-func (r *StorageProfileReconciler) reconcilePropertySets(sc *storagev1.StorageClass) []cdiv1.ClaimPropertySet {
+func (r *StorageProfileReconciler) reconcilePropertySets(sc *storagev1.StorageClass) ([]cdiv1.ClaimPropertySet, error) {
 	claimPropertySets := []cdiv1.ClaimPropertySet{}
-	capabilities, found := storagecapabilities.Get(r.client, sc)
-	if found {
-		for i := range capabilities {
-			claimPropertySet := cdiv1.ClaimPropertySet{
-				AccessModes: []v1.PersistentVolumeAccessMode{capabilities[i].AccessMode},
-				VolumeMode:  &capabilities[i].VolumeMode,
+	capabilities, err := storagecapabilities.Get(r.client, sc)
+	if err != nil {
+		return []cdiv1.ClaimPropertySet{}, err
+	}
+	for i := range capabilities {
+		claimPropertySet := cdiv1.ClaimPropertySet{
+			AccessModes: []v1.PersistentVolumeAccessMode{capabilities[i].AccessMode},
+			VolumeMode:  &capabilities[i].VolumeMode,
+		}
+		claimPropertySets = append(claimPropertySets, claimPropertySet)
+	}
+	return claimPropertySets, nil
+}
+
+func (r *StorageProfileReconciler) pollPvcs(storageProfile *cdiv1.StorageProfile) error {
+	pvc := &v1.PersistentVolumeClaim{}
+	claimPropertySets := storageProfile.Status.ClaimPropertySets
+
+	for _, am := range accessModes {
+		for _, vm := range volumeModes {
+			pvcName := getDvName(storageProfile.Name, am, vm)
+			pvcKey := types.NamespacedName{Name: pvcName, Namespace: r.cdiNamespace}
+			if err := r.client.Get(context.TODO(), pvcKey, pvc); err != nil {
+				if errors.IsNotFound(err) {
+					continue
+				}
+				return err
 			}
-			claimPropertySets = append(claimPropertySets, claimPropertySet)
+
+			//FIXME: refactor
+			done := false
+
+			if pvc.DeletionTimestamp == nil {
+				if pvc.Status.Phase == v1.ClaimBound {
+					claimPropertySets = append(claimPropertySets, cdiv1.ClaimPropertySet{AccessModes: pvc.Spec.AccessModes, VolumeMode: pvc.Spec.VolumeMode})
+					done = true
+				} else {
+					fieldSelector, _ := fields.ParseSelector(eventInvolvedObjectField + "=" + getKey(pvc.Namespace, pvc.Name))
+					events := &v1.EventList{}
+					if err := r.client.List(context.TODO(), events, &client.ListOptions{FieldSelector: fieldSelector}); err != nil {
+						return err
+					}
+					for _, e := range events.Items {
+						if e.Reason == "ProvisioningFailed" {
+							done = true
+							break
+						}
+					}
+				}
+			}
+
+			if done {
+				dv := &cdiv1.DataVolume{ObjectMeta: metav1.ObjectMeta{Name: pvc.Name, Namespace: pvc.Namespace}}
+				if err := r.client.Delete(context.TODO(), dv); err != nil && !errors.IsNotFound(err) {
+					return err
+				}
+			}
+
 		}
 	}
-	return claimPropertySets
+
+	storageProfile.Status.ClaimPropertySets = sortUniqueClaimPropertySets(claimPropertySets)
+
+	return nil
+}
+
+func sortUniqueClaimPropertySets(claimPropertySets []cdiv1.ClaimPropertySet) []cdiv1.ClaimPropertySet {
+	sets := []cdiv1.ClaimPropertySet{}
+	for _, am := range accessModes {
+		for _, vm := range volumeModes {
+			accessMode := am
+			volumeMode := vm
+			set := cdiv1.ClaimPropertySet{
+				AccessModes: []v1.PersistentVolumeAccessMode{accessMode},
+				VolumeMode:  &volumeMode,
+			}
+			if claimPropertySetExists(claimPropertySets, set) {
+				sets = append(sets, set)
+			}
+		}
+	}
+	return sets
+}
+
+func claimPropertySetExists(claimPropertySets []cdiv1.ClaimPropertySet, claimPropertySet cdiv1.ClaimPropertySet) bool {
+	for _, cpSet := range claimPropertySets {
+		if reflect.DeepEqual(cpSet, claimPropertySet) {
+			return true
+		}
+	}
+	return false
+}
+
+// FIXME: try plain pvc or blank dv instead (handle wffc)
+func (r *StorageProfileReconciler) createDvs(storageProfile *cdiv1.StorageProfile) error {
+	for _, am := range accessModes {
+		for _, vm := range volumeModes {
+			if err := r.createDv(storageProfile, am, vm); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (r *StorageProfileReconciler) createDv(storageProfile *cdiv1.StorageProfile, accessMode v1.PersistentVolumeAccessMode, volumeMode v1.PersistentVolumeMode) error {
+	dv := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      getDvName(storageProfile.Name, accessMode, volumeMode),
+			Namespace: r.cdiNamespace,
+			Annotations: map[string]string{
+				cc.AnnImmediateBinding: "true",
+			},
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{
+					URL: "http://none",
+				},
+			},
+			PVC: &v1.PersistentVolumeClaimSpec{
+				AccessModes:      []v1.PersistentVolumeAccessMode{accessMode},
+				VolumeMode:       &volumeMode,
+				StorageClassName: &storageProfile.Name,
+				Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						v1.ResourceStorage: resource.MustParse("1"),
+					},
+				},
+			},
+		},
+	}
+
+	//FIXME: controllerutil.SetControllerReference() for deletion
+
+	return r.client.Create(context.TODO(), dv)
+}
+
+func getDvName(storageClassName string, accessMode v1.PersistentVolumeAccessMode, volumeMode v1.PersistentVolumeMode) string {
+	return strings.ToLower(fmt.Sprintf("%s-%s-%s", storageClassName, accessMode, volumeMode))
 }
 
 func (r *StorageProfileReconciler) reconcileCloneStrategy(sc *storagev1.StorageClass, clonestrategy *cdiv1.CDICloneStrategy) *cdiv1.CDICloneStrategy {
@@ -263,6 +422,7 @@ func NewStorageProfileController(mgr manager.Manager, log logr.Logger, installer
 		uncachedClient:  uncachedClient,
 		scheme:          mgr.GetScheme(),
 		log:             log.WithName("storageprofile-controller"),
+		cdiNamespace:    util.GetNamespace(),
 		installerLabels: installerLabels,
 	}
 
@@ -302,7 +462,56 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 		}); err != nil {
 		return err
 	}
+
+	cdiNamespace := util.GetNamespace()
+
+	//FIXME: watch only the relevant PVCs using annotation index
+	if err := c.Watch(&source.Kind{Type: &v1.PersistentVolumeClaim{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			if obj.GetNamespace() != cdiNamespace {
+				return []reconcile.Request{}
+			}
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{Name: *obj.(*v1.PersistentVolumeClaim).Spec.StorageClassName},
+			}}
+		},
+	)); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &v1.Event{}, eventInvolvedObjectField, func(obj client.Object) []string {
+		involvedObj := obj.(*v1.Event).InvolvedObject
+		return []string{getKey(involvedObj.Namespace, involvedObj.Name)}
+	}); err != nil {
+		return err
+	}
+
+	//FIXME: watch only the relevant PVC Events
+	if err := c.Watch(&source.Kind{Type: &v1.Event{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			involvedObj := obj.(*v1.Event).InvolvedObject
+			if involvedObj.Kind != "PersistentVolumeClaim" || involvedObj.Namespace != cdiNamespace {
+				return []reconcile.Request{}
+			}
+			pvc := &v1.PersistentVolumeClaim{}
+			if err := mgr.GetClient().Get(context.TODO(), types.NamespacedName{Name: involvedObj.Name, Namespace: involvedObj.Namespace}, pvc); err != nil {
+				if !errors.IsNotFound(err) {
+					log.Error(err, "Unable to get CDI namespace PVC", "PVC name", involvedObj.Name)
+				}
+				return []reconcile.Request{}
+			}
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{Name: *pvc.Spec.StorageClassName},
+			}}
+		},
+	)); err != nil {
+		return err
+	}
 	return nil
+}
+
+func getKey(namespace, name string) string {
+	return namespace + "/" + name
 }
 
 func scName(obj client.Object) string {

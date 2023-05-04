@@ -49,6 +49,9 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"events",
 			},
 			Verbs: []string{
+				"get",
+				"list",
+				"watch",
 				"create",
 				"patch",
 			},
