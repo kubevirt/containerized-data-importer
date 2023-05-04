@@ -50,6 +50,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ObjectTransferList{},
 		&VolumeImportSource{},
 		&VolumeImportSourceList{},
+		&VolumeUploadSource{},
+		&VolumeUploadSourceList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

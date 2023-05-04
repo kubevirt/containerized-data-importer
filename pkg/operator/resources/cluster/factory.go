@@ -60,6 +60,7 @@ func createCRDResources(args *FactoryArgs) []client.Object {
 		createDataImportCronCRD(),
 		createObjectTransferCRD(),
 		createVolumeImportSourceCRD(),
+		createVolumeUploadSourceCRD(),
 	}
 }
 

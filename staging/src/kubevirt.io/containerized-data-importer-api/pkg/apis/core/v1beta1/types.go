@@ -668,9 +668,47 @@ type VolumeImportSourceList struct {
 	Items []VolumeImportSource `json:"items"`
 }
 
+// VolumeUploadSource is a specification to populate PersistentVolumeClaims with upload data
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:storageversion
+type VolumeUploadSource struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec VolumeUploadSourceSpec `json:"spec"`
+	// +optional
+	Status VolumeUploadSourceStatus `json:"status,omitempty"`
+}
+
+// VolumeUploadSourceSpec defines specification for VolumeUploadSource
+type VolumeUploadSourceSpec struct {
+	// ContentType represents the type of the upload data (Kubevirt or archive)
+	ContentType DataVolumeContentType `json:"contentType,omitempty"`
+	// Preallocation controls whether storage for the target PVC should be allocated in advance.
+	Preallocation *bool `json:"preallocation,omitempty"`
+}
+
+// VolumeUploadSourceStatus provides the most recently observed status of the VolumeUploadSource
+type VolumeUploadSourceStatus struct {
+}
+
+// VolumeUploadSourceList provides the needed parameters to do request a list of Upload Sources from the system
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type VolumeUploadSourceList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	// Items provides a list of DataSources
+	Items []VolumeImportSource `json:"items"`
+}
+
 const (
 	// VolumeImportSourceRef is import source for DataSourceRef for PVC
 	VolumeImportSourceRef = "VolumeImportSource"
+	// VolumeUploadSourceRef is upload source for DataSourceRef for PVC
+	VolumeUploadSourceRef = "VolumeUploadSource"
 )
 
 // this has to be here otherwise informer-gen doesn't recognize it

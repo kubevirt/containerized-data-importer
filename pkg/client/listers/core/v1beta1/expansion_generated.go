@@ -65,3 +65,11 @@ type VolumeImportSourceListerExpansion interface{}
 // VolumeImportSourceNamespaceListerExpansion allows custom methods to be added to
 // VolumeImportSourceNamespaceLister.
 type VolumeImportSourceNamespaceListerExpansion interface{}
+
+// VolumeUploadSourceListerExpansion allows custom methods to be added to
+// VolumeUploadSourceLister.
+type VolumeUploadSourceListerExpansion interface{}
+
+// VolumeUploadSourceNamespaceListerExpansion allows custom methods to be added to
+// VolumeUploadSourceNamespaceLister.
+type VolumeUploadSourceNamespaceListerExpansion interface{}

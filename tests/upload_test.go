@@ -25,10 +25,12 @@ import (
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/tests"
@@ -55,9 +57,7 @@ type uploadFileNameRequestCreator func(string, string) (*http.Request, error)
 var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component]Upload tests", func() {
 
 	var (
-		pvc        *v1.PersistentVolumeClaim
-		archivePVC *v1.PersistentVolumeClaim
-		err        error
+		err error
 
 		uploadProxyURL string
 		portForwardCmd *exec.Cmd
@@ -65,7 +65,22 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 	f := framework.NewFramework("upload-func-test")
 
-	BeforeEach(func() {
+	cleanup := func(pvc *v1.PersistentVolumeClaim) {
+		By("Deleting verifier pod")
+		err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Delete upload PVC")
+		err = f.DeletePVC(pvc)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Wait for upload pod to be deleted")
+		deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(deleted).To(BeTrue())
+	}
+
+	verifyCleanup := func(pvc *v1.PersistentVolumeClaim) {
 		if pvc != nil {
 			Eventually(func() bool {
 				// Make sure the pvc doesn't still exist. The after each should have called delete.
@@ -73,9 +88,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				return err != nil
 			}, timeout, pollingInterval).Should(BeTrue())
 		}
-		By("Creating PVC with upload target annotation")
-		pvc = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
+	}
 
+	BeforeEach(func() {
 		uploadProxyURL = findProxyURLCdiConfig(f)
 		if uploadProxyURL == "" {
 			By("Set up port forwarding")
@@ -91,29 +106,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(portForwardCmd.Wait()).To(Succeed())
 			portForwardCmd = nil
 		}
-
-		By("Delete upload PVC")
-		err = f.DeletePVC(pvc)
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Wait for upload pod to be deleted")
-		deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(deleted).To(BeTrue())
-
-		if archivePVC != nil {
-			By("Delete upload archive PVC")
-			err = f.DeletePVC(pvc)
-			Expect(err).ToNot(HaveOccurred())
-
-			By("Wait for upload archive pod to be deleted")
-			deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(deleted).To(BeTrue())
-		}
 	})
 
-	checkFailureNoValidToken := func() {
+	checkFailureNoValidToken := func(pvc *v1.PersistentVolumeClaim) {
 		uploadPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
 
@@ -137,7 +132,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(err).ToNot(HaveOccurred())
 	}
 
-	checkUploadCertSecrets := func() {
+	checkUploadCertSecrets := func(pvc *v1.PersistentVolumeClaim) {
 		pod, err := f.K8sClient.CoreV1().Pods(pvc.Namespace).Get(context.TODO(), utils.UploadPodName(pvc), metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -148,228 +143,464 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(HasEnvironmentVariableFromSecret(pod, "TLS_CERT", secret)).To(BeTrue(), "Should have TLS_CERT")
 	}
 
-	DescribeTable("should", func(uploader uploadFunc, validToken bool, expectedStatus int) {
-		By("Verify PVC annotation says ready")
-		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(found).To(BeTrue())
+	Context("Standard upload", func() {
+		var (
+			pvc *v1.PersistentVolumeClaim
+		)
 
-		checkUploadCertSecrets()
+		BeforeEach(func() {
+			verifyCleanup(pvc)
+			By("Creating PVC with upload target annotation")
+			pvc = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
+		})
 
-		var token string
-		if validToken {
+		AfterEach(func() {
+			cleanup(pvc)
+		})
+
+		DescribeTable("should", func(uploader uploadFunc, validToken bool, expectedStatus int) {
+			By("Verify PVC annotation says ready")
+			found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue())
+
+			checkUploadCertSecrets(pvc)
+
+			var token string
+			if validToken {
+				By("Get an upload token")
+				token, err = utils.RequestUploadToken(f.CdiClient, pvc)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(token).ToNot(BeEmpty())
+			} else {
+				token = "abc"
+			}
+
+			By("Do upload")
+			Eventually(func() bool {
+				err = uploader(uploadProxyURL, token, expectedStatus)
+				if err != nil {
+					fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+					return false
+				}
+				return true
+			}, timeout, 5*time.Second).Should(BeTrue(), "Upload should eventually succeed, even if initially pod is not ready")
+
+			if validToken {
+				By("Verify PVC status annotation says succeeded")
+				found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue())
+
+				By("Verify content")
+				same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5100kbytes, 100000)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(same).To(BeTrue())
+				By("Verifying the image is sparse")
+				Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
+				if utils.DefaultStorageCSIRespectsFsGroup {
+					// CSI storage class, it should respect fsGroup
+					By("Checking that disk image group is qemu")
+					Expect(f.GetDiskGroup(f.Namespace, pvc, false)).To(Equal("107"))
+				}
+				By("Verifying permissions are 660")
+				Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
+			} else {
+				checkFailureNoValidToken(pvc)
+			}
+		},
+			Entry("[test_id:1368]succeed given a valid token", uploadImage, true, http.StatusOK),
+			Entry("[test_id:5078]succeed given a valid token (async)", uploadImageAsync, true, http.StatusOK),
+			Entry("[test_id:5079]succeed given a valid token (alpha)", uploadImageAlpha, true, http.StatusOK),
+			Entry("[test_id:5080]succeed given a valid token (async alpha)", uploadImageAsyncAlpha, true, http.StatusOK),
+			Entry("[test_id:5081]succeed given a valid token (form)", uploadForm, true, http.StatusOK),
+			Entry("[test_id:5082]succeed given a valid token (form async)", uploadFormAsync, true, http.StatusOK),
+			Entry("[posneg:negative][test_id:1369]fail given an invalid token", uploadImage, false, http.StatusUnauthorized),
+		)
+
+		It("[test_id:4988]Verify upload to the same pvc fails", func() {
+			By("Verify PVC annotation says ready")
+			found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue())
+
+			var token string
 			By("Get an upload token")
 			token, err = utils.RequestUploadToken(f.CdiClient, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(token).ToNot(BeEmpty())
-		} else {
-			token = "abc"
-		}
 
-		By("Do upload")
-		Eventually(func() bool {
-			err = uploader(uploadProxyURL, token, expectedStatus)
-			if err != nil {
-				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
-				return false
-			}
-			return true
-		}, timeout, 5*time.Second).Should(BeTrue(), "Upload should eventually succeed, even if initially pod is not ready")
+			By("Do upload")
+			Eventually(func() error {
+				return uploadImage(uploadProxyURL, token, http.StatusOK)
+			}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
 
-		if validToken {
 			By("Verify PVC status annotation says succeeded")
-			found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
+			found, err = utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(found).To(BeTrue())
-
-			By("Verify content")
-			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5100kbytes, 100000)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(same).To(BeTrue())
-			By("Verifying the image is sparse")
-			Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
-			if utils.DefaultStorageCSIRespectsFsGroup {
-				// CSI storage class, it should respect fsGroup
-				By("Checking that disk image group is qemu")
-				Expect(f.GetDiskGroup(f.Namespace, pvc, false)).To(Equal("107"))
-			}
 			By("Verifying permissions are 660")
 			Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
-		} else {
-			checkFailureNoValidToken()
-		}
-	},
-		Entry("[test_id:1368]succeed given a valid token", uploadImage, true, http.StatusOK),
-		Entry("[test_id:5078]succeed given a valid token (async)", uploadImageAsync, true, http.StatusOK),
-		Entry("[test_id:5079]succeed given a valid token (alpha)", uploadImageAlpha, true, http.StatusOK),
-		Entry("[test_id:5080]succeed given a valid token (async alpha)", uploadImageAsyncAlpha, true, http.StatusOK),
-		Entry("[test_id:5081]succeed given a valid token (form)", uploadForm, true, http.StatusOK),
-		Entry("[test_id:5082]succeed given a valid token (form async)", uploadFormAsync, true, http.StatusOK),
-		Entry("[posneg:negative][test_id:1369]fail given an invalid token", uploadImage, false, http.StatusUnauthorized),
-	)
 
-	DescribeTable("Archive upload should", func(uploader uploadArchiveFunc, validToken bool, format string) {
-		By("Create archive file to upload")
-		cirrosFileMd5, err := util.Md5sum(utils.UploadCirrosFile)
-		Expect(err).ToNot(HaveOccurred())
-		tinyCoreFileMd5, err := util.Md5sum(utils.UploadFile)
-		Expect(err).ToNot(HaveOccurred())
-		filesToUpload := map[string]string{utils.TinyCoreFile: tinyCoreFileMd5, utils.CirrosQCow2File: cirrosFileMd5}
-		archiveFilePath, err := utils.ArchiveFiles("archive", os.TempDir(), utils.UploadFile, utils.UploadCirrosFile)
-		Expect(err).ToNot(HaveOccurred())
-		if format != "" {
-			archiveFilePath, err = utils.FormatTestData(archiveFilePath, os.TempDir(), format)
+			By("Try upload again")
+			err = uploadImage(uploadProxyURL, token, http.StatusServiceUnavailable)
 			Expect(err).ToNot(HaveOccurred())
-		}
 
-		By("Creating PVC with upload target annotation and archive content-type")
-		archivePVC = f.CreateBoundPVCFromDefinition(utils.UploadArchivePVCDefinition())
+		})
 
-		By("Verify PVC annotation says ready")
-		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, archivePVC)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(found).To(BeTrue())
-
-		var token string
-		var expectedStatus = http.StatusOK
-		if validToken {
-			By("Get an upload token")
-			token, err = utils.RequestUploadToken(f.CdiClient, archivePVC)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(token).ToNot(BeEmpty())
-		} else {
-			token = "abc"
-			expectedStatus = http.StatusUnauthorized
-		}
-
-		By("Do upload")
-		Eventually(func() error {
-			return uploader(archiveFilePath, uploadProxyURL, token, expectedStatus)
-		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
-
-		if validToken {
-			By("Verify PVC status annotation says succeeded")
-			found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, archivePVC)
+		DescribeTable("Verify validation error message on async upload if virtual size > pvc size", func(filename string) {
+			By("Verify PVC annotation says ready")
+			found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(found).To(BeTrue())
 
-			By("Verify content")
-			for file, expectedMd5 := range filesToUpload {
-				pathInPvc := filepath.Join(utils.DefaultPvcMountPath, file)
-				same, err := f.VerifyTargetPVCContentMD5(f.Namespace, archivePVC, pathInPvc, expectedMd5)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(same).To(BeTrue())
-				By("Verifying the image is sparse")
-				Expect(f.VerifySparse(f.Namespace, archivePVC, pathInPvc)).To(BeTrue())
-			}
-		} else {
-			checkFailureNoValidToken()
-		}
-	},
-		Entry("succeed given a valid token", uploadArchive, true, ""),
-		Entry("succeed given a valid token (alpha)", uploadArchiveAlpha, true, ""),
-		Entry("fail given an invalid token", uploadArchive, false, ""),
-		Entry("succeed upload of tar.gz", uploadArchive, true, image.ExtGz),
-		Entry("succeed upload of tar.xz", uploadArchive, true, image.ExtXz),
-	)
+			var token string
+			By("Get an upload token")
+			token, err = utils.RequestUploadToken(f.CdiClient, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(token).ToNot(BeEmpty())
 
-	It("[test_id:4988]Verify upload to the same pvc fails", func() {
-		By("Verify PVC annotation says ready")
-		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(found).To(BeTrue())
+			By("Do upload")
+			Eventually(func() error {
+				return uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, asyncUploadPath, token, http.StatusBadRequest)
+			}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+		},
+			Entry("[test_id:4989]fail given a large virtual size QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
+			Entry("fail given a large physical size QCOW2 file", utils.UploadFileLargePhysicalDiskQcow),
+		)
 
-		var token string
-		By("Get an upload token")
-		token, err = utils.RequestUploadToken(f.CdiClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(token).ToNot(BeEmpty())
+		DescribeTable("[posneg:negative][test_id:2330]Verify failure on sync upload if virtual size > pvc size", func(filename string) {
+			By("Verify PVC annotation says ready")
+			found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue())
 
-		By("Do upload")
-		Eventually(func() error {
-			return uploadImage(uploadProxyURL, token, http.StatusOK)
-		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+			var token string
+			By("Get an upload token")
+			token, err = utils.RequestUploadToken(f.CdiClient, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(token).ToNot(BeEmpty())
 
-		By("Verify PVC status annotation says succeeded")
-		found, err = utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(found).To(BeTrue())
-		By("Verifying permissions are 660")
-		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
+			By("Do upload")
+			Eventually(func() bool {
+				err = uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, syncUploadPath, token, http.StatusOK)
+				return err != nil && strings.Contains(err.Error(), "Unexpected return value 500")
+			}, timeout, pollingInterval).Should(BeTrue())
 
-		By("Try upload again")
-		err = uploadImage(uploadProxyURL, token, http.StatusServiceUnavailable)
-		Expect(err).ToNot(HaveOccurred())
+			uploadPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
+			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
 
+			By("Verify size error in logs")
+			Eventually(func() bool {
+				log, _ := f.RunKubectlCommand("logs", uploadPod.Name, "-n", uploadPod.Namespace)
+				if strings.Contains(log, "is larger than the reported available") {
+					return true
+				}
+				if strings.Contains(log, "no space left on device") {
+					return true
+				}
+				if strings.Contains(log, "qemu-img execution failed") {
+					return true
+				}
+				if strings.Contains(log, "calculated new size is < than current size, not resizing") {
+					return true
+				}
+				By("Failed to find error messages about a too large image in log:")
+				By(log)
+				return false
+			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
+		},
+			Entry("fail given a large virtual size RAW XZ file", utils.UploadFileLargeVirtualDiskXz),
+			Entry("fail given a large virtual size QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
+			Entry("fail given a large physical size RAW XZ file", utils.UploadFileLargePhysicalDiskXz),
+			Entry("fail given a large physical size QCOW2 file", utils.UploadFileLargePhysicalDiskQcow),
+		)
 	})
 
-	DescribeTable("Verify validation error message on async upload if virtual size > pvc size", func(filename string) {
-		By("Verify PVC annotation says ready")
-		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(found).To(BeTrue())
+	Context("Archive upload", func() {
+		var (
+			archivePVC *v1.PersistentVolumeClaim
+		)
 
-		var token string
-		By("Get an upload token")
-		token, err = utils.RequestUploadToken(f.CdiClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(token).ToNot(BeEmpty())
+		BeforeEach(func() {
+			verifyCleanup(archivePVC)
+			By("Creating PVC with upload target annotation and archive content-type")
+			archivePVC = f.CreateBoundPVCFromDefinition(utils.UploadArchivePVCDefinition())
+		})
 
-		By("Do upload")
-		Eventually(func() error {
-			return uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, asyncUploadPath, token, http.StatusBadRequest)
-		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
-	},
-		Entry("[test_id:4989]fail given a large virtual size QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
-		Entry("fail given a large physical size QCOW2 file", utils.UploadFileLargePhysicalDiskQcow),
-	)
+		AfterEach(func() {
+			cleanup(archivePVC)
+		})
 
-	DescribeTable("[posneg:negative][test_id:2330]Verify failure on sync upload if virtual size > pvc size", func(filename string) {
-		By("Verify PVC annotation says ready")
-		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(found).To(BeTrue())
-
-		var token string
-		By("Get an upload token")
-		token, err = utils.RequestUploadToken(f.CdiClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(token).ToNot(BeEmpty())
-
-		By("Do upload")
-		Eventually(func() bool {
-			err = uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, syncUploadPath, token, http.StatusOK)
-			return err != nil && strings.Contains(err.Error(), "Unexpected return value 500")
-		}, timeout, pollingInterval).Should(BeTrue())
-
-		uploadPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
-
-		By("Verify size error in logs")
-		Eventually(func() bool {
-			log, _ := f.RunKubectlCommand("logs", uploadPod.Name, "-n", uploadPod.Namespace)
-			if strings.Contains(log, "is larger than the reported available") {
-				return true
+		DescribeTable("should", func(uploader uploadArchiveFunc, validToken bool, format string) {
+			By("Create archive file to upload")
+			cirrosFileMd5, err := util.Md5sum(utils.UploadCirrosFile)
+			Expect(err).ToNot(HaveOccurred())
+			tinyCoreFileMd5, err := util.Md5sum(utils.UploadFile)
+			Expect(err).ToNot(HaveOccurred())
+			filesToUpload := map[string]string{utils.TinyCoreFile: tinyCoreFileMd5, utils.CirrosQCow2File: cirrosFileMd5}
+			archiveFilePath, err := utils.ArchiveFiles("archive", os.TempDir(), utils.UploadFile, utils.UploadCirrosFile)
+			Expect(err).ToNot(HaveOccurred())
+			if format != "" {
+				archiveFilePath, err = utils.FormatTestData(archiveFilePath, os.TempDir(), format)
+				Expect(err).ToNot(HaveOccurred())
 			}
-			if strings.Contains(log, "no space left on device") {
-				return true
+
+			By("Verify PVC annotation says ready")
+			found, err := utils.WaitPVCPodStatusReady(f.K8sClient, archivePVC)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue())
+
+			var token string
+			var expectedStatus = http.StatusOK
+			if validToken {
+				By("Get an upload token")
+				token, err = utils.RequestUploadToken(f.CdiClient, archivePVC)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(token).ToNot(BeEmpty())
+			} else {
+				token = "abc"
+				expectedStatus = http.StatusUnauthorized
 			}
-			if strings.Contains(log, "qemu-img execution failed") {
-				return true
+
+			By("Do upload")
+			Eventually(func() error {
+				return uploader(archiveFilePath, uploadProxyURL, token, expectedStatus)
+			}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+
+			if validToken {
+				By("Verify PVC status annotation says succeeded")
+				found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, archivePVC)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue())
+
+				By("Verify content")
+				for file, expectedMd5 := range filesToUpload {
+					pathInPvc := filepath.Join(utils.DefaultPvcMountPath, file)
+					same, err := f.VerifyTargetPVCContentMD5(f.Namespace, archivePVC, pathInPvc, expectedMd5)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(same).To(BeTrue())
+					By("Verifying the image is sparse")
+					Expect(f.VerifySparse(f.Namespace, archivePVC, pathInPvc)).To(BeTrue())
+				}
+			} else {
+				checkFailureNoValidToken(archivePVC)
 			}
-			if strings.Contains(log, "calculated new size is < than current size, not resizing") {
-				return true
+		},
+			Entry("succeed given a valid token", uploadArchive, true, ""),
+			Entry("succeed given a valid token (alpha)", uploadArchiveAlpha, true, ""),
+			Entry("fail given an invalid token", uploadArchive, false, ""),
+			Entry("succeed upload of tar.gz", uploadArchive, true, image.ExtGz),
+			Entry("succeed upload of tar.xz", uploadArchive, true, image.ExtXz),
+		)
+	})
+
+	Context("Upload population", func() {
+		var (
+			pvc      *v1.PersistentVolumeClaim
+			pvcPrime *v1.PersistentVolumeClaim
+		)
+
+		uploadSourceGVR := schema.GroupVersionResource{Group: "cdi.kubevirt.io", Version: "v1beta1", Resource: "volumeuploadsources"}
+
+		createUploadPopulatorCR := func(contentType cdiv1.DataVolumeContentType) error {
+			By("Creating Upload Populator CR")
+			uploadPopulatorCR := utils.UploadPopulatorCR(f.Namespace.Name, string(contentType))
+
+			_, err := f.DynamicClient.Resource(uploadSourceGVR).Namespace(f.Namespace.Name).Create(
+				context.TODO(), uploadPopulatorCR, metav1.CreateOptions{})
+			return err
+		}
+
+		BeforeEach(func() {
+			verifyCleanup(pvc)
+		})
+
+		AfterEach(func() {
+			By("Deleting verifier pod")
+			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			err := f.DynamicClient.Resource(uploadSourceGVR).Namespace(f.Namespace.Name).Delete(context.TODO(), "upload-populator-test", metav1.DeleteOptions{})
+			if err != nil && !k8serrors.IsNotFound(err) {
+				Expect(err).ToNot(HaveOccurred())
 			}
-			By("Failed to find error messages about a too large image in log:")
-			By(log)
-			return false
-		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
-	},
-		Entry("fail given a large virtual size RAW XZ file", utils.UploadFileLargeVirtualDiskXz),
-		Entry("fail given a large virtual size QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
-		Entry("fail given a large physical size RAW XZ file", utils.UploadFileLargePhysicalDiskXz),
-		Entry("fail given a large physical size QCOW2 file", utils.UploadFileLargePhysicalDiskQcow),
-	)
+
+			By("Delete upload population PVC")
+			err = f.DeletePVC(pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+		})
+		Context("standard", func() {
+			BeforeEach(func() {
+				err := createUploadPopulatorCR(cdiv1.DataVolumeKubeVirt)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			DescribeTable("should", func(uploader uploadFunc, validToken, blockMode bool, expectedStatus int) {
+				pvcDef := utils.UploadPopulationPVCDefinition()
+				if blockMode {
+					if !f.IsBlockVolumeStorageClassAvailable() {
+						Skip("Storage Class for block volume is not available")
+					}
+					pvcDef = utils.UploadPopulationBlockPVCDefinition(f.BlockSCName)
+				}
+				pvc = f.CreateScheduledPVCFromDefinition(pvcDef)
+
+				By("Verify PVC prime was created")
+				pvcPrime, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, populators.PVCPrimeName(pvc))
+				Expect(err).ToNot(HaveOccurred())
+				By("Verify PVC prime annotation says ready")
+				found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvcPrime)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue())
+
+				checkUploadCertSecrets(pvcPrime)
+
+				var token string
+				if validToken {
+					By("Get an upload token")
+					token, err = utils.RequestUploadToken(f.CdiClient, pvc)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(token).ToNot(BeEmpty())
+				} else {
+					token = "abc"
+				}
+
+				By("Do upload")
+				Eventually(func() bool {
+					err = uploader(uploadProxyURL, token, expectedStatus)
+					if err != nil {
+						fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+						return false
+					}
+					return true
+				}, timeout, 5*time.Second).Should(BeTrue(), "Upload should eventually succeed, even if initially pod is not ready")
+
+				if validToken {
+					By("Verify target PVC is bound")
+					err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+					Expect(err).ToNot(HaveOccurred())
+
+					By("Verify content")
+					if blockMode {
+						same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultPvcMountPath, utils.UploadFileMD5, utils.UploadFileSize)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(same).To(BeTrue())
+					} else {
+						same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5100kbytes, 100000)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(same).To(BeTrue())
+						By("Verifying the image is sparse")
+						Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
+						if utils.DefaultStorageCSIRespectsFsGroup {
+							// CSI storage class, it should respect fsGroup
+							By("Checking that disk image group is qemu")
+							Expect(f.GetDiskGroup(f.Namespace, pvc, false)).To(Equal("107"))
+						}
+						By("Verifying permissions are 660")
+						Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
+					}
+					By("Wait for PVC prime to be deleted")
+					Eventually(func() bool {
+						// Make sure pvcPrime was deleted after upload population
+						_, err := f.FindPVC(pvcPrime.Name)
+						return err != nil && k8serrors.IsNotFound(err)
+					}, timeout, pollingInterval).Should(BeTrue())
+					By("Wait for upload population pod to be deleted")
+					deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvcPrime), f.Namespace.Name, time.Second*20)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(deleted).To(BeTrue())
+
+				} else {
+					checkFailureNoValidToken(pvcPrime)
+				}
+			},
+				Entry("succeed given a valid token", uploadImage, true, false, http.StatusOK),
+				Entry("succeed given a valid token (async)", uploadImageAsync, true, false, http.StatusOK),
+				Entry("succeed given a valid token (alpha)", uploadImageAlpha, true, false, http.StatusOK),
+				Entry("succeed given a valid token (async alpha)", uploadImageAsyncAlpha, true, false, http.StatusOK),
+				Entry("succeed given a valid token (form)", uploadForm, true, false, http.StatusOK),
+				Entry("succeed given a valid token (form async)", uploadFormAsync, true, false, http.StatusOK),
+				Entry("fail given an invalid token", uploadImage, false, false, http.StatusUnauthorized),
+				Entry("succeed given a valid token and block mode", uploadImage, true, true, http.StatusOK),
+			)
+		})
+
+		Context("archive", func() {
+			BeforeEach(func() {
+				pvc = f.CreateScheduledPVCFromDefinition(utils.UploadPopulationPVCDefinition())
+				err := createUploadPopulatorCR(cdiv1.DataVolumeArchive)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			DescribeTable("should", func(uploader uploadArchiveFunc, validToken bool, format string) {
+				By("Create archive file to upload")
+				cirrosFileMd5, err := util.Md5sum(utils.UploadCirrosFile)
+				Expect(err).ToNot(HaveOccurred())
+				tinyCoreFileMd5, err := util.Md5sum(utils.UploadFile)
+				Expect(err).ToNot(HaveOccurred())
+				filesToUpload := map[string]string{utils.TinyCoreFile: tinyCoreFileMd5, utils.CirrosQCow2File: cirrosFileMd5}
+				archiveFilePath, err := utils.ArchiveFiles("archive", os.TempDir(), utils.UploadFile, utils.UploadCirrosFile)
+				Expect(err).ToNot(HaveOccurred())
+				if format != "" {
+					archiveFilePath, err = utils.FormatTestData(archiveFilePath, os.TempDir(), format)
+					Expect(err).ToNot(HaveOccurred())
+				}
+
+				By("Verify PVC prime was created")
+				pvcPrime, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, populators.PVCPrimeName(pvc))
+				Expect(err).ToNot(HaveOccurred())
+				By("Verify PVC prime annotation says ready")
+				found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvcPrime)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue())
+
+				checkUploadCertSecrets(pvcPrime)
+
+				var token string
+				var expectedStatus = http.StatusOK
+				if validToken {
+					By("Get an upload token")
+					token, err = utils.RequestUploadToken(f.CdiClient, pvc)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(token).ToNot(BeEmpty())
+				} else {
+					token = "abc"
+					expectedStatus = http.StatusUnauthorized
+				}
+
+				By("Do upload")
+				Eventually(func() error {
+					return uploader(archiveFilePath, uploadProxyURL, token, expectedStatus)
+				}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+
+				if validToken {
+					By("Verify target PVC is bound")
+					err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+					Expect(err).ToNot(HaveOccurred())
+
+					By("Verify content")
+					for file, expectedMd5 := range filesToUpload {
+						pathInPvc := filepath.Join(utils.DefaultPvcMountPath, file)
+						same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, pathInPvc, expectedMd5)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(same).To(BeTrue())
+						By("Verifying the image is sparse")
+						Expect(f.VerifySparse(f.Namespace, pvc, pathInPvc)).To(BeTrue())
+					}
+				} else {
+					checkFailureNoValidToken(pvcPrime)
+				}
+			},
+				Entry("succeed given a valid token", uploadArchive, true, ""),
+				Entry("succeed given a valid token (alpha)", uploadArchiveAlpha, true, ""),
+				Entry("fail given an invalid token", uploadArchive, false, ""),
+				Entry("succeed upload of tar.gz", uploadArchive, true, image.ExtGz),
+				Entry("succeed upload of tar.xz", uploadArchive, true, image.ExtXz),
+			)
+		})
+	})
 })
 
 var ErrorTestFake = errors.New("TestFakeError")

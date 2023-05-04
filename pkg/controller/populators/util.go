@@ -38,6 +38,10 @@ const (
 	// messageCreatedPVCPrimeSuccessfully provides a const to indicate we created PVC prime for population (message)
 	messageCreatedPVCPrimeSuccessfully = "PVC Prime created successfully"
 
+	// AnnPVCPrimeName annotation is the name of the PVC' that is added to the target PVC
+	// used by the upload-proxy in order to get the service name
+	AnnPVCPrimeName = cc.AnnAPIGroup + "/storage.populator.pvcPrime"
+
 	// annMigratedTo annotation is added to a PVC and PV that is supposed to be
 	// dynamically provisioned/deleted by by its corresponding CSI driver
 	// through the CSIMigration feature flags. When this annotation is set the

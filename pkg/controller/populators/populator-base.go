@@ -262,7 +262,7 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 	}
 	util.SetRecommendedLabels(pvcPrime, r.installerLabels, "cdi-controller")
 
-	// disk or image size, inflate it with overhead if necessary
+	// disk or image size, inflate it with overhead
 	requestedSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 	requestedSize, err := cc.InflateSizeWithOverhead(r.client, requestedSize.Value(), &pvc.Spec)
 	if err != nil {

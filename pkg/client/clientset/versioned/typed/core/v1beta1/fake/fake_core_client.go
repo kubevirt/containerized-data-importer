@@ -60,6 +60,10 @@ func (c *FakeCdiV1beta1) VolumeImportSources(namespace string) v1beta1.VolumeImp
 	return &FakeVolumeImportSources{c, namespace}
 }
 
+func (c *FakeCdiV1beta1) VolumeUploadSources(namespace string) v1beta1.VolumeUploadSourceInterface {
+	return &FakeVolumeUploadSources{c, namespace}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeCdiV1beta1) RESTClient() rest.Interface {
