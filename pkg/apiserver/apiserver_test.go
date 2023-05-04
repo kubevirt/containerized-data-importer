@@ -87,13 +87,13 @@ func cdiConfigGetAction() core.Action {
 
 func checkActions(expected []core.Action, actual []core.Action) {
 	for i, action := range actual {
-		Expect(len(expected) >= i+1).To(BeTrue())
+		Expect(len(expected)).To(BeNumerically(">=", i+1))
 
 		expectedAction := expected[i]
 		checkAction(expectedAction, action)
 	}
 
-	Expect(len(expected)).To(Equal(len(actual)))
+	Expect(expected).To(HaveLen(len(actual)))
 }
 
 func checkAction(expected, actual core.Action) {

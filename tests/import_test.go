@@ -1284,7 +1284,7 @@ var _ = Describe("Preallocation", func() {
 		}),
 		Entry("ImageIO import", true, utils.ImageioMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
 			cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			stringData := map[string]string{
 				common.KeyAccess: "admin@internal",
 				common.KeySecret: "12345",
@@ -1296,7 +1296,7 @@ var _ = Describe("Preallocation", func() {
 		Entry("Registry import", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
 			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", tinyCoreRegistryURL())
 			cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			dataVolume.Spec.Source.Registry.CertConfigMap = &cm
 			return dataVolume
 		}),
@@ -1324,15 +1324,15 @@ var _ = Describe("Preallocation", func() {
 
 			// Get test VM UUID
 			id, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			vmid, err := uuid.Parse(strings.TrimSpace(id))
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 			// Get disk name
 			disk, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			disk = strings.TrimSpace(disk)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 			// Create VDDK login secret
 			stringData := map[string]string{
@@ -1472,7 +1472,7 @@ var _ = Describe("Import populator", func() {
 	createImageIOImportPopulatorCR := func(contentType cdiv1.DataVolumeContentType, preallocation bool) error {
 		By("Creating Import Populator CR with ImageIO source")
 		cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		stringData := map[string]string{
 			common.KeyAccess: "admin@internal",
 			common.KeySecret: "12345",
@@ -1502,15 +1502,15 @@ var _ = Describe("Import populator", func() {
 
 		// Get test VM UUID
 		id, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		vmid, err := uuid.Parse(strings.TrimSpace(id))
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 
 		// Get disk name
 		disk, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		disk = strings.TrimSpace(disk)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 
 		// Create VDDK login secret
 		stringData := map[string]string{

@@ -190,7 +190,7 @@ var _ = Describe("Imageio client preparation", func() {
 	It("should load the cert", func() {
 		activeCAs, err := loadCA(tempDir)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(activeCAs.Subjects())).Should(Equal(1)) // nolint:staticcheck // todo: Subjects() is deprecated - check this
+		Expect(activeCAs.Subjects()).Should(HaveLen(1)) // nolint:staticcheck // todo: Subjects() is deprecated - check this
 	})
 
 	It("should return error if dir is empty", func() {
@@ -439,7 +439,7 @@ var _ = Describe("imageio snapshots", func() {
 		Expect(dp.currentSnapshot).To(Equal(snapshotID))
 		Expect(dp.previousSnapshot).To(Equal(""))
 		Expect(dp.contentLength).To(Equal(uint64(diskSize)))
-		Expect(dp.IsDeltaCopy()).To(Equal(false))
+		Expect(dp.IsDeltaCopy()).To(BeFalse())
 	})
 
 	It("should correctly get child snapshot transfer", func() {
@@ -448,7 +448,7 @@ var _ = Describe("imageio snapshots", func() {
 		Expect(dp.currentSnapshot).To(Equal(snapshotID))
 		Expect(dp.previousSnapshot).To(Equal(parentSnapshotID))
 		Expect(dp.contentLength).To(Equal(uint64(snapshotSize)))
-		Expect(dp.IsDeltaCopy()).To(Equal(true))
+		Expect(dp.IsDeltaCopy()).To(BeTrue())
 	})
 })
 
@@ -496,9 +496,9 @@ var _ = Describe("Imageio extents", func() {
 		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
 		Expect(err).ToNot(HaveOccurred())
 		countingReader, ok := source.imageioReader.(*util.CountingReader)
-		Expect(ok).To(Equal(true))
+		Expect(ok).To(BeTrue())
 		extentsReader, ok := countingReader.Reader.(*extentReader)
-		Expect(ok).To(Equal(true))
+		Expect(ok).To(BeTrue())
 		secondReader, err := source.getExtentsReader()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(secondReader).To(BeAssignableToTypeOf(extentsReader))
@@ -511,9 +511,9 @@ var _ = Describe("Imageio extents", func() {
 		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
 		Expect(err).ToNot(HaveOccurred())
 		countingReader, ok := source.imageioReader.(*util.CountingReader)
-		Expect(ok).To(Equal(true))
+		Expect(ok).To(BeTrue())
 		_, ok = countingReader.Reader.(*extentReader)
-		Expect(ok).To(Equal(false))
+		Expect(ok).To(BeFalse())
 		secondReader, _ := source.getExtentsReader()
 		Expect(secondReader).To(BeNil())
 	})

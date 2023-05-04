@@ -131,13 +131,13 @@ var _ = Describe("VDDK data source", func() {
 	It("VDDK data source should know if it is a delta copy", func() {
 		dp, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "checkpoint-2", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(dp.IsDeltaCopy()).To(Equal(true))
+		Expect(dp.IsDeltaCopy()).To(BeTrue())
 	})
 
 	It("VDDK data source should know if it is not a delta copy", func() {
 		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(dp.IsDeltaCopy()).To(Equal(false))
+		Expect(dp.IsDeltaCopy()).To(BeFalse())
 	})
 
 	It("VDDK delta copy should return immediately if there are no changed blocks", func() {

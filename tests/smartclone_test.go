@@ -29,7 +29,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests th
 		By("Saving CDI CR spec")
 		crList, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(crList.Items)).To(Equal(1))
+		Expect(crList.Items).To(HaveLen(1))
 
 		cdiCrSpec = crList.Items[0].Spec.DeepCopy()
 		cdiCr = crList.Items[0]
@@ -39,7 +39,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests th
 		By("Restoring CDI CR spec to original state")
 		crList, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(crList.Items)).To(Equal(1))
+		Expect(crList.Items).To(HaveLen(1))
 
 		newCdiCr := crList.Items[0]
 		newCdiCr.Spec = *cdiCrSpec

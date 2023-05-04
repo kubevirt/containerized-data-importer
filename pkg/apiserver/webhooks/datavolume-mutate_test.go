@@ -224,7 +224,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			}
 
 			resp := mutateDVs(key, ar, true)
-			Expect(resp.Allowed).To(Equal(true))
+			Expect(resp.Allowed).To(BeTrue())
 			Expect(resp.Patch).To(BeNil())
 		})
 

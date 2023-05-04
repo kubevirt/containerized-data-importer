@@ -231,7 +231,7 @@ var _ = Describe("Http client", func() {
 		systemCAs, err := x509.SystemCertPool()
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(len(activeCAs.Subjects())).Should(Equal(len(systemCAs.Subjects()) + 1)) //nolint:staticcheck // todo: Subjects() is deprecated - check this
+		Expect(activeCAs.Subjects()).Should(HaveLen(len(systemCAs.Subjects()) + 1)) //nolint:staticcheck // todo: Subjects() is deprecated - check this
 	})
 
 })

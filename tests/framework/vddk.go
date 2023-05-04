@@ -20,27 +20,27 @@ func (f *Framework) CreateVddkWarmImportDataVolume(dataVolumeName, size, url str
 
 	// Get test VM UUID
 	id, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	vmid, err := uuid.Parse(strings.TrimSpace(id))
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	// Get snapshot 1 ID
 	previousCheckpoint, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmsnapshot1")
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	previousCheckpoint = strings.TrimSpace(previousCheckpoint)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	// Get snapshot 2 ID
 	currentCheckpoint, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmsnapshot2")
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	currentCheckpoint = strings.TrimSpace(currentCheckpoint)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	// Get disk name
 	disk, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	disk = strings.TrimSpace(disk)
-	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	// Create VDDK login secret
 	stringData := map[string]string{

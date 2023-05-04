@@ -24,7 +24,7 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	Context("[test_id:1348]CDI service account should exist", func() {
 		It("Should succeed", func() {
 			result, err := f.RunKubectlCommand("get", "sa", "cdi-sa", "-n", f.CdiInstallNs)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			Expect(result).To(ContainSubstring("cdi-sa"))
 		})
 	})
@@ -32,7 +32,7 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	Context("[test_id:1349]CDI Cluster role should exist", func() {
 		It("Should succeed", func() {
 			result, err := f.RunKubectlCommand("get", "clusterrole", "cdi")
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			Expect(result).To(ContainSubstring("cdi"))
 		})
 	})
@@ -40,7 +40,7 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	Context("[test_id:1350]CDI Cluster role binding should exist", func() {
 		It("Should succeed", func() {
 			result, err := f.RunKubectlCommand("get", "clusterrolebinding", "cdi-sa")
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			Expect(result).To(ContainSubstring("cdi-sa"))
 		})
 	})
@@ -48,12 +48,12 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	Context("CDI deployment should exist", func() {
 		It("[test_id:1351]Should succeed", func() {
 			result, err := f.RunKubectlCommand("get", "deployment", "cdi-deployment", "-n", f.CdiInstallNs)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			Expect(result).To(ContainSubstring("cdi-deployment"))
 		})
 		It("[test_id:1352]There should be 1 replica", func() {
 			result, err := f.RunKubectlCommand("get", "deployment", "cdi-deployment", "-o", "jsonpath={.spec.replicas}", "-n", f.CdiInstallNs)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			Expect(result).To(ContainSubstring("1"))
 		})
 	})

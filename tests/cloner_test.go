@@ -518,7 +518,7 @@ var _ = Describe("all clone tests", func() {
 				By("Target block pvc md5summing")
 				targetMD5, err := f.GetMD5(f.Namespace, targetPvc, testBaseDir, crossVolumeModeCloneMD5NumBytes)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(sourceMD5 == targetMD5).To(BeTrue())
+				Expect(sourceMD5).To(Equal(targetMD5))
 				By("Deleting verifier pod")
 				err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 				Expect(err).ToNot(HaveOccurred())
@@ -565,7 +565,7 @@ var _ = Describe("all clone tests", func() {
 				diskImagePath := filepath.Join(testBaseDir, testFile)
 				targetMD5, err := f.GetMD5(f.Namespace, targetPvc, diskImagePath, crossVolumeModeCloneMD5NumBytes)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(sourceMD5 == targetMD5).To(BeTrue())
+				Expect(sourceMD5).To(Equal(targetMD5))
 				By("Deleting verifier pod")
 				err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 				Expect(err).ToNot(HaveOccurred())
@@ -618,7 +618,7 @@ var _ = Describe("all clone tests", func() {
 				By("Target block pvc md5summing")
 				targetMD5, err := f.GetMD5(f.Namespace, targetPvc, testBaseDir, crossVolumeModeCloneMD5NumBytes)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(sourceMD5 == targetMD5).To(BeTrue())
+				Expect(sourceMD5).To(Equal(targetMD5))
 				By("Deleting verifier pod")
 				err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 				Expect(err).ToNot(HaveOccurred())
@@ -666,7 +666,7 @@ var _ = Describe("all clone tests", func() {
 				By("Target file system pvc md5summing")
 				targetMD5, err := f.GetMD5(f.Namespace, targetPvc, diskImagePath, crossVolumeModeCloneMD5NumBytes)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(sourceMD5 == targetMD5).To(BeTrue())
+				Expect(sourceMD5).To(Equal(targetMD5))
 				By("Deleting verifier pod")
 				err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 				Expect(err).ToNot(HaveOccurred())
@@ -734,7 +734,7 @@ var _ = Describe("all clone tests", func() {
 
 				By("Verify no clone - the contents of prepopulated volume did not change")
 				md5Match, err := f.VerifyTargetPVCContentMD5(f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum)
-				Expect(err).To(BeNil())
+				Expect(err).ToNot(HaveOccurred())
 				Expect(md5Match).To(BeTrue())
 			})
 
@@ -1264,7 +1264,7 @@ var _ = Describe("all clone tests", func() {
 				By("Check expected annotations")
 				// TODO: work on this with next PR to remove the annotation
 				_, available := targetPvc.Annotations[controller.AnnPermissiveClone]
-				Expect(available).To(Equal(true))
+				Expect(available).To(BeTrue())
 			},
 				Entry("[test_id:8666]Smaller overhead in source than in target", "0.50", "0.30"),
 				Entry("[test_id:8665]Bigger overhead in source than in target", "0.30", "0.50"),
@@ -2001,7 +2001,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			es := resource.MustParse(targetSize)
-			Expect(es.Cmp(*targetPvc.Status.Capacity.Storage()) <= 0).To(BeTrue())
+			Expect(es.Cmp(*targetPvc.Status.Capacity.Storage())).To(BeNumerically("<=", 0))
 		},
 			Entry("with same target size", "500M"),
 			Entry("with bigger target", "1Gi"),
@@ -2527,7 +2527,7 @@ var _ = Describe("all clone tests", func() {
 			By("[BeforeEach] Saving CDI CR spec")
 			crList, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(len(crList.Items)).To(Equal(1))
+			Expect(crList.Items).To(HaveLen(1))
 
 			cdiCrSpec = crList.Items[0].Spec.DeepCopy()
 			cdiCr = crList.Items[0]
@@ -2553,7 +2553,7 @@ var _ = Describe("all clone tests", func() {
 			By("[AfterEach] Restoring CDI CR spec to original state")
 			crList, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(len(crList.Items)).To(Equal(1))
+			Expect(crList.Items).To(HaveLen(1))
 
 			newCdiCr := crList.Items[0]
 			newCdiCr.Spec = *cdiCrSpec
@@ -2967,7 +2967,7 @@ func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolume
 	Expect(err).ToNot(HaveOccurred())
 
 	es := resource.MustParse(targetSize[0])
-	Expect(es.Cmp(*targetPvc.Status.Capacity.Storage()) <= 0).To(BeTrue())
+	Expect(es.Cmp(*targetPvc.Status.Capacity.Storage())).To(BeNumerically("<=", 0))
 
 	// All labels and annotations passed
 	Expect(targetPvc.Labels["test-label-1"]).To(Equal("test-label-key-1"))
@@ -3042,7 +3042,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 
 	By("Verify the content")
 	md5Match, err := f.VerifyTargetPVCContentMD5(targetNs, targetPvc, filePath, expectedMD5)
-	Expect(err).To(BeNil())
+	Expect(err).ToNot(HaveOccurred())
 	Expect(md5Match).To(BeTrue())
 
 	if utils.DefaultStorageCSIRespectsFsGroup && sourcePvcDiskGroup != "" {

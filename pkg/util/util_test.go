@@ -26,7 +26,7 @@ var (
 var _ = Describe("Util", func() {
 	It("Should match RandAlphaNum", func() {
 		got := RandAlphaNum(8)
-		Expect(len(got)).To(Equal(8))
+		Expect(got).To(HaveLen(8))
 		Expect(regexp.MustCompile(pattern).Match([]byte(got))).To(BeTrue())
 	})
 
@@ -185,7 +185,7 @@ var _ = Describe("Zero out ranges in files", func() {
 		Expect(err).ToNot(HaveOccurred())
 		data, err := os.ReadFile(testFile.Name())
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(data)).To(Equal(len(testData)))
+		Expect(data).To(HaveLen(len(testData)))
 		comparison := bytes.Compare(data[start:end], bytes.Repeat([]byte{0}, length))
 		Expect(comparison).To(Equal(0))
 		comparison = bytes.Compare(data[0:start], testData[0:start])
@@ -204,7 +204,7 @@ var _ = Describe("Zero out ranges in files", func() {
 		Expect(err).ToNot(HaveOccurred())
 		data, err := os.ReadFile(testFile.Name())
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(data)).To(Equal(len(testData) + length))
+		Expect(data).To(HaveLen(len(testData) + length))
 		comparison := bytes.Compare(data[:len(testData)], testData)
 		Expect(comparison).To(Equal(0))
 		comparison = bytes.Compare(data[len(testData):], bytes.Repeat([]byte{0}, length))

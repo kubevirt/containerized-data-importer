@@ -195,7 +195,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 			expectedFailingCrons := originalCronMetricVal + numCrons
 
 			reg, err := getDataVolumeSourceRegistry(f)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			defer func() {
 				if err := utils.RemoveInsecureRegistry(f.CrClient, *reg.URL); err != nil {
 					_, _ = fmt.Fprintf(GinkgoWriter, "failed to remove registry; %v", err)

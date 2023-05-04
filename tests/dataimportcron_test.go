@@ -65,7 +65,7 @@ var _ = Describe("DataImportCron", func() {
 
 	table.DescribeTable("should", func(retention, createErrorDv bool, repeat int) {
 		reg, err := getDataVolumeSourceRegistry(f)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		defer func() {
 			if err := utils.RemoveInsecureRegistry(f.CrClient, *reg.URL); err != nil {
 				_, _ = fmt.Fprintf(GinkgoWriter, "failed to remove registry; %v", err)
@@ -175,13 +175,13 @@ var _ = Describe("DataImportCron", func() {
 			By("Verify DataSource pvc name was reconciled")
 			Eventually(func() bool {
 				dataSource, err = f.CdiClient.CdiV1beta1().DataSources(ns).Get(context.TODO(), dataSourceName, metav1.GetOptions{})
-				Expect(err).To(BeNil())
+				Expect(err).ToNot(HaveOccurred())
 				return dataSource.Spec.Source.PVC.Name == currentImportDv
 			}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "DataSource pvc name was not reconciled")
 
 			By("Delete DataSource")
 			err = f.CdiClient.CdiV1beta1().DataSources(ns).Delete(context.TODO(), dataSourceName, metav1.DeleteOptions{})
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			By("Verify DataSource was re-created")
 			Eventually(func() bool {
 				ds, err := f.CdiClient.CdiV1beta1().DataSources(ns).Get(context.TODO(), dataSourceName, metav1.GetOptions{})
@@ -210,11 +210,11 @@ var _ = Describe("DataImportCron", func() {
 		if retention {
 			By("Verify DataSource retention")
 			_, err := f.CdiClient.CdiV1beta1().DataSources(ns).Get(context.TODO(), dataSourceName, metav1.GetOptions{})
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 			By("Verify last PVC retention")
 			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(ns).Get(context.TODO(), lastImportedPVC.Name, metav1.GetOptions{})
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 		} else {
 			By("Verify DataSource deletion")
 			Eventually(func() bool {
@@ -237,7 +237,7 @@ var _ = Describe("DataImportCron", func() {
 
 	It("[test_id:7406] succeed garbage collecting old PVCs when importing new ones", func() {
 		reg, err := getDataVolumeSourceRegistry(f)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		defer func() {
 			if err := utils.RemoveInsecureRegistry(f.CrClient, *reg.URL); err != nil {
 				_, _ = fmt.Fprintf(GinkgoWriter, "failed to remove registry; %v", err)
@@ -304,7 +304,7 @@ var _ = Describe("DataImportCron", func() {
 
 	It("[test_id:8033] should delete jobs on deletion", func() {
 		reg, err := getDataVolumeSourceRegistry(f)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		noSuchCM := "nosuch"
 		reg.CertConfigMap = &noSuchCM
 		cron = utils.NewDataImportCron("cron-test", "5Gi", scheduleEveryMinute, dataSourceName, importsToKeep, *reg)

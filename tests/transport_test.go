@@ -82,13 +82,13 @@ var _ = Describe("Transport Tests", func() {
 
 		if certConfigMap != "" {
 			n, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, certConfigMap, ns, "", "")
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			pvcAnn[controller.AnnCertConfigMap] = n
 		}
 
 		if insecureRegistry {
 			err = utils.AddInsecureRegistry(f.CrClient, ep())
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 			hasInsecReg, err := utils.HasInsecureRegistry(f.CrClient, ep())
 			Expect(err).ToNot(HaveOccurred())

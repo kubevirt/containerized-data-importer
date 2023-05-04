@@ -325,10 +325,10 @@ var _ = Describe("Import Proxy tests", func() {
 			dv := utils.NewDataVolumeWithRegistryImport("import-dv", "1Gi", fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs))
 			dv.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 			cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			dv.Spec.Source.Registry.CertConfigMap = &cm
 			dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			dvName = dv.Name
 
 			pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
@@ -362,7 +362,7 @@ var _ = Describe("Import Proxy tests", func() {
 			updateProxy(f, "", createProxyURL(isHTTPS, hasAuth, f.CdiInstallNs), "", ocpClient)
 
 			cm, err := utils.CopyRegistryCertConfigMapDestName(f.K8sClient, ns, f.CdiInstallNs, utils.RegistryCertConfigMap)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 			url := fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs)
 			reg := cdiv1.DataVolumeSourceRegistry{
@@ -498,7 +498,7 @@ func createHTTPDataVolume(f *framework.Framework, dataVolumeName, size, url stri
 	dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 	if isHTTPS {
 		cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		dataVolume.Spec.Source.HTTP.CertConfigMap = cm
 	}
 	if withBasicAuth {
@@ -599,7 +599,7 @@ func getProxyLog(f *framework.Framework, since time.Time) string {
 	Expect(err).ToNot(HaveOccurred())
 	fmt.Fprintf(GinkgoWriter, "INFO: Analyzing the proxy pod %s logs\n", proxyPod.Name)
 	log, err := f.RunKubectlCommand("logs", proxyPod.Name, "-n", proxyPod.Namespace, fmt.Sprintf("--since-time=%s", since.Format(time.RFC3339)))
-	Expect(err).To(BeNil())
+	Expect(err).ToNot(HaveOccurred())
 	return log
 }
 

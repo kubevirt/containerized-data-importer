@@ -131,7 +131,7 @@ func rotateCert(f *framework.Framework, secretName string) {
 
 	notBefore, err := time.Parse(time.RFC3339, nb)
 	Expect(err).ToNot(HaveOccurred())
-	Expect(time.Since(notBefore).Seconds() > 0).To(BeTrue())
+	Expect(time.Since(notBefore).Seconds()).To(BeNumerically(">", 0))
 
 	newSecret := secret.DeepCopy()
 	newSecret.Annotations[annNotAfter] = notBefore.Add(time.Second).Format(time.RFC3339)

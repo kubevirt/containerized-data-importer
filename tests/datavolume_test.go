@@ -121,7 +121,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	createRegistryImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 		dataVolume := utils.NewDataVolumeWithRegistryImport(dataVolumeName, size, url)
 		cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		dataVolume.Spec.Source.Registry.CertConfigMap = &cm
 		return dataVolume
 	}
@@ -129,7 +129,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	createProxyRegistryImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 		dataVolume := utils.NewDataVolumeWithRegistryImport(dataVolumeName, size, url)
 		cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		dataVolume.Spec.Source.Registry.CertConfigMap = &cm
 		return dataVolume
 	}
@@ -142,15 +142,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		// Get test VM UUID
 		id, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		vmid, err := uuid.Parse(strings.TrimSpace(id))
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 
 		// Get disk name
 		disk, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		disk = strings.TrimSpace(disk)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 
 		// Create VDDK login secret
 		stringData := map[string]string{
@@ -171,7 +171,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	createImageIoDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 		cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		stringData := map[string]string{
 			common.KeyAccess: "admin@internal",
 			common.KeySecret: "123456",
@@ -189,7 +189,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	createImageIoWarmImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 		cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		stringData := map[string]string{
 			common.KeyAccess: "admin@internal",
 			common.KeySecret: "123456",
@@ -250,7 +250,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		createHTTPSDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, url)
 			cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			dataVolume.Spec.Source.HTTP.CertConfigMap = cm
 			return dataVolume
 		}
@@ -258,7 +258,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		createHTTPSDataVolumeWeirdCertFilename := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, url)
 			cm, err := utils.CreateCertConfigMapWeirdFilename(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			dataVolume.Spec.Source.HTTP.CertConfigMap = cm
 			return dataVolume
 		}
@@ -1054,7 +1054,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			configMap, err := f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Get(context.TODO(), savedVddkConfigMap, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			vddkURL, ok := configMap.Data[common.VddkConfigDataKey]
-			Expect(ok).To(Equal(true))
+			Expect(ok).To(BeTrue())
 			dv.Spec.Source.VDDK.InitImageURL = vddkURL
 			return dv
 		}
@@ -1309,7 +1309,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Verify no import - the contents of prepopulated volume did not change")
 			md5Match, err := f.VerifyTargetPVCContentMD5(f.Namespace, targetPvc, testFile, fillDataFSMD5sum)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			Expect(md5Match).To(BeTrue())
 		})
 
@@ -1337,7 +1337,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Verify no upload - the contents of prepopulated volume did not change")
 			md5Match, err := f.VerifyTargetPVCContentMD5(f.Namespace, targetPvc, testFile, fillDataFSMD5sum)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			Expect(md5Match).To(BeTrue())
 		})
 	})
@@ -1459,7 +1459,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		By(fmt.Sprintf("Importing from %s", url()))
 		dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url())
 		cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		dataVolume.Spec.Source.HTTP.CertConfigMap = cm
 
 		By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
@@ -2536,7 +2536,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		createHTTPSDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, url)
 			cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			dataVolume.Spec.Source.HTTP.CertConfigMap = cm
 			return dataVolume
 		}
@@ -2653,7 +2653,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		createHTTPSDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, url)
 			cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			dataVolume.Spec.Source.HTTP.CertConfigMap = cm
 			return dataVolume
 		}
@@ -2753,7 +2753,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				"/bin/sh",
 				"-c",
 				"cp /tmp/shared/images/"+originalImageName+" /tmp/shared/images/"+testImageName)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		AfterEach(func() {
@@ -2768,7 +2768,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				"/bin/sh",
 				"-c",
 				"rm -f /tmp/shared/images/"+testImageName)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 			By("Verifying pvc was deleted")
 			deleted, err := utils.WaitPVCDeleted(f.K8sClient, dataVolume.Name, dataVolume.Namespace, timeout)
@@ -2807,7 +2807,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				"/bin/sh",
 				"-c",
 				"rm /tmp/shared/images/"+testImageName)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 			By("Verify the number of retries on the datavolume")
 			Eventually(func() int32 {
@@ -2823,11 +2823,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				"/bin/sh",
 				"-c",
 				"cp /tmp/shared/images/"+originalImageName+" /tmp/shared/images/"+testImageName)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 			By("Wait for the eventual success")
 			err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name, 300*time.Second)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 		})
 	})
 

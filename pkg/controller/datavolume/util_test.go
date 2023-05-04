@@ -43,7 +43,7 @@ var _ = Describe("resolveVolumeSize", func() {
 		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", pvcSource, storageSpec)
 		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, pvcSpec)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(requestedVolumeSize.IsZero()).To(Equal(true))
+		Expect(requestedVolumeSize.IsZero()).To(BeTrue())
 	})
 
 	It("Should return error after trying to create a DataVolume with empty storage size and http source", func() {

@@ -96,7 +96,7 @@ var _ = Describe("Aggregated role in-action tests", func() {
 
 		dvl, err = cdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(dvl.Items).To(HaveLen(0))
+		Expect(dvl.Items).To(BeEmpty())
 
 		dv = utils.NewDataVolumeForUpload("upload-test-"+user, "1Gi")
 		dv, err = cdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Create(context.TODO(), dv, metav1.CreateOptions{})
@@ -176,7 +176,7 @@ var _ = Describe("Aggregated role in-action tests", func() {
 
 		dvl, err := cdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(dvl.Items).To(HaveLen(0))
+		Expect(dvl.Items).To(BeEmpty())
 
 		_, err = cdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), "test-"+user, metav1.GetOptions{})
 		Expect(err).To(HaveOccurred())

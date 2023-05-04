@@ -61,7 +61,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		storageProfileList := &cdiv1.StorageProfileList{}
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(storageProfileList.Items)).To(Equal(0))
+		Expect(storageProfileList.Items).To(BeEmpty())
 	})
 
 	It("Should give correct results and not panic with isIncomplete", func() {
@@ -117,14 +117,14 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		storageProfileList := &cdiv1.StorageProfileList{}
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(storageProfileList.Items)).To(Equal(1))
+		Expect(storageProfileList.Items).To(HaveLen(1))
 		err = reconciler.client.Delete(context.TODO(), storageClass)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(storageProfileList.Items)).To(Equal(0))
+		Expect(storageProfileList.Items).To(BeEmpty())
 	})
 
 	It("Should create storage profile without claim property set for storage class not in capabilitiesByProvisionerKey map", func() {
@@ -134,10 +134,10 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		storageProfileList := &cdiv1.StorageProfileList{}
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(storageProfileList.Items)).To(Equal(1))
+		Expect(storageProfileList.Items).To(HaveLen(1))
 		sp := storageProfileList.Items[0]
 		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
-		Expect(len(sp.Status.ClaimPropertySets)).To(Equal(0))
+		Expect(sp.Status.ClaimPropertySets).To(BeEmpty())
 	})
 
 	It("Should create storage profile with default claim property set for storage class", func() {
@@ -148,7 +148,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		storageProfileList := &cdiv1.StorageProfileList{}
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(storageProfileList.Items)).To(Equal(1))
+		Expect(storageProfileList.Items).To(HaveLen(1))
 		sp := storageProfileList.Items[0]
 		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
 
@@ -204,10 +204,10 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		storageProfileList := &cdiv1.StorageProfileList{}
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(storageProfileList.Items)).To(Equal(1))
+		Expect(storageProfileList.Items).To(HaveLen(1))
 		sp := storageProfileList.Items[0]
 		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
-		Expect(len(sp.Status.ClaimPropertySets)).To(Equal(0))
+		Expect(sp.Status.ClaimPropertySets).To(BeEmpty())
 
 		claimPropertySets := []cdiv1.ClaimPropertySet{
 			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany}, VolumeMode: &BlockMode},
@@ -221,7 +221,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		storageProfileList = &cdiv1.StorageProfileList{}
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(storageProfileList.Items)).To(Equal(1))
+		Expect(storageProfileList.Items).To(HaveLen(1))
 		updatedSp := storageProfileList.Items[0]
 		Expect(*updatedSp.Status.StorageClass).To(Equal(storageClassName))
 		Expect(updatedSp.Spec.ClaimPropertySets).To(Equal(claimPropertySets))
@@ -235,7 +235,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		storageProfileList := &cdiv1.StorageProfileList{}
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(storageProfileList.Items)).To(Equal(1))
+		Expect(storageProfileList.Items).To(HaveLen(1))
 		sp := storageProfileList.Items[0]
 		Expect(sp.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 
@@ -252,7 +252,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		storageProfileList = &cdiv1.StorageProfileList{}
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(storageProfileList.Items)).To(Equal(1))
+		Expect(storageProfileList.Items).To(HaveLen(1))
 		updatedSp := storageProfileList.Items[0]
 		Expect(updatedSp.Labels[common.AppKubernetesPartOfLabel]).To(Equal("newtesting"))
 	})
@@ -264,10 +264,10 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		storageProfileList := &cdiv1.StorageProfileList{}
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(storageProfileList.Items)).To(Equal(1))
+		Expect(storageProfileList.Items).To(HaveLen(1))
 		sp := storageProfileList.Items[0]
 		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
-		Expect(len(sp.Status.ClaimPropertySets)).To(Equal(0))
+		Expect(sp.Status.ClaimPropertySets).To(BeEmpty())
 
 		claimPropertySets := []cdiv1.ClaimPropertySet{
 			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany}, VolumeMode: &BlockMode},
@@ -281,10 +281,10 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("must provide access mode for volume mode: %s", FilesystemMode)))
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(storageProfileList.Items)).To(Equal(1))
+		Expect(storageProfileList.Items).To(HaveLen(1))
 		updatedSp := storageProfileList.Items[0]
 		Expect(*updatedSp.Status.StorageClass).To(Equal(storageClassName))
-		Expect(len(updatedSp.Status.ClaimPropertySets)).To(Equal(0))
+		Expect(updatedSp.Status.ClaimPropertySets).To(BeEmpty())
 		Expect(updatedSp.Spec.ClaimPropertySets).To(Equal(claimPropertySets))
 	})
 
@@ -300,7 +300,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(storageProfileList.Items)).To(Equal(1))
+		Expect(storageProfileList.Items).To(HaveLen(1))
 
 		sp := storageProfileList.Items[0]
 		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
@@ -318,10 +318,10 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		storageProfileList := &cdiv1.StorageProfileList{}
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(storageProfileList.Items)).To(Equal(1))
+		Expect(storageProfileList.Items).To(HaveLen(1))
 		sp := storageProfileList.Items[0]
 		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
-		Expect(len(sp.Status.ClaimPropertySets)).To(Equal(0))
+		Expect(sp.Status.ClaimPropertySets).To(BeEmpty())
 		Expect(int(prometheus.ToFloat64(IncompleteProfileGauge))).To(Equal(count))
 	},
 		table.Entry("Noobaa (not supported)", storagecapabilities.ProvisionerNoobaa, 0),
