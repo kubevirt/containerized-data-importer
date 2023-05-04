@@ -152,7 +152,6 @@ func (r *ImportPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	annotations[cc.AnnContentType] = cc.GetContentType(string(volumeImportSource.Spec.ContentType))
 	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(r.client, volumeImportSource.Spec.Preallocation))
 
-	// TODO: Should implement some kind of webhook to avoid allowing more than one source in the populator spec.
 	if http := volumeImportSource.Spec.Source.HTTP; http != nil {
 		cc.UpdateHTTPAnnotations(annotations, http)
 		return
@@ -177,8 +176,8 @@ func (r *ImportPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 		cc.UpdateVDDKAnnotations(annotations, vddk)
 		return
 	}
-	// Defaulting to Blank source if no source is provided in the populator CR.
-	// TODO: Revisit this behavior if we implement a webhook for VolumeImportSources.
+	// Our webhook doesn't allow VolumeImportSources without source, so this should never happen.
+	// Defaulting to Blank source anyway to avoid unexpected behavior.
 	annotations[cc.AnnSource] = cc.SourceNone
 }
 

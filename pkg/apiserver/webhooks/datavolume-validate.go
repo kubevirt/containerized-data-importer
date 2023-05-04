@@ -23,8 +23,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	neturl "net/url"
-	"reflect"
 
 	snapclient "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -48,21 +46,6 @@ type dataVolumeValidatingWebhook struct {
 	snapClient snapclient.Interface
 }
 
-func validateSourceURL(sourceURL string) string {
-	if sourceURL == "" {
-		return "source URL is empty"
-	}
-	url, err := neturl.ParseRequestURI(sourceURL)
-	if err != nil {
-		return fmt.Sprintf("Invalid source URL: %s", sourceURL)
-	}
-
-	if url.Scheme != "http" && url.Scheme != "https" && url.Scheme != "gs" {
-		return fmt.Sprintf("Invalid source URL scheme: %s", sourceURL)
-	}
-	return ""
-}
-
 func validateNameLength(name string, maxLen int) *metav1.StatusCause {
 	if len(name) > maxLen {
 		return &metav1.StatusCause{
@@ -76,8 +59,6 @@ func validateNameLength(name string, maxLen int) *metav1.StatusCause {
 
 func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admissionv1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec, namespace *string) []metav1.StatusCause {
 	var causes []metav1.StatusCause
-	var sourceType string
-	var url string
 	var dataSourceRef *v1.TypedObjectReference
 	var dataSource *v1.TypedLocalObjectReference
 
@@ -176,119 +157,53 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 		return causes
 	}
 
-	numberOfSources := 0
-	s := reflect.ValueOf(spec.Source).Elem()
-	for i := 0; i < s.NumField(); i++ {
-		if !reflect.ValueOf(s.Field(i).Interface()).IsNil() {
-			numberOfSources++
-		}
-	}
-	if numberOfSources == 0 {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: "Missing Data volume source",
-			Field:   field.Child("source").String(),
-		})
+	if causes := validateNumberOfSources(spec.Source, "Data volume", field); causes != nil {
 		return causes
-	}
-	if numberOfSources > 1 {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: "Multiple Data volume sources",
-			Field:   field.Child("source").String(),
-		})
-		return causes
-	}
-	// if source types are HTTP, Imageio, S3, GCS or VDDK, check if URL is valid
-	if spec.Source.HTTP != nil || spec.Source.S3 != nil || spec.Source.GCS != nil || spec.Source.Imageio != nil || spec.Source.VDDK != nil {
-		if spec.Source.HTTP != nil {
-			url = spec.Source.HTTP.URL
-			sourceType = field.Child("source", "HTTP", "url").String()
-		} else if spec.Source.S3 != nil {
-			url = spec.Source.S3.URL
-			sourceType = field.Child("source", "S3", "url").String()
-		} else if spec.Source.GCS != nil {
-			url = spec.Source.GCS.URL
-			sourceType = field.Child("source", "GCS", "url").String()
-		} else if spec.Source.Imageio != nil {
-			url = spec.Source.Imageio.URL
-			sourceType = field.Child("source", "Imageio", "url").String()
-		} else if spec.Source.VDDK != nil {
-			url = spec.Source.VDDK.URL
-			sourceType = field.Child("source", "VDDK", "url").String()
-		}
-		err := validateSourceURL(url)
-		if err != "" {
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("%s %s", field.Child("source").String(), err),
-				Field:   sourceType,
-			})
-			return causes
-		}
 	}
 
 	// Make sure contentType is either empty (kubevirt), or kubevirt or archive
-	if spec.ContentType != "" && string(spec.ContentType) != string(cdiv1.DataVolumeKubeVirt) && string(spec.ContentType) != string(cdiv1.DataVolumeArchive) {
-		sourceType = field.Child("contentType").String()
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("ContentType not one of: %s, %s", cdiv1.DataVolumeKubeVirt, cdiv1.DataVolumeArchive),
-			Field:   sourceType,
-		})
+	if causes := validateContentType(spec.ContentType, field); causes != nil {
 		return causes
 	}
 
-	if spec.Source.Blank != nil && string(spec.ContentType) == string(cdiv1.DataVolumeArchive) {
-		sourceType = field.Child("contentType").String()
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: "SourceType cannot be blank and the contentType be archive",
-			Field:   sourceType,
-		})
-		return causes
-	}
-
-	if spec.Source.Registry != nil {
-		if spec.ContentType != "" && string(spec.ContentType) != string(cdiv1.DataVolumeKubeVirt) {
-			sourceType = field.Child("contentType").String()
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("ContentType must be %s when Source is Registry", cdiv1.DataVolumeKubeVirt),
-				Field:   sourceType,
-			})
-			return causes
-		}
-
-		causes := validateDataVolumeSourceRegistry(spec.Source.Registry, field)
-		if len(causes) > 0 {
-			return causes
-		}
-
-	}
-
-	if spec.Source.Imageio != nil {
-		if spec.Source.Imageio.SecretRef == "" || spec.Source.Imageio.CertConfigMap == "" || spec.Source.Imageio.DiskID == "" {
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("%s source Imageio is not valid", field.Child("source", "Imageio").String()),
-				Field:   field.Child("source", "Imageio").String(),
-			})
+	// Validate import sources
+	if http := spec.Source.HTTP; http != nil {
+		if causes := validateHTTPSource(http, field); causes != nil {
 			return causes
 		}
 	}
-
-	if spec.Source.VDDK != nil {
-		if spec.Source.VDDK.SecretRef == "" || spec.Source.VDDK.UUID == "" || spec.Source.VDDK.BackingFile == "" || spec.Source.VDDK.Thumbprint == "" {
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("%s source VDDK is not valid", field.Child("source", "VDDK").String()),
-				Field:   field.Child("source", "VDDK").String(),
-			})
+	if s3 := spec.Source.S3; s3 != nil {
+		if causes := validateS3Source(s3, field); causes != nil {
+			return causes
+		}
+	}
+	if gcs := spec.Source.GCS; gcs != nil {
+		if causes := validateGCSSource(gcs, field); causes != nil {
+			return causes
+		}
+	}
+	if blank := spec.Source.Blank; blank != nil {
+		if causes := validateBlankSource(spec.ContentType, field); causes != nil {
+			return causes
+		}
+	}
+	if registry := spec.Source.Registry; registry != nil {
+		if causes := validateRegistrySource(registry, spec.ContentType, field); causes != nil {
+			return causes
+		}
+	}
+	if imageio := spec.Source.Imageio; imageio != nil {
+		if causes := validateImageIOSource(imageio, field); causes != nil {
+			return causes
+		}
+	}
+	if vddk := spec.Source.VDDK; vddk != nil {
+		if causes := validateVDDKSource(vddk, field); causes != nil {
 			return causes
 		}
 	}
 
+	// Validate clone sources
 	if spec.Source.PVC != nil {
 		if spec.Source.PVC.Namespace == "" || spec.Source.PVC.Name == "" {
 			causes = append(causes, metav1.StatusCause{
@@ -305,7 +220,6 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 			}
 		}
 	}
-
 	if spec.Source.Snapshot != nil {
 		if spec.Source.Snapshot.Namespace == "" || spec.Source.Snapshot.Name == "" {
 			causes = append(causes, metav1.StatusCause{
@@ -321,69 +235,6 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 				causes = append(causes, *cause)
 			}
 		}
-	}
-
-	return causes
-}
-
-func validateDataVolumeSourceRegistry(sourceRegistry *cdiv1.DataVolumeSourceRegistry, field *k8sfield.Path) []metav1.StatusCause {
-	var causes []metav1.StatusCause
-	sourceURL := sourceRegistry.URL
-	sourceIS := sourceRegistry.ImageStream
-	if (sourceURL == nil && sourceIS == nil) || (sourceURL != nil && sourceIS != nil) {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: "Source registry should have either URL or ImageStream",
-			Field:   field.Child("source", "Registry").String(),
-		})
-		return causes
-	}
-	if sourceURL != nil {
-		url, err := neturl.Parse(*sourceURL)
-		if err != nil {
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("Illegal registry source URL %s", *sourceURL),
-				Field:   field.Child("source", "Registry", "URL").String(),
-			})
-			return causes
-		}
-		scheme := url.Scheme
-		if scheme != cdiv1.RegistrySchemeDocker && scheme != cdiv1.RegistrySchemeOci {
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("Illegal registry source URL scheme %s", url),
-				Field:   field.Child("source", "Registry", "URL").String(),
-			})
-			return causes
-		}
-	}
-	importMethod := sourceRegistry.PullMethod
-	if importMethod != nil && *importMethod != cdiv1.RegistryPullPod && *importMethod != cdiv1.RegistryPullNode {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("ImportMethod %s is neither %s, %s or \"\"", *importMethod, cdiv1.RegistryPullPod, cdiv1.RegistryPullNode),
-			Field:   field.Child("source", "Registry", "importMethod").String(),
-		})
-		return causes
-	}
-
-	if sourceIS != nil && *sourceIS == "" {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: "Source registry ImageStream is not valid",
-			Field:   field.Child("source", "Registry", "importMethod").String(),
-		})
-		return causes
-	}
-
-	if sourceIS != nil && (importMethod == nil || *importMethod != cdiv1.RegistryPullNode) {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: "Source registry ImageStream is supported only with node pull import method",
-			Field:   field.Child("source", "Registry", "importMethod").String(),
-		})
-		return causes
 	}
 
 	return causes
