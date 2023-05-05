@@ -185,12 +185,12 @@ func createScratchPersistentVolumeClaim(client client.Client, pvc *v1.Persistent
 }
 
 // GetFilesystemOverhead determines the filesystem overhead defined in CDIConfig for this PVC's volumeMode and storageClass.
-func GetFilesystemOverhead(client client.Client, pvc *v1.PersistentVolumeClaim) (cdiv1.Percent, error) {
+func GetFilesystemOverhead(ctx context.Context, client client.Client, pvc *v1.PersistentVolumeClaim) (cdiv1.Percent, error) {
 	if cc.GetVolumeMode(pvc) != v1.PersistentVolumeFilesystem {
 		return "0", nil
 	}
 
-	return cc.GetFilesystemOverheadForStorageClass(client, pvc.Spec.StorageClassName)
+	return cc.GetFilesystemOverheadForStorageClass(ctx, client, pvc.Spec.StorageClassName)
 }
 
 // GetScratchPvcStorageClass tries to determine which storage class to use for use with a scratch persistent

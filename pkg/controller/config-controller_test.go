@@ -96,7 +96,7 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		override := "www.override-something.org.tt.test"
-		cdi, err := GetActiveCDI(reconciler.client)
+		cdi, err := GetActiveCDI(context.TODO(), reconciler.client)
 		Expect(err).ToNot(HaveOccurred())
 		cdi.Spec.Config = &cdiv1.CDIConfigSpec{
 			UploadProxyURLOverride: &override,
@@ -131,7 +131,7 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		override := "www.override-something.org.tt.test"
-		cdi, err := GetActiveCDI(reconciler.client)
+		cdi, err := GetActiveCDI(context.TODO(), reconciler.client)
 		Expect(err).ToNot(HaveOccurred())
 		cdi.Spec.Config = &cdiv1.CDIConfigSpec{
 			UploadProxyURLOverride: &override,

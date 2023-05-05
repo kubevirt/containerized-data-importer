@@ -39,6 +39,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cdicontroller "kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
 )
 
@@ -115,7 +116,7 @@ func reconcileCreateRoute(args *callbacks.ReconcileCallbackArgs) error {
 	}
 
 	cr := args.Resource.(runtime.Object)
-	if err := ensureUploadProxyRouteExists(args.Logger, args.Client, args.Scheme, deployment); err != nil {
+	if err := ensureUploadProxyRouteExists(context.TODO(), args.Logger, args.Client, args.Scheme, deployment); err != nil {
 		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure upload proxy route exists, %v", err))
 		return err
 	}
@@ -137,7 +138,7 @@ func reconcileSCC(args *callbacks.ReconcileCallbackArgs) error {
 	}
 
 	cr := args.Resource.(runtime.Object)
-	if err := ensureSCCExists(args.Logger, args.Client, args.Namespace, common.ControllerServiceAccountName, common.CronJobServiceAccountName); err != nil {
+	if err := ensureSCCExists(context.TODO(), args.Logger, args.Client, args.Namespace, common.ControllerServiceAccountName, common.CronJobServiceAccountName); err != nil {
 		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure SecurityContextConstraint exists, %v", err))
 		return err
 	}
@@ -168,7 +169,7 @@ func reconcileCreatePrometheusInfra(args *callbacks.ReconcileCallbackArgs) error
 	} else if !deployed {
 		return nil
 	}
-	if err := ensurePrometheusResourcesExist(args.Client, args.Scheme, deployment); err != nil {
+	if err := ensurePrometheusResourcesExist(context.TODO(), args.Client, args.Scheme, deployment); err != nil {
 		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure prometheus resources exists, %v", err))
 		return err
 	}
@@ -179,32 +180,18 @@ func reconcileCreatePrometheusInfra(args *callbacks.ReconcileCallbackArgs) error
 func deleteWorkerResources(l logr.Logger, c client.Client) error {
 	listTypes := []client.ObjectList{&corev1.PodList{}, &corev1.ServiceList{}}
 
-	for _, lt := range listTypes {
-		ls, err := labels.Parse(fmt.Sprintf("cdi.kubevirt.io in (%s, %s, %s)",
-			common.ImporterPodName, common.UploadServerCDILabel, common.ClonerSourcePodName))
-		if err != nil {
-			return err
-		}
+	ls, err := labels.Parse(fmt.Sprintf("cdi.kubevirt.io in (%s, %s, %s)",
+		common.ImporterPodName, common.UploadServerCDILabel, common.ClonerSourcePodName))
+	if err != nil {
+		return err
+	}
 
+	for _, lt := range listTypes {
 		lo := &client.ListOptions{
 			LabelSelector: ls,
 		}
-
-		if err := c.List(context.TODO(), lt, lo); err != nil {
-			l.Error(err, "Error listing resources")
+		if err := cc.BulkDeleteResources(context.TODO(), c, lt, lo); err != nil {
 			return err
-		}
-
-		sv := reflect.ValueOf(lt).Elem()
-		iv := sv.FieldByName("Items")
-
-		for i := 0; i < iv.Len(); i++ {
-			obj := iv.Index(i).Addr().Interface().(client.Object)
-			l.Info("Deleting", "type", reflect.TypeOf(obj), "obj", obj)
-			if err := c.Delete(context.TODO(), obj); err != nil {
-				l.Error(err, "Error deleting a resource")
-				return err
-			}
 		}
 	}
 

@@ -6925,6 +6925,90 @@ status:
   conditions: null
   storedVersions: null
 `,
+	"volumeclonesource": `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.11.3
+  creationTimestamp: null
+  name: volumeclonesources.cdi.kubevirt.io
+spec:
+  group: cdi.kubevirt.io
+  names:
+    kind: VolumeCloneSource
+    listKind: VolumeCloneSourceList
+    plural: volumeclonesources
+    singular: volumeclonesource
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: VolumeCloneSource refers to a PVC/VolumeSnapshot of any storageclass/volumemode
+          to be used as the source of a new PVC
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: VolumeCloneSourceSpec defines the Spec field for VolumeCloneSource
+            properties:
+              contentType:
+                description: ContentType represents the type of the cloned data (Kubevirt
+                  or archive)
+                type: string
+              preallocation:
+                description: Preallocation controls whether storage for the target
+                  PVC should be allocated in advance.
+                type: boolean
+              priorityClassName:
+                description: PriorityClassName is the priorityclass for the claim
+                type: string
+              source:
+                description: Source is the src of the data to be cloned to the target
+                  PVC
+                properties:
+                  apiGroup:
+                    description: APIGroup is the group for the resource being referenced.
+                      If APIGroup is not specified, the specified Kind must be in
+                      the core API group. For any other third-party types, APIGroup
+                      is required.
+                    type: string
+                  kind:
+                    description: Kind is the type of resource being referenced
+                    type: string
+                  name:
+                    description: Name is the name of resource being referenced
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
+                x-kubernetes-map-type: atomic
+            required:
+            - source
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null
+`,
 	"volumeimportsource": `apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:

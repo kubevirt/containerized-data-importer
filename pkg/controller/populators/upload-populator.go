@@ -161,7 +161,7 @@ func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 			return reconcile.Result{}, err
 		}
 		// Once the upload is succeeded, we rebind the PV from PVC' to target PVC
-		if err := r.rebindPV(pvc, pvcPrime); err != nil {
+		if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvc); err != nil {
 			return reconcile.Result{}, err
 		}
 		r.recorder.Eventf(pvc, corev1.EventTypeNormal, uploadSucceeded, fmt.Sprintf(messageUploadSucceeded, pvc))

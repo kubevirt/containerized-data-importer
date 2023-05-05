@@ -56,6 +56,10 @@ func (c *FakeCdiV1beta1) StorageProfiles() v1beta1.StorageProfileInterface {
 	return &FakeStorageProfiles{c}
 }
 
+func (c *FakeCdiV1beta1) VolumeCloneSources(namespace string) v1beta1.VolumeCloneSourceInterface {
+	return &FakeVolumeCloneSources{c, namespace}
+}
+
 func (c *FakeCdiV1beta1) VolumeImportSources(namespace string) v1beta1.VolumeImportSourceInterface {
 	return &FakeVolumeImportSources{c, namespace}
 }

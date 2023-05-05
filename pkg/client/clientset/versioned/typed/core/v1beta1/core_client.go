@@ -35,6 +35,7 @@ type CdiV1beta1Interface interface {
 	DataVolumesGetter
 	ObjectTransfersGetter
 	StorageProfilesGetter
+	VolumeCloneSourcesGetter
 	VolumeImportSourcesGetter
 	VolumeUploadSourcesGetter
 }
@@ -70,6 +71,10 @@ func (c *CdiV1beta1Client) ObjectTransfers() ObjectTransferInterface {
 
 func (c *CdiV1beta1Client) StorageProfiles() StorageProfileInterface {
 	return newStorageProfiles(c)
+}
+
+func (c *CdiV1beta1Client) VolumeCloneSources(namespace string) VolumeCloneSourceInterface {
+	return newVolumeCloneSources(c, namespace)
 }
 
 func (c *CdiV1beta1Client) VolumeImportSources(namespace string) VolumeImportSourceInterface {

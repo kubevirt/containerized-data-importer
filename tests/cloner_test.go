@@ -26,7 +26,6 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	ctrl "kubevirt.io/containerized-data-importer/pkg/controller"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/token"
@@ -313,7 +312,7 @@ var _ = Describe("all clone tests", func() {
 			})
 
 			It("[posneg:negative][test_id:6612]Clone with CSI as PVC source with target name that already exists", func() {
-				if cloneType == "network" {
+				if cloneType == "copy" {
 					Skip("Cannot simulate target pvc name conflict for host-assisted clone ")
 				}
 				pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
@@ -338,7 +337,7 @@ var _ = Describe("all clone tests", func() {
 				actualCloneType := utils.GetCloneType(f.CdiClient, dataVolume)
 				if actualCloneType == "snapshot" {
 					f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(dvc.SmartCloneSourceInUse))
-				} else if actualCloneType == "csivolumeclone" {
+				} else if actualCloneType == "csi-clone" {
 					f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(dvc.CSICloneSourceInUse))
 				} else {
 					Fail(fmt.Sprintf("Unknown clonetype %s", actualCloneType))
@@ -482,8 +481,8 @@ var _ = Describe("all clone tests", func() {
 				if !f.IsBlockVolumeStorageClassAvailable() {
 					Skip("Storage Class for block volume is not available")
 				}
-				if cloneType == "csivolumeclone" || cloneType == "snapshot" {
-					Skip("csivolumeclone only works for the same volumeMode")
+				if cloneType == "csi-clone" || cloneType == "snapshot" {
+					Skip("csi-clone only works for the same volumeMode")
 				}
 				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -528,8 +527,8 @@ var _ = Describe("all clone tests", func() {
 				if !f.IsBlockVolumeStorageClassAvailable() {
 					Skip("Storage Class for block volume is not available")
 				}
-				if cloneType == "csivolumeclone" {
-					Skip("csivolumeclone only works for the same volumeMode")
+				if cloneType == "csi-clone" {
+					Skip("csi-clone only works for the same volumeMode")
 				}
 				dataVolume := utils.NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs), f.BlockSCName)
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -576,8 +575,8 @@ var _ = Describe("all clone tests", func() {
 				if !f.IsBlockVolumeStorageClassAvailable() {
 					Skip("Storage Class for block volume is not available")
 				}
-				if cloneType == "csivolumeclone" || cloneType == "snapshot" {
-					Skip("csivolumeclone only works for the same volumeMode")
+				if cloneType == "csi-clone" || cloneType == "snapshot" {
+					Skip("csi-clone only works for the same volumeMode")
 				}
 				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "2Gi", fmt.Sprintf(utils.LargeVirtualDiskQcow, f.CdiInstallNs))
 				filesystem := v1.PersistentVolumeFilesystem
@@ -750,7 +749,7 @@ var _ = Describe("all clone tests", func() {
 					targetDiskImagePath := filepath.Join(testBaseDir, testFile)
 					sourceDiskImagePath := filepath.Join(testBaseDir, testFile)
 
-					if cloneType == "network" && sourceVolumeMode == v1.PersistentVolumeFilesystem {
+					if cloneType == "copy" && sourceVolumeMode == v1.PersistentVolumeFilesystem {
 						Skip("Clone strategy and volume mode combination requires of size-detection pod")
 					}
 
@@ -834,7 +833,7 @@ var _ = Describe("all clone tests", func() {
 				var wffcStorageClass *storagev1.StorageClass
 
 				BeforeEach(func() {
-					if cloneType != "csivolumeclone" && cloneType != "snapshot" {
+					if cloneType != "csi-clone" && cloneType != "snapshot" {
 						Skip("relevant for csi/smart clones only")
 					}
 
@@ -850,7 +849,7 @@ var _ = Describe("all clone tests", func() {
 						}, time.Minute, time.Second).Should(BeTrue())
 						spec, err := utils.GetStorageProfileSpec(f.CdiClient, wffcStorageClass.Name)
 						Expect(err).ToNot(HaveOccurred())
-						if cloneType == "csivolumeclone" {
+						if cloneType == "csi-clone" {
 							Expect(utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, wffcStorageClass.Name, spec, cdiv1.CloneStrategyCsiClone)).Should(Succeed())
 						} else if cloneType == "snapshot" {
 							Expect(utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, wffcStorageClass.Name, spec, cdiv1.CloneStrategySnapshot)).Should(Succeed())
@@ -1012,7 +1011,7 @@ var _ = Describe("all clone tests", func() {
 						Expect(err).ToNot(HaveOccurred())
 					}
 
-					if cloneType == "network" {
+					if cloneType == "copy" {
 						// Make sure we don't have high number of restart counts on source pods
 						for _, dv := range targetDvs {
 							pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
@@ -1035,7 +1034,7 @@ var _ = Describe("all clone tests", func() {
 						pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
 						Expect(err).ToNot(HaveOccurred())
 
-						if cloneSourcePod := pvc.Annotations[ctrl.AnnCloneSourcePod]; cloneSourcePod != "" {
+						if cloneSourcePod := pvc.Annotations[controller.AnnCloneSourcePod]; cloneSourcePod != "" {
 							By(fmt.Sprintf("Getting pod %s/%s", dv.Namespace, cloneSourcePod))
 							pod, err := f.K8sClient.CoreV1().Pods(dv.Namespace).Get(context.TODO(), cloneSourcePod, metav1.GetOptions{})
 							Expect(err).ToNot(HaveOccurred())
@@ -1123,7 +1122,7 @@ var _ = Describe("all clone tests", func() {
 				By("[AfterEach] Restore the profile")
 				Expect(utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)).Should(Succeed())
 			})
-			ClonerBehavior(cloneStorageClassName, "network")
+			ClonerBehavior(cloneStorageClassName, "copy")
 		})
 
 		Context("SmartClone", func() {
@@ -1168,7 +1167,7 @@ var _ = Describe("all clone tests", func() {
 				By("[AfterEach] Restore the profile")
 				Expect(utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)).Should(Succeed())
 			})
-			ClonerBehavior(cloneStorageClassName, "csivolumeclone")
+			ClonerBehavior(cloneStorageClassName, "csi-clone")
 		})
 
 		// The size-detection pod is only used in cloning when three requirements are met:
@@ -1526,7 +1525,7 @@ var _ = Describe("all clone tests", func() {
 
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(utils.GetCloneType(f.CdiClient, dataVolume)).To(Equal("csivolumeclone"))
+				Expect(utils.GetCloneType(f.CdiClient, dataVolume)).To(Equal("csi-clone"))
 			})
 		})
 
@@ -2210,8 +2209,8 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			cloneType := utils.GetCloneType(f.CdiClient, dataVolume)
-			if cloneType != "network" {
-				Skip("only valid for network clone")
+			if cloneType != "copy" {
+				Skip("only valid for copy clone")
 			}
 
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -2262,8 +2261,8 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			cloneType := utils.GetCloneType(f.CdiClient, dataVolume)
-			if cloneType != "network" {
-				Skip("only valid for network clone")
+			if cloneType != "copy" {
+				Skip("only valid for copy clone")
 			}
 
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -2321,8 +2320,8 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			cloneType := utils.GetCloneType(f.CdiClient, dv)
-			if cloneType != "network" {
-				Skip("only valid for network clone")
+			if cloneType != "copy" {
+				Skip("only valid for copy clone")
 			}
 
 			By("Verify retry annotation on PVC")
@@ -2358,8 +2357,8 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			cloneType := utils.GetCloneType(f.CdiClient, dataVolume)
-			if cloneType != "network" {
-				Skip("only valid for network clone")
+			if cloneType != "copy" {
+				Skip("only valid for copy clone")
 			}
 
 			targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
@@ -2420,7 +2419,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			cloneType := utils.GetCloneType(f.CdiClient, dv)
-			if cloneType == "network" {
+			if cloneType == "copy" {
 				By("Verify retry annotation on PVC")
 				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
 				Expect(err).ToNot(HaveOccurred())
@@ -2459,7 +2458,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			cloneType := utils.GetCloneType(f.CdiClient, dv)
-			if cloneType == "network" {
+			if cloneType == "copy" {
 				By("Verify retry annotation on PVC")
 				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
 				Expect(err).ToNot(HaveOccurred())
@@ -2498,7 +2497,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			cloneType := utils.GetCloneType(f.CdiClient, dv)
-			if cloneType == "network" {
+			if cloneType == "copy" {
 				By("Verify retry annotation on PVC")
 				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
 				Expect(err).ToNot(HaveOccurred())
@@ -2992,7 +2991,7 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 	var targetPvc *v1.PersistentVolumeClaim
 	cloneType := utils.GetCloneType(f.CdiClient, dataVolume)
 
-	if cloneType == "network" {
+	if cloneType == "copy" {
 		targetPvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -3075,7 +3074,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 			Expect(s.DeletionTimestamp).ToNot(BeNil())
 		}
 		fallthrough
-	case "csivolumeclone":
+	case "csi-clone":
 		if sns != dv.Namespace {
 			tmpName := fmt.Sprintf("cdi-tmp-%s", dv.UID)
 			tmpPvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(sns).Get(context.TODO(), tmpName, metav1.GetOptions{})
@@ -3100,7 +3099,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 				return ot.DeletionTimestamp != nil
 			}, 90*time.Second, 2*time.Second).Should(BeTrue())
 		}
-	case "network":
+	case "copy":
 		s, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(context.TODO(), "cdi-api-signing-key", metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		bytes, ok := s.Data["id_rsa.pub"]
@@ -3171,7 +3170,7 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 		return
 	}
 
-	cloneType := "network"
+	cloneType := "copy"
 	if f.IsSnapshotStorageClassAvailable() {
 		sourceNamespace := dv.Namespace
 		if dv.Spec.Source.PVC.Namespace != "" {
@@ -3221,7 +3220,7 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 				(!isCrossNamespaceClone || bindingMode == storagev1.VolumeBindingImmediate) &&
 				(allowsExpansion || sourcePVC.Status.Capacity.Storage().Cmp(*targetPVC.Status.Capacity.Storage()) == 0) {
 
-				cloneType = "csivolumeclone"
+				cloneType = "csi-clone"
 			}
 		}
 	}

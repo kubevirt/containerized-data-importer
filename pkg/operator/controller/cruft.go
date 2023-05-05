@@ -278,7 +278,7 @@ func (r *ReconcileCDI) watchCDICRD() error {
 			if name != "cdis.cdi.kubevirt.io" {
 				return nil
 			}
-			cr, err := cc.GetActiveCDI(r.client)
+			cr, err := cc.GetActiveCDI(context.TODO(), r.client)
 			if err != nil {
 				return nil
 			}

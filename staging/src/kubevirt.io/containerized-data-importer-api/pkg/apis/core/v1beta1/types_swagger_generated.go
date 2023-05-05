@@ -370,6 +370,29 @@ func (VolumeUploadSourceList) SwaggerDoc() map[string]string {
 	}
 }
 
+func (VolumeCloneSource) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "VolumeCloneSource refers to a PVC/VolumeSnapshot of any storageclass/volumemode\nto be used as the source of a new PVC\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion",
+	}
+}
+
+func (VolumeCloneSourceSpec) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                  "VolumeCloneSourceSpec defines the Spec field for VolumeCloneSource",
+		"source":            "Source is the src of the data to be cloned to the target PVC",
+		"preallocation":     "Preallocation controls whether storage for the target PVC should be allocated in advance.\n+optional",
+		"contentType":       "ContentType represents the type of the cloned data (Kubevirt or archive)\n+optional",
+		"priorityClassName": "PriorityClassName is the priorityclass for the claim\n+optional",
+	}
+}
+
+func (VolumeCloneSourceList) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":      "VolumeCloneSourceList provides the needed parameters to do request a list of VolumeCloneSources from the system\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
+		"items": "Items provides a list of DataSources",
+	}
+}
+
 func (CDI) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":       "CDI is the CDI Operator CRD\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion\n+kubebuilder:resource:shortName=cdi;cdis,scope=Cluster\n+kubebuilder:printcolumn:name=\"Age\",type=\"date\",JSONPath=\".metadata.creationTimestamp\"\n+kubebuilder:printcolumn:name=\"Phase\",type=\"string\",JSONPath=\".status.phase\"",

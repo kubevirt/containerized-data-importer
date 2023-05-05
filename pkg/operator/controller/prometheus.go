@@ -59,10 +59,10 @@ const (
 	componentAlertLabelValue  = common.CDILabelValue
 )
 
-func ensurePrometheusResourcesExist(c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
+func ensurePrometheusResourcesExist(ctx context.Context, c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
 	namespace := owner.GetNamespace()
 
-	cr, err := cc.GetActiveCDI(c)
+	cr, err := cc.GetActiveCDI(ctx, c)
 	if err != nil {
 		return err
 	}
@@ -87,11 +87,11 @@ func ensurePrometheusResourcesExist(c client.Client, scheme *runtime.Scheme, own
 			return err
 		}
 
-		if err := c.Create(context.TODO(), desired); err != nil {
+		if err := c.Create(ctx, desired); err != nil {
 			if k8serrors.IsAlreadyExists(err) {
 				current := sdk.NewDefaultInstance(desired)
 				nn := client.ObjectKeyFromObject(desired)
-				if err := c.Get(context.TODO(), nn, current); err != nil {
+				if err := c.Get(ctx, nn, current); err != nil {
 					return err
 				}
 				current, err = sdk.StripStatusFromObject(current)
@@ -105,7 +105,7 @@ func ensurePrometheusResourcesExist(c client.Client, scheme *runtime.Scheme, own
 					return err
 				}
 				if !reflect.DeepEqual(currentObjCopy, merged) {
-					if err := c.Update(context.TODO(), merged); err != nil {
+					if err := c.Update(ctx, merged); err != nil {
 						return err
 					}
 				}

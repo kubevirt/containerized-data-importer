@@ -44,7 +44,7 @@ func (h *dataVolumeTransferHandler) ReconcilePending(ot *cdiv1.ObjectTransfer) (
 		return 0, nil
 	}
 
-	pods, err := cc.GetPodsUsingPVCs(h.reconciler.Client, dv.Namespace, sets.New[string](getDataVolumeClaimName(dv)), false)
+	pods, err := cc.GetPodsUsingPVCs(context.TODO(), h.reconciler.Client, dv.Namespace, sets.New(getDataVolumeClaimName(dv)), false)
 	if err != nil {
 		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}

@@ -720,7 +720,7 @@ var _ = Describe("Create Importer Pod", func() {
 			scratchPvcName:    scratchPvcName,
 			priorityClassName: pvc.Annotations[cc.AnnPriorityClassName],
 		}
-		pod, err := createImporterPod(reconciler.log, reconciler.client, podArgs, map[string]string{})
+		pod, err := createImporterPod(context.TODO(), reconciler.log, reconciler.client, podArgs, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying PVC owns pod")
 		Expect(pod.GetOwnerReferences()).To(HaveLen(1))
@@ -1175,7 +1175,7 @@ func updateCdiWithTestNodePlacement(c client.Client) sdkapi.NodePlacement {
 	err = c.Update(context.TODO(), cr)
 	Expect(err).ToNot(HaveOccurred())
 
-	placement, err := cc.GetWorkloadNodePlacement(c)
+	placement, err := cc.GetWorkloadNodePlacement(context.TODO(), c)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(*placement).To(Equal(workloads))
 

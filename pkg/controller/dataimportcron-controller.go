@@ -864,7 +864,7 @@ func (r *DataImportCronReconciler) initCronJob(cron *cdiv1.DataImportCron, cronJ
 	if err != nil {
 		return err
 	}
-	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(r.client)
+	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(context.TODO(), r.client)
 	if err != nil {
 		return err
 	}

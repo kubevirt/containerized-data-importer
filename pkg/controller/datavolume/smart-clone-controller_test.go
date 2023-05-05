@@ -339,20 +339,3 @@ func createSnapshotVolume(name, namespace string, owner *metav1.OwnerReference) 
 		Status: &snapshotv1.VolumeSnapshotStatus{},
 	}
 }
-
-func createCloneDataVolume(name, namespace, pvcName, pvcNamespace string) *cdiv1.DataVolume {
-	return &cdiv1.DataVolume{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: cdiv1.DataVolumeSpec{
-			Source: &cdiv1.DataVolumeSource{
-				PVC: &cdiv1.DataVolumeSourcePVC{
-					Name:      pvcName,
-					Namespace: pvcNamespace,
-				},
-			},
-		},
-	}
-}

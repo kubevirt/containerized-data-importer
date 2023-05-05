@@ -135,7 +135,7 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		r.recorder.Eventf(pvcPrime, corev1.EventTypeWarning, importFailed, messageImportFailed, pvc.Name)
 	case string(corev1.PodSucceeded):
 		// Once the import is succeeded, we rebind the PV from PVC' to target PVC
-		if err := r.rebindPV(pvc, pvcPrime); err != nil {
+		if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvc); err != nil {
 			return reconcile.Result{}, err
 		}
 		r.recorder.Eventf(pvc, corev1.EventTypeNormal, importSucceeded, messageImportSucceeded, pvc.Name)

@@ -1,7 +1,9 @@
 package controller
 
 import (
+	"context"
 	"fmt"
+
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -97,14 +99,14 @@ var _ = Describe("GetScratchPVCStorageClass", func() {
 var _ = Describe("GetWorkloadNodePlacement", func() {
 	It("Should return a node placement, with one CDI CR", func() {
 		client := CreateClient(createCDIWithWorkload("cdi-test", "1111-1111"))
-		res, err := GetWorkloadNodePlacement(client)
+		res, err := GetWorkloadNodePlacement(context.TODO(), client)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(res).ToNot(BeNil())
 	})
 
 	It("Should return an err with > 1 CDI CR", func() {
 		client := CreateClient(createCDIWithWorkload("cdi-test", "1111-1111"), createCDIWithWorkload("cdi-test2", "2222-2222"))
-		res, err := GetWorkloadNodePlacement(client)
+		res, err := GetWorkloadNodePlacement(context.TODO(), client)
 		Expect(err).To(HaveOccurred())
 		Expect(res).To(BeNil())
 	})
@@ -113,7 +115,7 @@ var _ = Describe("GetWorkloadNodePlacement", func() {
 		errCR := createCDIWithWorkload("cdi-test2", "2222-2222")
 		errCR.Status.Phase = sdkapi.PhaseError
 		client := CreateClient(createCDIWithWorkload("cdi-test", "1111-1111"), errCR)
-		res, err := GetWorkloadNodePlacement(client)
+		res, err := GetWorkloadNodePlacement(context.TODO(), client)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(res).ToNot(BeNil())
 	})

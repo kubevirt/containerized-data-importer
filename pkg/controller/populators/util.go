@@ -17,17 +17,22 @@ limitations under the License.
 package populators
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
 const (
+	// AnnPopulatorProgress is a standard annotation that can be used progress reporting
+	AnnPopulatorProgress = cc.AnnAPIGroup + "/storage.populator.progress"
+
 	primePvcPrefix = "prime"
 
 	// errCreatingPVCPrime provides a const to indicate we failed to create PVC prime for population
@@ -92,6 +97,32 @@ func getPopulatorIndexKey(apiGroup, kind, namespace, name string) string {
 	return fmt.Sprintf("%s/%s/%s/%s", apiGroup, kind, namespace, name)
 }
 
+func claimReadyForPopulation(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (bool, string, error) {
+	if pvc.Spec.StorageClassName == nil {
+		return true, "", nil
+	}
+
+	nodeName := ""
+	storageClass, err := cc.GetStorageClassByName(ctx, c, pvc.Spec.StorageClassName)
+	if err != nil {
+		return false, nodeName, err
+	}
+
+	if checkIntreeStorageClass(pvc, storageClass) {
+		return false, nodeName, fmt.Errorf("can't use populator for PVC %s/%s with in-tree storage class %s", pvc.Namespace, pvc.Name, storageClass.Provisioner)
+	}
+
+	if storageClass.VolumeBindingMode != nil && *storageClass.VolumeBindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
+		nodeName = pvc.Annotations[cc.AnnSelectedNode]
+		if nodeName == "" {
+			// Wait for the PVC to get a node name before continuing
+			return false, nodeName, nil
+		}
+	}
+
+	return true, nodeName, nil
+}
+
 func checkIntreeStorageClass(pvc *corev1.PersistentVolumeClaim, sc *storagev1.StorageClass) bool {
 	if !strings.HasPrefix(sc.Provisioner, "kubernetes.io/") {
 		// This is not an in-tree StorageClass
@@ -107,10 +138,4 @@ func checkIntreeStorageClass(pvc *corev1.PersistentVolumeClaim, sc *storagev1.St
 
 	// The SC is in-tree & PVC is not migrated
 	return true
-}
-
-// IsPVBoundToPVC returns true if the passed PVC and PV are bound to each other
-func IsPVBoundToPVC(pv *corev1.PersistentVolume, pvc *corev1.PersistentVolumeClaim) bool {
-	claimRef := pv.Spec.ClaimRef
-	return claimRef.Name == pvc.Name && claimRef.Namespace == pvc.Namespace && claimRef.UID == pvc.UID
 }

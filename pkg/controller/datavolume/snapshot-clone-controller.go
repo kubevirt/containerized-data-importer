@@ -327,7 +327,7 @@ func (r *SnapshotCloneReconciler) evaluateFallBackToHostAssistedNeeded(datavolum
 		return true, err
 	}
 	targetPvcStorageClassName := pvcSpec.StorageClassName
-	targetStorageClass, err := cc.GetStorageClassByName(r.client, targetPvcStorageClassName)
+	targetStorageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, targetPvcStorageClassName)
 	if err != nil {
 		return true, err
 	}

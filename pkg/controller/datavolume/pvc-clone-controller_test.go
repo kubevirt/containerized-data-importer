@@ -43,7 +43,6 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 )
@@ -617,7 +616,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(dv.Status.ClaimName).To(Equal("test-dv"))
 			Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
 			Expect(dv.Annotations[AnnPrePopulated]).To(Equal("test-dv"))
-			Expect(dv.Annotations[annCloneType]).To(BeEmpty())
+			Expect(dv.Annotations[AnnCloneType]).To(BeEmpty())
 			Expect(result).To(Equal(reconcile.Result{}))
 		})
 
@@ -854,7 +853,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			// Get the expected value
 			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, pvc)
 			Expect(err).ToNot(HaveOccurred())
-			expectedSize, err := cc.InflateSizeWithOverhead(reconciler.client, int64(100), pvcSpec)
+			expectedSize, err := InflateSizeWithOverhead(context.TODO(), reconciler.client, int64(100), pvcSpec)
 			Expect(err).ToNot(HaveOccurred())
 			expectedSizeInt64, _ := expectedSize.AsInt64()
 
@@ -885,7 +884,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			// Get the expected value
 			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, pvc)
 			Expect(err).ToNot(HaveOccurred())
-			expectedSize, err := cc.InflateSizeWithOverhead(reconciler.client, int64(100), pvcSpec)
+			expectedSize, err := InflateSizeWithOverhead(context.TODO(), reconciler.client, int64(100), pvcSpec)
 			Expect(err).ToNot(HaveOccurred())
 			expectedSizeInt64, _ := expectedSize.AsInt64()
 

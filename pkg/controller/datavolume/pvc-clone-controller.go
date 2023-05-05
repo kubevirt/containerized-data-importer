@@ -27,7 +27,6 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -65,7 +64,7 @@ const (
 const pvcCloneControllerName = "datavolume-pvc-clone-controller"
 
 // ErrInvalidTermMsg reports that the termination message from the size-detection pod doesn't exists or is not a valid quantity
-var ErrInvalidTermMsg = fmt.Errorf("The termination message from the size-detection pod is not-valid")
+var ErrInvalidTermMsg = fmt.Errorf("the termination message from the size-detection pod is not-valid")
 
 // PvcCloneReconciler members
 type PvcCloneReconciler struct {
@@ -276,15 +275,6 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 	datavolume := syncRes.dvMutated
 	transferName := getTransferName(datavolume)
 
-	// Get the most appropiate clone strategy
-	selectedCloneStrategy, err := r.selectCloneStrategy(datavolume, pvcSpec)
-	if err != nil {
-		return syncRes, err
-	}
-	if selectedCloneStrategy != NoClone {
-		cc.AddAnnotation(datavolume, annCloneType, cloneStrategyToCloneType(selectedCloneStrategy))
-	}
-
 	pvcPopulated := pvcIsPopulated(pvc, datavolume)
 	staticProvisionPending := checkStaticProvisionPending(pvc, datavolume)
 	prePopulated := dvIsPrePopulated(datavolume)
@@ -298,6 +288,15 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 		return syncRes, err
 	} else if !done {
 		return syncRes, nil
+	}
+
+	// Get the most appropiate clone strategy
+	selectedCloneStrategy, err := r.selectCloneStrategy(datavolume, pvcSpec)
+	if err != nil {
+		return syncRes, err
+	}
+	if selectedCloneStrategy != NoClone {
+		cc.AddAnnotation(datavolume, cc.AnnCloneType, cloneStrategyToCloneType(selectedCloneStrategy))
 	}
 
 	if selectedCloneStrategy == SmartClone {
@@ -343,7 +342,7 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 			}
 			if !csiDriverAvailable {
 				// err csi clone not possible
-				storageClass, err := cc.GetStorageClassByName(r.client, pvcSpec.StorageClassName)
+				storageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, pvcSpec.StorageClassName)
 				if err != nil {
 					return syncRes, err
 				}
@@ -576,9 +575,9 @@ func cloneStrategyToCloneType(selectedCloneStrategy cloneStrategy) string {
 	case SmartClone:
 		return "snapshot"
 	case CsiClone:
-		return "csivolumeclone"
+		return "csi-clone"
 	case HostAssistedClone:
-		return "network"
+		return "copy"
 	}
 	return ""
 }
@@ -694,7 +693,7 @@ func (r *PvcCloneReconciler) isSourcePVCPopulated(dv *cdiv1.DataVolume) (bool, e
 }
 
 func (r *PvcCloneReconciler) sourceInUse(dv *cdiv1.DataVolume, eventReason string) (bool, error) {
-	pods, err := cc.GetPodsUsingPVCs(r.client, dv.Spec.Source.PVC.Namespace, sets.New(dv.Spec.Source.PVC.Name), false)
+	pods, err := cc.GetPodsUsingPVCs(context.TODO(), r.client, dv.Spec.Source.PVC.Namespace, sets.New(dv.Spec.Source.PVC.Name), false)
 	if err != nil {
 		return false, err
 	}
@@ -735,7 +734,7 @@ func (r *PvcCloneReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.Dat
 	}
 
 	targetPvcStorageClassName := targetStorageSpec.StorageClassName
-	targetStorageClass, err := cc.GetStorageClassByName(r.client, targetPvcStorageClassName)
+	targetStorageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, targetPvcStorageClassName)
 	if err != nil {
 		return "", err
 	}
@@ -815,7 +814,7 @@ func (r *PvcCloneReconciler) advancedClonePossible(dataVolume *cdiv1.DataVolume,
 		return false, err
 	}
 
-	targetStorageClass, err := cc.GetStorageClassByName(r.client, targetStorageSpec.StorageClassName)
+	targetStorageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, targetStorageSpec.StorageClassName)
 	if err != nil {
 		return false, err
 	}
@@ -896,7 +895,7 @@ func (r *PvcCloneReconciler) validateAdvancedCloneSizeCompatible(
 	targetStorageSpec *corev1.PersistentVolumeClaimSpec) (bool, error) {
 	srcStorageClass := &storagev1.StorageClass{}
 	if sourcePvc.Spec.StorageClassName == nil {
-		return false, fmt.Errorf("Source PVC Storage Class name wasn't populated yet by PVC controller")
+		return false, fmt.Errorf("source PVC Storage Class name wasn't populated yet by PVC controller")
 	}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *sourcePvc.Spec.StorageClassName}, srcStorageClass); cc.IgnoreNotFound(err) != nil {
 		return false, err
@@ -928,7 +927,7 @@ func (r *PvcCloneReconciler) getCloneStrategy(dataVolume *cdiv1.DataVolume) (*cd
 	if err != nil {
 		return nil, err
 	}
-	storageClass, err := cc.GetStorageClassByName(r.client, sourcePvc.Spec.StorageClassName)
+	storageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, sourcePvc.Spec.StorageClassName)
 	if err != nil {
 		return nil, err
 	}
@@ -976,7 +975,7 @@ func (r *PvcCloneReconciler) findSourcePvc(dataVolume *cdiv1.DataVolume) (*corev
 }
 
 func (r *PvcCloneReconciler) getGlobalCloneStrategyOverride() (*cdiv1.CDICloneStrategy, error) {
-	cr, err := cc.GetActiveCDI(r.client)
+	cr, err := cc.GetActiveCDI(context.TODO(), r.client)
 	if err != nil {
 		return nil, err
 	}
@@ -1148,7 +1147,7 @@ func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState, cloneType c
 	}
 
 	// Parse size into a 'Quantity' struct and, if needed, inflate it with filesystem overhead
-	targetCapacity, err := cc.InflateSizeWithOverhead(r.client, targetSize, syncState.pvcSpec)
+	targetCapacity, err := cc.InflateSizeWithOverhead(context.TODO(), r.client, targetSize, syncState.pvcSpec)
 	if err != nil {
 		return false, err
 	}
@@ -1252,7 +1251,7 @@ func (r *PvcCloneReconciler) makeSizeDetectionPodSpec(
 	sourcePvc *corev1.PersistentVolumeClaim,
 	dv *cdiv1.DataVolume) *corev1.Pod {
 
-	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(r.client)
+	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(context.TODO(), r.client)
 	if err != nil {
 		return nil
 	}
@@ -1417,6 +1416,6 @@ func sizeDetectionPodName(pvc *corev1.PersistentVolumeClaim) string {
 }
 
 // isPodComplete returns true if a pod is in 'Succeeded' phase, false if not
-func isPodComplete(pod *v1.Pod) bool {
-	return pod != nil && pod.Status.Phase == v1.PodSucceeded
+func isPodComplete(pod *corev1.Pod) bool {
+	return pod != nil && pod.Status.Phase == corev1.PodSucceeded
 }

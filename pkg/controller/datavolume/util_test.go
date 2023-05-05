@@ -1,6 +1,7 @@
 package datavolume
 
 import (
+	"context"
 	"strconv"
 
 	. "github.com/onsi/ginkgo"
@@ -10,7 +11,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -25,11 +25,11 @@ import (
 var _ = Describe("resolveVolumeSize", func() {
 	client := createClient()
 	scName := "test"
-	pvcSpec := &v1.PersistentVolumeClaimSpec{
-		AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany, v1.ReadWriteOnce},
-		Resources: v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				v1.ResourceName(v1.ResourceStorage): resource.MustParse("1G"),
+	pvcSpec := &corev1.PersistentVolumeClaimSpec{
+		AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany, corev1.ReadWriteOnce},
+		Resources: corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("1G"),
 			},
 		},
 		StorageClassName: &scName,
@@ -88,7 +88,7 @@ var _ = Describe("resolveVolumeSize", func() {
 		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, pvcSpec)
 		Expect(err).ToNot(HaveOccurred())
 		// Inflate expected size with overhead
-		fsOverhead, err2 := GetFilesystemOverheadForStorageClass(client, dv.Spec.Storage.StorageClassName)
+		fsOverhead, err2 := GetFilesystemOverheadForStorageClass(context.TODO(), client, dv.Spec.Storage.StorageClassName)
 		Expect(err2).ToNot(HaveOccurred())
 		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
 		requiredSpace := GetRequiredSpace(fsOverheadFloat, requestedVolumeSize.Value())

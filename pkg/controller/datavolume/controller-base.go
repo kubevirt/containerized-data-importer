@@ -659,7 +659,7 @@ func (r *ReconcilerBase) createPvcForDatavolume(datavolume *cdiv1.DataVolume, pv
 
 func (r *ReconcilerBase) getStorageClassBindingMode(storageClassName *string) (*storagev1.VolumeBindingMode, error) {
 	// Handle unspecified storage class name, fallback to default storage class
-	storageClass, err := cc.GetStorageClassByName(r.client, storageClassName)
+	storageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, storageClassName)
 	if err != nil {
 		return nil, err
 	}
@@ -1113,7 +1113,7 @@ func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncState *dvSyncSta
 func (r *ReconcilerBase) storageClassCSIDriverExists(storageClassName *string) (bool, error) {
 	log := r.log.WithName("getCsiDriverForStorageClass").V(3)
 
-	storageClass, err := cc.GetStorageClassByName(r.client, storageClassName)
+	storageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, storageClassName)
 	if err != nil {
 		return false, err
 	}

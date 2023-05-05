@@ -11,6 +11,7 @@ go_library(
         "interface.go",
         "objecttransfer.go",
         "storageprofile.go",
+        "volumeclonesource.go",
         "volumeimportsource.go",
         "volumeuploadsource.go",
     ],
