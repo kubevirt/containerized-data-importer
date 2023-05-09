@@ -12,22 +12,31 @@ import (
 
 	authv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"kubevirt.io/containerized-data-importer/pkg/clone"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-type sarProxy struct {
-	client kubernetes.Interface
+type authProxy struct {
+	k8sClient kubernetes.Interface
+	cdiClient cdiclientset.Interface
 }
 
-func (p *sarProxy) Create(sar *authv1.SubjectAccessReview) (*authv1.SubjectAccessReview, error) {
-	return p.client.AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), sar, metav1.CreateOptions{})
+func (p *authProxy) CreateSar(sar *authv1.SubjectAccessReview) (*authv1.SubjectAccessReview, error) {
+	return p.k8sClient.AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), sar, metav1.CreateOptions{})
+}
+
+func (p *authProxy) GetNamespace(name string) (*corev1.Namespace, error) {
+	return p.k8sClient.CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
+}
+
+func (p *authProxy) GetDataSource(namespace, name string) (*cdiv1.DataSource, error) {
+	return p.cdiClient.CdiV1beta1().DataSources(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 var _ = Describe("Clone Auth Webhook tests", func() {
@@ -195,6 +204,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 		Context("Authorization checks", func() {
 			var err error
 			var targetNamespace *corev1.Namespace
+			var proxy *authProxy
 
 			BeforeEach(func() {
 				targetNamespace, err = f.CreateNamespace("cdi-auth-webhook-test", nil)
@@ -203,6 +213,8 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				createServiceAccount(f.K8sClient, targetNamespace.Name, serviceAccountName)
 
 				addPermissionToNamespace(f.K8sClient, cdiRole, targetNamespace.Name, serviceAccountName, "", targetNamespace.Name)
+
+				proxy = &authProxy{k8sClient: f.K8sClient, cdiClient: f.CdiClient}
 			})
 
 			AfterEach(func() {
@@ -213,11 +225,11 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 			})
 
 			DescribeTable("should deny/allow user when creating PVC clone datavolume", func(role *rbacv1.Role, saName, groupName string) {
-				srcPVCDef := utils.NewPVCDefinition("source-pvc", "1G", nil, nil)
+				srcPVCDef := utils.NewPVCDefinition("source-pvc", "1Gi", nil, nil)
 				srcPVCDef.Namespace = f.Namespace.Name
 				f.CreateAndPopulateSourcePVC(srcPVCDef, "fill-source", fmt.Sprintf("echo \"hello world\" > %s/data.txt", utils.DefaultPvcMountPath))
 
-				targetDV := utils.NewCloningDataVolume("target-dv", "1G", srcPVCDef)
+				targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", srcPVCDef)
 
 				client, err := f.GetCdiClientForServiceAccount(targetNamespace.Name, serviceAccountName)
 				Expect(err).ToNot(HaveOccurred())
@@ -235,14 +247,9 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				Expect(err).To(HaveOccurred())
 
 				// let's do manual check as well
-				allowed, reason, err := clone.CanServiceAccountClonePVC(&sarProxy{client: f.K8sClient},
-					srcPVCDef.Namespace,
-					srcPVCDef.Name,
-					targetNamespace.Name,
-					serviceAccountName,
-				)
-				Expect(allowed).To(BeFalse())
-				Expect(reason).ToNot(BeEmpty())
+				response, err := targetDV.AuthorizeSA(targetNamespace.Name, targetDV.Name, proxy, targetNamespace.Name, serviceAccountName)
+				Expect(response.Allowed).To(BeFalse())
+				Expect(response.Reason).ToNot(BeEmpty())
 				Expect(err).ToNot(HaveOccurred())
 
 				addPermissionToNamespace(f.K8sClient, role, targetNamespace.Name, saName, groupName, f.Namespace.Name)
@@ -260,14 +267,9 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				}, 60*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
 
 				// let's do another manual check as well
-				allowed, reason, err = clone.CanServiceAccountClonePVC(&sarProxy{client: f.K8sClient},
-					srcPVCDef.Namespace,
-					srcPVCDef.Name,
-					targetNamespace.Name,
-					serviceAccountName,
-				)
-				Expect(allowed).To(BeTrue())
-				Expect(reason).To(BeEmpty())
+				response, err = targetDV.AuthorizeSA(targetNamespace.Name, targetDV.Name, proxy, targetNamespace.Name, serviceAccountName)
+				Expect(response.Allowed).To(BeTrue())
+				Expect(response.Reason).To(BeEmpty())
 				Expect(err).ToNot(HaveOccurred())
 			},
 				Entry("[test_id:3935]when using explicit CDI permissions", explicitRole, serviceAccountName, ""),
@@ -281,7 +283,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
 				}
 
-				srcPVCDef := utils.NewPVCDefinition("source-pvc", "1G", nil, nil)
+				srcPVCDef := utils.NewPVCDefinition("source-pvc", "1Gi", nil, nil)
 				srcPVCDef.Namespace = f.Namespace.Name
 				pvc := f.CreateAndPopulateSourcePVC(srcPVCDef, "fill-source", fmt.Sprintf("echo \"hello world\" > %s/data.txt", utils.DefaultPvcMountPath))
 
@@ -300,8 +302,8 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				}
 				err = f.CrClient.Create(context.TODO(), snapshot)
 				Expect(err).ToNot(HaveOccurred())
-				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
-				targetDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("target-dv", "1G", snapshot.Namespace, snapshot.Name, nil, &volumeMode)
+				volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem)
+				targetDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("target-dv", "1Gi", snapshot.Namespace, snapshot.Name, nil, &volumeMode)
 
 				client, err := f.GetCdiClientForServiceAccount(targetNamespace.Name, serviceAccountName)
 				Expect(err).ToNot(HaveOccurred())
@@ -319,14 +321,9 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				Expect(err).To(HaveOccurred())
 
 				// let's do manual check as well
-				allowed, reason, err := clone.CanServiceAccountCloneSnapshot(&sarProxy{client: f.K8sClient},
-					srcPVCDef.Namespace,
-					srcPVCDef.Name,
-					targetNamespace.Name,
-					serviceAccountName,
-				)
-				Expect(allowed).To(BeFalse())
-				Expect(reason).ToNot(BeEmpty())
+				response, err := targetDV.AuthorizeSA(targetNamespace.Name, targetDV.Name, proxy, targetNamespace.Name, serviceAccountName)
+				Expect(response.Allowed).To(BeFalse())
+				Expect(response.Reason).ToNot(BeEmpty())
 				Expect(err).ToNot(HaveOccurred())
 
 				addPermissionToNamespace(f.K8sClient, role, targetNamespace.Name, saName, groupName, f.Namespace.Name)
@@ -354,14 +351,9 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				}, 60*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
 
 				// let's do another manual check as well
-				allowed, reason, err = clone.CanServiceAccountCloneSnapshot(&sarProxy{client: f.K8sClient},
-					srcPVCDef.Namespace,
-					srcPVCDef.Name,
-					targetNamespace.Name,
-					serviceAccountName,
-				)
-				Expect(allowed).To(BeTrue())
-				Expect(reason).To(BeEmpty())
+				response, err = targetDV.AuthorizeSA(targetNamespace.Name, targetDV.Name, proxy, targetNamespace.Name, serviceAccountName)
+				Expect(response.Allowed).To(BeTrue())
+				Expect(response.Reason).To(BeEmpty())
 				Expect(err).ToNot(HaveOccurred())
 			},
 				Entry("when using explicit CDI permissions", explicitRole, serviceAccountName, "", false),

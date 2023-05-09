@@ -23,10 +23,9 @@ import (
 	"context"
 	"encoding/json"
 
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	authv1 "k8s.io/api/authorization/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/kubernetes"
@@ -34,7 +33,6 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-	"kubevirt.io/containerized-data-importer/pkg/clone"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
@@ -44,45 +42,23 @@ type dataVolumeMutatingWebhook struct {
 	k8sClient      kubernetes.Interface
 	cdiClient      cdiclient.Interface
 	tokenGenerator token.Generator
-	proxy          clone.SubjectAccessReviewsProxy
 }
 
-type sarProxy struct {
-	client kubernetes.Interface
+type authProxy struct {
+	k8sClient kubernetes.Interface
+	cdiClient cdiclient.Interface
 }
 
-type cloneType int
-
-const (
-	noClone cloneType = iota
-	pvcClone
-	snapshotClone
-)
-
-type cloneSourceHandler struct {
-	cloneType       cloneType
-	tokenResource   metav1.GroupVersionResource
-	cloneAuthFunc   clone.UserCloneAuthFunc
-	sourceName      string
-	sourceNamespace string
+func (p *authProxy) CreateSar(sar *authv1.SubjectAccessReview) (*authv1.SubjectAccessReview, error) {
+	return p.k8sClient.AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), sar, metav1.CreateOptions{})
 }
 
-var (
-	tokenResourcePvc = metav1.GroupVersionResource{
-		Group:    "",
-		Version:  "v1",
-		Resource: "persistentvolumeclaims",
-	}
+func (p *authProxy) GetNamespace(name string) (*corev1.Namespace, error) {
+	return p.k8sClient.CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
+}
 
-	tokenResourceSnapshot = metav1.GroupVersionResource{
-		Group:    snapshotv1.GroupName,
-		Version:  snapshotv1.SchemeGroupVersion.Version,
-		Resource: "volumesnapshots",
-	}
-)
-
-func (p *sarProxy) Create(sar *authv1.SubjectAccessReview) (*authv1.SubjectAccessReview, error) {
-	return p.client.AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), sar, metav1.CreateOptions{})
+func (p *authProxy) GetDataSource(namespace, name string) (*cdiv1.DataSource, error) {
+	return p.cdiClient.CdiV1beta1().DataSources(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
@@ -120,10 +96,6 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 		}
 	}
 
-	_, prePopulated := dataVolume.Annotations[cc.AnnPrePopulated]
-	_, checkStaticVolume := dataVolume.Annotations[cc.AnnCheckStaticVolume]
-	noTokenOkay := prePopulated || checkStaticVolume
-
 	targetNamespace, targetName := dataVolume.Namespace, dataVolume.Name
 	if targetNamespace == "" {
 		targetNamespace = ar.Request.Namespace
@@ -133,19 +105,24 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 		targetName = ar.Request.Name
 	}
 
-	cloneSourceHandler, err := newCloneSourceHandler(dataVolume, wh.cdiClient)
+	proxy := &authProxy{k8sClient: wh.k8sClient, cdiClient: wh.cdiClient}
+	response, err := modifiedDataVolume.AuthorizeUser(ar.Request.Namespace, ar.Request.Name, proxy, ar.Request.UserInfo)
 	if err != nil {
-		if k8serrors.IsNotFound(err) && noTokenOkay {
-			// no token needed, likely since no datasource
-			klog.V(3).Infof("DataVolume %s/%s is pre/static populated, not adding token, no datasource", targetNamespace, targetName)
+		if err == cdiv1.ErrNoTokenOkay {
 			return toPatchResponse(dataVolume, modifiedDataVolume)
 		}
 		return toAdmissionResponseError(err)
 	}
 
-	if cloneSourceHandler.cloneType == noClone {
-		klog.V(3).Infof("DataVolume %s/%s not cloning", targetNamespace, targetName)
-		return toPatchResponse(dataVolume, modifiedDataVolume)
+	if !response.Allowed {
+		causes := []metav1.StatusCause{
+			{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: response.Reason,
+				Field:   k8sfield.NewPath("spec", "source", "PVC", "namespace").String(),
+			},
+		}
+		return toRejectedAdmissionResponse(causes)
 	}
 
 	// only add token at create time
@@ -153,47 +130,16 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 		return toPatchResponse(dataVolume, modifiedDataVolume)
 	}
 
-	sourceName, sourceNamespace := cloneSourceHandler.sourceName, cloneSourceHandler.sourceNamespace
+	sourceName, sourceNamespace := response.Handler.SourceName, response.Handler.SourceNamespace
 	if sourceNamespace == "" {
 		sourceNamespace = targetNamespace
-	}
-
-	_, err = wh.k8sClient.CoreV1().Namespaces().Get(context.TODO(), sourceNamespace, metav1.GetOptions{})
-	if err != nil {
-		if k8serrors.IsNotFound(err) && noTokenOkay {
-			// no token needed, likely since no source namespace
-			klog.V(3).Infof("DataVolume %s/%s is pre/static populated, not adding token, no source namespace", targetNamespace, targetName)
-			return toPatchResponse(dataVolume, modifiedDataVolume)
-		}
-		return toAdmissionResponseError(err)
-	}
-
-	ok, reason, err := cloneSourceHandler.cloneAuthFunc(wh.proxy, sourceNamespace, sourceName, targetNamespace, ar.Request.UserInfo)
-	if err != nil {
-		return toAdmissionResponseError(err)
-	}
-
-	if !ok {
-		if noTokenOkay {
-			klog.V(3).Infof("DataVolume %s/%s is pre/static populated, not adding token, auth failed", targetNamespace, targetName)
-			return toPatchResponse(dataVolume, modifiedDataVolume)
-		}
-
-		causes := []metav1.StatusCause{
-			{
-				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: reason,
-				Field:   k8sfield.NewPath("spec", "source", "PVC", "namespace").String(),
-			},
-		}
-		return toRejectedAdmissionResponse(causes)
 	}
 
 	tokenData := &token.Payload{
 		Operation: token.OperationClone,
 		Name:      sourceName,
 		Namespace: sourceNamespace,
-		Resource:  cloneSourceHandler.tokenResource,
+		Resource:  response.Handler.TokenResource,
 		Params: map[string]string{
 			"targetNamespace": targetNamespace,
 			"targetName":      targetName,
@@ -213,54 +159,4 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 	klog.V(3).Infof("Sending patch response...")
 
 	return toPatchResponse(dataVolume, modifiedDataVolume)
-}
-
-func newCloneSourceHandler(dataVolume *cdiv1.DataVolume, cdiClient cdiclient.Interface) (*cloneSourceHandler, error) {
-	var pvcSource *cdiv1.DataVolumeSourcePVC
-	var snapshotSource *cdiv1.DataVolumeSourceSnapshot
-
-	if dataVolume.Spec.Source != nil {
-		if dataVolume.Spec.Source.PVC != nil {
-			pvcSource = dataVolume.Spec.Source.PVC
-		} else if dataVolume.Spec.Source.Snapshot != nil {
-			snapshotSource = dataVolume.Spec.Source.Snapshot
-		}
-	} else if dataVolume.Spec.SourceRef != nil && dataVolume.Spec.SourceRef.Kind == cdiv1.DataVolumeDataSource {
-		ns := dataVolume.Namespace
-		if dataVolume.Spec.SourceRef.Namespace != nil && *dataVolume.Spec.SourceRef.Namespace != "" {
-			ns = *dataVolume.Spec.SourceRef.Namespace
-		}
-		dataSource, err := cdiClient.CdiV1beta1().DataSources(ns).Get(context.TODO(), dataVolume.Spec.SourceRef.Name, metav1.GetOptions{})
-		if err != nil {
-			return nil, err
-		}
-		if dataSource.Spec.Source.PVC != nil {
-			pvcSource = dataSource.Spec.Source.PVC
-		} else if dataSource.Spec.Source.Snapshot != nil {
-			snapshotSource = dataSource.Spec.Source.Snapshot
-		}
-	}
-
-	switch {
-	case pvcSource != nil:
-		return &cloneSourceHandler{
-			cloneType:       pvcClone,
-			tokenResource:   tokenResourcePvc,
-			cloneAuthFunc:   clone.CanUserClonePVC,
-			sourceName:      pvcSource.Name,
-			sourceNamespace: pvcSource.Namespace,
-		}, nil
-	case snapshotSource != nil:
-		return &cloneSourceHandler{
-			cloneType:       snapshotClone,
-			tokenResource:   tokenResourceSnapshot,
-			cloneAuthFunc:   clone.CanUserCloneSnapshot,
-			sourceName:      snapshotSource.Name,
-			sourceNamespace: snapshotSource.Namespace,
-		}, nil
-	default:
-		return &cloneSourceHandler{
-			cloneType: noClone,
-		}, nil
-	}
 }

@@ -59,7 +59,7 @@ func NewDataVolumeValidatingWebhook(k8sClient kubernetes.Interface, cdiClient cd
 // NewDataVolumeMutatingWebhook creates a new DataVolumeMutation webhook
 func NewDataVolumeMutatingWebhook(k8sClient kubernetes.Interface, cdiClient cdiclient.Interface, key *rsa.PrivateKey) http.Handler {
 	generator := newCloneTokenGenerator(key)
-	return newAdmissionHandler(&dataVolumeMutatingWebhook{k8sClient: k8sClient, cdiClient: cdiClient, tokenGenerator: generator, proxy: &sarProxy{client: k8sClient}})
+	return newAdmissionHandler(&dataVolumeMutatingWebhook{k8sClient: k8sClient, cdiClient: cdiClient, tokenGenerator: generator})
 }
 
 // NewCDIValidatingWebhook creates a new CDI validating webhook
