@@ -312,6 +312,72 @@ var _ = Describe("All DataImportCron Tests", func() {
 			verifyCronJobContainerImage("new-image")
 		})
 
+		It("Should update CronJob Pod workload NodePlacement on reconcile", func() {
+			cron = newDataImportCron(cronName)
+			reconciler = createDataImportCronReconciler(cron)
+
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			cronjob := &batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+			spec := &cronjob.Spec.JobTemplate.Spec.Template.Spec
+			spec.NodeSelector = map[string]string{"some": "thing"}
+			spec.Tolerations = []corev1.Toleration{{Key: "another", Value: "value"}}
+			err = reconciler.client.Update(context.TODO(), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+
+			workloads := updateCdiWithTestNodePlacement(reconciler.client)
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+			podSpec := cronjob.Spec.JobTemplate.Spec.Template.Spec
+			Expect(podSpec.Affinity).To(Equal(workloads.Affinity))
+			Expect(podSpec.NodeSelector).To(Equal(workloads.NodeSelector))
+			Expect(podSpec.Tolerations).To(Equal(workloads.Tolerations))
+		})
+
+		It("Should set initial Job Pod workload NodePlacement on reconcile", func() {
+			cron = newDataImportCron(cronName)
+			reconciler = createDataImportCronReconciler(cron)
+
+			workloads := updateCdiWithTestNodePlacement(reconciler.client)
+
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			job := &batchv1.Job{}
+			jobKey := types.NamespacedName{Name: GetInitialJobName(cron), Namespace: reconciler.cdiNamespace}
+			err = reconciler.client.Get(context.TODO(), jobKey, job)
+			Expect(err).ToNot(HaveOccurred())
+			podSpec := job.Spec.Template.Spec
+			Expect(podSpec.Affinity).To(Equal(workloads.Affinity))
+			Expect(podSpec.NodeSelector).To(Equal(workloads.NodeSelector))
+			Expect(podSpec.Tolerations).To(Equal(workloads.Tolerations))
+		})
+
+		It("Should not modify new CronJob on initCronJob", func() {
+			cron = newDataImportCron(cronName)
+			reconciler = createDataImportCronReconciler(cron)
+
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			cronJob := &batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronJob)
+			Expect(err).ToNot(HaveOccurred())
+
+			cronJobCopy := cronJob.DeepCopy()
+			err = reconciler.initCronJob(cron, cronJobCopy)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(cronJob).To(Equal(cronJobCopy))
+		})
+
 		It("Should create DataVolume on AnnSourceDesiredDigest annotation update, and update DataImportCron and DataSource on DataVolume Succeeded", func() {
 			cron = newDataImportCron(cronName)
 			dataSource = nil
@@ -690,7 +756,7 @@ func createDataImportCronReconciler(objects ...runtime.Object) *DataImportCronRe
 
 func createDataImportCronReconcilerWithoutConfig(objects ...runtime.Object) *DataImportCronReconciler {
 	crd := &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "dataimportcrons.cdi.kubevirt.io"}}
-	objs := []runtime.Object{crd}
+	objs := []runtime.Object{crd, cc.MakeEmptyCDICR()}
 	objs = append(objs, objects...)
 
 	s := scheme.Scheme
