@@ -1467,6 +1467,7 @@ var _ = Describe("all clone tests", func() {
 
 		Context("CloneStrategy on storageclass annotation", func() {
 			cloneType := cdiv1.CloneStrategyCsiClone
+			var originalStrategy *cdiv1.CDICloneStrategy
 
 			BeforeEach(func() {
 				if !f.IsCSIVolumeCloneStorageClassAvailable() {
@@ -1476,8 +1477,8 @@ var _ = Describe("all clone tests", func() {
 				By(fmt.Sprintf("Get original storage profile: %s", cloneStorageClassName))
 				storageProfile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
+				originalStrategy = storageProfile.Status.CloneStrategy
 				Expect(storageProfile.Spec.CloneStrategy).To(BeNil())
-				Expect(storageProfile.Status.CloneStrategy).To(BeNil())
 
 				storageclass, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -1498,6 +1499,7 @@ var _ = Describe("all clone tests", func() {
 				}, time.Minute, time.Second).Should(Equal(cloneType))
 
 			})
+
 			AfterEach(func() {
 				By("[AfterEach] Restore the storage class - remove annotation ")
 				storageclass, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
@@ -1511,10 +1513,10 @@ var _ = Describe("all clone tests", func() {
 					storageProfile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
 					return storageProfile.Status.CloneStrategy
-				}, time.Minute, time.Second).Should(BeNil())
+				}, time.Minute, time.Second).Should(Equal(originalStrategy))
 			})
-			It("Should clone  with correct strategy from storageclass annotation ", func() {
 
+			It("Should clone  with correct strategy from storageclass annotation ", func() {
 				pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 				pvcDef.Spec.StorageClassName = &cloneStorageClassName
 				pvcDef.Namespace = f.Namespace.Name

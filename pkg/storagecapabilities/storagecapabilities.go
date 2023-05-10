@@ -106,6 +106,16 @@ var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 	"openshift-storage.rbd.csi.ceph.com": cdiv1.DataImportCronSourceFormatSnapshot,
 }
 
+// CloneStrategyByProvisionerKey defines the advised clone strategy for a provisioner
+var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
+	"csi-vxflexos.dellemc.com":   cdiv1.CloneStrategyCsiClone,
+	"csi-isilon.dellemc.com":     cdiv1.CloneStrategyCsiClone,
+	"csi-powermax.dellemc.com":   cdiv1.CloneStrategyCsiClone,
+	"csi-powerstore.dellemc.com": cdiv1.CloneStrategyCsiClone,
+	"hspc.csi.hitachi.com":       cdiv1.CloneStrategyCsiClone,
+	"csi.hpe.com":                cdiv1.CloneStrategyCsiClone,
+}
+
 // ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
 const ProvisionerNoobaa = "openshift-storage.noobaa.io/obc"
 
@@ -131,6 +141,13 @@ func GetAdvisedSourceFormat(sc *storagev1.StorageClass) (cdiv1.DataImportCronSou
 	provisionerKey := storageProvisionerKey(sc)
 	format, found := SourceFormatsByProvisionerKey[provisionerKey]
 	return format, found
+}
+
+// GetAdvisedCloneStrategy finds and returns the advised clone strategy
+func GetAdvisedCloneStrategy(sc *storagev1.StorageClass) (cdiv1.CDICloneStrategy, bool) {
+	provisionerKey := storageProvisionerKey(sc)
+	strategy, found := CloneStrategyByProvisionerKey[provisionerKey]
+	return strategy, found
 }
 
 func isLocalStorageOperator(sc *storagev1.StorageClass) bool {

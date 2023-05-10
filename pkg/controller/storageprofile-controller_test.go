@@ -19,7 +19,9 @@ package controller
 import (
 	"context"
 	"fmt"
+	"reflect"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -30,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1 "k8s.io/api/core/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -311,9 +314,14 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		table.Entry("Clone", cdiv1.CloneStrategyCsiClone),
 	)
 
-	table.DescribeTable("should set advised source format for dataimportcrons", func(provisioner string, expectedFormat cdiv1.DataImportCronSourceFormat) {
+	table.DescribeTable("should set advised source format for dataimportcrons", func(provisioner string, expectedFormat cdiv1.DataImportCronSourceFormat, deploySnapClass bool) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
-		reconciler := createStorageProfileReconciler(storageClass)
+		reconciler := createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		if deploySnapClass {
+			snapClass := createSnapshotClass(storageClassName+"-snapclass", nil, provisioner)
+			err := reconciler.client.Create(context.TODO(), snapClass)
+			Expect(err).ToNot(HaveOccurred())
+		}
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -327,8 +335,35 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
 		Expect(*sp.Status.DataImportCronSourceFormat).To(Equal(expectedFormat))
 	},
-		table.Entry("provisioners where snapshot source is more appropriate", "rook-ceph.rbd.csi.ceph.com", cdiv1.DataImportCronSourceFormatSnapshot),
-		table.Entry("provisioners where there is no known preferred format", "format.unknown.provisioner.csi.com", cdiv1.DataImportCronSourceFormatPvc),
+		table.Entry("provisioners where snapshot source is more appropriate", "rook-ceph.rbd.csi.ceph.com", cdiv1.DataImportCronSourceFormatSnapshot, true),
+		table.Entry("provisioners where snapshot source is more appropriate but lack volumesnapclass", "rook-ceph.rbd.csi.ceph.com", cdiv1.DataImportCronSourceFormatPvc, false),
+		table.Entry("provisioners where there is no known preferred format", "format.unknown.provisioner.csi.com", cdiv1.DataImportCronSourceFormatPvc, false),
+	)
+
+	table.DescribeTable("should set cloneStrategy", func(provisioner string, expectedCloneStrategy cdiv1.CDICloneStrategy, deploySnapClass bool) {
+		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
+		reconciler := createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		if deploySnapClass {
+			snapClass := createSnapshotClass(storageClassName+"-snapclass", nil, provisioner)
+			err := reconciler.client.Create(context.TODO(), snapClass)
+			Expect(err).ToNot(HaveOccurred())
+		}
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+
+		storageProfileList := &cdiv1.StorageProfileList{}
+		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(storageProfileList.Items).To(HaveLen(1))
+
+		sp := storageProfileList.Items[0]
+		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
+		Expect(*sp.Status.CloneStrategy).To(Equal(expectedCloneStrategy))
+	},
+		table.Entry("provisioner with volumesnapshotclass and no known advised strategy", "strategy.unknown.provisioner.csi.com", cdiv1.CloneStrategySnapshot, true),
+		table.Entry("provisioner without volumesnapshotclass and no known advised strategy", "strategy.unknown.provisioner.csi.com", cdiv1.CloneStrategyHostAssisted, false),
+		table.Entry("provisioner that is known to prefer csi clone", "csi-powermax.dellemc.com", cdiv1.CloneStrategyCsiClone, false),
 	)
 
 	table.DescribeTable("Should set the IncompleteProfileGauge correctly", func(provisioner string, count int) {
@@ -364,6 +399,8 @@ func createStorageProfileReconciler(objects ...runtime.Object) *StorageProfileRe
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
 	_ = cdiv1.AddToScheme(s)
+	_ = snapshotv1.AddToScheme(s)
+	_ = extv1.AddToScheme(s)
 
 	// Create a fake client to mock API calls.
 	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
@@ -399,4 +436,99 @@ func CreatePv(name string, storageClassName string) *v1.PersistentVolume {
 		},
 	}
 	return pv
+}
+
+func createSnapshotClass(name string, annotations map[string]string, snapshotter string) *snapshotv1.VolumeSnapshotClass {
+	return &snapshotv1.VolumeSnapshotClass{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "VolumeSnapshotClass",
+			APIVersion: snapshotv1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Annotations: annotations,
+		},
+		Driver: snapshotter,
+	}
+}
+
+func createVolumeSnapshotContentCrd() *extv1.CustomResourceDefinition {
+	pluralName := "volumesnapshotcontents"
+	return &extv1.CustomResourceDefinition{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CustomResourceDefinition",
+			APIVersion: extv1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: pluralName + "." + snapshotv1.GroupName,
+		},
+		Spec: extv1.CustomResourceDefinitionSpec{
+			Group: snapshotv1.GroupName,
+			Scope: extv1.ClusterScoped,
+			Names: extv1.CustomResourceDefinitionNames{
+				Plural: pluralName,
+				Kind:   reflect.TypeOf(snapshotv1.VolumeSnapshotContent{}).Name(),
+			},
+			Versions: []extv1.CustomResourceDefinitionVersion{
+				{
+					Name:   snapshotv1.SchemeGroupVersion.Version,
+					Served: true,
+				},
+			},
+		},
+	}
+}
+
+func createVolumeSnapshotClassCrd() *extv1.CustomResourceDefinition {
+	pluralName := "volumesnapshotclasses"
+	return &extv1.CustomResourceDefinition{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CustomResourceDefinition",
+			APIVersion: extv1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: pluralName + "." + snapshotv1.GroupName,
+		},
+		Spec: extv1.CustomResourceDefinitionSpec{
+			Group: snapshotv1.GroupName,
+			Scope: extv1.ClusterScoped,
+			Names: extv1.CustomResourceDefinitionNames{
+				Plural: pluralName,
+				Kind:   reflect.TypeOf(snapshotv1.VolumeSnapshotClass{}).Name(),
+			},
+			Versions: []extv1.CustomResourceDefinitionVersion{
+				{
+					Name:   snapshotv1.SchemeGroupVersion.Version,
+					Served: true,
+				},
+			},
+		},
+	}
+}
+
+func createVolumeSnapshotCrd() *extv1.CustomResourceDefinition {
+	pluralName := "volumesnapshots"
+	return &extv1.CustomResourceDefinition{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CustomResourceDefinition",
+			APIVersion: extv1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: pluralName + "." + snapshotv1.GroupName,
+		},
+		Spec: extv1.CustomResourceDefinitionSpec{
+			Group: snapshotv1.GroupName,
+			Scope: extv1.NamespaceScoped,
+			Names: extv1.CustomResourceDefinitionNames{
+				Plural: pluralName,
+				Kind:   reflect.TypeOf(snapshotv1.VolumeSnapshot{}).Name(),
+			},
+			Versions: []extv1.CustomResourceDefinitionVersion{
+				{
+					Name:   snapshotv1.SchemeGroupVersion.Version,
+					Served: true,
+				},
+			},
+		},
+	}
 }
