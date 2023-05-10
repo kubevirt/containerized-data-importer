@@ -19,16 +19,63 @@ import (
 )
 
 const (
+	// DataVolume validation
 	dataVolumeName     = "test-dv"
 	pvcName            = "test-pvc"
 	validURL           = "http://www.example.com/example.img"
 	invalidURLFormat   = "invalidURL"
 	datavolumeTestFile = "manifests/datavolume.yaml"
 	destinationFile    = "/var/tmp/datavolume_test.yaml"
+	// Populator validation
+	populatorDestinationFile = "/var/tmp/populator_test.yaml"
+	importPopulatorTestFile  = "manifests/volumeimportsource.yaml"
+	uploadPopulatorTestFile  = "manifests/volumeuploadsource.yaml"
 )
 
 var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redhat.com][level:component]Validation tests", func() {
 	f := framework.NewFramework("api-validation-func-test")
+
+	setSourceType := func(object map[string]interface{}, sourceType string, args []string) {
+		switch sourceType {
+		case "http":
+			url := args[0]
+			object["spec"].(map[string]interface{})["source"] = map[string]interface{}{"http": map[string]interface{}{"url": url}}
+		case "s3":
+			url := args[0]
+			object["spec"].(map[string]interface{})["source"] = map[string]interface{}{"s3": map[string]interface{}{"url": url}}
+		case "pvc":
+			namespace := args[0]
+			name := args[1]
+			object["spec"].(map[string]interface{})["source"] = map[string]interface{}{
+				"pvc": map[string]interface{}{
+					"namespace": namespace,
+					"name":      name}}
+		case "imageio":
+			url := args[0]
+			secretName := args[1]
+			configMap := args[2]
+			diskID := args[3]
+			object["spec"].(map[string]interface{})["source"] = map[string]interface{}{
+				"imageio": map[string]interface{}{
+					"url":           url,
+					"secretRef":     secretName,
+					"certConfigMap": configMap,
+					"diskId":        diskID}}
+		case "vddk":
+			url := args[0]
+			secretName := args[1]
+			uuid := args[2]
+			backingFile := args[3]
+			thumbprint := args[4]
+			object["spec"].(map[string]interface{})["source"] = map[string]interface{}{
+				"vddk": map[string]interface{}{
+					"url":         url,
+					"secretRef":   secretName,
+					"uuid":        uuid,
+					"backingFile": backingFile,
+					"thumbprint":  thumbprint}}
+		}
+	}
 
 	Describe("Verify DataVolume validation", func() {
 		Context("when creating Datavolume", func() {
@@ -45,47 +92,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				err := yamlFiletoStruct(datavolumeTestFile, &dv)
 				Expect(err).ToNot(HaveOccurred())
 
-				switch sourceType {
-				case "http":
-					url := args[0]
-					dv["spec"].(map[string]interface{})["source"] = map[string]interface{}{"http": map[string]interface{}{"url": url}}
-
-				case "s3":
-					url := args[0]
-					dv["spec"].(map[string]interface{})["source"] = map[string]interface{}{"s3": map[string]interface{}{"url": url}}
-				case "pvc":
-					namespace := args[0]
-					name := args[1]
-					dv["spec"].(map[string]interface{})["source"] = map[string]interface{}{
-						"pvc": map[string]interface{}{
-							"namespace": namespace,
-							"name":      name}}
-				case "imageio":
-					url := args[0]
-					secretName := args[1]
-					configMap := args[2]
-					diskID := args[3]
-					dv["spec"].(map[string]interface{})["source"] = map[string]interface{}{
-						"imageio": map[string]interface{}{
-							"url":           url,
-							"secretRef":     secretName,
-							"certConfigMap": configMap,
-							"diskId":        diskID}}
-				case "vddk":
-					url := args[0]
-					secretName := args[1]
-					uuid := args[2]
-					backingFile := args[3]
-					thumbprint := args[4]
-					dv["spec"].(map[string]interface{})["source"] = map[string]interface{}{
-						"vddk": map[string]interface{}{
-							"url":         url,
-							"secretRef":   secretName,
-							"uuid":        uuid,
-							"backingFile": backingFile,
-							"thumbprint":  thumbprint}}
-				}
-
+				setSourceType(dv, sourceType, args)
 				err = structToYamlFile(destinationFile, dv)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -377,6 +384,126 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 
 			_, err := f.CdiClient.CdiV1beta1().DataVolumes(updatedDataVolume.Namespace).Update(context.TODO(), updatedDataVolume, metav1.UpdateOptions{})
 			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	Describe("Populator validation", func() {
+		FContext("when creating", func() {
+			populatorSource := map[string]interface{}{}
+
+			AfterEach(func() {
+				err := os.Remove(populatorDestinationFile)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			table.DescribeTable("volumeimportsource should", func(contentType, sourceType string, args ...string) {
+				By("Reading yaml file from: " + importPopulatorTestFile)
+				err := yamlFiletoStruct(importPopulatorTestFile, &populatorSource)
+				Expect(err).ToNot(HaveOccurred())
+
+				setSourceType(populatorSource, sourceType, args)
+				populatorSource["spec"].(map[string]interface{})["contentType"] = contentType
+				err = structToYamlFile(populatorDestinationFile, populatorSource)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verifying kubectl create")
+				Eventually(func() bool {
+					_, err := f.RunKubectlCommand("create", "-f", populatorDestinationFile, "-n", f.Namespace.Name)
+					return err != nil
+				}, timeout, pollingInterval).Should(BeTrue())
+
+			},
+				table.Entry("fail with no source", "", ""),
+				table.Entry("fail with http source with invalid url format", "", "http", invalidURLFormat),
+				table.Entry("fail with http source with empty url", "http", "", ""),
+				table.Entry("fail with s3 source with invalid url format", "", "s3", invalidURLFormat),
+				table.Entry("fail with s3 source with empty url", "", "s3", ""),
+				table.Entry("fail with empty Imageio source diskId", "", "imageio", validURL, "secret", "tls-cert", ""),
+				table.Entry("fail with empty VDDK source UUID", "", "vddk", validURL, "secret", "", "backingfile", "thumbprint"),
+				table.Entry("fail with empty VDDK source backing file", "", "vddk", validURL, "secret", "uuid", "", "thumbprint"),
+				table.Entry("fail with empty VDDK source thumbprint", "", "vddk", validURL, "secret", "uuid", "backingfile", ""),
+				table.Entry("fail with invalid content type", "invalid", "http", validURL),
+				table.Entry("succeed with valid http source", "", "http", validURL),
+			)
+
+			It("volumeimportsource should fail when multiple sources are set", func() {
+				By("Reading yaml file from: " + importPopulatorTestFile)
+				err := yamlFiletoStruct(importPopulatorTestFile, &populatorSource)
+				Expect(err).ToNot(HaveOccurred())
+
+				populatorSource["spec"].(map[string]interface{})["source"] = map[string]interface{}{"http": map[string]interface{}{"url": "http://foo.bar"}}
+				populatorSource["spec"].(map[string]interface{})["source"] = map[string]interface{}{"s3": map[string]interface{}{"url": "http://foo.bar"}}
+				err = structToYamlFile(populatorDestinationFile, populatorSource)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verifying kubectl create")
+				Eventually(func() bool {
+					_, err := f.RunKubectlCommand("create", "-f", populatorDestinationFile, "-n", f.Namespace.Name)
+					return err != nil
+				}, timeout, pollingInterval).Should(BeTrue())
+
+			})
+
+			table.DescribeTable("volumeuploadsource should", func(contentType string) {
+				By("Reading yaml file from: " + uploadPopulatorTestFile)
+				err := yamlFiletoStruct(uploadPopulatorTestFile, &populatorSource)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = structToYamlFile(populatorDestinationFile, populatorSource)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verifying kubectl create")
+				Eventually(func() bool {
+					_, err := f.RunKubectlCommand("create", "-f", populatorDestinationFile, "-n", f.Namespace.Name)
+					return err != nil
+				}, timeout, pollingInterval).Should(BeTrue())
+			},
+				table.Entry("fail with invalid content type", "invalid"),
+				table.Entry("succeed with empty content type", ""),
+				table.Entry("succeed with archive content type", "archive"),
+				table.Entry("succeed with kubevirt content type", "kubevirt"),
+			)
+		})
+
+		Context("when updating", func() {
+			It("should fail when updating volumeImportSource spec", func() {
+				By("Creating Import Populator CR with HTTP source")
+				importSource := &cdiv1.VolumeImportSource{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "import-populator-test",
+						Namespace: f.Namespace.Name,
+					},
+					Spec: cdiv1.VolumeImportSourceSpec{
+						Source: &cdiv1.ImportSourceType{Blank: &cdiv1.DataVolumeBlankImage{}},
+					},
+				}
+				importSource, err := f.CdiClient.CdiV1beta1().VolumeImportSources(f.Namespace.Name).Create(
+					context.TODO(), importSource, metav1.CreateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				updatedImportSource := importSource.DeepCopy()
+				updatedImportSource.Spec.ContentType = cdiv1.DataVolumeArchive
+				_, err = f.CdiClient.CdiV1beta1().VolumeImportSources(updatedImportSource.Namespace).Update(context.TODO(), updatedImportSource, metav1.UpdateOptions{})
+				Expect(err).To(HaveOccurred())
+			})
+
+			It("should fail when updating volumeUploadSource spec", func() {
+				uploadSource := &cdiv1.VolumeUploadSource{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "upload-populator-test",
+						Namespace: f.Namespace.Name,
+					},
+					Spec: cdiv1.VolumeUploadSourceSpec{},
+				}
+				uploadSource, err := f.CdiClient.CdiV1beta1().VolumeUploadSources(f.Namespace.Name).Create(
+					context.TODO(), uploadSource, metav1.CreateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				updatedUploadSource := uploadSource.DeepCopy()
+				updatedUploadSource.Spec.ContentType = cdiv1.DataVolumeArchive
+				_, err = f.CdiClient.CdiV1beta1().VolumeUploadSources(updatedUploadSource.Namespace).Update(context.TODO(), updatedUploadSource, metav1.UpdateOptions{})
+				Expect(err).To(HaveOccurred())
+			})
 		})
 	})
 })

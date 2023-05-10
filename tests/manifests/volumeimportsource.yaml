@@ -1,0 +1,6 @@
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: VolumeImportSource
+metadata:
+  name: test-importsource
+spec:
+  source: {}

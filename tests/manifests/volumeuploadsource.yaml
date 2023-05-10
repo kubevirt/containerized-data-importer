@@ -1,0 +1,5 @@
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: VolumeUploadSource
+metadata:
+  name: test-uploadsource
+spec: {}
