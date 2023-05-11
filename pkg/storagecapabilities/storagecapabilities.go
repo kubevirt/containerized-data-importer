@@ -62,6 +62,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// GCE Persistent Disk
 	"kubernetes.io/gce-pd":  {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
 	"pd.csi.storage.gke.io": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
+	// HPE
+	"csi.hpe.com": createRWOBlockAndFilesystemCapabilities(),
 	// Portworx in-tree CSI
 	"kubernetes.io/portworx-volume/shared": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"kubernetes.io/portworx-volume":        {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
