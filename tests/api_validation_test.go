@@ -388,7 +388,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 	})
 
 	Describe("Populator validation", func() {
-		FContext("when creating", func() {
+		Context("when creating", func() {
 			populatorSource := map[string]interface{}{}
 
 			AfterEach(func() {
