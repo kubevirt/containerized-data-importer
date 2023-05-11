@@ -156,6 +156,20 @@ func GetStorageClassForClaim(ctx context.Context, c client.Client, pvc *corev1.P
 	return nil, nil
 }
 
+// MustGetStorageClassForClaim returns the storageclass for a PVC
+func MustGetStorageClassForClaim(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (*storagev1.StorageClass, error) {
+	sc, err := GetStorageClassForClaim(ctx, c, pvc)
+	if err != nil {
+		return nil, err
+	}
+
+	if sc == nil {
+		return nil, fmt.Errorf("no storageclass for pvc")
+	}
+
+	return sc, nil
+}
+
 // GetCompatibleVolumeSnapshotClass returns a VolumeSNapshotClass name that works for all PVCs
 func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, pvcs ...*corev1.PersistentVolumeClaim) (*string, error) {
 	var storageClasses []*storagev1.StorageClass

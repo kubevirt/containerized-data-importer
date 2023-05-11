@@ -75,6 +75,8 @@ var _ = Describe("HostClonePhase test", func() {
 			SourceName:     "source",
 			DesiredClaim:   desired,
 			ImmediateBind:  true,
+			ContentType:    "kubevirt",
+			Preallocation:  false,
 			Client:         cl,
 			Recorder:       rec,
 			Log:            log,
@@ -99,6 +101,8 @@ var _ = Describe("HostClonePhase test", func() {
 
 		pvc := getDesiredClaim(p)
 		Expect(pvc.Spec.DataSourceRef).To(BeNil())
+		Expect(pvc.Annotations[cc.AnnContentType]).To(Equal("kubevirt"))
+		Expect(pvc.Annotations[cc.AnnPreallocationRequested]).To(Equal("false"))
 		Expect(pvc.Annotations[cc.AnnOwnerUID]).To(Equal(string(p.Owner.GetUID())))
 		Expect(pvc.Annotations[cc.AnnPodRestarts]).To(Equal("0"))
 		Expect(pvc.Annotations[cc.AnnCloneRequest]).To(Equal("ns/source"))

@@ -34,7 +34,7 @@ func (p *CSIClonePhase) Name() string {
 	return "CSIClone"
 }
 
-// Reconcile ensures a snapshot is created correctly
+// Reconcile ensures a csi cloned pvc is created correctly
 func (p *CSIClonePhase) Reconcile(ctx context.Context) (*reconcile.Result, error) {
 	pvc := &corev1.PersistentVolumeClaim{}
 	exists, err := getResource(ctx, p.Client, p.Namespace, p.DesiredClaim.Name, pvc)

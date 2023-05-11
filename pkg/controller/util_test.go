@@ -220,35 +220,35 @@ var _ = Describe("GetPreallocation", func() {
 	It("Should return preallocation for DataVolume if specified", func() {
 		client := CreateClient()
 		dv := createDataVolumeWithPreallocation("test-dv", "test-ns", true)
-		preallocation := GetPreallocation(client, dv.Spec.Preallocation)
+		preallocation := GetPreallocation(context.Background(), client, dv.Spec.Preallocation)
 		Expect(preallocation).To(BeTrue())
 
 		dv = createDataVolumeWithPreallocation("test-dv", "test-ns", false)
-		preallocation = GetPreallocation(client, dv.Spec.Preallocation)
+		preallocation = GetPreallocation(context.Background(), client, dv.Spec.Preallocation)
 		Expect(preallocation).To(BeFalse())
 
 		// global: true, data volume overrides to false
 		client = CreateClient(createCDIConfigWithGlobalPreallocation(true))
 		dv = createDataVolumeWithStorageClassPreallocation("test-dv", "test-ns", "test-class", false)
-		preallocation = GetPreallocation(client, dv.Spec.Preallocation)
+		preallocation = GetPreallocation(context.Background(), client, dv.Spec.Preallocation)
 		Expect(preallocation).To(BeFalse())
 	})
 
 	It("Should return global preallocation setting if not defined in DV or SC", func() {
 		client := CreateClient(createCDIConfigWithGlobalPreallocation(true))
 		dv := createDataVolumeWithStorageClass("test-dv", "test-ns", "test-class")
-		preallocation := GetPreallocation(client, dv.Spec.Preallocation)
+		preallocation := GetPreallocation(context.Background(), client, dv.Spec.Preallocation)
 		Expect(preallocation).To(BeTrue())
 
 		client = CreateClient(createCDIConfigWithGlobalPreallocation(false))
-		preallocation = GetPreallocation(client, dv.Spec.Preallocation)
+		preallocation = GetPreallocation(context.Background(), client, dv.Spec.Preallocation)
 		Expect(preallocation).To(BeFalse())
 	})
 
 	It("Should be false when niether DV nor Config defines preallocation", func() {
 		client := CreateClient(createCDIConfig("test"))
 		dv := createDataVolumeWithStorageClass("test-dv", "test-ns", "test-class")
-		preallocation := GetPreallocation(client, dv.Spec.Preallocation)
+		preallocation := GetPreallocation(context.Background(), client, dv.Spec.Preallocation)
 		Expect(preallocation).To(BeFalse())
 	})
 })

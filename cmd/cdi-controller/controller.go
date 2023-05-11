@@ -281,7 +281,7 @@ func start() {
 		os.Exit(1)
 	}
 	if _, err := populators.NewClonePopulator(ctx, mgr, log, clonerImage, pullPolicy, installerLabels); err != nil {
-		klog.Errorf("Unable to setup import populator: %v", err)
+		klog.Errorf("Unable to setup clone populator: %v", err)
 		os.Exit(1)
 	}
 

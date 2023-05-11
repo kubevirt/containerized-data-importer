@@ -188,7 +188,7 @@ func (p *Planner) watchOwned(log logr.Logger, obj client.Object) error {
 }
 
 func (p *Planner) strategyForSourcePVC(ctx context.Context, args *ChooseStrategyArgs) (*cdiv1.CDICloneStrategy, error) {
-	if ok, err := p.validateTargetStorageClassAssignment(args); !ok || err != nil {
+	if ok, err := p.validateTargetStorageClassAssignment(ctx, args); !ok || err != nil {
 		return nil, err
 	}
 
@@ -239,7 +239,7 @@ func (p *Planner) strategyForSourcePVC(ctx context.Context, args *ChooseStrategy
 		}
 
 		if !exists {
-			args.Log.V(1).Info("missing storageprofile for", "name", *args.TargetClaim.Spec.StorageClassName)
+			args.Log.V(3).Info("missing storageprofile for", "name", *args.TargetClaim.Spec.StorageClassName)
 		}
 
 		if exists && sp.Status.CloneStrategy != nil {
@@ -273,7 +273,7 @@ func (p *Planner) strategyForSourcePVC(ctx context.Context, args *ChooseStrategy
 	return &strategy, nil
 }
 
-func (p *Planner) validateTargetStorageClassAssignment(args *ChooseStrategyArgs) (bool, error) {
+func (p *Planner) validateTargetStorageClassAssignment(ctx context.Context, args *ChooseStrategyArgs) (bool, error) {
 	if args.TargetClaim.Spec.StorageClassName == nil {
 		args.Log.V(3).Info("Target PVC has nil storage class, cannot compute strategy")
 		return false, nil
@@ -282,6 +282,11 @@ func (p *Planner) validateTargetStorageClassAssignment(args *ChooseStrategyArgs)
 	if *args.TargetClaim.Spec.StorageClassName == "" {
 		args.Log.V(3).Info("Target PVC has \"\" storage class, cannot compute strategy")
 		return false, fmt.Errorf("claim has emptystring storageclass, will not work")
+	}
+
+	_, err := MustGetStorageClassForClaim(ctx, p.Client, args.TargetClaim)
+	if err != nil {
+		return false, err
 	}
 
 	return true, nil
@@ -305,13 +310,9 @@ func (p *Planner) validateAdvancedClonePVC(ctx context.Context, args *ChooseStra
 		return false, nil
 	}
 
-	sc, err := GetStorageClassForClaim(ctx, p.Client, args.TargetClaim)
+	sc, err := MustGetStorageClassForClaim(ctx, p.Client, args.TargetClaim)
 	if err != nil {
 		return false, err
-	}
-
-	if sc == nil {
-		return false, fmt.Errorf("target storageclass should exist")
 	}
 
 	srcCapacity, hasSrcCapacity := sourceClaim.Status.Capacity[corev1.ResourceStorage]
@@ -344,6 +345,11 @@ func (p *Planner) planHostAssistedFromPVC(ctx context.Context, args *PlanArgs) (
 		desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage] = is
 	}
 
+	ct := cdiv1.DataVolumeKubeVirt
+	if args.DataSource.Spec.ContentType != "" {
+		ct = args.DataSource.Spec.ContentType
+	}
+
 	hcp := &HostClonePhase{
 		Owner:          args.TargetClaim,
 		Namespace:      args.DataSource.Namespace,
@@ -351,6 +357,8 @@ func (p *Planner) planHostAssistedFromPVC(ctx context.Context, args *PlanArgs) (
 		DesiredClaim:   desiredClaim,
 		ImmediateBind:  true,
 		OwnershipLabel: p.OwnershipLabel,
+		ContentType:    string(ct),
+		Preallocation:  cc.GetPreallocation(ctx, p.Client, args.DataSource.Spec.Preallocation),
 		Client:         p.Client,
 		Log:            args.Log,
 		Recorder:       p.Recorder,

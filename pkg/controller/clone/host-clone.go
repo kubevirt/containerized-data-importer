@@ -24,6 +24,8 @@ type HostClonePhase struct {
 	DesiredClaim   *corev1.PersistentVolumeClaim
 	ImmediateBind  bool
 	OwnershipLabel string
+	Preallocation  bool
+	ContentType    string
 	Client         client.Client
 	Log            logr.Logger
 	Recorder       record.EventRecorder
@@ -101,6 +103,8 @@ func (p *HostClonePhase) createClaim(ctx context.Context) (*corev1.PersistentVol
 	claim := p.DesiredClaim.DeepCopy()
 
 	claim.Namespace = p.Namespace
+	cc.AddAnnotation(claim, cc.AnnContentType, p.ContentType)
+	cc.AddAnnotation(claim, cc.AnnPreallocationRequested, fmt.Sprintf("%t", p.Preallocation))
 	cc.AddAnnotation(claim, cc.AnnOwnerUID, string(p.Owner.GetUID()))
 	cc.AddAnnotation(claim, cc.AnnPodRestarts, "0")
 	cc.AddAnnotation(claim, cc.AnnCloneRequest, fmt.Sprintf("%s/%s", p.Namespace, p.SourceName))

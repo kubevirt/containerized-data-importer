@@ -114,7 +114,7 @@ func (r *UploadPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	uploadSource := source.(*cdiv1.VolumeUploadSource)
 	pvc.Annotations[cc.AnnContentType] = cc.GetContentType(string(uploadSource.Spec.ContentType))
 	pvc.Annotations[cc.AnnPopulatorKind] = cdiv1.VolumeUploadSourceRef
-	pvc.Annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(r.client, uploadSource.Spec.Preallocation))
+	pvc.Annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, uploadSource.Spec.Preallocation))
 }
 
 func (r *UploadPopulatorReconciler) updatePVCPrimeNameAnnotation(pvc *corev1.PersistentVolumeClaim, pvcPrimeName string) (bool, error) {

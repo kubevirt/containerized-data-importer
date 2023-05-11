@@ -36,7 +36,7 @@ func (p *PrepClaimPhase) Name() string {
 	return "PrepClaim"
 }
 
-// Reconcile ensures a snapshot is created correctly
+// Reconcile ensures that a pvc is bound and resized if necessary
 func (p *PrepClaimPhase) Reconcile(ctx context.Context) (*reconcile.Result, error) {
 	actualClaim := &corev1.PersistentVolumeClaim{}
 	pvcExists, err := getResource(ctx, p.Client, p.DesiredClaim.Namespace, p.DesiredClaim.Name, actualClaim)

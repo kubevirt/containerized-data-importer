@@ -150,7 +150,7 @@ func (r *ImportPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	annotations := pvc.Annotations
 	annotations[cc.AnnPopulatorKind] = cdiv1.VolumeImportSourceRef
 	annotations[cc.AnnContentType] = cc.GetContentType(string(volumeImportSource.Spec.ContentType))
-	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(r.client, volumeImportSource.Spec.Preallocation))
+	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, volumeImportSource.Spec.Preallocation))
 
 	if http := volumeImportSource.Spec.Source.HTTP; http != nil {
 		cc.UpdateHTTPAnnotations(annotations, http)
