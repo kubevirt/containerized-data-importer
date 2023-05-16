@@ -429,13 +429,14 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 		return syncState, err
 	}
 
-	if dv.DeletionTimestamp != nil {
-		log.Info("DataVolume marked for deletion, cleaning up")
-		if cleanup != nil {
-			if err := cleanup(&syncState); err != nil {
-				return syncState, err
-			}
+	if cleanup != nil {
+		if err := cleanup(&syncState); err != nil {
+			return syncState, err
 		}
+	}
+
+	if dv.DeletionTimestamp != nil {
+		log.Info("DataVolume marked for deletion")
 		syncState.result = &reconcile.Result{}
 		return syncState, nil
 	}

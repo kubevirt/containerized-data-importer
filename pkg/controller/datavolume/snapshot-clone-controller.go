@@ -130,11 +130,6 @@ func (r *SnapshotCloneReconciler) prepare(syncState *dvSyncState) error {
 	if err := r.populateSourceIfSourceRef(dv); err != nil {
 		return err
 	}
-	if dv.Status.Phase == cdiv1.Succeeded {
-		if err := r.cleanup(syncState); err != nil {
-			return err
-		}
-	}
 
 	return nil
 }
@@ -504,6 +499,12 @@ func getTempHostAssistedSourcePvcName(dv *cdiv1.DataVolume) string {
 
 func (r *SnapshotCloneReconciler) cleanup(syncState *dvSyncState) error {
 	dv := syncState.dvMutated
+
+	// This cleanup should be done if dv is marked for deletion or in case it succeeded
+	if dv.DeletionTimestamp == nil && dv.Status.Phase != cdiv1.Succeeded {
+		return nil
+	}
+
 	r.log.V(3).Info("Cleanup initiated in dv snapshot clone controller")
 
 	if err := r.populateSourceIfSourceRef(dv); err != nil {
