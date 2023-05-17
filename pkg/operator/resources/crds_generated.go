@@ -85,6 +85,7 @@ spec:
                 enum:
                 - copy
                 - snapshot
+                - csi-clone
                 type: string
               config:
                 description: CDIConfig at CDI level
@@ -2319,6 +2320,7 @@ spec:
                 enum:
                 - copy
                 - snapshot
+                - csi-clone
                 type: string
               config:
                 description: CDIConfig at CDI level
@@ -6962,10 +6964,6 @@ spec:
           spec:
             description: VolumeCloneSourceSpec defines the Spec field for VolumeCloneSource
             properties:
-              contentType:
-                description: ContentType represents the type of the cloned data (Kubevirt
-                  or archive)
-                type: string
               preallocation:
                 description: Preallocation controls whether storage for the target
                   PVC should be allocated in advance.

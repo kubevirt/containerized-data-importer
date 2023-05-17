@@ -27536,13 +27536,6 @@ func schema_pkg_apis_core_v1beta1_VolumeCloneSourceSpec(ref common.ReferenceCall
 							Format:      "",
 						},
 					},
-					"contentType": {
-						SchemaProps: spec.SchemaProps{
-							Description: "ContentType represents the type of the cloned data (Kubevirt or archive)",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
 					"priorityClassName": {
 						SchemaProps: spec.SchemaProps{
 							Description: "PriorityClassName is the priorityclass for the claim",

@@ -21,6 +21,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 // Planner plans clone operations
@@ -293,10 +294,6 @@ func (p *Planner) validateTargetStorageClassAssignment(ctx context.Context, args
 }
 
 func (p *Planner) validateSourcePVC(args *ChooseStrategyArgs, sourceClaim *corev1.PersistentVolumeClaim) error {
-	if err := ValidateContentTypes(sourceClaim, args.DataSource.Spec.ContentType); err != nil {
-		return err
-	}
-
 	if err := cc.ValidateRequestedCloneSize(sourceClaim.Spec.Resources, args.TargetClaim.Spec.Resources); err != nil {
 		return err
 	}
@@ -333,21 +330,13 @@ func (p *Planner) validateAdvancedClonePVC(ctx context.Context, args *ChooseStra
 func (p *Planner) planHostAssistedFromPVC(ctx context.Context, args *PlanArgs) ([]Phase, error) {
 	desiredClaim := createDesiredClaim(args.DataSource.Namespace, args.TargetClaim)
 
-	// only inflate for kubevirt content type
-	// maybe do this for smart clone/csi clone too too?
-	// shouldn't be necessary though
-	if args.DataSource.Spec.ContentType == "" || args.DataSource.Spec.ContentType == cdiv1.DataVolumeKubeVirt {
+	if util.ResolveVolumeMode(desiredClaim.Spec.VolumeMode) == corev1.PersistentVolumeFilesystem {
 		ds := desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage]
 		is, err := cc.InflateSizeWithOverhead(ctx, p.Client, ds.Value(), &args.TargetClaim.Spec)
 		if err != nil {
 			return nil, err
 		}
 		desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage] = is
-	}
-
-	ct := cdiv1.DataVolumeKubeVirt
-	if args.DataSource.Spec.ContentType != "" {
-		ct = args.DataSource.Spec.ContentType
 	}
 
 	hcp := &HostClonePhase{
@@ -357,11 +346,14 @@ func (p *Planner) planHostAssistedFromPVC(ctx context.Context, args *PlanArgs) (
 		DesiredClaim:   desiredClaim,
 		ImmediateBind:  true,
 		OwnershipLabel: p.OwnershipLabel,
-		ContentType:    string(ct),
 		Preallocation:  cc.GetPreallocation(ctx, p.Client, args.DataSource.Spec.Preallocation),
 		Client:         p.Client,
 		Log:            args.Log,
 		Recorder:       p.Recorder,
+	}
+
+	if args.DataSource.Spec.PriorityClassName != nil {
+		hcp.PriorityClassName = *args.DataSource.Spec.PriorityClassName
 	}
 
 	rp := &RebindPhase{

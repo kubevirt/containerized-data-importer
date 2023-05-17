@@ -99,13 +99,22 @@ func getPopulatorIndexKey(apiGroup, kind, namespace, name string) string {
 
 func claimReadyForPopulation(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (bool, string, error) {
 	if pvc.Spec.StorageClassName == nil {
-		return true, "", nil
+		// maybe storageclass will get assigned later
+		return false, "", nil
+	}
+
+	if *pvc.Spec.StorageClassName == "" {
+		return false, "", fmt.Errorf("PVC %s/%s has empty storage class name", pvc.Namespace, pvc.Name)
 	}
 
 	nodeName := ""
 	storageClass, err := cc.GetStorageClassByName(ctx, c, pvc.Spec.StorageClassName)
 	if err != nil {
 		return false, nodeName, err
+	}
+
+	if storageClass == nil {
+		return false, nodeName, fmt.Errorf("storage class %s not found", *pvc.Spec.StorageClassName)
 	}
 
 	if checkIntreeStorageClass(pvc, storageClass) {

@@ -54,13 +54,14 @@ const (
 
 var (
 	uploadPopLog = logf.Log.WithName("upload-populator-controller-test")
+
+	scName = "test-sc"
 )
 
 var _ = Describe("Datavolume controller reconcile loop", func() {
 	DescribeTable("should create PVC prime", func(contentType string, preallocation bool) {
 		pvc := newUploadPopulatorPVC("test-pvc")
 		volumeUploadSourceCR := newUploadPopulatorCR(contentType, preallocation)
-		scName := "test-sc"
 		sc := cc.CreateStorageClassWithProvisioner(scName, map[string]string{cc.AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
 		r := createUploadPopulatorReconciler(pvc, volumeUploadSourceCR, sc)
 		_, err := r.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-pvc", Namespace: metav1.NamespaceDefault}})
@@ -232,7 +233,8 @@ func newUploadPopulatorPVC(name string) *corev1.PersistentVolumeClaim {
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
-			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			StorageClassName: &scName,
+			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("1Gi"),

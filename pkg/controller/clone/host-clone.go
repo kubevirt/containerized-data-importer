@@ -18,17 +18,17 @@ import (
 
 // HostClonePhase creates and monitors a dumb clone operation
 type HostClonePhase struct {
-	Owner          client.Object
-	Namespace      string
-	SourceName     string
-	DesiredClaim   *corev1.PersistentVolumeClaim
-	ImmediateBind  bool
-	OwnershipLabel string
-	Preallocation  bool
-	ContentType    string
-	Client         client.Client
-	Log            logr.Logger
-	Recorder       record.EventRecorder
+	Owner             client.Object
+	Namespace         string
+	SourceName        string
+	DesiredClaim      *corev1.PersistentVolumeClaim
+	ImmediateBind     bool
+	OwnershipLabel    string
+	Preallocation     bool
+	PriorityClassName string
+	Client            client.Client
+	Log               logr.Logger
+	Recorder          record.EventRecorder
 }
 
 var _ Phase = &HostClonePhase{}
@@ -103,7 +103,6 @@ func (p *HostClonePhase) createClaim(ctx context.Context) (*corev1.PersistentVol
 	claim := p.DesiredClaim.DeepCopy()
 
 	claim.Namespace = p.Namespace
-	cc.AddAnnotation(claim, cc.AnnContentType, p.ContentType)
 	cc.AddAnnotation(claim, cc.AnnPreallocationRequested, fmt.Sprintf("%t", p.Preallocation))
 	cc.AddAnnotation(claim, cc.AnnOwnerUID, string(p.Owner.GetUID()))
 	cc.AddAnnotation(claim, cc.AnnPodRestarts, "0")
@@ -114,6 +113,9 @@ func (p *HostClonePhase) createClaim(ctx context.Context) (*corev1.PersistentVol
 	}
 	if p.ImmediateBind {
 		cc.AddAnnotation(claim, cc.AnnImmediateBinding, "")
+	}
+	if p.PriorityClassName != "" {
+		cc.AddAnnotation(claim, cc.AnnPriorityClassName, p.PriorityClassName)
 	}
 
 	if err := p.Client.Create(ctx, claim); err != nil {

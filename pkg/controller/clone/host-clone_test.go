@@ -75,7 +75,6 @@ var _ = Describe("HostClonePhase test", func() {
 			SourceName:     "source",
 			DesiredClaim:   desired,
 			ImmediateBind:  true,
-			ContentType:    "kubevirt",
 			Preallocation:  false,
 			Client:         cl,
 			Recorder:       rec,
@@ -101,7 +100,6 @@ var _ = Describe("HostClonePhase test", func() {
 
 		pvc := getDesiredClaim(p)
 		Expect(pvc.Spec.DataSourceRef).To(BeNil())
-		Expect(pvc.Annotations[cc.AnnContentType]).To(Equal("kubevirt"))
 		Expect(pvc.Annotations[cc.AnnPreallocationRequested]).To(Equal("false"))
 		Expect(pvc.Annotations[cc.AnnOwnerUID]).To(Equal(string(p.Owner.GetUID())))
 		Expect(pvc.Annotations[cc.AnnPodRestarts]).To(Equal("0"))
@@ -109,6 +107,22 @@ var _ = Describe("HostClonePhase test", func() {
 		Expect(pvc.Annotations[cc.AnnPopulatorKind]).To(Equal(cdiv1.VolumeCloneSourceRef))
 		Expect(pvc.Labels[p.OwnershipLabel]).To(Equal("uid"))
 		Expect(pvc.Annotations[cc.AnnImmediateBinding]).To(Equal(""))
+		_, ok := pvc.Annotations[cc.AnnPriorityClassName]
+		Expect(ok).To(BeFalse())
+	})
+
+	It("should create pvc with priorityclass", func() {
+		p := creatHostClonePhase()
+		p.PriorityClassName = "priority"
+
+		result, err := p.Reconcile(context.Background())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).ToNot(BeNil())
+		Expect(result.Requeue).To(BeFalse())
+		Expect(result.RequeueAfter).ToNot(BeZero())
+
+		pvc := getDesiredClaim(p)
+		Expect(pvc.Annotations[cc.AnnPriorityClassName]).To(Equal("priority"))
 	})
 
 	Context("with desired claim created", func() {

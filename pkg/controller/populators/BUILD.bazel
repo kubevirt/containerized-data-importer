@@ -43,6 +43,7 @@ go_library(
 go_test(
     name = "go_default_test",
     srcs = [
+        "clone-populator_test.go",
         "import-populator_test.go",
         "populators_suite_test.go",
         "upload-populator_test.go",
@@ -50,6 +51,7 @@ go_test(
     embed = [":go_default_library"],
     deps = [
         "//pkg/common:go_default_library",
+        "//pkg/controller/clone:go_default_library",
         "//pkg/controller/common:go_default_library",
         "//pkg/feature-gates:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
@@ -69,6 +71,8 @@ go_test(
         "//vendor/k8s.io/apimachinery/pkg/types:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes/scheme:go_default_library",
         "//vendor/k8s.io/client-go/tools/record:go_default_library",
+        "//vendor/k8s.io/utils/pointer:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/client:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client/fake:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/log:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/log/zap:go_default_library",

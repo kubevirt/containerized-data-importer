@@ -19,7 +19,6 @@ package populators
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -60,12 +59,16 @@ const (
 	errorPhase = "Error"
 )
 
+// Planner is an interface to mock out planner implementation for testing
+type Planner interface {
+	ChooseStrategy(context.Context, *clone.ChooseStrategyArgs) (*cdiv1.CDICloneStrategy, error)
+	Plan(context.Context, *clone.PlanArgs) ([]clone.Phase, error)
+}
+
 // ClonePopulatorReconciler reconciles PVCs with VolumeCloneSources
 type ClonePopulatorReconciler struct {
 	ReconcilerBase
-	manager    manager.Manager
-	controller controller.Controller
-	planner    *clone.Planner
+	planner Planner
 }
 
 // NewClonePopulator creates a new instance of the clone-populator controller
@@ -88,7 +91,6 @@ func NewClonePopulator(
 			sourceKind:      cdiv1.VolumeCloneSourceRef,
 			installerLabels: installerLabels,
 		},
-		manager: mgr,
 	}
 
 	clonePopulator, err := controller.New(clonePopulatorName, mgr, controller.Options{
@@ -98,9 +100,8 @@ func NewClonePopulator(
 	if err != nil {
 		return nil, err
 	}
-	reconciler.controller = clonePopulator
 
-	reconciler.planner = &clone.Planner{
+	planner := &clone.Planner{
 		RootObjectType:  &corev1.PersistentVolumeClaimList{},
 		OwnershipLabel:  LabelOwnedByUID,
 		UIDField:        uidField,
@@ -109,14 +110,15 @@ func NewClonePopulator(
 		InstallerLabels: installerLabels,
 		Client:          reconciler.client,
 		Recorder:        reconciler.recorder,
-		Controller:      reconciler.controller,
+		Controller:      clonePopulator,
 	}
+	reconciler.planner = planner
 
 	if err := addCommonPopulatorsWatches(mgr, clonePopulator, log, cdiv1.VolumeCloneSourceRef, &cdiv1.VolumeCloneSource{}); err != nil {
 		return nil, err
 	}
 
-	if err := reconciler.planner.AddCoreWatches(reconciler.log); err != nil {
+	if err := planner.AddCoreWatches(reconciler.log); err != nil {
 		return nil, err
 	}
 
@@ -154,7 +156,7 @@ func (r *ClonePopulatorReconciler) Reconcile(ctx context.Context, req reconcile.
 	}
 
 	if (isBound || isDeleted) && hasFinalizer {
-		if isBound && !isClonePhaseSucceeded(pvc) {
+		if isBound && !isDeleted && !isClonePhaseSucceeded(pvc) {
 			log.V(1).Info("setting phase to Succeeded")
 			return reconcile.Result{}, r.updateClonePhaseSucceeded(ctx, pvc)
 		}
@@ -201,7 +203,7 @@ func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log log
 
 		if cs == nil {
 			log.V(3).Info("unable to choose clone strategy now")
-			// TODO create index/watch to deal with this
+			// TODO maybe create index/watch to deal with this
 			return reconcile.Result{RequeueAfter: 5 * time.Second}, r.updateClonePhasePending(ctx, pvc)
 		}
 	}
@@ -295,7 +297,6 @@ func (r *ClonePopulatorReconciler) cleanup(ctx context.Context, log logr.Logger,
 func (r *ClonePopulatorReconciler) initTargetClaim(ctx context.Context, pvc *corev1.PersistentVolumeClaim, vcs *cdiv1.VolumeCloneSource, cs cdiv1.CDICloneStrategy) (bool, error) {
 	claimCpy := pvc.DeepCopy()
 	clone.AddCommonClaimLabels(claimCpy)
-	setAnnotationsFromDataSource(claimCpy, vcs)
 	setSavedCloneStrategy(claimCpy, cs)
 	if claimCpy.Annotations[AnnClonePhase] == "" {
 		cc.AddAnnotation(claimCpy, AnnClonePhase, pendingPhase)
@@ -364,16 +365,4 @@ func getSavedCloneStrategy(obj client.Object) *cdiv1.CDICloneStrategy {
 
 func setSavedCloneStrategy(obj client.Object, strategy cdiv1.CDICloneStrategy) {
 	cc.AddAnnotation(obj, cc.AnnCloneType, string(strategy))
-}
-
-func setAnnotationsFromDataSource(obj client.Object, vcs *cdiv1.VolumeCloneSource) {
-	cc.AddAnnotation(obj, cc.AnnContentType, cc.GetContentType(string(vcs.Spec.ContentType)))
-	if vcs.Spec.PriorityClassName != nil {
-		cc.AddAnnotation(obj, cc.AnnPriorityClassName, *vcs.Spec.PriorityClassName)
-	}
-	preallocation := false
-	if vcs.Spec.Preallocation != nil {
-		preallocation = *vcs.Spec.Preallocation
-	}
-	cc.AddAnnotation(obj, cc.AnnPreallocationRequested, strconv.FormatBool(preallocation))
 }

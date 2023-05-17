@@ -381,7 +381,6 @@ func (VolumeCloneSourceSpec) SwaggerDoc() map[string]string {
 		"":                  "VolumeCloneSourceSpec defines the Spec field for VolumeCloneSource",
 		"source":            "Source is the src of the data to be cloned to the target PVC",
 		"preallocation":     "Preallocation controls whether storage for the target PVC should be allocated in advance.\n+optional",
-		"contentType":       "ContentType represents the type of the cloned data (Kubevirt or archive)\n+optional",
 		"priorityClassName": "PriorityClassName is the priorityclass for the claim\n+optional",
 	}
 }
@@ -423,7 +422,7 @@ func (CDISpec) SwaggerDoc() map[string]string {
 		"uninstallStrategy":     "+kubebuilder:validation:Enum=RemoveWorkloads;BlockUninstallIfWorkloadsExist\nCDIUninstallStrategy defines the state to leave CDI on uninstall",
 		"infra":                 "Rules on which nodes CDI infrastructure pods will be scheduled",
 		"workload":              "Restrict on which nodes CDI workload pods will be scheduled",
-		"cloneStrategyOverride": "Clone strategy override: should we use a host-assisted copy even if snapshots are available?\n+kubebuilder:validation:Enum=\"copy\";\"snapshot\"",
+		"cloneStrategyOverride": "Clone strategy override: should we use a host-assisted copy even if snapshots are available?\n+kubebuilder:validation:Enum=\"copy\";\"snapshot\";\"csi-clone\"",
 		"config":                "CDIConfig at CDI level",
 		"certConfig":            "certificate configuration",
 		"priorityClass":         "PriorityClass of the CDI control plane",

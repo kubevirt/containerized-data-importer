@@ -107,18 +107,6 @@ func IsSourceClaimReady(ctx context.Context, c client.Client, namespace, name st
 	return cdiv1.IsPopulated(claim, dataVolumeGetter(ctx, c))
 }
 
-// ValidateContentTypes validates source/target contenttypes are compatible
-func ValidateContentTypes(sourceClaim *corev1.PersistentVolumeClaim, targetContentType cdiv1.DataVolumeContentType) error {
-	sourceContentType := cdiv1.DataVolumeContentType(cc.GetPVCContentType(sourceClaim))
-	if targetContentType == "" {
-		targetContentType = cdiv1.DataVolumeKubeVirt
-	}
-	if sourceContentType == cdiv1.DataVolumeArchive && targetContentType == cdiv1.DataVolumeKubeVirt {
-		return fmt.Errorf("archive source and kubevirt target are incompatible")
-	}
-	return nil
-}
-
 // GetGlobalCloneStrategyOverride returns the global clone strategy override
 func GetGlobalCloneStrategyOverride(ctx context.Context, c client.Client) (*cdiv1.CDICloneStrategy, error) {
 	cr, err := cc.GetActiveCDI(ctx, c)

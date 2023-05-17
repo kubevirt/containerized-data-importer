@@ -236,21 +236,6 @@ var _ = Describe("Planner test", func() {
 			Expect(strategy).To(BeNil())
 		})
 
-		It("should fail invalid content types", func() {
-			source := createSourceClaim()
-			cc.AddAnnotation(source, cc.AnnContentType, "archive")
-			args := &ChooseStrategyArgs{
-				TargetClaim: createTargetClaim(),
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			planner := createPlanner(createStorageClass(), source)
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("archive source and kubevirt target are incompatible"))
-			Expect(strategy).To(BeNil())
-		})
-
 		It("should fail target smaller", func() {
 			source := createSourceClaim()
 			target := createTargetClaim()

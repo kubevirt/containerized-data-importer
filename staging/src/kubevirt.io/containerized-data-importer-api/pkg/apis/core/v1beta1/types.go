@@ -735,10 +735,6 @@ type VolumeCloneSourceSpec struct {
 	// +optional
 	Preallocation *bool `json:"preallocation,omitempty"`
 
-	// ContentType represents the type of the cloned data (Kubevirt or archive)
-	// +optional
-	ContentType DataVolumeContentType `json:"contentType,omitempty"`
-
 	// PriorityClassName is the priorityclass for the claim
 	// +optional
 	PriorityClassName *string `json:"priorityClassName,omitempty"`
@@ -808,7 +804,7 @@ type CDISpec struct {
 	// Restrict on which nodes CDI workload pods will be scheduled
 	Workloads sdkapi.NodePlacement `json:"workload,omitempty"`
 	// Clone strategy override: should we use a host-assisted copy even if snapshots are available?
-	// +kubebuilder:validation:Enum="copy";"snapshot"
+	// +kubebuilder:validation:Enum="copy";"snapshot";"csi-clone"
 	CloneStrategyOverride *CDICloneStrategy `json:"cloneStrategyOverride,omitempty"`
 	// CDIConfig at CDI level
 	Config *CDIConfigSpec `json:"config,omitempty"`
