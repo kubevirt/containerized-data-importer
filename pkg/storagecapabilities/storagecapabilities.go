@@ -37,6 +37,14 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"linstor.csi.linbit.com": createLinstorCapabilities(),
 	// dell-unity-csi
 	"csi-unity.dellemc.com": createDellUnityCapabilities(),
+	// PowerFlex
+	"csi-vxflexos.dellemc.com": createDellPowerCapabilities(),
+	// PowerScale
+	"csi-isilon.dellemc.com": createDellPowerCapabilities(),
+	// PowerMax
+	"csi-powermax.dellemc.com": createDellPowerCapabilities(),
+	// PowerStore
+	"csi-powerstore.dellemc.com": createDellPowerCapabilities(),
 	// storageos
 	"kubernetes.io/storageos": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"storageos":               {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
@@ -53,6 +61,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// GCE Persistent Disk
 	"kubernetes.io/gce-pd":  {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
 	"pd.csi.storage.gke.io": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
+	// HPE
+	"csi.hpe.com": createRWOBlockAndFilesystemCapabilities(),
 	// Portworx in-tree CSI
 	"kubernetes.io/portworx-volume/shared": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
 	"kubernetes.io/portworx-volume":        {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
@@ -68,7 +78,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"topolvm.cybozu.com": createTopoLVMCapabilities(),
 	"topolvm.io":         createTopoLVMCapabilities(),
 	// OpenStack Cinder
-	"cinder.csi.openstack.org": createCinderVolumeCapabilities(),
+	"cinder.csi.openstack.org": createRWOBlockAndFilesystemCapabilities(),
 	// OpenStack manila
 	"manila.csi.openstack.org": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
 }
@@ -218,6 +228,14 @@ func createDellUnityCapabilities() []StorageCapabilities {
 	}
 }
 
+func createDellPowerCapabilities() []StorageCapabilities {
+	return []StorageCapabilities{
+		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
+		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
+	}
+}
+
 func createTopoLVMCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
 		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
@@ -241,7 +259,7 @@ func createOpenStorageSharedVolumeCapabilities() []StorageCapabilities {
 	}
 }
 
-func createCinderVolumeCapabilities() []StorageCapabilities {
+func createRWOBlockAndFilesystemCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
 		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
 		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
