@@ -687,9 +687,11 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 		datavolume.Status.Progress = "N/A"
 	}
 
-	if usePopulator, _ := checkPVCUsingPopulators(pvc); usePopulator {
+	if usePopulator, _ := CheckPVCUsingPopulators(pvc); usePopulator {
 		if progress, ok := pvc.Annotations[cc.AnnPopulatorProgress]; ok {
 			datavolume.Status.Progress = cdiv1.DataVolumeProgress(progress)
+		} else {
+			datavolume.Status.Progress = "N/A"
 		}
 		return nil
 	}
@@ -812,7 +814,7 @@ func (r ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPha
 		} else {
 			switch pvc.Status.Phase {
 			case corev1.ClaimPending:
-				usePopulator, err := checkPVCUsingPopulators(pvc)
+				usePopulator, err := CheckPVCUsingPopulators(pvc)
 				if err != nil {
 					return reconcile.Result{}, err
 				}

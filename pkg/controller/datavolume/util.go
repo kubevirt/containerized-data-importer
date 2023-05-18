@@ -330,7 +330,9 @@ func storageClassCSIDriverExists(client client.Client, log logr.Logger, storageC
 	return true, nil
 }
 
-func checkPVCUsingPopulators(pvc *v1.PersistentVolumeClaim) (bool, error) {
+// CheckPVCUsingPopulators returns true if pvc has dataSourceRef and has
+// the usePopulator annotation
+func CheckPVCUsingPopulators(pvc *v1.PersistentVolumeClaim) (bool, error) {
 	if pvc.Spec.DataSourceRef == nil {
 		return false, nil
 	}

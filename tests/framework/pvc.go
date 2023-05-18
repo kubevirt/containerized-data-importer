@@ -77,9 +77,16 @@ func (f *Framework) ForceBindPvcIfDvIsWaitForFirstConsumer(dv *cdiv1.DataVolume)
 	pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred(), "PVC should exist")
 	if f.IsBindingModeWaitForFirstConsumer(pvc.Spec.StorageClassName) {
-		err = utils.WaitForDataVolumePhase(f, dv.Namespace, cdiv1.WaitForFirstConsumer, dv.Name)
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		createConsumerPod(pvc, f)
+		if pvc.Spec.DataSourceRef != nil &&
+			dv.Spec.Source.PVC == nil && dv.Spec.Source.Snapshot == nil {
+			err = utils.WaitForDataVolumePhase(f, dv.Namespace, cdiv1.PendingPopulation, dv.Name)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			createConsumerPodForPopulationPVC(pvc, f)
+		} else {
+			err = utils.WaitForDataVolumePhase(f, dv.Namespace, cdiv1.WaitForFirstConsumer, dv.Name)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			createConsumerPod(pvc, f)
+		}
 	}
 }
 
@@ -91,7 +98,11 @@ func (f *Framework) WaitPVCDeletedByUID(pvcSpec *k8sv1.PersistentVolumeClaim, ti
 // ForceBindIfWaitForFirstConsumer creates a Pod with the passed in PVC mounted under /dev/pvc, which forces the PVC to be scheduled and bound.
 func (f *Framework) ForceBindIfWaitForFirstConsumer(targetPvc *k8sv1.PersistentVolumeClaim) {
 	if targetPvc.Spec.VolumeName == "" && f.IsBindingModeWaitForFirstConsumer(targetPvc.Spec.StorageClassName) {
-		createConsumerPod(targetPvc, f)
+		if targetPvc.Spec.DataSourceRef != nil {
+			createConsumerPodForPopulationPVC(targetPvc, f)
+		} else {
+			createConsumerPod(targetPvc, f)
+		}
 	}
 }
 
@@ -102,8 +113,8 @@ func (f *Framework) ForceSchedulingIfWaitForFirstConsumerPopulationPVC(targetPvc
 	}
 }
 
-func createConsumerPod(targetPvc *k8sv1.PersistentVolumeClaim, f *Framework) {
-	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: creating \"consumer-pod\" to force binding PVC: %s\n", targetPvc.Name)
+// CreateConsumerPod create a pod that consumes the given PVC
+func (f *Framework) CreateConsumerPod(targetPvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
 	namespace := targetPvc.Namespace
 
 	err := utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetPvc.Namespace, k8sv1.ClaimPending, targetPvc.Name)
@@ -112,7 +123,15 @@ func createConsumerPod(targetPvc *k8sv1.PersistentVolumeClaim, f *Framework) {
 	podName := naming.GetResourceName("consumer-pod", targetPvc.Name)
 	executorPod, err := f.CreateNoopPodWithPVC(podName, namespace, targetPvc)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	err = utils.WaitTimeoutForPodSucceeded(f.K8sClient, executorPod.Name, namespace, utils.PodWaitForTime)
+	return executorPod
+}
+
+func createConsumerPod(targetPvc *k8sv1.PersistentVolumeClaim, f *Framework) {
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: creating \"consumer-pod\" to force binding PVC: %s\n", targetPvc.Name)
+	executorPod := f.CreateConsumerPod(targetPvc)
+
+	namespace := targetPvc.Namespace
+	err := utils.WaitTimeoutForPodSucceeded(f.K8sClient, executorPod.Name, namespace, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, namespace, k8sv1.ClaimBound, targetPvc.Name)
@@ -123,15 +142,9 @@ func createConsumerPod(targetPvc *k8sv1.PersistentVolumeClaim, f *Framework) {
 
 func createConsumerPodForPopulationPVC(targetPvc *k8sv1.PersistentVolumeClaim, f *Framework) {
 	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: creating \"consumer-pod\" to get 'selected-node' annotation on PVC: %s\n", targetPvc.Name)
+	executorPod := f.CreateConsumerPod(targetPvc)
+
 	namespace := targetPvc.Namespace
-
-	err := utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetPvc.Namespace, k8sv1.ClaimPending, targetPvc.Name)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-	podName := naming.GetResourceName("consumer-pod", targetPvc.Name)
-	executorPod, err := f.CreateNoopPodWithPVC(podName, namespace, targetPvc)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
 	selectedNode, status, err := utils.WaitForPVCAnnotation(f.K8sClient, namespace, targetPvc, controller.AnnSelectedNode)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	gomega.Expect(status).To(gomega.BeTrue())
@@ -299,6 +312,7 @@ func (f *Framework) VerifyFSOverhead(namespace *k8sv1.Namespace, pvc *k8sv1.Pers
 	}
 
 	requestedSize := pvc.Spec.Resources.Requests[k8sv1.ResourceStorage]
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: VerifyFSOverhead comparison: Virtual: %d, Actual: %d, requestedSize: %d\n", info.VirtualSize, info.ActualSize, requestedSize.Value())
 	return info.VirtualSize <= info.ActualSize && info.VirtualSize < requestedSize.Value(), nil
 }
 

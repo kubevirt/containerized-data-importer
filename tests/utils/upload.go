@@ -3,7 +3,6 @@ package utils
 import (
 	"context"
 
-	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -14,6 +13,7 @@ import (
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )
 
@@ -56,7 +56,11 @@ const (
 
 // UploadPodName returns the name of the upload server pod associated with a PVC
 func UploadPodName(pvc *k8sv1.PersistentVolumeClaim) string {
-	return naming.GetResourceName(common.UploadPodName, pvc.Name)
+	uploadPodNameSuffix := pvc.Name
+	if pvc.Spec.DataSourceRef != nil {
+		uploadPodNameSuffix = populators.PVCPrimeName(pvc)
+	}
+	return naming.GetResourceName(common.UploadPodName, uploadPodNameSuffix)
 }
 
 // UploadPVCDefinition creates a PVC with the upload target annotation
@@ -91,7 +95,7 @@ func UploadPopulationPVCDefinition() *k8sv1.PersistentVolumeClaim {
 func UploadPopulationBlockPVCDefinition(storageClassName string) *k8sv1.PersistentVolumeClaim {
 	pvcDef := UploadPopulationPVCDefinition()
 	pvcDef.Spec.StorageClassName = &storageClassName
-	volumeMode := corev1.PersistentVolumeBlock
+	volumeMode := k8sv1.PersistentVolumeBlock
 	pvcDef.Spec.VolumeMode = &volumeMode
 	return pvcDef
 }

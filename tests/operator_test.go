@@ -426,9 +426,13 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
 
+				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				uploadPodName := utils.UploadPodName(pvc)
+
 				By("Waiting for pod to be running")
 				Eventually(func() bool {
-					pod, err := f.K8sClient.CoreV1().Pods(dv.Namespace).Get(context.TODO(), "cdi-upload-"+dv.Name, metav1.GetOptions{})
+					pod, err := f.K8sClient.CoreV1().Pods(dv.Namespace).Get(context.TODO(), uploadPodName, metav1.GetOptions{})
 					if errors.IsNotFound(err) {
 						return false
 					}
