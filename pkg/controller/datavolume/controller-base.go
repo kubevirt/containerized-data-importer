@@ -103,6 +103,7 @@ type dvSyncState struct {
 	pvc       *corev1.PersistentVolumeClaim
 	pvcSpec   *corev1.PersistentVolumeClaimSpec
 	dvSyncResult
+	usePopulator bool
 }
 
 // ReconcilerBase members
@@ -456,6 +457,11 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 		return syncState, err
 	}
 
+	syncState.usePopulator, err = r.usePopulatorsForPopulation(&syncState)
+	if err != nil {
+		return syncState, err
+	}
+
 	if err := r.handleStaticVolume(&syncState, log); err != nil || syncState.result != nil {
 		return syncState, err
 	}
@@ -680,6 +686,11 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 		datavolume.Status.Progress = "N/A"
 	}
 
+	if progress, ok := pvc.Annotations[cc.AnnImportProgressReporting]; ok {
+		datavolume.Status.Progress = cdiv1.DataVolumeProgress(progress)
+		return nil
+	}
+
 	if datavolume.Spec.Source != nil && datavolume.Spec.Source.PVC != nil {
 		podNamespace = datavolume.Spec.Source.PVC.Namespace
 	} else {
@@ -702,6 +713,8 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 		}
 	}
 	// We are not done yet, force a re-reconcile in 2 seconds to get an update.
+	// TODO: if I understand currectly: do we really want to force reconcile even for population which
+	// doesnt report progress such as upload?
 	result.RequeueAfter = 2 * time.Second
 	return nil
 }
@@ -797,10 +810,27 @@ func (r ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPha
 				if err != nil {
 					return reconcile.Result{}, err
 				}
-				if shouldBeMarkedWaitForFirstConsumer {
-					dataVolumeCopy.Status.Phase = cdiv1.WaitForFirstConsumer
+				usePopulator, err := r.checkPVCUsingPopulators(pvc)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+				if usePopulator {
+					// when using populators the target pvc phase will stay in pending
+					// until the population completes, hence once the population pod exists
+					// we can update the dv phase according to the pod phase
+					if shouldBeMarkedWaitForFirstConsumer && phase == "" {
+						dataVolumeCopy.Status.Phase = cdiv1.PendingPopulation
+					} else {
+						if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
+							return reconcile.Result{}, err
+						}
+					}
 				} else {
-					dataVolumeCopy.Status.Phase = cdiv1.Pending
+					if shouldBeMarkedWaitForFirstConsumer {
+						dataVolumeCopy.Status.Phase = cdiv1.WaitForFirstConsumer
+					} else {
+						dataVolumeCopy.Status.Phase = cdiv1.Pending
+					}
 				}
 			case corev1.ClaimBound:
 				switch dataVolumeCopy.Status.Phase {
@@ -1126,8 +1156,35 @@ func (r *ReconcilerBase) storageClassCSIDriverExists(storageClassName *string) (
 	csiDriver := &storagev1.CSIDriver{}
 
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: storageClass.Provisioner}, csiDriver); err != nil {
-		return false, err
+		if !k8serrors.IsNotFound(err) {
+			return false, err
+		}
+		return false, nil
 	}
 
 	return true, nil
+}
+
+func (r *ReconcilerBase) checkPVCUsingPopulators(pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	if pvc.Spec.DataSourceRef == nil {
+		return false, nil
+	}
+	return r.storageClassCSIDriverExists(pvc.Spec.StorageClassName)
+}
+
+func (r *ReconcilerBase) usePopulatorsForPopulation(syncState *dvSyncState) (bool, error) {
+	if usePopulator, ok := syncState.dvMutated.Annotations[cc.AnnUsePopulator]; ok {
+		boolUsePopulator, err := strconv.ParseBool(usePopulator)
+		if err != nil {
+			return false, err
+		}
+		return boolUsePopulator, nil
+	}
+	storageClass := syncState.pvcSpec.StorageClassName
+	usePopulator, err := r.storageClassCSIDriverExists(storageClass)
+	if err != nil {
+		return false, err
+	}
+	cc.AddAnnotation(syncState.dvMutated, cc.AnnUsePopulator, strconv.FormatBool(usePopulator))
+	return usePopulator, nil
 }

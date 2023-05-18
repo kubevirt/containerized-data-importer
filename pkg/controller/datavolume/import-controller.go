@@ -26,10 +26,13 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -60,6 +63,8 @@ const (
 	MessageImportPaused = "Multistage import into PVC %s is paused"
 
 	importControllerName = "datavolume-import-controller"
+
+	volumeImportSourcePrefix = "volume-import-source"
 )
 
 // ImportReconciler members
@@ -102,6 +107,25 @@ func NewImportController(
 func addDataVolumeImportControllerWatches(mgr manager.Manager, datavolumeController controller.Controller) error {
 	if err := addDataVolumeControllerCommonWatches(mgr, datavolumeController, dataVolumeImport); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (r *ImportReconciler) updatePVCForPopulation(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+	if dataVolume.Spec.Source.HTTP != nil &&
+		dataVolume.Spec.Source.S3 != nil &&
+		dataVolume.Spec.Source.GCS != nil &&
+		dataVolume.Spec.Source.Registry != nil &&
+		dataVolume.Spec.Source.Imageio != nil &&
+		dataVolume.Spec.Source.VDDK != nil &&
+		dataVolume.Spec.Source.Blank != nil {
+		return errors.Errorf("no source set for import datavolume")
+	}
+	apiGroup := cc.AnnAPIGroup
+	pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
+		APIGroup: &apiGroup,
+		Kind:     cdiv1.VolumeImportSourceRef,
+		Name:     volumeImportSourceName(dataVolume),
 	}
 	return nil
 }
@@ -160,13 +184,24 @@ func (r *ImportReconciler) sync(log logr.Logger, req reconcile.Request) (dvSyncR
 }
 
 func (r *ImportReconciler) syncImport(log logr.Logger, req reconcile.Request) (dvSyncState, error) {
-	syncState, syncErr := r.syncCommon(log, req, nil, nil)
+	syncState, syncErr := r.syncCommon(log, req, r.cleanup, nil)
 	if syncErr != nil || syncState.result != nil {
 		return syncState, syncErr
 	}
-	if err := r.handlePvcCreation(log, &syncState, r.updateAnnotations); err != nil {
+
+	pvcModifier := r.updateAnnotations
+	if syncState.usePopulator {
+		err := r.createVolumeImportSourceCR(&syncState)
+		if err != nil {
+			return syncState, err
+		}
+		pvcModifier = r.updatePVCForPopulation
+	}
+
+	if err := r.handlePvcCreation(log, &syncState, pvcModifier); err != nil {
 		syncErr = err
 	}
+
 	if syncState.pvc != nil && syncErr == nil {
 		r.setVddkAnnotations(&syncState)
 		syncErr = r.maybeSetPvcMultiStageAnnotation(syncState.pvc, syncState.dvMutated)
@@ -174,9 +209,25 @@ func (r *ImportReconciler) syncImport(log logr.Logger, req reconcile.Request) (d
 	return syncState, syncErr
 }
 
+func (r *ImportReconciler) cleanup(syncState *dvSyncState) error {
+	dv := syncState.dvMutated
+	// This cleanup should be done if dv is marked for deletion, dv is succeeded
+	// and data volume is using the import populator
+	if dv.DeletionTimestamp == nil && dv.Status.Phase != cdiv1.Succeeded && !syncState.usePopulator {
+		return nil
+	}
+
+	return r.deleteVolumeImportSourceCR(syncState)
+}
+
+func isPVCImportPopulation(pvc *corev1.PersistentVolumeClaim) bool {
+	return populators.IsPVCDataSourceRefKind(pvc, cdiv1.VolumeImportSourceRef)
+}
+
 func (r *ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
 	phase, ok := pvc.Annotations[cc.AnnPodPhase]
-	if phase != string(corev1.PodSucceeded) {
+	importPopulation := isPVCImportPopulation(pvc)
+	if phase != string(corev1.PodSucceeded) && !importPopulation {
 		_, ok := pvc.Annotations[cc.AnnImportPod]
 		if !ok || pvc.Status.Phase != corev1.ClaimBound || pvcIsPopulated(pvc, dataVolumeCopy) {
 			return nil
@@ -429,6 +480,66 @@ func (r *ImportReconciler) getNextCheckpoint(dataVolume *cdiv1.DataVolume, pvc *
 				(numCheckpoints == (count + 1)) && dataVolume.Spec.FinalCheckpoint,
 			}
 			return checkpoint
+		}
+	}
+
+	return nil
+}
+
+func volumeImportSourceName(dv *cdiv1.DataVolume) string {
+	return fmt.Sprintf("%s-%s", volumeImportSourcePrefix, dv.UID)
+}
+
+func (r *ImportReconciler) createVolumeImportSourceCR(syncState *dvSyncState) error {
+	dv := syncState.dvMutated
+
+	source := &cdiv1.ImportSourceType{}
+	if http := dv.Spec.Source.HTTP; http != nil {
+		source.HTTP = http
+	} else if s3 := dv.Spec.Source.S3; s3 != nil {
+		source.S3 = s3
+	} else if gcs := dv.Spec.Source.GCS; gcs != nil {
+		source.GCS = gcs
+	} else if registry := dv.Spec.Source.Registry; registry != nil {
+		source.Registry = registry
+	} else if imageio := dv.Spec.Source.Imageio; imageio != nil {
+		source.Imageio = imageio
+	} else if vddk := dv.Spec.Source.VDDK; vddk != nil {
+		source.VDDK = vddk
+	} else {
+		// Our dv shouldn't be without source
+		// Defaulting to Blank source
+		source.Blank = &cdiv1.DataVolumeBlankImage{}
+	}
+
+	importSourceName := volumeImportSourceName(dv)
+	importSource := &cdiv1.VolumeImportSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      importSourceName,
+			Namespace: dv.Namespace,
+		},
+		Spec: cdiv1.VolumeImportSourceSpec{
+			Source:        source,
+			ContentType:   dv.Spec.ContentType,
+			Preallocation: dv.Spec.Preallocation,
+		},
+	}
+
+	return r.client.Create(context.TODO(), importSource)
+}
+
+func (r *ImportReconciler) deleteVolumeImportSourceCR(syncState *dvSyncState) error {
+	importSourceName := volumeImportSourceName(syncState.dvMutated)
+	importSource := &cdiv1.VolumeImportSource{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: importSourceName, Namespace: syncState.dvMutated.Namespace}, importSource); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else {
+		if err := r.client.Delete(context.TODO(), importSource); err != nil {
+			if !k8serrors.IsNotFound(err) {
+				return err
+			}
 		}
 	}
 

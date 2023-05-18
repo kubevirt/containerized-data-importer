@@ -23,8 +23,12 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -53,6 +57,8 @@ const (
 	MessageSizeDetectionPodFailed = "Size-detection pod failed due to %s"
 
 	uploadControllerName = "datavolume-upload-controller"
+
+	volumeUploadSourcePrefix = "volume-upload-source"
 )
 
 // UploadReconciler members
@@ -91,6 +97,19 @@ func NewUploadController(
 	return datavolumeController, nil
 }
 
+func (r *UploadReconciler) updatePVCForPopulation(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+	if dataVolume.Spec.Source.Upload == nil {
+		return errors.Errorf("no source set for upload datavolume")
+	}
+	apiGroup := cc.AnnAPIGroup
+	pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
+		APIGroup: &apiGroup,
+		Kind:     cdiv1.VolumeUploadSourceRef,
+		Name:     volumeUploadSourceName(dataVolume),
+	}
+	return nil
+}
+
 func (r *UploadReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
 	if dataVolume.Spec.Source.Upload == nil {
 		return errors.Errorf("no source set for upload datavolume")
@@ -113,19 +132,45 @@ func (r *UploadReconciler) sync(log logr.Logger, req reconcile.Request) (dvSyncR
 }
 
 func (r *UploadReconciler) syncUpload(log logr.Logger, req reconcile.Request) (dvSyncState, error) {
-	syncState, syncErr := r.syncCommon(log, req, nil, nil)
+	syncState, syncErr := r.syncCommon(log, req, r.cleanup, nil)
 	if syncErr != nil || syncState.result != nil {
 		return syncState, syncErr
 	}
-	if err := r.handlePvcCreation(log, &syncState, r.updateAnnotations); err != nil {
+
+	pvcModifier := r.updateAnnotations
+	if syncState.usePopulator {
+		err := r.createVolumeUploadSourceCR(&syncState)
+		if err != nil {
+			return syncState, err
+		}
+		pvcModifier = r.updatePVCForPopulation
+	}
+
+	if err := r.handlePvcCreation(log, &syncState, pvcModifier); err != nil {
 		syncErr = err
 	}
 	return syncState, syncErr
 }
 
+func (r *UploadReconciler) cleanup(syncState *dvSyncState) error {
+	dv := syncState.dvMutated
+	// This cleanup should be done if dv is marked for deletion, dv is succeeded
+	// and data volume is using the upload populator
+	if dv.DeletionTimestamp == nil && dv.Status.Phase != cdiv1.Succeeded && !syncState.usePopulator {
+		return nil
+	}
+
+	return r.deleteVolumeUploadSourceCR(syncState)
+}
+
+func isPVCUploadPopulation(pvc *corev1.PersistentVolumeClaim) bool {
+	return populators.IsPVCDataSourceRefKind(pvc, cdiv1.VolumeUploadSourceRef)
+}
+
 func (r *UploadReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
 	phase, ok := pvc.Annotations[cc.AnnPodPhase]
-	if phase != string(corev1.PodSucceeded) {
+	uploadPopulation := isPVCUploadPopulation(pvc)
+	if phase != string(corev1.PodSucceeded) && !uploadPopulation {
 		_, ok = pvc.Annotations[cc.AnnUploadRequest]
 		if !ok || pvc.Status.Phase != corev1.ClaimBound || pvcIsPopulated(pvc, dataVolumeCopy) {
 			return nil
@@ -161,5 +206,42 @@ func (r *UploadReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, 
 		event.reason = UploadSucceeded
 		event.message = fmt.Sprintf(MessageUploadSucceeded, pvc.Name)
 	}
+	return nil
+}
+
+func volumeUploadSourceName(dv *cdiv1.DataVolume) string {
+	return fmt.Sprintf("%s-%s", volumeUploadSourcePrefix, dv.UID)
+}
+
+func (r *UploadReconciler) createVolumeUploadSourceCR(syncState *dvSyncState) error {
+	uploadSourceName := volumeUploadSourceName(syncState.dvMutated)
+	uploadSource := &cdiv1.VolumeUploadSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      uploadSourceName,
+			Namespace: syncState.dv.Namespace,
+		},
+		Spec: cdiv1.VolumeUploadSourceSpec{
+			ContentType:   syncState.dv.Spec.ContentType,
+			Preallocation: syncState.dv.Spec.Preallocation,
+		},
+	}
+	return r.client.Create(context.TODO(), uploadSource)
+}
+
+func (r *UploadReconciler) deleteVolumeUploadSourceCR(syncState *dvSyncState) error {
+	uploadSourceName := volumeUploadSourceName(syncState.dvMutated)
+	uploadSource := &cdiv1.VolumeUploadSource{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: uploadSourceName, Namespace: syncState.dvMutated.Namespace}, uploadSource); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else {
+		if err := r.client.Delete(context.TODO(), uploadSource); err != nil {
+			if !k8serrors.IsNotFound(err) {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
