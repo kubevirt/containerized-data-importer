@@ -22,11 +22,10 @@ import (
 	"strconv"
 	"strings"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
@@ -34,14 +33,13 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-
-	//cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
@@ -271,49 +269,17 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		pvc.Status.Phase = v1.ClaimBound
 
 		reconciler = createImportReconciler(pvc)
+		workloads := updateCdiWithTestNodePlacement(reconciler.client)
 
-		cr := &cdiv1.CDI{}
-		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cr)
-		Expect(err).ToNot(HaveOccurred())
-
-		dummyNodeSelector := map[string]string{"kubernetes.io/arch": "amd64"}
-		dummyTolerations := []v1.Toleration{{Key: "test", Value: "123"}}
-		dummyAffinity := &v1.Affinity{
-			NodeAffinity: &v1.NodeAffinity{
-				RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
-					NodeSelectorTerms: []v1.NodeSelectorTerm{
-						{
-							MatchExpressions: []v1.NodeSelectorRequirement{
-								{Key: "kubernetes.io/hostname", Operator: v1.NodeSelectorOpIn, Values: []string{"node01"}},
-							},
-						},
-					},
-				},
-			},
-		}
-		cr.Spec.Workloads.NodeSelector = dummyNodeSelector
-		cr.Spec.Workloads.Affinity = dummyAffinity
-		cr.Spec.Workloads.Tolerations = dummyTolerations
-
-		err = reconciler.client.Update(context.TODO(), cr)
-		Expect(err).ToNot(HaveOccurred())
-
-		placement, err := cc.GetWorkloadNodePlacement(reconciler.client)
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(placement.Affinity).To(Equal(dummyAffinity))
-		Expect(placement.NodeSelector).To(Equal(dummyNodeSelector))
-		Expect(placement.Tolerations).To(Equal(dummyTolerations))
-
-		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(pod.Spec.Affinity).To(Equal(dummyAffinity))
-		Expect(pod.Spec.NodeSelector).To(Equal(dummyNodeSelector))
-		Expect(pod.Spec.Tolerations).To(Equal(dummyTolerations))
+		Expect(pod.Spec.Affinity).To(Equal(workloads.Affinity))
+		Expect(pod.Spec.NodeSelector).To(Equal(workloads.NodeSelector))
+		Expect(pod.Spec.Tolerations).To(Equal(workloads.Tolerations))
 	})
 
 	It("Should create a POD if a PVC with all needed annotations is passed", func() {
@@ -1188,4 +1154,38 @@ func createSecret(name, ns, accessKey, secretKey string, labels map[string]strin
 			bootstrapapi.BootstrapTokenUsageSigningKey: []byte("true"),
 		},
 	}
+}
+
+func updateCdiWithTestNodePlacement(c client.Client) sdkapi.NodePlacement {
+	cr := &cdiv1.CDI{}
+	err := c.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cr)
+	Expect(err).ToNot(HaveOccurred())
+
+	workloads := sdkapi.NodePlacement{
+		NodeSelector: map[string]string{"kubernetes.io/arch": "amd64"},
+		Tolerations:  []v1.Toleration{{Key: "test", Value: "123"}},
+		Affinity: &v1.Affinity{
+			NodeAffinity: &v1.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+					NodeSelectorTerms: []v1.NodeSelectorTerm{
+						{
+							MatchExpressions: []v1.NodeSelectorRequirement{
+								{Key: "kubernetes.io/hostname", Operator: v1.NodeSelectorOpIn, Values: []string{"node01"}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cr.Spec.Workloads = workloads
+	err = c.Update(context.TODO(), cr)
+	Expect(err).ToNot(HaveOccurred())
+
+	placement, err := cc.GetWorkloadNodePlacement(c)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(*placement).To(Equal(workloads))
+
+	return workloads
 }
