@@ -139,7 +139,7 @@ var _ = Describe("Clone Populator tests", func() {
 		}
 	})
 
-	It("should should do filesystem to filesystem clone", func() {
+	It("should do filesystem to filesystem clone", func() {
 		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 		createDataSource()
 		target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
@@ -149,7 +149,7 @@ var _ = Describe("Clone Populator tests", func() {
 		Expect(targetHash).To(Equal(sourceHash))
 	})
 
-	It("should should do filesystem to filesystem clone, source created after target", func() {
+	It("should do filesystem to filesystem clone, source created after target", func() {
 		createDataSource()
 		target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
 		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
@@ -159,7 +159,7 @@ var _ = Describe("Clone Populator tests", func() {
 		Expect(targetHash).To(Equal(sourceHash))
 	})
 
-	It("should should do filesystem to filesystem clone, dataSource created after target", func() {
+	It("should do filesystem to filesystem clone, dataSource created after target", func() {
 		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 		target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
 		createDataSource()
@@ -169,7 +169,7 @@ var _ = Describe("Clone Populator tests", func() {
 		Expect(targetHash).To(Equal(sourceHash))
 	})
 
-	It("should should do filesystem to filesystem clone (bigger target)", func() {
+	It("should do filesystem to filesystem clone (bigger target)", func() {
 		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 		createDataSource()
 		target := createTarget(biggerSize, corev1.PersistentVolumeFilesystem)
@@ -181,7 +181,7 @@ var _ = Describe("Clone Populator tests", func() {
 		Expect(targetHash).To(Equal(sourceHash))
 	})
 
-	It("should should do block to filesystem clone", func() {
+	It("should do block to filesystem clone", func() {
 		if !f.IsBlockVolumeStorageClassAvailable() {
 			Skip("Storage Class for block volume is not available")
 		}
@@ -196,7 +196,7 @@ var _ = Describe("Clone Populator tests", func() {
 		Expect(targetHash).To(Equal(sourceHash))
 	})
 
-	It("should should do filesystem to block clone", func() {
+	It("should do filesystem to block clone", func() {
 		if !f.IsBlockVolumeStorageClassAvailable() {
 			Skip("Storage Class for block volume is not available")
 		}
@@ -211,7 +211,7 @@ var _ = Describe("Clone Populator tests", func() {
 		Expect(targetHash).To(Equal(sourceHash))
 	})
 
-	It("should should do csi clone if possible", func() {
+	It("should do csi clone if possible", func() {
 		if !f.IsCSIVolumeCloneStorageClassAvailable() {
 			Skip("CSI Clone does not work without a capable storage class")
 		}
@@ -221,6 +221,20 @@ var _ = Describe("Clone Populator tests", func() {
 		sourceHash := getHash(source, 0)
 		target = waitSucceeded(target)
 		Expect(target.Annotations["cdi.kubevirt.io/cloneType"]).To(Equal("csi-clone"))
+		targetHash := getHash(target, 0)
+		Expect(targetHash).To(Equal(sourceHash))
+	})
+
+	It("should do snapshot clone if possible", func() {
+		if !f.IsSnapshotStorageClassAvailable() {
+			Skip("Snapshot Clone does not work without a capable storage class")
+		}
+		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
+		createDataSource()
+		target := createTargetWithStrategy(defaultSize, corev1.PersistentVolumeFilesystem, "snapshot")
+		sourceHash := getHash(source, 0)
+		target = waitSucceeded(target)
+		Expect(target.Annotations["cdi.kubevirt.io/cloneType"]).To(Equal("snapshot"))
 		targetHash := getHash(target, 0)
 		Expect(targetHash).To(Equal(sourceHash))
 	})

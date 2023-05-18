@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -56,6 +57,13 @@ type ProgressReporter interface {
 var coreTypesCreated = []client.Object{
 	&corev1.PersistentVolumeClaim{},
 	&corev1.Pod{},
+}
+
+// all types that may have been created
+var listTypesToDelete = []client.ObjectList{
+	&corev1.PersistentVolumeClaimList{},
+	&corev1.PodList{},
+	&snapshotv1.VolumeSnapshotList{},
 }
 
 // AddCoreWatches watches "core" types
@@ -127,6 +135,27 @@ func (p *Planner) Plan(ctx context.Context, args *PlanArgs) ([]Phase, error) {
 	}
 
 	return nil, fmt.Errorf("unknown strategy/source %s", string(args.Strategy))
+}
+
+// Cleanup cleans up after a clone op
+func (p *Planner) Cleanup(ctx context.Context, log logr.Logger, owner client.Object) error {
+	log.V(3).Info("Cleaning up for obj", "obj", owner)
+
+	for _, lt := range listTypesToDelete {
+		ls, err := labels.Parse(fmt.Sprintf("%s=%s", p.OwnershipLabel, string(owner.GetUID())))
+		if err != nil {
+			return err
+		}
+
+		lo := &client.ListOptions{
+			LabelSelector: ls,
+		}
+		if err := cc.BulkDeleteResources(ctx, p.Client, lt, lo); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (p *Planner) watchSnapshots(ctx context.Context, log logr.Logger) error {

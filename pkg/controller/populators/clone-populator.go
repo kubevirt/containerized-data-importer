@@ -22,11 +22,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -63,6 +61,7 @@ const (
 type Planner interface {
 	ChooseStrategy(context.Context, *clone.ChooseStrategyArgs) (*cdiv1.CDICloneStrategy, error)
 	Plan(context.Context, *clone.PlanArgs) ([]clone.Phase, error)
+	Cleanup(context.Context, logr.Logger, client.Object) error
 }
 
 // ClonePopulatorReconciler reconciles PVCs with VolumeCloneSources
@@ -260,38 +259,13 @@ func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log log
 
 func (r *ClonePopulatorReconciler) reconcileDone(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
 	log.V(3).Info("executing cleanup")
-	if err := r.cleanup(ctx, log, pvc); err != nil {
+	if err := r.planner.Cleanup(ctx, log, pvc); err != nil {
 		return reconcile.Result{}, err
 	}
 
 	log.V(1).Info("removing finalizer")
 	cc.RemoveFinalizer(pvc, cloneFinalizer)
 	return reconcile.Result{}, r.client.Update(ctx, pvc)
-}
-
-func (r *ClonePopulatorReconciler) cleanup(ctx context.Context, log logr.Logger, owner client.Object) error {
-	log.V(3).Info("Cleaning up for obj", "obj", owner)
-	listTypes := []client.ObjectList{
-		&corev1.PersistentVolumeClaimList{},
-		&snapshotv1.VolumeSnapshotList{},
-		&corev1.PodList{},
-	}
-
-	for _, lt := range listTypes {
-		ls, err := labels.Parse(fmt.Sprintf("%s=%s", LabelOwnedByUID, string(owner.GetUID())))
-		if err != nil {
-			return err
-		}
-
-		lo := &client.ListOptions{
-			LabelSelector: ls,
-		}
-		if err := cc.BulkDeleteResources(ctx, r.client, lt, lo); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (r *ClonePopulatorReconciler) initTargetClaim(ctx context.Context, pvc *corev1.PersistentVolumeClaim, vcs *cdiv1.VolumeCloneSource, cs cdiv1.CDICloneStrategy) (bool, error) {

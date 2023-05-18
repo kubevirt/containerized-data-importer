@@ -25,6 +25,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -47,6 +48,7 @@ var _ = Describe("Planner test", func() {
 		namespace  = "ns"
 		sourceName = "source"
 		targetName = "target"
+		ownerLabel = "label"
 	)
 
 	var (
@@ -75,7 +77,7 @@ var _ = Describe("Planner test", func() {
 
 		return &Planner{
 			RootObjectType: &corev1.PersistentVolumeClaimList{},
-			OwnershipLabel: "label",
+			OwnershipLabel: ownerLabel,
 			UIDField:       "uid",
 			Image:          "image",
 			PullPolicy:     corev1.PullIfNotPresent,
@@ -369,7 +371,7 @@ var _ = Describe("Planner test", func() {
 		})
 	})
 
-	Context("Paln tests", func() {
+	Context("Plan tests", func() {
 		cdiConfig := &cdiv1.CDIConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "config",
@@ -508,6 +510,55 @@ var _ = Describe("Planner test", func() {
 			validateCSIClonePhase(planner, args, plan[0])
 			validatePrepClaimPhase(planner, args, plan[1])
 			validateRebindPhase(planner, args, plan[2])
+		})
+	})
+
+	Context("Cleanup tests", func() {
+		tempResources := func() []runtime.Object {
+			target := createTargetClaim()
+			return []runtime.Object{
+				&corev1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: namespace,
+						Name:      "tmpClaim",
+						Labels: map[string]string{
+							ownerLabel: string(target.UID),
+						},
+					},
+				},
+				&corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: namespace,
+						Name:      "tmpPod",
+						Labels: map[string]string{
+							ownerLabel: string(target.UID),
+						},
+					},
+				},
+				&snapshotv1.VolumeSnapshot{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: namespace,
+						Name:      "tmpSnapshot",
+						Labels: map[string]string{
+							ownerLabel: string(target.UID),
+						},
+					},
+				},
+			}
+		}
+
+		It("should cleanup tmp resources", func() {
+			tempObjs := tempResources()
+			target := createTargetClaim()
+			planner := createPlanner(tempObjs...)
+			err := planner.Cleanup(context.Background(), log, target)
+			Expect(err).ToNot(HaveOccurred())
+			for _, r := range tempResources() {
+				co := r.(client.Object)
+				err = planner.Client.Get(context.Background(), client.ObjectKeyFromObject(co), co)
+				Expect(err).To(HaveOccurred())
+				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+			}
 		})
 	})
 })

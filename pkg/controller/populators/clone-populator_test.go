@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -27,7 +28,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -129,38 +129,6 @@ var _ = Describe("Clone populator tests", func() {
 		target.Annotations[AnnClonePhase] = string(succeededPhase)
 		target.Spec.VolumeName = "volume"
 		return target
-	}
-
-	tempResources := func() []runtime.Object {
-		return []runtime.Object{
-			&corev1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: namespace,
-					Name:      "tmpClaim",
-					Labels: map[string]string{
-						LabelOwnedByUID: "uid",
-					},
-				},
-			},
-			&corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: namespace,
-					Name:      "tmpPod",
-					Labels: map[string]string{
-						LabelOwnedByUID: "uid",
-					},
-				},
-			},
-			&snapshotv1.VolumeSnapshot{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: namespace,
-					Name:      "tmpSnapshot",
-					Labels: map[string]string{
-						LabelOwnedByUID: "uid",
-					},
-				},
-			},
-		}
 	}
 
 	getTarget := func(c client.Client) *corev1.PersistentVolumeClaim {
@@ -354,38 +322,16 @@ var _ = Describe("Clone populator tests", func() {
 		Expect(pvc.Annotations[AnnClonePhase]).To(Equal("Succeeded"))
 	})
 
-	It("should remove finalizer and cleanup when succeeded", func() {
-		tempObjs := tempResources()
+	It("should remove finalizer and call cleanup when succeeded", func() {
 		target := succeededTarget()
-		allResources := append(tempObjs, target)
-		reconciler := createClonePopulatorReconciler(allResources...)
+		reconciler := createClonePopulatorReconciler(target)
+		fp := &fakePlanner{}
+		reconciler.planner = fp
 		result, err := reconciler.Reconcile(context.Background(), nn)
 		isDefaultResult(result, err)
 		pvc := getTarget(reconciler.client)
 		Expect(pvc.Finalizers).ToNot(ContainElement(cloneFinalizer))
-		for _, r := range tempResources() {
-			co := r.(client.Object)
-			err = reconciler.client.Get(context.Background(), client.ObjectKeyFromObject(co), co)
-			Expect(err).To(HaveOccurred())
-			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
-		}
-	})
-
-	It("should remove finalizer and cleanup when deleted while in progress", func() {
-		tempObjs := tempResources()
-		target, _ := initinializedTargetAndDataSource()
-		ts := metav1.Now()
-		target.DeletionTimestamp = &ts
-		allResources := append(tempObjs, target)
-		reconciler := createClonePopulatorReconciler(allResources...)
-		result, err := reconciler.Reconcile(context.Background(), nn)
-		isDefaultResult(result, err)
-		for _, r := range tempResources() {
-			co := r.(client.Object)
-			err = reconciler.client.Get(context.Background(), client.ObjectKeyFromObject(co), co)
-			Expect(err).To(HaveOccurred())
-			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
-		}
+		Expect(fp.cleanupCalled).To(BeTrue())
 	})
 })
 
@@ -395,6 +341,7 @@ type fakePlanner struct {
 	chooseStrategyError  error
 	planResult           []clone.Phase
 	planError            error
+	cleanupCalled        bool
 }
 
 func (p *fakePlanner) ChooseStrategy(ctx context.Context, args *clone.ChooseStrategyArgs) (*cdiv1.CDICloneStrategy, error) {
@@ -403,6 +350,11 @@ func (p *fakePlanner) ChooseStrategy(ctx context.Context, args *clone.ChooseStra
 
 func (p *fakePlanner) Plan(ctx context.Context, args *clone.PlanArgs) ([]clone.Phase, error) {
 	return p.planResult, p.planError
+}
+
+func (p *fakePlanner) Cleanup(ctx context.Context, log logr.Logger, owner client.Object) error {
+	p.cleanupCalled = true
+	return nil
 }
 
 type fakePhase struct {

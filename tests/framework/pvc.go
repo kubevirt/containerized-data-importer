@@ -498,6 +498,7 @@ func addVolumeMounts(pvc *k8sv1.PersistentVolumeClaim, volumeName string) []k8sv
 		{
 			Name:      volumeName,
 			MountPath: utils.DefaultPvcMountPath,
+			ReadOnly:  true,
 		},
 	}
 	return volumeMounts
