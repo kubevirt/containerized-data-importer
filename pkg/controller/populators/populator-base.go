@@ -18,6 +18,7 @@ package populators
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -220,6 +221,31 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 	return pvcPrime, nil
 }
 
+func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim) error {
+	pvcCopy := pvc.DeepCopy()
+	if phase, ok := pvcPrime.Annotations[cc.AnnPodPhase]; ok {
+		pvcCopy.Annotations[cc.AnnPodPhase] = phase
+	}
+	if ready, ok := pvcPrime.Annotations[cc.AnnPodReady]; ok {
+		pvcCopy.Annotations[cc.AnnPodReady] = ready
+	}
+	if restarts, ok := pvcPrime.Annotations[cc.AnnPodRestarts]; ok {
+		pvcCopy.Annotations[cc.AnnPodRestarts] = restarts
+	}
+	if preallocation, ok := pvcPrime.Annotations[cc.AnnPreallocationApplied]; ok {
+		pvcCopy.Annotations[cc.AnnPreallocationApplied] = preallocation
+	}
+
+	if !reflect.DeepEqual(pvc.ObjectMeta, pvcCopy.ObjectMeta) {
+		err := r.client.Update(context.TODO(), pvcCopy)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // reconcile functions
 
 func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorController, log logr.Logger) (reconcile.Result, error) {
@@ -240,7 +266,7 @@ func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorCon
 	}
 
 	// Each populator reconciles the target PVC in a different way
-	if cc.IsUnbound(pvc) {
+	if cc.IsUnbound(pvc) || !cc.IsPVCComplete(pvc) {
 		return populator.reconcileTargetPVC(pvc, pvcPrime)
 	}
 
