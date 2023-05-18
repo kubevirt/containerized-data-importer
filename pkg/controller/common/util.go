@@ -185,7 +185,7 @@ const (
 	// AnnOwnerUID annotation has the owner UID
 	AnnOwnerUID = AnnAPIGroup + "/ownerUID"
 	// AnnCloneType is the comuuted/requested clone type
-	AnnCloneType = "cdi.kubevirt.io/cloneType"
+	AnnCloneType = AnnAPIGroup + "/cloneType"
 	// AnnCloneSourcePod name of the source clone pod
 	AnnCloneSourcePod = "cdi.kubevirt.io/storage.sourceClonePodName"
 

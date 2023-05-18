@@ -90,7 +90,7 @@ func (f *Framework) WaitPVCDeletedByUID(pvcSpec *k8sv1.PersistentVolumeClaim, ti
 
 // ForceBindIfWaitForFirstConsumer creates a Pod with the passed in PVC mounted under /dev/pvc, which forces the PVC to be scheduled and bound.
 func (f *Framework) ForceBindIfWaitForFirstConsumer(targetPvc *k8sv1.PersistentVolumeClaim) {
-	if f.IsBindingModeWaitForFirstConsumer(targetPvc.Spec.StorageClassName) {
+	if targetPvc.Spec.VolumeName == "" && f.IsBindingModeWaitForFirstConsumer(targetPvc.Spec.StorageClassName) {
 		createConsumerPod(targetPvc, f)
 	}
 }

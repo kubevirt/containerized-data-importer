@@ -31,7 +31,6 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/tests"
@@ -1802,7 +1801,7 @@ var _ = Describe("Import populator", func() {
 
 		pv, err = f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(cc.IsPVBoundToPVC(pv, pvc)).To(BeTrue())
+		Expect(controller.IsPVBoundToPVC(pv, pvc)).To(BeTrue())
 		Expect(pv.CreationTimestamp.Before(&pvc.CreationTimestamp)).To(BeTrue())
 
 		By("Verify content")
