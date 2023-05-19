@@ -184,7 +184,7 @@ func (f *Framework) CreateAndPopulateSourcePVC(pvcDef *k8sv1.PersistentVolumeCla
 
 // PopulatePVC populates a PVC using a pod with the provided pod name and command
 func (f *Framework) PopulatePVC(pvc *k8sv1.PersistentVolumeClaim, podName string, fillCommand string) {
-	pod, err := f.CreatePod(f.NewPodWithPVC(podName, fillCommand+"&& sync", pvc))
+	pod, err := f.CreatePod(f.NewPodWithPVC(podName, fillCommand+"&& sync", pvc, false))
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	err = f.WaitTimeoutForPodStatus(pod.Name, k8sv1.PodSucceeded, utils.PodWaitForTime)
@@ -392,7 +392,7 @@ func (f *Framework) RunCommandAndCaptureOutput(pvc *k8sv1.PersistentVolumeClaim,
 }
 
 // NewPodWithPVC creates a new pod that mounts the given PVC
-func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
+func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim, readOnly bool) *k8sv1.Pod {
 	var importerImage string
 	volumeName := naming.GetLabelNameFromResourceName(pvc.GetName())
 	for _, e := range f.ControllerPod.Spec.Containers[0].Env {
@@ -443,7 +443,7 @@ func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolu
 	if volumeMode != nil && *volumeMode == k8sv1.PersistentVolumeBlock {
 		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices(pvc, volumeName)
 	} else {
-		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts(pvc, volumeName)
+		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts(pvc, volumeName, readOnly)
 	}
 
 	controller.SetRestrictedSecurityContext(&pod.Spec)
@@ -452,7 +452,7 @@ func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolu
 }
 
 func (f *Framework) newExecutorPodWithPVC(podName string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
-	return f.NewPodWithPVC(podName, "while true; do echo hello; sleep 2;done", pvc)
+	return f.NewPodWithPVC(podName, "while true; do echo hello; sleep 2;done", pvc, true)
 }
 
 // CreateExecutorPodWithPVC creates a Pod with the passed in PVC mounted under /dev/pvc. You can then use the executor utilities to
@@ -473,7 +473,7 @@ func (f *Framework) CreateExecutorPodWithPVCSpecificNode(podName, namespace stri
 
 // CreateNoopPodWithPVC creates a short living pod, that might be used to force bind a pvc
 func (f *Framework) CreateNoopPodWithPVC(podName, namespace string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
-	return utils.CreatePod(f.K8sClient, namespace, f.NewPodWithPVC(podName, "echo I am vm doppleganger pod;", pvc))
+	return utils.CreatePod(f.K8sClient, namespace, f.NewPodWithPVC(podName, "echo I am vm doppleganger pod;", pvc, true))
 }
 
 // CreateVerifierPodWithPVC creates a Pod called verifier, with the passed in PVC mounted under /dev/pvc. You can then use the executor utilities to
@@ -493,12 +493,12 @@ func addVolumeDevices(pvc *k8sv1.PersistentVolumeClaim, volumeName string) []k8s
 }
 
 // this is being called for pods using PV with filesystem volume mode
-func addVolumeMounts(pvc *k8sv1.PersistentVolumeClaim, volumeName string) []k8sv1.VolumeMount {
+func addVolumeMounts(pvc *k8sv1.PersistentVolumeClaim, volumeName string, readOnly bool) []k8sv1.VolumeMount {
 	volumeMounts := []k8sv1.VolumeMount{
 		{
 			Name:      volumeName,
 			MountPath: utils.DefaultPvcMountPath,
-			ReadOnly:  true,
+			ReadOnly:  readOnly,
 		},
 	}
 	return volumeMounts

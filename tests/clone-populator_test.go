@@ -7,14 +7,12 @@ import (
 	"time"
 
 	. "github.com/onsi/ginkgo"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	//. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -143,8 +141,8 @@ var _ = Describe("Clone Populator tests", func() {
 		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 		createDataSource()
 		target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
-		sourceHash := getHash(source, 0)
 		target = waitSucceeded(target)
+		sourceHash := getHash(source, 0)
 		targetHash := getHash(target, 0)
 		Expect(targetHash).To(Equal(sourceHash))
 	})
@@ -153,8 +151,8 @@ var _ = Describe("Clone Populator tests", func() {
 		createDataSource()
 		target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
 		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
-		sourceHash := getHash(source, 0)
 		target = waitSucceeded(target)
+		sourceHash := getHash(source, 0)
 		targetHash := getHash(target, 0)
 		Expect(targetHash).To(Equal(sourceHash))
 	})
@@ -163,8 +161,8 @@ var _ = Describe("Clone Populator tests", func() {
 		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 		target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
 		createDataSource()
-		sourceHash := getHash(source, 0)
 		target = waitSucceeded(target)
+		sourceHash := getHash(source, 0)
 		targetHash := getHash(target, 0)
 		Expect(targetHash).To(Equal(sourceHash))
 	})
@@ -173,10 +171,10 @@ var _ = Describe("Clone Populator tests", func() {
 		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 		createDataSource()
 		target := createTarget(biggerSize, corev1.PersistentVolumeFilesystem)
-		sourceHash := getHash(source, 0)
 		target = waitSucceeded(target)
 		targetSize := target.Status.Capacity[corev1.ResourceStorage]
 		Expect(targetSize.Cmp(biggerSize)).To(BeNumerically(">=", 0))
+		sourceHash := getHash(source, 0)
 		targetHash := getHash(target, 0)
 		Expect(targetHash).To(Equal(sourceHash))
 	})
@@ -188,10 +186,10 @@ var _ = Describe("Clone Populator tests", func() {
 		source := createSource(defaultSize, corev1.PersistentVolumeBlock)
 		createDataSource()
 		target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
-		sourceHash := getHash(source, 0)
 		target = waitSucceeded(target)
 		targetSize := target.Status.Capacity[corev1.ResourceStorage]
 		Expect(targetSize.Cmp(defaultSize)).To(BeNumerically(">", 0))
+		sourceHash := getHash(source, 0)
 		targetHash := getHash(target, 0)
 		Expect(targetHash).To(Equal(sourceHash))
 	})
@@ -203,10 +201,10 @@ var _ = Describe("Clone Populator tests", func() {
 		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 		createDataSource()
 		target := createTarget(defaultSize, corev1.PersistentVolumeBlock)
-		sourceHash := getHash(source, 100000)
 		target = waitSucceeded(target)
 		targetSize := target.Status.Capacity[corev1.ResourceStorage]
 		Expect(targetSize.Cmp(defaultSize)).To(BeNumerically(">=", 0))
+		sourceHash := getHash(source, 100000)
 		targetHash := getHash(target, 100000)
 		Expect(targetHash).To(Equal(sourceHash))
 	})
@@ -218,9 +216,9 @@ var _ = Describe("Clone Populator tests", func() {
 		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 		createDataSource()
 		target := createTargetWithStrategy(defaultSize, corev1.PersistentVolumeFilesystem, "csi-clone")
-		sourceHash := getHash(source, 0)
 		target = waitSucceeded(target)
 		Expect(target.Annotations["cdi.kubevirt.io/cloneType"]).To(Equal("csi-clone"))
+		sourceHash := getHash(source, 0)
 		targetHash := getHash(target, 0)
 		Expect(targetHash).To(Equal(sourceHash))
 	})
@@ -232,9 +230,9 @@ var _ = Describe("Clone Populator tests", func() {
 		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 		createDataSource()
 		target := createTargetWithStrategy(defaultSize, corev1.PersistentVolumeFilesystem, "snapshot")
-		sourceHash := getHash(source, 0)
 		target = waitSucceeded(target)
 		Expect(target.Annotations["cdi.kubevirt.io/cloneType"]).To(Equal("snapshot"))
+		sourceHash := getHash(source, 0)
 		targetHash := getHash(target, 0)
 		Expect(targetHash).To(Equal(sourceHash))
 	})
