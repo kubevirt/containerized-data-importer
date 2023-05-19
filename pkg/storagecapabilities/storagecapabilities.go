@@ -18,22 +18,31 @@ type StorageCapabilities struct {
 	VolumeMode v1.PersistentVolumeMode
 }
 
+const (
+	rwo = v1.ReadWriteOnce
+	rox = v1.ReadOnlyMany
+	rwx = v1.ReadWriteMany
+
+	block = v1.PersistentVolumeBlock
+	file  = v1.PersistentVolumeFilesystem
+)
+
 // CapabilitiesByProvisionerKey defines default capabilities for different storage classes
 var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// hostpath-provisioner
-	"kubevirt.io.hostpath-provisioner": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
-	"kubevirt.io/hostpath-provisioner": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
+	"kubevirt.io.hostpath-provisioner": {{rwo, file}},
+	"kubevirt.io/hostpath-provisioner": {{rwo, file}},
 	// nfs-csi
-	"nfs.csi.k8s.io": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
-	"k8s-sigs.io/nfs-subdir-external-provisioner": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
+	"nfs.csi.k8s.io": {{rwx, file}},
+	"k8s-sigs.io/nfs-subdir-external-provisioner": {{rwx, file}},
 	// ceph-rbd
 	"kubernetes.io/rbd":                  createRbdCapabilities(),
 	"rbd.csi.ceph.com":                   createRbdCapabilities(),
 	"rook-ceph.rbd.csi.ceph.com":         createRbdCapabilities(),
 	"openshift-storage.rbd.csi.ceph.com": createRbdCapabilities(),
 	// ceph-fs
-	"cephfs.csi.ceph.com":                   {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
-	"openshift-storage.cephfs.csi.ceph.com": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
+	"cephfs.csi.ceph.com":                   {{rwx, file}},
+	"openshift-storage.cephfs.csi.ceph.com": {{rwx, file}},
 	// LINSTOR
 	"linstor.csi.linbit.com": createLinstorCapabilities(),
 	// dell-unity-csi
@@ -47,41 +56,43 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// PowerStore
 	"csi-powerstore.dellemc.com": createDellPowerCapabilities(),
 	// storageos
-	"kubernetes.io/storageos": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
-	"storageos":               {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
+	"kubernetes.io/storageos": {{rwo, file}},
+	"storageos":               {{rwo, file}},
 	//AWSElasticBlockStore
-	"kubernetes.io/aws-ebs": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
-	"ebs.csi.aws.com":       {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
+	"kubernetes.io/aws-ebs": {{rwo, block}},
+	"ebs.csi.aws.com":       {{rwo, block}},
 	// AWSFIle is done by a pod
 	//Azure disk
-	"kubernetes.io/azure-disk": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
-	"disk.csi.azure.com":       {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
+	"kubernetes.io/azure-disk": {{rwo, block}},
+	"disk.csi.azure.com":       {{rwo, block}},
 	//Azure file
-	"kubernetes.io/azure-file": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
-	"file.csi.azure.com":       {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
+	"kubernetes.io/azure-file": {{rwx, file}},
+	"file.csi.azure.com":       {{rwx, file}},
 	// GCE Persistent Disk
-	"kubernetes.io/gce-pd":  {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
-	"pd.csi.storage.gke.io": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
+	"kubernetes.io/gce-pd":  {{rwo, block}},
+	"pd.csi.storage.gke.io": {{rwo, block}},
+	// Hitachi
+	"hspc.csi.hitachi.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// HPE
 	"csi.hpe.com": createRWOBlockAndFilesystemCapabilities(),
 	// Portworx in-tree CSI
-	"kubernetes.io/portworx-volume/shared": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
-	"kubernetes.io/portworx-volume":        {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem}},
+	"kubernetes.io/portworx-volume/shared": {{rwx, file}},
+	"kubernetes.io/portworx-volume":        {{rwo, file}},
 	// Portworx CSI
 	"pxd.openstorage.org/shared": createOpenStorageSharedVolumeCapabilities(),
 	"pxd.openstorage.org":        createRWOBlockAndFilesystemCapabilities(),
 	"pxd.portworx.com/shared":    createOpenStorageSharedVolumeCapabilities(),
 	"pxd.portworx.com":           createRWOBlockAndFilesystemCapabilities(),
 	// Trident
-	"csi.trident.netapp.io/ontap-nas": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
-	"csi.trident.netapp.io/ontap-san": {{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock}},
+	"csi.trident.netapp.io/ontap-nas": {{rwx, file}},
+	"csi.trident.netapp.io/ontap-san": {{rwo, block}},
 	// topolvm
 	"topolvm.cybozu.com": createTopoLVMCapabilities(),
 	"topolvm.io":         createTopoLVMCapabilities(),
 	// OpenStack Cinder
 	"cinder.csi.openstack.org": createRWOBlockAndFilesystemCapabilities(),
 	// OpenStack manila
-	"manila.csi.openstack.org": {{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeFilesystem}},
+	"manila.csi.openstack.org": {{rwx, file}},
 	// ovirt csi
 	"csi.ovirt.org": createRWOBlockAndFilesystemCapabilities(),
 }
@@ -200,61 +211,57 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 
 func createRbdCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
-		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
+		{rwx, block},
+		{rwo, block},
+		{rwo, file},
 	}
 }
 
 func createLinstorCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
-		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
-		{AccessMode: v1.ReadOnlyMany, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadOnlyMany, VolumeMode: v1.PersistentVolumeFilesystem},
+		{rwx, block},
+		{rwo, block},
+		{rwo, file},
+		{rox, block},
+		{rox, file},
 	}
 }
 
 func createDellUnityCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
-		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
-		{AccessMode: v1.ReadOnlyMany, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadOnlyMany, VolumeMode: v1.PersistentVolumeFilesystem},
-		{AccessMode: v1.ReadWriteOncePod, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOncePod, VolumeMode: v1.PersistentVolumeFilesystem},
+		{rwx, block},
+		{rwo, block},
+		{rwo, file},
+		{rox, block},
+		{rox, file},
 	}
 }
 
 func createDellPowerCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
-		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
+		{rwx, block},
+		{rwo, block},
+		{rwo, file},
 	}
 }
 
 func createTopoLVMCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
-		{AccessMode: v1.ReadWriteOncePod, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOncePod, VolumeMode: v1.PersistentVolumeFilesystem},
+		{rwo, block},
+		{rwo, file},
 	}
 }
 
 func createOpenStorageSharedVolumeCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
-		{AccessMode: v1.ReadWriteMany, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
+		{rwx, block},
+		{rwo, file},
 	}
 }
 
 func createRWOBlockAndFilesystemCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
+		{rwo, block},
+		{rwo, file},
 	}
 }
