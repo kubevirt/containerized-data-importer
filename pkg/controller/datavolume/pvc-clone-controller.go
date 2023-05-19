@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
@@ -61,6 +62,8 @@ const (
 	SmartClone
 	CsiClone
 )
+
+const sourceInUseRequeueSeconds = time.Duration(5 * time.Second)
 
 const pvcCloneControllerName = "datavolume-pvc-clone-controller"
 
@@ -318,7 +321,7 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 				if syncRes.result == nil {
 					syncRes.result = &reconcile.Result{}
 				}
-				syncRes.result.Requeue = true
+				syncRes.result.RequeueAfter = sourceInUseRequeueSeconds
 				return syncRes,
 					r.syncCloneStatusPhase(&syncRes, cdiv1.CloneScheduled, nil)
 			}
