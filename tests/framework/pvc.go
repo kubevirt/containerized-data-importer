@@ -146,9 +146,9 @@ func VerifyPVCIsEmpty(f *Framework, pvc *k8sv1.PersistentVolumeClaim, node strin
 	var err error
 	var executorPod *k8sv1.Pod
 	if node != "" {
-		executorPod, err = f.CreateExecutorPodWithPVCSpecificNode(utils.VerifierPodName, f.Namespace.Name, pvc, node)
+		executorPod, err = f.CreateExecutorPodWithPVCSpecificNode(utils.VerifierPodName, f.Namespace.Name, pvc, node, true)
 	} else {
-		executorPod, err = f.CreateExecutorPodWithPVC(utils.VerifierPodName, f.Namespace.Name, pvc)
+		executorPod, err = f.CreateExecutorPodWithPVC(utils.VerifierPodName, f.Namespace.Name, pvc, true)
 	}
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = f.WaitTimeoutForPodReady(executorPod.Name, utils.PodWaitForTime)
@@ -376,8 +376,8 @@ func (f *Framework) VerifyTargetPVCArchiveContent(namespace *k8sv1.Namespace, pv
 }
 
 // RunCommandAndCaptureOutput runs a command on a pod that has the passed in PVC mounted and captures the output.
-func (f *Framework) RunCommandAndCaptureOutput(pvc *k8sv1.PersistentVolumeClaim, cmd string) (string, error) {
-	executorPod, err := f.CreateExecutorPodWithPVC("execute-command", f.Namespace.Name, pvc)
+func (f *Framework) RunCommandAndCaptureOutput(pvc *k8sv1.PersistentVolumeClaim, cmd string, readOnly bool) (string, error) {
+	executorPod, err := f.CreateExecutorPodWithPVC("execute-command", f.Namespace.Name, pvc, readOnly)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = f.WaitTimeoutForPodReady(executorPod.Name, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
@@ -451,20 +451,20 @@ func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolu
 	return pod
 }
 
-func (f *Framework) newExecutorPodWithPVC(podName string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
-	return f.NewPodWithPVC(podName, "while true; do echo hello; sleep 2;done", pvc, true)
+func (f *Framework) newExecutorPodWithPVC(podName string, pvc *k8sv1.PersistentVolumeClaim, readOnly bool) *k8sv1.Pod {
+	return f.NewPodWithPVC(podName, "while true; do echo hello; sleep 2;done", pvc, readOnly)
 }
 
 // CreateExecutorPodWithPVC creates a Pod with the passed in PVC mounted under /dev/pvc. You can then use the executor utilities to
 // run commands against the PVC through this Pod.
-func (f *Framework) CreateExecutorPodWithPVC(podName, namespace string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
-	return utils.CreatePod(f.K8sClient, namespace, f.newExecutorPodWithPVC(podName, pvc))
+func (f *Framework) CreateExecutorPodWithPVC(podName, namespace string, pvc *k8sv1.PersistentVolumeClaim, readOnly bool) (*k8sv1.Pod, error) {
+	return utils.CreatePod(f.K8sClient, namespace, f.newExecutorPodWithPVC(podName, pvc, readOnly))
 }
 
 // CreateExecutorPodWithPVCSpecificNode creates a Pod on a specific node with the passed in PVC mounted under /dev/pvc. You can then use the executor utilities to
 // run commands against the PVC through this Pod.
-func (f *Framework) CreateExecutorPodWithPVCSpecificNode(podName, namespace string, pvc *k8sv1.PersistentVolumeClaim, node string) (*k8sv1.Pod, error) {
-	var pod = f.newExecutorPodWithPVC(podName, pvc)
+func (f *Framework) CreateExecutorPodWithPVCSpecificNode(podName, namespace string, pvc *k8sv1.PersistentVolumeClaim, node string, readOnly bool) (*k8sv1.Pod, error) {
+	var pod = f.newExecutorPodWithPVC(podName, pvc, readOnly)
 	pod.Spec.NodeSelector = map[string]string{
 		"kubernetes.io/hostname": node,
 	}
@@ -479,7 +479,7 @@ func (f *Framework) CreateNoopPodWithPVC(podName, namespace string, pvc *k8sv1.P
 // CreateVerifierPodWithPVC creates a Pod called verifier, with the passed in PVC mounted under /dev/pvc. You can then use the executor utilities to
 // run commands against the PVC through this Pod.
 func (f *Framework) CreateVerifierPodWithPVC(namespace string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
-	return f.CreateExecutorPodWithPVC(utils.VerifierPodName, namespace, pvc)
+	return f.CreateExecutorPodWithPVC(utils.VerifierPodName, namespace, pvc, true)
 }
 
 func addVolumeDevices(pvc *k8sv1.PersistentVolumeClaim, volumeName string) []k8sv1.VolumeDevice {

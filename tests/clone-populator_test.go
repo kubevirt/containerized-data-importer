@@ -7,6 +7,7 @@ import (
 	"time"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
@@ -209,31 +210,21 @@ var _ = Describe("Clone Populator tests", func() {
 		Expect(targetHash).To(Equal(sourceHash))
 	})
 
-	It("should do csi clone if possible", func() {
-		if !f.IsCSIVolumeCloneStorageClassAvailable() {
-			Skip("CSI Clone does not work without a capable storage class")
+	DescribeTable("should clone explicit types requested by user", func(cloneType string, canDo func() bool) {
+		if canDo != nil && !canDo() {
+			Skip(fmt.Sprintf("Clone type %s does not work without a capable storage class", cloneType))
 		}
 		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 		createDataSource()
-		target := createTargetWithStrategy(defaultSize, corev1.PersistentVolumeFilesystem, "csi-clone")
+		target := createTargetWithStrategy(defaultSize, corev1.PersistentVolumeFilesystem, cloneType)
 		target = waitSucceeded(target)
-		Expect(target.Annotations["cdi.kubevirt.io/cloneType"]).To(Equal("csi-clone"))
+		Expect(target.Annotations["cdi.kubevirt.io/cloneType"]).To(Equal(cloneType))
 		sourceHash := getHash(source, 0)
 		targetHash := getHash(target, 0)
 		Expect(targetHash).To(Equal(sourceHash))
-	})
-
-	It("should do snapshot clone if possible", func() {
-		if !f.IsSnapshotStorageClassAvailable() {
-			Skip("Snapshot Clone does not work without a capable storage class")
-		}
-		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
-		createDataSource()
-		target := createTargetWithStrategy(defaultSize, corev1.PersistentVolumeFilesystem, "snapshot")
-		target = waitSucceeded(target)
-		Expect(target.Annotations["cdi.kubevirt.io/cloneType"]).To(Equal("snapshot"))
-		sourceHash := getHash(source, 0)
-		targetHash := getHash(target, 0)
-		Expect(targetHash).To(Equal(sourceHash))
-	})
+	},
+		Entry("should do csi clone if possible", "csi-clone", f.IsCSIVolumeCloneStorageClassAvailable),
+		Entry("should do snapshot clone if possible", "snapshot", f.IsSnapshotStorageClassAvailable),
+		Entry("should do host assisted clone", "copy", nil),
+	)
 })

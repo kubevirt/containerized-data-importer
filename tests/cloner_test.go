@@ -320,7 +320,7 @@ var _ = Describe("all clone tests", func() {
 				targetNamespaceName := f.Namespace.Name
 
 				// 1. use the srcPvc so the clone cannot be started
-				pod, err := f.CreateExecutorPodWithPVC("temp-pod", f.Namespace.Name, sourcePvc)
+				pod, err := f.CreateExecutorPodWithPVC("temp-pod", f.Namespace.Name, sourcePvc, false)
 				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(func() bool {
@@ -983,7 +983,7 @@ var _ = Describe("all clone tests", func() {
 					).Should(Succeed())
 
 					By("Calculating the md5sum of the source data volume")
-					md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+utils.DefaultImagePath)
+					md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+utils.DefaultImagePath, true)
 					Expect(err).ToNot(HaveOccurred())
 					_, _ = fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
@@ -1070,7 +1070,7 @@ var _ = Describe("all clone tests", func() {
 					Expect(utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)).To(Succeed())
 
 					By("Calculating the md5sum of the source data volume")
-					md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
+					md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir, true)
 					Expect(err).ToNot(HaveOccurred())
 					_, _ = fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
@@ -1672,7 +1672,7 @@ var _ = Describe("all clone tests", func() {
 			).To(Succeed())
 
 			By("Calculating the md5sum of the source data volume")
-			md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+utils.DefaultImagePath)
+			md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+utils.DefaultImagePath, true)
 			Expect(err).ToNot(HaveOccurred())
 			_, _ = fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
@@ -1722,11 +1722,11 @@ var _ = Describe("all clone tests", func() {
 				utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second),
 			).To(Succeed())
 			By("Calculating the md5sum of the source data volume")
-			md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
+			md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir, true)
 			retry := 0
 			for err != nil && retry < 10 {
 				retry++
-				md5sum, err = f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
+				md5sum, err = f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir, true)
 			}
 			Expect(err).ToNot(HaveOccurred())
 			fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
@@ -1922,7 +1922,7 @@ var _ = Describe("all clone tests", func() {
 			).To(Succeed())
 
 			By("Calculating the md5sum of the source data volume")
-			md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
+			md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir, true)
 			Expect(err).ToNot(HaveOccurred())
 			_, _ = fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
@@ -2974,7 +2974,7 @@ func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolume
 }
 
 func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClaim, targetNs *v1.Namespace, targetDv string) {
-	pod, err := f.CreateExecutorPodWithPVC("temp-pod", f.Namespace.Name, srcPVCDef)
+	pod, err := f.CreateExecutorPodWithPVC("temp-pod", f.Namespace.Name, srcPVCDef, false)
 	Expect(err).ToNot(HaveOccurred())
 
 	Eventually(func() bool {
