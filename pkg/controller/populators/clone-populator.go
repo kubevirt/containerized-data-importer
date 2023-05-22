@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -145,16 +146,16 @@ func (r *ClonePopulatorReconciler) Reconcile(ctx context.Context, req reconcile.
 	}
 
 	hasFinalizer := cc.HasFinalizer(pvc, cloneFinalizer)
-	isBound := pvc.Spec.VolumeName != ""
+	isBound := cc.IsBound(pvc)
 	isDeleted := !pvc.DeletionTimestamp.IsZero()
 
-	log.V(1).Info("pvc state", "hasFinalizer", hasFinalizer, "isBound", isBound, "isDeleted", isDeleted)
+	log.V(3).Info("pvc state", "hasFinalizer", hasFinalizer, "isBound", isBound, "isDeleted", isDeleted)
 
 	if !isDeleted && !isBound {
 		return r.reconcilePending(ctx, log, pvc)
 	}
 
-	if (isBound || isDeleted) && hasFinalizer {
+	if hasFinalizer {
 		if isBound && !isDeleted && !isClonePhaseSucceeded(pvc) {
 			log.V(1).Info("setting phase to Succeeded")
 			return reconcile.Result{}, r.updateClonePhaseSucceeded(ctx, pvc)
@@ -177,7 +178,7 @@ func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log log
 		return reconcile.Result{}, r.updateClonePhasePending(ctx, pvc)
 	}
 
-	vcs, err := clone.GetVolumeCloneSource(ctx, r.client, pvc)
+	vcs, err := getVolumeCloneSource(ctx, r.client, pvc)
 	if err != nil {
 		return reconcile.Result{}, r.updateClonePhaseError(ctx, pvc, err)
 	}
@@ -187,24 +188,15 @@ func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log log
 		return reconcile.Result{}, r.updateClonePhasePending(ctx, pvc)
 	}
 
-	cs := getSavedCloneStrategy(pvc)
+	cs, err := r.getCloneStrategy(ctx, log, pvc, vcs)
+	if err != nil {
+		return reconcile.Result{}, r.updateClonePhaseError(ctx, pvc, err)
+	}
+
 	if cs == nil {
-		args := &clone.ChooseStrategyArgs{
-			Log:         log,
-			TargetClaim: pvc,
-			DataSource:  vcs,
-		}
-
-		cs, err = r.planner.ChooseStrategy(ctx, args)
-		if err != nil {
-			return reconcile.Result{}, r.updateClonePhaseError(ctx, pvc, err)
-		}
-
-		if cs == nil {
-			log.V(3).Info("unable to choose clone strategy now")
-			// TODO maybe create index/watch to deal with this
-			return reconcile.Result{RequeueAfter: 5 * time.Second}, r.updateClonePhasePending(ctx, pvc)
-		}
+		log.V(3).Info("unable to choose clone strategy now")
+		// TODO maybe create index/watch to deal with this
+		return reconcile.Result{RequeueAfter: 5 * time.Second}, r.updateClonePhasePending(ctx, pvc)
 	}
 
 	updated, err := r.initTargetClaim(ctx, pvc, vcs, *cs)
@@ -225,6 +217,30 @@ func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log log
 		Strategy:    *cs,
 	}
 
+	return r.planAndExecute(ctx, log, pvc, args)
+}
+
+func (r *ClonePopulatorReconciler) getCloneStrategy(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, vcs *cdiv1.VolumeCloneSource) (*cdiv1.CDICloneStrategy, error) {
+	cs := getSavedCloneStrategy(pvc)
+	if cs != nil {
+		return cs, nil
+	}
+
+	args := &clone.ChooseStrategyArgs{
+		Log:         log,
+		TargetClaim: pvc,
+		DataSource:  vcs,
+	}
+
+	cs, err := r.planner.ChooseStrategy(ctx, args)
+	if err != nil {
+		return nil, err
+	}
+
+	return cs, nil
+}
+
+func (r *ClonePopulatorReconciler) planAndExecute(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, args *clone.PlanArgs) (reconcile.Result, error) {
 	phases, err := r.planner.Plan(ctx, args)
 	if err != nil {
 		return reconcile.Result{}, r.updateClonePhaseError(ctx, pvc, err)
@@ -339,4 +355,32 @@ func getSavedCloneStrategy(obj client.Object) *cdiv1.CDICloneStrategy {
 
 func setSavedCloneStrategy(obj client.Object, strategy cdiv1.CDICloneStrategy) {
 	cc.AddAnnotation(obj, cc.AnnCloneType, string(strategy))
+}
+
+func getVolumeCloneSource(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (*cdiv1.VolumeCloneSource, error) {
+	if !IsPVCDataSourceRefKind(pvc, cdiv1.VolumeCloneSourceRef) {
+		return nil, nil
+	}
+
+	ns := pvc.Namespace
+	if pvc.Spec.DataSourceRef.Namespace != nil {
+		ns = *pvc.Spec.DataSourceRef.Namespace
+	}
+
+	obj := &cdiv1.VolumeCloneSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns,
+			Name:      pvc.Spec.DataSourceRef.Name,
+		},
+	}
+
+	if err := c.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return obj, nil
 }

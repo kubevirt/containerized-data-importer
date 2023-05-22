@@ -25,6 +25,20 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
+const (
+	// CloneValidationFailed reports that a clone wasn't admitted by our validation mechanism (reason)
+	CloneValidationFailed = "CloneValidationFailed"
+
+	// MessageCloneValidationFailed reports that a clone wasn't admitted by our validation mechanism (message)
+	MessageCloneValidationFailed = "The clone doesn't meet the validation requirements"
+
+	// CloneWithoutSource reports that the source of a clone doesn't exists (reason)
+	CloneWithoutSource = "CloneWithoutSource"
+
+	// MessageCloneWithoutSource reports that the source of a clone doesn't exists (message)
+	MessageCloneWithoutSource = "The source %s %s doesn't exist"
+)
+
 // Planner plans clone operations
 type Planner struct {
 	RootObjectType  client.ObjectList
@@ -42,7 +56,7 @@ type Planner struct {
 	watchMutex        sync.Mutex
 }
 
-// Phase is the interface implemeented by all clone phases
+// Phase is the interface implemented by all clone phases
 type Phase interface {
 	Name() string
 	Reconcile(context.Context) (*reconcile.Result, error)
@@ -96,7 +110,7 @@ type ChooseStrategyArgs struct {
 func (p *Planner) ChooseStrategy(ctx context.Context, args *ChooseStrategyArgs) (*cdiv1.CDICloneStrategy, error) {
 	if IsDataSourcePVC(args.DataSource.Spec.Source.Kind) {
 		args.Log.V(3).Info("Getting strategy for PVC source")
-		return p.strategyForSourcePVC(ctx, args)
+		return p.computeStrategyForSourcePVC(ctx, args)
 	}
 
 	return nil, fmt.Errorf("unsupported datasource")
@@ -217,7 +231,7 @@ func (p *Planner) watchOwned(log logr.Logger, obj client.Object) error {
 	return nil
 }
 
-func (p *Planner) strategyForSourcePVC(ctx context.Context, args *ChooseStrategyArgs) (*cdiv1.CDICloneStrategy, error) {
+func (p *Planner) computeStrategyForSourcePVC(ctx context.Context, args *ChooseStrategyArgs) (*cdiv1.CDICloneStrategy, error) {
 	if ok, err := p.validateTargetStorageClassAssignment(ctx, args); !ok || err != nil {
 		return nil, err
 	}
@@ -229,21 +243,14 @@ func (p *Planner) strategyForSourcePVC(ctx context.Context, args *ChooseStrategy
 	}
 
 	if !exists {
-		// TODO EVENT
-		//Event{
-		//	eventType: corev1.EventTypeWarning,
-		//	reason:    CloneWithoutSource,
-		//	message:   fmt.Sprintf(MessageCloneWithoutSource, "pvc", datavolume.Spec.Source.PVC.Name),
-		//})
-
+		message := fmt.Sprintf(MessageCloneWithoutSource, "pvc", args.DataSource.Spec.Source.Name)
+		p.Recorder.Event(args.TargetClaim, corev1.EventTypeWarning, CloneWithoutSource, message)
 		args.Log.V(3).Info("Source PVC does not exist, cannot compute strategy")
 		return nil, nil
 	}
 
 	if err = p.validateSourcePVC(args, sourceClaim); err != nil {
-		// TODO EVENT
-		//r.recorder.Event(datavolume, corev1.EventTypeWarning, CloneValidationFailed, MessageCloneValidationFailed)
-		//return false, err
+		p.Recorder.Event(args.TargetClaim, corev1.EventTypeWarning, CloneValidationFailed, MessageCloneValidationFailed)
 		args.Log.V(1).Info("Validation failed", "target", args.TargetClaim, "source", sourceClaim)
 		return nil, err
 	}
@@ -309,9 +316,14 @@ func (p *Planner) validateTargetStorageClassAssignment(ctx context.Context, args
 		return false, fmt.Errorf("claim has emptystring storageclass, will not work")
 	}
 
-	_, err := MustGetStorageClassForClaim(ctx, p.Client, args.TargetClaim)
+	sc, err := GetStorageClassForClaim(ctx, p.Client, args.TargetClaim)
 	if err != nil {
 		return false, err
+	}
+
+	if sc == nil {
+		args.Log.V(3).Info("Target PVC has no storage class, cannot compute strategy")
+		return false, fmt.Errorf("target storage class not found")
 	}
 
 	return true, nil
@@ -331,9 +343,14 @@ func (p *Planner) validateAdvancedClonePVC(ctx context.Context, args *ChooseStra
 		return false, nil
 	}
 
-	sc, err := MustGetStorageClassForClaim(ctx, p.Client, args.TargetClaim)
+	sc, err := GetStorageClassForClaim(ctx, p.Client, args.TargetClaim)
 	if err != nil {
 		return false, err
+	}
+
+	if sc == nil {
+		args.Log.V(3).Info("target storage class not found")
+		return false, fmt.Errorf("target storage class not found")
 	}
 
 	srcCapacity, hasSrcCapacity := sourceClaim.Status.Capacity[corev1.ResourceStorage]

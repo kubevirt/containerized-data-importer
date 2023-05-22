@@ -1301,9 +1301,14 @@ func InflateSizeWithOverhead(ctx context.Context, c client.Client, imgSize int64
 	return returnSize, nil
 }
 
+// IsBound returns if the pvc is bound
+func IsBound(pvc *corev1.PersistentVolumeClaim) bool {
+	return pvc.Spec.VolumeName != ""
+}
+
 // IsUnbound returns if the pvc is not bound yet
 func IsUnbound(pvc *corev1.PersistentVolumeClaim) bool {
-	return pvc.Spec.VolumeName == ""
+	return !IsBound(pvc)
 }
 
 // IsImageStream returns true if registry source is ImageStream

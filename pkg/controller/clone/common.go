@@ -26,35 +26,6 @@ func IsDataSourcePVC(kind string) bool {
 	return kind == "PersistentVolumeClaim"
 }
 
-// IsDataSourceVolumeClone checks for VolumeCloneSourceRef source kind
-func IsDataSourceVolumeClone(dataSource *corev1.TypedObjectReference) bool {
-	return dataSource != nil && dataSource.Kind == cdiv1.VolumeCloneSourceRef
-}
-
-// GetVolumeCloneSource returns the VolumeCloneSource dataSourceRef
-func GetVolumeCloneSource(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (*cdiv1.VolumeCloneSource, error) {
-	if !IsDataSourceVolumeClone(pvc.Spec.DataSourceRef) {
-		return nil, fmt.Errorf("invalid dataSourceRef")
-	}
-
-	ns := pvc.Namespace
-	if pvc.Spec.DataSourceRef.Namespace != nil {
-		ns = *pvc.Spec.DataSourceRef.Namespace
-	}
-
-	obj := &cdiv1.VolumeCloneSource{}
-	exists, err := getResource(ctx, c, ns, pvc.Spec.DataSourceRef.Name, obj)
-	if err != nil {
-		return nil, err
-	}
-
-	if !exists {
-		return nil, nil
-	}
-
-	return obj, nil
-}
-
 // AddCommonLabels adds common labels to a resource
 func AddCommonLabels(obj metav1.Object) {
 	if obj.GetLabels() == nil {
@@ -144,20 +115,6 @@ func GetStorageClassForClaim(ctx context.Context, c client.Client, pvc *corev1.P
 	return nil, nil
 }
 
-// MustGetStorageClassForClaim returns the storageclass for a PVC
-func MustGetStorageClassForClaim(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (*storagev1.StorageClass, error) {
-	sc, err := GetStorageClassForClaim(ctx, c, pvc)
-	if err != nil {
-		return nil, err
-	}
-
-	if sc == nil {
-		return nil, fmt.Errorf("no storageclass for pvc")
-	}
-
-	return sc, nil
-}
-
 // GetDriverFromVolume returns the CSI driver name for a PVC
 func GetDriverFromVolume(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (*string, error) {
 	if pvc.Spec.VolumeName == "" {
@@ -186,7 +143,7 @@ func GetDriverFromVolume(ctx context.Context, c client.Client, pvc *corev1.Persi
 	return &pv.Spec.CSI.Driver, nil
 }
 
-// GetCompatibleVolumeSnapshotClass returns a VolumeSNapshotClass name that works for all PVCs
+// GetCompatibleVolumeSnapshotClass returns a VolumeSnapshotClass name that works for all PVCs
 func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, pvcs ...*corev1.PersistentVolumeClaim) (*string, error) {
 	var drivers []string
 	for _, pvc := range pvcs {
@@ -293,8 +250,8 @@ func checkQuotaExceeded(r record.EventRecorder, owner client.Object, err error) 
 	}
 }
 
-func claimBoundOrWFFC(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (bool, error) {
-	if pvc.Spec.VolumeName != "" {
+func isClaimBoundOrWFFC(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	if cc.IsBound(pvc) {
 		return true, nil
 	}
 

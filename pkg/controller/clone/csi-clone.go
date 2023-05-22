@@ -59,7 +59,7 @@ func (p *CSIClonePhase) Reconcile(ctx context.Context) (*reconcile.Result, error
 		}
 	}
 
-	done, err := claimBoundOrWFFC(ctx, p.Client, pvc)
+	done, err := isClaimBoundOrWFFC(ctx, p.Client, pvc)
 	if err != nil {
 		return nil, err
 	}

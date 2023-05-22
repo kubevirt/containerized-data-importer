@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -116,7 +117,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		_, err = r.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-pvc", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())
 
-		updatedPV, err := r.getPV(pvcPrime.Spec.VolumeName)
+		updatedPV, err := getPV(r.client, pvcPrime.Spec.VolumeName)
 		Expect(err).ToNot(HaveOccurred())
 
 		//expect bind to remain to pvc'
@@ -149,7 +150,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		_, err = r.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-pvc", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())
 
-		updatedPV, err := r.getPV(pvcPrime.Spec.VolumeName)
+		updatedPV, err := getPV(r.client, pvcPrime.Spec.VolumeName)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(updatedPV.Spec.ClaimRef.Name).To(Equal("test-pvc"))
@@ -337,4 +338,15 @@ func createUploadPopulatorReconciler(objects ...runtime.Object) *UploadPopulator
 		},
 	}
 	return r
+}
+
+func getPV(c client.Client, name string) (*corev1.PersistentVolume, error) {
+	pv := &corev1.PersistentVolume{}
+	if err := c.Get(context.TODO(), types.NamespacedName{Name: name}, pv); err != nil {
+		if errors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return pv, nil
 }

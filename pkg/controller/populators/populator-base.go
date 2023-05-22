@@ -167,18 +167,6 @@ func (r *ReconcilerBase) getPVCPrime(pvc *corev1.PersistentVolumeClaim) (*corev1
 	return pvcPrime, nil
 }
 
-// TODO - this is only used in unit test - remove it
-func (r *ReconcilerBase) getPV(volName string) (*corev1.PersistentVolume, error) {
-	pv := &corev1.PersistentVolume{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: volName}, pv); err != nil {
-		if k8serrors.IsNotFound(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return pv, nil
-}
-
 func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, source client.Object, waitForFirstConsumer bool, updatePVCForPopulation pvcModifierFunc) (*corev1.PersistentVolumeClaim, error) {
 	labels := make(map[string]string)
 	labels[common.CDILabelKey] = common.CDILabelValue

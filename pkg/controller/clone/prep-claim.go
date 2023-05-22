@@ -66,7 +66,7 @@ func (p *PrepClaimPhase) Reconcile(ctx context.Context) (*reconcile.Result, erro
 	p.Log.V(3).Info("Expand sizes", "req", requestedSize, "cur", currentSize, "act", actualSize)
 
 	if !hasActual {
-		if actualClaim.Spec.VolumeName != "" {
+		if cc.IsBound(actualClaim) {
 			return nil, fmt.Errorf("actual PVC size missing")
 		}
 

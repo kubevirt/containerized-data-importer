@@ -18,6 +18,7 @@ package clone
 
 import (
 	"context"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -180,6 +181,18 @@ var _ = Describe("Planner test", func() {
 		}
 	}
 
+	expectEvent := func(planner *Planner, event string) {
+		close(planner.Recorder.(*record.FakeRecorder).Events)
+		found := false
+		for e := range planner.Recorder.(*record.FakeRecorder).Events {
+			if strings.Contains(e, event) {
+				found = true
+			}
+		}
+		planner.Recorder = nil
+		Expect(found).To(BeTrue())
+	}
+
 	Context("ChooseStrategy tests", func() {
 
 		It("should error if unsupported kind", func() {
@@ -233,7 +246,7 @@ var _ = Describe("Planner test", func() {
 			planner := createPlanner()
 			strategy, err := planner.ChooseStrategy(context.Background(), args)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("no storageclass for pvc"))
+			Expect(err.Error()).To(Equal("target storage class not found"))
 			Expect(strategy).To(BeNil())
 		})
 
@@ -247,6 +260,7 @@ var _ = Describe("Planner test", func() {
 			strategy, err := planner.ChooseStrategy(context.Background(), args)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(strategy).To(BeNil())
+			expectEvent(planner, CloneWithoutSource)
 		})
 
 		It("should fail target smaller", func() {
@@ -263,6 +277,7 @@ var _ = Describe("Planner test", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("target resources requests storage size is smaller than the source"))
 			Expect(strategy).To(BeNil())
+			expectEvent(planner, CloneValidationFailed)
 		})
 
 		It("should return host assisted with no volumesnapshotclass", func() {
