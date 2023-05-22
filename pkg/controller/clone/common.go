@@ -26,6 +26,11 @@ func IsDataSourcePVC(kind string) bool {
 	return kind == "PersistentVolumeClaim"
 }
 
+// IsDataSourceSnapshot checks for Snapshot source kind
+func IsDataSourceSnapshot(kind string) bool {
+	return kind == "VolumeSnapshot"
+}
+
 // AddCommonLabels adds common labels to a resource
 func AddCommonLabels(obj metav1.Object) {
 	if obj.GetLabels() == nil {

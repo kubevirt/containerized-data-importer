@@ -34,6 +34,7 @@ import (
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
+	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -1618,4 +1619,66 @@ func ProgressFromClaim(ctx context.Context, args *ProgressFromClaimArgs) (string
 	}
 
 	return "", nil
+}
+
+// IsSnapshotValidForClone returns true if the passed snapshot is valid for cloning
+func IsSnapshotValidForClone(snapshot *snapshotv1.VolumeSnapshot, log logr.Logger) (bool, error) {
+	if snapshot.Status == nil {
+		log.V(3).Info("Snapshot does not have status populated yet")
+		return false, nil
+	}
+	if snapshot.Status.ReadyToUse == nil || !*snapshot.Status.ReadyToUse {
+		log.V(3).Info("snapshot not ReadyToUse, while we allow this, probably going to be an issue going forward", "namespace", snapshot.Namespace, "name", snapshot.Name)
+	}
+	if snapshot.Status.Error != nil {
+		errMessage := "no details"
+		if msg := snapshot.Status.Error.Message; msg != nil {
+			errMessage = *msg
+		}
+		return false, fmt.Errorf("snapshot in error state with msg: %s", errMessage)
+	}
+	if snapshot.Spec.VolumeSnapshotClassName == nil || *snapshot.Spec.VolumeSnapshotClassName == "" {
+		return false, fmt.Errorf("snapshot %s/%s does not have volume snap class populated, can't clone", snapshot.Name, snapshot.Namespace)
+	}
+	return true, nil
+}
+
+// ValidateSnapshotCloneSize does proper size validation when doing a clone from snapshot operation
+func ValidateSnapshotCloneSize(snapshot *snapshotv1.VolumeSnapshot, pvcSpec *corev1.PersistentVolumeClaimSpec, targetSC *storagev1.StorageClass, log logr.Logger) (bool, error) {
+	restoreSize := snapshot.Status.RestoreSize
+	if restoreSize == nil {
+		return false, fmt.Errorf("snapshot has no RestoreSize")
+	}
+	targetRequest, hasTargetRequest := pvcSpec.Resources.Requests[corev1.ResourceStorage]
+	allowExpansion := targetSC.AllowVolumeExpansion != nil && *targetSC.AllowVolumeExpansion
+	if hasTargetRequest {
+		// otherwise will just use restoreSize
+		if restoreSize.Cmp(targetRequest) < 0 && !allowExpansion {
+			log.V(3).Info("Can't expand restored PVC because SC does not allow expansion, need to fall back to host assisted")
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// ValidateSnapshotCloneProvisioners validates the target PVC storage class against the snapshot class provisioner
+func ValidateSnapshotCloneProvisioners(ctx context.Context, c client.Client, snapshot *snapshotv1.VolumeSnapshot, storageClass *storagev1.StorageClass) (bool, error) {
+	// Do snapshot and storage class validation
+	if storageClass == nil {
+		return false, fmt.Errorf("target storage class not found")
+	}
+	if snapshot.Status == nil || snapshot.Status.BoundVolumeSnapshotContentName == nil {
+		return false, fmt.Errorf("volumeSnapshotContent name not found")
+	}
+	volumeSnapshotContent := &snapshotv1.VolumeSnapshotContent{}
+	if err := c.Get(ctx, types.NamespacedName{Name: *snapshot.Status.BoundVolumeSnapshotContentName}, volumeSnapshotContent); err != nil {
+		return false, err
+	}
+	if storageClass.Provisioner != volumeSnapshotContent.Spec.Driver {
+		return false, nil
+	}
+	// TODO: get sourceVolumeMode from volumesnapshotcontent and validate against target spec
+	// currently don't have CRDs in CI with sourceVolumeMode which is pretty new
+	// converting volume mode is possible but has security implications
+	return true, nil
 }
