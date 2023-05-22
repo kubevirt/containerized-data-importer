@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -33,14 +34,28 @@ const (
 var _ = Describe("DataImportCron", func() {
 	var (
 		f              = framework.NewFramework(namespacePrefix)
+		log            = logf.Log.WithName("dataimportcron_test")
 		dataSourceName = "datasource-test"
+		pollerPodName  = "poller"
 		cronName       = "cron-test"
 		cron           *cdiv1.DataImportCron
+		reg            *cdiv1.DataVolumeSourceRegistry
+		err            error
 		ns             string
 	)
 
 	BeforeEach(func() {
 		ns = f.Namespace.Name
+		reg, err = getDataVolumeSourceRegistry(f)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		if err = utils.RemoveInsecureRegistry(f.CrClient, *reg.URL); err != nil {
+			fmt.Fprintf(GinkgoWriter, "failed to remove registry; %v", err)
+		}
+		err = utils.DeletePodByName(f.K8sClient, pollerPodName, f.CdiInstallNs, nil)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	updateDigest := func(digest string) func(cron *cdiv1.DataImportCron) *cdiv1.DataImportCron {
@@ -48,6 +63,14 @@ var _ = Describe("DataImportCron", func() {
 			cron.Annotations[controller.AnnSourceDesiredDigest] = digest
 			return cron
 		}
+	}
+
+	waitForDigest := func() {
+		Eventually(func() string {
+			cron, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return cron.Annotations[controller.AnnSourceDesiredDigest]
+		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeEmpty(), "Desired digest is empty")
 	}
 
 	waitForConditions := func(statusProgressing, statusUpToDate corev1.ConditionStatus) {
@@ -64,14 +87,6 @@ var _ = Describe("DataImportCron", func() {
 	}
 
 	table.DescribeTable("should", func(retention, createErrorDv bool, repeat int) {
-		reg, err := getDataVolumeSourceRegistry(f)
-		Expect(err).ToNot(HaveOccurred())
-		defer func() {
-			if err := utils.RemoveInsecureRegistry(f.CrClient, *reg.URL); err != nil {
-				_, _ = fmt.Fprintf(GinkgoWriter, "failed to remove registry; %v", err)
-			}
-		}()
-
 		By(fmt.Sprintf("Create new DataImportCron %s, url %s", cronName, *reg.URL))
 		cron = utils.NewDataImportCron(cronName, "5Gi", scheduleEveryMinute, dataSourceName, importsToKeep, *reg)
 
@@ -122,11 +137,7 @@ var _ = Describe("DataImportCron", func() {
 					lastImportDv = ""
 
 					By("Wait for non-empty desired digest")
-					Eventually(func() string {
-						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
-						Expect(err).ToNot(HaveOccurred())
-						return cron.Annotations[controller.AnnSourceDesiredDigest]
-					}, dataImportCronTimeout, pollingInterval).ShouldNot(BeEmpty(), "Desired digest is empty")
+					waitForDigest()
 				}
 			}
 
@@ -235,15 +246,36 @@ var _ = Describe("DataImportCron", func() {
 		table.Entry("[test_id:8266] succeed deleting error DVs when importing new ones", false, true, 2),
 	)
 
-	It("[test_id:7406] succeed garbage collecting old PVCs when importing new ones", func() {
-		reg, err := getDataVolumeSourceRegistry(f)
+	It("[test_id:XXXX] Should get digest updated by external poller", func() {
+		By("Create DataImportCron with only initial poller job")
+		cron = utils.NewDataImportCron(cronName, "5Gi", scheduleOnceAYear, dataSourceName, importsToKeep, *reg)
+		retentionPolicy := cdiv1.DataImportCronRetainNone
+		cron.Spec.RetentionPolicy = &retentionPolicy
+		cron, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		defer func() {
-			if err := utils.RemoveInsecureRegistry(f.CrClient, *reg.URL); err != nil {
-				_, _ = fmt.Fprintf(GinkgoWriter, "failed to remove registry; %v", err)
-			}
-		}()
 
+		By("Wait for initial digest")
+		waitForDigest()
+
+		By("Set empty digest")
+		retryOnceOnErr(updateDataImportCron(f.CdiClient, ns, cron.Name, updateDigest(""))).Should(BeNil())
+
+		By("Create poller pod to update the DataImportCron digest")
+		importerImage := f.GetEnvVarValue("IMPORTER_IMAGE")
+		Expect(importerImage).ToNot(BeEmpty())
+
+		pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: pollerPodName}}
+		err = controller.InitPollerPodSpec(f.CrClient, cron, &pod.Spec, importerImage, corev1.PullIfNotPresent, log)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = utils.CreatePod(f.K8sClient, f.CdiInstallNs, pod)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Wait for digest set by external poller")
+		waitForDigest()
+	})
+
+	It("[test_id:7406] succeed garbage collecting old PVCs when importing new ones", func() {
 		garbagePVCs := 3
 		for i := 0; i < garbagePVCs; i++ {
 			pvcName := fmt.Sprintf("pvc-garbage-%d", i)
@@ -303,8 +335,6 @@ var _ = Describe("DataImportCron", func() {
 	})
 
 	It("[test_id:8033] should delete jobs on deletion", func() {
-		reg, err := getDataVolumeSourceRegistry(f)
-		Expect(err).ToNot(HaveOccurred())
 		noSuchCM := "nosuch"
 		reg.CertConfigMap = &noSuchCM
 		cron = utils.NewDataImportCron("cron-test", "5Gi", scheduleEveryMinute, dataSourceName, importsToKeep, *reg)

@@ -108,6 +108,7 @@ go_test(
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/controller/controllerutil:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/log:go_default_library",
     ],
 )
 

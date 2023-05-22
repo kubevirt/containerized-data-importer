@@ -83,9 +83,7 @@ func main() {
 	}
 	cc.AddAnnotation(dataImportCron, controller.AnnLastCronTime, time.Now().Format(time.RFC3339))
 
-	imports := dataImportCron.Status.CurrentImports
-	if digest != "" && (imports == nil || digest != imports[0].Digest) &&
-		digest != dataImportCron.Annotations[controller.AnnSourceDesiredDigest] {
+	if digest != "" && digest != dataImportCron.Annotations[controller.AnnSourceDesiredDigest] {
 		cc.AddAnnotation(dataImportCron, controller.AnnSourceDesiredDigest, digest)
 		log.Printf("Digest updated")
 	} else {

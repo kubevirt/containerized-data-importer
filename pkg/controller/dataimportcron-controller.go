@@ -762,7 +762,8 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 	return cronJob, nil
 }
 
-func (r *DataImportCronReconciler) initCronJob(cron *cdiv1.DataImportCron, cronJob *batchv1.CronJob) error {
+// InitPollerPodSpec inits poller PodSpec
+func InitPollerPodSpec(c client.Client, cron *cdiv1.DataImportCron, podSpec *corev1.PodSpec, image string, pullPolicy corev1.PullPolicy, log logr.Logger) error {
 	regSource, err := getCronRegistrySource(cron)
 	if err != nil {
 		return err
@@ -771,23 +772,23 @@ func (r *DataImportCronReconciler) initCronJob(cron *cdiv1.DataImportCron, cronJ
 		return errors.Errorf("No URL source in cron %s", cron.Name)
 	}
 	cdiConfig := &cdiv1.CDIConfig{}
-	if err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
+	if err = c.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
 		return err
 	}
-	insecureTLS, err := IsInsecureTLS(*regSource.URL, cdiConfig, r.uncachedClient, r.log)
+	insecureTLS, err := IsInsecureTLS(*regSource.URL, cdiConfig, log)
 	if err != nil {
 		return err
 	}
 	container := corev1.Container{
 		Name:  "cdi-source-update-poller",
-		Image: r.image,
+		Image: image,
 		Command: []string{
 			"/usr/bin/cdi-source-update-poller",
 			"-ns", cron.Namespace,
 			"-cron", cron.Name,
 			"-url", *regSource.URL,
 		},
-		ImagePullPolicy:          corev1.PullPolicy(r.pullPolicy),
+		ImagePullPolicy:          pullPolicy,
 		TerminationMessagePath:   corev1.TerminationMessagePathDefault,
 		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
 	}
@@ -851,8 +852,6 @@ func (r *DataImportCronReconciler) initCronJob(cron *cdiv1.DataImportCron, cronJ
 	addEnvVarFromImportProxyConfig := func(varName string) {
 		if value, err := GetImportProxyConfig(cdiConfig, varName); err == nil {
 			addEnvVar(varName, value)
-		} else {
-			r.log.Info("Missing", varName, err.Error())
 		}
 	}
 
@@ -860,15 +859,31 @@ func (r *DataImportCronReconciler) initCronJob(cron *cdiv1.DataImportCron, cronJ
 	addEnvVarFromImportProxyConfig(common.ImportProxyHTTPS)
 	addEnvVarFromImportProxyConfig(common.ImportProxyNoProxy)
 
-	imagePullSecrets, err := cc.GetImagePullSecrets(r.client)
+	imagePullSecrets, err := cc.GetImagePullSecrets(c)
 	if err != nil {
 		return err
 	}
-	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(context.TODO(), r.client)
+	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(context.TODO(), c)
 	if err != nil {
 		return err
 	}
 
+	podSpec.RestartPolicy = corev1.RestartPolicyNever
+	podSpec.TerminationGracePeriodSeconds = pointer.Int64(0)
+	podSpec.Containers = []corev1.Container{container}
+	podSpec.ServiceAccountName = common.CronJobServiceAccountName
+	podSpec.Volumes = volumes
+	podSpec.ImagePullSecrets = imagePullSecrets
+	podSpec.NodeSelector = workloadNodePlacement.NodeSelector
+	podSpec.Tolerations = workloadNodePlacement.Tolerations
+	podSpec.Affinity = workloadNodePlacement.Affinity
+
+	cc.SetRestrictedSecurityContext(podSpec)
+
+	return nil
+}
+
+func (r *DataImportCronReconciler) initCronJob(cron *cdiv1.DataImportCron, cronJob *batchv1.CronJob) error {
 	cronJobSpec := &cronJob.Spec
 	cronJobSpec.Schedule = cron.Spec.Schedule
 	cronJobSpec.ConcurrencyPolicy = batchv1.ForbidConcurrent
@@ -880,20 +895,12 @@ func (r *DataImportCronReconciler) initCronJob(cron *cdiv1.DataImportCron, cronJ
 	jobSpec.TTLSecondsAfterFinished = pointer.Int32(10)
 
 	podSpec := &jobSpec.Template.Spec
-	podSpec.RestartPolicy = corev1.RestartPolicyNever
-	podSpec.TerminationGracePeriodSeconds = pointer.Int64(0)
-	podSpec.Containers = []corev1.Container{container}
-	podSpec.ServiceAccountName = common.CronJobServiceAccountName
-	podSpec.Volumes = volumes
-	podSpec.ImagePullSecrets = imagePullSecrets
-	podSpec.NodeSelector = workloadNodePlacement.NodeSelector
-	podSpec.Tolerations = workloadNodePlacement.Tolerations
-	podSpec.Affinity = workloadNodePlacement.Affinity
-
+	if err := InitPollerPodSpec(r.client, cron, podSpec, r.image, corev1.PullPolicy(r.pullPolicy), r.log); err != nil {
+		return err
+	}
 	if err := r.setJobCommon(cron, cronJob); err != nil {
 		return err
 	}
-	cc.SetRestrictedSecurityContext(&cronJob.Spec.JobTemplate.Spec.Template.Spec)
 	return nil
 }
 

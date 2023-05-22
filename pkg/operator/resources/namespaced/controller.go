@@ -23,7 +23,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -53,7 +52,6 @@ func createControllerResources(args *FactoryArgs) []client.Object {
 			args.ImagePullSecrets,
 			args.PriorityClassName,
 			args.InfraNodePlacement),
-		createInsecureRegConfigMap(),
 		createPrometheusService(),
 	}
 }
@@ -355,19 +353,6 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 		},
 	}
 	return deployment
-}
-
-func createInsecureRegConfigMap() *corev1.ConfigMap {
-	return &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "ConfigMap",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   common.InsecureRegistryConfigMap,
-			Labels: utils.ResourceBuilder.WithCommonLabels(nil),
-		},
-	}
 }
 
 func createPrometheusService() *corev1.Service {
