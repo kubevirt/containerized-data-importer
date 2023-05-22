@@ -49,6 +49,8 @@ var _ = Describe("Planner test", func() {
 		sourceName = "source"
 		targetName = "target"
 		ownerLabel = "label"
+		volumeName = "sourceVolume"
+		driverName = "driver"
 	)
 
 	var (
@@ -129,11 +131,34 @@ var _ = Describe("Planner test", func() {
 
 	createSourceClaim := func() *corev1.PersistentVolumeClaim {
 		s := createClaim(sourceName)
-		s.Spec.VolumeName = "sourceVolume"
+		s.Spec.VolumeName = volumeName
 		s.Status.Capacity = corev1.ResourceList{
 			corev1.ResourceStorage: s.Spec.Resources.Requests[corev1.ResourceStorage],
 		}
 		return s
+	}
+
+	createSourceVolume := func() *corev1.PersistentVolume {
+		return &corev1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: volumeName,
+			},
+			Spec: corev1.PersistentVolumeSpec{
+				Capacity: corev1.ResourceList{
+					corev1.ResourceStorage: small,
+				},
+				StorageClassName: storageClassName,
+				PersistentVolumeSource: corev1.PersistentVolumeSource{
+					CSI: &corev1.CSIPersistentVolumeSource{
+						Driver: driverName,
+					},
+				},
+				ClaimRef: &corev1.ObjectReference{
+					Namespace: namespace,
+					Name:      sourceName,
+				},
+			},
+		}
 	}
 
 	createStorageClass := func() *storagev1.StorageClass {
@@ -141,7 +166,7 @@ var _ = Describe("Planner test", func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: storageClassName,
 			},
-			Provisioner:          "provisioner",
+			Provisioner:          driverName,
 			AllowVolumeExpansion: pointer.Bool(true),
 		}
 	}
@@ -224,20 +249,6 @@ var _ = Describe("Planner test", func() {
 			Expect(strategy).To(BeNil())
 		})
 
-		It("should return nil if source not bound", func() {
-			source := createSourceClaim()
-			source.Spec.VolumeName = ""
-			args := &ChooseStrategyArgs{
-				TargetClaim: createTargetClaim(),
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			planner := createPlanner(createStorageClass(), source)
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(strategy).To(BeNil())
-		})
-
 		It("should fail target smaller", func() {
 			source := createSourceClaim()
 			target := createTargetClaim()
@@ -273,7 +284,37 @@ var _ = Describe("Planner test", func() {
 				DataSource:  createDataSource(),
 				Log:         log,
 			}
+			planner := createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass(), createSourceVolume())
+			strategy, err := planner.ChooseStrategy(context.Background(), args)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(strategy).ToNot(BeNil())
+			Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
+		})
+
+		It("should return snapshot with volumesnapshotclass (no source vol)", func() {
+			args := &ChooseStrategyArgs{
+				TargetClaim: createTargetClaim(),
+				DataSource:  createDataSource(),
+				Log:         log,
+			}
 			planner := createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass())
+			strategy, err := planner.ChooseStrategy(context.Background(), args)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(strategy).ToNot(BeNil())
+			Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
+		})
+
+		It("should return snapshot with volumesnapshotclass and source storageclass does not exist but same driver", func() {
+			sourceClaim := createSourceClaim()
+			sourceVolume := createSourceVolume()
+			sourceVolume.Spec.StorageClassName = "baz"
+			sourceClaim.Spec.StorageClassName = pointer.String(sourceVolume.Spec.StorageClassName)
+			args := &ChooseStrategyArgs{
+				TargetClaim: createTargetClaim(),
+				DataSource:  createDataSource(),
+				Log:         log,
+			}
+			planner := createPlanner(createStorageClass(), createVolumeSnapshotClass(), sourceClaim, sourceVolume)
 			strategy, err := planner.ChooseStrategy(context.Background(), args)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(strategy).ToNot(BeNil())

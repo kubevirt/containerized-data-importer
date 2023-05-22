@@ -240,11 +240,6 @@ func (p *Planner) strategyForSourcePVC(ctx context.Context, args *ChooseStrategy
 		return nil, nil
 	}
 
-	if sourceClaim.Spec.VolumeName == "" {
-		args.Log.V(3).Info("Source PVC is not bound, too early to compute strategy")
-		return nil, nil
-	}
-
 	if err = p.validateSourcePVC(args, sourceClaim); err != nil {
 		// TODO EVENT
 		//r.recorder.Event(datavolume, corev1.EventTypeWarning, CloneValidationFailed, MessageCloneValidationFailed)

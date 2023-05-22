@@ -158,10 +158,48 @@ func MustGetStorageClassForClaim(ctx context.Context, c client.Client, pvc *core
 	return sc, nil
 }
 
+// GetDriverFromVolume returns the CSI driver name for a PVC
+func GetDriverFromVolume(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (*string, error) {
+	if pvc.Spec.VolumeName == "" {
+		return nil, nil
+	}
+
+	pv := &corev1.PersistentVolume{}
+	exists, err := getResource(ctx, c, "", pvc.Spec.VolumeName, pv)
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists || pv.Spec.ClaimRef == nil {
+		return nil, nil
+	}
+
+	if pv.Spec.ClaimRef.Namespace != pvc.Namespace ||
+		pv.Spec.ClaimRef.Name != pvc.Name {
+		return nil, fmt.Errorf("pvc does not match volume claim ref")
+	}
+
+	if pv.Spec.CSI == nil {
+		return nil, nil
+	}
+
+	return &pv.Spec.CSI.Driver, nil
+}
+
 // GetCompatibleVolumeSnapshotClass returns a VolumeSNapshotClass name that works for all PVCs
 func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, pvcs ...*corev1.PersistentVolumeClaim) (*string, error) {
-	var storageClasses []*storagev1.StorageClass
+	var drivers []string
 	for _, pvc := range pvcs {
+		driver, err := GetDriverFromVolume(ctx, c, pvc)
+		if err != nil {
+			return nil, err
+		}
+
+		if driver != nil {
+			drivers = append(drivers, *driver)
+			continue
+		}
+
 		sc, err := GetStorageClassForClaim(ctx, c, pvc)
 		if err != nil {
 			return nil, err
@@ -171,7 +209,7 @@ func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, pvcs
 			return nil, nil
 		}
 
-		storageClasses = append(storageClasses, sc)
+		drivers = append(drivers, sc.Provisioner)
 	}
 
 	volumeSnapshotClasses := &snapshotv1.VolumeSnapshotClassList{}
@@ -185,8 +223,8 @@ func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, pvcs
 	var candidates []string
 	for _, vcs := range volumeSnapshotClasses.Items {
 		matches := true
-		for _, sc := range storageClasses {
-			if sc.Provisioner != vcs.Driver {
+		for _, driver := range drivers {
+			if driver != vcs.Driver {
 				matches = false
 				break
 			}
