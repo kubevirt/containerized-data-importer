@@ -91,7 +91,7 @@ func (p *SnapshotClonePhase) createClaim(ctx context.Context, snapshot *snapshot
 		return nil, fmt.Errorf("snapshot missing restoresize")
 	}
 
-	// 0 restore size is a special case, provisioners that do that seem to all restoring to bigger pvcs
+	// 0 restore size is a special case, provisioners that do that seem to allow restoring to bigger pvcs
 	rs := snapshot.Status.RestoreSize
 	if !rs.IsZero() {
 		p.Log.V(3).Info("setting desired pvc request size to", "restoreSize", *rs)

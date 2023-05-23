@@ -291,6 +291,7 @@ var _ = Describe("Planner test", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(strategy).ToNot(BeNil())
 			Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+			expectEvent(planner, NoVolumeSnapshotClass)
 		})
 
 		It("should return snapshot with volumesnapshotclass", func() {
@@ -361,11 +362,12 @@ var _ = Describe("Planner test", func() {
 				DataSource:  createDataSource(),
 				Log:         log,
 			}
-			planner := createPlanner(storageClass, createSourceClaim())
+			planner := createPlanner(storageClass, createSourceClaim(), createVolumeSnapshotClass())
 			strategy, err := planner.ChooseStrategy(context.Background(), args)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(strategy).ToNot(BeNil())
 			Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+			expectEvent(planner, NoVolumeExpansion)
 		})
 
 		It("should return host assisted with non matching volume modes", func() {
@@ -377,11 +379,12 @@ var _ = Describe("Planner test", func() {
 				DataSource:  createDataSource(),
 				Log:         log,
 			}
-			planner := createPlanner(createStorageClass(), source)
+			planner := createPlanner(createStorageClass(), createVolumeSnapshotClass(), source)
 			strategy, err := planner.ChooseStrategy(context.Background(), args)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(strategy).ToNot(BeNil())
 			Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+			expectEvent(planner, IncompatibleVolumeModes)
 		})
 
 		It("should return csi-clone if global override is set", func() {

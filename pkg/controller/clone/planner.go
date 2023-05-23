@@ -37,6 +37,24 @@ const (
 
 	// MessageCloneWithoutSource reports that the source of a clone doesn't exists (message)
 	MessageCloneWithoutSource = "The source %s %s doesn't exist"
+
+	// NoVolumeSnapshotClass reports that no compatible volumesnapshotclass was found (reason)
+	NoVolumeSnapshotClass = "NoVolumeSnapshotClass"
+
+	// MessageNoVolumeSnapshotClass reports that no compatible volumesnapshotclass was found (message)
+	MessageNoVolumeSnapshotClass = "No compatible volumesnapshotclass found"
+
+	// IncompatibleVolumeModes reports that the volume modes of source and target are incompatible (reason)
+	IncompatibleVolumeModes = "IncompatibleVolumeModes"
+
+	// MessageIncompatibleVolumeModes reports that the volume modes of source and target are incompatible (message)
+	MessageIncompatibleVolumeModes = "The volume modes of source and target are incompatible"
+
+	// NoVolumeExpansion reports that no volume expansion is possible (reason)
+	NoVolumeExpansion = "NoVolumeExpansion"
+
+	// MessageNoVolumeExpansion reports that no volume expansion is possible (message)
+	MessageNoVolumeExpansion = "No volume expansion is possible"
 )
 
 // Planner plans clone operations
@@ -251,7 +269,7 @@ func (p *Planner) computeStrategyForSourcePVC(ctx context.Context, args *ChooseS
 
 	if err = p.validateSourcePVC(args, sourceClaim); err != nil {
 		p.Recorder.Event(args.TargetClaim, corev1.EventTypeWarning, CloneValidationFailed, MessageCloneValidationFailed)
-		args.Log.V(1).Info("Validation failed", "target", args.TargetClaim, "source", sourceClaim)
+		args.Log.V(3).Info("Validation failed", "target", args.TargetClaim, "source", sourceClaim)
 		return nil, err
 	}
 
@@ -286,6 +304,7 @@ func (p *Planner) computeStrategyForSourcePVC(ctx context.Context, args *ChooseS
 		}
 
 		if n == nil {
+			p.Recorder.Event(args.TargetClaim, corev1.EventTypeWarning, NoVolumeSnapshotClass, MessageNoVolumeSnapshotClass)
 			strategy = cdiv1.CloneStrategyHostAssisted
 		}
 	}
@@ -339,6 +358,7 @@ func (p *Planner) validateSourcePVC(args *ChooseStrategyArgs, sourceClaim *corev
 
 func (p *Planner) validateAdvancedClonePVC(ctx context.Context, args *ChooseStrategyArgs, sourceClaim *corev1.PersistentVolumeClaim) (bool, error) {
 	if !SameVolumeMode(sourceClaim, args.TargetClaim) {
+		p.Recorder.Event(args.TargetClaim, corev1.EventTypeWarning, IncompatibleVolumeModes, MessageIncompatibleVolumeModes)
 		args.Log.V(3).Info("volume modes not compatible for advanced clone")
 		return false, nil
 	}
@@ -361,6 +381,7 @@ func (p *Planner) validateAdvancedClonePVC(ctx context.Context, args *ChooseStra
 	}
 
 	if srcCapacity.Cmp(targetRequest) < 0 && !allowExpansion {
+		p.Recorder.Event(args.TargetClaim, corev1.EventTypeWarning, NoVolumeExpansion, MessageNoVolumeExpansion)
 		args.Log.V(3).Info("advanced clone not possible, no volume expansion")
 		return false, nil
 	}
