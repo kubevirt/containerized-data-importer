@@ -1292,6 +1292,146 @@ var _ = Describe("All DataVolume Tests", func() {
 		})
 	})
 
+	var _ = Describe("shouldUseCDIPopulator", func() {
+		scName := "test"
+		sc := CreateStorageClassWithProvisioner(scName, map[string]string{
+			AnnDefaultStorageClass: "true",
+		}, map[string]string{}, "csi-plugin")
+		csiDriver := &storagev1.CSIDriver{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "csi-plugin",
+			},
+		}
+
+		DescribeTable("Should return expected result if has annotation", func(annotation, value string, expected bool) {
+			httpSource := &cdiv1.DataVolumeSource{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{},
+			}
+			storageSpec := &cdiv1.StorageSpec{}
+			dv := createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault, httpSource, storageSpec)
+			AddAnnotation(dv, annotation, value)
+
+			reconciler = createImportReconciler()
+			syncState := dvSyncState{
+				dvMutated: dv,
+			}
+			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(usePopulator).To(Equal(expected))
+		},
+			Entry("AnnUsePopulator=true return true", AnnUsePopulator, "true", true),
+			Entry("AnnUsePopulator=false return false", AnnUsePopulator, "false", false),
+			Entry("AnnPodRetainAfterCompletion return false", AnnPodRetainAfterCompletion, "true", false),
+			Entry("AnnImmediateBinding return false", AnnImmediateBinding, "true", false),
+		)
+
+		DescribeTable("Should return false if source is", func(source *cdiv1.DataVolumeSource) {
+			storageSpec := &cdiv1.StorageSpec{}
+			dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", source, storageSpec)
+			reconciler = createImportReconciler()
+			syncState := dvSyncState{
+				dvMutated: dv,
+			}
+			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(usePopulator).To(BeFalse())
+		},
+			Entry("Imageio", &cdiv1.DataVolumeSource{
+				Imageio: &cdiv1.DataVolumeSourceImageIO{},
+			}),
+			Entry("VDDK", &cdiv1.DataVolumeSource{
+				VDDK: &cdiv1.DataVolumeSourceVDDK{},
+			}),
+			Entry("PVC", &cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{},
+			}),
+			Entry("Snapshot", &cdiv1.DataVolumeSource{
+				Snapshot: &cdiv1.DataVolumeSourceSnapshot{},
+			}),
+		)
+
+		It("Should return false if storage class has wffc bindingMode and honorWaitForFirstConsumer feature gate is disabled", func() {
+			sc := createStorageClassWithBindingMode(scName,
+				map[string]string{
+					AnnDefaultStorageClass: "true",
+				},
+				storagev1.VolumeBindingWaitForFirstConsumer)
+			httpSource := &cdiv1.DataVolumeSource{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{},
+			}
+			storageSpec := &cdiv1.StorageSpec{}
+			dv := createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault, httpSource, storageSpec)
+
+			reconciler = createImportReconcilerWFFCDisabled(sc)
+			syncState := dvSyncState{
+				dvMutated: dv,
+				pvcSpec: &corev1.PersistentVolumeClaimSpec{
+					StorageClassName: &scName,
+				},
+			}
+			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(usePopulator).To(BeFalse())
+		})
+
+		It("Should return false if storage class doesnt exist", func() {
+			httpSource := &cdiv1.DataVolumeSource{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{},
+			}
+			storageSpec := &cdiv1.StorageSpec{}
+			dv := createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault, httpSource, storageSpec)
+
+			reconciler = createImportReconciler()
+			syncState := dvSyncState{
+				dvMutated: dv,
+				pvcSpec: &corev1.PersistentVolumeClaimSpec{
+					StorageClassName: &scName,
+				},
+			}
+			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(usePopulator).To(BeFalse())
+		})
+
+		It("Should return false if storage class doesnt have csi driver", func() {
+			httpSource := &cdiv1.DataVolumeSource{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{},
+			}
+			storageSpec := &cdiv1.StorageSpec{}
+			dv := createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault, httpSource, storageSpec)
+
+			reconciler = createImportReconciler(sc)
+			syncState := dvSyncState{
+				dvMutated: dv,
+				pvcSpec: &corev1.PersistentVolumeClaimSpec{
+					StorageClassName: &scName,
+				},
+			}
+			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(usePopulator).To(BeFalse())
+		})
+
+		It("Should return true if storage class has csi driver", func() {
+			httpSource := &cdiv1.DataVolumeSource{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{},
+			}
+			storageSpec := &cdiv1.StorageSpec{}
+			dv := createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault, httpSource, storageSpec)
+
+			reconciler = createImportReconciler(sc, csiDriver)
+			syncState := dvSyncState{
+				dvMutated: dv,
+				pvcSpec: &corev1.PersistentVolumeClaimSpec{
+					StorageClassName: &scName,
+				},
+			}
+			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(usePopulator).To(BeTrue())
+		})
+	})
+
 })
 
 func dvPhaseTest(reconciler ReconcilerBase, dvc dvController, testDv runtime.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann, expectedEvent string, extraAnnotations ...string) {
@@ -1389,6 +1529,20 @@ func readyStatusByPhase(phase cdiv1.DataVolumePhase) corev1.ConditionStatus {
 	default:
 		return corev1.ConditionFalse
 	}
+}
+
+func createImportReconcilerWFFCDisabled(objects ...runtime.Object) *ImportReconciler {
+	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
+	cdiConfig.Status = cdiv1.CDIConfigStatus{
+		ScratchSpaceStorageClass: testStorageClass,
+	}
+	cdiConfig.Spec.FeatureGates = []string{}
+
+	objs := []runtime.Object{}
+	objs = append(objs, objects...)
+	objs = append(objs, cdiConfig)
+
+	return createImportReconcilerWithoutConfig(objs...)
 }
 
 func createImportReconciler(objects ...runtime.Object) *ImportReconciler {

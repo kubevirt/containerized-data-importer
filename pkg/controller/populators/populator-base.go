@@ -19,6 +19,7 @@ package populators
 import (
 	"context"
 	"reflect"
+	"strings"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -221,19 +222,21 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 	return pvcPrime, nil
 }
 
-func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim) error {
+type updatePVCAnnotationsFunc func(pvc, pvcPrime *corev1.PersistentVolumeClaim)
+
+func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim, updateFunc updatePVCAnnotationsFunc) error {
 	pvcCopy := pvc.DeepCopy()
-	if phase, ok := pvcPrime.Annotations[cc.AnnPodPhase]; ok {
-		pvcCopy.Annotations[cc.AnnPodPhase] = phase
+	for k, v := range pvcPrime.GetAnnotations() {
+		if strings.Contains(k, common.CDIAnnKey) &&
+			!strings.Contains(k, cc.AnnImmediateBinding) &&
+			!strings.Contains(k, cc.AnnPopulatorKind) &&
+			!strings.Contains(k, "upload") &&
+			!strings.Contains(k, "import") {
+			cc.AddAnnotation(pvcCopy, k, v)
+		}
 	}
-	if ready, ok := pvcPrime.Annotations[cc.AnnPodReady]; ok {
-		pvcCopy.Annotations[cc.AnnPodReady] = ready
-	}
-	if restarts, ok := pvcPrime.Annotations[cc.AnnPodRestarts]; ok {
-		pvcCopy.Annotations[cc.AnnPodRestarts] = restarts
-	}
-	if preallocation, ok := pvcPrime.Annotations[cc.AnnPreallocationApplied]; ok {
-		pvcCopy.Annotations[cc.AnnPreallocationApplied] = preallocation
+	if updateFunc != nil {
+		updateFunc(pvcCopy, pvcPrime)
 	}
 
 	if !reflect.DeepEqual(pvc.ObjectMeta, pvcCopy.ObjectMeta) {

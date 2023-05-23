@@ -123,17 +123,10 @@ func (r *ImportPopulatorReconciler) getPopulationSource(namespace, name string) 
 func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
 	pvcCopy := pvc.DeepCopy()
 	phase := pvcPrime.Annotations[cc.AnnPodPhase]
-	// TODO: do we want to prevent the other updates in case of failure
-	// tp update the progress?
-	if err := r.updateImportProgress(phase, pvcCopy, pvcPrime); err != nil {
-		return reconcile.Result{}, err
-	}
-	updateImportSourceAnnotation(pvcCopy, pvcPrime)
-	updateVddkAnnotations(pvcCopy, pvcPrime)
 
 	switch phase {
 	case string(corev1.PodRunning):
-		err := r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime)
+		err := r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations)
 		// We requeue to keep reporting progress
 		return reconcile.Result{RequeueAfter: 2 * time.Second}, err
 	case string(corev1.PodFailed):
@@ -146,7 +139,7 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		}
 	}
 
-	err := r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime)
+	err := r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -194,6 +187,14 @@ func (r *ImportPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	annotations[cc.AnnSource] = cc.SourceNone
 }
 
+func deleteBoundConditionIfNeeded(pvc, pvcPrime *corev1.PersistentVolumeClaim) {
+	if _, ok := pvcPrime.Annotations[cc.AnnBoundCondition]; !ok {
+		delete(pvc.Annotations, cc.AnnBoundCondition)
+		delete(pvc.Annotations, cc.AnnBoundConditionMessage)
+		delete(pvc.Annotations, cc.AnnBoundConditionReason)
+	}
+}
+
 func updateVddkAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim) {
 	if cc.GetSource(pvcPrime) != cc.SourceVDDK {
 		return
@@ -206,19 +207,21 @@ func updateVddkAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim) {
 	}
 }
 
-func updateImportSourceAnnotation(pvc, pvcPrime *corev1.PersistentVolumeClaim) {
-	pvc.Annotations[cc.AnnSource] = cc.GetSource(pvcPrime)
+func (r *ImportPopulatorReconciler) updateImportAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim) {
+	phase := pvcPrime.Annotations[cc.AnnPodPhase]
+	if err := r.updateImportProgress(phase, pvc, pvcPrime); err != nil {
+		r.log.Error(err, "Failed to update import progress for pvc %s/%s", pvc.Namespace, pvc.Name)
+	}
+	updateVddkAnnotations(pvc, pvcPrime)
+	deleteBoundConditionIfNeeded(pvc, pvcPrime)
 }
 
 // Progress reporting
 
 func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, pvcPrime *corev1.PersistentVolumeClaim) error {
-	if pvc.Annotations == nil {
-		pvc.Annotations = make(map[string]string)
-	}
 	// Just set 100.0% if pod is succeeded
 	if podPhase == string(corev1.PodSucceeded) {
-		pvc.Annotations[cc.AnnImportProgressReporting] = "100.0%"
+		cc.AddAnnotation(pvc, cc.AnnPopulatorProgress, "100.0%")
 		return nil
 	}
 	importPod, err := r.getImportPod(pvc)
@@ -245,7 +248,7 @@ func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, p
 	}
 	if progressReport != "" {
 		if f, err := strconv.ParseFloat(progressReport, 64); err == nil {
-			pvc.Annotations[cc.AnnImportProgressReporting] = fmt.Sprintf("%.2f%%", f)
+			cc.AddAnnotation(pvc, cc.AnnPopulatorProgress, fmt.Sprintf("%.2f%%", f))
 		}
 	}
 

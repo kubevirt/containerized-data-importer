@@ -161,7 +161,7 @@ func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		}
 	}
 
-	err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime)
+	err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, nil)
 	if err != nil {
 		return reconcile.Result{}, err
 	}

@@ -1619,7 +1619,7 @@ var _ = Describe("Import populator", func() {
 		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
 
 		By("Verify 100.0% annotation")
-		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnImportProgressReporting)
+		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPopulatorProgress)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(ok).To(BeTrue())
 		Expect(progress).Should(BeEquivalentTo("100.0%"))
@@ -1671,7 +1671,7 @@ var _ = Describe("Import populator", func() {
 		Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultPvcMountPath)).To(BeTrue())
 
 		By("Verify 100.0% annotation")
-		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnImportProgressReporting)
+		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPopulatorProgress)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(ok).To(BeTrue())
 		Expect(progress).Should(BeEquivalentTo("100.0%"))
@@ -1710,7 +1710,7 @@ var _ = Describe("Import populator", func() {
 		Expect(same).To(BeTrue())
 
 		By("Verify 100.0% annotation")
-		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnImportProgressReporting)
+		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPopulatorProgress)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(ok).To(BeTrue())
 		Expect(progress).Should(BeEquivalentTo("100.0%"))

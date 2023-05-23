@@ -333,7 +333,7 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 			return syncRes, err
 		}
 		if selectedCloneStrategy == CsiClone {
-			csiDriverAvailable, err := r.storageClassCSIDriverExists(pvcSpec.StorageClassName)
+			csiDriverAvailable, err := storageClassCSIDriverExists(r.client, r.log, pvcSpec.StorageClassName)
 			if err != nil && !k8serrors.IsNotFound(err) {
 				return syncRes, err
 			}

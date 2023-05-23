@@ -35,8 +35,11 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 const (
@@ -106,6 +109,12 @@ func NewImportController(
 
 func addDataVolumeImportControllerWatches(mgr manager.Manager, datavolumeController controller.Controller) error {
 	if err := addDataVolumeControllerCommonWatches(mgr, datavolumeController, dataVolumeImport); err != nil {
+		return err
+	}
+	if err := datavolumeController.Watch(&source.Kind{Type: &cdiv1.VolumeImportSource{}}, &handler.EnqueueRequestForOwner{
+		OwnerType:    &cdiv1.DataVolume{},
+		IsController: true,
+	}); err != nil {
 		return err
 	}
 	return nil
@@ -211,13 +220,14 @@ func (r *ImportReconciler) syncImport(log logr.Logger, req reconcile.Request) (d
 
 func (r *ImportReconciler) cleanup(syncState *dvSyncState) error {
 	dv := syncState.dvMutated
-	// This cleanup should be done if dv is marked for deletion, dv is succeeded
-	// and data volume is using the import populator
-	if dv.DeletionTimestamp == nil && dv.Status.Phase != cdiv1.Succeeded && !syncState.usePopulator {
-		return nil
+	// The cleanup is to delete the volumeImportSourceCR which is used only with populators,
+	// it is owner by the DV so will be deleted when dv is deleted
+	// also we can already delete once dv is succeeded
+	if syncState.usePopulator && dv.Status.Phase == cdiv1.Succeeded {
+		return r.deleteVolumeImportSourceCR(syncState)
 	}
 
-	return r.deleteVolumeImportSourceCR(syncState)
+	return nil
 }
 
 func isPVCImportPopulation(pvc *corev1.PersistentVolumeClaim) bool {
@@ -232,8 +242,8 @@ func (r *ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, 
 		if !ok || pvc.Status.Phase != corev1.ClaimBound || pvcIsPopulated(pvc, dataVolumeCopy) {
 			return nil
 		}
-		dataVolumeCopy.Status.Phase = cdiv1.ImportScheduled
 	}
+	dataVolumeCopy.Status.Phase = cdiv1.ImportScheduled
 	if !ok {
 		return nil
 	}
@@ -492,6 +502,17 @@ func volumeImportSourceName(dv *cdiv1.DataVolume) string {
 
 func (r *ImportReconciler) createVolumeImportSourceCR(syncState *dvSyncState) error {
 	dv := syncState.dvMutated
+	importSource := &cdiv1.VolumeImportSource{}
+	importSourceName := volumeImportSourceName(dv)
+
+	exists, err := cc.GetResource(context.TODO(), r.client, dv.Namespace, importSourceName, importSource)
+	if err != nil {
+		return err
+	}
+	if exists {
+		// import source already exists
+		return nil
+	}
 
 	source := &cdiv1.ImportSourceType{}
 	if http := dv.Spec.Source.HTTP; http != nil {
@@ -512,8 +533,7 @@ func (r *ImportReconciler) createVolumeImportSourceCR(syncState *dvSyncState) er
 		source.Blank = &cdiv1.DataVolumeBlankImage{}
 	}
 
-	importSourceName := volumeImportSourceName(dv)
-	importSource := &cdiv1.VolumeImportSource{
+	importSource = &cdiv1.VolumeImportSource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      importSourceName,
 			Namespace: dv.Namespace,
@@ -525,7 +545,16 @@ func (r *ImportReconciler) createVolumeImportSourceCR(syncState *dvSyncState) er
 		},
 	}
 
-	return r.client.Create(context.TODO(), importSource)
+	if err := controllerutil.SetControllerReference(dv, importSource, r.scheme); err != nil {
+		return err
+	}
+
+	if err := r.client.Create(context.TODO(), importSource); err != nil {
+		if !k8serrors.IsAlreadyExists(err) {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *ImportReconciler) deleteVolumeImportSourceCR(syncState *dvSyncState) error {

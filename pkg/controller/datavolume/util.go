@@ -19,12 +19,14 @@ package datavolume
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -301,6 +303,71 @@ func resolveVolumeSize(c client.Client, dvSpec cdiv1.DataVolumeSpec, pvcSpec *v1
 	requestedSize, err := cc.InflateSizeWithOverhead(context.TODO(), c, requestedSize.Value(), pvcSpec)
 
 	return &requestedSize, err
+}
+
+// storageClassCSIDriverExists returns true if the passed storage class has CSI drivers available
+func storageClassCSIDriverExists(client client.Client, log logr.Logger, storageClassName *string) (bool, error) {
+	log = log.WithName("getCsiDriverForStorageClass").V(3)
+
+	storageClass, err := cc.GetStorageClassByName(context.TODO(), client, storageClassName)
+	if err != nil {
+		return false, err
+	}
+	if storageClass == nil {
+		log.Info("Target PVC's Storage Class not found")
+		return false, nil
+	}
+
+	csiDriver := &storagev1.CSIDriver{}
+
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: storageClass.Provisioner}, csiDriver); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return false, err
+		}
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func checkPVCUsingPopulators(pvc *v1.PersistentVolumeClaim) (bool, error) {
+	if pvc.Spec.DataSourceRef == nil {
+		return false, nil
+	}
+	usePopulator, ok := pvc.Annotations[cc.AnnUsePopulator]
+	if !ok {
+		return false, nil
+	}
+	boolUsePopulator, err := strconv.ParseBool(usePopulator)
+	if err != nil {
+		return false, err
+	}
+	return boolUsePopulator, nil
+}
+
+func updateDataVolumeUseCDIPopulator(syncState *dvSyncState) {
+	cc.AddAnnotation(syncState.dvMutated, cc.AnnUsePopulator, strconv.FormatBool(syncState.usePopulator))
+}
+
+func checkDVUsingPopulators(dv *cdiv1.DataVolume) (bool, error) {
+	usePopulator, ok := dv.Annotations[cc.AnnUsePopulator]
+	if !ok {
+		return false, nil
+	}
+	boolUsePopulator, err := strconv.ParseBool(usePopulator)
+	if err != nil {
+		return false, err
+	}
+	return boolUsePopulator, nil
+}
+
+func dvBoundOrPopulationInProgress(dataVolume *cdiv1.DataVolume, boundCond *cdiv1.DataVolumeCondition) bool {
+	usePopulator, err := checkDVUsingPopulators(dataVolume)
+	if err != nil {
+		return false
+	}
+	return boundCond.Status == v1.ConditionTrue ||
+		(usePopulator && dataVolume.Status.Phase != cdiv1.Pending && dataVolume.Status.Phase != cdiv1.PendingPopulation)
 }
 
 func createStorageProfile(name string,

@@ -312,7 +312,7 @@ var _ = Describe("Import populator tests", func() {
 			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, sc)
 			err := reconciler.updateImportProgress(string(corev1.PodSucceeded), targetPvc, pvcPrime)
 			Expect(err).To(Not(HaveOccurred()))
-			Expect(targetPvc.Annotations[AnnImportProgressReporting]).To(Equal("100.0%"))
+			Expect(targetPvc.Annotations[AnnPopulatorProgress]).To(Equal("100.0%"))
 		})
 
 		It("should return error if no metrics in pod", func() {
@@ -382,7 +382,7 @@ var _ = Describe("Import populator tests", func() {
 			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, pod)
 			err = reconciler.updateImportProgress(string(corev1.PodRunning), targetPvc, pvcPrime)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(targetPvc.Annotations[AnnImportProgressReporting]).To(BeEquivalentTo("13.45%"))
+			Expect(targetPvc.Annotations[AnnPopulatorProgress]).To(BeEquivalentTo("13.45%"))
 		})
 	})
 })

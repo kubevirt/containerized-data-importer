@@ -30,9 +30,6 @@ import (
 )
 
 const (
-	// AnnPopulatorProgress is a standard annotation that can be used progress reporting
-	AnnPopulatorProgress = cc.AnnAPIGroup + "/storage.populator.progress"
-
 	primePvcPrefix = "prime"
 
 	// errCreatingPVCPrime provides a const to indicate we failed to create PVC prime for population

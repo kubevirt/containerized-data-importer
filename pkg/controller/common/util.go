@@ -108,8 +108,8 @@ const (
 	// AnnMultiStageImportDone marks a multi-stage import as totally finished
 	AnnMultiStageImportDone = AnnAPIGroup + "/storage.checkpoint.done"
 
-	// AnnImportProgressReporting stores the current progress of the import process as a percetange
-	AnnImportProgressReporting = AnnAPIGroup + "/storage.import.progress"
+	// AnnPopulatorProgress is a standard annotation that can be used progress reporting
+	AnnPopulatorProgress = AnnAPIGroup + "/storage.populator.progress"
 
 	// AnnPreallocationRequested provides a const to indicate whether preallocation should be performed on the PV
 	AnnPreallocationRequested = AnnAPIGroup + "/storage.preallocation.requested"
@@ -1736,4 +1736,21 @@ func isCrdDeployed(c client.Client, name, version string, log logr.Logger) bool 
 // IsSnapshotReady indicates if a volume snapshot is ready to be used
 func IsSnapshotReady(snapshot *snapshotv1.VolumeSnapshot) bool {
 	return snapshot.Status != nil && snapshot.Status.ReadyToUse != nil && *snapshot.Status.ReadyToUse
+}
+
+// GetResource updates given obj with the data of the object with the same name and namespace
+func GetResource(ctx context.Context, c client.Client, namespace, name string, obj client.Object) (bool, error) {
+	obj.SetNamespace(namespace)
+	obj.SetName(name)
+
+	err := c.Get(ctx, client.ObjectKeyFromObject(obj), obj)
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return true, nil
 }
