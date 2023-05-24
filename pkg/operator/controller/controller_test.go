@@ -62,10 +62,9 @@ import (
 )
 
 const (
-	version                   = "v1.5.0"
-	cdiNamespace              = "cdi"
-	configMapName             = "cdi-config"
-	insecureRegistryConfigMap = "cdi-insecure-registries"
+	version       = "v1.5.0"
+	cdiNamespace  = "cdi"
+	configMapName = "cdi-config"
 
 	normalCreateSuccess              = "Normal CreateResourceSuccess Successfully created resource"
 	normalCreateEnsured              = "Normal CreateResourceSuccess Successfully ensured"
@@ -564,40 +563,6 @@ var _ = Describe("Controller", func() {
 				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
 				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 				validateEvents(args.reconciler, createReadyEventValidationMap())
-			})
-
-			It("does not modify insecure registry configmap", func() {
-				args := createArgs()
-				doReconcile(args)
-
-				cm := &corev1.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      insecureRegistryConfigMap,
-						Namespace: cdiNamespace,
-					},
-				}
-
-				obj, err := getObject(args.client, cm)
-				Expect(err).ToNot(HaveOccurred())
-				cm = obj.(*corev1.ConfigMap)
-
-				if cm.Data == nil {
-					cm.Data = make(map[string]string)
-				}
-				data := cm.Data
-				data["foo.bar.com"] = ""
-
-				err = args.client.Update(context.TODO(), cm)
-				Expect(err).ToNot(HaveOccurred())
-
-				doReconcile(args)
-
-				obj, err = getObject(args.client, cm)
-				Expect(err).ToNot(HaveOccurred())
-				cm = obj.(*corev1.ConfigMap)
-
-				Expect(cm.Data).Should(Equal(data))
-				validateEvents(args.reconciler, createNotReadyEventValidationMap())
 			})
 
 			It("should be an error when creating another CDI instance", func() {
@@ -1780,7 +1745,6 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.RoleBinding cdi-deployment"] = false
 	match[normalCreateSuccess+" *v1.Role cdi-deployment"] = false
 	match[normalCreateSuccess+" *v1.Deployment cdi-deployment"] = false
-	match[normalCreateSuccess+" *v1.ConfigMap cdi-insecure-registries"] = false
 	match[normalCreateSuccess+" *v1.ServiceAccount cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.Service cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.RoleBinding cdi-uploadproxy"] = false

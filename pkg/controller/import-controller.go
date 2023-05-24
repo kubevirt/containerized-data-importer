@@ -641,11 +641,11 @@ func (r *ImportReconciler) isInsecureTLS(pvc *corev1.PersistentVolumeClaim, cdiC
 	if !ok || ep == "" {
 		return false, nil
 	}
-	return IsInsecureTLS(ep, cdiConfig, r.uncachedClient, r.log)
+	return IsInsecureTLS(ep, cdiConfig, r.log)
 }
 
 // IsInsecureTLS checks if TLS security is disabled for the given endpoint
-func IsInsecureTLS(ep string, cdiConfig *cdiv1.CDIConfig, client client.Client, log logr.Logger) (bool, error) {
+func IsInsecureTLS(ep string, cdiConfig *cdiv1.CDIConfig, log logr.Logger) (bool, error) {
 	url, err := url.Parse(ep)
 	if err != nil {
 		return false, err
@@ -661,27 +661,6 @@ func IsInsecureTLS(ep string, cdiConfig *cdiv1.CDIConfig, client client.Client, 
 			return true, nil
 		}
 	}
-
-	// ConfigMap is obsoleted and supported only for upgrade. It won't be refered anymore by future releases.
-	configMapName := common.InsecureRegistryConfigMap
-	log.V(1).Info("Checking configmap for host", "configMapName", configMapName, "host URL", url.Host)
-
-	cm := &corev1.ConfigMap{}
-	if err := client.Get(context.TODO(), types.NamespacedName{Name: configMapName, Namespace: util.GetNamespace()}, cm); err != nil {
-		if k8serrors.IsNotFound(err) {
-			log.V(1).Info("Configmap does not exist", "configMapName", configMapName)
-			return false, nil
-		}
-		return false, err
-	}
-
-	for _, value := range cm.Data {
-		log.V(1).Info("Checking host against value", "host", url.Host, "value", value)
-		if value == url.Host {
-			return true, nil
-		}
-	}
-
 	return false, nil
 }
 

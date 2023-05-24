@@ -393,13 +393,8 @@ func (f *Framework) RunCommandAndCaptureOutput(pvc *k8sv1.PersistentVolumeClaim,
 
 // NewPodWithPVC creates a new pod that mounts the given PVC
 func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim, readOnly bool) *k8sv1.Pod {
-	var importerImage string
+	importerImage := f.GetEnvVarValue("IMPORTER_IMAGE")
 	volumeName := naming.GetLabelNameFromResourceName(pvc.GetName())
-	for _, e := range f.ControllerPod.Spec.Containers[0].Env {
-		if e.Name == "IMPORTER_IMAGE" {
-			importerImage = e.Value
-		}
-	}
 	pod := &k8sv1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: podName,
@@ -453,6 +448,16 @@ func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolu
 
 func (f *Framework) newExecutorPodWithPVC(podName string, pvc *k8sv1.PersistentVolumeClaim, readOnly bool) *k8sv1.Pod {
 	return f.NewPodWithPVC(podName, "while true; do echo hello; sleep 2;done", pvc, readOnly)
+}
+
+// GetEnvVarValue gets an environmemnt variable value from the cdi-deployment container
+func (f *Framework) GetEnvVarValue(name string) (importerImage string) {
+	for _, e := range f.ControllerPod.Spec.Containers[0].Env {
+		if e.Name == name {
+			return e.Value
+		}
+	}
+	return ""
 }
 
 // CreateExecutorPodWithPVC creates a Pod with the passed in PVC mounted under /dev/pvc. You can then use the executor utilities to

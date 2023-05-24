@@ -157,7 +157,6 @@ not supported, then you can use the following example to run Functional Tests.
      clusterrolebinding.rbac.authorization.k8s.io/cdi-apiserver-auth-delegator created
      serviceaccount/cdi-sa created
      deployment.apps/cdi-deployment created
-     configmap/cdi-insecure-registries created
      serviceaccount/cdi-apiserver created
      rolebinding.rbac.authorization.k8s.io/cdi-apiserver created
      role.rbac.authorization.k8s.io/cdi-apiserver created

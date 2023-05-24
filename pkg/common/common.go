@@ -200,8 +200,6 @@ const (
 
 	// DefaultResyncPeriod sets a 10 minute resync period, used in the controller pkg and the controller cmd executable
 	DefaultResyncPeriod = 10 * time.Minute
-	// InsecureRegistryConfigMap is the name of the ConfigMap for insecure registries
-	InsecureRegistryConfigMap = "cdi-insecure-registries"
 
 	// ScratchSpaceNeededExitCode is the exit code that indicates the importer pod requires scratch space to function properly.
 	ScratchSpaceNeededExitCode = 42
