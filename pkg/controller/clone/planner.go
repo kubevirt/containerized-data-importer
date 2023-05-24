@@ -512,16 +512,7 @@ func (p *Planner) planHostAssistedFromSnapshot(ctx context.Context, args *PlanAr
 		return nil, fmt.Errorf("source claim does not exist")
 	}
 
-	vsc, err := GetCompatibleVolumeSnapshotClass(ctx, p.Client, args.TargetClaim)
-	if err != nil {
-		return nil, err
-	}
-	if vsc == nil {
-		return nil, fmt.Errorf("no compatible volumesnapshotclass")
-	}
-
-	// TODO: Maybe improve the logic to create the sourceClaim for host assisted clone, or even just make it more pretty
-	sourceClaimForDumbClone, err := createTempSourceClaim(args.DataSource.Namespace, args.TargetClaim, sourceSnapshot, p.Client, ctx)
+	sourceClaimForDumbClone, err := createTempSourceClaim(ctx, args.DataSource.Namespace, args.TargetClaim, sourceSnapshot, p.Client)
 	if err != nil {
 		return nil, err
 	}
@@ -591,14 +582,6 @@ func (p *Planner) planSmartCloneFromSnapshot(ctx context.Context, args *PlanArgs
 	}
 	if !exists {
 		return nil, fmt.Errorf("source claim does not exist")
-	}
-
-	vsc, err := GetCompatibleVolumeSnapshotClass(ctx, p.Client, args.TargetClaim)
-	if err != nil {
-		return nil, err
-	}
-	if vsc == nil {
-		return nil, fmt.Errorf("no compatible volumesnapshotclass")
 	}
 
 	desiredClaim := createDesiredClaim(args.DataSource.Namespace, args.TargetClaim)
@@ -761,34 +744,22 @@ func createDesiredClaim(namespace string, targetClaim *corev1.PersistentVolumeCl
 	return desiredClaim
 }
 
-func createTempSourceClaim(namespace string, targetClaim *corev1.PersistentVolumeClaim, snapshot *snapshotv1.VolumeSnapshot, client client.Client, ctx context.Context) (*corev1.PersistentVolumeClaim, error) {
-	// Attempting to get a storageClass compatible with the source snapshot, but different from the one used in the target claim.
-	// This allows us to be consistent with the host-assisted clone behavior.
-	// If unable to do so, we'll use the target Claim one anyway.
-	scName := *targetClaim.Spec.StorageClassName
-	if snapshot.Status == nil || snapshot.Status.BoundVolumeSnapshotContentName == nil {
-		return nil, fmt.Errorf("volumeSnapshotContent name not found")
-	}
-	volumeSnapshotContent := &snapshotv1.VolumeSnapshotContent{}
-	if err := client.Get(ctx, types.NamespacedName{Name: *snapshot.Status.BoundVolumeSnapshotContentName}, volumeSnapshotContent); err != nil {
+func createTempSourceClaim(ctx context.Context, namespace string, targetClaim *corev1.PersistentVolumeClaim, snapshot *snapshotv1.VolumeSnapshot, client client.Client) (*corev1.PersistentVolumeClaim, error) {
+	scName, err := getStorageClassNameForTempSourceClaim(ctx, snapshot, *targetClaim.Spec.StorageClassName, client)
+	if err != nil {
 		return nil, err
 	}
-	var matches []string
-	storageClasses := &storagev1.StorageClassList{}
-	if err := client.List(ctx, storageClasses); err != nil {
-		return nil, err
+	// Get the appropriate size from the snapshot
+	targetCpy := targetClaim.DeepCopy()
+	restoreSize := snapshot.Status.RestoreSize
+	if restoreSize == nil || restoreSize.Sign() == -1 {
+		return nil, fmt.Errorf("snapshot has no RestoreSize")
 	}
-	for _, storageClass := range storageClasses.Items {
-		if storageClass.Provisioner == volumeSnapshotContent.Spec.Driver && storageClass.Name != scName {
-			matches = append(matches, storageClass.Name)
-		}
-	}
-	if len(matches) > 0 {
-		sort.Strings(matches)
-		scName = matches[0]
+	if restoreSize.IsZero() {
+		reqSize := targetCpy.Spec.Resources.Requests[corev1.ResourceStorage]
+		restoreSize = &reqSize
 	}
 
-	targetCpy := targetClaim.DeepCopy()
 	desiredClaim := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:   namespace,
@@ -801,5 +772,36 @@ func createTempSourceClaim(namespace string, targetClaim *corev1.PersistentVolum
 	desiredClaim.Spec.DataSource = nil
 	desiredClaim.Spec.DataSourceRef = nil
 	desiredClaim.Spec.StorageClassName = &scName
+	desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage] = *restoreSize
+
 	return desiredClaim, nil
+}
+
+func getStorageClassNameForTempSourceClaim(ctx context.Context, snapshot *snapshotv1.VolumeSnapshot, targetSCName string, client client.Client) (string, error) {
+	matches := []string{}
+
+	if snapshot.Status == nil || snapshot.Status.BoundVolumeSnapshotContentName == nil {
+		return "", fmt.Errorf("volumeSnapshotContent name not found")
+	}
+	volumeSnapshotContent := &snapshotv1.VolumeSnapshotContent{}
+	if err := client.Get(ctx, types.NamespacedName{Name: *snapshot.Status.BoundVolumeSnapshotContentName}, volumeSnapshotContent); err != nil {
+		return "", err
+	}
+	// Attempting to get a storageClass compatible with the source snapshot,
+	// but different from the one used in the target claim.
+	// This allows us to be consistent with the host-assisted clone behavior.
+	storageClasses := &storagev1.StorageClassList{}
+	if err := client.List(ctx, storageClasses); err != nil {
+		return "", err
+	}
+	for _, storageClass := range storageClasses.Items {
+		if storageClass.Provisioner == volumeSnapshotContent.Spec.Driver && storageClass.Name != targetSCName {
+			matches = append(matches, storageClass.Name)
+		}
+	}
+	if len(matches) == 0 {
+		return "", fmt.Errorf("unable to find a valid storage class for the temporal source claim")
+	}
+	sort.Strings(matches)
+	return matches[0], nil
 }

@@ -172,7 +172,7 @@ var _ = Describe("Clone Populator tests", func() {
 	}
 
 	createTarget := func(sz resource.Quantity, vm corev1.PersistentVolumeMode) *corev1.PersistentVolumeClaim {
-		return createTargetWithStrategy(sz, vm, "", "")
+		return createTargetWithStrategy(sz, vm, "", utils.DefaultStorageClass.GetName())
 	}
 
 	waitSucceeded := func(target *corev1.PersistentVolumeClaim) *corev1.PersistentVolumeClaim {
@@ -287,7 +287,7 @@ var _ = Describe("Clone Populator tests", func() {
 			}
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()
-			target := createTargetWithStrategy(defaultSize, corev1.PersistentVolumeFilesystem, cloneType)
+			target := createTargetWithStrategy(defaultSize, corev1.PersistentVolumeFilesystem, cloneType, utils.DefaultStorageClass.GetName())
 			target = waitSucceeded(target)
 			Expect(target.Annotations["cdi.kubevirt.io/cloneType"]).To(Equal(cloneType))
 			sourceHash := getHash(source, 0)

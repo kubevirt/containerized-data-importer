@@ -172,6 +172,7 @@ func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log log
 	if err != nil {
 		return reconcile.Result{}, r.updateClonePhaseError(ctx, pvc, err)
 	}
+
 	if !ready {
 		log.V(3).Info("claim not ready for population, exiting")
 		return reconcile.Result{}, r.updateClonePhasePending(ctx, pvc)
@@ -181,6 +182,7 @@ func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log log
 	if err != nil {
 		return reconcile.Result{}, r.updateClonePhaseError(ctx, pvc, err)
 	}
+
 	if vcs == nil {
 		log.V(3).Info("dataSourceRef does not exist, exiting")
 		return reconcile.Result{}, r.updateClonePhasePending(ctx, pvc)
