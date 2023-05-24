@@ -24,6 +24,7 @@ go_test(
         "basic_sanity_test.go",
         "cdiconfig_test.go",
         "certrotation_test.go",
+        "clone-populator_test.go",
         "cloner_test.go",
         "csiclone_test.go",
         "dataimportcron_test.go",

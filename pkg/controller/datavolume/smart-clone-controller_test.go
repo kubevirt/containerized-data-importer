@@ -250,41 +250,16 @@ var _ = Describe("All smart clone tests", func() {
 		return snapshot
 	}
 
-	createCloneDataVolumeWithRequestSizePvc := func(size int64) *cdiv1.DataVolume {
-		dv := createCloneDataVolume("testDv", "default", "snapshot", "default")
-		sizeQuantity := resource.NewQuantity(size, resource.BinarySI)
-		dv.Spec.PVC = &corev1.PersistentVolumeClaimSpec{
-			Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: *sizeQuantity,
-				},
-			},
-		}
-		return dv
-	}
-
-	createCloneDataVolumeWithRequestSizeStorage := func(size int64) *cdiv1.DataVolume {
-		dv := createCloneDataVolume("testDv", "default", "snapshot", "default")
-		sizeQuantity := resource.NewQuantity(size, resource.BinarySI)
-		dv.Spec.Storage = &cdiv1.StorageSpec{
-			Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: *sizeQuantity,
-				},
-			},
-		}
-		return dv
-	}
-
-	table.DescribeTable("newPvcFromSnapshot should return proper size", func(dv *cdiv1.DataVolume, snapshot *snapshotv1.VolumeSnapshot, expectedSize int64, expectedError error) {
+	table.DescribeTable("newPvcFromSnapshot should return proper size", func(snapshot *snapshotv1.VolumeSnapshot, targetSize, expectedSize int64, expectedError error) {
+		sizeQuantity := resource.NewQuantity(targetSize, resource.BinarySI)
 		targetPvcSpec := &corev1.PersistentVolumeClaimSpec{
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse("10Gi"),
+					corev1.ResourceStorage: *sizeQuantity,
 				},
 			},
 		}
-		pvc, err := newPvcFromSnapshot(dv, "targetPvc", snapshot, targetPvcSpec)
+		pvc, err := newPvcFromSnapshot(&cdiv1.DataVolume{}, "targetPvc", snapshot, targetPvcSpec)
 		if expectedError == nil {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc).ToNot(BeNil())
@@ -293,15 +268,10 @@ var _ = Describe("All smart clone tests", func() {
 			Expect(err).To(Equal(expectedError))
 		}
 	},
-		table.Entry("with nil restoreSize", createCloneDataVolume("testDv", "default", "snapshot", "default"), createSnapshotVolume("snapshot", "default", nil), int64(0), fmt.Errorf("snapshot has no RestoreSize")),
-		table.Entry("with 0 restoreSize, and no dv size", createCloneDataVolume("testDv", "default", "snapshot", "default"), createSnapshotWithRestoreSize(int64(0)), int64(0), fmt.Errorf("unable to determine restore size of PVC")),
-		table.Entry("with negative restoreSize, and no dv size", createCloneDataVolume("testDv", "default", "snapshot", "default"), createSnapshotWithRestoreSize(int64(-1024)), int64(0), fmt.Errorf("snapshot has no RestoreSize")),
-		table.Entry("with 0 restoreSize, and set dv pvc size", createCloneDataVolumeWithRequestSizePvc(int64(1024)), createSnapshotWithRestoreSize(int64(0)), int64(1024), nil),
-		table.Entry("with negative restoreSize, and set dv pvc size", createCloneDataVolumeWithRequestSizePvc(int64(10240)), createSnapshotWithRestoreSize(int64(-10240)), int64(0), fmt.Errorf("snapshot has no RestoreSize")),
-		table.Entry("with postive restoreSize, and set larger dv pvc size", createCloneDataVolumeWithRequestSizePvc(int64(102400)), createSnapshotWithRestoreSize(int64(1024)), int64(1024), nil),
-		table.Entry("with 0 restoreSize, and set dv size storage", createCloneDataVolumeWithRequestSizeStorage(int64(2048)), createSnapshotWithRestoreSize(int64(0)), int64(2048), nil),
-		table.Entry("with negative restoreSize, and set dv size storage", createCloneDataVolumeWithRequestSizeStorage(int64(20480)), createSnapshotWithRestoreSize(int64(-20480)), int64(0), fmt.Errorf("snapshot has no RestoreSize")),
-		table.Entry("with postive restoreSize, and set larger dv size storage", createCloneDataVolumeWithRequestSizeStorage(int64(204800)), createSnapshotWithRestoreSize(int64(2048)), int64(2048), nil),
+		table.Entry("with nil restoreSize", createSnapshotVolume("snapshot", "default", nil), int64(0), int64(0), fmt.Errorf("snapshot has no RestoreSize")),
+		table.Entry("with negative restoreSize", createSnapshotWithRestoreSize(int64(-1024)), int64(0), int64(0), fmt.Errorf("snapshot has no RestoreSize")),
+		table.Entry("with 0 restoreSize, and target size", createSnapshotWithRestoreSize(int64(0)), int64(1024), int64(1024), nil),
+		table.Entry("with smaller restoreSize than target size", createSnapshotWithRestoreSize(int64(1024)), int64(2048), int64(1024), nil),
 	)
 })
 
@@ -367,22 +337,5 @@ func createSnapshotVolume(name, namespace string, owner *metav1.OwnerReference) 
 			},
 		},
 		Status: &snapshotv1.VolumeSnapshotStatus{},
-	}
-}
-
-func createCloneDataVolume(name, namespace, pvcName, pvcNamespace string) *cdiv1.DataVolume {
-	return &cdiv1.DataVolume{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: cdiv1.DataVolumeSpec{
-			Source: &cdiv1.DataVolumeSource{
-				PVC: &cdiv1.DataVolumeSourcePVC{
-					Name:      pvcName,
-					Namespace: pvcNamespace,
-				},
-			},
-		},
 	}
 }

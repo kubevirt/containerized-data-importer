@@ -1,6 +1,8 @@
 package common
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -61,7 +63,7 @@ var _ = Describe("GetDefaultStorageClass", func() {
 				AnnDefaultStorageClass: "true",
 			}),
 		)
-		sc, _ := GetDefaultStorageClass(client)
+		sc, _ := GetDefaultStorageClass(context.Background(), client)
 		Expect(sc.Name).To(Equal("test-storage-class-2"))
 	})
 
@@ -70,7 +72,7 @@ var _ = Describe("GetDefaultStorageClass", func() {
 			CreateStorageClass("test-storage-class-1", nil),
 			CreateStorageClass("test-storage-class-2", nil),
 		)
-		sc, _ := GetDefaultStorageClass(client)
+		sc, _ := GetDefaultStorageClass(context.Background(), client)
 		Expect(sc).To(BeNil())
 	})
 })

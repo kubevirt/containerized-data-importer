@@ -123,7 +123,7 @@ func (r *CDIConfigReconciler) Reconcile(_ context.Context, req reconcile.Request
 func (r *CDIConfigReconciler) setOperatorParams(config *cdiv1.CDIConfig) error {
 	util.SetRecommendedLabels(config, r.installerLabels, "cdi-controller")
 
-	cdiCR, err := cc.GetActiveCDI(r.client)
+	cdiCR, err := cc.GetActiveCDI(context.TODO(), r.client)
 	if err != nil {
 		return err
 	}

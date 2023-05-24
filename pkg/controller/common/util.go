@@ -25,6 +25,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -35,9 +36,9 @@ import (
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -183,6 +184,10 @@ const (
 	AnnPermissiveClone = AnnAPIGroup + "/permissiveClone"
 	// AnnOwnerUID annotation has the owner UID
 	AnnOwnerUID = AnnAPIGroup + "/ownerUID"
+	// AnnCloneType is the comuuted/requested clone type
+	AnnCloneType = AnnAPIGroup + "/cloneType"
+	// AnnCloneSourcePod name of the source clone pod
+	AnnCloneSourcePod = "cdi.kubevirt.io/storage.sourceClonePodName"
 
 	// AnnUploadRequest marks that a PVC should be made available for upload
 	AnnUploadRequest = AnnAPIGroup + "/storage.upload.target"
@@ -280,6 +285,9 @@ const (
 	LabelDefaultPreference = "instancetype.kubevirt.io/default-preference"
 	// LabelDefaultPreferenceKind provides a default kind of either VirtualMachineClusterPreference or VirtualMachinePreference
 	LabelDefaultPreferenceKind = "instancetype.kubevirt.io/default-preference-kind"
+
+	// ProgressDone this means we are DONE
+	ProgressDone = "100.0%"
 )
 
 // Size-detection pod error codes
@@ -315,7 +323,7 @@ type FakeValidator struct {
 // Validate is a fake token validation
 func (v *FakeValidator) Validate(value string) (*token.Payload, error) {
 	if value != v.Match {
-		return nil, fmt.Errorf("Token does not match expected")
+		return nil, fmt.Errorf("token does not match expected")
 	}
 	resource := metav1.GroupVersionResource{
 		Resource: "persistentvolumeclaims",
@@ -335,8 +343,8 @@ func NewCloneTokenValidator(issuer string, key *rsa.PublicKey) token.Validator {
 }
 
 // GetRequestedImageSize returns the PVC requested size
-func GetRequestedImageSize(pvc *v1.PersistentVolumeClaim) (string, error) {
-	pvcSize, found := pvc.Spec.Resources.Requests[v1.ResourceStorage]
+func GetRequestedImageSize(pvc *corev1.PersistentVolumeClaim) (string, error) {
+	pvcSize, found := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 	if !found {
 		return "", errors.Errorf("storage request is missing in pvc \"%s/%s\"", pvc.Namespace, pvc.Name)
 	}
@@ -344,16 +352,16 @@ func GetRequestedImageSize(pvc *v1.PersistentVolumeClaim) (string, error) {
 }
 
 // GetVolumeMode returns the volumeMode from PVC handling default empty value
-func GetVolumeMode(pvc *v1.PersistentVolumeClaim) v1.PersistentVolumeMode {
+func GetVolumeMode(pvc *corev1.PersistentVolumeClaim) corev1.PersistentVolumeMode {
 	return util.ResolveVolumeMode(pvc.Spec.VolumeMode)
 }
 
 // GetStorageClassByName looks up the storage class based on the name. If no storage class is found returns nil
-func GetStorageClassByName(client client.Client, name *string) (*storagev1.StorageClass, error) {
+func GetStorageClassByName(ctx context.Context, client client.Client, name *string) (*storagev1.StorageClass, error) {
 	// look up storage class by name
 	if name != nil {
 		storageClass := &storagev1.StorageClass{}
-		if err := client.Get(context.TODO(), types.NamespacedName{Name: *name}, storageClass); err != nil {
+		if err := client.Get(ctx, types.NamespacedName{Name: *name}, storageClass); err != nil {
 			if k8serrors.IsNotFound(err) {
 				return nil, nil
 			}
@@ -363,13 +371,13 @@ func GetStorageClassByName(client client.Client, name *string) (*storagev1.Stora
 		return storageClass, nil
 	}
 	// No storage class found, just return nil for storage class and let caller deal with it.
-	return GetDefaultStorageClass(client)
+	return GetDefaultStorageClass(ctx, client)
 }
 
 // GetDefaultStorageClass returns the default storage class or nil if none found
-func GetDefaultStorageClass(client client.Client) (*storagev1.StorageClass, error) {
+func GetDefaultStorageClass(ctx context.Context, client client.Client) (*storagev1.StorageClass, error) {
 	storageClasses := &storagev1.StorageClassList{}
-	if err := client.List(context.TODO(), storageClasses); err != nil {
+	if err := client.List(ctx, storageClasses); err != nil {
 		klog.V(3).Info("Unable to retrieve available storage classes")
 		return nil, errors.New("unable to retrieve storage classes")
 	}
@@ -383,9 +391,9 @@ func GetDefaultStorageClass(client client.Client) (*storagev1.StorageClass, erro
 }
 
 // GetFilesystemOverheadForStorageClass determines the filesystem overhead defined in CDIConfig for the storageClass.
-func GetFilesystemOverheadForStorageClass(client client.Client, storageClassName *string) (cdiv1.Percent, error) {
+func GetFilesystemOverheadForStorageClass(ctx context.Context, client client.Client, storageClassName *string) (cdiv1.Percent, error) {
 	cdiConfig := &cdiv1.CDIConfig{}
-	if err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
+	if err := client.Get(ctx, types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
 		if k8serrors.IsNotFound(err) {
 			klog.V(1).Info("CDIConfig does not exist, pod will not start until it does")
 			return "0", nil
@@ -394,10 +402,10 @@ func GetFilesystemOverheadForStorageClass(client client.Client, storageClassName
 		return "0", err
 	}
 
-	targetStorageClass, err := GetStorageClassByName(client, storageClassName)
+	targetStorageClass, err := GetStorageClassByName(ctx, client, storageClassName)
 	if err != nil || targetStorageClass == nil {
 		klog.V(3).Info("Storage class", storageClassName, "not found, trying default storage class")
-		targetStorageClass, err = GetStorageClassByName(client, nil)
+		targetStorageClass, err = GetStorageClassByName(ctx, client, nil)
 		if err != nil {
 			klog.V(3).Info("No default storage class found, continuing with global overhead")
 			return cdiConfig.Status.FilesystemOverhead.Global, nil
@@ -427,7 +435,7 @@ func GetFilesystemOverheadForStorageClass(client client.Client, storageClassName
 }
 
 // GetDefaultPodResourceRequirements gets default pod resource requirements from cdi config status
-func GetDefaultPodResourceRequirements(client client.Client) (*v1.ResourceRequirements, error) {
+func GetDefaultPodResourceRequirements(client client.Client) (*corev1.ResourceRequirements, error) {
 	cdiconfig := &cdiv1.CDIConfig{}
 	if err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiconfig); err != nil {
 		klog.Errorf("Unable to find CDI configuration, %v\n", err)
@@ -449,8 +457,8 @@ func GetImagePullSecrets(client client.Client) ([]corev1.LocalObjectReference, e
 }
 
 // AddVolumeDevices returns VolumeDevice slice with one block device for pods using PV with block volume mode
-func AddVolumeDevices() []v1.VolumeDevice {
-	volumeDevices := []v1.VolumeDevice{
+func AddVolumeDevices() []corev1.VolumeDevice {
+	volumeDevices := []corev1.VolumeDevice{
 		{
 			Name:       DataVolName,
 			DevicePath: common.WriteBlockPath,
@@ -460,17 +468,17 @@ func AddVolumeDevices() []v1.VolumeDevice {
 }
 
 // GetPodsUsingPVCs returns Pods currently using PVCs
-func GetPodsUsingPVCs(c client.Client, namespace string, names sets.Set[string], allowReadOnly bool) ([]v1.Pod, error) {
-	pl := &v1.PodList{}
+func GetPodsUsingPVCs(ctx context.Context, c client.Client, namespace string, names sets.Set[string], allowReadOnly bool) ([]corev1.Pod, error) {
+	pl := &corev1.PodList{}
 	// hopefully using cached client here
-	err := c.List(context.TODO(), pl, &client.ListOptions{Namespace: namespace})
+	err := c.List(ctx, pl, &client.ListOptions{Namespace: namespace})
 	if err != nil {
 		return nil, err
 	}
 
-	var pods []v1.Pod
+	var pods []corev1.Pod
 	for _, pod := range pl.Items {
-		if pod.Status.Phase == v1.PodSucceeded || pod.Status.Phase == v1.PodFailed {
+		if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
 			continue
 		}
 		for _, volume := range pod.Spec.Volumes {
@@ -508,8 +516,8 @@ func GetPodsUsingPVCs(c client.Client, namespace string, names sets.Set[string],
 }
 
 // GetWorkloadNodePlacement extracts the workload-specific nodeplacement values from the CDI CR
-func GetWorkloadNodePlacement(c client.Client) (*sdkapi.NodePlacement, error) {
-	cr, err := GetActiveCDI(c)
+func GetWorkloadNodePlacement(ctx context.Context, c client.Client) (*sdkapi.NodePlacement, error) {
+	cr, err := GetActiveCDI(ctx, c)
 	if err != nil {
 		return nil, err
 	}
@@ -522,9 +530,9 @@ func GetWorkloadNodePlacement(c client.Client) (*sdkapi.NodePlacement, error) {
 }
 
 // GetActiveCDI returns the active CDI CR
-func GetActiveCDI(c client.Client) (*cdiv1.CDI, error) {
+func GetActiveCDI(ctx context.Context, c client.Client) (*cdiv1.CDI, error) {
 	crList := &cdiv1.CDIList{}
-	if err := c.List(context.TODO(), crList, &client.ListOptions{}); err != nil {
+	if err := c.List(ctx, crList, &client.ListOptions{}); err != nil {
 		return nil, err
 	}
 
@@ -547,7 +555,7 @@ func GetActiveCDI(c client.Client) (*cdiv1.CDI, error) {
 }
 
 // IsPopulated returns if the passed in PVC has been populated according to the rules outlined in pkg/apis/core/<version>/utils.go
-func IsPopulated(pvc *v1.PersistentVolumeClaim, c client.Client) (bool, error) {
+func IsPopulated(pvc *corev1.PersistentVolumeClaim, c client.Client) (bool, error) {
 	return cdiv1utils.IsPopulated(pvc, func(name, namespace string) (*cdiv1.DataVolume, error) {
 		dv := &cdiv1.DataVolume{}
 		err := c.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, dv)
@@ -556,7 +564,7 @@ func IsPopulated(pvc *v1.PersistentVolumeClaim, c client.Client) (bool, error) {
 }
 
 // GetPreallocation retuns the preallocation setting for the specified object (DV or VolumeImportSource), falling back to StorageClass and global setting (in this order)
-func GetPreallocation(client client.Client, preallocation *bool) bool {
+func GetPreallocation(ctx context.Context, client client.Client, preallocation *bool) bool {
 	// First, the DV's preallocation
 	if preallocation != nil {
 		return *preallocation
@@ -572,13 +580,13 @@ func GetPreallocation(client client.Client, preallocation *bool) bool {
 }
 
 // GetPriorityClass gets PVC priority class
-func GetPriorityClass(pvc *v1.PersistentVolumeClaim) string {
+func GetPriorityClass(pvc *corev1.PersistentVolumeClaim) string {
 	anno := pvc.GetAnnotations()
 	return anno[AnnPriorityClassName]
 }
 
 // ShouldDeletePod returns whether the PVC workload pod should be deleted
-func ShouldDeletePod(pvc *v1.PersistentVolumeClaim) bool {
+func ShouldDeletePod(pvc *corev1.PersistentVolumeClaim) bool {
 	return pvc.GetAnnotations()[AnnPodRetainAfterCompletion] != "true" || pvc.GetAnnotations()[AnnRequiresScratch] == "true" || pvc.DeletionTimestamp != nil
 }
 
@@ -618,7 +626,7 @@ func HasFinalizer(object metav1.Object, value string) bool {
 }
 
 // ValidateCloneTokenPVC validates clone token for source and target PVCs
-func ValidateCloneTokenPVC(t string, v token.Validator, source, target *v1.PersistentVolumeClaim) error {
+func ValidateCloneTokenPVC(t string, v token.Validator, source, target *corev1.PersistentVolumeClaim) error {
 	if source.Namespace == target.Namespace {
 		return nil
 	}
@@ -703,7 +711,7 @@ func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNa
 }
 
 // validateContentTypes compares the content type of a clone DV against its source PVC's one
-func validateContentTypes(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
+func validateContentTypes(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
 	sourceContentType := cdiv1.DataVolumeContentType(GetPVCContentType(sourcePVC))
 	targetContentType := spec.ContentType
 	if targetContentType == "" {
@@ -713,8 +721,8 @@ func validateContentTypes(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataV
 }
 
 // ValidateClone compares a clone spec against its source PVC to validate its creation
-func ValidateClone(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) error {
-	var targetResources v1.ResourceRequirements
+func ValidateClone(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) error {
+	var targetResources corev1.ResourceRequirements
 
 	valid, sourceContentType, targetContentType := validateContentTypes(sourcePVC, spec)
 	if !valid {
@@ -730,14 +738,14 @@ func ValidateClone(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSp
 		targetResources = spec.Storage.Resources
 		// The storage size in the target DV can be empty
 		// when cloning using the 'Storage' API
-		if _, ok := targetResources.Requests["storage"]; !ok {
+		if _, ok := targetResources.Requests[corev1.ResourceStorage]; !ok {
 			isSizelessClone = true
 		}
 	}
 
 	// TODO: Spec.Storage API needs a better more complex check to validate clone size - to account for fsOverhead
 	// simple size comparison will not work here
-	if (!isSizelessClone && GetVolumeMode(sourcePVC) == v1.PersistentVolumeBlock) || explicitPvcRequest {
+	if (!isSizelessClone && GetVolumeMode(sourcePVC) == corev1.PersistentVolumeBlock) || explicitPvcRequest {
 		if err := ValidateRequestedCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
 			return err
 		}
@@ -748,7 +756,7 @@ func ValidateClone(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSp
 
 // ValidateSnapshotClone compares a snapshot clone spec against its source snapshot to validate its creation
 func ValidateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv1.DataVolumeSpec) error {
-	var sourceResources, targetResources v1.ResourceRequirements
+	var sourceResources, targetResources corev1.ResourceRequirements
 
 	if sourceSnapshot.Status == nil {
 		return fmt.Errorf("no status on source snapshot, not possible to proceed")
@@ -799,7 +807,7 @@ func AddLabel(obj metav1.Object, key, value string) {
 }
 
 // HandleFailedPod handles pod-creation errors and updates the pod's PVC without providing sensitive information
-func HandleFailedPod(err error, podName string, pvc *v1.PersistentVolumeClaim, recorder record.EventRecorder, c client.Client) error {
+func HandleFailedPod(err error, podName string, pvc *corev1.PersistentVolumeClaim, recorder record.EventRecorder, c client.Client) error {
 	if err == nil {
 		return nil
 	}
@@ -812,7 +820,7 @@ func HandleFailedPod(err error, podName string, pvc *v1.PersistentVolumeClaim, r
 		reason = ErrExceededQuota
 	}
 
-	recorder.Event(pvc, v1.EventTypeWarning, reason, msg)
+	recorder.Event(pvc, corev1.EventTypeWarning, reason, msg)
 
 	if isCloneSourcePod := CreateCloneSourcePodName(pvc) == podName; isCloneSourcePod {
 		AddAnnotation(pvc, AnnSourceRunningCondition, "false")
@@ -824,7 +832,7 @@ func HandleFailedPod(err error, podName string, pvc *v1.PersistentVolumeClaim, r
 		AddAnnotation(pvc, AnnRunningConditionMessage, msg)
 	}
 
-	AddAnnotation(pvc, AnnPodPhase, string(v1.PodFailed))
+	AddAnnotation(pvc, AnnPodPhase, string(corev1.PodFailed))
 	if err := c.Update(context.TODO(), pvc); err != nil {
 		return err
 	}
@@ -880,8 +888,12 @@ func AddImportVolumeMounts() []corev1.VolumeMount {
 
 // ValidateRequestedCloneSize validates the clone size requirements on block
 func ValidateRequestedCloneSize(sourceResources corev1.ResourceRequirements, targetResources corev1.ResourceRequirements) error {
-	sourceRequest := sourceResources.Requests[corev1.ResourceStorage]
-	targetRequest := targetResources.Requests[corev1.ResourceStorage]
+	sourceRequest, hasSource := sourceResources.Requests[corev1.ResourceStorage]
+	targetRequest, hasTarget := targetResources.Requests[corev1.ResourceStorage]
+	if !hasSource || !hasTarget {
+		return errors.New("source/target missing storage resource requests")
+	}
+
 	// Verify that the target PVC size is equal or larger than the source.
 	if sourceRequest.Value() > targetRequest.Value() {
 		return errors.New("target resources requests storage size is smaller than the source")
@@ -895,30 +907,30 @@ func CreateCloneSourcePodName(targetPvc *corev1.PersistentVolumeClaim) string {
 }
 
 // IsPVCComplete returns true if a PVC is in 'Succeeded' phase, false if not
-func IsPVCComplete(pvc *v1.PersistentVolumeClaim) bool {
+func IsPVCComplete(pvc *corev1.PersistentVolumeClaim) bool {
 	if pvc != nil {
 		phase, exists := pvc.ObjectMeta.Annotations[AnnPodPhase]
-		return exists && (phase == string(v1.PodSucceeded))
+		return exists && (phase == string(corev1.PodSucceeded))
 	}
 	return false
 }
 
 // SetRestrictedSecurityContext sets the pod security params to be compatible with restricted PSA
-func SetRestrictedSecurityContext(podSpec *v1.PodSpec) {
+func SetRestrictedSecurityContext(podSpec *corev1.PodSpec) {
 	hasVolumeMounts := false
-	for _, containers := range [][]v1.Container{podSpec.InitContainers, podSpec.Containers} {
+	for _, containers := range [][]corev1.Container{podSpec.InitContainers, podSpec.Containers} {
 		for i := range containers {
 			container := &containers[i]
 			if container.SecurityContext == nil {
-				container.SecurityContext = &v1.SecurityContext{}
+				container.SecurityContext = &corev1.SecurityContext{}
 			}
 			container.SecurityContext.Capabilities = &corev1.Capabilities{
 				Drop: []corev1.Capability{
 					"ALL",
 				},
 			}
-			container.SecurityContext.SeccompProfile = &v1.SeccompProfile{
-				Type: v1.SeccompProfileTypeRuntimeDefault,
+			container.SecurityContext.SeccompProfile = &corev1.SeccompProfile{
+				Type: corev1.SeccompProfileTypeRuntimeDefault,
 			}
 			container.SecurityContext.AllowPrivilegeEscalation = pointer.Bool(false)
 			container.SecurityContext.RunAsNonRoot = pointer.Bool(true)
@@ -931,14 +943,14 @@ func SetRestrictedSecurityContext(podSpec *v1.PodSpec) {
 
 	if hasVolumeMounts {
 		if podSpec.SecurityContext == nil {
-			podSpec.SecurityContext = &v1.PodSecurityContext{}
+			podSpec.SecurityContext = &corev1.PodSecurityContext{}
 		}
 		podSpec.SecurityContext.FSGroup = pointer.Int64(common.QemuSubGid)
 	}
 }
 
 // SetNodeNameIfPopulator sets NodeName in a pod spec when the PVC is being handled by a CDI volume populator
-func SetNodeNameIfPopulator(pvc *corev1.PersistentVolumeClaim, podSpec *v1.PodSpec) {
+func SetNodeNameIfPopulator(pvc *corev1.PersistentVolumeClaim, podSpec *corev1.PodSpec) {
 	_, isPopulator := pvc.Annotations[AnnPopulatorKind]
 	nodeName := pvc.Annotations[AnnSelectedNode]
 	if isPopulator && nodeName != "" {
@@ -947,13 +959,13 @@ func SetNodeNameIfPopulator(pvc *corev1.PersistentVolumeClaim, podSpec *v1.PodSp
 }
 
 // CreatePvc creates PVC
-func CreatePvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
-	return CreatePvcInStorageClass(name, ns, nil, annotations, labels, v1.ClaimBound)
+func CreatePvc(name, ns string, annotations, labels map[string]string) *corev1.PersistentVolumeClaim {
+	return CreatePvcInStorageClass(name, ns, nil, annotations, labels, corev1.ClaimBound)
 }
 
 // CreatePvcInStorageClass creates PVC with storgae class
-func CreatePvcInStorageClass(name, ns string, storageClassName *string, annotations, labels map[string]string, phase v1.PersistentVolumeClaimPhase) *v1.PersistentVolumeClaim {
-	pvc := &v1.PersistentVolumeClaim{
+func CreatePvcInStorageClass(name, ns string, storageClassName *string, annotations, labels map[string]string, phase corev1.PersistentVolumeClaimPhase) *corev1.PersistentVolumeClaim {
+	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Namespace:   ns,
@@ -961,16 +973,16 @@ func CreatePvcInStorageClass(name, ns string, storageClassName *string, annotati
 			Labels:      labels,
 			UID:         types.UID(ns + "-" + name),
 		},
-		Spec: v1.PersistentVolumeClaimSpec{
-			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany, v1.ReadWriteOnce},
-			Resources: v1.ResourceRequirements{
-				Requests: v1.ResourceList{
-					v1.ResourceName(v1.ResourceStorage): resource.MustParse("1G"),
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany, corev1.ReadWriteOnce},
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("1G"),
 				},
 			},
 			StorageClassName: storageClassName,
 		},
-		Status: v1.PersistentVolumeClaimStatus{
+		Status: corev1.PersistentVolumeClaimStatus{
 			Phase: phase,
 		},
 	}
@@ -1160,6 +1172,7 @@ func GetContentType(contentType string) string {
 		string(cdiv1.DataVolumeKubeVirt),
 		string(cdiv1.DataVolumeArchive):
 	default:
+		// TODO - shouldn't archive be the default?
 		contentType = string(cdiv1.DataVolumeKubeVirt)
 	}
 	return contentType
@@ -1169,6 +1182,7 @@ func GetContentType(contentType string) string {
 func GetPVCContentType(pvc *corev1.PersistentVolumeClaim) string {
 	contentType, found := pvc.Annotations[AnnContentType]
 	if !found {
+		// TODO - shouldn't archive be the default?
 		return string(cdiv1.DataVolumeKubeVirt)
 	}
 
@@ -1265,11 +1279,11 @@ func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
 }
 
 // InflateSizeWithOverhead inflates a storage size with proper overhead calculations
-func InflateSizeWithOverhead(c client.Client, imgSize int64, pvcSpec *v1.PersistentVolumeClaimSpec) (resource.Quantity, error) {
+func InflateSizeWithOverhead(ctx context.Context, c client.Client, imgSize int64, pvcSpec *corev1.PersistentVolumeClaimSpec) (resource.Quantity, error) {
 	var returnSize resource.Quantity
 
-	if util.ResolveVolumeMode(pvcSpec.VolumeMode) == v1.PersistentVolumeFilesystem {
-		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, pvcSpec.StorageClassName)
+	if util.ResolveVolumeMode(pvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(ctx, c, pvcSpec.StorageClassName)
 		if err != nil {
 			return resource.Quantity{}, err
 		}
@@ -1287,9 +1301,14 @@ func InflateSizeWithOverhead(c client.Client, imgSize int64, pvcSpec *v1.Persist
 	return returnSize, nil
 }
 
+// IsBound returns if the pvc is bound
+func IsBound(pvc *corev1.PersistentVolumeClaim) bool {
+	return pvc.Spec.VolumeName != ""
+}
+
 // IsUnbound returns if the pvc is not bound yet
-func IsUnbound(pvc *v1.PersistentVolumeClaim) bool {
-	return pvc.Spec.VolumeName == ""
+func IsUnbound(pvc *corev1.PersistentVolumeClaim) bool {
+	return !IsBound(pvc)
 }
 
 // IsImageStream returns true if registry source is ImageStream
@@ -1472,4 +1491,131 @@ func UpdateImageIOAnnotations(annotations map[string]string, imageio *cdiv1.Data
 	annotations[AnnSecret] = imageio.SecretRef
 	annotations[AnnCertConfigMap] = imageio.CertConfigMap
 	annotations[AnnDiskID] = imageio.DiskID
+}
+
+// IsPVBoundToPVC checks if a PV is bound to a specific PVC
+func IsPVBoundToPVC(pv *corev1.PersistentVolume, pvc *corev1.PersistentVolumeClaim) bool {
+	claimRef := pv.Spec.ClaimRef
+	return claimRef.Name == pvc.Name && claimRef.Namespace == pvc.Namespace && claimRef.UID == pvc.UID
+}
+
+// Rebind binds the PV of source to target
+func Rebind(ctx context.Context, c client.Client, source, target *corev1.PersistentVolumeClaim) error {
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: source.Spec.VolumeName,
+		},
+	}
+
+	if err := c.Get(ctx, client.ObjectKeyFromObject(pv), pv); err != nil {
+		return err
+	}
+
+	// Examine the claimref for the PV and see if it's still bound to PVC'
+	if !IsPVBoundToPVC(pv, source) {
+		// Something is not right if the PV is neither bound to PVC' nor target PVC
+		if !IsPVBoundToPVC(pv, target) {
+			klog.Errorf("PV bound to unexpected PVC: Could not rebind to target PVC '%s'", target.Name)
+			return fmt.Errorf("PV %s bound to unexpected claim", pv.Name)
+		}
+		// our work is done
+		return nil
+	}
+
+	// Rebind PVC to target PVC
+	pv.Annotations = make(map[string]string)
+	pv.Spec.ClaimRef = &corev1.ObjectReference{
+		Namespace:       target.Namespace,
+		Name:            target.Name,
+		UID:             target.UID,
+		ResourceVersion: target.ResourceVersion,
+	}
+	klog.V(3).Info("Rebinding PV to target PVC", "PVC", target.Name)
+	if err := c.Update(context.TODO(), pv); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// BulkDeleteResources deletes a bunch of resources
+func BulkDeleteResources(ctx context.Context, c client.Client, obj client.ObjectList, lo client.ListOption) error {
+	if err := c.List(ctx, obj, lo); err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil
+		}
+		return err
+	}
+
+	sv := reflect.ValueOf(obj).Elem()
+	iv := sv.FieldByName("Items")
+
+	for i := 0; i < iv.Len(); i++ {
+		obj := iv.Index(i).Addr().Interface().(client.Object)
+		if obj.GetDeletionTimestamp().IsZero() {
+			klog.V(3).Infof("Deleting type %+v %+v", reflect.TypeOf(obj), obj)
+			if err := c.Delete(ctx, obj); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// ProgressFromClaimArgs are the args for ProgressFromClaim
+type ProgressFromClaimArgs struct {
+	Client       client.Client
+	HTTPClient   *http.Client
+	Claim        *corev1.PersistentVolumeClaim
+	OwnerUID     string
+	PodNamespace string
+	PodName      string
+}
+
+// ProgressFromClaim returns the progres
+func ProgressFromClaim(ctx context.Context, args *ProgressFromClaimArgs) (string, error) {
+	// Just set 100.0% if pod is succeeded
+	if args.Claim.Annotations[AnnPodPhase] == string(corev1.PodSucceeded) {
+		return ProgressDone, nil
+	}
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: args.PodNamespace,
+			Name:      args.PodName,
+		},
+	}
+	if err := args.Client.Get(ctx, client.ObjectKeyFromObject(pod), pod); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+
+	// This will only work when the import pod is running
+	if pod.Status.Phase != corev1.PodRunning {
+		return "", nil
+	}
+	url, err := GetMetricsURL(pod)
+	if err != nil {
+		return "", err
+	}
+	if url == "" {
+		return "", nil
+	}
+
+	// We fetch the import progress from the import pod metrics
+	importRegExp := regexp.MustCompile("progress\\{ownerUID\\=\"" + args.OwnerUID + "\"\\} (\\d{1,3}\\.?\\d*)")
+	progressReport, err := GetProgressReportFromURL(url, importRegExp, args.HTTPClient)
+	if err != nil {
+		return "", err
+	}
+	if progressReport != "" {
+		if f, err := strconv.ParseFloat(progressReport, 64); err == nil {
+			return fmt.Sprintf("%.2f%%", f), nil
+		}
+	}
+
+	return "", nil
 }

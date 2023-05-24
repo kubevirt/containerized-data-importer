@@ -261,7 +261,7 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 			// Don't create the POD if the PVC is completed already
 			log.V(1).Info("PVC is already complete")
 		} else if pvc.DeletionTimestamp == nil {
-			podsUsingPVC, err := cc.GetPodsUsingPVCs(r.client, pvc.Namespace, sets.New[string](pvc.Name), false)
+			podsUsingPVC, err := cc.GetPodsUsingPVCs(context.TODO(), r.client, pvc.Namespace, sets.New(pvc.Name), false)
 			if err != nil {
 				return reconcile.Result{}, err
 			}
@@ -524,7 +524,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		priorityClassName: cc.GetPriorityClass(pvc),
 	}
 
-	pod, err := createImporterPod(r.log, r.client, podArgs, r.installerLabels)
+	pod, err := createImporterPod(context.TODO(), r.log, r.client, podArgs, r.installerLabels)
 	// Check if pod has failed and, in that case, record an event with the error
 	if podErr := cc.HandleFailedPod(err, pvc.Annotations[cc.AnnImportPod], pvc, r.recorder, r.client); podErr != nil {
 		return podErr
@@ -618,7 +618,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.certConfigMapProxy = field
 	}
 
-	fsOverhead, err := GetFilesystemOverhead(r.client, pvc)
+	fsOverhead, err := GetFilesystemOverhead(context.TODO(), r.client, pvc)
 	if err != nil {
 		return nil, err
 	}
@@ -856,7 +856,7 @@ func createImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 // createImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
 // name, and pvc. A nil secret means the endpoint credentials are not passed to the
 // importer pod.
-func createImporterPod(log logr.Logger, client client.Client, args *importerPodArgs, installerLabels map[string]string) (*corev1.Pod, error) {
+func createImporterPod(ctx context.Context, log logr.Logger, client client.Client, args *importerPodArgs, installerLabels map[string]string) (*corev1.Pod, error) {
 	var err error
 	args.podResourceRequirements, err = cc.GetDefaultPodResourceRequirements(client)
 	if err != nil {
@@ -868,7 +868,7 @@ func createImporterPod(log logr.Logger, client client.Client, args *importerPodA
 		return nil, err
 	}
 
-	args.workloadNodePlacement, err = cc.GetWorkloadNodePlacement(client)
+	args.workloadNodePlacement, err = cc.GetWorkloadNodePlacement(ctx, client)
 	if err != nil {
 		return nil, err
 	}

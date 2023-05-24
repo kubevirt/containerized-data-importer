@@ -41,7 +41,7 @@ const (
 	uploadProxyCABundle    = "cdi-uploadproxy-signer-bundle"
 )
 
-func ensureUploadProxyRouteExists(logger logr.Logger, c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
+func ensureUploadProxyRouteExists(ctx context.Context, logger logr.Logger, c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
 	namespace := owner.GetNamespace()
 	if namespace == "" {
 		return fmt.Errorf("cluster scoped owner not supported")
@@ -49,7 +49,7 @@ func ensureUploadProxyRouteExists(logger logr.Logger, c client.Client, scheme *r
 
 	cm := &corev1.ConfigMap{}
 	key := client.ObjectKey{Namespace: namespace, Name: uploadProxyCABundle}
-	if err := c.Get(context.TODO(), key, cm); err != nil {
+	if err := c.Get(ctx, key, cm); err != nil {
 		if errors.IsNotFound(err) {
 			logger.V(3).Info("upload proxy ca cert doesn't exist yet")
 			return nil
@@ -62,7 +62,7 @@ func ensureUploadProxyRouteExists(logger logr.Logger, c client.Client, scheme *r
 		return fmt.Errorf("unexpected ConfigMap format, 'ca-bundle.crt' key missing")
 	}
 
-	cr, err := cc.GetActiveCDI(c)
+	cr, err := cc.GetActiveCDI(ctx, c)
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func ensureUploadProxyRouteExists(logger logr.Logger, c client.Client, scheme *r
 
 	currentRoute := &routev1.Route{}
 	key = client.ObjectKey{Namespace: namespace, Name: uploadProxyRouteName}
-	err = c.Get(context.TODO(), key, currentRoute)
+	err = c.Get(ctx, key, currentRoute)
 	if err == nil {
 		if currentRoute.Spec.To.Kind != desiredRoute.Spec.To.Kind ||
 			currentRoute.Spec.To.Name != desiredRoute.Spec.To.Name ||
@@ -107,7 +107,7 @@ func ensureUploadProxyRouteExists(logger logr.Logger, c client.Client, scheme *r
 			currentRoute.Spec.TLS.Termination != desiredRoute.Spec.TLS.Termination ||
 			currentRoute.Spec.TLS.DestinationCACertificate != desiredRoute.Spec.TLS.DestinationCACertificate {
 			currentRoute.Spec = desiredRoute.Spec
-			return c.Update(context.TODO(), currentRoute)
+			return c.Update(ctx, currentRoute)
 		}
 
 		return nil
@@ -127,7 +127,7 @@ func ensureUploadProxyRouteExists(logger logr.Logger, c client.Client, scheme *r
 		return err
 	}
 
-	return c.Create(context.TODO(), desiredRoute)
+	return c.Create(ctx, desiredRoute)
 }
 
 func (r *ReconcileCDI) watchRoutes() error {

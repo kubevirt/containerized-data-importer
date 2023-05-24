@@ -13,6 +13,7 @@ go_library(
         "generated_expansion.go",
         "objecttransfer.go",
         "storageprofile.go",
+        "volumeclonesource.go",
         "volumeimportsource.go",
         "volumeuploadsource.go",
     ],

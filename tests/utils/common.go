@@ -169,7 +169,7 @@ func IsStaticNfsWithInternalClusterServer() bool {
 
 // UpdateCDIConfigWithOptions updates CDIConfig with specific UpdateOptions
 func UpdateCDIConfigWithOptions(c client.Client, opts metav1.UpdateOptions, updateFunc func(*cdiv1.CDIConfigSpec)) error {
-	cdi, err := cc.GetActiveCDI(c)
+	cdi, err := cc.GetActiveCDI(context.TODO(), c)
 	if err != nil {
 		return err
 	}

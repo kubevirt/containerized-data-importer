@@ -114,7 +114,7 @@ func (r *UploadPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	uploadSource := source.(*cdiv1.VolumeUploadSource)
 	pvc.Annotations[cc.AnnContentType] = cc.GetContentType(string(uploadSource.Spec.ContentType))
 	pvc.Annotations[cc.AnnPopulatorKind] = cdiv1.VolumeUploadSourceRef
-	pvc.Annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(r.client, uploadSource.Spec.Preallocation))
+	pvc.Annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, uploadSource.Spec.Preallocation))
 }
 
 func (r *UploadPopulatorReconciler) updatePVCPrimeNameAnnotation(pvc *corev1.PersistentVolumeClaim, pvcPrimeName string) (bool, error) {
@@ -161,7 +161,7 @@ func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 			return reconcile.Result{}, err
 		}
 		// Once the upload is succeeded, we rebind the PV from PVC' to target PVC
-		if err := r.rebindPV(pvc, pvcPrime); err != nil {
+		if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvc); err != nil {
 			return reconcile.Result{}, err
 		}
 		r.recorder.Eventf(pvc, corev1.EventTypeNormal, uploadSucceeded, fmt.Sprintf(messageUploadSucceeded, pvc))

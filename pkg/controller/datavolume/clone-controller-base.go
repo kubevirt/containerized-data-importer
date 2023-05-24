@@ -131,8 +131,6 @@ const (
 	crossNamespaceFinalizer = "cdi.kubevirt.io/dataVolumeFinalizer"
 
 	annReadyForTransfer = "cdi.kubevirt.io/readyForTransfer"
-
-	annCloneType = "cdi.kubevirt.io/cloneType"
 )
 
 // CloneReconcilerBase members
@@ -425,7 +423,7 @@ func (r *CloneReconcilerBase) createExpansionPod(pvc *corev1.PersistentVolumeCla
 		return nil, err
 	}
 
-	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(r.client)
+	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(context.TODO(), r.client)
 	if err != nil {
 		return nil, err
 	}

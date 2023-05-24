@@ -135,7 +135,7 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		r.recorder.Eventf(pvcPrime, corev1.EventTypeWarning, importFailed, messageImportFailed, pvc.Name)
 	case string(corev1.PodSucceeded):
 		// Once the import is succeeded, we rebind the PV from PVC' to target PVC
-		if err := r.rebindPV(pvc, pvcPrime); err != nil {
+		if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvc); err != nil {
 			return reconcile.Result{}, err
 		}
 		r.recorder.Eventf(pvc, corev1.EventTypeNormal, importSucceeded, messageImportSucceeded, pvc.Name)
@@ -150,7 +150,7 @@ func (r *ImportPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	annotations := pvc.Annotations
 	annotations[cc.AnnPopulatorKind] = cdiv1.VolumeImportSourceRef
 	annotations[cc.AnnContentType] = cc.GetContentType(string(volumeImportSource.Spec.ContentType))
-	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(r.client, volumeImportSource.Spec.Preallocation))
+	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, volumeImportSource.Spec.Preallocation))
 
 	if http := volumeImportSource.Spec.Source.HTTP; http != nil {
 		cc.UpdateHTTPAnnotations(annotations, http)

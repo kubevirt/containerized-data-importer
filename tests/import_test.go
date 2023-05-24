@@ -1801,7 +1801,7 @@ var _ = Describe("Import populator", func() {
 
 		pv, err = f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(populators.IsPVBoundToPVC(pv, pvc)).To(BeTrue())
+		Expect(controller.IsPVBoundToPVC(pv, pvc)).To(BeTrue())
 		Expect(pv.CreationTimestamp.Before(&pvc.CreationTimestamp)).To(BeTrue())
 
 		By("Verify content")

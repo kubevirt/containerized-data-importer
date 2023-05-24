@@ -67,18 +67,18 @@ func setSCC(scc *secv1.SecurityContextConstraints) {
 	}
 }
 
-func ensureSCCExists(logger logr.Logger, c client.Client, saNamespace, saName, cronSaName string) error {
+func ensureSCCExists(ctx context.Context, logger logr.Logger, c client.Client, saNamespace, saName, cronSaName string) error {
 	scc := &secv1.SecurityContextConstraints{}
 	userName := fmt.Sprintf("system:serviceaccount:%s:%s", saNamespace, saName)
 	cronUserName := fmt.Sprintf("system:serviceaccount:%s:%s", saNamespace, cronSaName)
 
-	err := c.Get(context.TODO(), client.ObjectKey{Name: sccName}, scc)
+	err := c.Get(ctx, client.ObjectKey{Name: sccName}, scc)
 	if meta.IsNoMatchError(err) {
 		// not in openshift
 		logger.V(3).Info("No match error for SCC, must not be in openshift")
 		return nil
 	} else if errors.IsNotFound(err) {
-		cr, err := cc.GetActiveCDI(c)
+		cr, err := cc.GetActiveCDI(ctx, c)
 		if err != nil {
 			return err
 		}
@@ -108,7 +108,7 @@ func ensureSCCExists(logger logr.Logger, c client.Client, saNamespace, saName, c
 			return err
 		}
 
-		return c.Create(context.TODO(), scc)
+		return c.Create(ctx, scc)
 	} else if err != nil {
 		return err
 	}

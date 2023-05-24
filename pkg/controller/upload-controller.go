@@ -179,7 +179,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-		if err = ValidateCanCloneSourceAndTargetSpec(r.client, source, pvc, contentType); err != nil {
+		if err = ValidateCanCloneSourceAndTargetSpec(context.TODO(), r.client, source, pvc, contentType); err != nil {
 			log.Error(err, "Error validating clone spec, ignoring")
 			r.recorder.Eventf(pvc, corev1.EventTypeWarning, cc.ErrIncompatiblePVC, err.Error())
 			return reconcile.Result{}, nil
@@ -197,7 +197,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 	}
 
 	if pod == nil {
-		podsUsingPVC, err := cc.GetPodsUsingPVCs(r.client, pvc.Namespace, sets.New[string](pvc.Name), false)
+		podsUsingPVC, err := cc.GetPodsUsingPVCs(context.TODO(), r.client, pvc.Namespace, sets.New(pvc.Name), false)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -364,7 +364,7 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 		return nil, err
 	}
 
-	fsOverhead, err := GetFilesystemOverhead(r.client, pvc)
+	fsOverhead, err := GetFilesystemOverhead(context.TODO(), r.client, pvc)
 	if err != nil {
 		return nil, err
 	}
@@ -583,7 +583,7 @@ func (r *UploadReconciler) createUploadPod(args UploadPodArgs) (*v1.Pod, error) 
 		return nil, err
 	}
 
-	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(r.client)
+	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(context.TODO(), r.client)
 	if err != nil {
 		return nil, err
 	}

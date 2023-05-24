@@ -709,7 +709,45 @@ const (
 	VolumeImportSourceRef = "VolumeImportSource"
 	// VolumeUploadSourceRef is upload source for DataSourceRef for PVC
 	VolumeUploadSourceRef = "VolumeUploadSource"
+	// VolumeCloneSourceRef is smart clone source for DataSourceRef for PVC
+	VolumeCloneSourceRef = "VolumeCloneSource"
 )
+
+// VolumeCloneSource refers to a PVC/VolumeSnapshot of any storageclass/volumemode
+// to be used as the source of a new PVC
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:storageversion
+type VolumeCloneSource struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec VolumeCloneSourceSpec `json:"spec"`
+}
+
+// VolumeCloneSourceSpec defines the Spec field for VolumeCloneSource
+type VolumeCloneSourceSpec struct {
+	// Source is the src of the data to be cloned to the target PVC
+	Source corev1.TypedLocalObjectReference `json:"source"`
+
+	// Preallocation controls whether storage for the target PVC should be allocated in advance.
+	// +optional
+	Preallocation *bool `json:"preallocation,omitempty"`
+
+	// PriorityClassName is the priorityclass for the claim
+	// +optional
+	PriorityClassName *string `json:"priorityClassName,omitempty"`
+}
+
+// VolumeCloneSourceList provides the needed parameters to do request a list of VolumeCloneSources from the system
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type VolumeCloneSourceList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+	// Items provides a list of DataSources
+	Items []VolumeCloneSource `json:"items"`
+}
 
 // this has to be here otherwise informer-gen doesn't recognize it
 // see https://github.com/kubernetes/code-generator/issues/59
@@ -766,7 +804,7 @@ type CDISpec struct {
 	// Restrict on which nodes CDI workload pods will be scheduled
 	Workloads sdkapi.NodePlacement `json:"workload,omitempty"`
 	// Clone strategy override: should we use a host-assisted copy even if snapshots are available?
-	// +kubebuilder:validation:Enum="copy";"snapshot"
+	// +kubebuilder:validation:Enum="copy";"snapshot";"csi-clone"
 	CloneStrategyOverride *CDICloneStrategy `json:"cloneStrategyOverride,omitempty"`
 	// CDIConfig at CDI level
 	Config *CDIConfigSpec `json:"config,omitempty"`

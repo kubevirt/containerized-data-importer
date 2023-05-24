@@ -40,9 +40,6 @@ import (
 )
 
 const (
-	// AnnCloneSourcePod name of the source clone pod
-	AnnCloneSourcePod = "cdi.kubevirt.io/storage.sourceClonePodName"
-
 	// TokenKeyDir is the path to the apiserver public key dir
 	TokenKeyDir = "/var/run/cdi/token/keys"
 
@@ -157,10 +154,10 @@ func (r *CloneReconciler) shouldReconcile(pvc *corev1.PersistentVolumeClaim, log
 }
 
 // Reconcile the reconcile loop for host assisted clone pvc.
-func (r *CloneReconciler) Reconcile(_ context.Context, req reconcile.Request) (reconcile.Result, error) {
+func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	// Get the PVC.
 	pvc := &corev1.PersistentVolumeClaim{}
-	if err := r.client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {
+	if err := r.client.Get(ctx, req.NamespacedName, pvc); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return reconcile.Result{}, nil
 		}
@@ -198,9 +195,9 @@ func (r *CloneReconciler) Reconcile(_ context.Context, req reconcile.Request) (r
 		return reconcile.Result{}, err
 	}
 
-	_, nameExists := pvc.Annotations[AnnCloneSourcePod]
+	_, nameExists := pvc.Annotations[cc.AnnCloneSourcePod]
 	if !nameExists && sourcePod == nil {
-		pvc.Annotations[AnnCloneSourcePod] = cc.CreateCloneSourcePodName(pvc)
+		pvc.Annotations[cc.AnnCloneSourcePod] = cc.CreateCloneSourcePodName(pvc)
 
 		// add finalizer before creating clone source pod
 		cc.AddFinalizer(pvc, cloneSourcePodFinalizer)
@@ -213,7 +210,7 @@ func (r *CloneReconciler) Reconcile(_ context.Context, req reconcile.Request) (r
 		return reconcile.Result{}, nil
 	}
 
-	if requeueAfter, err := r.reconcileSourcePod(sourcePod, pvc, log); requeueAfter != 0 || err != nil {
+	if requeueAfter, err := r.reconcileSourcePod(ctx, sourcePod, pvc, log); requeueAfter != 0 || err != nil {
 		return reconcile.Result{RequeueAfter: requeueAfter}, err
 	}
 
@@ -227,7 +224,7 @@ func (r *CloneReconciler) Reconcile(_ context.Context, req reconcile.Request) (r
 	return reconcile.Result{}, nil
 }
 
-func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *corev1.PersistentVolumeClaim, log logr.Logger) (time.Duration, error) {
+func (r *CloneReconciler) reconcileSourcePod(ctx context.Context, sourcePod *corev1.Pod, targetPvc *corev1.PersistentVolumeClaim, log logr.Logger) (time.Duration, error) {
 	if sourcePod == nil {
 		sourcePvc, err := r.getCloneRequestSourcePVC(targetPvc)
 		if err != nil {
@@ -242,11 +239,11 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 			return 2 * time.Second, nil
 		}
 
-		if err := r.validateSourceAndTarget(sourcePvc, targetPvc); err != nil {
+		if err := r.validateSourceAndTarget(ctx, sourcePvc, targetPvc); err != nil {
 			return 0, err
 		}
 
-		pods, err := cc.GetPodsUsingPVCs(r.client, sourcePvc.Namespace, sets.New[string](sourcePvc.Name), true)
+		pods, err := cc.GetPodsUsingPVCs(ctx, r.client, sourcePvc.Namespace, sets.New(sourcePvc.Name), true)
 		if err != nil {
 			return 0, err
 		}
@@ -377,7 +374,7 @@ func (r *CloneReconciler) findCloneSourcePod(pvc *corev1.PersistentVolumeClaim) 
 	if !isCloneRequest {
 		return nil, nil
 	}
-	cloneSourcePodName, exists := pvc.Annotations[AnnCloneSourcePod]
+	cloneSourcePodName, exists := pvc.Annotations[cc.AnnCloneSourcePod]
 	if !exists {
 		// fallback to legacy name, to find any pod that still might be running after upgrade
 		cloneSourcePodName = cc.CreateCloneSourcePodName(pvc)
@@ -408,15 +405,13 @@ func (r *CloneReconciler) findCloneSourcePod(pvc *corev1.PersistentVolumeClaim) 
 	return &podList.Items[0], nil
 }
 
-func (r *CloneReconciler) validateSourceAndTarget(sourcePvc, targetPvc *corev1.PersistentVolumeClaim) error {
+func (r *CloneReconciler) validateSourceAndTarget(ctx context.Context, sourcePvc, targetPvc *corev1.PersistentVolumeClaim) error {
 	// first check for extended token
 	v := r.longTokenValidator
 	tok, ok := targetPvc.Annotations[cc.AnnExtendedCloneToken]
 	if !ok {
-		tok, ok = targetPvc.Annotations[cc.AnnCloneToken]
-		if !ok {
-			return errors.New("clone token missing")
-		}
+		// if token doesn't exist, no prob for same namespace
+		tok = targetPvc.Annotations[cc.AnnCloneToken]
 		v = r.shortTokenValidator
 	}
 
@@ -427,7 +422,7 @@ func (r *CloneReconciler) validateSourceAndTarget(sourcePvc, targetPvc *corev1.P
 	if err != nil {
 		return err
 	}
-	err = ValidateCanCloneSourceAndTargetSpec(r.client, sourcePvc, targetPvc, contentType)
+	err = ValidateCanCloneSourceAndTargetSpec(ctx, r.client, sourcePvc, targetPvc, contentType)
 	if err == nil {
 		// Validation complete, put source PVC bound status in annotation
 		setBoundConditionFromPVC(targetPvc.GetAnnotations(), cc.AnnBoundCondition, sourcePvc)
@@ -504,7 +499,7 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 		return nil, err
 	}
 
-	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(r.client)
+	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(context.TODO(), r.client)
 	if err != nil {
 		return nil, err
 	}
@@ -543,7 +538,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 	sourcePvcUID := string(sourcePvc.GetUID())
 
 	var ownerID string
-	cloneSourcePodName := targetPvc.Annotations[AnnCloneSourcePod]
+	cloneSourcePodName := targetPvc.Annotations[cc.AnnCloneSourcePod]
 	url := GetUploadServerURL(targetPvc.Namespace, targetPvc.Name, common.UploadPathSync)
 	pvcOwner := metav1.GetControllerOf(targetPvc)
 	if pvcOwner != nil && pvcOwner.Kind == "DataVolume" {
@@ -769,7 +764,7 @@ func ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc *corev1.Per
 }
 
 // ValidateCanCloneSourceAndTargetSpec validates the specs passed in are compatible for cloning.
-func ValidateCanCloneSourceAndTargetSpec(c client.Client, sourcePvc, targetPvc *corev1.PersistentVolumeClaim, contentType cdiv1.DataVolumeContentType) error {
+func ValidateCanCloneSourceAndTargetSpec(ctx context.Context, c client.Client, sourcePvc, targetPvc *corev1.PersistentVolumeClaim, contentType cdiv1.DataVolumeContentType) error {
 	// This annotation is only needed for some specific cases, when the target size is actually calculated by
 	// the size detection pod, and there are some differences in fs overhead between src and target volumes
 	_, permissive := targetPvc.Annotations[cc.AnnPermissiveClone]
@@ -783,11 +778,11 @@ func ValidateCanCloneSourceAndTargetSpec(c client.Client, sourcePvc, targetPvc *
 	}
 
 	// TODO: use detection pod here, then permissive should not be needed
-	sourceUsableSpace, err := getUsableSpace(c, sourcePvc)
+	sourceUsableSpace, err := getUsableSpace(ctx, c, sourcePvc)
 	if err != nil {
 		return err
 	}
-	targetUsableSpace, err := getUsableSpace(c, targetPvc)
+	targetUsableSpace, err := getUsableSpace(ctx, c, targetPvc)
 	if err != nil {
 		return err
 	}
@@ -800,12 +795,12 @@ func ValidateCanCloneSourceAndTargetSpec(c client.Client, sourcePvc, targetPvc *
 	return nil
 }
 
-func getUsableSpace(c client.Client, pvc *corev1.PersistentVolumeClaim) (resource.Quantity, error) {
+func getUsableSpace(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (resource.Quantity, error) {
 	sizeRequest := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 	volumeMode := util.ResolveVolumeMode(pvc.Spec.VolumeMode)
 
 	if volumeMode == corev1.PersistentVolumeFilesystem {
-		fsOverhead, err := cc.GetFilesystemOverheadForStorageClass(c, pvc.Spec.StorageClassName)
+		fsOverhead, err := cc.GetFilesystemOverheadForStorageClass(ctx, c, pvc.Spec.StorageClassName)
 		if err != nil {
 			return resource.Quantity{}, err
 		}

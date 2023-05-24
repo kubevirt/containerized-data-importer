@@ -280,6 +280,10 @@ func start() {
 		klog.Errorf("Unable to setup upload populator: %v", err)
 		os.Exit(1)
 	}
+	if _, err := populators.NewClonePopulator(ctx, mgr, log, clonerImage, pullPolicy, installerLabels); err != nil {
+		klog.Errorf("Unable to setup clone populator: %v", err)
+		os.Exit(1)
+	}
 
 	klog.V(1).Infoln("created cdi controllers")
 

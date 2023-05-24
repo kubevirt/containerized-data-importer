@@ -84,7 +84,7 @@ func renderPvcSpecVolumeModeAndAccessModes(client client.Client, recorder record
 		pvcSpec.VolumeMode = &volumeMode
 	}
 
-	storageClass, err := cc.GetStorageClassByName(client, dv.Spec.Storage.StorageClassName)
+	storageClass, err := cc.GetStorageClassByName(context.TODO(), client, dv.Spec.Storage.StorageClassName)
 	if err != nil {
 		return err
 	}
@@ -298,7 +298,7 @@ func resolveVolumeSize(c client.Client, dvSpec cdiv1.DataVolumeSpec, pvcSpec *v1
 	}
 
 	// disk or image size, inflate it with overhead
-	requestedSize, err := cc.InflateSizeWithOverhead(c, requestedSize.Value(), pvcSpec)
+	requestedSize, err := cc.InflateSizeWithOverhead(context.TODO(), c, requestedSize.Value(), pvcSpec)
 
 	return &requestedSize, err
 }

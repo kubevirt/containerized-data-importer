@@ -136,9 +136,21 @@ var _ = Describe("Import populator tests", func() {
 			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
 			pvcPrime := getPVCPrime(targetPvc, nil)
 			pvcPrime.Annotations = map[string]string{AnnPodPhase: string(corev1.PodSucceeded)}
+			pv := &corev1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pv",
+				},
+				Spec: corev1.PersistentVolumeSpec{
+					ClaimRef: &corev1.ObjectReference{
+						Namespace: pvcPrime.Namespace,
+						Name:      pvcPrime.Name,
+					},
+				},
+			}
+			pvcPrime.Spec.VolumeName = pv.Name
 
 			By("Reconcile")
-			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, volumeImportSource, sc)
+			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, pv, volumeImportSource, sc)
 			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
 			Expect(err).To(Not(HaveOccurred()))
 			Expect(result).To(Not(BeNil()))
