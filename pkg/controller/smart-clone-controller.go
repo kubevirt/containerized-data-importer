@@ -220,7 +220,7 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	newPvc, err := newPvcFromSnapshot(snapshot, targetPvcSpec)
+	newPvc, err := newPvcFromSnapshot(dataVolume, snapshot, targetPvcSpec)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -329,7 +329,7 @@ func (r *SmartCloneReconciler) getTargetPVC(dataVolume *cdiv1.DataVolume) (*core
 	return pvc, nil
 }
 
-func newPvcFromSnapshot(snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
+func newPvcFromSnapshot(dv *cdiv1.DataVolume, snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
 	restoreSize := snapshot.Status.RestoreSize
 	if restoreSize == nil || restoreSize.Sign() == -1 {
 		return nil, fmt.Errorf("snapshot has no RestoreSize")

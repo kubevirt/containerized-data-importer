@@ -281,7 +281,7 @@ var _ = Describe("All smart clone tests", func() {
 				},
 			},
 		}
-		pvc, err := newPvcFromSnapshot(dv, "targetPvc", snapshot, targetPvcSpec)
+		pvc, err := newPvcFromSnapshot(dv, snapshot, targetPvcSpec)
 		if expectedError == nil {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc).ToNot(BeNil())
