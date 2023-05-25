@@ -366,6 +366,9 @@ const (
 
 	// WaitForFirstConsumer represents a data volume with a current phase of WaitForFirstConsumer
 	WaitForFirstConsumer DataVolumePhase = "WaitForFirstConsumer"
+	// PendingPopulation represents a data volume which should be populated by
+	// the CDI populators but havn't created the pvc' yet
+	PendingPopulation DataVolumePhase = "PendingPopulation"
 
 	// Succeeded represents a DataVolumePhase of Succeeded
 	Succeeded DataVolumePhase = "Succeeded"
