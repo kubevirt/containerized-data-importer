@@ -246,7 +246,7 @@ var _ = Describe("DataImportCron", func() {
 		table.Entry("[test_id:8266] succeed deleting error DVs when importing new ones", false, true, 2),
 	)
 
-	It("[test_id:XXXX] Should get digest updated by external poller", func() {
+	It("[test_id:10040] Should get digest updated by external poller", func() {
 		By("Create DataImportCron with only initial poller job")
 		cron = utils.NewDataImportCron(cronName, "5Gi", scheduleOnceAYear, dataSourceName, importsToKeep, *reg)
 		retentionPolicy := cdiv1.DataImportCronRetainNone
