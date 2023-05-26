@@ -1559,6 +1559,9 @@ var _ = Describe("Import populator", func() {
 	}
 
 	BeforeEach(func() {
+		if utils.DefaultStorageClassCsiDriver == nil {
+			Skip("No CSI driver found")
+		}
 		verifyCleanup(pvc)
 	})
 

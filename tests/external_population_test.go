@@ -139,7 +139,7 @@ var _ = Describe("Population tests", func() {
 		})
 
 		It("Should provision storage with any volume data source", func() {
-			if !f.IsCSIVolumeCloneStorageClassAvailable() {
+			if utils.DefaultStorageClassCsiDriver == nil {
 				Skip("No CSI drivers available - Population not supported")
 			}
 			if !isAnyVolumeDataSourceEnabled() {
@@ -181,7 +181,7 @@ var _ = Describe("Population tests", func() {
 		})
 
 		It("Should not populate PVC when AnyVolumeDataSource is disabled", func() {
-			if !f.IsCSIVolumeCloneStorageClassAvailable() {
+			if utils.DefaultStorageClassCsiDriver == nil {
 				Skip("No CSI drivers available - Population not supported")
 			}
 			if isAnyVolumeDataSourceEnabled() {
@@ -218,8 +218,7 @@ var _ = Describe("Population tests", func() {
 			}
 
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", scName, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), nil, dataSourceRef)
-			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
+			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", scName, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), nil, dummySourceRef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -242,7 +241,7 @@ var _ = Describe("Population tests", func() {
 
 	Context("Legacy population", func() {
 		It("Should perform a CSI PVC clone by manually populating the DataSource field", func() {
-			if !f.IsCSIVolumeCloneStorageClassAvailable() {
+			if utils.DefaultStorageClassCsiDriver == nil {
 				Skip("No CSI drivers available - Population not supported")
 			}
 
@@ -299,6 +298,7 @@ var _ = Describe("Population tests", func() {
 			By("Creating source PVC")
 			pvcDef := utils.NewPVCDefinition(sourcePVCName, "80Mi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
+			pvcDef.Spec.StorageClassName = &f.SnapshotSCName
 			sourcePvc := f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 
 			By("Creating Snapshot")

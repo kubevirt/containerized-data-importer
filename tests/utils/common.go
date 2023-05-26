@@ -156,9 +156,14 @@ func IsNfs() bool {
 	return strings.Contains(DefaultStorageClass.GetName(), "nfs")
 }
 
+// IsDefaultSCNoProvisioner return true if the default storage class has no provisioner
+func IsDefaultSCNoProvisioner() bool {
+	return DefaultStorageClass.Provisioner == "kubernetes.io/no-provisioner"
+}
+
 // IsStaticNfs returns true if the default storage class is the static nfs storage class with no provisioner
 func IsStaticNfs() bool {
-	return IsNfs() && DefaultStorageClass.Provisioner == "kubernetes.io/no-provisioner"
+	return IsNfs() && IsDefaultSCNoProvisioner()
 }
 
 // IsStaticNfsWithInternalClusterServer returns true if the default storage class is the static nfs storage class with no provisioner

@@ -1752,6 +1752,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			storageProfile := &cdiv1.StorageProfile{}
 			err := client.Get(context.TODO(), types.NamespacedName{Name: name}, storageProfile)
 			Expect(err).ToNot(HaveOccurred())
+			// TODO: Adding a second Get here fixes a "the object has been modified; please apply
+			// your changes to the latest version and try again" error in "test_id:5912" when using a
+			// default storage class without accessMode.
+			// The real cause should bee somewhere else but this fixes it for the moment.
+			storageProfile, err = f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
 			storageProfile.Spec = spec
 			err = client.Update(context.TODO(), storageProfile)
 			Expect(err).ToNot(HaveOccurred())
@@ -2378,6 +2384,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		table.DescribeTable("import DV using StorageSpec without AccessModes, PVC is created only when", func(scName string, scFunc func(string)) {
+			if utils.IsDefaultSCNoProvisioner() {
+				Skip("Default storage class is no provisioner. The new storage class won't work")
+			}
+
 			By(fmt.Sprintf("verifying no storage class %s", testScName))
 			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
 			Expect(err).To(HaveOccurred())
@@ -2444,6 +2454,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		table.DescribeTable("import DV with AccessModes, PVC is pending until", func(scName string, scFunc func(string), dvFunc func(string) *cdiv1.DataVolume) {
+			if utils.IsDefaultSCNoProvisioner() {
+				Skip("Default storage class is no provisioner. The new storage class won't work")
+			}
+
 			By(fmt.Sprintf("verifying no storage class %s", testScName))
 			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
 			Expect(err).To(HaveOccurred())
