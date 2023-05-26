@@ -44,8 +44,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 
@@ -1619,28 +1619,6 @@ func ProgressFromClaim(ctx context.Context, args *ProgressFromClaimArgs) (string
 	}
 
 	return "", nil
-}
-
-// IsSnapshotValidForClone returns true if the passed snapshot is valid for cloning
-func IsSnapshotValidForClone(snapshot *snapshotv1.VolumeSnapshot, log logr.Logger) (bool, error) {
-	if snapshot.Status == nil {
-		log.V(3).Info("Snapshot does not have status populated yet")
-		return false, nil
-	}
-	if snapshot.Status.ReadyToUse == nil || !*snapshot.Status.ReadyToUse {
-		log.V(3).Info("snapshot not ReadyToUse, while we allow this, probably going to be an issue going forward", "namespace", snapshot.Namespace, "name", snapshot.Name)
-	}
-	if snapshot.Status.Error != nil {
-		errMessage := "no details"
-		if msg := snapshot.Status.Error.Message; msg != nil {
-			errMessage = *msg
-		}
-		return false, fmt.Errorf("snapshot in error state with msg: %s", errMessage)
-	}
-	if snapshot.Spec.VolumeSnapshotClassName == nil || *snapshot.Spec.VolumeSnapshotClassName == "" {
-		return false, fmt.Errorf("snapshot %s/%s does not have volume snap class populated, can't clone", snapshot.Name, snapshot.Namespace)
-	}
-	return true, nil
 }
 
 // ValidateSnapshotCloneSize does proper size validation when doing a clone from snapshot operation

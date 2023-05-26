@@ -18,7 +18,6 @@ package clone
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	. "github.com/onsi/ginkgo"
@@ -519,7 +518,7 @@ var _ = Describe("Planner test", func() {
 				Expect(strategy).To(BeNil())
 			})
 
-			It("should just return nil when snapshot is not ready", func() {
+			It("should fail when snapshot doesn't have populated volumeSnapshotContent name", func() {
 				source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
 				source.Status = nil
 				target := createTargetClaim()
@@ -530,26 +529,9 @@ var _ = Describe("Planner test", func() {
 				}
 				planner := createPlanner(createStorageClass(), source)
 				strategy, err := planner.ChooseStrategy(context.Background(), args)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).To(BeNil())
-			})
-
-			It("should fail when snapshot doesn't have populated class name", func() {
-				source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
-				source.Spec.VolumeSnapshotClassName = nil
-				target := createTargetClaim()
-				args := &ChooseStrategyArgs{
-					TargetClaim: target,
-					DataSource:  createSnapshotDataSource(),
-					Log:         log,
-				}
-				planner := createPlanner(createStorageClass(), source)
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
-				errorMsg := fmt.Sprintf("snapshot %s/%s does not have volume snap class populated, can't clone", source.Name, source.Namespace)
-				Expect(err.Error()).To(Equal(errorMsg))
+				Expect(err.Error()).To(Equal("volumeSnapshotContent name not found"))
 				Expect(strategy).To(BeNil())
-				expectEvent(planner, CloneValidationFailed)
 			})
 
 			It("should fallback to host-assisted when snapshot and storage class provisioners differ", func() {
@@ -806,9 +788,7 @@ var _ = Describe("Planner test", func() {
 				DataSource:  createSnapshotDataSource(),
 				Log:         log,
 			}
-			sourceTmpClaimSC := createStorageClass()
-			sourceTmpClaimSC.Name = "tmp-source-sc"
-			planner := createPlanner(cdiConfig, sourceTmpClaimSC, createStorageClass(), source, createVolumeSnapshotClass(), createDefaultVolumeSnapshotContent())
+			planner := createPlanner(cdiConfig, createStorageClass(), source, createVolumeSnapshotClass(), createDefaultVolumeSnapshotContent())
 			plan, err := planner.Plan(context.Background(), args)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(plan).ToNot(BeNil())
@@ -828,7 +808,9 @@ var _ = Describe("Planner test", func() {
 				DataSource:  createSnapshotDataSource(),
 				Log:         log,
 			}
-			planner := createPlanner(cdiConfig, createStorageClass(), source, createVolumeSnapshotClass(), createDefaultVolumeSnapshotContent())
+			sc := createStorageClass()
+			sc.Provisioner = "test-error"
+			planner := createPlanner(cdiConfig, sc, source, createVolumeSnapshotClass(), createDefaultVolumeSnapshotContent())
 			plan, err := planner.Plan(context.Background(), args)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("unable to find a valid storage class for the temporal source claim"))

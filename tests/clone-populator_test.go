@@ -40,6 +40,12 @@ var _ = Describe("Clone Populator tests", func() {
 
 	f := framework.NewFramework("clone-populator-test")
 
+	BeforeEach(func() {
+		if utils.DefaultStorageClassCsiDriver == nil {
+			Skip("No CSI driver found")
+		}
+	})
+
 	createSource := func(sz resource.Quantity, vm corev1.PersistentVolumeMode) *corev1.PersistentVolumeClaim {
 		dataVolume := utils.NewDataVolumeWithHTTPImport(sourceName, sz.String(), fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 		dataVolume.Spec.PVC.VolumeMode = &vm
@@ -203,12 +209,6 @@ var _ = Describe("Clone Populator tests", func() {
 	}
 
 	Context("Clone from PVC", func() {
-		BeforeEach(func() {
-			if utils.DefaultStorageClassCsiDriver == nil {
-				Skip("No CSI driver found")
-			}
-		})
-
 		It("should do filesystem to filesystem clone", func() {
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()

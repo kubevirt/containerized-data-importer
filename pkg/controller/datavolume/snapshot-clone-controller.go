@@ -197,7 +197,7 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 		return syncRes, err
 	}
 
-	valid, err := cc.IsSnapshotValidForClone(snapshot, r.log)
+	valid, err := r.isSnapshotValidForClone(snapshot)
 	if err != nil || !valid {
 		return syncRes, err
 	}
@@ -557,4 +557,26 @@ func (r *SnapshotCloneReconciler) cleanupHostAssistedSnapshotClone(dv *cdiv1.Dat
 	}
 
 	return nil
+}
+
+// isSnapshotValidForClone returns true if the passed snapshot is valid for cloning
+func (r *SnapshotCloneReconciler) isSnapshotValidForClone(snapshot *snapshotv1.VolumeSnapshot) (bool, error) {
+	if snapshot.Status == nil {
+		r.log.V(3).Info("Snapshot does not have status populated yet")
+		return false, nil
+	}
+	if snapshot.Status.ReadyToUse == nil || !*snapshot.Status.ReadyToUse {
+		r.log.V(3).Info("snapshot not ReadyToUse, while we allow this, probably going to be an issue going forward", "namespace", snapshot.Namespace, "name", snapshot.Name)
+	}
+	if snapshot.Status.Error != nil {
+		errMessage := "no details"
+		if msg := snapshot.Status.Error.Message; msg != nil {
+			errMessage = *msg
+		}
+		return false, fmt.Errorf("snapshot in error state with msg: %s", errMessage)
+	}
+	if snapshot.Spec.VolumeSnapshotClassName == nil || *snapshot.Spec.VolumeSnapshotClassName == "" {
+		return false, fmt.Errorf("snapshot %s/%s does not have volume snap class populated, can't clone", snapshot.Name, snapshot.Namespace)
+	}
+	return true, nil
 }
