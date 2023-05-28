@@ -196,7 +196,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			reconciler = createCloneReconciler(sc, sp, dv, pvc, snapClass, podFunc(dv), createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(result.Requeue).To(BeTrue())
+			Expect(result.RequeueAfter).To(Equal(sourceInUseRequeueDuration))
 			By("Checking events recorded")
 			close(reconciler.recorder.(*record.FakeRecorder).Events)
 			found := false
