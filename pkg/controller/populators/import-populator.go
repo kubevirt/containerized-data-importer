@@ -224,7 +224,7 @@ func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, p
 		cc.AddAnnotation(pvc, cc.AnnPopulatorProgress, "100.0%")
 		return nil
 	}
-	importPod, err := r.getImportPod(pvc)
+	importPod, err := r.getImportPod(pvcPrime)
 	if err != nil {
 		return err
 	}

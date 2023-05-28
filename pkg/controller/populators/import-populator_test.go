@@ -317,10 +317,10 @@ var _ = Describe("Import populator tests", func() {
 
 		It("should return error if no metrics in pod", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
-			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, targetPvc.Name)
-			targetPvc.Annotations = map[string]string{AnnImportPod: importPodName}
 			pvcPrime := getPVCPrime(targetPvc, nil)
-			pod := CreateImporterTestPod(targetPvc, pvcPrime.Name, nil)
+			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, pvcPrime.Name)
+			pvcPrime.Annotations = map[string]string{AnnImportPod: importPodName}
+			pod := CreateImporterTestPod(pvcPrime, pvcPrime.Name, nil)
 			pod.Spec.Containers[0].Ports = nil
 			pod.Status.Phase = corev1.PodRunning
 
@@ -358,11 +358,11 @@ var _ = Describe("Import populator tests", func() {
 		})
 
 		It("should report progress in target PVC if http endpoint returns matching data", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
-			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, targetPvc.Name)
-			targetPvc.Annotations = map[string]string{AnnImportPod: importPodName}
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
 			pvcPrime := getPVCPrime(targetPvc, nil)
+			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, pvcPrime.Name)
+			pvcPrime.Annotations = map[string]string{AnnImportPod: importPodName}
 
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", targetPvc.GetUID())))
@@ -374,7 +374,7 @@ var _ = Describe("Import populator tests", func() {
 			port, err := strconv.Atoi(ep.Port())
 			Expect(err).ToNot(HaveOccurred())
 
-			pod := CreateImporterTestPod(targetPvc, pvcPrime.Name, nil)
+			pod := CreateImporterTestPod(pvcPrime, pvcPrime.Name, nil)
 			pod.Spec.Containers[0].Ports[0].ContainerPort = int32(port)
 			pod.Status.PodIP = ep.Hostname()
 			pod.Status.Phase = corev1.PodRunning
