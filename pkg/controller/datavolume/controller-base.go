@@ -694,6 +694,11 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 		return nil
 	}
 
+	// With upload we don't have report of progress and no need to requeue
+	if datavolume.Spec.Source != nil && datavolume.Spec.Source.Upload != nil {
+		return nil
+	}
+
 	if datavolume.Spec.Source != nil && datavolume.Spec.Source.PVC != nil {
 		podNamespace = datavolume.Spec.Source.PVC.Namespace
 	} else {
@@ -716,8 +721,6 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 		}
 	}
 	// We are not done yet, force a re-reconcile in 2 seconds to get an update.
-	// TODO: if I understand currectly: do we really want to force reconcile even for population which
-	// doesnt report progress such as upload?
 	result.RequeueAfter = 2 * time.Second
 	return nil
 }
