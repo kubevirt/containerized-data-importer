@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,31 +22,31 @@ import (
 	"strconv"
 	"strings"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-	"kubevirt.io/containerized-data-importer/pkg/util/naming"
-
-	"k8s.io/apimachinery/pkg/runtime"
-
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	kvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
+
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
 const (
@@ -267,49 +267,17 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		pvc.Status.Phase = v1.ClaimBound
 
 		reconciler = createImportReconciler(pvc)
+		workloads := updateCdiWithTestNodePlacement(reconciler.client)
 
-		cr := &cdiv1.CDI{}
-		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cr)
-		Expect(err).ToNot(HaveOccurred())
-
-		dummyNodeSelector := map[string]string{"kubernetes.io/arch": "amd64"}
-		dummyTolerations := []v1.Toleration{{Key: "test", Value: "123"}}
-		dummyAffinity := &v1.Affinity{
-			NodeAffinity: &v1.NodeAffinity{
-				RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
-					NodeSelectorTerms: []v1.NodeSelectorTerm{
-						{
-							MatchExpressions: []v1.NodeSelectorRequirement{
-								{Key: "kubernetes.io/hostname", Operator: v1.NodeSelectorOpIn, Values: []string{"node01"}},
-							},
-						},
-					},
-				},
-			},
-		}
-		cr.Spec.Workloads.NodeSelector = dummyNodeSelector
-		cr.Spec.Workloads.Affinity = dummyAffinity
-		cr.Spec.Workloads.Tolerations = dummyTolerations
-
-		err = reconciler.client.Update(context.TODO(), cr)
-		Expect(err).ToNot(HaveOccurred())
-
-		placement, err := GetWorkloadNodePlacement(reconciler.client)
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(placement.Affinity).To(Equal(dummyAffinity))
-		Expect(placement.NodeSelector).To(Equal(dummyNodeSelector))
-		Expect(placement.Tolerations).To(Equal(dummyTolerations))
-
-		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(pod.Spec.Affinity).To(Equal(dummyAffinity))
-		Expect(pod.Spec.NodeSelector).To(Equal(dummyNodeSelector))
-		Expect(pod.Spec.Tolerations).To(Equal(dummyTolerations))
+		Expect(pod.Spec.Affinity).To(Equal(workloads.Affinity))
+		Expect(pod.Spec.NodeSelector).To(Equal(workloads.NodeSelector))
+		Expect(pod.Spec.Tolerations).To(Equal(workloads.Tolerations))
 	})
 
 	It("Should create a POD if a PVC with all needed annotations is passed", func() {
@@ -1293,4 +1261,61 @@ type FakeFeatureGates struct {
 
 func (f *FakeFeatureGates) HonorWaitForFirstConsumerEnabled() (bool, error) {
 	return f.honorWaitForFirstConsumerEnabled, nil
+}
+
+/*
+*
+
+	func createPendingPvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
+		return cc.CreatePvcInStorageClass(name, ns, nil, annotations, labels, v1.ClaimPending)
+	}
+
+	func createSecret(name, ns, accessKey, secretKey string, labels map[string]string) *v1.Secret {
+		return &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: ns,
+				Labels:    labels,
+			},
+			Type: "Opaque",
+			Data: map[string][]byte{
+				bootstrapapi.BootstrapTokenIDKey:           []byte(accessKey),
+				bootstrapapi.BootstrapTokenSecretKey:       []byte(secretKey),
+				bootstrapapi.BootstrapTokenUsageSigningKey: []byte("true"),
+			},
+		}
+	}
+*/
+func updateCdiWithTestNodePlacement(c client.Client) sdkapi.NodePlacement {
+	cr := &cdiv1.CDI{}
+	err := c.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cr)
+	Expect(err).ToNot(HaveOccurred())
+
+	workloads := sdkapi.NodePlacement{
+		NodeSelector: map[string]string{"kubernetes.io/arch": "amd64"},
+		Tolerations:  []v1.Toleration{{Key: "test", Value: "123"}},
+		Affinity: &v1.Affinity{
+			NodeAffinity: &v1.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+					NodeSelectorTerms: []v1.NodeSelectorTerm{
+						{
+							MatchExpressions: []v1.NodeSelectorRequirement{
+								{Key: "kubernetes.io/hostname", Operator: v1.NodeSelectorOpIn, Values: []string{"node01"}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cr.Spec.Workloads = workloads
+	err = c.Update(context.TODO(), cr)
+	Expect(err).ToNot(HaveOccurred())
+
+	placement, err := GetWorkloadNodePlacement(c)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(*placement).To(Equal(workloads))
+
+	return workloads
 }
