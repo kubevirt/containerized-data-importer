@@ -20,6 +20,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -29,6 +30,8 @@ const (
 	scheduleEveryMinute   = "* * * * *"
 	scheduleOnceAYear     = "0 0 1 1 *"
 	importsToKeep         = 1
+	emptySchedule         = ""
+	errorDigest           = "sha256:12345678900987654321"
 )
 
 var _ = Describe("DataImportCron", func() {
@@ -60,7 +63,7 @@ var _ = Describe("DataImportCron", func() {
 
 	updateDigest := func(digest string) func(cron *cdiv1.DataImportCron) *cdiv1.DataImportCron {
 		return func(cron *cdiv1.DataImportCron) *cdiv1.DataImportCron {
-			cron.Annotations[controller.AnnSourceDesiredDigest] = digest
+			cc.AddAnnotation(cron, controller.AnnSourceDesiredDigest, digest)
 			return cron
 		}
 	}
@@ -118,7 +121,7 @@ var _ = Describe("DataImportCron", func() {
 					By("Set desired digest to nonexisting one")
 
 					//get and update!!!
-					retryOnceOnErr(updateDataImportCron(f.CdiClient, ns, cronName, updateDigest("sha256:12345678900987654321"))).Should(BeNil())
+					retryOnceOnErr(updateDataImportCron(f.CdiClient, ns, cronName, updateDigest(errorDigest))).Should(BeNil())
 
 					By("Wait for CurrentImports update")
 					Eventually(func() string {
@@ -273,6 +276,47 @@ var _ = Describe("DataImportCron", func() {
 
 		By("Wait for digest set by external poller")
 		waitForDigest()
+	})
+
+	It("[test_id:XXXX] Should allow an empty schedule to trigger an external update to the source", func() {
+		By("Create DataImportCron with empty schedule")
+		cron = utils.NewDataImportCron(cronName, "5Gi", emptySchedule, dataSourceName, importsToKeep, *reg)
+		retentionPolicy := cdiv1.DataImportCronRetainNone
+		cron.Spec.RetentionPolicy = &retentionPolicy
+
+		cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Create poller pod to update the DataImportCron digest")
+		importerImage := f.GetEnvVarValue("IMPORTER_IMAGE")
+		Expect(importerImage).ToNot(BeEmpty())
+
+		pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: pollerPodName}}
+		err = controller.InitPollerPodSpec(f.CrClient, cron, &pod.Spec, importerImage, corev1.PullIfNotPresent, log)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = utils.CreatePod(f.K8sClient, f.CdiInstallNs, pod)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Wait for digest set by external poller")
+		waitForDigest()
+
+		waitForConditions(corev1.ConditionFalse, corev1.ConditionTrue)
+		By("Verify CurrentImports update")
+		currentImportDv := cron.Status.CurrentImports[0].DataVolumeName
+		Expect(currentImportDv).ToNot(BeEmpty())
+
+		By(fmt.Sprintf("Verify pvc was created %s", currentImportDv))
+		_, err = utils.WaitForPVC(f.K8sClient, ns, currentImportDv)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Wait for import completion")
+		err = utils.WaitForDataVolumePhase(f, ns, cdiv1.Succeeded, currentImportDv)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+
+		By("Verify cronjob was not created")
+		_, err = f.K8sClient.BatchV1().CronJobs(f.CdiInstallNs).Get(context.TODO(), controller.GetCronJobName(cron), metav1.GetOptions{})
+		Expect(errors.IsNotFound(err)).To(BeTrue())
 	})
 
 	It("[test_id:7406] succeed garbage collecting old PVCs when importing new ones", func() {

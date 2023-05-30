@@ -70,6 +70,8 @@ const (
 	imageStreamName = "test-imagestream"
 	imageStreamTag  = "test-imagestream-tag"
 	tagWithNoItems  = "tag-with-no-items"
+	defaultSchedule = "* * * * *"
+	emptySchedule   = ""
 )
 
 type possiblyErroringFakeCtrlRuntimeClient struct {
@@ -378,8 +380,9 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(cronJob).To(Equal(cronJobCopy))
 		})
 
-		It("Should create DataVolume on AnnSourceDesiredDigest annotation update, and update DataImportCron and DataSource on DataVolume Succeeded", func() {
+		DescribeTable("Should create DataVolume on AnnSourceDesiredDigest annotation update, and update DataImportCron and DataSource on DataVolume Succeeded", func(schedule, errorString string) {
 			cron = newDataImportCron(cronName)
+			cron.Spec.Schedule = schedule
 			dataSource = nil
 			retentionPolicy := cdiv1.DataImportCronRetainNone
 			cron.Spec.RetentionPolicy = &retentionPolicy
@@ -405,6 +408,12 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(*dv.Spec.Source.Registry.URL).To(Equal(testRegistryURL + "@" + testDigest))
 			Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
+
+			if cron.Spec.Schedule == emptySchedule {
+				cronjob := &batchv1.CronJob{}
+				err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+			}
 
 			dv.Status.Phase = cdiv1.ImportScheduled
 			err = reconciler.client.Update(context.TODO(), dv)
@@ -450,7 +459,10 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.List(context.TODO(), dvList, &client.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dvList.Items).To(BeEmpty())
-		})
+		},
+			Entry("default schedule", defaultSchedule, "should succeed with a default schedule"),
+			Entry("empty schedule", emptySchedule, "should succeed with an empty schedule"),
+		)
 
 		It("Should not create DV if PVC exists on DesiredDigest update; Should update DIC and DAS, and GC LRU PVCs", func() {
 			const nPVCs = 3
@@ -838,7 +850,7 @@ func newDataImportCron(name string) *cdiv1.DataImportCron {
 					},
 				},
 			},
-			Schedule:          "* * * * *",
+			Schedule:          defaultSchedule,
 			ManagedDataSource: dataSourceName,
 			GarbageCollect:    &garbageCollect,
 			ImportsToKeep:     &importsToKeep,

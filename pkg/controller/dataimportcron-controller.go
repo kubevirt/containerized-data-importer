@@ -127,9 +127,11 @@ func (r *DataImportCronReconciler) Reconcile(ctx context.Context, req reconcile.
 	if !shouldReconcile || err != nil {
 		return reconcile.Result{}, err
 	}
+
 	if err := r.initCron(ctx, dataImportCron); err != nil {
 		return reconcile.Result{}, err
 	}
+
 	return r.update(ctx, dataImportCron)
 }
 
@@ -162,6 +164,9 @@ func (r *DataImportCronReconciler) shouldReconcileCron(ctx context.Context, cron
 }
 
 func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+	if dataImportCron.Spec.Schedule == "" {
+		return nil
+	}
 	if isImageStreamSource(dataImportCron) {
 		if dataImportCron.Annotations[AnnNextCronTime] == "" {
 			cc.AddAnnotation(dataImportCron, AnnNextCronTime, time.Now().Format(time.RFC3339))
@@ -348,7 +353,8 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	}
 
 	// We use the poller returned reconcile.Result for RequeueAfter if needed
-	if isImageStreamSource(dataImportCron) {
+	// skip if we disabled schedule
+	if isImageStreamSource(dataImportCron) && dataImportCron.Spec.Schedule != "" {
 		res, err = r.pollImageStreamDigest(ctx, dataImportCron)
 		if err != nil {
 			return res, err

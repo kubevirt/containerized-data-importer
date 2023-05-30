@@ -121,6 +121,12 @@ var _ = Describe("Validating Webhook", func() {
 			resp := validateDataImportCronCreate(cron)
 			Expect(resp.Allowed).To(BeFalse())
 		})
+		It("should allow DataImportCron with empty cron schedule", func() {
+			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
+			cron.Spec.Schedule = ""
+			resp := validateDataImportCronCreate(cron)
+			Expect(resp.Allowed).To(BeTrue())
+		})
 		It("should reject DataImportCron with illegal ManagedDataSource on create", func() {
 			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
 			cron.Spec.ManagedDataSource = ""
