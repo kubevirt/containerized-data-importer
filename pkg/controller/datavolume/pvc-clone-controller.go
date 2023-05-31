@@ -62,7 +62,7 @@ const (
 	CsiClone
 )
 
-const sourceInUseRequeueSeconds = time.Duration(5 * time.Second)
+const sourceInUseRequeueDuration = time.Duration(5 * time.Second)
 
 const pvcCloneControllerName = "datavolume-pvc-clone-controller"
 
@@ -320,7 +320,7 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 				if syncRes.result == nil {
 					syncRes.result = &reconcile.Result{}
 				}
-				syncRes.result.RequeueAfter = sourceInUseRequeueSeconds
+				syncRes.result.RequeueAfter = sourceInUseRequeueDuration
 				return syncRes,
 					r.syncCloneStatusPhase(&syncRes, cdiv1.CloneScheduled, nil)
 			}
@@ -524,7 +524,7 @@ func (r *PvcCloneReconciler) reconcileCsiClonePvc(log logr.Logger,
 	if readyToClone, err := r.isSourceReadyToClone(datavolume, CsiClone); err != nil {
 		return reconcile.Result{}, err
 	} else if !readyToClone {
-		return reconcile.Result{Requeue: true},
+		return reconcile.Result{RequeueAfter: sourceInUseRequeueDuration},
 			r.syncCloneStatusPhase(syncRes, cdiv1.CloneScheduled, nil)
 	}
 
@@ -625,7 +625,7 @@ func (r *PvcCloneReconciler) reconcileSmartClonePvc(log logr.Logger,
 		if readyToClone, err := r.isSourceReadyToClone(datavolume, SmartClone); err != nil {
 			return reconcile.Result{}, err
 		} else if !readyToClone {
-			return reconcile.Result{Requeue: true},
+			return reconcile.Result{RequeueAfter: sourceInUseRequeueDuration},
 				r.syncCloneStatusPhase(syncState, cdiv1.CloneScheduled, nil)
 		}
 
