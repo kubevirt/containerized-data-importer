@@ -202,14 +202,6 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 	}
 	util.SetRecommendedLabels(pvcPrime, r.installerLabels, "cdi-controller")
 
-	// disk or image size, inflate it with overhead
-	requestedSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-	requestedSize, err := cc.InflateSizeWithOverhead(context.TODO(), r.client, requestedSize.Value(), &pvc.Spec)
-	if err != nil {
-		return nil, err
-	}
-	pvcPrime.Spec.Resources.Requests[corev1.ResourceStorage] = requestedSize
-
 	// We use the populator-specific pvcModifierFunc to add required annotations
 	if updatePVCForPopulation != nil {
 		updatePVCForPopulation(pvcPrime, source)
