@@ -140,14 +140,14 @@ var _ = Describe("Population tests", func() {
 
 		It("Should provision storage with any volume data source", func() {
 			if utils.DefaultStorageClassCsiDriver == nil {
-				Skip("No CSI drivers available - Population not supported")
+				Skip("No CSI drivers available in default SC - Population not supported")
 			}
 			if !isAnyVolumeDataSourceEnabled() {
 				Skip("No AnyVolumeDataSource feature gate")
 			}
 
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock), nil, dataSourceRef)
+			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), nil, dataSourceRef)
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
@@ -163,7 +163,8 @@ var _ = Describe("Population tests", func() {
 			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(dvc.ExternalPopulationSucceeded))
 			expectetHash := []byte(expectedContent)
 			expectedHashString := fmt.Sprintf("%x", md5.Sum(expectetHash))
-			md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultPvcMountPath, int64(len(expectedContent)))
+			filePath := fmt.Sprintf("%s/%s", utils.DefaultPvcMountPath, fileName)
+			md5, err := f.GetMD5(f.Namespace, pvc, filePath, int64(len(expectedContent)))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(md5).To(Equal(expectedHashString))
 
@@ -181,7 +182,7 @@ var _ = Describe("Population tests", func() {
 		})
 
 		It("Should not populate PVC when AnyVolumeDataSource is disabled", func() {
-			if utils.DefaultStorageClassCsiDriver == nil {
+			if !f.IsCSIVolumeCloneStorageClassAvailable() {
 				Skip("No CSI drivers available - Population not supported")
 			}
 			if isAnyVolumeDataSourceEnabled() {
@@ -241,7 +242,7 @@ var _ = Describe("Population tests", func() {
 
 	Context("Legacy population", func() {
 		It("Should perform a CSI PVC clone by manually populating the DataSource field", func() {
-			if utils.DefaultStorageClassCsiDriver == nil {
+			if !f.IsCSIVolumeCloneStorageClassAvailable() {
 				Skip("No CSI drivers available - Population not supported")
 			}
 
@@ -256,6 +257,7 @@ var _ = Describe("Population tests", func() {
 
 			By(fmt.Sprintf("Creating target datavolume %s", dataVolumeName))
 			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), dataSource, nil)
+			dataVolume.Spec.Storage.StorageClassName = nil
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
