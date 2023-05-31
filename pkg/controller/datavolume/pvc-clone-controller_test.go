@@ -482,78 +482,6 @@ var _ = Describe("All DataVolume Tests", func() {
 		)
 	})
 
-	var _ = Describe("CSI clone", func() {
-		DescribeTable("Starting from Failed DV",
-			func(targetPvcPhase corev1.PersistentVolumeClaimPhase, expectedDvPhase cdiv1.DataVolumePhase) {
-				strategy := cdiv1.CloneStrategyCsiClone
-				controller := true
-
-				dv := newCloneDataVolume("test-dv")
-				dv.Status.Phase = cdiv1.Failed
-
-				scName := "testsc"
-				srcPvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
-				targetPvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, targetPvcPhase)
-				targetPvc.OwnerReferences = append(targetPvc.OwnerReferences, metav1.OwnerReference{
-					Kind:       "DataVolume",
-					Controller: &controller,
-					Name:       "test-dv",
-					UID:        dv.UID,
-				})
-				sc := CreateStorageClassWithProvisioner(scName, map[string]string{
-					AnnDefaultStorageClass: "true",
-				}, map[string]string{}, "csi-plugin")
-
-				accessMode := []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}
-				storageProfile := createStorageProfileWithCloneStrategy(scName,
-					[]cdiv1.ClaimPropertySet{{AccessModes: accessMode, VolumeMode: &BlockMode}},
-					&strategy)
-
-				reconciler = createCloneReconciler(dv, srcPvc, targetPvc, storageProfile, sc)
-
-				By("Reconcile")
-				result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
-				Expect(err).To(Not(HaveOccurred()))
-				Expect(result).To(Not(BeNil()))
-
-				By(fmt.Sprintf("Verifying that phase is now in %s", expectedDvPhase))
-				dv = &cdiv1.DataVolume{}
-				err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(dv.Status.Phase).To(Equal(expectedDvPhase))
-
-			},
-			Entry("Should be in progress, if source pvc is ClaimPending", corev1.ClaimPending, cdiv1.CSICloneInProgress),
-			Entry("Should be failed, if source pvc is ClaimLost", corev1.ClaimLost, cdiv1.Failed),
-			Entry("Should be Succeeded, if source pvc is ClaimBound", corev1.ClaimBound, cdiv1.Succeeded),
-		)
-
-		It("Should not panic if CSI Driver not available and no storage class on PVC spec", func() {
-			strategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)
-
-			dv := newCloneDataVolume("test-dv")
-
-			scName := "testsc"
-			srcPvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
-			sc := CreateStorageClassWithProvisioner(scName, map[string]string{
-				AnnDefaultStorageClass: "true",
-			}, map[string]string{}, "csi-plugin")
-
-			accessMode := []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}
-			storageProfile := createStorageProfileWithCloneStrategy(scName,
-				[]cdiv1.ClaimPropertySet{{AccessModes: accessMode, VolumeMode: &BlockMode}},
-				&strategy)
-
-			reconciler := createCloneReconciler(dv, srcPvc, storageProfile, sc, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-
-			By("Reconcile")
-			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
-			Expect(err).ToNot(HaveOccurred())
-			Expect(result).ToNot(BeNil())
-		})
-
-	})
-
 	var _ = Describe("Clone without source", func() {
 		scName := "testsc"
 		sc := CreateStorageClassWithProvisioner(scName, map[string]string{
@@ -661,7 +589,6 @@ var _ = Describe("All DataVolume Tests", func() {
 		var (
 			hostAssisted = cdiv1.CloneStrategyHostAssisted
 			snapshot     = cdiv1.CloneStrategySnapshot
-			csiClone     = cdiv1.CloneStrategyCsiClone
 		)
 
 		DescribeTable("Setting clone strategy affects the output of getCloneStrategy",
@@ -694,17 +621,14 @@ var _ = Describe("All DataVolume Tests", func() {
 			},
 			Entry("override hostAssisted /host", &hostAssisted, &hostAssisted, cdiv1.CloneStrategyHostAssisted),
 			Entry("override hostAssisted /snapshot", &hostAssisted, &snapshot, cdiv1.CloneStrategyHostAssisted),
-			Entry("override hostAssisted /csiClone", &hostAssisted, &csiClone, cdiv1.CloneStrategyHostAssisted),
 			Entry("override hostAssisted /nil", &hostAssisted, nil, cdiv1.CloneStrategyHostAssisted),
 
 			Entry("override snapshot /host", &snapshot, &hostAssisted, cdiv1.CloneStrategySnapshot),
 			Entry("override snapshot /snapshot", &snapshot, &snapshot, cdiv1.CloneStrategySnapshot),
-			Entry("override snapshot /csiClone", &snapshot, &csiClone, cdiv1.CloneStrategySnapshot),
 			Entry("override snapshot /nil", &snapshot, nil, cdiv1.CloneStrategySnapshot),
 
 			Entry("preferred snapshot", nil, &snapshot, cdiv1.CloneStrategySnapshot),
 			Entry("preferred hostassisted", nil, &hostAssisted, cdiv1.CloneStrategyHostAssisted),
-			Entry("preferred csiClone", nil, &csiClone, cdiv1.CloneStrategyCsiClone),
 			Entry("should default to snapshot", nil, nil, cdiv1.CloneStrategySnapshot),
 		)
 	})
@@ -918,10 +842,8 @@ var _ = Describe("All DataVolume Tests", func() {
 				Expect(pvc.Spec.Resources.Requests.Storage().Cmp(expectedSize)).To(Equal(0))
 			},
 			Entry("snapshot with empty size and 'Block' volume mode", cdiv1.CloneStrategySnapshot, SmartClone, BlockMode),
-			Entry("csiClone with empty size and 'Block' volume mode", cdiv1.CloneStrategyCsiClone, CsiClone, BlockMode),
 			Entry("hostAssited with empty size and 'Block' volume mode", cdiv1.CloneStrategyHostAssisted, HostAssistedClone, BlockMode),
 			Entry("snapshot with empty size and 'Filesystem' volume mode", cdiv1.CloneStrategySnapshot, SmartClone, FilesystemMode),
-			Entry("csiClone with empty size and 'Filesystem' volume mode", cdiv1.CloneStrategyCsiClone, CsiClone, FilesystemMode),
 		)
 	})
 })
