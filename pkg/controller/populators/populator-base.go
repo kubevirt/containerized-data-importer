@@ -19,7 +19,6 @@ package populators
 import (
 	"context"
 	"reflect"
-	"strings"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -216,15 +215,17 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 
 type updatePVCAnnotationsFunc func(pvc, pvcPrime *corev1.PersistentVolumeClaim)
 
+var desiredAnnotations = []string{cc.AnnPodPhase, cc.AnnPodReady, cc.AnnPodRestarts, cc.AnnPreallocationRequested, cc.AnnPreallocationApplied, cc.AnnRunningCondition, cc.AnnRunningConditionMessage, cc.AnnRunningConditionReason, cc.AnnBoundCondition, cc.AnnBoundConditionMessage, cc.AnnBoundConditionReason}
+
 func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim, updateFunc updatePVCAnnotationsFunc) error {
 	pvcCopy := pvc.DeepCopy()
-	for k, v := range pvcPrime.GetAnnotations() {
-		if strings.Contains(k, common.CDIAnnKey) &&
-			!strings.Contains(k, cc.AnnImmediateBinding) &&
-			!strings.Contains(k, cc.AnnPopulatorKind) &&
-			!strings.Contains(k, "upload") &&
-			!strings.Contains(k, "import") {
-			cc.AddAnnotation(pvcCopy, k, v)
+	for _, ann := range desiredAnnotations {
+		if value, ok := pvcPrime.GetAnnotations()[ann]; ok {
+			cc.AddAnnotation(pvcCopy, ann, value)
+		} else if _, ok := pvcCopy.GetAnnotations()[ann]; ok {
+			// if the desired Annotation was deleted from pvcPrime
+			// delete it also in the target pvc
+			delete(pvcCopy.Annotations, ann)
 		}
 	}
 	if updateFunc != nil {

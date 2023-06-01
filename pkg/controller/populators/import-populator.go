@@ -187,14 +187,6 @@ func (r *ImportPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	annotations[cc.AnnSource] = cc.SourceNone
 }
 
-func deleteBoundConditionIfNeeded(pvc, pvcPrime *corev1.PersistentVolumeClaim) {
-	if _, ok := pvcPrime.Annotations[cc.AnnBoundCondition]; !ok {
-		delete(pvc.Annotations, cc.AnnBoundCondition)
-		delete(pvc.Annotations, cc.AnnBoundConditionMessage)
-		delete(pvc.Annotations, cc.AnnBoundConditionReason)
-	}
-}
-
 func updateVddkAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim) {
 	if cc.GetSource(pvcPrime) != cc.SourceVDDK {
 		return
@@ -213,7 +205,6 @@ func (r *ImportPopulatorReconciler) updateImportAnnotations(pvc, pvcPrime *corev
 		r.log.Error(err, "Failed to update import progress for pvc %s/%s", pvc.Namespace, pvc.Name)
 	}
 	updateVddkAnnotations(pvc, pvcPrime)
-	deleteBoundConditionIfNeeded(pvc, pvcPrime)
 }
 
 // Progress reporting
