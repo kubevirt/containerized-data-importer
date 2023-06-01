@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -45,7 +46,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-const snapshotCloneControllerName = "datavolume-snapshot-clone-controller"
+const (
+	//AnnSmartCloneRequest sets our expected annotation for a CloneRequest
+	AnnSmartCloneRequest = "k8s.io/SmartCloneRequest"
+
+	annSmartCloneSnapshot = "cdi.kubevirt.io/smartCloneSnapshot"
+
+	snapshotCloneControllerName = "datavolume-snapshot-clone-controller"
+)
 
 // SnapshotCloneReconciler members
 type SnapshotCloneReconciler struct {
@@ -342,7 +350,7 @@ func (r *SnapshotCloneReconciler) reconcileRestoreSnapshot(log logr.Logger,
 
 	if isCrossNamespaceClone(datavolume) {
 		pvcName = transferName
-		result, err := r.doCrossNamespaceClone(log, syncRes, pvcName, datavolume.Spec.Source.Snapshot.Namespace, false, SmartClone)
+		result, err := r.doCrossNamespaceClone(log, syncRes, pvcName, datavolume.Spec.Source.Snapshot.Namespace, false)
 		if result != nil {
 			return *result, err
 		}
@@ -581,4 +589,78 @@ func (r *SnapshotCloneReconciler) isSnapshotValidForClone(snapshot *snapshotv1.V
 		return false, fmt.Errorf("snapshot %s/%s does not have volume snap class populated, can't clone", snapshot.Name, snapshot.Namespace)
 	}
 	return true, nil
+}
+
+func newPvcFromSnapshot(obj metav1.Object, name string, snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
+	targetPvcSpecCopy := targetPvcSpec.DeepCopy()
+	restoreSize := snapshot.Status.RestoreSize
+	if restoreSize == nil || restoreSize.Sign() == -1 {
+		return nil, fmt.Errorf("snapshot has no RestoreSize")
+	}
+	if restoreSize.IsZero() {
+		reqSize := targetPvcSpec.Resources.Requests[corev1.ResourceStorage]
+		restoreSize = &reqSize
+	}
+
+	key, err := cache.MetaNamespaceKeyFunc(snapshot)
+	if err != nil {
+		return nil, err
+	}
+
+	labels := map[string]string{
+		"cdi-controller":         snapshot.Name,
+		common.CDILabelKey:       common.CDILabelValue,
+		common.CDIComponentLabel: common.SmartClonerCDILabel,
+	}
+	for k, v := range obj.GetLabels() {
+		labels[k] = v
+	}
+
+	annotations := map[string]string{
+		AnnSmartCloneRequest:          "true",
+		cc.AnnRunningCondition:        string(corev1.ConditionFalse),
+		cc.AnnRunningConditionMessage: cc.CloneComplete,
+		cc.AnnRunningConditionReason:  "Completed",
+		annSmartCloneSnapshot:         key,
+	}
+	for k, v := range obj.GetAnnotations() {
+		annotations[k] = v
+	}
+
+	if util.ResolveVolumeMode(targetPvcSpecCopy.VolumeMode) == corev1.PersistentVolumeFilesystem {
+		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
+	}
+
+	target := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Namespace:   snapshot.Namespace,
+			Labels:      labels,
+			Annotations: annotations,
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			DataSource: &corev1.TypedLocalObjectReference{
+				Name:     snapshot.Name,
+				Kind:     "VolumeSnapshot",
+				APIGroup: &snapshotv1.SchemeGroupVersion.Group,
+			},
+			VolumeMode:       targetPvcSpecCopy.VolumeMode,
+			AccessModes:      targetPvcSpecCopy.AccessModes,
+			StorageClassName: targetPvcSpecCopy.StorageClassName,
+			Resources:        targetPvcSpecCopy.Resources,
+		},
+	}
+
+	if target.Spec.Resources.Requests == nil {
+		target.Spec.Resources.Requests = corev1.ResourceList{}
+	}
+
+	target.Spec.Resources.Requests[corev1.ResourceStorage] = *restoreSize
+
+	ownerRef := metav1.GetControllerOf(snapshot)
+	if ownerRef != nil {
+		target.OwnerReferences = append(target.OwnerReferences, *ownerRef)
+	}
+
+	return target, nil
 }

@@ -236,8 +236,7 @@ func (r *CloneReconcilerBase) expandPvcAfterClone(
 func (r *CloneReconcilerBase) doCrossNamespaceClone(log logr.Logger,
 	syncState *dvSyncState,
 	pvcName, sourceNamespace string,
-	returnWhenCloneInProgress bool,
-	selectedCloneStrategy cloneStrategy) (*reconcile.Result, error) {
+	returnWhenCloneInProgress bool) (*reconcile.Result, error) {
 
 	initialized, err := r.initTransfer(log, syncState, pvcName, sourceNamespace)
 	if err != nil {

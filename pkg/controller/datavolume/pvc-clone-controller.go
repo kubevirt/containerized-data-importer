@@ -24,39 +24,25 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
-
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/common"
-
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-
-	"kubevirt.io/containerized-data-importer/pkg/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-)
 
-type cloneStrategy int
-
-// Possible clone strategies, including default special value NoClone
-const (
-	NoClone cloneStrategy = iota
-	HostAssistedClone
-	SmartClone
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 )
 
 const sourceInUseRequeueDuration = time.Duration(5 * time.Second)
@@ -69,7 +55,6 @@ var ErrInvalidTermMsg = fmt.Errorf("the termination message from the size-detect
 // PvcCloneReconciler members
 type PvcCloneReconciler struct {
 	CloneReconcilerBase
-	sccs controllerStarter
 }
 
 // NewPvcCloneController creates a new instance of the datavolume clone controller
@@ -85,12 +70,6 @@ func NewPvcCloneController(
 	installerLabels map[string]string,
 ) (controller.Controller, error) {
 	client := mgr.GetClient()
-	sccs := &smartCloneControllerStarter{
-		log:                       log,
-		installerLabels:           installerLabels,
-		startSmartCloneController: make(chan struct{}, 1),
-		mgr:                       mgr,
-	}
 	reconciler := &PvcCloneReconciler{
 		CloneReconcilerBase: CloneReconcilerBase{
 			ReconcilerBase: ReconcilerBase{
@@ -109,7 +88,6 @@ func NewPvcCloneController(
 			// for long term tokens to handle cross namespace dumb clones
 			tokenGenerator: newLongTermCloneTokenGenerator(tokenPrivateKey),
 		},
-		sccs: sccs,
 	}
 
 	dataVolumeCloneController, err := controller.New(pvcCloneControllerName, mgr, controller.Options{
@@ -123,44 +101,7 @@ func NewPvcCloneController(
 		return nil, err
 	}
 
-	if err = mgr.Add(sccs); err != nil {
-		return nil, err
-	}
 	return dataVolumeCloneController, nil
-}
-
-type controllerStarter interface {
-	Start(ctx context.Context) error
-	StartController()
-}
-type smartCloneControllerStarter struct {
-	log                       logr.Logger
-	installerLabels           map[string]string
-	startSmartCloneController chan struct{}
-	mgr                       manager.Manager
-}
-
-func (sccs *smartCloneControllerStarter) Start(ctx context.Context) error {
-	started := false
-	for {
-		select {
-		case <-sccs.startSmartCloneController:
-			if !started {
-				sccs.log.Info("Starting smart clone controller as CSI snapshot CRDs are detected")
-				if _, err := NewSmartCloneController(sccs.mgr, sccs.log, sccs.installerLabels); err != nil {
-					sccs.log.Error(err, "Unable to setup smart clone controller: %v")
-				} else {
-					started = true
-				}
-			}
-		case <-ctx.Done():
-			return nil
-		}
-	}
-}
-
-func (sccs *smartCloneControllerStarter) StartController() {
-	sccs.startSmartCloneController <- struct{}{}
 }
 
 func addDataVolumeCloneControllerWatches(mgr manager.Manager, datavolumeController controller.Controller) error {
@@ -269,7 +210,6 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 	pvc := syncRes.pvc
 	pvcSpec := syncRes.pvcSpec
 	datavolume := syncRes.dvMutated
-	transferName := getTransferName(datavolume)
 
 	pvcPopulated := pvcIsPopulated(pvc, datavolume)
 	staticProvisionPending := checkStaticProvisionPending(pvc, datavolume)
@@ -286,28 +226,18 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 		return syncRes, nil
 	}
 
-	// Get the most appropiate clone strategy
-	selectedCloneStrategy, err := r.selectCloneStrategy(datavolume, pvcSpec)
-	if err != nil {
-		return syncRes, err
-	}
-	if selectedCloneStrategy != NoClone {
-		cc.AddAnnotation(datavolume, cc.AnnCloneType, cloneStrategyToCloneType(selectedCloneStrategy))
-	}
-
-	if selectedCloneStrategy == SmartClone {
-		r.sccs.StartController()
-	}
+	cc.AddAnnotation(datavolume, cc.AnnCloneType, "copy")
 
 	// If the target's size is not specified, we can extract that value from the source PVC
 	targetRequest, hasTargetRequest := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 	if !hasTargetRequest || targetRequest.IsZero() {
-		done, err := r.detectCloneSize(&syncRes, selectedCloneStrategy)
+		// TODO proper bool flag
+		done, err := r.detectCloneSize(&syncRes)
 		if err != nil {
 			return syncRes, err
 		} else if !done {
 			// Check if the source PVC is ready to be cloned
-			if readyToClone, err := r.isSourceReadyToClone(datavolume, selectedCloneStrategy); err != nil {
+			if readyToClone, err := r.isSourceReadyToClone(datavolume); err != nil {
 				return syncRes, err
 			} else if !readyToClone {
 				if syncRes.result == nil {
@@ -322,15 +252,6 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 	}
 
 	if pvc == nil {
-		if selectedCloneStrategy == SmartClone {
-			snapshotClassName, err := cc.GetSnapshotClassForSmartClone(datavolume.Name, pvcSpec.StorageClassName, r.log, r.client)
-			if err != nil {
-				return syncRes, err
-			}
-			res, err := r.reconcileSmartClonePvc(log, &syncRes, transferName, snapshotClassName)
-			syncRes.result = &res
-			return syncRes, err
-		}
 		newPvc, err := r.createPvcForDatavolume(datavolume, pvcSpec, r.updateAnnotations)
 		if err != nil {
 			if cc.ErrQuotaExceeded(err) {
@@ -349,181 +270,11 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 		pvc = newPvc
 	}
 
-	shouldBeMarkedWaitForFirstConsumer, err := r.shouldBeMarkedWaitForFirstConsumer(pvc)
-	if err != nil {
+	if err := r.ensureExtendedToken(pvc); err != nil {
 		return syncRes, err
 	}
 
-	switch selectedCloneStrategy {
-	case HostAssistedClone:
-		if err := r.ensureExtendedToken(pvc); err != nil {
-			return syncRes, err
-		}
-	case SmartClone:
-		if !shouldBeMarkedWaitForFirstConsumer {
-			res, err := r.finishClone(log, &syncRes, transferName)
-			syncRes.result = &res
-			return syncRes, err
-
-		}
-	}
-
 	return syncRes, syncErr
-}
-
-func (r *PvcCloneReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec) (cloneStrategy, error) {
-	preferredCloneStrategy, err := r.getCloneStrategy(datavolume)
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			return NoClone, nil
-		}
-		return NoClone, err
-	}
-
-	bindingMode, err := r.getStorageClassBindingMode(pvcSpec.StorageClassName)
-	if err != nil {
-		return NoClone, err
-	}
-	if bindingMode != nil && *bindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
-		waitForFirstConsumerEnabled, err := cc.IsWaitForFirstConsumerEnabled(datavolume, r.featureGates)
-		if err != nil {
-			return NoClone, err
-		}
-		if !waitForFirstConsumerEnabled {
-			return HostAssistedClone, nil
-		}
-	}
-
-	if preferredCloneStrategy != nil && *preferredCloneStrategy == cdiv1.CloneStrategySnapshot {
-		snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
-		if err != nil {
-			return NoClone, err
-		}
-		snapshotClassAvailable := snapshotClassName != ""
-
-		snapshotPossible, err := r.advancedClonePossible(datavolume, pvcSpec)
-		if err != nil {
-			return NoClone, err
-		}
-
-		if snapshotClassAvailable && snapshotPossible &&
-			(!isCrossNamespaceClone(datavolume) || *bindingMode == storagev1.VolumeBindingImmediate) {
-			return SmartClone, nil
-		}
-	}
-
-	return HostAssistedClone, nil
-}
-
-func cloneStrategyToCloneType(selectedCloneStrategy cloneStrategy) string {
-	switch selectedCloneStrategy {
-	case SmartClone:
-		return "snapshot"
-	case HostAssistedClone:
-		return "copy"
-	}
-	return ""
-}
-
-func (r *PvcCloneReconciler) reconcileSmartClonePvc(log logr.Logger,
-	syncState *dvSyncState,
-	transferName string,
-	snapshotClassName string) (reconcile.Result, error) {
-
-	datavolume := syncState.dvMutated
-	pvcName := datavolume.Name
-
-	if isCrossNamespaceClone(datavolume) {
-		pvcName = transferName
-		result, err := r.doCrossNamespaceClone(log, syncState, pvcName, datavolume.Spec.Source.PVC.Namespace, true, SmartClone)
-		if result != nil {
-			return *result, err
-		}
-	}
-
-	if datavolume.Status.Phase == cdiv1.NamespaceTransferInProgress {
-		return reconcile.Result{}, nil
-	}
-
-	r.log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class",
-		"snapshotClassName", snapshotClassName)
-
-	newSnapshot := newSnapshot(datavolume, pvcName, snapshotClassName)
-	util.SetRecommendedLabels(newSnapshot, r.installerLabels, "cdi-controller")
-
-	if err := setAnnOwnedByDataVolume(newSnapshot, datavolume); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	nn := client.ObjectKeyFromObject(newSnapshot)
-	if err := r.client.Get(context.TODO(), nn, newSnapshot.DeepCopy()); err != nil {
-		if !k8serrors.IsNotFound(err) {
-			return reconcile.Result{}, err
-		}
-
-		// Check if the source PVC is ready to be cloned
-		if readyToClone, err := r.isSourceReadyToClone(datavolume, SmartClone); err != nil {
-			return reconcile.Result{}, err
-		} else if !readyToClone {
-			return reconcile.Result{RequeueAfter: sourceInUseRequeueDuration},
-				r.syncCloneStatusPhase(syncState, cdiv1.CloneScheduled, nil)
-		}
-
-		targetPvc := &corev1.PersistentVolumeClaim{}
-		if err := r.client.Get(context.TODO(), nn, targetPvc); err != nil {
-			if !k8serrors.IsNotFound(err) {
-				return reconcile.Result{}, err
-			}
-
-			if err := r.client.Create(context.TODO(), newSnapshot); err != nil {
-				if !k8serrors.IsAlreadyExists(err) {
-					return reconcile.Result{}, err
-				}
-			} else {
-				r.log.V(1).Info("snapshot created successfully", "snapshot.Namespace", newSnapshot.Namespace, "snapshot.Name", newSnapshot.Name)
-			}
-		}
-	}
-
-	return reconcile.Result{}, r.syncCloneStatusPhase(syncState, cdiv1.SnapshotForSmartCloneInProgress, nil)
-}
-
-func newSnapshot(dataVolume *cdiv1.DataVolume, snapshotName, snapshotClassName string) *snapshotv1.VolumeSnapshot {
-	annotations := make(map[string]string)
-	annotations[AnnSmartCloneRequest] = "true"
-	className := snapshotClassName
-	labels := map[string]string{
-		common.CDILabelKey:       common.CDILabelValue,
-		common.CDIComponentLabel: common.SmartClonerCDILabel,
-	}
-	snapshotNamespace := dataVolume.Namespace
-	if dataVolume.Spec.Source.PVC.Namespace != "" {
-		snapshotNamespace = dataVolume.Spec.Source.PVC.Namespace
-	}
-	snapshot := &snapshotv1.VolumeSnapshot{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        snapshotName,
-			Namespace:   snapshotNamespace,
-			Labels:      labels,
-			Annotations: annotations,
-		},
-		Spec: snapshotv1.VolumeSnapshotSpec{
-			Source: snapshotv1.VolumeSnapshotSource{
-				PersistentVolumeClaimName: &dataVolume.Spec.Source.PVC.Name,
-			},
-			VolumeSnapshotClassName: &className,
-		},
-	}
-	if dataVolume.Namespace == snapshotNamespace {
-		snapshot.OwnerReferences = []metav1.OwnerReference{
-			*metav1.NewControllerRef(dataVolume, schema.GroupVersionKind{
-				Group:   cdiv1.SchemeGroupVersion.Group,
-				Version: cdiv1.SchemeGroupVersion.Version,
-				Kind:    "DataVolume",
-			}),
-		}
-	}
-	return snapshot
 }
 
 // Verify that the source PVC has been completely populated.
@@ -565,164 +316,7 @@ func (r *PvcCloneReconciler) cleanup(syncState *dvSyncState) error {
 		return err
 	}
 
-	if isCrossNamespaceClone(dv) {
-		if err := r.cleanupTransfer(dv); err != nil {
-			return err
-		}
-	}
-
 	return nil
-}
-
-// Returns true if methods different from HostAssisted are possible,
-// both snapshot and csi volume clone share the same basic requirements
-func (r *PvcCloneReconciler) advancedClonePossible(dataVolume *cdiv1.DataVolume, targetStorageSpec *corev1.PersistentVolumeClaimSpec) (bool, error) {
-	log := r.log.WithName("ClonePossible").V(3)
-
-	sourcePvc, err := r.findSourcePvc(dataVolume)
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			return false, errors.New("source PVC not found")
-		}
-		return false, err
-	}
-
-	targetStorageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, targetStorageSpec.StorageClassName)
-	if err != nil {
-		return false, err
-	}
-	if targetStorageClass == nil {
-		log.Info("Target PVC's Storage Class not found")
-		return false, nil
-	}
-
-	if ok := r.validateSameStorageClass(sourcePvc, targetStorageClass); !ok {
-		return false, nil
-	}
-
-	if ok, err := r.validateSameVolumeMode(dataVolume, sourcePvc, targetStorageClass); !ok || err != nil {
-		return false, err
-	}
-
-	return r.validateAdvancedCloneSizeCompatible(sourcePvc, targetStorageSpec)
-}
-
-func (r *PvcCloneReconciler) validateSameStorageClass(
-	sourcePvc *corev1.PersistentVolumeClaim,
-	targetStorageClass *storagev1.StorageClass) bool {
-
-	targetPvcStorageClassName := &targetStorageClass.Name
-	sourcePvcStorageClassName := sourcePvc.Spec.StorageClassName
-
-	// Compare source and target storage classess
-	if *sourcePvcStorageClassName != *targetPvcStorageClassName {
-		r.log.V(3).Info("Source PVC and target PVC belong to different storage classes",
-			"source storage class", *sourcePvcStorageClassName,
-			"target storage class", *targetPvcStorageClassName)
-		return false
-	}
-
-	return true
-}
-
-func (r *PvcCloneReconciler) validateSameVolumeMode(
-	dataVolume *cdiv1.DataVolume,
-	sourcePvc *corev1.PersistentVolumeClaim,
-	targetStorageClass *storagev1.StorageClass) (bool, error) {
-
-	sourceVolumeMode := util.ResolveVolumeMode(sourcePvc.Spec.VolumeMode)
-	targetSpecVolumeMode, err := getStorageVolumeMode(r.client, dataVolume, targetStorageClass)
-	if err != nil {
-		return false, err
-	}
-	targetVolumeMode := util.ResolveVolumeMode(targetSpecVolumeMode)
-
-	if sourceVolumeMode != targetVolumeMode {
-		r.log.V(3).Info("Source PVC and target PVC have different volume modes, falling back to host assisted clone",
-			"source volume mode", sourceVolumeMode, "target volume mode", targetVolumeMode)
-		return false, nil
-	}
-
-	return true, nil
-}
-
-func getStorageVolumeMode(c client.Client, dataVolume *cdiv1.DataVolume, storageClass *storagev1.StorageClass) (*corev1.PersistentVolumeMode, error) {
-	if dataVolume.Spec.PVC != nil {
-		return dataVolume.Spec.PVC.VolumeMode, nil
-	} else if dataVolume.Spec.Storage != nil {
-		if dataVolume.Spec.Storage.VolumeMode != nil {
-			return dataVolume.Spec.Storage.VolumeMode, nil
-		}
-		volumeMode, err := getDefaultVolumeMode(c, storageClass, dataVolume.Spec.Storage.AccessModes)
-		if err != nil {
-			return nil, err
-		}
-		return volumeMode, nil
-	}
-
-	return nil, errors.Errorf("no target storage defined")
-}
-
-func (r *PvcCloneReconciler) validateAdvancedCloneSizeCompatible(
-	sourcePvc *corev1.PersistentVolumeClaim,
-	targetStorageSpec *corev1.PersistentVolumeClaimSpec) (bool, error) {
-	srcStorageClass := &storagev1.StorageClass{}
-	if sourcePvc.Spec.StorageClassName == nil {
-		return false, fmt.Errorf("source PVC Storage Class name wasn't populated yet by PVC controller")
-	}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *sourcePvc.Spec.StorageClassName}, srcStorageClass); cc.IgnoreNotFound(err) != nil {
-		return false, err
-	}
-
-	srcRequest, hasSrcRequest := sourcePvc.Spec.Resources.Requests[corev1.ResourceStorage]
-	srcCapacity, hasSrcCapacity := sourcePvc.Status.Capacity[corev1.ResourceStorage]
-	targetRequest, hasTargetRequest := targetStorageSpec.Resources.Requests[corev1.ResourceStorage]
-	allowExpansion := srcStorageClass.AllowVolumeExpansion != nil && *srcStorageClass.AllowVolumeExpansion
-	if !hasSrcRequest || !hasSrcCapacity || !hasTargetRequest {
-		// return error so we retry the reconcile
-		return false, errors.New("source/target size info missing")
-	}
-
-	if srcCapacity.Cmp(targetRequest) < 0 && !allowExpansion {
-		return false, nil
-	}
-
-	if srcRequest.Cmp(targetRequest) > 0 && !targetRequest.IsZero() {
-		return false, nil
-	}
-
-	return true, nil
-}
-
-func (r *PvcCloneReconciler) getCloneStrategy(dataVolume *cdiv1.DataVolume) (*cdiv1.CDICloneStrategy, error) {
-	defaultCloneStrategy := cdiv1.CloneStrategySnapshot
-	sourcePvc, err := r.findSourcePvc(dataVolume)
-	if err != nil {
-		return nil, err
-	}
-	storageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, sourcePvc.Spec.StorageClassName)
-	if err != nil {
-		return nil, err
-	}
-
-	strategyOverride, err := r.getGlobalCloneStrategyOverride()
-	if err != nil {
-		return nil, err
-	}
-	if strategyOverride != nil {
-		return strategyOverride, nil
-	}
-
-	// do check storageProfile and apply the preferences
-	strategy, err := r.getPreferredCloneStrategyForStorageClass(storageClass)
-	if err != nil {
-		return nil, err
-	}
-	if strategy != nil {
-		return strategy, err
-	}
-
-	return &defaultCloneStrategy, nil
 }
 
 func (r *PvcCloneReconciler) findSourcePvc(dataVolume *cdiv1.DataVolume) (*corev1.PersistentVolumeClaim, error) {
@@ -745,39 +339,6 @@ func (r *PvcCloneReconciler) findSourcePvc(dataVolume *cdiv1.DataVolume) (*corev
 		return nil, err
 	}
 	return pvc, nil
-}
-
-func (r *PvcCloneReconciler) getGlobalCloneStrategyOverride() (*cdiv1.CDICloneStrategy, error) {
-	cr, err := cc.GetActiveCDI(context.TODO(), r.client)
-	if err != nil {
-		return nil, err
-	}
-
-	if cr == nil {
-		return nil, fmt.Errorf("no active CDI")
-	}
-
-	if cr.Spec.CloneStrategyOverride == nil {
-		return nil, nil
-	}
-
-	r.log.V(3).Info(fmt.Sprintf("Overriding default clone strategy with %s", *cr.Spec.CloneStrategyOverride))
-	return cr.Spec.CloneStrategyOverride, nil
-}
-
-func (r *PvcCloneReconciler) getPreferredCloneStrategyForStorageClass(storageClass *storagev1.StorageClass) (*cdiv1.CDICloneStrategy, error) {
-	if storageClass == nil {
-		// fallback to defaults
-		return nil, nil
-	}
-
-	storageProfile := &cdiv1.StorageProfile{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{Name: storageClass.Name}, storageProfile)
-	if err != nil {
-		return nil, errors.Wrap(err, "cannot get StorageProfile")
-	}
-
-	return storageProfile.Status.CloneStrategy, nil
 }
 
 // validateCloneAndSourcePVC checks if the source PVC of a clone exists and does proper validation
@@ -811,18 +372,10 @@ func (r *PvcCloneReconciler) validateCloneAndSourcePVC(syncState *dvSyncState, l
 }
 
 // isSourceReadyToClone handles the reconciling process of a clone when the source PVC is not ready
-func (r *PvcCloneReconciler) isSourceReadyToClone(
-	datavolume *cdiv1.DataVolume,
-	selectedCloneStrategy cloneStrategy) (bool, error) {
+func (r *PvcCloneReconciler) isSourceReadyToClone(datavolume *cdiv1.DataVolume) (bool, error) {
+	// TODO preper const
+	eventReason := "CloneSourceInUse"
 
-	var eventReason string
-
-	switch selectedCloneStrategy {
-	case SmartClone:
-		eventReason = SmartCloneSourceInUse
-	case HostAssistedClone:
-		eventReason = HostAssistedCloneSourceInUse
-	}
 	// Check if any pods are using the source PVC
 	inUse, err := r.sourceInUse(datavolume, eventReason)
 	if err != nil {
@@ -842,7 +395,7 @@ func (r *PvcCloneReconciler) isSourceReadyToClone(
 }
 
 // detectCloneSize obtains and assigns the original PVC's size when cloning using an empty storage value
-func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState, cloneType cloneStrategy) (bool, error) {
+func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState) (bool, error) {
 	var targetSize int64
 	sourcePvc, err := r.findSourcePvc(syncState.dvMutated)
 	if err != nil {
@@ -853,10 +406,9 @@ func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState, cloneType c
 	// Due to possible filesystem overhead complications when cloning
 	// using host-assisted strategy, we create a pod that automatically
 	// collects the size of the original virtual image with 'qemu-img'.
-	// If another strategy is used or the original PVC's volume mode
-	// is "block", we simply extract the value from the original PVC's spec.
-	if cloneType == HostAssistedClone &&
-		cc.GetVolumeMode(sourcePvc) == corev1.PersistentVolumeFilesystem &&
+	// If the original PVC's volume mode is "block",
+	// we simply extract the value from the original PVC's spec.
+	if cc.GetVolumeMode(sourcePvc) == corev1.PersistentVolumeFilesystem &&
 		cc.GetPVCContentType(sourcePvc) == string(cdiv1.DataVolumeKubeVirt) {
 		var available bool
 		// If available, we first try to get the virtual size from previous iterations
