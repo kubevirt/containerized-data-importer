@@ -1595,6 +1595,7 @@ func createImportReconcilerWithoutConfig(objects ...runtime.Object) *ImportRecon
 				common.AppKubernetesPartOfLabel:  "testing",
 				common.AppKubernetesVersionLabel: "v0.0.0-tests",
 			},
+			shouldUpdateProgress: true,
 		},
 	}
 	return r

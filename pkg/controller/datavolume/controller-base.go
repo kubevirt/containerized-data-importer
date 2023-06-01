@@ -108,12 +108,13 @@ type dvSyncState struct {
 
 // ReconcilerBase members
 type ReconcilerBase struct {
-	client          client.Client
-	recorder        record.EventRecorder
-	scheme          *runtime.Scheme
-	log             logr.Logger
-	featureGates    featuregates.FeatureGates
-	installerLabels map[string]string
+	client               client.Client
+	recorder             record.EventRecorder
+	scheme               *runtime.Scheme
+	log                  logr.Logger
+	featureGates         featuregates.FeatureGates
+	installerLabels      map[string]string
+	shouldUpdateProgress bool
 }
 
 func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
@@ -687,17 +688,16 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 		datavolume.Status.Progress = "N/A"
 	}
 
+	if !r.shouldUpdateProgress {
+		return nil
+	}
+
 	if usePopulator, _ := CheckPVCUsingPopulators(pvc); usePopulator {
 		if progress, ok := pvc.Annotations[cc.AnnPopulatorProgress]; ok {
 			datavolume.Status.Progress = cdiv1.DataVolumeProgress(progress)
 		} else {
 			datavolume.Status.Progress = "N/A"
 		}
-		return nil
-	}
-
-	// With upload we don't have report of progress and no need to requeue
-	if datavolume.Spec.Source != nil && datavolume.Spec.Source.Upload != nil {
 		return nil
 	}
 

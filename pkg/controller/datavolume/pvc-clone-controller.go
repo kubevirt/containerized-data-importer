@@ -96,12 +96,13 @@ func NewPvcCloneController(
 	reconciler := &PvcCloneReconciler{
 		CloneReconcilerBase: CloneReconcilerBase{
 			ReconcilerBase: ReconcilerBase{
-				client:          client,
-				scheme:          mgr.GetScheme(),
-				log:             log.WithName(pvcCloneControllerName),
-				featureGates:    featuregates.NewFeatureGates(client),
-				recorder:        mgr.GetEventRecorderFor(pvcCloneControllerName),
-				installerLabels: installerLabels,
+				client:               client,
+				scheme:               mgr.GetScheme(),
+				log:                  log.WithName(pvcCloneControllerName),
+				featureGates:         featuregates.NewFeatureGates(client),
+				recorder:             mgr.GetEventRecorderFor(pvcCloneControllerName),
+				installerLabels:      installerLabels,
+				shouldUpdateProgress: true,
 			},
 			clonerImage:    clonerImage,
 			importerImage:  importerImage,

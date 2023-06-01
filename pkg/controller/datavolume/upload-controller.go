@@ -79,12 +79,13 @@ func NewUploadController(
 	client := mgr.GetClient()
 	reconciler := &UploadReconciler{
 		ReconcilerBase: ReconcilerBase{
-			client:          client,
-			scheme:          mgr.GetScheme(),
-			log:             log.WithName(uploadControllerName),
-			recorder:        mgr.GetEventRecorderFor(uploadControllerName),
-			featureGates:    featuregates.NewFeatureGates(client),
-			installerLabels: installerLabels,
+			client:               client,
+			scheme:               mgr.GetScheme(),
+			log:                  log.WithName(uploadControllerName),
+			recorder:             mgr.GetEventRecorderFor(uploadControllerName),
+			featureGates:         featuregates.NewFeatureGates(client),
+			installerLabels:      installerLabels,
+			shouldUpdateProgress: false,
 		},
 	}
 

@@ -85,12 +85,13 @@ func NewImportController(
 	client := mgr.GetClient()
 	reconciler := &ImportReconciler{
 		ReconcilerBase: ReconcilerBase{
-			client:          client,
-			scheme:          mgr.GetScheme(),
-			log:             log.WithName(importControllerName),
-			recorder:        mgr.GetEventRecorderFor(importControllerName),
-			featureGates:    featuregates.NewFeatureGates(client),
-			installerLabels: installerLabels,
+			client:               client,
+			scheme:               mgr.GetScheme(),
+			log:                  log.WithName(importControllerName),
+			recorder:             mgr.GetEventRecorderFor(importControllerName),
+			featureGates:         featuregates.NewFeatureGates(client),
+			installerLabels:      installerLabels,
+			shouldUpdateProgress: true,
 		},
 	}
 

@@ -61,12 +61,13 @@ func NewPopulatorController(ctx context.Context, mgr manager.Manager, log logr.L
 	client := mgr.GetClient()
 	reconciler := &PopulatorReconciler{
 		ReconcilerBase: ReconcilerBase{
-			client:          client,
-			scheme:          mgr.GetScheme(),
-			log:             log.WithName(populatorControllerName),
-			recorder:        mgr.GetEventRecorderFor(populatorControllerName),
-			featureGates:    featuregates.NewFeatureGates(client),
-			installerLabels: installerLabels,
+			client:               client,
+			scheme:               mgr.GetScheme(),
+			log:                  log.WithName(populatorControllerName),
+			recorder:             mgr.GetEventRecorderFor(populatorControllerName),
+			featureGates:         featuregates.NewFeatureGates(client),
+			installerLabels:      installerLabels,
+			shouldUpdateProgress: false,
 		},
 	}
 

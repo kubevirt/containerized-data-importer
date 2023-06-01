@@ -68,12 +68,13 @@ func NewSnapshotCloneController(
 	reconciler := &SnapshotCloneReconciler{
 		CloneReconcilerBase: CloneReconcilerBase{
 			ReconcilerBase: ReconcilerBase{
-				client:          client,
-				scheme:          mgr.GetScheme(),
-				log:             log.WithName(snapshotCloneControllerName),
-				featureGates:    featuregates.NewFeatureGates(client),
-				recorder:        mgr.GetEventRecorderFor(snapshotCloneControllerName),
-				installerLabels: installerLabels,
+				client:               client,
+				scheme:               mgr.GetScheme(),
+				log:                  log.WithName(snapshotCloneControllerName),
+				featureGates:         featuregates.NewFeatureGates(client),
+				recorder:             mgr.GetEventRecorderFor(snapshotCloneControllerName),
+				installerLabels:      installerLabels,
+				shouldUpdateProgress: true,
 			},
 			clonerImage:    clonerImage,
 			importerImage:  importerImage,

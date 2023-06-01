@@ -290,6 +290,7 @@ func createSnapshotCloneReconcilerWithoutConfig(objects ...runtime.Object) *Snap
 					common.AppKubernetesPartOfLabel:  "testing",
 					common.AppKubernetesVersionLabel: "v0.0.0-tests",
 				},
+				shouldUpdateProgress: true,
 			},
 			tokenValidator: &FakeValidator{Match: "foobar"},
 			tokenGenerator: &FakeGenerator{token: "foobar"},
