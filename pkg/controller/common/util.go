@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -82,6 +83,8 @@ const (
 	AnnPopulatedFor = AnnAPIGroup + "/storage.populatedFor"
 	// AnnPrePopulated is a PVC annotation telling the datavolume controller that the PVC is already populated
 	AnnPrePopulated = AnnAPIGroup + "/storage.prePopulated"
+	// AnnDataVolumeStamp is a PVC annotation stashing its creating DV manifest for ensuring exclusiveness
+	AnnDataVolumeStamp = AnnAPIGroup + "/storage.dataVolumeStamp"
 	// AnnPriorityClassName is PVC annotation to indicate the priority class name for importer, cloner and uploader pod
 	AnnPriorityClassName = AnnAPIGroup + "/storage.pod.priorityclassname"
 	// AnnExternalPopulation annotation marks a PVC as "externally populated", allowing the import-controller to skip it
@@ -1236,6 +1239,23 @@ func NewImportDataVolume(name string) *cdiv1.DataVolume {
 			PriorityClassName: "p0",
 		},
 	}
+}
+
+// GetDataVolumeStamp encodes a DataVolume manifest as string
+func GetDataVolumeStamp(dv *cdiv1.DataVolume) (string, error) {
+	dvStamp := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            dv.Name,
+			Namespace:       dv.Namespace,
+			OwnerReferences: dv.OwnerReferences,
+		},
+		Spec: dv.Spec,
+	}
+	bs, err := json.Marshal(dvStamp)
+	if err != nil {
+		return "", err
+	}
+	return string(bs), nil
 }
 
 // GetCloneSourceNameAndNamespace returns the name and namespace of the cloning source

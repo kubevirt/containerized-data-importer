@@ -104,6 +104,13 @@ func (r *ReconcilerBase) canUpdateFinalizers(ownerRef metav1.OwnerReference) (bo
 func (r *ReconcilerBase) detachPvcDeleteDv(syncState *dvSyncState) error {
 	updatePvcOwnerRefs(syncState.pvc, syncState.dv)
 	delete(syncState.pvc.Annotations, cc.AnnPopulatedFor)
+
+	dvStamp, err := cc.GetDataVolumeStamp(syncState.dv)
+	if err != nil {
+		return err
+	}
+	cc.AddAnnotation(syncState.pvc, cc.AnnDataVolumeStamp, dvStamp)
+
 	if err := r.updatePVC(syncState.pvc); err != nil {
 		return err
 	}

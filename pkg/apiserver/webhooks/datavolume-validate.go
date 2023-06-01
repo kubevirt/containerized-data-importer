@@ -567,8 +567,26 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 				return toAdmissionResponseError(err)
 			}
 		} else {
+			dvGC := pvc.Annotations[cc.AnnDeleteAfterCompletion] == "true"
+			if dvGC {
+				dvStamp, err := cc.GetDataVolumeStamp(&dv)
+				if err != nil {
+					return toAdmissionResponseError(err)
+				}
+				if dvStamp != pvc.Annotations[cc.AnnDataVolumeStamp] {
+					klog.Errorf("Cannot update garbage collected DataVolume, new:\n%s\ncurrent:\n%s", dvStamp, pvc.Annotations[cc.AnnDataVolumeStamp])
+					var causes []metav1.StatusCause
+					causes = append(causes, metav1.StatusCause{
+						Type:    metav1.CauseTypeFieldValueDuplicate,
+						Message: "Cannot update garbage collected DataVolume",
+						Field:   k8sfield.NewPath("DataVolume").String(),
+					})
+					return toRejectedAdmissionResponse(causes)
+				}
+			}
+
 			dvName, ok := pvc.Annotations[cc.AnnPopulatedFor]
-			if !ok || dvName != dv.GetName() {
+			if (!ok && !dvGC) || (ok && dvName != dv.GetName()) {
 				pvcOwner := metav1.GetControllerOf(pvc)
 				// We should reject the DV if a PVC with the same name exists, and that PVC has no ownerRef, or that
 				// PVC has an ownerRef that is not a DataVolume. Because that means that PVC is not managed by the
