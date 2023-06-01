@@ -70,7 +70,6 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.DEV_HARBOR_USERNAME }}
           password: ${{ secrets.DEV_HARBOR_TOKEN }}
-      - name: Build & Push Docker image
       - name: Build x86_64 image
         run: |
           export DOCKER_TAG=$VERSION-amd64
