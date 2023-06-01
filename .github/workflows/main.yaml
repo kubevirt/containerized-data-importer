@@ -3,81 +3,132 @@ name: Build x86 and arm Image
 on:
   pull_request:
     branches:
-      - ecx-*
+      - master
+      - develop
   push:
     branches:
-      - ecx-*
-
+      - master
+      - develop
 env:
-  VERSION: v1.41.0.3
-
+  TAG: v0.0.12222222
+  VERSION: v1.41.1111.3
+  
 jobs:
-  build_x86:
-    name: Build x86
-    runs-on: ubuntu-18.04
+  docker-image-master:
+    if: github.ref_name == 'master'
+    env:
+      REGISTRY: ${{ vars.PRO_REGISTRY }}
+    name: Build x86 and arm Image master
+    runs-on: 
+      group: Default
     steps:
-      - name: Set up Go 1.x
-        uses: actions/setup-go@v2
+      - uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Set up Go
+        uses: actions/setup-go@v3
         with:
-          go-version: 1.16.7
-        id: go
-
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
-
+          go-version: 1.19
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Build
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.PRO_HARBOR_USERNAME }}
+          password: ${{ secrets.PRO_HARBOR_TOKEN }}
+      - name: Build x86_64 image & Push
         run: |
           export DOCKER_TAG=$VERSION-amd64
           export DOCKER_PREFIX=${{ secrets.DOCKER_USERNAME }}
           export BUILD_ARCH=x86_64
           make bazel-build-images
           make bazel-push-images
-  build_arm:
-    name: Build arm
-    runs-on: ubuntu-18.04
-    steps:
-      - name: Set up Go 1.x
-        uses: actions/setup-go@v2
-        with:
-          go-version: 1.16.7
-        id: go
-
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
-        with:
-          registry:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build
+      - name: Build arm image & Push
         run: |
           export DOCKER_TAG=$VERSION-arm64
           export DOCKER_PREFIX=${{ secrets.DOCKER_USERNAME }}
           export BUILD_ARCH=crossbuild-aarch64
           make bazel-build-images
           make bazel-push-images
-  push_manifest_list:
-    runs-on: ubuntu-18.04
-    name: push manifest list
-    needs: [ build_x86, build_arm]
+  docker-image-develop:
+    if: github.ref_name == 'develop'
+    env:
+      REGISTRY: ${{ vars.DEV_REGISTRY }}
+    name: Build x86 and arm Image develop
+    runs-on: 
+      group: Default
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DEV_HARBOR_USERNAME }}
+          password: ${{ secrets.DEV_HARBOR_TOKEN }}
+      - name: Build & Push Docker image
+      - name: Build x86_64 image
+        run: |
+          export DOCKER_TAG=$VERSION-amd64
+          export DOCKER_PREFIX=${{ vars.DEV_REGISTRY }}/ecf-edge/
+          export BUILD_ARCH=x86_64
+          make bazel-build-images
+          make bazel-push-images
+      - name: Build arm image
+        run: |
+          export DOCKER_TAG=$VERSION-arm64
+          export DOCKER_PREFIX=${{ vars.DEV_REGISTRY }}/ecf-edge/
+          export BUILD_ARCH=crossbuild-aarch64
+          make bazel-build-images
+          make bazel-push-images
+  push_manifest_list_develop:
+    if: github.ref_name == 'develop'
+    runs-on: 
+      group: Default
+    env:
+      REGISTRY: ${{ vars.DEV_REGISTRY }}
+    name: push develop manifest list
+    needs: [ docker-image-develop]
     strategy: # 矩阵策略
       matrix:
         docekr_image: [cdi-controller,cdi-importer,cdi-cloner,cdi-uploadproxy,cdi-apiserver,cdi-uploadserver,cdi-operator]
-
     steps:
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DEV_HARBOR_USERNAME }}
+          password: ${{ secrets.DEV_HARBOR_TOKEN }}
+      - name: Create docker manifest and Push the new manifest file
+        env:
+          DOCKER_USERNAME: ${{ vars.DEV_REGISTRY }}
+        run: |
+          export DOCKER_PREFIX_TAG=$VERSION
+          export DOCKER_PREFIX=$DOCKER_USERNAME
+          docker manifest create $DOCKER_USERNAME/ecf-edge/${{ matrix.docekr_image }}:$DOCKER_PREFIX_TAG $DOCKER_USERNAME/ecf-edge/${{ matrix.docekr_image }}:$DOCKER_PREFIX_TAG-amd64 $DOCKER_USERNAME/ecf-edge/${{ matrix.docekr_image }}:$DOCKER_PREFIX_TAG-arm64
+          docker manifest push $DOCKER_USERNAME/ecf-edge/${{ matrix.docekr_image }}:$DOCKER_PREFIX_TAG
+  push_manifest_master:
+    if: github.ref_name == 'master'
+    runs-on: 
+      group: Default
+    env:
+      REGISTRY: ${{ vars.PRO_REGISTRY }}
+    name: push master manifest list
+    needs: [ docker-image-develop]
+    strategy: # 矩阵策略
+      matrix:
+        docekr_image: [cdi-controller,cdi-importer,cdi-cloner,cdi-uploadproxy,cdi-apiserver,cdi-uploadserver,cdi-operator]
+    steps:
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.PRO_HARBOR_USERNAME }}
+          password: ${{ secrets.PRO_HARBOR_TOKEN }}
       - name: Create docker manifest and Push the new manifest file
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
@@ -86,3 +137,4 @@ jobs:
           export DOCKER_PREFIX=$DOCKER_USERNAME
           docker manifest create $DOCKER_USERNAME/${{ matrix.docekr_image }}:$DOCKER_PREFIX_TAG $DOCKER_USERNAME/${{ matrix.docekr_image }}:$DOCKER_PREFIX_TAG-amd64 $DOCKER_USERNAME/${{ matrix.docekr_image }}:$DOCKER_PREFIX_TAG-arm64
           docker manifest push $DOCKER_USERNAME/${{ matrix.docekr_image }}:$DOCKER_PREFIX_TAG
+
