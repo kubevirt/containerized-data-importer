@@ -106,15 +106,16 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 			Skip("CSI Volume Clone is not applicable")
 		}
 
-		By("Configure namespace quota")
-		Expect(f.CreateStorageQuota(int64(2), int64(1024*1024*1024))).To(Succeed())
-
 		By(fmt.Sprintf("configure storage profile %s", f.CsiCloneSCName))
 		Expect(
 			utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone),
 		).To(Succeed())
 
-		dataVolume, md5 := createDataVolumeDontWait("dv-csi-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, f.CsiCloneSCName, f)
+		sourcePvc, md5 := createAndVerifySourcePVC("dv-csi-clone-test-1", utils.DefaultImagePath, f.CsiCloneSCName, v1.PersistentVolumeFilesystem, f)
+		By("Configure namespace quota after source is ready")
+		Expect(f.CreateStorageQuota(int64(2), int64(1024*1024*1024))).To(Succeed())
+
+		dataVolume := createCloneDataVolumeFromSource(sourcePvc, "dv-csi-clone-test-1", f.CsiCloneSCName, f)
 		By("Verify Quota was exceeded in events and dv conditions")
 		waitForDvPhase(cdiv1.Pending, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(cc.ErrExceededQuota))
@@ -150,7 +151,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 
 })
 
-func createDataVolumeDontWait(dataVolumeName, testPath string, volumeMode v1.PersistentVolumeMode, scName string, f *framework.Framework) (*cdiv1.DataVolume, string) {
+func createAndVerifySourcePVC(dataVolumeName, testPath, scName string, volumeMode v1.PersistentVolumeMode, f *framework.Framework) (*v1.PersistentVolumeClaim, string) {
 	sourcePvc := createAndPopulateSourcePVC(dataVolumeName, volumeMode, scName, f)
 	md5, err := f.GetMD5(f.Namespace, sourcePvc, testPath, utils.UploadFileSize)
 	Expect(err).ToNot(HaveOccurred())
@@ -158,14 +159,25 @@ func createDataVolumeDontWait(dataVolumeName, testPath string, volumeMode v1.Per
 	err = utils.DeletePodByName(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, &zero)
 	Expect(err).ToNot(HaveOccurred())
 
+	return sourcePvc, md5
+}
+
+func createCloneDataVolumeFromSource(sourcePvc *v1.PersistentVolumeClaim, dataVolumeName, scName string, f *framework.Framework) *cdiv1.DataVolume {
 	By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
 	dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)
 	if scName != "" {
 		dataVolume.Spec.PVC.StorageClassName = &scName
 	}
 	By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
-	dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+	dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 	Expect(err).ToNot(HaveOccurred())
+
+	return dataVolume
+}
+
+func createDataVolumeDontWait(dataVolumeName, testPath string, volumeMode v1.PersistentVolumeMode, scName string, f *framework.Framework) (*cdiv1.DataVolume, string) {
+	sourcePvc, md5 := createAndVerifySourcePVC(dataVolumeName, testPath, scName, volumeMode, f)
+	dataVolume := createCloneDataVolumeFromSource(sourcePvc, dataVolumeName, scName, f)
 
 	return dataVolume, md5
 }
