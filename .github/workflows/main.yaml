@@ -75,7 +75,7 @@ jobs:
           username: ${{ secrets.DEV_HARBOR_USERNAME }}
           password: ${{ secrets.DEV_HARBOR_TOKEN }}
       - name: Build x86_64 image
-        run: |
+        run:  |
           export DOCKER_TAG=$VERSION-amd64
           export DOCKER_PREFIX=${{ vars.DEV_REGISTRY }}/ecf-edge
           export BUILD_ARCH=x86_64
