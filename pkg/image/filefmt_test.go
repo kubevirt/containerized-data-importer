@@ -9,17 +9,17 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+func tokenWithPaddingPrefix(token []byte, paddingLength int) []byte {
+	padding := make([]byte, paddingLength)
+	rand.Read(padding)
+	return append(padding, token...)
+}
+
 var _ = Describe("File format tests", func() {
 	It("Copy known headers - map known headers", func() {
 		got := CopyKnownHdrs()
 		Expect(reflect.DeepEqual(got, knownHeaders)).To(BeTrue())
 	})
-
-	//tar bytes and offset
-	token := make([]byte, 257)
-	tarheader := []byte{0x75, 0x73, 0x74, 0x61, 0x72, 0x20}
-	rand.Read(token)
-	tarbyte := append(token, tarheader...)
 
 	table.DescribeTable("Header match", func(h Header, b []byte, want bool) {
 		got := h.Match(b)
@@ -35,7 +35,7 @@ var _ = Describe("File format tests", func() {
 			true),
 		table.Entry("match tar",
 			Header{"tar", []byte{0x75, 0x73, 0x74, 0x61, 0x72, 0x20}, 0x101, 124, 8},
-			tarbyte,
+			tokenWithPaddingPrefix([]byte{0x75, 0x73, 0x74, 0x61, 0x72, 0x20}, 257),
 			true),
 		table.Entry("match xz",
 			Header{"xz", []byte{0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00}, 0, 0, 0},
@@ -60,6 +60,10 @@ var _ = Describe("File format tests", func() {
 		table.Entry("match vhdx",
 			Header{"vhdx", []byte("vhdxfile"), 0, 24, 8},
 			[]byte("vhdxfile"),
+			true),
+		table.Entry("match iso",
+			Header{"iso", []byte("CD001"), 0x8001, 0, 0},
+			tokenWithPaddingPrefix([]byte("CD001"), 0x8001),
 			true),
 	)
 

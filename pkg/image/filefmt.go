@@ -10,10 +10,10 @@ import (
 )
 
 // MaxExpectedHdrSize defines the Size of buffer used to read file headers.
-// Note: this is the size of tar's header. If a larger number is used the tar unarchive operation
+// Note: this is the size of iso's header. If a larger number is used the tar unarchive operation
 //
 //	creates the destination file too large, by the difference between this const and 512.
-const MaxExpectedHdrSize = 512
+const MaxExpectedHdrSize = 32774
 
 // Headers provides a map for header info, key is file format, eg. "gz" or "tar", value is metadata describing the layout for this hdr
 type Headers map[string]Header
@@ -75,6 +75,13 @@ var knownHeaders = Headers{
 	"vhdx": Header{
 		Format:      "vhdx",
 		magicNumber: []byte("vhdxfile"),
+		SizeOff:     0,
+		SizeLen:     0,
+	},
+	"iso": Header{
+		Format:      "iso",
+		magicNumber: []byte("CD001"),
+		mgOffset:    0x8001,
 		SizeOff:     0,
 		SizeLen:     0,
 	},

@@ -196,6 +196,9 @@ func (fr *FormatReaders) fileFormatSelector(hdr *image.Header) {
 	case "vhdx":
 		r = nil
 		fr.Convert = true
+	case "iso":
+		r = nil
+		fr.Convert = true
 	}
 	if err == nil && r != nil {
 		fr.appendReader(rdrTypM[fFmt], r)
