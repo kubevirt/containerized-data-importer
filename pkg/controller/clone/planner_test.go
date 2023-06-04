@@ -93,7 +93,7 @@ var _ = Describe("Planner test", func() {
 		}
 	}
 
-	createDataSource := func() *cdiv1.VolumeCloneSource {
+	createPVCDataSource := func() *cdiv1.VolumeCloneSource {
 		return &cdiv1.VolumeCloneSource{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "vcs",
@@ -103,6 +103,22 @@ var _ = Describe("Planner test", func() {
 				Source: corev1.TypedLocalObjectReference{
 					Kind: "PersistentVolumeClaim",
 					Name: sourceName,
+				},
+			},
+		}
+	}
+
+	createSnapshotDataSource := func() *cdiv1.VolumeCloneSource {
+		return &cdiv1.VolumeCloneSource{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "vcs-snapshot",
+				Namespace: namespace,
+			},
+			Spec: cdiv1.VolumeCloneSourceSpec{
+				Source: corev1.TypedLocalObjectReference{
+					APIGroup: &snapshotv1.SchemeGroupVersion.Group,
+					Kind:     "VolumeSnapshot",
+					Name:     sourceName,
 				},
 			},
 		}
@@ -128,6 +144,39 @@ var _ = Describe("Planner test", func() {
 
 	createTargetClaim := func() *corev1.PersistentVolumeClaim {
 		return createClaim(targetName)
+	}
+
+	createSourceSnapshot := func(name, volumeSnapshotContentName, snapClassName string) *snapshotv1.VolumeSnapshot {
+		pvcName := "some-pvc-that-was-snapshotted"
+		size := resource.MustParse("1G")
+
+		return &snapshotv1.VolumeSnapshot{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+			},
+			Spec: snapshotv1.VolumeSnapshotSpec{
+				Source: snapshotv1.VolumeSnapshotSource{
+					PersistentVolumeClaimName: &pvcName,
+				},
+				VolumeSnapshotClassName: &snapClassName,
+			},
+			Status: &snapshotv1.VolumeSnapshotStatus{
+				RestoreSize:                    &size,
+				BoundVolumeSnapshotContentName: &volumeSnapshotContentName,
+			},
+		}
+	}
+
+	createDefaultVolumeSnapshotContent := func() *snapshotv1.VolumeSnapshotContent {
+		return &snapshotv1.VolumeSnapshotContent{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-snapshot-content-name",
+			},
+			Spec: snapshotv1.VolumeSnapshotContentSpec{
+				Driver: driverName,
+			},
+		}
 	}
 
 	createSourceClaim := func() *corev1.PersistentVolumeClaim {
@@ -196,7 +245,7 @@ var _ = Describe("Planner test", func() {
 	Context("ChooseStrategy tests", func() {
 
 		It("should error if unsupported kind", func() {
-			source := createDataSource()
+			source := createPVCDataSource()
 			source.Spec.Source.Kind = "UnsupportedKind"
 			args := &ChooseStrategyArgs{
 				DataSource: source,
@@ -208,225 +257,345 @@ var _ = Describe("Planner test", func() {
 			Expect(err.Error()).To(Equal("unsupported datasource"))
 		})
 
-		It("should return nil if no storageclass name", func() {
-			tc := createTargetClaim()
-			tc.Spec.StorageClassName = nil
-			args := &ChooseStrategyArgs{
-				TargetClaim: tc,
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			planner := createPlanner()
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(strategy).To(BeNil())
+		Context("PVC source", func() {
+			It("should return nil if no storageclass name", func() {
+				tc := createTargetClaim()
+				tc.Spec.StorageClassName = nil
+				args := &ChooseStrategyArgs{
+					TargetClaim: tc,
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner()
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).To(BeNil())
+			})
+
+			It("should error if emptystring storageclass name", func() {
+				tc := createTargetClaim()
+				tc.Spec.StorageClassName = pointer.String("")
+				args := &ChooseStrategyArgs{
+					TargetClaim: tc,
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner()
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("claim has emptystring storageclass, will not work"))
+				Expect(strategy).To(BeNil())
+			})
+
+			It("should error if no storageclass exists", func() {
+				args := &ChooseStrategyArgs{
+					TargetClaim: createTargetClaim(),
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner()
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("target storage class not found"))
+				Expect(strategy).To(BeNil())
+			})
+
+			It("should return nil if no source", func() {
+				args := &ChooseStrategyArgs{
+					TargetClaim: createTargetClaim(),
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(createStorageClass())
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).To(BeNil())
+				expectEvent(planner, CloneWithoutSource)
+			})
+
+			It("should fail target smaller", func() {
+				source := createSourceClaim()
+				target := createTargetClaim()
+				target.Spec.Resources.Requests[corev1.ResourceStorage] = small
+				args := &ChooseStrategyArgs{
+					TargetClaim: target,
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(createStorageClass(), source)
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("target resources requests storage size is smaller than the source"))
+				Expect(strategy).To(BeNil())
+				expectEvent(planner, CloneValidationFailed)
+			})
+
+			It("should return host assisted with no volumesnapshotclass", func() {
+				args := &ChooseStrategyArgs{
+					TargetClaim: createTargetClaim(),
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(createStorageClass(), createSourceClaim())
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).ToNot(BeNil())
+				Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				expectEvent(planner, NoVolumeSnapshotClass)
+			})
+
+			It("should return snapshot with volumesnapshotclass", func() {
+				args := &ChooseStrategyArgs{
+					TargetClaim: createTargetClaim(),
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass(), createSourceVolume())
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).ToNot(BeNil())
+				Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
+			})
+
+			It("should return snapshot with volumesnapshotclass (no source vol)", func() {
+				args := &ChooseStrategyArgs{
+					TargetClaim: createTargetClaim(),
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass())
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).ToNot(BeNil())
+				Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
+			})
+
+			It("should return snapshot with volumesnapshotclass and source storageclass does not exist but same driver", func() {
+				sourceClaim := createSourceClaim()
+				sourceVolume := createSourceVolume()
+				sourceVolume.Spec.StorageClassName = "baz"
+				sourceClaim.Spec.StorageClassName = pointer.String(sourceVolume.Spec.StorageClassName)
+				args := &ChooseStrategyArgs{
+					TargetClaim: createTargetClaim(),
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(createStorageClass(), createVolumeSnapshotClass(), sourceClaim, sourceVolume)
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).ToNot(BeNil())
+				Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
+			})
+
+			It("should returnsnapshot with bigger target", func() {
+				target := createTargetClaim()
+				target.Spec.Resources.Requests[corev1.ResourceStorage] = large
+				args := &ChooseStrategyArgs{
+					TargetClaim: target,
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass())
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).ToNot(BeNil())
+				Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
+			})
+
+			It("should return host assisted with bigger target and no volumeexpansion", func() {
+				storageClass := createStorageClass()
+				storageClass.AllowVolumeExpansion = nil
+				target := createTargetClaim()
+				target.Spec.Resources.Requests[corev1.ResourceStorage] = large
+				args := &ChooseStrategyArgs{
+					TargetClaim: target,
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(storageClass, createSourceClaim(), createVolumeSnapshotClass())
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).ToNot(BeNil())
+				Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				expectEvent(planner, NoVolumeExpansion)
+			})
+
+			It("should return host assisted with non matching volume modes", func() {
+				bm := corev1.PersistentVolumeBlock
+				source := createSourceClaim()
+				source.Spec.VolumeMode = &bm
+				args := &ChooseStrategyArgs{
+					TargetClaim: createTargetClaim(),
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(createStorageClass(), createVolumeSnapshotClass(), source)
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).ToNot(BeNil())
+				Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				expectEvent(planner, IncompatibleVolumeModes)
+			})
+
+			It("should return csi-clone if global override is set", func() {
+				cs := cdiv1.CloneStrategyCsiClone
+				args := &ChooseStrategyArgs{
+					TargetClaim: createTargetClaim(),
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(createStorageClass(), createSourceClaim())
+				cdi := &cdiv1.CDI{}
+				err := planner.Client.Get(context.Background(), client.ObjectKeyFromObject(cc.MakeEmptyCDICR()), cdi)
+				Expect(err).ToNot(HaveOccurred())
+				cdi.Spec.CloneStrategyOverride = &cs
+				err = planner.Client.Update(context.Background(), cdi)
+				Expect(err).ToNot(HaveOccurred())
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).ToNot(BeNil())
+				Expect(*strategy).To(Equal(cdiv1.CloneStrategyCsiClone))
+			})
+
+			It("should return csi-clone if storage profile is set", func() {
+				cs := cdiv1.CloneStrategyCsiClone
+				args := &ChooseStrategyArgs{
+					TargetClaim: createTargetClaim(),
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				sp := &cdiv1.StorageProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: storageClassName,
+					},
+					Status: cdiv1.StorageProfileStatus{
+						CloneStrategy: &cs,
+					},
+				}
+				planner := createPlanner(sp, createStorageClass(), createSourceClaim())
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).ToNot(BeNil())
+				Expect(*strategy).To(Equal(cdiv1.CloneStrategyCsiClone))
+			})
 		})
 
-		It("should error if emptystring storageclass name", func() {
-			tc := createTargetClaim()
-			tc.Spec.StorageClassName = pointer.String("")
-			args := &ChooseStrategyArgs{
-				TargetClaim: tc,
-				DataSource:  createDataSource(),
-				Log:         log,
+		Context("Snapshot source", func() {
+			createDefaultVolumeSnapshotContent := func(driver string) *snapshotv1.VolumeSnapshotContent {
+				return &snapshotv1.VolumeSnapshotContent{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-snapshot-content-name",
+					},
+					Spec: snapshotv1.VolumeSnapshotContentSpec{
+						Driver: driver,
+					},
+				}
 			}
-			planner := createPlanner()
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("claim has emptystring storageclass, will not work"))
-			Expect(strategy).To(BeNil())
-		})
 
-		It("should error if no storageclass exists", func() {
-			args := &ChooseStrategyArgs{
-				TargetClaim: createTargetClaim(),
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			planner := createPlanner()
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("target storage class not found"))
-			Expect(strategy).To(BeNil())
-		})
+			It("should return nil if no source", func() {
+				args := &ChooseStrategyArgs{
+					TargetClaim: createTargetClaim(),
+					DataSource:  createSnapshotDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(createStorageClass())
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).To(BeNil())
+				expectEvent(planner, CloneWithoutSource)
+			})
 
-		It("should return nil if no source", func() {
-			args := &ChooseStrategyArgs{
-				TargetClaim: createTargetClaim(),
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			planner := createPlanner(createStorageClass())
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(strategy).To(BeNil())
-			expectEvent(planner, CloneWithoutSource)
-		})
+			It("should fail when target storage class does not exist", func() {
+				args := &ChooseStrategyArgs{
+					TargetClaim: createTargetClaim(),
+					DataSource:  createSnapshotDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner()
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("target storage class not found"))
+				Expect(strategy).To(BeNil())
+			})
 
-		It("should fail target smaller", func() {
-			source := createSourceClaim()
-			target := createTargetClaim()
-			target.Spec.Resources.Requests[corev1.ResourceStorage] = small
-			args := &ChooseStrategyArgs{
-				TargetClaim: target,
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			planner := createPlanner(createStorageClass(), source)
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("target resources requests storage size is smaller than the source"))
-			Expect(strategy).To(BeNil())
-			expectEvent(planner, CloneValidationFailed)
-		})
+			It("should fail when snapshot doesn't have populated volumeSnapshotContent name", func() {
+				source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+				source.Status = nil
+				target := createTargetClaim()
+				args := &ChooseStrategyArgs{
+					TargetClaim: target,
+					DataSource:  createSnapshotDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(createStorageClass(), source)
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("volumeSnapshotContent name not found"))
+				Expect(strategy).To(BeNil())
+			})
 
-		It("should return host assisted with no volumesnapshotclass", func() {
-			args := &ChooseStrategyArgs{
-				TargetClaim: createTargetClaim(),
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			planner := createPlanner(createStorageClass(), createSourceClaim())
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(strategy).ToNot(BeNil())
-			Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
-			expectEvent(planner, NoVolumeSnapshotClass)
-		})
+			It("should fallback to host-assisted when snapshot and storage class provisioners differ", func() {
+				source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+				target := createTargetClaim()
+				args := &ChooseStrategyArgs{
+					TargetClaim: target,
+					DataSource:  createSnapshotDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(createStorageClass(), source, createDefaultVolumeSnapshotContent("test"))
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).ToNot(BeNil())
+				Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+			})
 
-		It("should return snapshot with volumesnapshotclass", func() {
-			args := &ChooseStrategyArgs{
-				TargetClaim: createTargetClaim(),
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			planner := createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass(), createSourceVolume())
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(strategy).ToNot(BeNil())
-			Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
-		})
+			It("should fail if snapshot doesn't have restore size", func() {
+				source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+				source.Status.RestoreSize = nil
+				target := createTargetClaim()
+				args := &ChooseStrategyArgs{
+					TargetClaim: target,
+					DataSource:  createSnapshotDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(createStorageClass(), source, createDefaultVolumeSnapshotContent("driver"))
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("snapshot has no RestoreSize"))
+				Expect(strategy).To(BeNil())
+			})
 
-		It("should return snapshot with volumesnapshotclass (no source vol)", func() {
-			args := &ChooseStrategyArgs{
-				TargetClaim: createTargetClaim(),
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			planner := createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass())
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(strategy).ToNot(BeNil())
-			Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
-		})
+			It("should fallback to host-assisted when expansion is not supported", func() {
+				source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+				target := createTargetClaim()
+				args := &ChooseStrategyArgs{
+					TargetClaim: target,
+					DataSource:  createSnapshotDataSource(),
+					Log:         log,
+				}
+				sc := createStorageClass()
+				sc.AllowVolumeExpansion = nil
+				planner := createPlanner(sc, source, createDefaultVolumeSnapshotContent("driver"))
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).ToNot(BeNil())
+				Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+			})
 
-		It("should return snapshot with volumesnapshotclass and source storageclass does not exist but same driver", func() {
-			sourceClaim := createSourceClaim()
-			sourceVolume := createSourceVolume()
-			sourceVolume.Spec.StorageClassName = "baz"
-			sourceClaim.Spec.StorageClassName = pointer.String(sourceVolume.Spec.StorageClassName)
-			args := &ChooseStrategyArgs{
-				TargetClaim: createTargetClaim(),
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			planner := createPlanner(createStorageClass(), createVolumeSnapshotClass(), sourceClaim, sourceVolume)
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(strategy).ToNot(BeNil())
-			Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
-		})
-
-		It("should returnsnapshot with bigger target", func() {
-			target := createTargetClaim()
-			target.Spec.Resources.Requests[corev1.ResourceStorage] = large
-			args := &ChooseStrategyArgs{
-				TargetClaim: target,
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			planner := createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass())
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(strategy).ToNot(BeNil())
-			Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
-		})
-
-		It("should return host assisted with bigger target and no volumeexpansion", func() {
-			storageClass := createStorageClass()
-			storageClass.AllowVolumeExpansion = nil
-			target := createTargetClaim()
-			target.Spec.Resources.Requests[corev1.ResourceStorage] = large
-			args := &ChooseStrategyArgs{
-				TargetClaim: target,
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			planner := createPlanner(storageClass, createSourceClaim(), createVolumeSnapshotClass())
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(strategy).ToNot(BeNil())
-			Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
-			expectEvent(planner, NoVolumeExpansion)
-		})
-
-		It("should return host assisted with non matching volume modes", func() {
-			bm := corev1.PersistentVolumeBlock
-			source := createSourceClaim()
-			source.Spec.VolumeMode = &bm
-			args := &ChooseStrategyArgs{
-				TargetClaim: createTargetClaim(),
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			planner := createPlanner(createStorageClass(), createVolumeSnapshotClass(), source)
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(strategy).ToNot(BeNil())
-			Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
-			expectEvent(planner, IncompatibleVolumeModes)
-		})
-
-		It("should return csi-clone if global override is set", func() {
-			cs := cdiv1.CloneStrategyCsiClone
-			args := &ChooseStrategyArgs{
-				TargetClaim: createTargetClaim(),
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			planner := createPlanner(createStorageClass(), createSourceClaim())
-			cdi := &cdiv1.CDI{}
-			err := planner.Client.Get(context.Background(), client.ObjectKeyFromObject(cc.MakeEmptyCDICR()), cdi)
-			Expect(err).ToNot(HaveOccurred())
-			cdi.Spec.CloneStrategyOverride = &cs
-			err = planner.Client.Update(context.Background(), cdi)
-			Expect(err).ToNot(HaveOccurred())
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(strategy).ToNot(BeNil())
-			Expect(*strategy).To(Equal(cdiv1.CloneStrategyCsiClone))
-		})
-
-		It("should return csi-clone if storage profile is set", func() {
-			cs := cdiv1.CloneStrategyCsiClone
-			args := &ChooseStrategyArgs{
-				TargetClaim: createTargetClaim(),
-				DataSource:  createDataSource(),
-				Log:         log,
-			}
-			sp := &cdiv1.StorageProfile{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: storageClassName,
-				},
-				Status: cdiv1.StorageProfileStatus{
-					CloneStrategy: &cs,
-				},
-			}
-			planner := createPlanner(sp, createStorageClass(), createSourceClaim())
-			strategy, err := planner.ChooseStrategy(context.Background(), args)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(strategy).ToNot(BeNil())
-			Expect(*strategy).To(Equal(cdiv1.CloneStrategyCsiClone))
+			It("should do smart clone when meeting all prerequisites", func() {
+				source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+				target := createTargetClaim()
+				args := &ChooseStrategyArgs{
+					TargetClaim: target,
+					DataSource:  createSnapshotDataSource(),
+					Log:         log,
+				}
+				planner := createPlanner(createStorageClass(), source, createDefaultVolumeSnapshotContent("driver"))
+				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strategy).ToNot(BeNil())
+				Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
+			})
 		})
 	})
 
@@ -442,25 +611,33 @@ var _ = Describe("Planner test", func() {
 			},
 		}
 
+		tmpClaimName := func(uid types.UID) string {
+			return "tmp-pvc-" + string(uid)
+		}
+
+		tmpSourceClaimName := func(uid types.UID) string {
+			return "tmp-source-pvc-" + string(uid)
+		}
+
+		tmpSnapshotName := func(uid types.UID) string {
+			return "tmp-snapshot-" + string(uid)
+		}
+
 		validateHostClonePhase := func(planner *Planner, args *PlanArgs, p Phase) {
 			hc := p.(*HostClonePhase)
 			Expect(hc).ToNot(BeNil())
 			Expect(hc.Owner).To(Equal(args.TargetClaim))
 			Expect(hc.Namespace).To(Equal(namespace))
-			Expect(hc.SourceName).To(Equal(sourceName))
+			if IsDataSourceSnapshot(args.DataSource.Spec.Source.Kind) && args.Strategy == cdiv1.CloneStrategyHostAssisted {
+				Expect(hc.SourceName).To(Equal(tmpSourceClaimName(args.TargetClaim.UID)))
+			} else {
+				Expect(hc.SourceName).To(Equal(sourceName))
+			}
 			Expect(hc.ImmediateBind).To(BeTrue())
 			Expect(hc.OwnershipLabel).To(Equal(planner.OwnershipLabel))
 			desiredSize := hc.DesiredClaim.Spec.Resources.Requests[corev1.ResourceStorage]
 			requestedSize := args.TargetClaim.Spec.Resources.Requests[corev1.ResourceStorage]
 			Expect(desiredSize.Cmp(requestedSize)).To(Equal(1))
-		}
-
-		tmpClaimName := func(uid types.UID) string {
-			return "tmp-pvc-" + string(uid)
-		}
-
-		tmpSnapshotName := func(uid types.UID) string {
-			return "tmp-snapshot-" + string(uid)
 		}
 
 		validateRebindPhase := func(planner *Planner, args *PlanArgs, p Phase) {
@@ -488,8 +665,16 @@ var _ = Describe("Planner test", func() {
 			Expect(scp).ToNot(BeNil())
 			Expect(scp.Owner).To(Equal(args.TargetClaim))
 			Expect(scp.Namespace).To(Equal(namespace))
-			Expect(scp.SourceName).To(Equal(tmpSnapshotName(args.TargetClaim.UID)))
-			Expect(scp.DesiredClaim.Name).To(Equal(tmpClaimName(args.TargetClaim.UID)))
+			if IsDataSourcePVC(args.DataSource.Spec.Source.Kind) {
+				Expect(scp.SourceName).To(Equal(tmpSnapshotName(args.TargetClaim.UID)))
+			} else {
+				Expect(scp.SourceName).To(Equal(args.DataSource.Spec.Source.Name))
+			}
+			if IsDataSourceSnapshot(args.DataSource.Spec.Source.Kind) && args.Strategy == cdiv1.CloneStrategyHostAssisted {
+				Expect(scp.DesiredClaim.Name).To(Equal(tmpSourceClaimName(args.TargetClaim.UID)))
+			} else {
+				Expect(scp.DesiredClaim.Name).To(Equal(tmpClaimName(args.TargetClaim.UID)))
+			}
 			Expect(scp.OwnershipLabel).To(Equal(planner.OwnershipLabel))
 		}
 
@@ -497,7 +682,11 @@ var _ = Describe("Planner test", func() {
 			pcp := p.(*PrepClaimPhase)
 			Expect(pcp).ToNot(BeNil())
 			Expect(pcp.Owner).To(Equal(args.TargetClaim))
-			Expect(pcp.DesiredClaim.Name).To(Equal(tmpClaimName(args.TargetClaim.UID)))
+			if IsDataSourceSnapshot(args.DataSource.Spec.Source.Kind) && args.Strategy == cdiv1.CloneStrategyHostAssisted {
+				Expect(pcp.DesiredClaim.Name).To(Equal(tmpSourceClaimName(args.TargetClaim.UID)))
+			} else {
+				Expect(pcp.DesiredClaim.Name).To(Equal(tmpClaimName(args.TargetClaim.UID)))
+			}
 			Expect(pcp.Image).To(Equal(planner.Image))
 			Expect(pcp.PullPolicy).To(Equal(planner.PullPolicy))
 			Expect(pcp.InstallerLabels).To(Equal(planner.InstallerLabels))
@@ -520,7 +709,7 @@ var _ = Describe("Planner test", func() {
 			args := &PlanArgs{
 				Strategy:    cdiv1.CloneStrategyHostAssisted,
 				TargetClaim: target,
-				DataSource:  createDataSource(),
+				DataSource:  createPVCDataSource(),
 				Log:         log,
 			}
 			planner := createPlanner(cdiConfig, createStorageClass(), source)
@@ -538,7 +727,7 @@ var _ = Describe("Planner test", func() {
 			args := &PlanArgs{
 				Strategy:    cdiv1.CloneStrategySnapshot,
 				TargetClaim: target,
-				DataSource:  createDataSource(),
+				DataSource:  createPVCDataSource(),
 				Log:         log,
 			}
 			planner := createPlanner(cdiConfig, createStorageClass(), createVolumeSnapshotClass(), source)
@@ -558,7 +747,7 @@ var _ = Describe("Planner test", func() {
 			args := &PlanArgs{
 				Strategy:    cdiv1.CloneStrategyCsiClone,
 				TargetClaim: target,
-				DataSource:  createDataSource(),
+				DataSource:  createPVCDataSource(),
 				Log:         log,
 			}
 			planner := createPlanner(cdiConfig, createStorageClass(), source)
@@ -569,6 +758,63 @@ var _ = Describe("Planner test", func() {
 			validateCSIClonePhase(planner, args, plan[0])
 			validatePrepClaimPhase(planner, args, plan[1])
 			validateRebindPhase(planner, args, plan[2])
+		})
+
+		It("should plan smart clone from snapshot", func() {
+			source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+			target := createTargetClaim()
+			args := &PlanArgs{
+				Strategy:    cdiv1.CloneStrategySnapshot,
+				TargetClaim: target,
+				DataSource:  createSnapshotDataSource(),
+				Log:         log,
+			}
+			planner := createPlanner(cdiConfig, createStorageClass(), source, createVolumeSnapshotClass(), createDefaultVolumeSnapshotContent())
+			plan, err := planner.Plan(context.Background(), args)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(plan).ToNot(BeNil())
+			Expect(plan).To(HaveLen(3))
+			validateSnapshotClonePhase(planner, args, plan[0])
+			validatePrepClaimPhase(planner, args, plan[1])
+			validateRebindPhase(planner, args, plan[2])
+		})
+
+		It("should plan host-assisted clone from snapshot", func() {
+			source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+			target := createTargetClaim()
+			args := &PlanArgs{
+				Strategy:    cdiv1.CloneStrategyHostAssisted,
+				TargetClaim: target,
+				DataSource:  createSnapshotDataSource(),
+				Log:         log,
+			}
+			planner := createPlanner(cdiConfig, createStorageClass(), source, createVolumeSnapshotClass(), createDefaultVolumeSnapshotContent())
+			plan, err := planner.Plan(context.Background(), args)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(plan).ToNot(BeNil())
+			Expect(plan).To(HaveLen(4))
+			validateSnapshotClonePhase(planner, args, plan[0])
+			validatePrepClaimPhase(planner, args, plan[1])
+			validateHostClonePhase(planner, args, plan[2])
+			validateRebindPhase(planner, args, plan[3])
+		})
+
+		It("should fail planning host-assisted clone from snapshot when no valid storage class for source PVC is found", func() {
+			source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+			target := createTargetClaim()
+			args := &PlanArgs{
+				Strategy:    cdiv1.CloneStrategyHostAssisted,
+				TargetClaim: target,
+				DataSource:  createSnapshotDataSource(),
+				Log:         log,
+			}
+			sc := createStorageClass()
+			sc.Provisioner = "test-error"
+			planner := createPlanner(cdiConfig, sc, source, createVolumeSnapshotClass(), createDefaultVolumeSnapshotContent())
+			plan, err := planner.Plan(context.Background(), args)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("unable to find a valid storage class for the temporal source claim"))
+			Expect(plan).To(BeNil())
 		})
 	})
 
