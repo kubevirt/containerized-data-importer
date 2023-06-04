@@ -60,6 +60,7 @@ var _ = Describe("All DataVolume Tests", func() {
 	var _ = Describe("Clone from volumesnapshot source", func() {
 		createSnapshotInVolumeSnapshotClass := func(name, ns string, snapClassName *string, annotations, labels map[string]string, readyToUse bool) *snapshotv1.VolumeSnapshot {
 			pvcName := "some-pvc-that-was-snapshotted"
+			volumeSnapshotContentName := "test-snapshot-content-name"
 			size := resource.MustParse("1G")
 
 			return &snapshotv1.VolumeSnapshot{
@@ -74,8 +75,20 @@ var _ = Describe("All DataVolume Tests", func() {
 					VolumeSnapshotClassName: snapClassName,
 				},
 				Status: &snapshotv1.VolumeSnapshotStatus{
-					ReadyToUse:  &readyToUse,
-					RestoreSize: &size,
+					ReadyToUse:                     &readyToUse,
+					RestoreSize:                    &size,
+					BoundVolumeSnapshotContentName: &volumeSnapshotContentName,
+				},
+			}
+		}
+
+		createDefaultVolumeSnapshotContent := func() *snapshotv1.VolumeSnapshotContent {
+			return &snapshotv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-snapshot-content-name",
+				},
+				Spec: snapshotv1.VolumeSnapshotContentSpec{
+					Driver: "csi-plugin",
 				},
 			}
 		}
@@ -92,7 +105,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.Spec.PVC.StorageClassName = &scName
 			snapshot := createSnapshotInVolumeSnapshotClass("test-snap", metav1.NamespaceDefault, &expectedSnapshotClass, nil, nil, true)
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
-			reconciler = createSnapshotCloneReconciler(sc, sp, dv, snapshot, snapClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createSnapshotCloneReconciler(sc, sp, dv, snapshot, snapClass, createDefaultVolumeSnapshotContent(), createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -129,7 +142,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.Spec.PVC.StorageClassName = &targetScName
 			snapshot := createSnapshotInVolumeSnapshotClass("test-snap", metav1.NamespaceDefault, &expectedSnapshotClass, nil, nil, true)
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
-			reconciler = createSnapshotCloneReconciler(sc, tsc, sp, sp2, dv, snapshot, snapClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createSnapshotCloneReconciler(sc, tsc, sp, sp2, dv, snapshot, snapClass, createDefaultVolumeSnapshotContent(), createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -176,7 +189,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.Spec.PVC.StorageClassName = &targetScName
 			snapshot := createSnapshotInVolumeSnapshotClass("test-snap", metav1.NamespaceDefault, &expectedSnapshotClass, nil, nil, true)
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
-			reconciler = createSnapshotCloneReconciler(sc, scSameProvisioner, tsc, sp, sp2, sp3, dv, snapshot, snapClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createSnapshotCloneReconciler(sc, scSameProvisioner, tsc, sp, sp2, sp3, dv, snapshot, snapClass, createDefaultVolumeSnapshotContent(), createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 		})
@@ -215,7 +228,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				UID:        dv.UID,
 			})
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
-			reconciler = createSnapshotCloneReconciler(sc, tsc, sp, sp2, dv, snapshot, tempHostAssistedPvc, targetPvc, snapClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			reconciler = createSnapshotCloneReconciler(sc, tsc, sp, sp2, dv, snapshot, tempHostAssistedPvc, targetPvc, snapClass, createDefaultVolumeSnapshotContent(), createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 

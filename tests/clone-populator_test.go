@@ -10,7 +10,10 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -25,6 +28,9 @@ var _ = Describe("Clone Populator tests", func() {
 		sourceName     = "test-source"
 		targetName     = "test-target"
 		dataSourceName = "test-datasource"
+
+		tmpSourcePVCforSnapshot = "tmp-source-pvc-test-target"
+		snapshotAPIName         = "snapshot.storage.k8s.io"
 	)
 
 	var (
@@ -33,6 +39,12 @@ var _ = Describe("Clone Populator tests", func() {
 	)
 
 	f := framework.NewFramework("clone-populator-test")
+
+	BeforeEach(func() {
+		if utils.DefaultStorageClassCsiDriver == nil {
+			Skip("No CSI driver found")
+		}
+	})
 
 	createSource := func(sz resource.Quantity, vm corev1.PersistentVolumeMode) *corev1.PersistentVolumeClaim {
 		dataVolume := utils.NewDataVolumeWithHTTPImport(sourceName, sz.String(), fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
@@ -64,7 +76,70 @@ var _ = Describe("Clone Populator tests", func() {
 		return vcs
 	}
 
-	createTargetWithStrategy := func(sz resource.Quantity, vm corev1.PersistentVolumeMode, strategy string) *corev1.PersistentVolumeClaim {
+	createVolumeSnapshotSource := func(size string, storageClassName *string, volumeMode corev1.PersistentVolumeMode) *snapshotv1.VolumeSnapshot {
+		snapSourceDv := utils.NewDataVolumeWithHTTPImport(sourceName, size, fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+		snapSourceDv.Spec.PVC.VolumeMode = &volumeMode
+		snapSourceDv.Spec.PVC.StorageClassName = storageClassName
+		By(fmt.Sprintf("Create new datavolume %s which will be the source of the volumesnapshot", snapSourceDv.Name))
+		snapSourceDv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, snapSourceDv)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(snapSourceDv)
+		By("Waiting for import to be completed")
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, snapSourceDv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(snapSourceDv.Namespace).Get(context.TODO(), snapSourceDv.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		snapClass := f.GetSnapshotClass()
+		snapshot := &snapshotv1.VolumeSnapshot{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      sourceName,
+				Namespace: f.Namespace.Name,
+			},
+			Spec: snapshotv1.VolumeSnapshotSpec{
+				Source: snapshotv1.VolumeSnapshotSource{
+					PersistentVolumeClaimName: &pvc.Name,
+				},
+				VolumeSnapshotClassName: &snapClass.Name,
+			},
+		}
+		err = f.CrClient.Create(context.TODO(), snapshot)
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() bool {
+			err = f.CrClient.Get(context.TODO(), client.ObjectKeyFromObject(snapshot), snapshot)
+			if err != nil {
+				return false
+			}
+			return snapshot.Status != nil && snapshot.Status.ReadyToUse != nil && *snapshot.Status.ReadyToUse
+		}, 10*time.Second, 1*time.Second).Should(BeTrue())
+		By("Snapshot ready, no need to keep PVC around")
+		err = f.DeletePVC(pvc)
+		Expect(err).ToNot(HaveOccurred())
+		return snapshot
+	}
+
+	snapshotAPIGroup := snapshotAPIName
+	createSnapshotDataSource := func() *cdiv1.VolumeCloneSource {
+		vcs := &cdiv1.VolumeCloneSource{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: f.Namespace.Name,
+				Name:      dataSourceName,
+			},
+			Spec: cdiv1.VolumeCloneSourceSpec{
+				Source: corev1.TypedLocalObjectReference{
+					APIGroup: &snapshotAPIGroup,
+					Kind:     "VolumeSnapshot",
+					Name:     sourceName,
+				},
+			},
+		}
+		err := f.CrClient.Create(context.Background(), vcs)
+		Expect(err).ToNot(HaveOccurred())
+		return vcs
+	}
+
+	createTargetWithStrategy := func(sz resource.Quantity, vm corev1.PersistentVolumeMode, strategy, scName string) *corev1.PersistentVolumeClaim {
 		pvc := &corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: f.Namespace.Name,
@@ -84,6 +159,7 @@ var _ = Describe("Clone Populator tests", func() {
 						corev1.ResourceStorage: sz,
 					},
 				},
+				StorageClassName: &scName,
 			},
 		}
 		pvc.Spec.VolumeMode = &vm
@@ -102,7 +178,7 @@ var _ = Describe("Clone Populator tests", func() {
 	}
 
 	createTarget := func(sz resource.Quantity, vm corev1.PersistentVolumeMode) *corev1.PersistentVolumeClaim {
-		return createTargetWithStrategy(sz, vm, "")
+		return createTargetWithStrategy(sz, vm, "", utils.DefaultStorageClass.GetName())
 	}
 
 	waitSucceeded := func(target *corev1.PersistentVolumeClaim) *corev1.PersistentVolumeClaim {
@@ -132,99 +208,176 @@ var _ = Describe("Clone Populator tests", func() {
 		return hash
 	}
 
-	BeforeEach(func() {
-		if utils.DefaultStorageClassCsiDriver == nil {
-			Skip("No CSI driver found")
-		}
+	Context("Clone from PVC", func() {
+		It("should do filesystem to filesystem clone", func() {
+			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
+			createDataSource()
+			target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
+			target = waitSucceeded(target)
+			sourceHash := getHash(source, 0)
+			targetHash := getHash(target, 0)
+			Expect(targetHash).To(Equal(sourceHash))
+		})
+
+		It("should do filesystem to filesystem clone, source created after target", func() {
+			createDataSource()
+			target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
+			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
+			target = waitSucceeded(target)
+			sourceHash := getHash(source, 0)
+			targetHash := getHash(target, 0)
+			Expect(targetHash).To(Equal(sourceHash))
+		})
+
+		It("should do filesystem to filesystem clone, dataSource created after target", func() {
+			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
+			target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
+			createDataSource()
+			target = waitSucceeded(target)
+			sourceHash := getHash(source, 0)
+			targetHash := getHash(target, 0)
+			Expect(targetHash).To(Equal(sourceHash))
+		})
+
+		It("should do filesystem to filesystem clone (bigger target)", func() {
+			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
+			createDataSource()
+			target := createTarget(biggerSize, corev1.PersistentVolumeFilesystem)
+			target = waitSucceeded(target)
+			targetSize := target.Status.Capacity[corev1.ResourceStorage]
+			Expect(targetSize.Cmp(biggerSize)).To(BeNumerically(">=", 0))
+			sourceHash := getHash(source, 0)
+			targetHash := getHash(target, 0)
+			Expect(targetHash).To(Equal(sourceHash))
+		})
+
+		It("should do block to filesystem clone", func() {
+			if !f.IsBlockVolumeStorageClassAvailable() {
+				Skip("Storage Class for block volume is not available")
+			}
+			source := createSource(defaultSize, corev1.PersistentVolumeBlock)
+			createDataSource()
+			target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
+			target = waitSucceeded(target)
+			targetSize := target.Status.Capacity[corev1.ResourceStorage]
+			Expect(targetSize.Cmp(defaultSize)).To(BeNumerically(">", 0))
+			sourceHash := getHash(source, 0)
+			targetHash := getHash(target, 0)
+			Expect(targetHash).To(Equal(sourceHash))
+		})
+
+		It("should do filesystem to block clone", func() {
+			if !f.IsBlockVolumeStorageClassAvailable() {
+				Skip("Storage Class for block volume is not available")
+			}
+			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
+			createDataSource()
+			target := createTarget(defaultSize, corev1.PersistentVolumeBlock)
+			target = waitSucceeded(target)
+			targetSize := target.Status.Capacity[corev1.ResourceStorage]
+			Expect(targetSize.Cmp(defaultSize)).To(BeNumerically(">=", 0))
+			sourceHash := getHash(source, 100000)
+			targetHash := getHash(target, 100000)
+			Expect(targetHash).To(Equal(sourceHash))
+		})
+
+		DescribeTable("should clone explicit types requested by user", func(cloneType string, canDo func() bool) {
+			if canDo != nil && !canDo() {
+				Skip(fmt.Sprintf("Clone type %s does not work without a capable storage class", cloneType))
+			}
+			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
+			createDataSource()
+			target := createTargetWithStrategy(defaultSize, corev1.PersistentVolumeFilesystem, cloneType, utils.DefaultStorageClass.GetName())
+			target = waitSucceeded(target)
+			Expect(target.Annotations["cdi.kubevirt.io/cloneType"]).To(Equal(cloneType))
+			sourceHash := getHash(source, 0)
+			targetHash := getHash(target, 0)
+			Expect(targetHash).To(Equal(sourceHash))
+		},
+			Entry("should do csi clone if possible", "csi-clone", f.IsCSIVolumeCloneStorageClassAvailable),
+			Entry("should do snapshot clone if possible", "snapshot", f.IsSnapshotStorageClassAvailable),
+			Entry("should do host assisted clone", "copy", nil),
+		)
 	})
 
-	It("should do filesystem to filesystem clone", func() {
-		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
-		createDataSource()
-		target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
-		target = waitSucceeded(target)
-		sourceHash := getHash(source, 0)
-		targetHash := getHash(target, 0)
-		Expect(targetHash).To(Equal(sourceHash))
-	})
+	Context("Clone from Snapshot", func() {
+		var (
+			snapshot = &snapshotv1.VolumeSnapshot{}
+		)
 
-	It("should do filesystem to filesystem clone, source created after target", func() {
-		createDataSource()
-		target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
-		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
-		target = waitSucceeded(target)
-		sourceHash := getHash(source, 0)
-		targetHash := getHash(target, 0)
-		Expect(targetHash).To(Equal(sourceHash))
-	})
+		BeforeEach(func() {
+			if !f.IsSnapshotStorageClassAvailable() {
+				Skip("Clone from volumesnapshot does not work without snapshot capable storage")
+			}
+		})
 
-	It("should do filesystem to filesystem clone, dataSource created after target", func() {
-		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
-		target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
-		createDataSource()
-		target = waitSucceeded(target)
-		sourceHash := getHash(source, 0)
-		targetHash := getHash(target, 0)
-		Expect(targetHash).To(Equal(sourceHash))
-	})
+		AfterEach(func() {
+			By(fmt.Sprintf("[AfterEach] Removing snapshot %s/%s", snapshot.Namespace, snapshot.Name))
+			Eventually(func() bool {
+				err := f.CrClient.Delete(context.TODO(), snapshot)
+				return err != nil && k8serrors.IsNotFound(err)
+			}, time.Minute, time.Second).Should(BeTrue())
+		})
 
-	It("should do filesystem to filesystem clone (bigger target)", func() {
-		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
-		createDataSource()
-		target := createTarget(biggerSize, corev1.PersistentVolumeFilesystem)
-		target = waitSucceeded(target)
-		targetSize := target.Status.Capacity[corev1.ResourceStorage]
-		Expect(targetSize.Cmp(biggerSize)).To(BeNumerically(">=", 0))
-		sourceHash := getHash(source, 0)
-		targetHash := getHash(target, 0)
-		Expect(targetHash).To(Equal(sourceHash))
-	})
+		It("should do smart clone", func() {
+			createSnapshotDataSource()
+			snapshot = createVolumeSnapshotSource("1Gi", nil, corev1.PersistentVolumeFilesystem)
+			By("Creating target PVC")
+			target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
+			By("Waiting for population to be succeeded")
+			target = waitSucceeded(target)
+			path := utils.DefaultImagePath
+			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, target, path, utils.UploadFileMD5, utils.UploadFileSize)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(same).To(BeTrue())
+		})
 
-	It("should do block to filesystem clone", func() {
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
-		source := createSource(defaultSize, corev1.PersistentVolumeBlock)
-		createDataSource()
-		target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
-		target = waitSucceeded(target)
-		targetSize := target.Status.Capacity[corev1.ResourceStorage]
-		Expect(targetSize.Cmp(defaultSize)).To(BeNumerically(">", 0))
-		sourceHash := getHash(source, 0)
-		targetHash := getHash(target, 0)
-		Expect(targetHash).To(Equal(sourceHash))
-	})
+		Context("Fallback to host assisted", func() {
+			var noExpansionStorageClass *storagev1.StorageClass
 
-	It("should do filesystem to block clone", func() {
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
-		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
-		createDataSource()
-		target := createTarget(defaultSize, corev1.PersistentVolumeBlock)
-		target = waitSucceeded(target)
-		targetSize := target.Status.Capacity[corev1.ResourceStorage]
-		Expect(targetSize.Cmp(defaultSize)).To(BeNumerically(">=", 0))
-		sourceHash := getHash(source, 100000)
-		targetHash := getHash(target, 100000)
-		Expect(targetHash).To(Equal(sourceHash))
-	})
+			BeforeEach(func() {
+				allowVolumeExpansion := false
+				disableVolumeExpansion := func(sc *storagev1.StorageClass) {
+					sc.AllowVolumeExpansion = &allowVolumeExpansion
+				}
+				sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), utils.DefaultStorageClass.GetName(), metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				noExpansionStorageClass, err = f.CreateVariationOfStorageClass(sc, disableVolumeExpansion)
+				Expect(err).ToNot(HaveOccurred())
+			})
 
-	DescribeTable("should clone explicit types requested by user", func(cloneType string, canDo func() bool) {
-		if canDo != nil && !canDo() {
-			Skip(fmt.Sprintf("Clone type %s does not work without a capable storage class", cloneType))
-		}
-		source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
-		createDataSource()
-		target := createTargetWithStrategy(defaultSize, corev1.PersistentVolumeFilesystem, cloneType)
-		target = waitSucceeded(target)
-		Expect(target.Annotations["cdi.kubevirt.io/cloneType"]).To(Equal(cloneType))
-		sourceHash := getHash(source, 0)
-		targetHash := getHash(target, 0)
-		Expect(targetHash).To(Equal(sourceHash))
-	},
-		Entry("should do csi clone if possible", "csi-clone", f.IsCSIVolumeCloneStorageClassAvailable),
-		Entry("should do snapshot clone if possible", "snapshot", f.IsSnapshotStorageClassAvailable),
-		Entry("should do host assisted clone", "copy", nil),
-	)
+			It("should do regular host assisted clone", func() {
+				createSnapshotDataSource()
+				snapshot = createVolumeSnapshotSource("1Gi", &noExpansionStorageClass.Name, corev1.PersistentVolumeFilesystem)
+				By("Creating target PVC")
+				target := createTargetWithStrategy(biggerSize, corev1.PersistentVolumeFilesystem, "", noExpansionStorageClass.Name)
+				By("Waiting for population to be succeeded")
+				target = waitSucceeded(target)
+				path := utils.DefaultImagePath
+				same, err := f.VerifyTargetPVCContentMD5(f.Namespace, target, path, utils.UploadFileMD5, utils.UploadFileSize)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(same).To(BeTrue())
+				By("Check tmp source PVC is deleted")
+				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(snapshot.Namespace).Get(context.TODO(), tmpSourcePVCforSnapshot, metav1.GetOptions{})
+				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+			})
+
+			It("should finish the clone after creating the source snapshot", func() {
+				By("Create the clone before the source snapshot")
+				target := createTargetWithStrategy(biggerSize, corev1.PersistentVolumeFilesystem, "", noExpansionStorageClass.Name)
+				By("Create VolumeCloneSource and source snapshot")
+				createSnapshotDataSource()
+				snapshot = createVolumeSnapshotSource("1Gi", &noExpansionStorageClass.Name, corev1.PersistentVolumeFilesystem)
+				By("Waiting for population to be succeeded")
+				target = waitSucceeded(target)
+				path := utils.DefaultImagePath
+				same, err := f.VerifyTargetPVCContentMD5(f.Namespace, target, path, utils.UploadFileMD5, utils.UploadFileSize)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(same).To(BeTrue())
+				By("Check tmp source PVC is deleted")
+				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(snapshot.Namespace).Get(context.TODO(), tmpSourcePVCforSnapshot, metav1.GetOptions{})
+				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+			})
+		})
+	})
 })
