@@ -60,10 +60,10 @@ func toSerializedCertConfig(l, r time.Duration) string {
 	return string(bs)
 }
 
-func getCertNotBefore(client kubernetes.Interface, namespace, name string) time.Time {
+func getCertNotAfter(client kubernetes.Interface, namespace, name string) time.Time {
 	s, err := client.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
-	val, ok := s.Annotations[certrotation.CertificateNotBeforeAnnotation]
+	val, ok := s.Annotations[certrotation.CertificateNotAfterAnnotation]
 	Expect(ok).To(BeTrue())
 	t, err := time.Parse(time.RFC3339, val)
 	Expect(err).ToNot(HaveOccurred())
@@ -159,17 +159,17 @@ var _ = Describe("Cert rotation tests", func() {
 			err := cm.Sync(certs)
 			Expect(err).ToNot(HaveOccurred())
 
-			apiCA := getCertNotBefore(client, namespace, "cdi-apiserver-signer")
-			apiServer := getCertNotBefore(client, namespace, "cdi-apiserver-server-cert")
-			proxyCA := getCertNotBefore(client, namespace, "cdi-uploadproxy-signer")
-			proxyServer := getCertNotBefore(client, namespace, "cdi-uploadproxy-server-cert")
+			apiCA := getCertNotAfter(client, namespace, "cdi-apiserver-signer")
+			apiServer := getCertNotAfter(client, namespace, "cdi-apiserver-server-cert")
+			proxyCA := getCertNotAfter(client, namespace, "cdi-uploadproxy-signer")
+			proxyServer := getCertNotAfter(client, namespace, "cdi-uploadproxy-server-cert")
 
 			apiCAConfig := getCertConfigAnno(client, namespace, "cdi-apiserver-signer")
 			apiServerConfig := getCertConfigAnno(client, namespace, "cdi-apiserver-server-cert")
 			proxyCAConfig := getCertConfigAnno(client, namespace, "cdi-uploadproxy-signer")
 			proxyServerConfig := getCertConfigAnno(client, namespace, "cdi-uploadproxy-server-cert")
 
-			n := time.Now()
+			timeBeforeSync := time.Now().Truncate(time.Second)
 
 			args := &cert.FactoryArgs{
 				Namespace:         namespace,
@@ -183,20 +183,20 @@ var _ = Describe("Cert rotation tests", func() {
 			err = cm.Sync(certs)
 			Expect(err).ToNot(HaveOccurred())
 
-			apiCA2 := getCertNotBefore(client, namespace, "cdi-apiserver-signer")
-			apiServer2 := getCertNotBefore(client, namespace, "cdi-apiserver-server-cert")
-			proxyCA2 := getCertNotBefore(client, namespace, "cdi-uploadproxy-signer")
-			proxyServer2 := getCertNotBefore(client, namespace, "cdi-uploadproxy-server-cert")
+			apiCA2 := getCertNotAfter(client, namespace, "cdi-apiserver-signer")
+			apiServer2 := getCertNotAfter(client, namespace, "cdi-apiserver-server-cert")
+			proxyCA2 := getCertNotAfter(client, namespace, "cdi-uploadproxy-signer")
+			proxyServer2 := getCertNotAfter(client, namespace, "cdi-uploadproxy-server-cert")
 
-			Expect(apiCA2.After(n))
-			Expect(apiServer2.After(n))
-			Expect(proxyCA2.After(n))
-			Expect(proxyServer2.After(n))
+			Expect(apiCA2).To(BeTemporally(">=", timeBeforeSync))
+			Expect(apiServer2).To(BeTemporally(">=", timeBeforeSync))
+			Expect(proxyCA2).To(BeTemporally(">=", timeBeforeSync))
+			Expect(proxyServer2).To(BeTemporally(">=", timeBeforeSync))
 
-			Expect(apiCA2.After(apiCA))
-			Expect(apiServer2.After(apiServer))
-			Expect(proxyCA2.After(proxyCA))
-			Expect(proxyServer2.After(proxyServer))
+			Expect(apiCA2).To(BeTemporally("<", apiCA))
+			Expect(apiServer2).To(BeTemporally("<", apiServer))
+			Expect(proxyCA2).To(BeTemporally("<", proxyCA))
+			Expect(proxyServer2).To(BeTemporally("<", proxyServer))
 
 			apiCAConfig2 := getCertConfigAnno(client, namespace, "cdi-apiserver-signer")
 			apiServerConfig2 := getCertConfigAnno(client, namespace, "cdi-apiserver-server-cert")
