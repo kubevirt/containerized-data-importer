@@ -1500,7 +1500,7 @@ func UpdateImageIOAnnotations(annotations map[string]string, imageio *cdiv1.Data
 // IsPVBoundToPVC checks if a PV is bound to a specific PVC
 func IsPVBoundToPVC(pv *corev1.PersistentVolume, pvc *corev1.PersistentVolumeClaim) bool {
 	claimRef := pv.Spec.ClaimRef
-	return claimRef.Name == pvc.Name && claimRef.Namespace == pvc.Namespace && claimRef.UID == pvc.UID
+	return claimRef != nil && claimRef.Name == pvc.Name && claimRef.Namespace == pvc.Namespace && claimRef.UID == pvc.UID
 }
 
 // Rebind binds the PV of source to target
@@ -1516,18 +1516,21 @@ func Rebind(ctx context.Context, c client.Client, source, target *corev1.Persist
 	}
 
 	// Examine the claimref for the PV and see if it's still bound to PVC'
+	if pv.Spec.ClaimRef == nil {
+		return fmt.Errorf("PV %s claimRef is nil", pv.Name)
+	}
+
 	if !IsPVBoundToPVC(pv, source) {
 		// Something is not right if the PV is neither bound to PVC' nor target PVC
 		if !IsPVBoundToPVC(pv, target) {
 			klog.Errorf("PV bound to unexpected PVC: Could not rebind to target PVC '%s'", target.Name)
-			return fmt.Errorf("PV %s bound to unexpected claim", pv.Name)
+			return fmt.Errorf("PV %s bound to unexpected claim %s", pv.Name, pv.Spec.ClaimRef.Name)
 		}
 		// our work is done
 		return nil
 	}
 
 	// Rebind PVC to target PVC
-	pv.Annotations = make(map[string]string)
 	pv.Spec.ClaimRef = &corev1.ObjectReference{
 		Namespace:       target.Namespace,
 		Name:            target.Name,
