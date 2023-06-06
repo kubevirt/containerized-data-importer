@@ -130,14 +130,11 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	if hs.contentType == cdiv1.DataVolumeArchive {
 		return ProcessingPhaseTransferDataDir, nil
 	}
-	if hs.readers.Convert {
-		if hs.brokenForQemuImg || hs.readers.Archived || hs.customCA != "" {
-			return ProcessingPhaseTransferScratch, nil
-		}
-	} else {
-		if hs.readers.Archived || hs.customCA != "" {
-			return ProcessingPhaseTransferDataFile, nil
-		}
+	if !hs.readers.Convert {
+		return ProcessingPhaseTransferDataFile, nil
+	}
+	if hs.brokenForQemuImg || hs.readers.Archived || hs.customCA != "" {
+		return ProcessingPhaseTransferScratch, nil
 	}
 	hs.url, _ = url.Parse(fmt.Sprintf("nbd+unix:///?socket=%s", nbdkitSocket))
 	if err = hs.n.StartNbdkit(hs.endpoint.String()); err != nil {
