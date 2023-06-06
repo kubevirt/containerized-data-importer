@@ -33,6 +33,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -86,6 +87,73 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 		})
 
+		It("Should create volumeImportSource if should use cdi populator", func() {
+			scName := "testSC"
+			sc := CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
+			csiDriver := &storagev1.CSIDriver{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "csi-plugin",
+				},
+			}
+			dv := NewImportDataVolume("test-dv")
+			dv.Spec.ContentType = cdiv1.DataVolumeArchive
+			preallocation := true
+			dv.Spec.Preallocation = &preallocation
+			reconciler = createImportReconciler(dv, sc, csiDriver)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.GetAnnotations()[AnnUsePopulator]).To(Equal("true"))
+
+			importSource := &cdiv1.VolumeImportSource{}
+			importSourceName := volumeImportSourceName(dv)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: importSourceName, Namespace: metav1.NamespaceDefault}, importSource)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(importSource.Spec.Source).ToNot(BeNil())
+			Expect(importSource.Spec.ContentType).To(Equal(dv.Spec.ContentType))
+			Expect(importSource.Spec.Preallocation).To(Equal(dv.Spec.Preallocation))
+			Expect(importSource.OwnerReferences).To(HaveLen(1))
+			or := importSource.OwnerReferences[0]
+			Expect(or.UID).To(Equal(dv.UID))
+		})
+
+		It("Should delete volumeImportSource if dv succeeded and we use cdi populator", func() {
+			scName := "testSC"
+			sc := CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
+			csiDriver := &storagev1.CSIDriver{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "csi-plugin",
+				},
+			}
+			dv := NewImportDataVolume("test-dv")
+			importSourceName := volumeImportSourceName(dv)
+			importSource := &cdiv1.VolumeImportSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      importSourceName,
+					Namespace: dv.Namespace,
+				},
+			}
+			reconciler = createImportReconciler(dv, sc, csiDriver, importSource)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.GetAnnotations()[AnnUsePopulator]).To(Equal("true"))
+
+			dv.Status.Phase = cdiv1.Succeeded
+			err = reconciler.client.Update(context.TODO(), dv)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			deletedImportSource := &cdiv1.VolumeImportSource{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: importSourceName, Namespace: dv.Namespace}, deletedImportSource)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.IsNotFound(err)).To(BeTrue())
+		})
+
 		It("Should create a PVC on a valid import DV", func() {
 			reconciler = createImportReconciler(NewImportDataVolume("test-dv"))
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -96,6 +164,86 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.Name).To(Equal("test-dv"))
 			Expect(pvc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 			Expect(pvc.Labels[common.KubePersistentVolumeFillingUpSuppressLabelKey]).To(Equal(common.KubePersistentVolumeFillingUpSuppressLabelValue))
+		})
+
+		It("Should fail if dv source not import when use populators", func() {
+			scName := "testSC"
+			sc := CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
+			csiDriver := &storagev1.CSIDriver{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "csi-plugin",
+				},
+			}
+			dv := NewImportDataVolume("test-dv")
+			dv.Spec.Source.HTTP = nil
+			reconciler = createImportReconciler(dv, sc, csiDriver)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no source set for import datavolume"))
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.IsNotFound(err)).To(BeTrue())
+		})
+
+		It("Should create a PVC with volumeImportSource when use populators", func() {
+			scName := "testSC"
+			sc := CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
+			csiDriver := &storagev1.CSIDriver{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "csi-plugin",
+				},
+			}
+			dv := NewImportDataVolume("test-dv")
+			reconciler = createImportReconciler(dv, sc, csiDriver)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Name).To(Equal("test-dv"))
+			Expect(pvc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+			Expect(pvc.Labels[common.KubePersistentVolumeFillingUpSuppressLabelKey]).To(Equal(common.KubePersistentVolumeFillingUpSuppressLabelValue))
+			Expect(pvc.Spec.DataSourceRef).ToNot(BeNil())
+			importSourceName := volumeImportSourceName(dv)
+			Expect(pvc.Spec.DataSourceRef.Name).To(Equal(importSourceName))
+			Expect(pvc.Spec.DataSourceRef.Kind).To(Equal(cdiv1.VolumeImportSourceRef))
+			Expect(pvc.GetAnnotations()[AnnUsePopulator]).To(Equal("true"))
+		})
+
+		It("Should report import population progress when use populators", func() {
+			scName := "testSC"
+			sc := CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
+			csiDriver := &storagev1.CSIDriver{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "csi-plugin",
+				},
+			}
+			dv := NewImportDataVolume("test-dv")
+			reconciler = createImportReconciler(dv, sc, csiDriver)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(dv.Status.Progress)).To(Equal("N/A"))
+
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.GetAnnotations()[AnnUsePopulator]).To(Equal("true"))
+
+			AddAnnotation(pvc, AnnPopulatorProgress, "13.45%")
+			err = reconciler.client.Update(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Progress).To(BeEquivalentTo("13.45%"))
 		})
 
 		It("Should pass instancetype labels from DV to PVC", func() {
@@ -953,6 +1101,101 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dv.Status.Phase).To(Equal(cdiv1.WaitForFirstConsumer))
+
+			Expect(dv.Status.Conditions).To(HaveLen(3))
+			boundCondition := FindConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
+			Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
+			Expect(boundCondition.Message).To(Equal("PVC test-dv Pending"))
+			By("Checking events recorded")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, "PVC test-dv Pending") {
+					found = true
+				}
+			}
+			Expect(found).To(BeTrue())
+		})
+		It("Should set DV phase to pendingPopulation if use populators with storage class WFFC", func() {
+			scName := "pvc_sc_wffc"
+			bindingMode := storagev1.VolumeBindingWaitForFirstConsumer
+			sc := CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
+			sc.VolumeBindingMode = &bindingMode
+			csiDriver := &storagev1.CSIDriver{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "csi-plugin",
+				},
+			}
+			importDataVolume := NewImportDataVolume("test-dv")
+			importDataVolume.Spec.PVC.StorageClassName = &scName
+
+			reconciler = createImportReconciler(sc, csiDriver, importDataVolume)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			dv := &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Name).To(Equal("test-dv"))
+			pvc.Status.Phase = corev1.ClaimPending
+			err = reconciler.client.Update(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+			_, err = reconciler.updateStatus(getReconcileRequest(dv), nil, reconciler)
+			Expect(err).ToNot(HaveOccurred())
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(cdiv1.PendingPopulation))
+
+			Expect(dv.Status.Conditions).To(HaveLen(3))
+			boundCondition := FindConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
+			Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
+			Expect(boundCondition.Message).To(Equal("PVC test-dv Pending"))
+			By("Checking events recorded")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, "PVC test-dv Pending") {
+					found = true
+				}
+			}
+			Expect(found).To(BeTrue())
+		})
+
+		It("Should set DV phase to ImportScheduled if use populators wffc storage class after scheduled node", func() {
+			scName := "pvc_sc_wffc"
+			bindingMode := storagev1.VolumeBindingWaitForFirstConsumer
+			sc := CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
+			sc.VolumeBindingMode = &bindingMode
+			csiDriver := &storagev1.CSIDriver{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "csi-plugin",
+				},
+			}
+			importDataVolume := NewImportDataVolume("test-dv")
+			importDataVolume.Spec.PVC.StorageClassName = &scName
+
+			reconciler = createImportReconciler(sc, csiDriver, importDataVolume)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Name).To(Equal("test-dv"))
+			pvc.Status.Phase = corev1.ClaimPending
+			AddAnnotation(pvc, AnnSelectedNode, "node01")
+			err = reconciler.client.Update(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+			_, err = reconciler.updateStatus(getReconcileRequest(importDataVolume), nil, reconciler)
+			Expect(err).ToNot(HaveOccurred())
+			dv := &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(cdiv1.ImportScheduled))
 
 			Expect(dv.Status.Conditions).To(HaveLen(3))
 			boundCondition := FindConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)

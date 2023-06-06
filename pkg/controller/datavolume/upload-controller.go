@@ -157,9 +157,11 @@ func (r *UploadReconciler) syncUpload(log logr.Logger, req reconcile.Request) (d
 
 	pvcModifier := r.updateAnnotations
 	if syncState.usePopulator {
-		err := r.createVolumeUploadSourceCR(&syncState)
-		if err != nil {
-			return syncState, err
+		if syncState.dvMutated.Status.Phase != cdiv1.Succeeded {
+			err := r.createVolumeUploadSourceCR(&syncState)
+			if err != nil {
+				return syncState, err
+			}
 		}
 		pvcModifier = r.updatePVCForPopulation
 	}
@@ -175,7 +177,11 @@ func (r *UploadReconciler) cleanup(syncState *dvSyncState) error {
 	// The cleanup is to delete the volumeUploadSourceCR which is used only with populators,
 	// it is owner by the DV so will be deleted when dv is deleted
 	// also we can already delete once dv is succeeded
-	if syncState.usePopulator && dv.Status.Phase == cdiv1.Succeeded {
+	usePopulator, err := checkDVUsingPopulators(syncState.dvMutated)
+	if err != nil {
+		return err
+	}
+	if usePopulator && dv.Status.Phase == cdiv1.Succeeded {
 		return r.deleteVolumeUploadSourceCR(syncState)
 	}
 

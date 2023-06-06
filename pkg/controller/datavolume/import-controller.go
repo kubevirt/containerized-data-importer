@@ -122,13 +122,13 @@ func addDataVolumeImportControllerWatches(mgr manager.Manager, datavolumeControl
 }
 
 func (r *ImportReconciler) updatePVCForPopulation(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
-	if dataVolume.Spec.Source.HTTP != nil &&
-		dataVolume.Spec.Source.S3 != nil &&
-		dataVolume.Spec.Source.GCS != nil &&
-		dataVolume.Spec.Source.Registry != nil &&
-		dataVolume.Spec.Source.Imageio != nil &&
-		dataVolume.Spec.Source.VDDK != nil &&
-		dataVolume.Spec.Source.Blank != nil {
+	if dataVolume.Spec.Source.HTTP == nil &&
+		dataVolume.Spec.Source.S3 == nil &&
+		dataVolume.Spec.Source.GCS == nil &&
+		dataVolume.Spec.Source.Registry == nil &&
+		dataVolume.Spec.Source.Imageio == nil &&
+		dataVolume.Spec.Source.VDDK == nil &&
+		dataVolume.Spec.Source.Blank == nil {
 		return errors.Errorf("no source set for import datavolume")
 	}
 	apiGroup := cc.AnnAPIGroup
@@ -201,9 +201,11 @@ func (r *ImportReconciler) syncImport(log logr.Logger, req reconcile.Request) (d
 
 	pvcModifier := r.updateAnnotations
 	if syncState.usePopulator {
-		err := r.createVolumeImportSourceCR(&syncState)
-		if err != nil {
-			return syncState, err
+		if syncState.dvMutated.Status.Phase != cdiv1.Succeeded {
+			err := r.createVolumeImportSourceCR(&syncState)
+			if err != nil {
+				return syncState, err
+			}
 		}
 		pvcModifier = r.updatePVCForPopulation
 	}
@@ -224,7 +226,11 @@ func (r *ImportReconciler) cleanup(syncState *dvSyncState) error {
 	// The cleanup is to delete the volumeImportSourceCR which is used only with populators,
 	// it is owner by the DV so will be deleted when dv is deleted
 	// also we can already delete once dv is succeeded
-	if syncState.usePopulator && dv.Status.Phase == cdiv1.Succeeded {
+	usePopulator, err := checkDVUsingPopulators(syncState.dvMutated)
+	if err != nil {
+		return err
+	}
+	if usePopulator && dv.Status.Phase == cdiv1.Succeeded {
 		return r.deleteVolumeImportSourceCR(syncState)
 	}
 
