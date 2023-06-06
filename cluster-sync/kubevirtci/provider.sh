@@ -22,7 +22,11 @@ function configure_storage() {
     fi
   elif [[ $KUBEVIRT_STORAGE == "hpp" ]] ; then
     echo "Installing hostpath provisioner storage"
-    configure_hpp
+    if [[ $HPP_CLASSIC == "true" ]] ; then
+      configure_hpp_classic
+    else
+      configure_hpp_csi
+    fi
   elif [[ $KUBEVIRT_STORAGE == "nfs" ]] ; then
     echo "Installing NFS CSI dynamic storage"
     configure_nfs_csi

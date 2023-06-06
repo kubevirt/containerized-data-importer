@@ -57,7 +57,18 @@ function configure_hpp() {
   _kubectl apply -f https://github.com/kubevirt/hostpath-provisioner-operator/releases/download/$HPP_RELEASE/storageclass-wffc-legacy-csi.yaml
   echo "Waiting for hostpath provisioner to be available"
   _kubectl wait hostpathprovisioners.hostpathprovisioner.kubevirt.io/hostpath-provisioner --for=condition=Available --timeout=480s
-  _kubectl patch storageclass hostpath-csi -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+}
+
+function configure_hpp_classic() {
+  # Configure hpp and default to classic non-csi hostpath-provisioner
+  configure_hpp
+  _kubectl patch storageclass hostpath-provisioner -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+}
+
+function configure_hpp_csi() {
+  # Configure hpp and default to hostpath-csi
+  configure_hpp
+   _kubectl patch storageclass hostpath-csi -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
 }
 
 function configure_nfs() {

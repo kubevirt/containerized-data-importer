@@ -1750,11 +1750,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		updateStorageProfileSpec := func(client client.Client, name string, spec cdiv1.StorageProfileSpec) {
 			storageProfile := &cdiv1.StorageProfile{}
-			err := client.Get(context.TODO(), types.NamespacedName{Name: name}, storageProfile)
-			Expect(err).ToNot(HaveOccurred())
-			storageProfile.Spec = spec
-			err = client.Update(context.TODO(), storageProfile)
-			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() error {
+				err := client.Get(context.TODO(), types.NamespacedName{Name: name}, storageProfile)
+				Expect(err).ToNot(HaveOccurred())
+				storageProfile.Spec = spec
+				return client.Update(context.TODO(), storageProfile)
+			}, 15*time.Second, time.Second).Should(BeNil())
 		}
 
 		configureStorageProfile := func(client client.Client,
@@ -2378,6 +2379,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		table.DescribeTable("import DV using StorageSpec without AccessModes, PVC is created only when", func(scName string, scFunc func(string)) {
+			if utils.IsDefaultSCNoProvisioner() {
+				Skip("Default storage class has no provisioner. The new storage class won't work")
+			}
+
 			By(fmt.Sprintf("verifying no storage class %s", testScName))
 			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
 			Expect(err).To(HaveOccurred())
@@ -2444,6 +2449,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		table.DescribeTable("import DV with AccessModes, PVC is pending until", func(scName string, scFunc func(string), dvFunc func(string) *cdiv1.DataVolume) {
+			if utils.IsDefaultSCNoProvisioner() {
+				Skip("Default storage class has no provisioner. The new storage class won't work")
+			}
+
 			By(fmt.Sprintf("verifying no storage class %s", testScName))
 			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
 			Expect(err).To(HaveOccurred())
