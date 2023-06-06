@@ -26,6 +26,7 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	authv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/kubernetes"
@@ -82,17 +83,8 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 	modifiedDataVolume := dataVolume.DeepCopy()
 
 	if ar.Request.Operation == admissionv1.Create {
-		config, err := wh.cdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-		if err != nil {
+		if err := wh.mutateCreatedDataVolume(modifiedDataVolume); err != nil {
 			return toAdmissionResponseError(err)
-		}
-		if cc.GetDataVolumeTTLSeconds(config) >= 0 {
-			if modifiedDataVolume.Annotations == nil {
-				modifiedDataVolume.Annotations = make(map[string]string)
-			}
-			if modifiedDataVolume.Annotations[cc.AnnDeleteAfterCompletion] != "false" {
-				modifiedDataVolume.Annotations[cc.AnnDeleteAfterCompletion] = "true"
-			}
 		}
 	}
 
@@ -159,4 +151,31 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 	klog.V(3).Infof("Sending patch response...")
 
 	return toPatchResponse(dataVolume, modifiedDataVolume)
+}
+
+func (wh *dataVolumeMutatingWebhook) mutateCreatedDataVolume(dv *cdiv1.DataVolume) error {
+	if dv.Annotations[cc.AnnDeleteAfterCompletion] != "true" {
+		// If it's an "apply" and there is a PVC, annotate the DV to not be GCed
+		if _, isApply := dv.Annotations[corev1.LastAppliedConfigAnnotation]; isApply {
+			_, err := wh.k8sClient.CoreV1().PersistentVolumeClaims(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+			if err == nil {
+				cc.AddAnnotation(dv, cc.AnnDeleteAfterCompletion, "false")
+			} else if !k8serrors.IsNotFound(err) {
+				return err
+			}
+		}
+	}
+
+	// Consider annotating for GC only if not annotated to disable GC
+	if dv.Annotations[cc.AnnDeleteAfterCompletion] != "false" {
+		config, err := wh.cdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if cc.GetDataVolumeTTLSeconds(config) >= 0 {
+			cc.AddAnnotation(dv, cc.AnnDeleteAfterCompletion, "true")
+		}
+	}
+
+	return nil
 }

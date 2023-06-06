@@ -586,7 +586,9 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 			}
 
 			dvName, ok := pvc.Annotations[cc.AnnPopulatedFor]
-			if (!ok && !dvGC) || (ok && dvName != dv.GetName()) {
+			_, isApply := dv.Annotations[v1.LastAppliedConfigAnnotation]
+			// If DV was GCed, and PVC is not populatedFor, we reject "create" but allow "apply"
+			if (!ok && !dvGC) || (!ok && dvGC && !isApply) || (ok && dvName != dv.GetName()) {
 				pvcOwner := metav1.GetControllerOf(pvc)
 				// We should reject the DV if a PVC with the same name exists, and that PVC has no ownerRef, or that
 				// PVC has an ownerRef that is not a DataVolume. Because that means that PVC is not managed by the

@@ -460,6 +460,9 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 	}
 
 	if syncState.pvc != nil {
+		if err := r.updatePvcMeta(&syncState); err != nil {
+			return syncState, err
+		}
 		if err := r.garbageCollect(&syncState, log); err != nil {
 			return syncState, err
 		}
@@ -1039,6 +1042,49 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 	}
 
 	return pvc, nil
+}
+
+func (r *ReconcilerBase) updatePvcMeta(syncState *dvSyncState) error {
+	dv := syncState.dvMutated
+
+	// Update the PVC meta only if DV garbage collection is disabled
+	if dv.Annotations[cc.AnnDeleteAfterCompletion] == "true" {
+		return nil
+	}
+
+	pvcCopy := syncState.pvc.DeepCopy()
+	for k, v := range dv.Labels {
+		cc.AddLabel(pvcCopy, k, v)
+	}
+	for k, v := range dv.Annotations {
+		cc.AddAnnotation(pvcCopy, k, v)
+	}
+
+	if pvcCopy.Namespace == dv.Namespace {
+		if pvcCopy.OwnerReferences == nil {
+			pvcCopy.OwnerReferences = []metav1.OwnerReference{
+				*metav1.NewControllerRef(dv, schema.GroupVersionKind{
+					Group:   cdiv1.SchemeGroupVersion.Group,
+					Version: cdiv1.SchemeGroupVersion.Version,
+					Kind:    "DataVolume",
+				}),
+			}
+		}
+	} else {
+		if err := setAnnOwnedByDataVolume(pvcCopy, dv); err != nil {
+			return err
+		}
+		cc.AddAnnotation(pvcCopy, cc.AnnOwnerUID, string(dv.UID))
+	}
+
+	if !reflect.DeepEqual(syncState.pvc, pvcCopy) {
+		if err := r.updatePVC(pvcCopy); err != nil {
+			return err
+		}
+		syncState.pvc = pvcCopy
+	}
+
+	return nil
 }
 
 // Whenever the controller updates a DV, we must make sure to nil out spec.source when using other population methods
