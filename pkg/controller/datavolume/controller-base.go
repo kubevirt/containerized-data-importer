@@ -62,6 +62,8 @@ const (
 	ErrResourceMarkedForDeletion = "ErrResourceMarkedForDeletion"
 	// ErrClaimLost provides a const to indicate a claim is lost
 	ErrClaimLost = "ErrClaimLost"
+	// ErrTokenNotValid provides a const to indicate a token is invalid
+	ErrTokenNotValid = "ErrTokenNotValid"
 
 	// MessageResourceMarkedForDeletion provides a const to form a resource marked for deletion error message
 	MessageResourceMarkedForDeletion = "Resource %q marked for deletion"

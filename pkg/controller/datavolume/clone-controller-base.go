@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	"gopkg.in/square/go-jose.v2/jwt"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -118,6 +119,8 @@ const (
 	CloneWithoutSource = "CloneWithoutSource"
 	// MessageCloneWithoutSource reports that the source of a clone doesn't exists (message)
 	MessageCloneWithoutSource = "The source %s %s doesn't exist"
+	// MessageTokenNotValid reports that DV has an invalid token
+	MessageTokenNotValid = "Token is invalid and thus DV will never converge"
 
 	// AnnCSICloneRequest annotation associates object with CSI Clone Request
 	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"
@@ -286,6 +289,17 @@ func (r *CloneReconcilerBase) initTransfer(log logr.Logger, syncState *dvSyncSta
 		}
 
 		if err := cc.ValidateCloneTokenDV(r.tokenValidator, dv); err != nil {
+			if errors.Is(err, cc.ErrInvalidToken) || errors.Is(err, jwt.ErrExpired) {
+				syncErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, cdiv1.Failed, nil,
+					Event{
+						eventType: corev1.EventTypeWarning,
+						reason:    ErrTokenNotValid,
+						message:   MessageTokenNotValid,
+					})
+				if syncErr != nil {
+					log.Error(syncErr, "failed to sync DataVolume status with event")
+				}
+			}
 			return false, err
 		}
 

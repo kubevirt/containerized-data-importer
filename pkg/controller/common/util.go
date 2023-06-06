@@ -307,6 +307,10 @@ var (
 	// FilesystemMode is filesystem device mode
 	FilesystemMode = corev1.PersistentVolumeFilesystem
 
+	// ErrInvalidToken is the error returned when the token is expired/invalid
+	// this is used as indication for a terminal DV state since the token will never become valid again
+	ErrInvalidToken = errors.New("invalid token")
+
 	apiServerKeyOnce sync.Once
 	apiServerKey     *rsa.PrivateKey
 )
@@ -705,7 +709,7 @@ func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNa
 		tokenData.Params["targetNamespace"] != targetNamespace ||
 		tokenData.Params["targetName"] != targetName ||
 		(uid != "" && uid != targetUID) {
-		return errors.New("invalid token")
+		return ErrInvalidToken
 	}
 
 	return nil
