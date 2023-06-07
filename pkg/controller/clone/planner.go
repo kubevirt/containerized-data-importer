@@ -82,9 +82,15 @@ type Phase interface {
 	Reconcile(context.Context) (*reconcile.Result, error)
 }
 
+// PhaseProgress contains phase progress data
+type PhaseProgress struct {
+	Progress    string
+	Annotations map[string]string
+}
+
 // ProgressReporter allows a phase to report progress
 type ProgressReporter interface {
-	Progress(context.Context) (string, error)
+	Progress(context.Context) (*PhaseProgress, error)
 }
 
 // list of all possible (core) types created
@@ -416,6 +422,12 @@ func (p *Planner) validateTargetStorageClassAssignment(ctx context.Context, args
 }
 
 func (p *Planner) validateSourcePVC(args *ChooseStrategyArgs, sourceClaim *corev1.PersistentVolumeClaim) error {
+	_, permissive := args.TargetClaim.Annotations[cc.AnnPermissiveClone]
+	if permissive {
+		args.Log.V(3).Info("permissive clone annotation found, skipping size validation")
+		return nil
+	}
+
 	if err := cc.ValidateRequestedCloneSize(sourceClaim.Spec.Resources, args.TargetClaim.Spec.Resources); err != nil {
 		return err
 	}

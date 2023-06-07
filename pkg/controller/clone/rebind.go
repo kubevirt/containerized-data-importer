@@ -13,6 +13,9 @@ import (
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
+// RebindPhaseName is the name of the rebind phase
+const RebindPhaseName = "Rebind"
+
 // RebindPhase binds a PV from one PVC to another
 type RebindPhase struct {
 	SourceNamespace string
@@ -28,7 +31,7 @@ var _ Phase = &RebindPhase{}
 
 // Name returns the name of the phase
 func (p *RebindPhase) Name() string {
-	return "Rebind"
+	return RebindPhaseName
 }
 
 // Reconcile rebinds a PV

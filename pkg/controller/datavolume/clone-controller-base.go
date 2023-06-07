@@ -26,22 +26,23 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/common"
-
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 )
 
 const (
@@ -84,7 +85,7 @@ const (
 	// MessageSmartCloneInProgress provides a const to form snapshot for smart-clone is in progress message
 	MessageSmartCloneInProgress = "Creating snapshot for smart-clone is in progress (for pvc %s/%s)"
 	// MessageCloneFromSnapshotSourceInProgress provides a const to form clone from snapshot source is in progress message
-	MessageCloneFromSnapshotSourceInProgress = "Creating PVC from snapshot source is in progress (for snapshot %s/%s)"
+	MessageCloneFromSnapshotSourceInProgress = "Creating PVC from snapshot source is in progress (for %s %s/%s)"
 	// MessageSmartClonePVCInProgress provides a const to form snapshot for smart-clone is in progress message
 	MessageSmartClonePVCInProgress = "Creating PVC for smart-clone is in progress (for pvc %s/%s)"
 	// MessageCsiCloneInProgress provides a const to form a CSI Volume Clone in progress message
@@ -118,6 +119,14 @@ const (
 	CloneWithoutSource = "CloneWithoutSource"
 	// MessageCloneWithoutSource reports that the source of a clone doesn't exists (message)
 	MessageCloneWithoutSource = "The source %s %s doesn't exist"
+	// PrepClaimInProgress is const representing target PVC prep
+	PrepClaimInProgress = "PrepClaimInProgress"
+	// MessagePrepClaimInProgress is a const for reporting target prep
+	MessagePrepClaimInProgress = "Prepping PersistentVolumeClaim for DataVolume %s/%s"
+	// RebindInProgress is const representing target PVC rebind
+	RebindInProgress = "RebindInProgress"
+	// MessageRebindInProgress is a const for reporting target rebind
+	MessageRebindInProgress = "Rebinding PersistentVolumeClaim for DataVolume %s/%s"
 
 	// AnnCSICloneRequest annotation associates object with CSI Clone Request
 	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"
@@ -173,6 +182,67 @@ func (r *CloneReconcilerBase) ensureExtendedToken(pvc *corev1.PersistentVolumeCl
 
 	if err := r.updatePVC(pvc); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (r *CloneReconcilerBase) reconcileVolumeCloneSourceCR(syncState *dvSyncState, kind string) error {
+	dv := syncState.dvMutated
+	cloneSource := &cdiv1.VolumeCloneSource{}
+	cloneSourceName := volumeCloneSourceName(dv)
+	_, sourceName, sourceNamespace := cc.GetCloneSourceInfo(dv)
+	succeeded := dv.Status.Phase == cdiv1.Succeeded
+	exists, err := cc.GetResource(context.TODO(), r.client, sourceNamespace, cloneSourceName, cloneSource)
+	if err != nil {
+		return err
+	}
+
+	if succeeded || exists {
+		if succeeded && exists {
+			if err := r.client.Delete(context.TODO(), cloneSource); err != nil {
+				if !k8serrors.IsNotFound(err) {
+					return err
+				}
+			}
+		}
+
+		return nil
+	}
+
+	cloneSource = &cdiv1.VolumeCloneSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cloneSourceName,
+			Namespace: sourceNamespace,
+		},
+		Spec: cdiv1.VolumeCloneSourceSpec{
+			Source: corev1.TypedLocalObjectReference{
+				Kind: "PersistentVolumeClaim",
+				Name: sourceName,
+			},
+			Preallocation: dv.Spec.Preallocation,
+		},
+	}
+
+	if dv.Spec.PriorityClassName != "" {
+		cloneSource.Spec.PriorityClassName = &dv.Spec.PriorityClassName
+	}
+
+	if sourceNamespace == dv.Namespace {
+		if err := controllerutil.SetControllerReference(dv, cloneSource, r.scheme); err != nil {
+			return err
+		}
+	}
+	/*
+		else {
+			// TODO add annotation for cross namespace
+		}
+	*/
+
+	if err := r.client.Create(context.TODO(), cloneSource); err != nil {
+		if !k8serrors.IsAlreadyExists(err) {
+			return err
+		}
 	}
 
 	return nil
@@ -501,8 +571,12 @@ func (r *CloneReconcilerBase) createExpansionPod(pvc *corev1.PersistentVolumeCla
 func (r *CloneReconcilerBase) syncCloneStatusPhase(syncState *dvSyncState, phase cdiv1.DataVolumePhase, pvc *corev1.PersistentVolumeClaim) error {
 	var event Event
 	dataVolume := syncState.dvMutated
-	sourceName, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dataVolume)
+	r.setEventForPhase(dataVolume, phase, &event)
+	return r.syncDataVolumeStatusPhaseWithEvent(syncState, phase, pvc, event)
+}
 
+func (r *CloneReconcilerBase) setEventForPhase(dataVolume *cdiv1.DataVolume, phase cdiv1.DataVolumePhase, event *Event) {
+	sourceType, sourceName, sourceNamespace := cc.GetCloneSourceInfo(dataVolume)
 	switch phase {
 	case cdiv1.CloneScheduled:
 		event.eventType = corev1.EventTypeNormal
@@ -515,7 +589,7 @@ func (r *CloneReconcilerBase) syncCloneStatusPhase(syncState *dvSyncState, phase
 	case cdiv1.CloneFromSnapshotSourceInProgress:
 		event.eventType = corev1.EventTypeNormal
 		event.reason = CloneFromSnapshotSourceInProgress
-		event.message = fmt.Sprintf(MessageCloneFromSnapshotSourceInProgress, sourceNamespace, sourceName)
+		event.message = fmt.Sprintf(MessageCloneFromSnapshotSourceInProgress, sourceType, sourceNamespace, sourceName)
 	case cdiv1.CSICloneInProgress:
 		event.eventType = corev1.EventTypeNormal
 		event.reason = string(cdiv1.CSICloneInProgress)
@@ -532,12 +606,58 @@ func (r *CloneReconcilerBase) syncCloneStatusPhase(syncState *dvSyncState, phase
 		event.eventType = corev1.EventTypeNormal
 		event.reason = CloneSucceeded
 		event.message = fmt.Sprintf(MessageCloneSucceeded, sourceNamespace, sourceName, dataVolume.Namespace, dataVolume.Name)
+	case cdiv1.CloneInProgress:
+		event.eventType = corev1.EventTypeNormal
+		event.reason = CloneInProgress
+		event.message = fmt.Sprintf(MessageCloneInProgress, sourceNamespace, sourceName, dataVolume.Namespace, dataVolume.Name)
+	case cdiv1.PrepClaimInProgress:
+		event.eventType = corev1.EventTypeNormal
+		event.reason = PrepClaimInProgress
+		event.message = fmt.Sprintf(MessagePrepClaimInProgress, dataVolume.Namespace, dataVolume.Name)
+	case cdiv1.RebindInProgress:
+		event.eventType = corev1.EventTypeNormal
+		event.reason = RebindInProgress
+		event.message = fmt.Sprintf(MessageRebindInProgress, dataVolume.Namespace, dataVolume.Name)
+	default:
+		r.log.V(1).Info("No event set for phase", "phase", phase)
 	}
+}
 
-	return r.syncDataVolumeStatusPhaseWithEvent(syncState, phase, pvc, event)
+var populatorPhaseMap = map[string]cdiv1.DataVolumePhase{
+	"":                           cdiv1.CloneScheduled,
+	clone.PendingPhaseName:       cdiv1.CloneScheduled,
+	clone.SucceededPhaseName:     cdiv1.Succeeded,
+	clone.CSIClonePhaseName:      cdiv1.CSICloneInProgress,
+	clone.HostClonePhaseName:     cdiv1.CloneInProgress,
+	clone.PrepClaimPhaseName:     cdiv1.PrepClaimInProgress,
+	clone.RebindPhaseName:        cdiv1.RebindInProgress,
+	clone.SnapshotClonePhaseName: cdiv1.CloneFromSnapshotSourceInProgress,
+	clone.SnapshotPhaseName:      cdiv1.SnapshotForSmartCloneInProgress,
+	//clone.ErrorPhaseName:         cdiv1.Error, // Want to hold off on this for now
+}
+
+func (r *CloneReconcilerBase) updateStatusPhaseForPopulator(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+	popPhase := pvc.Annotations[populators.AnnClonePhase]
+	dvPhase, ok := populatorPhaseMap[popPhase]
+	if !ok {
+		r.log.V(1).Info("Unknown populator phase", "phase", popPhase)
+		//dataVolumeCopy.Status.Phase = cdiv1.Unknown // hold off on this for now
+		return nil
+	}
+	dataVolumeCopy.Status.Phase = dvPhase
+	r.setEventForPhase(dataVolumeCopy, dvPhase, event)
+	return nil
 }
 
 func (r *CloneReconcilerBase) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+	usePopulator, err := CheckPVCUsingPopulators(pvc)
+	if err != nil {
+		return err
+	}
+	if usePopulator {
+		return r.updateStatusPhaseForPopulator(pvc, dataVolumeCopy, event)
+	}
+
 	phase, ok := pvc.Annotations[cc.AnnPodPhase]
 	if phase != string(corev1.PodSucceeded) {
 		_, ok = pvc.Annotations[cc.AnnCloneRequest]
@@ -553,7 +673,7 @@ func (r *CloneReconcilerBase) updateStatusPhase(pvc *corev1.PersistentVolumeClai
 	if err := r.populateSourceIfSourceRef(dataVolumeCopy); err != nil {
 		return err
 	}
-	sourceName, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dataVolumeCopy)
+	_, sourceName, sourceNamespace := cc.GetCloneSourceInfo(dataVolumeCopy)
 
 	switch phase {
 	case string(corev1.PodPending):
@@ -670,7 +790,7 @@ func (r *CloneReconcilerBase) cleanupTransfer(dv *cdiv1.DataVolume) error {
 }
 
 func appendTmpPvcIfNeeded(dv *cdiv1.DataVolume, namespaces, names []string, pvcName string) ([]string, []string) {
-	_, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dv)
+	_, _, sourceNamespace := cc.GetCloneSourceInfo(dv)
 
 	if sourceNamespace != "" && sourceNamespace != dv.Namespace {
 		namespaces = append(namespaces, sourceNamespace)
@@ -681,7 +801,7 @@ func appendTmpPvcIfNeeded(dv *cdiv1.DataVolume, namespaces, names []string, pvcN
 }
 
 func isCrossNamespaceClone(dv *cdiv1.DataVolume) bool {
-	_, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dv)
+	_, _, sourceNamespace := cc.GetCloneSourceInfo(dv)
 
 	return sourceNamespace != "" && sourceNamespace != dv.Namespace
 }
@@ -699,7 +819,7 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, indexingKey, func(obj client.Object) []string {
 		dv := obj.(*cdiv1.DataVolume)
 		if source := dv.Spec.Source; source != nil {
-			sourceName, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dv)
+			_, sourceName, sourceNamespace := cc.GetCloneSourceInfo(dv)
 			if sourceName != "" {
 				ns := cc.GetNamespace(sourceNamespace, obj.GetNamespace())
 				return []string{getKey(ns, sourceName)}

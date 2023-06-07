@@ -21,6 +21,17 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
+const (
+	// PendingPhaseName is the phase when the clone is pending
+	PendingPhaseName = "Pending"
+
+	// SucceededPhaseName is the phase when the clone is succeeded
+	SucceededPhaseName = "Succeeded"
+
+	// ErrorPhaseName is the phase when the clone is in error
+	ErrorPhaseName = "Error"
+)
+
 // IsDataSourcePVC checks for PersistentVolumeClaim source kind
 func IsDataSourcePVC(kind string) bool {
 	return kind == "PersistentVolumeClaim"
