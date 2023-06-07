@@ -316,6 +316,12 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 			return ProcessingPhaseError, errors.Wrap(err, "Unable to change permissions of target file")
 		}
 	}
+	if isBlockDev && dp.preallocation && !dp.preallocationApplied {
+		// don't love this but it's actually true
+		// should only get here when importing a raw/iso file
+		klog.V(1).Info("preallocation indirectly applied by downloading via golang http client")
+		dp.preallocationApplied = true
+	}
 
 	return ProcessingPhaseComplete, nil
 }
