@@ -116,7 +116,7 @@ var _ = Describe("Clone populator tests", func() {
 	initinializedTargetAndDataSource := func() (*corev1.PersistentVolumeClaim, *cdiv1.VolumeCloneSource) {
 		target, source := targetAndDataSource()
 		target.Annotations = map[string]string{
-			AnnClonePhase:   pendingPhase,
+			AnnClonePhase:   clone.PendingPhaseName,
 			cc.AnnCloneType: "snapshot",
 		}
 		clone.AddCommonClaimLabels(target)
@@ -126,7 +126,7 @@ var _ = Describe("Clone populator tests", func() {
 
 	succeededTarget := func() *corev1.PersistentVolumeClaim {
 		target, _ := initinializedTargetAndDataSource()
-		target.Annotations[AnnClonePhase] = string(succeededPhase)
+		target.Annotations[AnnClonePhase] = string(clone.SucceededPhaseName)
 		target.Spec.VolumeName = "volume"
 		return target
 	}
@@ -149,7 +149,7 @@ var _ = Describe("Clone populator tests", func() {
 
 	verifyPending := func(c client.Client) {
 		target := getTarget(c)
-		Expect(target.Annotations[AnnClonePhase]).To(Equal(string(pendingPhase)))
+		Expect(target.Annotations[AnnClonePhase]).To(Equal(string(clone.PendingPhaseName)))
 	}
 
 	It("should do nothing if PVC is not found", func() {
@@ -222,7 +222,7 @@ var _ = Describe("Clone populator tests", func() {
 		result, err := reconciler.Reconcile(context.Background(), nn)
 		isDefaultResult(result, err)
 		pvc := getTarget(reconciler.client)
-		Expect(pvc.Annotations[AnnClonePhase]).To(Equal(string(pendingPhase)))
+		Expect(pvc.Annotations[AnnClonePhase]).To(Equal(string(clone.PendingPhaseName)))
 		Expect(pvc.Annotations[cc.AnnCloneType]).To(Equal(string(csr)))
 		Expect(pvc.Finalizers).To(ContainElement(cloneFinalizer))
 	})
@@ -271,7 +271,13 @@ var _ = Describe("Clone populator tests", func() {
 						name:   "phase2",
 						result: &reconcile.Result{},
 					},
-					progress: "50.0%",
+					progress: &clone.PhaseProgress{
+						Progress: "50.0%",
+						Annotations: map[string]string{
+							"foo":                  "bar",
+							cc.AnnRunningCondition: "true",
+						},
+					},
 				},
 			},
 		}
@@ -280,6 +286,8 @@ var _ = Describe("Clone populator tests", func() {
 		pvc := getTarget(reconciler.client)
 		Expect(pvc.Annotations[AnnClonePhase]).To(Equal("phase2"))
 		Expect(pvc.Annotations[cc.AnnPopulatorProgress]).To(Equal("50.0%"))
+		Expect(pvc.Annotations[cc.AnnRunningCondition]).To(Equal("true"))
+		Expect(pvc.Annotations).ToNot(HaveKey("foo"))
 	})
 
 	It("should be in error phase if progress returns an error", func() {
@@ -373,11 +381,11 @@ func (p *fakePhase) Reconcile(ctx context.Context) (*reconcile.Result, error) {
 
 type fakePhaseWithProgress struct {
 	fakePhase
-	progress     string
+	progress     *clone.PhaseProgress
 	proogressErr error
 }
 
-func (p *fakePhaseWithProgress) Progress(ctx context.Context) (string, error) {
+func (p *fakePhaseWithProgress) Progress(ctx context.Context) (*clone.PhaseProgress, error) {
 	return p.progress, p.proogressErr
 }
 

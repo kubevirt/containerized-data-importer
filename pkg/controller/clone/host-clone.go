@@ -16,6 +16,9 @@ import (
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
+// HostClonePhaseName is the name of the host clone phase
+const HostClonePhaseName = "HostClone"
+
 // HostClonePhase creates and monitors a dumb clone operation
 type HostClonePhase struct {
 	Owner             client.Object
@@ -43,20 +46,27 @@ func init() {
 
 // Name returns the name of the phase
 func (p *HostClonePhase) Name() string {
-	return "HostClone"
+	return HostClonePhaseName
 }
 
-// Progress returns the progress of the operation as a percentage
-func (p *HostClonePhase) Progress(ctx context.Context) (string, error) {
+// Progress returns the phase progress
+func (p *HostClonePhase) Progress(ctx context.Context) (*PhaseProgress, error) {
+	result := &PhaseProgress{}
 	pvc := &corev1.PersistentVolumeClaim{}
 	exists, err := getResource(ctx, p.Client, p.Namespace, p.DesiredClaim.Name, pvc)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
+	if !exists {
+		return result, nil
+	}
+
+	result.Annotations = pvc.Annotations
+
 	podName := pvc.Annotations[cc.AnnCloneSourcePod]
-	if !exists || podName == "" {
-		return "", nil
+	if podName == "" {
+		return result, nil
 	}
 
 	args := &cc.ProgressFromClaimArgs{
@@ -70,10 +80,12 @@ func (p *HostClonePhase) Progress(ctx context.Context) (string, error) {
 
 	progress, err := cc.ProgressFromClaim(ctx, args)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return progress, nil
+	result.Progress = progress
+
+	return result, nil
 }
 
 // Reconcile creates the desired pvc and waits for the operation to complete
