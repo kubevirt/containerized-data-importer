@@ -184,18 +184,7 @@ var _ = Describe("DataSource", func() {
 			f.ForceBindIfWaitForFirstConsumer(pvc)
 
 			snapClass := f.GetSnapshotClass()
-			snapshot := &snapshotv1.VolumeSnapshot{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
-					Namespace: pvc.Namespace,
-				},
-				Spec: snapshotv1.VolumeSnapshotSpec{
-					Source: snapshotv1.VolumeSnapshotSource{
-						PersistentVolumeClaimName: &pvc.Name,
-					},
-					VolumeSnapshotClassName: &snapClass.Name,
-				},
-			}
+			snapshot := utils.NewVolumeSnapshot(name, pvc.Namespace, pvc.Name, &snapClass.Name)
 			err = f.CrClient.Create(context.TODO(), snapshot)
 			Expect(err).ToNot(HaveOccurred())
 

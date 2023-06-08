@@ -10,6 +10,8 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
 
 // StorageCapabilities is a simple holder of storage capabilities (accessMode etc.)
@@ -97,6 +99,23 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"csi.ovirt.org": createRWOBlockAndFilesystemCapabilities(),
 }
 
+// SourceFormatsByProvisionerKey defines the advised data import cron source format
+// Certain storage provisioners will scale better cloning from a single source VolumeSnapshot source
+var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
+	"rook-ceph.rbd.csi.ceph.com":         cdiv1.DataImportCronSourceFormatSnapshot,
+	"openshift-storage.rbd.csi.ceph.com": cdiv1.DataImportCronSourceFormatSnapshot,
+}
+
+// CloneStrategyByProvisionerKey defines the advised clone strategy for a provisioner
+var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
+	"csi-vxflexos.dellemc.com":   cdiv1.CloneStrategyCsiClone,
+	"csi-isilon.dellemc.com":     cdiv1.CloneStrategyCsiClone,
+	"csi-powermax.dellemc.com":   cdiv1.CloneStrategyCsiClone,
+	"csi-powerstore.dellemc.com": cdiv1.CloneStrategyCsiClone,
+	"hspc.csi.hitachi.com":       cdiv1.CloneStrategyCsiClone,
+	"csi.hpe.com":                cdiv1.CloneStrategyCsiClone,
+}
+
 // ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
 const ProvisionerNoobaa = "openshift-storage.noobaa.io/obc"
 
@@ -107,14 +126,28 @@ var UnsupportedProvisioners = map[string]struct{}{
 	ProvisionerNoobaa:                       {},
 }
 
-// Get finds and returns a predefined StorageCapabilities for a given StorageClass
-func Get(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
+// GetCapabilities finds and returns a predefined StorageCapabilities for a given StorageClass
+func GetCapabilities(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
 	provisionerKey := storageProvisionerKey(sc)
 	if provisionerKey == "kubernetes.io/no-provisioner" {
 		return capabilitiesForNoProvisioner(cl, sc)
 	}
 	capabilities, found := CapabilitiesByProvisionerKey[provisionerKey]
 	return capabilities, found
+}
+
+// GetAdvisedSourceFormat finds and returns the advised format for dataimportcron sources
+func GetAdvisedSourceFormat(sc *storagev1.StorageClass) (cdiv1.DataImportCronSourceFormat, bool) {
+	provisionerKey := storageProvisionerKey(sc)
+	format, found := SourceFormatsByProvisionerKey[provisionerKey]
+	return format, found
+}
+
+// GetAdvisedCloneStrategy finds and returns the advised clone strategy
+func GetAdvisedCloneStrategy(sc *storagev1.StorageClass) (cdiv1.CDICloneStrategy, bool) {
+	provisionerKey := storageProvisionerKey(sc)
+	strategy, found := CloneStrategyByProvisionerKey[provisionerKey]
+	return strategy, found
 }
 
 func isLocalStorageOperator(sc *storagev1.StorageClass) bool {

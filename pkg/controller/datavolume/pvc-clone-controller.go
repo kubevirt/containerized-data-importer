@@ -29,7 +29,6 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -330,7 +329,7 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 
 	if pvc == nil {
 		if selectedCloneStrategy == SmartClone {
-			snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
+			snapshotClassName, err := cc.GetSnapshotClassForSmartClone(datavolume.Name, pvcSpec.StorageClassName, r.log, r.client)
 			if err != nil {
 				return syncRes, err
 			}
@@ -462,7 +461,7 @@ func (r *PvcCloneReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume, p
 			return CsiClone, nil
 		}
 	} else if preferredCloneStrategy != nil && *preferredCloneStrategy == cdiv1.CloneStrategySnapshot {
-		snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
+		snapshotClassName, err := cc.GetSnapshotClassForSmartClone(datavolume.Name, pvcSpec.StorageClassName, r.log, r.client)
 		if err != nil {
 			return NoClone, err
 		}
@@ -726,82 +725,6 @@ func (r *PvcCloneReconciler) cleanup(syncState *dvSyncState) error {
 	}
 
 	return nil
-}
-
-func (r *PvcCloneReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.DataVolume, targetStorageSpec *corev1.PersistentVolumeClaimSpec) (string, error) {
-	log := r.log.WithName("getSnapshotClassForSmartClone").V(3)
-	// Check if relevant CRDs are available
-	if !isCsiCrdsDeployed(r.client, r.log) {
-		log.Info("Missing CSI snapshotter CRDs, falling back to host assisted clone")
-		return "", nil
-	}
-
-	targetPvcStorageClassName := targetStorageSpec.StorageClassName
-	targetStorageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, targetPvcStorageClassName)
-	if err != nil {
-		return "", err
-	}
-	if targetStorageClass == nil {
-		log.Info("Target PVC's Storage Class not found")
-		return "", nil
-	}
-	targetPvcStorageClassName = &targetStorageClass.Name
-	// Fetch the source storage class
-	srcStorageClass := &storagev1.StorageClass{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *targetPvcStorageClassName}, srcStorageClass); err != nil {
-		log.Info("Unable to retrieve storage class, falling back to host assisted clone", "storage class", *targetPvcStorageClassName)
-		return "", err
-	}
-
-	// List the snapshot classes
-	scs := &snapshotv1.VolumeSnapshotClassList{}
-	if err := r.client.List(context.TODO(), scs); err != nil {
-		log.Info("Cannot list snapshot classes, falling back to host assisted clone")
-		return "", err
-	}
-	for _, snapshotClass := range scs.Items {
-		// Validate association between snapshot class and storage class
-		if snapshotClass.Driver == srcStorageClass.Provisioner {
-			log.Info("smart-clone is applicable for datavolume", "datavolume",
-				dataVolume.Name, "snapshot class", snapshotClass.Name)
-			return snapshotClass.Name, nil
-		}
-	}
-
-	log.Info("Could not match snapshotter with storage class, falling back to host assisted clone")
-	return "", nil
-}
-
-// isCsiCrdsDeployed checks whether the CSI snapshotter CRD are deployed
-func isCsiCrdsDeployed(c client.Client, log logr.Logger) bool {
-	version := "v1"
-	vsClass := "volumesnapshotclasses." + snapshotv1.GroupName
-	vsContent := "volumesnapshotcontents." + snapshotv1.GroupName
-	vs := "volumesnapshots." + snapshotv1.GroupName
-
-	return isCrdDeployed(c, vsClass, version, log) &&
-		isCrdDeployed(c, vsContent, version, log) &&
-		isCrdDeployed(c, vs, version, log)
-}
-
-// isCrdDeployed checks whether a CRD is deployed
-func isCrdDeployed(c client.Client, name, version string, log logr.Logger) bool {
-	crd := &extv1.CustomResourceDefinition{}
-	err := c.Get(context.TODO(), types.NamespacedName{Name: name}, crd)
-	if err != nil {
-		if !k8serrors.IsNotFound(err) {
-			log.Info("Error looking up CRD", "crd name", name, "version", version, "error", err)
-		}
-		return false
-	}
-
-	for _, v := range crd.Spec.Versions {
-		if v.Name == version && v.Served {
-			return true
-		}
-	}
-
-	return false
 }
 
 // Returns true if methods different from HostAssisted are possible,

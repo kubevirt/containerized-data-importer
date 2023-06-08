@@ -36,3 +36,31 @@ func NewDataImportCron(name, size, schedule, dataSource string, importsToKeep in
 		},
 	}
 }
+
+// NewDataImportCronWithStorageSpec initializes a DataImportCron struct with storage defaults-inferring API
+func NewDataImportCronWithStorageSpec(name, size, schedule, dataSource string, importsToKeep int32, source cdiv1.DataVolumeSourceRegistry) *cdiv1.DataImportCron {
+	return &cdiv1.DataImportCron{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: cdiv1.DataImportCronSpec{
+			Template: cdiv1.DataVolume{
+				Spec: cdiv1.DataVolumeSpec{
+					Source: &cdiv1.DataVolumeSource{
+						Registry: &source,
+					},
+					Storage: &cdiv1.StorageSpec{
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceStorage: resource.MustParse(size),
+							},
+						},
+					},
+				},
+			},
+			Schedule:          schedule,
+			ManagedDataSource: dataSource,
+			ImportsToKeep:     &importsToKeep,
+		},
+	}
+}

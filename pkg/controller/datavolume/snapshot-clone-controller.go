@@ -565,7 +565,7 @@ func (r *SnapshotCloneReconciler) isSnapshotValidForClone(snapshot *snapshotv1.V
 		r.log.V(3).Info("Snapshot does not have status populated yet")
 		return false, nil
 	}
-	if snapshot.Status.ReadyToUse == nil || !*snapshot.Status.ReadyToUse {
+	if !cc.IsSnapshotReady(snapshot) {
 		r.log.V(3).Info("snapshot not ReadyToUse, while we allow this, probably going to be an issue going forward", "namespace", snapshot.Namespace, "name", snapshot.Name)
 	}
 	if snapshot.Status.Error != nil {
