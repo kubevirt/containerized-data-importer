@@ -6881,6 +6881,9 @@ spec:
               dataImportCronSourceFormat:
                 description: DataImportCronSourceFormat defines the format of the
                   DataImportCron-created disk image sources
+                enum:
+                - snapshot
+                - pvc
                 type: string
             type: object
           status:
@@ -6914,6 +6917,9 @@ spec:
               dataImportCronSourceFormat:
                 description: DataImportCronSourceFormat defines the format of the
                   DataImportCron-created disk image sources
+                enum:
+                - snapshot
+                - pvc
                 type: string
               provisioner:
                 description: The Storage class provisioner plugin name

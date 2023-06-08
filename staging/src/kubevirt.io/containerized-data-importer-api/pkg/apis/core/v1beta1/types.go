@@ -844,6 +844,7 @@ const (
 )
 
 // DataImportCronSourceFormat defines the format of the DataImportCron-created disk image sources
+// +kubebuilder:validation:Enum="snapshot";"pvc"
 type DataImportCronSourceFormat string
 
 const (
