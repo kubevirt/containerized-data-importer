@@ -334,6 +334,10 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	if err != nil {
 		return res, err
 	}
+	handler, ok := formatHandlers[format]
+	if !ok {
+		return res, fmt.Errorf("can't find handler for format %s", format)
+	}
 
 	handlePopulatedPvc := func() error {
 		if pvc != nil {
@@ -342,7 +346,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			}
 		}
 		importSucceeded = true
-		if err := r.handleCronFormat(ctx, dataImportCron, format, dvStorageClass); err != nil {
+		if err := handler.handleSourceCreation(ctx, r, dataImportCron, &dataImportCron.Spec.Template, dvStorageClass); err != nil {
 			return err
 		}
 
@@ -390,7 +394,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		}
 	}
 
-	if err := r.updateDataSource(ctx, dataImportCron, format); err != nil {
+	if err := r.updateDataSource(ctx, dataImportCron, handler); err != nil {
 		return res, err
 	}
 
@@ -418,9 +422,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			}
 		}
 	} else if importSucceeded {
-		if err := r.updateDataImportCronSuccessCondition(ctx, dataImportCron, format, snapshot); err != nil {
-			return res, err
-		}
+		handler.updateOnSuccess(dataImportCron, snapshot)
 	} else if len(imports) > 0 {
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Import is progressing", inProgress)
 	} else {
@@ -545,7 +547,7 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 	return nil
 }
 
-func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImportCron *cdiv1.DataImportCron, format cdiv1.DataImportCronSourceFormat) error {
+func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImportCron *cdiv1.DataImportCron, handler formatHandler) error {
 	log := r.log.WithName("updateDataSource")
 	dataSourceName := dataImportCron.Spec.ManagedDataSource
 	dataSource := &cdiv1.DataSource{}
@@ -575,7 +577,7 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDynamicCredentialSupport)
 
 	sourcePVC := dataImportCron.Status.LastImportedPVC
-	populateDataSource(format, dataSource, sourcePVC)
+	populateDataSource(handler, dataSource, sourcePVC)
 
 	if !reflect.DeepEqual(dataSource, dataSourceCopy) {
 		if err := r.client.Update(ctx, dataSource); err != nil {
@@ -586,24 +588,12 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 	return nil
 }
 
-func populateDataSource(format cdiv1.DataImportCronSourceFormat, dataSource *cdiv1.DataSource, sourcePVC *cdiv1.DataVolumeSourcePVC) {
+func populateDataSource(handler formatHandler, dataSource *cdiv1.DataSource, sourcePVC *cdiv1.DataVolumeSourcePVC) {
 	if sourcePVC == nil {
 		return
 	}
 
-	switch format {
-	case cdiv1.DataImportCronSourceFormatPvc:
-		dataSource.Spec.Source = cdiv1.DataSourceSource{
-			PVC: sourcePVC,
-		}
-	case cdiv1.DataImportCronSourceFormatSnapshot:
-		dataSource.Spec.Source = cdiv1.DataSourceSource{
-			Snapshot: &cdiv1.DataVolumeSourceSnapshot{
-				Namespace: sourcePVC.Namespace,
-				Name:      sourcePVC.Name,
-			},
-		}
-	}
+	handler.populateDataSourceSpec(&dataSource.Spec, sourcePVC)
 }
 
 func updateDataImportCronOnSuccess(dataImportCron *cdiv1.DataImportCron) error {
@@ -667,94 +657,6 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 	dv := r.newSourceDataVolume(dataImportCron, dvName)
 	if err := r.client.Create(ctx, dv); err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
-	}
-
-	return nil
-}
-
-func (r *DataImportCronReconciler) handleCronFormat(ctx context.Context, dataImportCron *cdiv1.DataImportCron, format cdiv1.DataImportCronSourceFormat, dvStorageClass *storagev1.StorageClass) error {
-	switch format {
-	case cdiv1.DataImportCronSourceFormatPvc:
-		return nil
-	case cdiv1.DataImportCronSourceFormatSnapshot:
-		return r.handleSnapshot(ctx, dataImportCron, &dataImportCron.Spec.Template, dvStorageClass)
-	default:
-		return fmt.Errorf("unknown source format for snapshot")
-	}
-}
-
-func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImportCron *cdiv1.DataImportCron, dataVolume *cdiv1.DataVolume, dvStorageClass *storagev1.StorageClass) error {
-	dataSourceName := dataImportCron.Spec.ManagedDataSource
-	digest := dataImportCron.Annotations[AnnSourceDesiredDigest]
-	if digest == "" {
-		return nil
-	}
-	dvName, err := createDvName(dataSourceName, digest)
-	if err != nil {
-		return err
-	}
-
-	className, err := cc.GetSnapshotClassForSmartClone(dataVolume.Name, &dvStorageClass.Name, r.log, r.client)
-	if err != nil {
-		return err
-	}
-	labels := map[string]string{
-		common.CDILabelKey:       common.CDILabelValue,
-		common.CDIComponentLabel: "",
-	}
-	desiredSnapshot := &snapshotv1.VolumeSnapshot{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      dvName,
-			Namespace: dataImportCron.Namespace,
-			Labels:    labels,
-		},
-		Spec: snapshotv1.VolumeSnapshotSpec{
-			Source: snapshotv1.VolumeSnapshotSource{
-				PersistentVolumeClaimName: &dvName,
-			},
-			VolumeSnapshotClassName: &className,
-		},
-	}
-	r.setDataImportCronResourceLabels(dataImportCron, desiredSnapshot)
-
-	currentSnapshot := &snapshotv1.VolumeSnapshot{}
-	if err := r.client.Get(context.TODO(), client.ObjectKeyFromObject(desiredSnapshot), currentSnapshot); err != nil {
-		if !k8serrors.IsNotFound(err) {
-			return err
-		}
-		cc.AddAnnotation(desiredSnapshot, AnnLastUseTime, time.Now().UTC().Format(time.RFC3339Nano))
-		if err := r.client.Create(ctx, desiredSnapshot); err != nil {
-			return err
-		}
-	} else {
-		if cc.IsSnapshotReady(currentSnapshot) {
-			// Clean up DV/PVC as they are not needed anymore
-			r.log.Info("Deleting dv/pvc as snapshot is ready", "name", desiredSnapshot.Name)
-			if err := r.deleteDvPvc(ctx, desiredSnapshot.Name, desiredSnapshot.Namespace); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func (r *DataImportCronReconciler) updateDataImportCronSuccessCondition(ctx context.Context, dataImportCron *cdiv1.DataImportCron, format cdiv1.DataImportCronSourceFormat, snapshot *snapshotv1.VolumeSnapshot) error {
-	switch format {
-	case cdiv1.DataImportCronSourceFormatPvc:
-		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionTrue, "Latest import is up to date", upToDate)
-	case cdiv1.DataImportCronSourceFormatSnapshot:
-		if snapshot == nil {
-			// Snapshot create/update will trigger reconcile
-			return nil
-		}
-		if cc.IsSnapshotReady(snapshot) {
-			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionTrue, "Latest import is up to date", upToDate)
-		} else {
-			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionFalse, "Snapshot of imported data is progressing", inProgress)
-		}
-	default:
-		return fmt.Errorf("unknown source format for snapshot")
 	}
 
 	return nil
