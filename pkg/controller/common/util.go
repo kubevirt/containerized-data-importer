@@ -38,6 +38,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -1659,4 +1660,78 @@ func ValidateSnapshotCloneProvisioners(ctx context.Context, c client.Client, sna
 	// currently don't have CRDs in CI with sourceVolumeMode which is pretty new
 	// converting volume mode is possible but has security implications
 	return true, nil
+}
+
+// GetSnapshotClassForSmartClone looks up the snapshot class based on the storage class
+func GetSnapshotClassForSmartClone(dvName string, targetPvcStorageClassName *string, log logr.Logger, client client.Client) (string, error) {
+	logger := log.WithName("GetSnapshotClassForSmartClone").V(3)
+	// Check if relevant CRDs are available
+	if !isCsiCrdsDeployed(client, log) {
+		logger.Info("Missing CSI snapshotter CRDs, falling back to host assisted clone")
+		return "", nil
+	}
+
+	targetStorageClass, err := GetStorageClassByName(context.TODO(), client, targetPvcStorageClassName)
+	if err != nil {
+		return "", err
+	}
+	if targetStorageClass == nil {
+		logger.Info("Target PVC's Storage Class not found")
+		return "", nil
+	}
+
+	// List the snapshot classes
+	scs := &snapshotv1.VolumeSnapshotClassList{}
+	if err := client.List(context.TODO(), scs); err != nil {
+		logger.Info("Cannot list snapshot classes, falling back to host assisted clone")
+		return "", err
+	}
+	for _, snapshotClass := range scs.Items {
+		// Validate association between snapshot class and storage class
+		if snapshotClass.Driver == targetStorageClass.Provisioner {
+			logger.Info("smart-clone is applicable for datavolume", "datavolume",
+				dvName, "snapshot class", snapshotClass.Name)
+			return snapshotClass.Name, nil
+		}
+	}
+
+	logger.Info("Could not match snapshotter with storage class, falling back to host assisted clone")
+	return "", nil
+}
+
+// isCsiCrdsDeployed checks whether the CSI snapshotter CRD are deployed
+func isCsiCrdsDeployed(c client.Client, log logr.Logger) bool {
+	version := "v1"
+	vsClass := "volumesnapshotclasses." + snapshotv1.GroupName
+	vsContent := "volumesnapshotcontents." + snapshotv1.GroupName
+	vs := "volumesnapshots." + snapshotv1.GroupName
+
+	return isCrdDeployed(c, vsClass, version, log) &&
+		isCrdDeployed(c, vsContent, version, log) &&
+		isCrdDeployed(c, vs, version, log)
+}
+
+// isCrdDeployed checks whether a CRD is deployed
+func isCrdDeployed(c client.Client, name, version string, log logr.Logger) bool {
+	crd := &extv1.CustomResourceDefinition{}
+	err := c.Get(context.TODO(), types.NamespacedName{Name: name}, crd)
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			log.Info("Error looking up CRD", "crd name", name, "version", version, "error", err)
+		}
+		return false
+	}
+
+	for _, v := range crd.Spec.Versions {
+		if v.Name == version && v.Served {
+			return true
+		}
+	}
+
+	return false
+}
+
+// IsSnapshotReady indicates if a volume snapshot is ready to be used
+func IsSnapshotReady(snapshot *snapshotv1.VolumeSnapshot) bool {
+	return snapshot.Status != nil && snapshot.Status.ReadyToUse != nil && *snapshot.Status.ReadyToUse
 }

@@ -1470,6 +1470,7 @@ var _ = Describe("all clone tests", func() {
 
 		Context("CloneStrategy on storageclass annotation", func() {
 			cloneType := cdiv1.CloneStrategyCsiClone
+			var originalStrategy *cdiv1.CDICloneStrategy
 
 			BeforeEach(func() {
 				if !f.IsCSIVolumeCloneStorageClassAvailable() {
@@ -1479,8 +1480,8 @@ var _ = Describe("all clone tests", func() {
 				By(fmt.Sprintf("Get original storage profile: %s", cloneStorageClassName))
 				storageProfile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
+				originalStrategy = storageProfile.Status.CloneStrategy
 				Expect(storageProfile.Spec.CloneStrategy).To(BeNil())
-				Expect(storageProfile.Status.CloneStrategy).To(BeNil())
 
 				storageclass, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -1501,6 +1502,7 @@ var _ = Describe("all clone tests", func() {
 				}, time.Minute, time.Second).Should(Equal(cloneType))
 
 			})
+
 			AfterEach(func() {
 				By("[AfterEach] Restore the storage class - remove annotation ")
 				storageclass, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
@@ -1514,10 +1516,10 @@ var _ = Describe("all clone tests", func() {
 					storageProfile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
 					return storageProfile.Status.CloneStrategy
-				}, time.Minute, time.Second).Should(BeNil())
+				}, time.Minute, time.Second).Should(Equal(originalStrategy))
 			})
-			It("Should clone  with correct strategy from storageclass annotation ", func() {
 
+			It("Should clone  with correct strategy from storageclass annotation ", func() {
 				pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 				pvcDef.Spec.StorageClassName = &cloneStorageClassName
 				pvcDef.Namespace = f.Namespace.Name
@@ -2628,31 +2630,17 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			snapClass := f.GetSnapshotClass()
-			snapshot = &snapshotv1.VolumeSnapshot{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "snap-" + snapSourceDv.Name,
-					Namespace: f.Namespace.Name,
-				},
-				Spec: snapshotv1.VolumeSnapshotSpec{
-					Source: snapshotv1.VolumeSnapshotSource{
-						PersistentVolumeClaimName: &pvc.Name,
-					},
-					VolumeSnapshotClassName: &snapClass.Name,
-				},
-			}
+			snapshot = utils.NewVolumeSnapshot("snap-"+snapSourceDv.Name, f.Namespace.Name, pvc.Name, &snapClass.Name)
 			err = f.CrClient.Create(context.TODO(), snapshot)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func() bool {
-				err = f.CrClient.Get(context.TODO(), client.ObjectKeyFromObject(snapshot), snapshot)
-				if err != nil {
-					return false
-				}
-				return snapshot.Status != nil && snapshot.Status.ReadyToUse != nil && *snapshot.Status.ReadyToUse
-			}, 10*time.Second, 1*time.Second).Should(BeTrue())
+			snapshot = utils.WaitSnapshotReady(f.CrClient, snapshot)
 			By("Snapshot ready, no need to keep PVC around")
 			err = f.DeletePVC(pvc)
 			Expect(err).ToNot(HaveOccurred())
+			deleted, err := utils.WaitPVCDeleted(f.K8sClient, pvc.Name, f.Namespace.Name, 2*time.Minute)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(deleted).To(BeTrue())
 		}
 
 		BeforeEach(func() {

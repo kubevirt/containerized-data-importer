@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -288,18 +287,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				pvc := f.CreateAndPopulateSourcePVC(srcPVCDef, "fill-source", fmt.Sprintf("echo \"hello world\" > %s/data.txt", utils.DefaultPvcMountPath))
 
 				snapClass := f.GetSnapshotClass()
-				snapshot := &snapshotv1.VolumeSnapshot{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "snap-" + pvc.Name,
-						Namespace: pvc.Namespace,
-					},
-					Spec: snapshotv1.VolumeSnapshotSpec{
-						Source: snapshotv1.VolumeSnapshotSource{
-							PersistentVolumeClaimName: &pvc.Name,
-						},
-						VolumeSnapshotClassName: &snapClass.Name,
-					},
-				}
+				snapshot := utils.NewVolumeSnapshot("snap-"+pvc.Name, pvc.Namespace, pvc.Name, &snapClass.Name)
 				err = f.CrClient.Create(context.TODO(), snapshot)
 				Expect(err).ToNot(HaveOccurred())
 				volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem)
