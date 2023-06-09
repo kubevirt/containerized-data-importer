@@ -34,7 +34,6 @@ go_test(
         "external_population_test.go",
         "import_proxy_test.go",
         "import_test.go",
-        "leaderelection_test.go",
         "local_volume_test.go",
         "monitoring_test.go",
         "operator_test.go",
