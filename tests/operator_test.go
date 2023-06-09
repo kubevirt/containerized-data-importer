@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -36,6 +37,10 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
+)
+
+var (
+	logIsLeaderRegex = regexp.MustCompile("successfully acquired lease")
 )
 
 var _ = Describe("ALL Operator tests", func() {
@@ -1229,4 +1234,15 @@ func scaleDeployment(f *framework.Framework, deploymentName string, replicas int
 	_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Patch(context.TODO(), deploymentName, types.JSONPatchType, []byte(patch), metav1.PatchOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	return originalReplicas
+}
+
+func checkLogForRegEx(regEx *regexp.Regexp, log string) bool {
+	matches := regEx.FindAllStringIndex(log, -1)
+	return len(matches) >= 1
+}
+
+func getLog(f *framework.Framework, name string) string {
+	log, err := f.RunKubectlCommand("logs", "--since=0", name, "-n", f.CdiInstallNs)
+	Expect(err).ToNot(HaveOccurred())
+	return log
 }

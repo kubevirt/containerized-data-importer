@@ -21,6 +21,15 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
+const (
+	cdiDeploymentPodPrefix  = "cdi-deployment-"
+	cdiApiServerPodPrefix   = "cdi-apiserver-"
+	cdiUploadProxyPodPrefix = "cdi-uploadproxy-"
+
+	pollingInterval = 2 * time.Second
+	timeout         = 360 * time.Second
+)
+
 var _ = Describe("cdi-apiserver tests", func() {
 	var origSpec *cdiv1.CDIConfigSpec
 	f := framework.NewFramework("cdi-apiserver-test", framework.Config{})
