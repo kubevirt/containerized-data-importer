@@ -42,6 +42,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 )
 
@@ -129,6 +130,21 @@ func addDataVolumeCloneControllerWatches(mgr manager.Manager, datavolumeControll
 		return err
 	}
 
+	if err := datavolumeController.Watch(&source.Kind{Type: &cdiv1.VolumeCloneSource{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			if !hasAnnOwnedByDataVolume(obj) {
+				return nil
+			}
+			namespace, name, err := getAnnOwnedByDataVolume(obj)
+			if err != nil {
+				return nil
+			}
+			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: namespace, Name: name}}}
+		}),
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -187,6 +203,19 @@ func (r *PvcCloneReconciler) prepare(syncState *dvSyncState) error {
 	return nil
 }
 
+func (r *PvcCloneReconciler) cleanup(syncState *dvSyncState) error {
+	dv := syncState.dvMutated
+	if err := r.populateSourceIfSourceRef(dv); err != nil {
+		return err
+	}
+
+	if dv.DeletionTimestamp == nil {
+		return nil
+	}
+
+	return r.reconcileVolumeCloneSourceCR(syncState, "PersistentVolumeClaim")
+}
+
 func addCloneToken(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
 	token, ok := dv.Annotations[cc.AnnCloneToken]
 	if !ok {
@@ -206,6 +235,9 @@ func (r *PvcCloneReconciler) updatePVCForPopulation(dataVolume *cdiv1.DataVolume
 	}
 	if err := addCloneToken(dataVolume, pvc); err != nil {
 		return err
+	}
+	if isCrossNamespaceClone(dataVolume) {
+		cc.AddAnnotation(pvc, populators.AnnDataSourceNamespace, dataVolume.Spec.Source.PVC.Namespace)
 	}
 	apiGroup := cc.AnnAPIGroup
 	pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
@@ -240,7 +272,7 @@ func (r *PvcCloneReconciler) sync(log logr.Logger, req reconcile.Request) (dvSyn
 }
 
 func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (dvSyncState, error) {
-	syncRes, syncErr := r.syncCommon(log, req, nil, r.prepare)
+	syncRes, syncErr := r.syncCommon(log, req, r.cleanup, r.prepare)
 	if syncErr != nil || syncRes.result != nil {
 		return syncRes, syncErr
 	}
@@ -279,8 +311,7 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 						syncRes.result = &reconcile.Result{}
 					}
 					syncRes.result.RequeueAfter = sourceInUseRequeueDuration
-					return syncRes,
-						r.syncCloneStatusPhase(&syncRes, cdiv1.CloneScheduled, nil)
+					return syncRes, r.syncCloneStatusPhase(&syncRes, cdiv1.CloneScheduled, nil)
 				}
 				return syncRes, nil
 			}
@@ -289,8 +320,10 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 		pvcModifier := r.updateAnnotations
 		if syncRes.usePopulator {
 			if isCrossNamespaceClone(datavolume) {
-				// TODO for cross namespace support add finalizer if not present and return
-				return syncRes, errors.Errorf("cross-namespace clone is not supported for populator")
+				if !cc.HasFinalizer(datavolume, crossNamespaceFinalizer) {
+					cc.AddFinalizer(datavolume, crossNamespaceFinalizer)
+					return syncRes, r.syncCloneStatusPhase(&syncRes, cdiv1.CloneScheduled, nil)
+				}
 			}
 			pvcModifier = r.updatePVCForPopulation
 		}

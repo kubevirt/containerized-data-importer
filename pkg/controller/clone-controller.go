@@ -33,7 +33,6 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
@@ -67,8 +66,7 @@ type CloneReconciler struct {
 	clientCertGenerator generator.CertGenerator
 	serverCAFetcher     fetcher.CertBundleFetcher
 	log                 logr.Logger
-	longTokenValidator  token.Validator
-	shortTokenValidator token.Validator
+	multiTokenValidator *cc.MultiTokenValidator
 	image               string
 	verbose             string
 	pullPolicy          string
@@ -88,8 +86,7 @@ func NewCloneController(mgr manager.Manager,
 		client:              mgr.GetClient(),
 		scheme:              mgr.GetScheme(),
 		log:                 log.WithName("clone-controller"),
-		shortTokenValidator: cc.NewCloneTokenValidator(common.CloneTokenIssuer, apiServerKey),
-		longTokenValidator:  cc.NewCloneTokenValidator(common.ExtendedCloneTokenIssuer, apiServerKey),
+		multiTokenValidator: cc.NewMultiTokenValidator(apiServerKey),
 		image:               image,
 		verbose:             verbose,
 		pullPolicy:          pullPolicy,
@@ -406,16 +403,7 @@ func (r *CloneReconciler) findCloneSourcePod(pvc *corev1.PersistentVolumeClaim) 
 }
 
 func (r *CloneReconciler) validateSourceAndTarget(ctx context.Context, sourcePvc, targetPvc *corev1.PersistentVolumeClaim) error {
-	// first check for extended token
-	v := r.longTokenValidator
-	tok, ok := targetPvc.Annotations[cc.AnnExtendedCloneToken]
-	if !ok {
-		// if token doesn't exist, no prob for same namespace
-		tok = targetPvc.Annotations[cc.AnnCloneToken]
-		v = r.shortTokenValidator
-	}
-
-	if err := cc.ValidateCloneTokenPVC(tok, v, sourcePvc, targetPvc); err != nil {
+	if err := r.multiTokenValidator.ValidatePVC(sourcePvc, targetPvc); err != nil {
 		return err
 	}
 	contentType, err := ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc)

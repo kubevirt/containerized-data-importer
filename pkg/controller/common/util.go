@@ -344,6 +344,61 @@ func (v *FakeValidator) Validate(value string) (*token.Payload, error) {
 	}, nil
 }
 
+// MultiTokenValidator is a token validator that can validate both short and long tokens
+type MultiTokenValidator struct {
+	ShortTokenValidator token.Validator
+	LongTokenValidator  token.Validator
+}
+
+// ValidatePVC validates a PVC
+func (mtv *MultiTokenValidator) ValidatePVC(source, target *corev1.PersistentVolumeClaim) error {
+	tok, v := mtv.getTokenAndValidator(target)
+	return ValidateCloneTokenPVC(tok, v, source, target)
+}
+
+func (mtv *MultiTokenValidator) ValidatePopulator(vcs *cdiv1.VolumeCloneSource, pvc *corev1.PersistentVolumeClaim) error {
+	if vcs.Namespace == pvc.Namespace {
+		return nil
+	}
+
+	tok, v := mtv.getTokenAndValidator(pvc)
+
+	tokenData, err := v.Validate(tok)
+	if err != nil {
+		return errors.Wrap(err, "error verifying token")
+	}
+
+	var tokenResourceName string
+	switch vcs.Spec.Source.Kind {
+	case "PersistentVolumeClaim":
+		tokenResourceName = "persistentvolumeclaims"
+	case "VolumeSnapshot":
+		tokenResourceName = "volumesnapshots"
+	}
+	srcName := vcs.Spec.Source.Name
+
+	return validateTokenData(tokenData, vcs.Namespace, srcName, pvc.Namespace, pvc.Name, string(pvc.UID), tokenResourceName)
+}
+
+func (mtv *MultiTokenValidator) getTokenAndValidator(pvc *corev1.PersistentVolumeClaim) (string, token.Validator) {
+	v := mtv.LongTokenValidator
+	tok, ok := pvc.Annotations[AnnExtendedCloneToken]
+	if !ok {
+		// if token doesn't exist, no prob for same namespace
+		tok = pvc.Annotations[AnnCloneToken]
+		v = mtv.ShortTokenValidator
+	}
+	return tok, v
+}
+
+// NewMultiTokenValidator returns a new multi token validator
+func NewMultiTokenValidator(key *rsa.PublicKey) *MultiTokenValidator {
+	return &MultiTokenValidator{
+		ShortTokenValidator: NewCloneTokenValidator(common.CloneTokenIssuer, key),
+		LongTokenValidator:  NewCloneTokenValidator(common.ExtendedCloneTokenIssuer, key),
+	}
+}
+
 // NewCloneTokenValidator returns a new token validator
 func NewCloneTokenValidator(issuer string, key *rsa.PublicKey) token.Validator {
 	return token.NewValidator(issuer, key, cloneTokenLeeway)
@@ -903,7 +958,7 @@ func ValidateRequestedCloneSize(sourceResources corev1.ResourceRequirements, tar
 
 	// Verify that the target PVC size is equal or larger than the source.
 	if sourceRequest.Value() > targetRequest.Value() {
-		return errors.New("target resources requests storage size is smaller than the source")
+		return errors.Errorf("target resources requests storage size is smaller than the source %d < %d", targetRequest.Value(), sourceRequest.Value())
 	}
 	return nil
 }

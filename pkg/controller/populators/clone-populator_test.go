@@ -34,7 +34,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -45,6 +44,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/token"
 )
 
 const (
@@ -158,13 +158,14 @@ var _ = Describe("Clone populator tests", func() {
 		isDefaultResult(result, err)
 	})
 
-	It("should error if cross namespace datasource is used", func() {
+	It("should do nothing if unexpected PVC", func() {
 		target, _ := targetAndDataSource()
-		target.Spec.DataSourceRef.Namespace = pointer.String("other")
+		target.Spec.DataSourceRef.Kind = "Unexpected"
 		reconciler := createClonePopulatorReconciler(target)
-		_, err := reconciler.Reconcile(context.Background(), nn)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(Equal("cross namespace datasource not supported yet"))
+		result, err := reconciler.Reconcile(context.Background(), nn)
+		isDefaultResult(result, err)
+		target = getTarget(reconciler.client)
+		Expect(target.Annotations).ToNot(HaveKey(AnnClonePhase))
 	})
 
 	It("should be pending storageclass is nil", func() {
@@ -207,6 +208,33 @@ var _ = Describe("Clone populator tests", func() {
 		target, source := targetAndDataSource()
 		reconciler := createClonePopulatorReconciler(target, storageClass(), source)
 		reconciler.planner = &fakePlanner{}
+		result, err := reconciler.Reconcile(context.Background(), nn)
+		isRequeueResult(result, err)
+		verifyPending(reconciler.client)
+	})
+
+	It("should be pending if choosestrategy returns nil (cross namespace validation)", func() {
+		target, source := targetAndDataSource()
+		source.Namespace = "other"
+		cc.AddAnnotation(target, AnnDataSourceNamespace, source.Namespace)
+		cc.AddAnnotation(target, cc.AnnCloneToken, "foo")
+		reconciler := createClonePopulatorReconciler(target, storageClass(), source)
+		reconciler.planner = &fakePlanner{}
+		reconciler.multiTokenValidator = &cc.MultiTokenValidator{
+			ShortTokenValidator: &cc.FakeValidator{
+				Match:     "foo",
+				Operation: token.OperationClone,
+				Name:      source.Spec.Source.Name,
+				Namespace: "other",
+				Resource: metav1.GroupVersionResource{
+					Resource: "persistentvolumeclaims",
+				},
+				Params: map[string]string{
+					"targetName":      target.Name,
+					"targetNamespace": target.Namespace,
+				},
+			},
+		}
 		result, err := reconciler.Reconcile(context.Background(), nn)
 		isRequeueResult(result, err)
 		verifyPending(reconciler.client)
