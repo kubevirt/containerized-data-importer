@@ -192,19 +192,23 @@ func (r *CloneReconcilerBase) reconcileVolumeCloneSourceCR(syncState *dvSyncStat
 	cloneSource := &cdiv1.VolumeCloneSource{}
 	cloneSourceName := volumeCloneSourceName(dv)
 	_, sourceName, sourceNamespace := cc.GetCloneSourceInfo(dv)
-	succeeded := dv.Status.Phase == cdiv1.Succeeded
+	deletedOrSucceeded := dv.DeletionTimestamp != nil || dv.Status.Phase == cdiv1.Succeeded
 	exists, err := cc.GetResource(context.TODO(), r.client, sourceNamespace, cloneSourceName, cloneSource)
 	if err != nil {
 		return err
 	}
 
-	if succeeded || exists {
-		if succeeded && exists {
+	if deletedOrSucceeded || exists {
+		if deletedOrSucceeded && exists {
 			if err := r.client.Delete(context.TODO(), cloneSource); err != nil {
 				if !k8serrors.IsNotFound(err) {
 					return err
 				}
 			}
+		}
+
+		if deletedOrSucceeded {
+			cc.RemoveFinalizer(dv, crossNamespaceFinalizer)
 		}
 
 		return nil
@@ -232,12 +236,11 @@ func (r *CloneReconcilerBase) reconcileVolumeCloneSourceCR(syncState *dvSyncStat
 		if err := controllerutil.SetControllerReference(dv, cloneSource, r.scheme); err != nil {
 			return err
 		}
-	}
-	/*
-		else {
-			// TODO add annotation for cross namespace
+	} else {
+		if err := setAnnOwnedByDataVolume(cloneSource, dv); err != nil {
+			return err
 		}
-	*/
+	}
 
 	if err := r.client.Create(context.TODO(), cloneSource); err != nil {
 		if !k8serrors.IsAlreadyExists(err) {

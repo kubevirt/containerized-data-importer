@@ -18,6 +18,7 @@ package populators
 
 import (
 	"context"
+	"crypto/rsa"
 	"fmt"
 	"time"
 
@@ -47,6 +48,10 @@ const (
 	// AnnCloneError has the error string for error phase
 	AnnCloneError = "cdi.kubevirt.io/cloneError"
 
+	// AnnDataSourceNamespace has the namespace of the DataSource
+	// this will be deprecated when cross namespace datasource goes beta
+	AnnDataSourceNamespace = "cdi.kubevirt.io/dataSourceNamespace"
+
 	clonePopulatorName = "clone-populator"
 
 	cloneFinalizer = "cdi.kubevirt.io/clonePopulator"
@@ -62,7 +67,8 @@ type Planner interface {
 // ClonePopulatorReconciler reconciles PVCs with VolumeCloneSources
 type ClonePopulatorReconciler struct {
 	ReconcilerBase
-	planner Planner
+	planner             Planner
+	multiTokenValidator *cc.MultiTokenValidator
 }
 
 // NewClonePopulator creates a new instance of the clone-populator controller
@@ -73,6 +79,7 @@ func NewClonePopulator(
 	clonerImage string,
 	pullPolicy string,
 	installerLabels map[string]string,
+	publicKey *rsa.PublicKey,
 ) (controller.Controller, error) {
 	client := mgr.GetClient()
 	reconciler := &ClonePopulatorReconciler{
@@ -85,6 +92,7 @@ func NewClonePopulator(
 			sourceKind:      cdiv1.VolumeCloneSourceRef,
 			installerLabels: installerLabels,
 		},
+		multiTokenValidator: cc.NewMultiTokenValidator(publicKey),
 	}
 
 	clonePopulator, err := controller.New(clonePopulatorName, mgr, controller.Options{
@@ -132,11 +140,9 @@ func (r *ClonePopulatorReconciler) Reconcile(ctx context.Context, req reconcile.
 		return reconcile.Result{}, err
 	}
 
-	// replace this eventually
-	if pvc.Spec.DataSourceRef != nil &&
-		pvc.Spec.DataSourceRef.Namespace != nil &&
-		*pvc.Spec.DataSourceRef.Namespace != pvc.Namespace {
-		return reconcile.Result{}, r.updateClonePhaseError(ctx, log, pvc, fmt.Errorf("cross namespace datasource not supported yet"))
+	// don't think this should happen but better safe than sorry
+	if !IsPVCDataSourceRefKind(pvc, cdiv1.VolumeCloneSourceRef) {
+		return reconcile.Result{}, nil
 	}
 
 	hasFinalizer := cc.HasFinalizer(pvc, cloneFinalizer)
@@ -172,7 +178,7 @@ func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log log
 		return reconcile.Result{}, r.updateClonePhasePending(ctx, log, pvc)
 	}
 
-	vcs, err := getVolumeCloneSource(ctx, r.client, pvc)
+	vcs, err := r.getVolumeCloneSource(ctx, log, pvc)
 	if err != nil {
 		return reconcile.Result{}, r.updateClonePhaseError(ctx, log, pvc, err)
 	}
@@ -180,6 +186,10 @@ func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log log
 	if vcs == nil {
 		log.V(3).Info("dataSourceRef does not exist, exiting")
 		return reconcile.Result{}, r.updateClonePhasePending(ctx, log, pvc)
+	}
+
+	if err = r.validateCrossNamespace(pvc, vcs); err != nil {
+		return reconcile.Result{}, r.updateClonePhaseError(ctx, log, pvc, err)
 	}
 
 	cs, err := r.getCloneStrategy(ctx, log, pvc, vcs)
@@ -268,6 +278,23 @@ func (r *ClonePopulatorReconciler) planAndExecute(ctx context.Context, log logr.
 	log.V(3).Info("executed all phases, setting phase to Succeeded")
 
 	return reconcile.Result{}, r.updateClonePhaseSucceeded(ctx, log, pvc)
+}
+
+func (r *ClonePopulatorReconciler) validateCrossNamespace(pvc *corev1.PersistentVolumeClaim, vcs *cdiv1.VolumeCloneSource) error {
+	if pvc.Namespace == vcs.Namespace {
+		return nil
+	}
+
+	anno, ok := pvc.Annotations[AnnDataSourceNamespace]
+	if ok && anno == vcs.Namespace {
+		if err := r.multiTokenValidator.ValidatePopulator(vcs, pvc); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	return fmt.Errorf("cross-namespace with resource grants is not supported yet")
 }
 
 func (r *ClonePopulatorReconciler) reconcileDone(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
@@ -362,6 +389,38 @@ func (r *ClonePopulatorReconciler) patchClaim(ctx context.Context, log logr.Logg
 	return cc.MergePatch(ctx, args)
 }
 
+func (r *ClonePopulatorReconciler) getVolumeCloneSource(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim) (*cdiv1.VolumeCloneSource, error) {
+	if !IsPVCDataSourceRefKind(pvc, cdiv1.VolumeCloneSourceRef) {
+		return nil, fmt.Errorf("pvc %s/%s does not refer to a %s", pvc.Namespace, pvc.Name, cdiv1.VolumeCloneSourceRef)
+	}
+
+	ns := pvc.Namespace
+	anno, ok := pvc.Annotations[AnnDataSourceNamespace]
+	if ok {
+		log.V(3).Info("found datasource namespace annotation", "namespace", ns)
+		ns = anno
+	} else if pvc.Spec.DataSourceRef.Namespace != nil {
+		ns = *pvc.Spec.DataSourceRef.Namespace
+	}
+
+	obj := &cdiv1.VolumeCloneSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns,
+			Name:      pvc.Spec.DataSourceRef.Name,
+		},
+	}
+
+	if err := r.client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return obj, nil
+}
+
 func isClonePhaseSucceeded(obj client.Object) bool {
 	return obj.GetAnnotations()[AnnClonePhase] == clone.SucceededPhaseName
 }
@@ -376,32 +435,4 @@ func getSavedCloneStrategy(obj client.Object) *cdiv1.CDICloneStrategy {
 
 func setSavedCloneStrategy(obj client.Object, strategy cdiv1.CDICloneStrategy) {
 	cc.AddAnnotation(obj, cc.AnnCloneType, string(strategy))
-}
-
-func getVolumeCloneSource(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (*cdiv1.VolumeCloneSource, error) {
-	if !IsPVCDataSourceRefKind(pvc, cdiv1.VolumeCloneSourceRef) {
-		return nil, nil
-	}
-
-	ns := pvc.Namespace
-	if pvc.Spec.DataSourceRef.Namespace != nil {
-		ns = *pvc.Spec.DataSourceRef.Namespace
-	}
-
-	obj := &cdiv1.VolumeCloneSource{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: ns,
-			Name:      pvc.Spec.DataSourceRef.Name,
-		},
-	}
-
-	if err := c.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
-		if k8serrors.IsNotFound(err) {
-			return nil, nil
-		}
-
-		return nil, err
-	}
-
-	return obj, nil
 }
