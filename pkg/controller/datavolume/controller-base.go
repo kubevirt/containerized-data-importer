@@ -814,31 +814,8 @@ func (r ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPha
 		} else {
 			switch pvc.Status.Phase {
 			case corev1.ClaimPending:
-				usePopulator, err := CheckPVCUsingPopulators(pvc)
-				if err != nil {
+				if err := r.updateStatusPVCPending(pvc, dvc, dataVolumeCopy, &event); err != nil {
 					return reconcile.Result{}, err
-				}
-				if usePopulator {
-					// when using populators the target pvc phase will stay in pending
-					// until the population completes, hence if not wffc we should update
-					// the dv phase according to the pod phase
-					if shouldBeMarkedPendingPopulation, err := r.shouldBeMarkedPendingPopulation(pvc); err != nil {
-						return reconcile.Result{}, err
-					} else if shouldBeMarkedPendingPopulation {
-						dataVolumeCopy.Status.Phase = cdiv1.PendingPopulation
-					} else {
-						if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
-							return reconcile.Result{}, err
-						}
-					}
-				} else {
-					if shouldBeMarkedWaitForFirstConsumer, err := r.shouldBeMarkedWaitForFirstConsumer(pvc); err != nil {
-						return reconcile.Result{}, err
-					} else if shouldBeMarkedWaitForFirstConsumer {
-						dataVolumeCopy.Status.Phase = cdiv1.WaitForFirstConsumer
-					} else {
-						dataVolumeCopy.Status.Phase = cdiv1.Pending
-					}
 				}
 			case corev1.ClaimBound:
 				switch dataVolumeCopy.Status.Phase {
@@ -881,6 +858,38 @@ func (r ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPha
 	copy(currentCond, dataVolumeCopy.Status.Conditions)
 	r.updateConditions(dataVolumeCopy, pvc, "", "")
 	return result, r.emitEvent(dv, dataVolumeCopy, curPhase, currentCond, &event)
+}
+
+func (r ReconcilerBase) updateStatusPVCPending(pvc *corev1.PersistentVolumeClaim, dvc dvController, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+	usePopulator, err := CheckPVCUsingPopulators(pvc)
+	if err != nil {
+		return err
+	}
+	if usePopulator {
+		// when using populators the target pvc phase will stay pending until the population completes,
+		// hence if not wffc we should update the dv phase according to the pod phase
+		shouldBeMarkedPendingPopulation, err := r.shouldBeMarkedPendingPopulation(pvc)
+		if err != nil {
+			return err
+		}
+		if shouldBeMarkedPendingPopulation {
+			dataVolumeCopy.Status.Phase = cdiv1.PendingPopulation
+		} else if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, event); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	shouldBeMarkedWaitForFirstConsumer, err := r.shouldBeMarkedWaitForFirstConsumer(pvc)
+	if err != nil {
+		return err
+	}
+	if shouldBeMarkedWaitForFirstConsumer {
+		dataVolumeCopy.Status.Phase = cdiv1.WaitForFirstConsumer
+	} else {
+		dataVolumeCopy.Status.Phase = cdiv1.Pending
+	}
+	return nil
 }
 
 func (r *ReconcilerBase) updateConditions(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, reason, message string) {
@@ -1185,18 +1194,22 @@ func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, er
 		}
 		return boolUsePopulator, nil
 	}
+	log := r.log.WithValues("DataVolume", dv.Name, "Namespace", dv.Namespace)
 	// currently populators don't support retain pod annotation so don't use populators in that case
 	if retain := dv.Annotations[cc.AnnPodRetainAfterCompletion]; retain == "true" {
+		log.Info("Not using CDI populators, currently we don't support populators with retainAfterCompletion annotation")
 		return false, nil
 	}
 	// currently populators don't support immediate bind annotation so don't use populators in that case
 	if forceBind := dv.Annotations[cc.AnnImmediateBinding]; forceBind == "true" {
+		log.Info("Not using CDI populators, currently we don't support populators with bind immediate annotation")
 		return false, nil
 	}
 	// currently we don't support populator with import source of VDDK or Imageio
 	// or clone either from PVC nor snapshot
 	if dv.Spec.Source.Imageio != nil || dv.Spec.Source.VDDK != nil ||
 		dv.Spec.Source.PVC != nil || dv.Spec.Source.Snapshot != nil {
+		log.Info("Not using CDI populators, currently we don't support populators with Imageio/VDDk/Clone source")
 		return false, nil
 	}
 
@@ -1213,12 +1226,18 @@ func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, er
 	// is wffc but the honorWaitForFirstConsumer feature gate is disabled we can't
 	// do immediate bind anyways, instead do regular flow
 	if wffc && !honorWaitForFirstConsumerEnabled {
+		log.Info("Not using CDI populators, currently we don't WFFC storage with disabled honorWaitForFirstConsumer feature gate")
 		return false, nil
 	}
 
 	usePopulator, err := storageClassCSIDriverExists(r.client, r.log, syncState.pvcSpec.StorageClassName)
 	if err != nil {
 		return false, err
+	}
+	if !usePopulator {
+		if syncState.pvcSpec.StorageClassName != nil {
+			log.Info("Not using CDI populators, storage class is not a CSI storage", "storageClass", *syncState.pvcSpec.StorageClassName)
+		}
 	}
 
 	return usePopulator, nil

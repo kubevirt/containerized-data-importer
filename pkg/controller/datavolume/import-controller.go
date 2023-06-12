@@ -512,13 +512,9 @@ func (r *ImportReconciler) createVolumeImportSourceCR(syncState *dvSyncState) er
 	importSource := &cdiv1.VolumeImportSource{}
 	importSourceName := volumeImportSourceName(dv)
 
-	exists, err := cc.GetResource(context.TODO(), r.client, dv.Namespace, importSourceName, importSource)
-	if err != nil {
+	// check if import source already exists
+	if exists, err := cc.GetResource(context.TODO(), r.client, dv.Namespace, importSourceName, importSource); err != nil || exists {
 		return err
-	}
-	if exists {
-		// import source already exists
-		return nil
 	}
 
 	source := &cdiv1.ImportSourceType{}

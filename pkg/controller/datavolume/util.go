@@ -307,7 +307,7 @@ func resolveVolumeSize(c client.Client, dvSpec cdiv1.DataVolumeSpec, pvcSpec *v1
 
 // storageClassCSIDriverExists returns true if the passed storage class has CSI drivers available
 func storageClassCSIDriverExists(client client.Client, log logr.Logger, storageClassName *string) (bool, error) {
-	log = log.WithName("getCsiDriverForStorageClass").V(3)
+	log = log.WithName("storageClassCSIDriverExists").V(3)
 
 	storageClass, err := cc.GetStorageClassByName(context.TODO(), client, storageClassName)
 	if err != nil {

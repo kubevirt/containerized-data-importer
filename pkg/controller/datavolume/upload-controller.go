@@ -241,13 +241,9 @@ func volumeUploadSourceName(dv *cdiv1.DataVolume) string {
 func (r *UploadReconciler) createVolumeUploadSourceCR(syncState *dvSyncState) error {
 	uploadSourceName := volumeUploadSourceName(syncState.dvMutated)
 	uploadSource := &cdiv1.VolumeUploadSource{}
-	exists, err := cc.GetResource(context.TODO(), r.client, syncState.dvMutated.Namespace, uploadSourceName, uploadSource)
-	if err != nil {
+	// check if uploadSource already exists
+	if exists, err := cc.GetResource(context.TODO(), r.client, syncState.dvMutated.Namespace, uploadSourceName, uploadSource); err != nil || exists {
 		return err
-	}
-	if exists {
-		// uploadSource already exists
-		return nil
 	}
 
 	uploadSource = &cdiv1.VolumeUploadSource{
