@@ -57,6 +57,13 @@ const (
 	cloneFinalizer = "cdi.kubevirt.io/clonePopulator"
 )
 
+var desiredCloneAnnotations []string
+
+func init() {
+	desiredCloneAnnotations = append(desiredCloneAnnotations, desiredAnnotations...)
+	desiredCloneAnnotations = append(desiredCloneAnnotations, cc.AnnCloneOf)
+}
+
 // Planner is an interface to mock out planner implementation for testing
 type Planner interface {
 	ChooseStrategy(context.Context, *clone.ChooseStrategyArgs) (*cdiv1.CDICloneStrategy, error)
@@ -350,7 +357,7 @@ func (r *ClonePopulatorReconciler) updateClonePhase(ctx context.Context, log log
 		if pp.Progress != "" {
 			cc.AddAnnotation(claimCpy, cc.AnnPopulatorProgress, pp.Progress)
 		}
-		for _, anno := range desiredAnnotations {
+		for _, anno := range desiredCloneAnnotations {
 			val, ok := pp.Annotations[anno]
 			if ok {
 				cc.AddAnnotation(claimCpy, anno, val)

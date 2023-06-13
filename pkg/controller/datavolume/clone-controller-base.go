@@ -59,16 +59,8 @@ const (
 	CloneFromSnapshotSourceInProgress = "CloneFromSnapshotSourceInProgress"
 	// SnapshotForSmartCloneCreated provides a const to indicate snapshot creation for smart-clone has been completed
 	SnapshotForSmartCloneCreated = "SnapshotForSmartCloneCreated"
-	// SmartClonePVCInProgress provides a const to indicate snapshot creation for smart-clone is in progress
-	SmartClonePVCInProgress = "SmartClonePVCInProgress"
-	// SmartCloneSourceInUse provides a const to indicate a smart clone is being delayed because the source is in use
-	SmartCloneSourceInUse = "SmartCloneSourceInUse"
 	// CSICloneInProgress provides a const to indicate  csi volume clone is in progress
 	CSICloneInProgress = "CSICloneInProgress"
-	// CSICloneSourceInUse provides a const to indicate a csi volume clone is being delayed because the source is in use
-	CSICloneSourceInUse = "CSICloneSourceInUse"
-	// HostAssistedCloneSourceInUse provides a const to indicate a host-assisted clone is being delayed because the source is in use
-	HostAssistedCloneSourceInUse = "HostAssistedCloneSourceInUse"
 	// CloneFailed provides a const to indicate clone has failed
 	CloneFailed = "CloneFailed"
 	// CloneSucceeded provides a const to indicate clone has succeeded
@@ -86,8 +78,6 @@ const (
 	MessageSmartCloneInProgress = "Creating snapshot for smart-clone is in progress (for pvc %s/%s)"
 	// MessageCloneFromSnapshotSourceInProgress provides a const to form clone from snapshot source is in progress message
 	MessageCloneFromSnapshotSourceInProgress = "Creating PVC from snapshot source is in progress (for %s %s/%s)"
-	// MessageSmartClonePVCInProgress provides a const to form snapshot for smart-clone is in progress message
-	MessageSmartClonePVCInProgress = "Creating PVC for smart-clone is in progress (for pvc %s/%s)"
 	// MessageCsiCloneInProgress provides a const to form a CSI Volume Clone in progress message
 	MessageCsiCloneInProgress = "CSI Volume clone in progress (for pvc %s/%s)"
 
@@ -653,6 +643,11 @@ func (r *CloneReconcilerBase) updateStatusPhaseForPopulator(pvc *corev1.Persiste
 }
 
 func (r *CloneReconcilerBase) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+	if err := r.populateSourceIfSourceRef(dataVolumeCopy); err != nil {
+		return err
+	}
+	_, sourceName, sourceNamespace := cc.GetCloneSourceInfo(dataVolumeCopy)
+
 	usePopulator, err := CheckPVCUsingPopulators(pvc)
 	if err != nil {
 		return err
@@ -672,11 +667,6 @@ func (r *CloneReconcilerBase) updateStatusPhase(pvc *corev1.PersistentVolumeClai
 	if !ok {
 		return nil
 	}
-
-	if err := r.populateSourceIfSourceRef(dataVolumeCopy); err != nil {
-		return err
-	}
-	_, sourceName, sourceNamespace := cc.GetCloneSourceInfo(dataVolumeCopy)
 
 	switch phase {
 	case string(corev1.PodPending):

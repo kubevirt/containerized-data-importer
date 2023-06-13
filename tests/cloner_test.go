@@ -311,56 +311,6 @@ var _ = Describe("all clone tests", func() {
 				doInUseCloneTest(f, pvcDef, targetNs, "target-dv")
 			})
 
-			It("[posneg:negative][test_id:6612]Clone with CSI as PVC source with target name that already exists", func() {
-				if utils.DefaultStorageClassCsiDriver == nil {
-					Skip("No CSI driver found")
-				}
-				if cloneType == "copy" {
-					Skip("Cannot simulate target pvc name conflict for host-assisted clone ")
-				}
-				pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
-				sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
-				targetNamespaceName := f.Namespace.Name
-
-				// 1. use the srcPvc so the clone cannot be started
-				pod, err := f.CreateExecutorPodWithPVC("temp-pod", f.Namespace.Name, sourcePvc, false)
-				Expect(err).ToNot(HaveOccurred())
-
-				Eventually(func() bool {
-					pod, err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
-					Expect(err).ToNot(HaveOccurred())
-					return pod.Status.Phase == v1.PodRunning
-				}, 90*time.Second, 2*time.Second).Should(BeTrue())
-
-				// 2. Create a clone DataVolume
-				targetDV := utils.NewCloningDataVolume("target-pvc", "1Gi", sourcePvc)
-				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNamespaceName, targetDV)
-				Expect(err).ToNot(HaveOccurred())
-
-				actualCloneType := utils.GetCloneType(f.CdiClient, dataVolume)
-				if actualCloneType == "snapshot" {
-					f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(dvc.SmartCloneSourceInUse))
-				} else if actualCloneType == "csi-clone" {
-					f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(dvc.CSICloneSourceInUse))
-				} else {
-					Fail(fmt.Sprintf("Unknown clonetype %s", actualCloneType))
-				}
-
-				// 3. Knowing that clone cannot yet advance, Create targetPvc with a "conflicting name"
-				By(fmt.Sprintf("Creating target pvc: %s/target-pvc", targetNamespaceName))
-				annotations := map[string]string{"cdi.kubevirt.io/conflicting-pvc": dataVolumeName}
-
-				targetPvc, err := utils.CreatePVCFromDefinition(f.K8sClient, targetNamespaceName,
-					utils.NewPVCDefinition("target-pvc", "1Gi", annotations, nil))
-				Expect(err).ToNot(HaveOccurred())
-				f.ForceBindIfWaitForFirstConsumer(targetPvc)
-
-				err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				//verify event
-				f.ExpectEvent(targetNamespaceName).Should(ContainSubstring(dvc.ErrResourceExists))
-			})
-
 			It("[test_id:1356]Should not clone anything when CloneOf annotation exists", func() {
 				pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 				sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
@@ -582,6 +532,7 @@ var _ = Describe("all clone tests", func() {
 					Skip("csi-clone only works for the same volumeMode")
 				}
 				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "2Gi", fmt.Sprintf(utils.LargeVirtualDiskQcow, f.CdiInstallNs))
+				controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 				filesystem := v1.PersistentVolumeFilesystem
 				dataVolume.Spec.Storage.VolumeMode = &filesystem
 
@@ -903,7 +854,7 @@ var _ = Describe("all clone tests", func() {
 					targetPvc, err := utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
 					Expect(err).ToNot(HaveOccurred())
 					By("Ensure WFFC is reported to reflect the situation correctly")
-					err = utils.WaitForDataVolumePhase(f, targetDataVolume.Namespace, cdiv1.WaitForFirstConsumer, targetDataVolume.Name)
+					err = utils.WaitForDataVolumePhase(f, targetDataVolume.Namespace, cdiv1.PendingPopulation, targetDataVolume.Name)
 					Expect(err).ToNot(HaveOccurred())
 
 					// Force bind to ensure integrity after first consumer
@@ -3016,33 +2967,13 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 	Expect(err).ToNot(HaveOccurred())
 
 	var targetPvc *v1.PersistentVolumeClaim
-	cloneType := utils.GetCloneType(f.CdiClient, dataVolume)
+	targetPvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+	Expect(err).ToNot(HaveOccurred())
+	f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
-	if cloneType == "copy" {
-		targetPvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
-
-		f.ExpectEvent(targetNs.Name).Should(ContainSubstring(controller.CloneSourceInUse))
-		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
-	} else if cloneType == "snapshot" {
-		f.ExpectEvent(targetNs.Name).Should(ContainSubstring(dvc.SmartCloneSourceInUse))
-		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
-
-		targetPvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
-	} else {
-		f.ExpectEvent(targetNs.Name).Should(ContainSubstring(dvc.CSICloneSourceInUse))
-		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
-
-		targetPvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
-	}
+	f.ExpectEvent(targetNs.Name).Should(ContainSubstring(controller.CloneSourceInUse))
+	err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
+	Expect(err).ToNot(HaveOccurred())
 
 	_, _ = fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 	Expect(utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)).Should(Succeed())
@@ -3054,16 +2985,18 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 }
 
 func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1.PersistentVolumeClaim, filePath, expectedMD5, sourcePvcDiskGroup string) {
-	By("Verify the clone annotation is on the target PVC")
-	_, cloneAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnCloneOf)
-	if err != nil {
-		f.PrintControllerLog()
+	if _, ok := targetPvc.Annotations[controller.AnnCloneRequest]; ok {
+		By("Verify the clone annotation is on the target PVC")
+		_, cloneAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnCloneOf)
+		if err != nil {
+			f.PrintControllerLog()
+		}
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cloneAnnotationFound).To(BeTrue())
 	}
-	Expect(err).ToNot(HaveOccurred())
-	Expect(cloneAnnotationFound).To(BeTrue())
 
 	By("Verify the clone status is success on the target datavolume")
-	err = utils.WaitForDataVolumePhase(f, targetNs.Name, cdiv1.Succeeded, targetPvc.Name)
+	err := utils.WaitForDataVolumePhase(f, targetNs.Name, cdiv1.Succeeded, targetPvc.Name)
 	Expect(err).ToNot(HaveOccurred())
 
 	By("Verify the content")
