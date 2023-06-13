@@ -7,6 +7,7 @@ import (
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -24,6 +25,7 @@ type SnapshotPhase struct {
 	OwnershipLabel      string
 	Client              client.Client
 	Log                 logr.Logger
+	Recorder            record.EventRecorder
 }
 
 var _ Phase = &SnapshotPhase{}
@@ -42,7 +44,16 @@ func (p *SnapshotPhase) Reconcile(ctx context.Context) (*reconcile.Result, error
 	}
 
 	if !exists {
-		ready, err := IsSourceClaimReady(ctx, p.Client, p.SourceNamespace, p.SourceName)
+		args := &IsSourceClaimReadyArgs{
+			Target:          p.Owner,
+			SourceNamespace: p.SourceNamespace,
+			SourceName:      p.SourceName,
+			Client:          p.Client,
+			Log:             p.Log,
+			Recorder:        p.Recorder,
+		}
+
+		ready, err := IsSourceClaimReady(ctx, args)
 		if err != nil {
 			return nil, err
 		}

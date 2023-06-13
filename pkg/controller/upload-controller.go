@@ -203,10 +203,15 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		}
 
 		if len(podsUsingPVC) > 0 {
+			es, err := cc.GetAnnotatedEventSource(context.TODO(), r.client, pvc)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+
 			for _, pod := range podsUsingPVC {
 				r.log.V(1).Info("can't create upload pod, pvc in use by other pod",
 					"namespace", pvc.Namespace, "name", pvc.Name, "pod", pod.Name)
-				r.recorder.Eventf(pvc, corev1.EventTypeWarning, UploadTargetInUse,
+				r.recorder.Eventf(es, corev1.EventTypeWarning, UploadTargetInUse,
 					"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, pvc.Name)
 
 			}

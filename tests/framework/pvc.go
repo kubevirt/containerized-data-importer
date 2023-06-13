@@ -79,7 +79,6 @@ func (f *Framework) ForceBindPvcIfDvIsWaitForFirstConsumer(dv *cdiv1.DataVolume)
 	if f.IsBindingModeWaitForFirstConsumer(pvc.Spec.StorageClassName) {
 		// check if pvc is a population pvc but not from pvc or snapshot
 		if pvc.Spec.DataSourceRef != nil &&
-			(dv.Spec.Source == nil || dv.Spec.Source.PVC == nil) &&
 			(dv.Spec.Source == nil || dv.Spec.Source.Snapshot == nil) {
 			err = utils.WaitForDataVolumePhase(f, dv.Namespace, cdiv1.PendingPopulation, dv.Name)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())

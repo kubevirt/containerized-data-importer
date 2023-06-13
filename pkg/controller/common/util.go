@@ -46,6 +46,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
@@ -58,7 +59,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
+	runtimecache "sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -295,6 +296,11 @@ const (
 
 	// ProgressDone this means we are DONE
 	ProgressDone = "100.0%"
+
+	// AnnEventSourceKind is the source kind that should be related to events
+	AnnEventSourceKind = "cdi.kubevirt.io/events.source.kind"
+	// AnnEventSource is the source that should be related to events (namespace/name)
+	AnnEventSource = "cdi.kubevirt.io/events.source"
 )
 
 // Size-detection pod error codes
@@ -356,6 +362,7 @@ func (mtv *MultiTokenValidator) ValidatePVC(source, target *corev1.PersistentVol
 	return ValidateCloneTokenPVC(tok, v, source, target)
 }
 
+// ValidatePopulator valades a token for a populator
 func (mtv *MultiTokenValidator) ValidatePopulator(vcs *cdiv1.VolumeCloneSource, pvc *corev1.PersistentVolumeClaim) error {
 	if vcs.Namespace == pvc.Namespace {
 		return nil
@@ -1264,7 +1271,7 @@ func IsErrCacheNotStarted(err error) bool {
 	if err == nil {
 		return false
 	}
-	_, ok := err.(*cache.ErrCacheNotStarted)
+	_, ok := err.(*runtimecache.ErrCacheNotStarted)
 	return ok
 }
 
@@ -1835,4 +1842,33 @@ func MergePatch(ctx context.Context, args *PatchArgs) error {
 	}
 	args.Log.V(3).Info("Merge patch", "patch", string(bs))
 	return args.Client.Patch(ctx, args.Obj, patch)
+}
+
+// GetAnnotatedEventSource returns resource referenced by AnnEventSource annotations
+func GetAnnotatedEventSource(ctx context.Context, c client.Client, obj client.Object) (client.Object, error) {
+	esk, ok := obj.GetAnnotations()[AnnEventSourceKind]
+	if !ok {
+		return obj, nil
+	}
+	if esk != "PersistentVolumeClaim" {
+		return obj, nil
+	}
+	es, ok := obj.GetAnnotations()[AnnEventSource]
+	if !ok {
+		return obj, nil
+	}
+	namespace, name, err := cache.SplitMetaNamespaceKey(es)
+	if err != nil {
+		return nil, err
+	}
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+	}
+	if err := c.Get(ctx, client.ObjectKeyFromObject(pvc), pvc); err != nil {
+		return nil, err
+	}
+	return pvc, nil
 }

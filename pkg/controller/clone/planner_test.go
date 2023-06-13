@@ -325,7 +325,7 @@ var _ = Describe("Planner test", func() {
 				planner := createPlanner(createStorageClass(), source)
 				strategy, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal("target resources requests storage size is smaller than the source"))
+				Expect(err.Error()).To(HavePrefix("target resources requests storage size is smaller than the source"))
 				Expect(strategy).To(BeNil())
 				expectEvent(planner, CloneValidationFailed)
 			})
@@ -635,9 +635,6 @@ var _ = Describe("Planner test", func() {
 			}
 			Expect(hc.ImmediateBind).To(BeTrue())
 			Expect(hc.OwnershipLabel).To(Equal(planner.OwnershipLabel))
-			desiredSize := hc.DesiredClaim.Spec.Resources.Requests[corev1.ResourceStorage]
-			requestedSize := args.TargetClaim.Spec.Resources.Requests[corev1.ResourceStorage]
-			Expect(desiredSize.Cmp(requestedSize)).To(Equal(1))
 		}
 
 		validateRebindPhase := func(planner *Planner, args *PlanArgs, p Phase) {

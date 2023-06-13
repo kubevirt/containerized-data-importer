@@ -296,9 +296,9 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 			return syncRes, nil
 		}
 
-		// If the target's size is not specified, we can extract that value from the source PVC
-		targetRequest, hasTargetRequest := pvcSpec.Resources.Requests[corev1.ResourceStorage]
-		if !hasTargetRequest || targetRequest.IsZero() {
+		// Always call detect size, it will handle the case where size is specified
+		// and detection pod not necessary
+		if datavolume.Spec.Storage != nil {
 			done, err := r.detectCloneSize(&syncRes)
 			if err != nil {
 				return syncRes, err
@@ -468,11 +468,24 @@ func (r *PvcCloneReconciler) isSourceReadyToClone(datavolume *cdiv1.DataVolume) 
 
 // detectCloneSize obtains and assigns the original PVC's size when cloning using an empty storage value
 func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState) (bool, error) {
-	var targetSize int64
 	sourcePvc, err := r.findSourcePvc(syncState.dvMutated)
 	if err != nil {
 		return false, err
 	}
+
+	// because of filesystem overhead calculations when cloning
+	// even if storage size is requested we have to calucuale source size
+	// when source is filesystem and target is block
+	requestedSize, hasSize := syncState.pvcSpec.Resources.Requests[corev1.ResourceStorage]
+	sizeRequired := !hasSize || requestedSize.IsZero()
+	targetIsBlock := syncState.pvcSpec.VolumeMode != nil && *syncState.pvcSpec.VolumeMode == corev1.PersistentVolumeBlock
+	sourceIsFilesystem := cc.GetVolumeMode(sourcePvc) == corev1.PersistentVolumeFilesystem
+	sourceIsKubevirt := cc.GetPVCContentType(sourcePvc) == string(cdiv1.DataVolumeKubeVirt)
+	if !sizeRequired && (!targetIsBlock || !sourceIsFilesystem || !sourceIsKubevirt) {
+		return true, nil
+	}
+
+	var targetSize int64
 	sourceCapacity := sourcePvc.Status.Capacity.Storage()
 
 	// Due to possible filesystem overhead complications when cloning
@@ -480,8 +493,7 @@ func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState) (bool, erro
 	// collects the size of the original virtual image with 'qemu-img'.
 	// If the original PVC's volume mode is "block",
 	// we simply extract the value from the original PVC's spec.
-	if cc.GetVolumeMode(sourcePvc) == corev1.PersistentVolumeFilesystem &&
-		cc.GetPVCContentType(sourcePvc) == string(cdiv1.DataVolumeKubeVirt) {
+	if sourceIsFilesystem && sourceIsKubevirt {
 		var available bool
 		// If available, we first try to get the virtual size from previous iterations
 		targetSize, available = getSizeFromAnnotations(sourcePvc)
@@ -498,11 +510,22 @@ func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState) (bool, erro
 		targetSize, _ = sourceCapacity.AsInt64()
 	}
 
-	// Allow the clone-controller to skip the size comparison requirement
-	// if the source's size ends up being larger due to overhead differences
-	// TODO: Fix this in next PR that uses actual size also in validation
-	if sourceCapacity.CmpInt64(targetSize) == 1 {
+	var isPermissiveClone bool
+	if sizeRequired {
+		// Allow the clone-controller to skip the size comparison requirement
+		// if the source's size ends up being larger due to overhead differences
+		// TODO: Fix this in next PR that uses actual size also in validation
+		isPermissiveClone = sourceCapacity.CmpInt64(targetSize) == 1
+	} else {
+		isPermissiveClone = requestedSize.CmpInt64(targetSize) >= 0
+	}
+
+	if isPermissiveClone {
 		syncState.dvMutated.Annotations[cc.AnnPermissiveClone] = "true"
+	}
+
+	if !sizeRequired {
+		return true, nil
 	}
 
 	// Parse size into a 'Quantity' struct and, if needed, inflate it with filesystem overhead

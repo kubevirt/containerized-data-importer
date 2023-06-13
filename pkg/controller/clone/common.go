@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -66,10 +67,20 @@ func AddOwnershipLabel(label string, obj, owner metav1.Object) {
 	obj.GetLabels()[label] = string(owner.GetUID())
 }
 
+// IsSourceClaimReadyArgs are arguments for IsSourceClaimReady
+type IsSourceClaimReadyArgs struct {
+	Target          client.Object
+	SourceNamespace string
+	SourceName      string
+	Client          client.Client
+	Log             logr.Logger
+	Recorder        record.EventRecorder
+}
+
 // IsSourceClaimReady checks that PVC exists, is bound, and is not being used
-func IsSourceClaimReady(ctx context.Context, c client.Client, namespace, name string) (bool, error) {
+func IsSourceClaimReady(ctx context.Context, args *IsSourceClaimReadyArgs) (bool, error) {
 	claim := &corev1.PersistentVolumeClaim{}
-	exists, err := getResource(ctx, c, namespace, name, claim)
+	exists, err := getResource(ctx, args.Client, args.SourceNamespace, args.SourceName, claim)
 	if err != nil {
 		return false, err
 	}
@@ -82,16 +93,22 @@ func IsSourceClaimReady(ctx context.Context, c client.Client, namespace, name st
 		return false, nil
 	}
 
-	pods, err := cc.GetPodsUsingPVCs(ctx, c, namespace, sets.New(name), true)
+	pods, err := cc.GetPodsUsingPVCs(ctx, args.Client, args.SourceNamespace, sets.New(args.SourceName), true)
 	if err != nil {
 		return false, err
+	}
+
+	for _, pod := range pods {
+		args.Log.V(1).Info("Source PVC is being used by pod", "namespace", args.SourceNamespace, "name", args.SourceName, "pod", pod.Name)
+		args.Recorder.Eventf(args.Target, corev1.EventTypeWarning, cc.CloneSourceInUse,
+			"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, args.SourceName)
 	}
 
 	if len(pods) > 0 {
 		return false, nil
 	}
 
-	return cdiv1.IsPopulated(claim, dataVolumeGetter(ctx, c))
+	return cdiv1.IsPopulated(claim, dataVolumeGetter(ctx, args.Client))
 }
 
 // GetGlobalCloneStrategyOverride returns the global clone strategy override
