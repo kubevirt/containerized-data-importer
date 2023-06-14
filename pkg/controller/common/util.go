@@ -108,8 +108,8 @@ const (
 	// AnnMultiStageImportDone marks a multi-stage import as totally finished
 	AnnMultiStageImportDone = AnnAPIGroup + "/storage.checkpoint.done"
 
-	// AnnImportProgressReporting stores the current progress of the import process as a percetange
-	AnnImportProgressReporting = AnnAPIGroup + "/storage.import.progress"
+	// AnnPopulatorProgress is a standard annotation that can be used progress reporting
+	AnnPopulatorProgress = AnnAPIGroup + "/storage.populator.progress"
 
 	// AnnPreallocationRequested provides a const to indicate whether preallocation should be performed on the PV
 	AnnPreallocationRequested = AnnAPIGroup + "/storage.preallocation.requested"
@@ -204,6 +204,8 @@ const (
 	// AnnPopulatorKind annotation is added to a PVC' to specify the population kind, so it's later
 	// checked by the common populator watches.
 	AnnPopulatorKind = AnnAPIGroup + "/storage.populator.kind"
+	//AnnUsePopulator annotation indicates if the datavolume population will use populators
+	AnnUsePopulator = AnnAPIGroup + "/storage.usePopulator"
 
 	//AnnDefaultStorageClass is the annotation indicating that a storage class is the default one.
 	AnnDefaultStorageClass = "storageclass.kubernetes.io/is-default-class"
@@ -1498,7 +1500,7 @@ func UpdateImageIOAnnotations(annotations map[string]string, imageio *cdiv1.Data
 // IsPVBoundToPVC checks if a PV is bound to a specific PVC
 func IsPVBoundToPVC(pv *corev1.PersistentVolume, pvc *corev1.PersistentVolumeClaim) bool {
 	claimRef := pv.Spec.ClaimRef
-	return claimRef.Name == pvc.Name && claimRef.Namespace == pvc.Namespace && claimRef.UID == pvc.UID
+	return claimRef != nil && claimRef.Name == pvc.Name && claimRef.Namespace == pvc.Namespace && claimRef.UID == pvc.UID
 }
 
 // Rebind binds the PV of source to target
@@ -1514,18 +1516,21 @@ func Rebind(ctx context.Context, c client.Client, source, target *corev1.Persist
 	}
 
 	// Examine the claimref for the PV and see if it's still bound to PVC'
+	if pv.Spec.ClaimRef == nil {
+		return fmt.Errorf("PV %s claimRef is nil", pv.Name)
+	}
+
 	if !IsPVBoundToPVC(pv, source) {
 		// Something is not right if the PV is neither bound to PVC' nor target PVC
 		if !IsPVBoundToPVC(pv, target) {
 			klog.Errorf("PV bound to unexpected PVC: Could not rebind to target PVC '%s'", target.Name)
-			return fmt.Errorf("PV %s bound to unexpected claim", pv.Name)
+			return fmt.Errorf("PV %s bound to unexpected claim %s", pv.Name, pv.Spec.ClaimRef.Name)
 		}
 		// our work is done
 		return nil
 	}
 
 	// Rebind PVC to target PVC
-	pv.Annotations = make(map[string]string)
 	pv.Spec.ClaimRef = &corev1.ObjectReference{
 		Namespace:       target.Namespace,
 		Name:            target.Name,
@@ -1734,4 +1739,21 @@ func isCrdDeployed(c client.Client, name, version string, log logr.Logger) bool 
 // IsSnapshotReady indicates if a volume snapshot is ready to be used
 func IsSnapshotReady(snapshot *snapshotv1.VolumeSnapshot) bool {
 	return snapshot.Status != nil && snapshot.Status.ReadyToUse != nil && *snapshot.Status.ReadyToUse
+}
+
+// GetResource updates given obj with the data of the object with the same name and namespace
+func GetResource(ctx context.Context, c client.Client, namespace, name string, obj client.Object) (bool, error) {
+	obj.SetNamespace(namespace)
+	obj.SetName(name)
+
+	err := c.Get(ctx, client.ObjectKeyFromObject(obj), obj)
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return true, nil
 }

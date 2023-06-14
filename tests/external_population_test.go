@@ -226,11 +226,14 @@ var _ = Describe("Population tests", func() {
 			By("Verifying pvc was created")
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindIfWaitForFirstConsumer(pvc)
+			executorPod := f.CreateConsumerPod(pvc)
 			// We check the expected event
+			By("Wait for expected no cdi driver event")
 			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(dvc.NoCSIDriverForExternalPopulation))
 
 			By("Cleaning up")
+			err = utils.DeletePodNoGrace(f.K8sClient, executorPod, dataVolume.Namespace)
+			Expect(err).ToNot(HaveOccurred())
 			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(func() bool {

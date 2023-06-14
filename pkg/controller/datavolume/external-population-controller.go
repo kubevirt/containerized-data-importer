@@ -61,12 +61,13 @@ func NewPopulatorController(ctx context.Context, mgr manager.Manager, log logr.L
 	client := mgr.GetClient()
 	reconciler := &PopulatorReconciler{
 		ReconcilerBase: ReconcilerBase{
-			client:          client,
-			scheme:          mgr.GetScheme(),
-			log:             log.WithName(populatorControllerName),
-			recorder:        mgr.GetEventRecorderFor(populatorControllerName),
-			featureGates:    featuregates.NewFeatureGates(client),
-			installerLabels: installerLabels,
+			client:               client,
+			scheme:               mgr.GetScheme(),
+			log:                  log.WithName(populatorControllerName),
+			recorder:             mgr.GetEventRecorderFor(populatorControllerName),
+			featureGates:         featuregates.NewFeatureGates(client),
+			installerLabels:      installerLabels,
+			shouldUpdateProgress: false,
 		},
 	}
 
@@ -100,7 +101,7 @@ func (r *PopulatorReconciler) prepare(syncState *dvSyncState) error {
 
 // checkPopulationRequirements returns true if the PVC meets the requirements to be populated
 func (r *PopulatorReconciler) checkPopulationRequirements(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume, event *Event) (bool, error) {
-	csiDriverAvailable, err := r.storageClassCSIDriverExists(pvc.Spec.StorageClassName)
+	csiDriverAvailable, err := storageClassCSIDriverExists(r.client, r.log, pvc.Spec.StorageClassName)
 	if err != nil && !k8serrors.IsNotFound(err) {
 		return false, err
 	}

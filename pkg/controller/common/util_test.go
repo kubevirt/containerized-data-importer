@@ -7,7 +7,9 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
 
@@ -74,6 +76,118 @@ var _ = Describe("GetDefaultStorageClass", func() {
 		)
 		sc, _ := GetDefaultStorageClass(context.Background(), client)
 		Expect(sc).To(BeNil())
+	})
+})
+
+var _ = Describe("Rebind", func() {
+	It("Should return error if PV doesn't exist", func() {
+		client := CreateClient()
+		pvc := &v1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "testPVC",
+				Namespace: "namespace",
+			},
+			Spec: v1.PersistentVolumeClaimSpec{
+				VolumeName: "testPV",
+			},
+		}
+		err := Rebind(context.Background(), client, pvc, pvc)
+		Expect(err).To(HaveOccurred())
+		Expect(errors.IsNotFound(err)).To(BeTrue())
+	})
+
+	It("Should return error if bound to unexpected claim", func() {
+		pvc := &v1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "testPVC",
+				Namespace: "namespace",
+			},
+			Spec: v1.PersistentVolumeClaimSpec{
+				VolumeName: "testPV",
+			},
+		}
+		pv := &v1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "testPV",
+			},
+			Spec: v1.PersistentVolumeSpec{
+				ClaimRef: &v1.ObjectReference{
+					Name:      "anotherPVC",
+					Namespace: "namespace",
+					UID:       "uid",
+				},
+			},
+		}
+		client := CreateClient(pv)
+		err := Rebind(context.Background(), client, pvc, pvc)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(Equal("PV testPV bound to unexpected claim anotherPVC"))
+	})
+	It("Should return nil if bound to target claim", func() {
+		pvc := &v1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "testPVC",
+				Namespace: "namespace",
+			},
+			Spec: v1.PersistentVolumeClaimSpec{
+				VolumeName: "testPV",
+			},
+		}
+		targetPVC := pvc.DeepCopy()
+		targetPVC.Name = "targetPVC"
+		targetPVC.UID = "uid"
+		pv := &v1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "testPV",
+			},
+			Spec: v1.PersistentVolumeSpec{
+				ClaimRef: &v1.ObjectReference{
+					Name:      "targetPVC",
+					Namespace: "namespace",
+					UID:       "uid",
+				},
+			},
+		}
+		client := CreateClient(pv)
+		err := Rebind(context.Background(), client, pvc, targetPVC)
+		Expect(err).ToNot(HaveOccurred())
+	})
+	It("Should rebind pv to target claim", func() {
+		pvc := &v1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "testPVC",
+				Namespace: "namespace",
+			},
+			Spec: v1.PersistentVolumeClaimSpec{
+				VolumeName: "testPV",
+			},
+		}
+		targetPVC := pvc.DeepCopy()
+		targetPVC.Name = "targetPVC"
+		pvc.UID = "uid"
+		pv := &v1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "testPV",
+			},
+			Spec: v1.PersistentVolumeSpec{
+				ClaimRef: &v1.ObjectReference{
+					Name:      "testPVC",
+					Namespace: "namespace",
+					UID:       "uid",
+				},
+			},
+		}
+		AddAnnotation(pv, "someAnno", "somevalue")
+		client := CreateClient(pv)
+		err := Rebind(context.Background(), client, pvc, targetPVC)
+		Expect(err).ToNot(HaveOccurred())
+		updatedPV := &v1.PersistentVolume{}
+		key := types.NamespacedName{Name: pv.Name, Namespace: pv.Namespace}
+		err = client.Get(context.TODO(), key, updatedPV)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(updatedPV.Spec.ClaimRef.Name).To(Equal(targetPVC.Name))
+		//make sure annotations of pv from before rebind dont get deleted
+		Expect(pv.Annotations["someAnno"]).To(Equal("somevalue"))
 	})
 })
 

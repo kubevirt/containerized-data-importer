@@ -122,10 +122,7 @@ func (r *UploadPopulatorReconciler) updatePVCPrimeNameAnnotation(pvc *corev1.Per
 		return false, nil
 	}
 
-	if pvc.Annotations == nil {
-		pvc.Annotations = make(map[string]string)
-	}
-	pvc.Annotations[AnnPVCPrimeName] = pvcPrimeName
+	cc.AddAnnotation(pvc, AnnPVCPrimeName, pvcPrimeName)
 	if err := r.client.Update(context.TODO(), pvc); err != nil {
 		return false, err
 	}
@@ -133,17 +130,18 @@ func (r *UploadPopulatorReconciler) updatePVCPrimeNameAnnotation(pvc *corev1.Per
 	return true, nil
 }
 
-func (r *UploadPopulatorReconciler) removePVCPrimeNameAnnotation(pvc *corev1.PersistentVolumeClaim) error {
+func removePVCPrimeNameAnnotation(pvc *corev1.PersistentVolumeClaim) {
 	if _, ok := pvc.Annotations[AnnPVCPrimeName]; !ok {
-		return nil
+		return
 	}
 
 	delete(pvc.Annotations, AnnPVCPrimeName)
-	return r.client.Update(context.TODO(), pvc)
 }
 
 func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
-	updated, err := r.updatePVCPrimeNameAnnotation(pvc, pvcPrime.Name)
+	pvcCopy := pvc.DeepCopy()
+
+	updated, err := r.updatePVCPrimeNameAnnotation(pvcCopy, pvcPrime.Name)
 	if updated || err != nil {
 		// wait for the annotation to be updated
 		return reconcile.Result{}, err
@@ -154,17 +152,21 @@ func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	switch phase {
 	case string(corev1.PodFailed):
 		// We'll get called later once it succeeds
-		r.recorder.Eventf(pvcPrime, corev1.EventTypeWarning, errUploadFailed, fmt.Sprintf(messageUploadFailed, pvc.Name))
+		r.recorder.Eventf(pvc, corev1.EventTypeWarning, errUploadFailed, fmt.Sprintf(messageUploadFailed, pvc.Name))
 	case string(corev1.PodSucceeded):
-		err := r.removePVCPrimeNameAnnotation(pvc)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
+		removePVCPrimeNameAnnotation(pvcCopy)
 		// Once the upload is succeeded, we rebind the PV from PVC' to target PVC
-		if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvc); err != nil {
+		if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvcCopy); err != nil {
 			return reconcile.Result{}, err
 		}
-		r.recorder.Eventf(pvc, corev1.EventTypeNormal, uploadSucceeded, fmt.Sprintf(messageUploadSucceeded, pvc))
+	}
+
+	err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, nil)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	if cc.IsPVCComplete(pvcPrime) {
+		r.recorder.Eventf(pvc, corev1.EventTypeNormal, uploadSucceeded, fmt.Sprintf(messageUploadSucceeded, pvc.Name))
 	}
 
 	return reconcile.Result{}, nil
