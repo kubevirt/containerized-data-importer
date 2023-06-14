@@ -83,7 +83,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		verifyCSIClone(dataVolume, f)
 	})
 
-	It("[posneg:negative][test_id:6655] Support for CSI Clone strategy in storage profile with SC HPP - negative", func() {
+	It("StorageProfile setting ignored with non-csi clone", func() {
 		if f.IsCSIVolumeCloneStorageClassAvailable() {
 			Skip("Test should only run on non-csi storage")
 		}
@@ -97,8 +97,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		).To(Succeed())
 
 		dataVolume, _ := createDataVolumeDontWait("dv-csi-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, cloneStorageClassName, f)
-		waitForDvPhase(cdiv1.CloneScheduled, dataVolume, f)
-		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.ErrUnableToClone))
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 	})
 
 	It("[test_id:7736] Should fail to create pvc in namespace with storage quota, then succeed once the quota is large enough", func() {

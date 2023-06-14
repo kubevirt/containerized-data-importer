@@ -165,7 +165,7 @@ func (r *ClonePopulatorReconciler) Reconcile(ctx context.Context, req reconcile.
 	if hasFinalizer {
 		if isBound && !isDeleted && !isClonePhaseSucceeded(pvc) {
 			log.V(1).Info("setting phase to Succeeded")
-			return reconcile.Result{}, r.updateClonePhaseSucceeded(ctx, log, pvc)
+			return reconcile.Result{}, r.updateClonePhaseSucceeded(ctx, log, pvc, nil)
 		}
 
 		return r.reconcileDone(ctx, log, pvc)
@@ -259,9 +259,9 @@ func (r *ClonePopulatorReconciler) planAndExecute(ctx context.Context, log logr.
 
 	log.V(3).Info("created phases", "num", len(phases))
 
+	var progressResults []*clone.PhaseProgress
 	for _, p := range phases {
 		var progress string
-		var progressResults []*clone.PhaseProgress
 		result, err := p.Reconcile(ctx)
 		if err != nil {
 			return reconcile.Result{}, r.updateClonePhaseError(ctx, log, pvc, err)
@@ -284,7 +284,7 @@ func (r *ClonePopulatorReconciler) planAndExecute(ctx context.Context, log logr.
 
 	log.V(3).Info("executed all phases, setting phase to Succeeded")
 
-	return reconcile.Result{}, r.updateClonePhaseSucceeded(ctx, log, pvc)
+	return reconcile.Result{}, r.updateClonePhaseSucceeded(ctx, log, pvc, progressResults)
 }
 
 func (r *ClonePopulatorReconciler) validateCrossNamespace(pvc *corev1.PersistentVolumeClaim, vcs *cdiv1.VolumeCloneSource) error {
@@ -340,12 +340,11 @@ func (r *ClonePopulatorReconciler) updateClonePhasePending(ctx context.Context, 
 	return r.updateClonePhase(ctx, log, pvc, clone.PendingPhaseName, nil)
 }
 
-func (r *ClonePopulatorReconciler) updateClonePhaseSucceeded(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim) error {
-	progress := []*clone.PhaseProgress{
-		{
-			Progress: cc.ProgressDone,
-		},
+func (r *ClonePopulatorReconciler) updateClonePhaseSucceeded(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, progress []*clone.PhaseProgress) error {
+	if progress == nil {
+		progress = []*clone.PhaseProgress{{}}
 	}
+	progress[len(progress)-1].Progress = cc.ProgressDone
 	return r.updateClonePhase(ctx, log, pvc, clone.SucceededPhaseName, progress)
 }
 

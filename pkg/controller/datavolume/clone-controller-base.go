@@ -179,18 +179,18 @@ func (r *CloneReconcilerBase) ensureExtendedToken(pvc *corev1.PersistentVolumeCl
 
 func (r *CloneReconcilerBase) reconcileVolumeCloneSourceCR(syncState *dvSyncState, kind string) error {
 	dv := syncState.dvMutated
-	cloneSource := &cdiv1.VolumeCloneSource{}
-	cloneSourceName := volumeCloneSourceName(dv)
+	volumeCloneSource := &cdiv1.VolumeCloneSource{}
+	volumeCloneSourceName := volumeCloneSourceName(dv)
 	_, sourceName, sourceNamespace := cc.GetCloneSourceInfo(dv)
 	deletedOrSucceeded := dv.DeletionTimestamp != nil || dv.Status.Phase == cdiv1.Succeeded
-	exists, err := cc.GetResource(context.TODO(), r.client, sourceNamespace, cloneSourceName, cloneSource)
+	exists, err := cc.GetResource(context.TODO(), r.client, sourceNamespace, volumeCloneSourceName, volumeCloneSource)
 	if err != nil {
 		return err
 	}
 
 	if deletedOrSucceeded || exists {
 		if deletedOrSucceeded && exists {
-			if err := r.client.Delete(context.TODO(), cloneSource); err != nil {
+			if err := r.client.Delete(context.TODO(), volumeCloneSource); err != nil {
 				if !k8serrors.IsNotFound(err) {
 					return err
 				}
@@ -204,9 +204,9 @@ func (r *CloneReconcilerBase) reconcileVolumeCloneSourceCR(syncState *dvSyncStat
 		return nil
 	}
 
-	cloneSource = &cdiv1.VolumeCloneSource{
+	volumeCloneSource = &cdiv1.VolumeCloneSource{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cloneSourceName,
+			Name:      volumeCloneSourceName,
 			Namespace: sourceNamespace,
 		},
 		Spec: cdiv1.VolumeCloneSourceSpec{
@@ -219,20 +219,20 @@ func (r *CloneReconcilerBase) reconcileVolumeCloneSourceCR(syncState *dvSyncStat
 	}
 
 	if dv.Spec.PriorityClassName != "" {
-		cloneSource.Spec.PriorityClassName = &dv.Spec.PriorityClassName
+		volumeCloneSource.Spec.PriorityClassName = &dv.Spec.PriorityClassName
 	}
 
 	if sourceNamespace == dv.Namespace {
-		if err := controllerutil.SetControllerReference(dv, cloneSource, r.scheme); err != nil {
+		if err := controllerutil.SetControllerReference(dv, volumeCloneSource, r.scheme); err != nil {
 			return err
 		}
 	} else {
-		if err := setAnnOwnedByDataVolume(cloneSource, dv); err != nil {
+		if err := setAnnOwnedByDataVolume(volumeCloneSource, dv); err != nil {
 			return err
 		}
 	}
 
-	if err := r.client.Create(context.TODO(), cloneSource); err != nil {
+	if err := r.client.Create(context.TODO(), volumeCloneSource); err != nil {
 		if !k8serrors.IsAlreadyExists(err) {
 			return err
 		}

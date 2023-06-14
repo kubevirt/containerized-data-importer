@@ -240,12 +240,10 @@ var _ = Describe("Clone Populator tests", func() {
 			}
 			source := createSource(defaultSize, corev1.PersistentVolumeBlock)
 			createDataSource()
-			target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
+			target := createTarget(biggerSize, corev1.PersistentVolumeFilesystem)
 			target = waitSucceeded(target)
-			targetSize := target.Status.Capacity[corev1.ResourceStorage]
-			Expect(targetSize.Cmp(defaultSize)).To(BeNumerically(">", 0))
-			sourceHash := getHash(source, 0)
-			targetHash := getHash(target, 0)
+			sourceHash := getHash(source, 100000)
+			targetHash := getHash(target, 100000)
 			Expect(targetHash).To(Equal(sourceHash))
 		})
 
