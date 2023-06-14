@@ -474,13 +474,14 @@ func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState) (bool, erro
 	}
 
 	// because of filesystem overhead calculations when cloning
-	// even if storage size is requested we have to calucuale source size
+	// even if storage size is requested we have to calculate source size
 	// when source is filesystem and target is block
 	requestedSize, hasSize := syncState.pvcSpec.Resources.Requests[corev1.ResourceStorage]
 	sizeRequired := !hasSize || requestedSize.IsZero()
 	targetIsBlock := syncState.pvcSpec.VolumeMode != nil && *syncState.pvcSpec.VolumeMode == corev1.PersistentVolumeBlock
 	sourceIsFilesystem := cc.GetVolumeMode(sourcePvc) == corev1.PersistentVolumeFilesystem
-	sourceIsKubevirt := cc.GetPVCContentType(sourcePvc) == string(cdiv1.DataVolumeKubeVirt)
+	// have to be explicit here or detection pod will crash
+	sourceIsKubevirt := sourcePvc.Annotations[cc.AnnContentType] == string(cdiv1.DataVolumeKubeVirt)
 	if !sizeRequired && (!targetIsBlock || !sourceIsFilesystem || !sourceIsKubevirt) {
 		return true, nil
 	}
@@ -558,7 +559,11 @@ func getSizeFromAnnotations(sourcePvc *corev1.PersistentVolumeClaim) (int64, boo
 // getSizeFromPod attempts to get the image size from a pod that directly obtains said value from the source PVC
 func (r *PvcCloneReconciler) getSizeFromPod(targetPvc, sourcePvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (int64, error) {
 	// The pod should not be created until the source PVC has finished the import process
-	if !cc.IsPVCComplete(sourcePvc) {
+	populated, err := cc.IsPopulated(sourcePvc, r.client)
+	if err != nil {
+		return 0, err
+	}
+	if !populated {
 		r.recorder.Event(dv, corev1.EventTypeNormal, ImportPVCNotReady, MessageImportPVCNotReady)
 		return 0, nil
 	}

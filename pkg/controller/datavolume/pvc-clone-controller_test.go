@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -273,8 +274,25 @@ var _ = Describe("All DataVolume Tests", func() {
 			storageProfile := createStorageProfileWithCloneStrategy(scName, []cdiv1.ClaimPropertySet{
 				{AccessModes: accessMode, VolumeMode: &BlockMode}}, &cloneStrategy)
 
+			sourceDV := &cdiv1.DataVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "source-dv",
+					Namespace: metav1.NamespaceDefault,
+				},
+				Status: cdiv1.DataVolumeStatus{
+					Phase: cdiv1.ImportInProgress,
+				},
+			}
 			pvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
-			reconciler := createCloneReconciler(dv, pvc, storageProfile, sc)
+			pvc.OwnerReferences = []metav1.OwnerReference{
+				{
+					Kind:       "DataVolume",
+					Name:       sourceDV.Name,
+					Controller: pointer.Bool(true),
+				},
+			}
+			AddAnnotation(pvc, AnnContentType, "kubevirt")
+			reconciler := createCloneReconciler(dv, sourceDV, pvc, storageProfile, sc)
 
 			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, pvc)
 			Expect(err).ToNot(HaveOccurred())
@@ -301,7 +319,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			pvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			pvc.SetAnnotations(make(map[string]string))
-			pvc.GetAnnotations()[AnnPodPhase] = string(corev1.PodSucceeded)
+			pvc.Annotations[AnnContentType] = "kubevirt"
 			reconciler := createCloneReconciler(dv, pvc, storageProfile, sc)
 
 			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, pvc)
@@ -330,7 +348,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			pvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			pvc.SetAnnotations(make(map[string]string))
-			pvc.GetAnnotations()[AnnPodPhase] = string(corev1.PodSucceeded)
+			pvc.Annotations[AnnContentType] = "kubevirt"
 			reconciler := createCloneReconciler(dv, pvc, storageProfile, sc)
 
 			// Prepare the size-detection Pod with the required information
@@ -361,7 +379,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			pvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			pvc.SetAnnotations(make(map[string]string))
-			pvc.GetAnnotations()[AnnPodPhase] = string(corev1.PodSucceeded)
+			pvc.Annotations[AnnContentType] = "kubevirt"
 			reconciler := createCloneReconciler(dv, pvc, storageProfile, sc)
 
 			// Prepare the size-detection Pod with the required information
@@ -409,6 +427,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc.SetAnnotations(make(map[string]string))
 			pvc.GetAnnotations()[AnnVirtualImageSize] = "100" // Mock value
 			pvc.GetAnnotations()[AnnSourceCapacity] = string(pvc.Status.Capacity.Storage().String())
+			pvc.GetAnnotations()[AnnContentType] = "kubevirt"
 			reconciler := createCloneReconciler(dv, pvc, storageProfile, sc)
 
 			// Get the expected value
