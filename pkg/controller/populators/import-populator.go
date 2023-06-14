@@ -121,23 +121,29 @@ func (r *ImportPopulatorReconciler) getPopulationSource(namespace, name string) 
 
 // Import-specific implementation of reconcileTargetPVC
 func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
+	pvcCopy := pvc.DeepCopy()
 	phase := pvcPrime.Annotations[cc.AnnPodPhase]
-	if err := r.updateImportProgress(phase, pvc, pvcPrime); err != nil {
-		return reconcile.Result{}, err
-	}
 
 	switch phase {
 	case string(corev1.PodRunning):
+		err := r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations)
 		// We requeue to keep reporting progress
-		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
+		return reconcile.Result{RequeueAfter: 2 * time.Second}, err
 	case string(corev1.PodFailed):
 		// We'll get called later once it succeeds
-		r.recorder.Eventf(pvcPrime, corev1.EventTypeWarning, importFailed, messageImportFailed, pvc.Name)
+		r.recorder.Eventf(pvc, corev1.EventTypeWarning, importFailed, messageImportFailed, pvc.Name)
 	case string(corev1.PodSucceeded):
 		// Once the import is succeeded, we rebind the PV from PVC' to target PVC
 		if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvc); err != nil {
 			return reconcile.Result{}, err
 		}
+	}
+
+	err := r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	if cc.IsPVCComplete(pvcPrime) {
 		r.recorder.Eventf(pvc, corev1.EventTypeNormal, importSucceeded, messageImportSucceeded, pvc.Name)
 	}
 
@@ -181,21 +187,35 @@ func (r *ImportPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	annotations[cc.AnnSource] = cc.SourceNone
 }
 
+func updateVddkAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim) {
+	if cc.GetSource(pvcPrime) != cc.SourceVDDK {
+		return
+	}
+	if vddkHost := pvcPrime.Annotations[cc.AnnVddkHostConnection]; vddkHost != "" {
+		cc.AddAnnotation(pvc, cc.AnnVddkHostConnection, vddkHost)
+	}
+	if vddkVersion := pvcPrime.Annotations[cc.AnnVddkVersion]; vddkVersion != "" {
+		cc.AddAnnotation(pvc, cc.AnnVddkVersion, vddkVersion)
+	}
+}
+
+func (r *ImportPopulatorReconciler) updateImportAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim) {
+	phase := pvcPrime.Annotations[cc.AnnPodPhase]
+	if err := r.updateImportProgress(phase, pvc, pvcPrime); err != nil {
+		r.log.Error(err, "Failed to update import progress for pvc %s/%s", pvc.Namespace, pvc.Name)
+	}
+	updateVddkAnnotations(pvc, pvcPrime)
+}
+
 // Progress reporting
 
 func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, pvcPrime *corev1.PersistentVolumeClaim) error {
-	if pvc.Annotations == nil {
-		pvc.Annotations = make(map[string]string)
-	}
 	// Just set 100.0% if pod is succeeded
 	if podPhase == string(corev1.PodSucceeded) {
-		pvc.Annotations[cc.AnnImportProgressReporting] = "100.0%"
-		if err := r.client.Update(context.TODO(), pvc); err != nil {
-			return err
-		}
+		cc.AddAnnotation(pvc, cc.AnnPopulatorProgress, "100.0%")
 		return nil
 	}
-	importPod, err := r.getImportPod(pvc)
+	importPod, err := r.getImportPod(pvcPrime)
 	if err != nil {
 		return err
 	}
@@ -219,10 +239,7 @@ func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, p
 	}
 	if progressReport != "" {
 		if f, err := strconv.ParseFloat(progressReport, 64); err == nil {
-			pvc.Annotations[cc.AnnImportProgressReporting] = fmt.Sprintf("%.2f%%", f)
-			if err := r.client.Update(context.TODO(), pvc); err != nil {
-				return err
-			}
+			cc.AddAnnotation(pvc, cc.AnnPopulatorProgress, fmt.Sprintf("%.2f%%", f))
 		}
 	}
 

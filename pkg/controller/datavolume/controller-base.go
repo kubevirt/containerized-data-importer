@@ -103,16 +103,18 @@ type dvSyncState struct {
 	pvc       *corev1.PersistentVolumeClaim
 	pvcSpec   *corev1.PersistentVolumeClaimSpec
 	dvSyncResult
+	usePopulator bool
 }
 
 // ReconcilerBase members
 type ReconcilerBase struct {
-	client          client.Client
-	recorder        record.EventRecorder
-	scheme          *runtime.Scheme
-	log             logr.Logger
-	featureGates    featuregates.FeatureGates
-	installerLabels map[string]string
+	client               client.Client
+	recorder             record.EventRecorder
+	scheme               *runtime.Scheme
+	log                  logr.Logger
+	featureGates         featuregates.FeatureGates
+	installerLabels      map[string]string
+	shouldUpdateProgress bool
 }
 
 func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
@@ -429,13 +431,14 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 		return syncState, err
 	}
 
-	if dv.DeletionTimestamp != nil {
-		log.Info("DataVolume marked for deletion, cleaning up")
-		if cleanup != nil {
-			if err := cleanup(&syncState); err != nil {
-				return syncState, err
-			}
+	if cleanup != nil {
+		if err := cleanup(&syncState); err != nil {
+			return syncState, err
 		}
+	}
+
+	if dv.DeletionTimestamp != nil {
+		log.Info("DataVolume marked for deletion")
 		syncState.result = &reconcile.Result{}
 		return syncState, nil
 	}
@@ -454,6 +457,12 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 		}
 		return syncState, err
 	}
+
+	syncState.usePopulator, err = r.shouldUseCDIPopulator(&syncState)
+	if err != nil {
+		return syncState, err
+	}
+	updateDataVolumeUseCDIPopulator(&syncState)
 
 	if err := r.handleStaticVolume(&syncState, log); err != nil || syncState.result != nil {
 		return syncState, err
@@ -679,6 +688,19 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 		datavolume.Status.Progress = "N/A"
 	}
 
+	if !r.shouldUpdateProgress {
+		return nil
+	}
+
+	if usePopulator, _ := CheckPVCUsingPopulators(pvc); usePopulator {
+		if progress, ok := pvc.Annotations[cc.AnnPopulatorProgress]; ok {
+			datavolume.Status.Progress = cdiv1.DataVolumeProgress(progress)
+		} else {
+			datavolume.Status.Progress = "N/A"
+		}
+		return nil
+	}
+
 	if datavolume.Spec.Source != nil && datavolume.Spec.Source.PVC != nil {
 		podNamespace = datavolume.Spec.Source.PVC.Namespace
 	} else {
@@ -792,14 +814,8 @@ func (r ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPha
 		} else {
 			switch pvc.Status.Phase {
 			case corev1.ClaimPending:
-				shouldBeMarkedWaitForFirstConsumer, err := r.shouldBeMarkedWaitForFirstConsumer(pvc)
-				if err != nil {
+				if err := r.updateStatusPVCPending(pvc, dvc, dataVolumeCopy, &event); err != nil {
 					return reconcile.Result{}, err
-				}
-				if shouldBeMarkedWaitForFirstConsumer {
-					dataVolumeCopy.Status.Phase = cdiv1.WaitForFirstConsumer
-				} else {
-					dataVolumeCopy.Status.Phase = cdiv1.Pending
 				}
 			case corev1.ClaimBound:
 				switch dataVolumeCopy.Status.Phase {
@@ -842,6 +858,38 @@ func (r ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPha
 	copy(currentCond, dataVolumeCopy.Status.Conditions)
 	r.updateConditions(dataVolumeCopy, pvc, "", "")
 	return result, r.emitEvent(dv, dataVolumeCopy, curPhase, currentCond, &event)
+}
+
+func (r ReconcilerBase) updateStatusPVCPending(pvc *corev1.PersistentVolumeClaim, dvc dvController, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+	usePopulator, err := CheckPVCUsingPopulators(pvc)
+	if err != nil {
+		return err
+	}
+	if usePopulator {
+		// when using populators the target pvc phase will stay pending until the population completes,
+		// hence if not wffc we should update the dv phase according to the pod phase
+		shouldBeMarkedPendingPopulation, err := r.shouldBeMarkedPendingPopulation(pvc)
+		if err != nil {
+			return err
+		}
+		if shouldBeMarkedPendingPopulation {
+			dataVolumeCopy.Status.Phase = cdiv1.PendingPopulation
+		} else if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, event); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	shouldBeMarkedWaitForFirstConsumer, err := r.shouldBeMarkedWaitForFirstConsumer(pvc)
+	if err != nil {
+		return err
+	}
+	if shouldBeMarkedWaitForFirstConsumer {
+		dataVolumeCopy.Status.Phase = cdiv1.WaitForFirstConsumer
+	} else {
+		dataVolumeCopy.Status.Phase = cdiv1.Pending
+	}
+	return nil
 }
 
 func (r *ReconcilerBase) updateConditions(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, reason, message string) {
@@ -893,8 +941,9 @@ func (r *ReconcilerBase) emitFailureConditionEvent(dataVolume *cdiv1.DataVolume,
 	if curReady == nil || curBound == nil || curRunning == nil {
 		return
 	}
-	if curReady.Status == corev1.ConditionFalse && curRunning.Status == corev1.ConditionFalse && curBound.Status == corev1.ConditionTrue {
-		//Bound, not ready, and not running
+	if curReady.Status == corev1.ConditionFalse && curRunning.Status == corev1.ConditionFalse &&
+		dvBoundOrPopulationInProgress(dataVolume, curBound) {
+		//Bound or in progress, not ready, and not running
 		if curRunning.Message != "" && orgRunning.Message != curRunning.Message {
 			r.recorder.Event(dataVolume, corev1.EventTypeWarning, curRunning.Reason, curRunning.Message)
 		}
@@ -1066,9 +1115,19 @@ func newLongTermCloneTokenGenerator(key *rsa.PrivateKey) token.Generator {
 	return token.NewGenerator(common.ExtendedCloneTokenIssuer, key, 10*365*24*time.Hour)
 }
 
+// storageClassWaitForFirstConsumer returns if the binding mode of a given storage class is WFFC
+func (r *ReconcilerBase) storageClassWaitForFirstConsumer(storageClass *string) (bool, error) {
+	storageClassBindingMode, err := r.getStorageClassBindingMode(storageClass)
+	if err != nil {
+		return false, err
+	}
+
+	return storageClassBindingMode != nil && *storageClassBindingMode == storagev1.VolumeBindingWaitForFirstConsumer, nil
+}
+
 // shouldBeMarkedWaitForFirstConsumer decided whether we should mark DV as WFFC
 func (r *ReconcilerBase) shouldBeMarkedWaitForFirstConsumer(pvc *corev1.PersistentVolumeClaim) (bool, error) {
-	storageClassBindingMode, err := r.getStorageClassBindingMode(pvc.Spec.StorageClassName)
+	wffc, err := r.storageClassWaitForFirstConsumer(pvc.Spec.StorageClassName)
 	if err != nil {
 		return false, err
 	}
@@ -1078,11 +1137,21 @@ func (r *ReconcilerBase) shouldBeMarkedWaitForFirstConsumer(pvc *corev1.Persiste
 		return false, err
 	}
 
-	res := honorWaitForFirstConsumerEnabled &&
-		storageClassBindingMode != nil && *storageClassBindingMode == storagev1.VolumeBindingWaitForFirstConsumer &&
+	res := honorWaitForFirstConsumerEnabled && wffc &&
 		pvc.Status.Phase == corev1.ClaimPending
 
 	return res, nil
+}
+
+// shouldBeMarkedPendingPopulation decides whether we should mark DV as PendingPopulation
+func (r *ReconcilerBase) shouldBeMarkedPendingPopulation(pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	wffc, err := r.storageClassWaitForFirstConsumer(pvc.Spec.StorageClassName)
+	if err != nil {
+		return false, err
+	}
+	nodeName := pvc.Annotations[cc.AnnSelectedNode]
+
+	return wffc && nodeName == "", nil
 }
 
 // handlePvcCreation works as a wrapper for non-clone PVC creation and error handling
@@ -1109,24 +1178,67 @@ func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncState *dvSyncSta
 	return nil
 }
 
-// storageClassCSIDriverExists returns true if the passed storage class has CSI drivers available
-func (r *ReconcilerBase) storageClassCSIDriverExists(storageClassName *string) (bool, error) {
-	log := r.log.WithName("getCsiDriverForStorageClass").V(3)
-
-	storageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, storageClassName)
-	if err != nil {
-		return false, err
+// shouldUseCDIPopulator returns if the population of the PVC should be done using
+// CDI populators.
+// Currently it will use populators only if:
+// * no podRetainAfterCompletion or immediateBinding annotations
+// * source is not VDDK, Imageio, PVC, Snapshot
+// * storageClass bindingMode is not wffc while honorWaitForFirstConsumer feature gate is disabled
+// * storageClass used is CSI storageClass
+func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, error) {
+	dv := syncState.dvMutated
+	if usePopulator, ok := dv.Annotations[cc.AnnUsePopulator]; ok {
+		boolUsePopulator, err := strconv.ParseBool(usePopulator)
+		if err != nil {
+			return false, err
+		}
+		return boolUsePopulator, nil
 	}
-	if storageClass == nil {
-		log.Info("Target PVC's Storage Class not found")
+	log := r.log.WithValues("DataVolume", dv.Name, "Namespace", dv.Namespace)
+	// currently populators don't support retain pod annotation so don't use populators in that case
+	if retain := dv.Annotations[cc.AnnPodRetainAfterCompletion]; retain == "true" {
+		log.Info("Not using CDI populators, currently we don't support populators with retainAfterCompletion annotation")
+		return false, nil
+	}
+	// currently populators don't support immediate bind annotation so don't use populators in that case
+	if forceBind := dv.Annotations[cc.AnnImmediateBinding]; forceBind == "true" {
+		log.Info("Not using CDI populators, currently we don't support populators with bind immediate annotation")
+		return false, nil
+	}
+	// currently we don't support populator with import source of VDDK or Imageio
+	// or clone either from PVC nor snapshot
+	if dv.Spec.Source.Imageio != nil || dv.Spec.Source.VDDK != nil ||
+		dv.Spec.Source.PVC != nil || dv.Spec.Source.Snapshot != nil {
+		log.Info("Not using CDI populators, currently we don't support populators with Imageio/VDDk/Clone source")
 		return false, nil
 	}
 
-	csiDriver := &storagev1.CSIDriver{}
-
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: storageClass.Provisioner}, csiDriver); err != nil {
+	wffc, err := r.storageClassWaitForFirstConsumer(syncState.pvcSpec.StorageClassName)
+	if err != nil {
 		return false, err
 	}
 
-	return true, nil
+	honorWaitForFirstConsumerEnabled, err := r.featureGates.HonorWaitForFirstConsumerEnabled()
+	if err != nil {
+		return false, err
+	}
+	// currently since we don't support force bind in populators in case the storage class
+	// is wffc but the honorWaitForFirstConsumer feature gate is disabled we can't
+	// do immediate bind anyways, instead do regular flow
+	if wffc && !honorWaitForFirstConsumerEnabled {
+		log.Info("Not using CDI populators, currently we don't WFFC storage with disabled honorWaitForFirstConsumer feature gate")
+		return false, nil
+	}
+
+	usePopulator, err := storageClassCSIDriverExists(r.client, r.log, syncState.pvcSpec.StorageClassName)
+	if err != nil {
+		return false, err
+	}
+	if !usePopulator {
+		if syncState.pvcSpec.StorageClassName != nil {
+			log.Info("Not using CDI populators, storage class is not a CSI storage", "storageClass", *syncState.pvcSpec.StorageClassName)
+		}
+	}
+
+	return usePopulator, nil
 }

@@ -95,8 +95,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 
 	It("should set event if upload pod failed", func() {
 		pvc := newUploadPopulatorPVC("test-pvc")
-		pvc.Annotations = make(map[string]string)
-		pvc.Annotations[AnnPVCPrimeName] = PVCPrimeName(pvc)
+		cc.AddAnnotation(pvc, AnnPVCPrimeName, PVCPrimeName(pvc))
 		uploadPV := uploadPV(pvc)
 
 		volumeUploadSourceCR := newUploadPopulatorCR("", false)
@@ -108,7 +107,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		pvcPrime, err := r.getPVCPrime(pvc)
 		Expect(err).ToNot(HaveOccurred())
-		pvcPrime.Annotations[cc.AnnPodPhase] = string(corev1.PodFailed)
+		cc.AddAnnotation(pvcPrime, cc.AnnPodPhase, string(corev1.PodFailed))
 		pvcPrime.Spec.VolumeName = "test-pv"
 		pvcPrime.UID = pvcPrimeUID
 		err = r.client.Update(context.TODO(), pvcPrime)
@@ -128,8 +127,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 
 	It("should rebind PV to target PVC", func() {
 		pvc := newUploadPopulatorPVC("test-pvc")
-		pvc.Annotations = make(map[string]string)
-		pvc.Annotations[AnnPVCPrimeName] = PVCPrimeName(pvc)
+		cc.AddAnnotation(pvc, AnnPVCPrimeName, PVCPrimeName(pvc))
 		uploadPV := uploadPV(pvc)
 
 		volumeUploadSourceCR := newUploadPopulatorCR("", false)
@@ -141,7 +139,8 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		pvcPrime, err := r.getPVCPrime(pvc)
 		Expect(err).ToNot(HaveOccurred())
-		pvcPrime.Annotations[cc.AnnPodPhase] = string(corev1.PodSucceeded)
+
+		cc.AddAnnotation(pvcPrime, cc.AnnPodPhase, string(corev1.PodSucceeded))
 		pvcPrime.Spec.VolumeName = "test-pv"
 		pvcPrime.UID = pvcPrimeUID
 		err = r.client.Update(context.TODO(), pvcPrime)
@@ -159,14 +158,15 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		updatedPVC := &corev1.PersistentVolumeClaim{}
 		err = r.client.Get(context.TODO(), types.NamespacedName{Name: "test-pvc", Namespace: metav1.NamespaceDefault}, updatedPVC)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(updatedPVC.GetAnnotations()).To(BeNil())
+		Expect(updatedPVC.GetAnnotations()[AnnPVCPrimeName]).To(BeEmpty())
 
 		expectEvent(r, uploadSucceeded)
 	})
 
-	It("should clean PVCPrime when targetPVC bound", func() {
+	It("should clean PVCPrime when targetPVC bound and succeeded", func() {
 		pvc := newUploadPopulatorPVC("test-pvc")
 		pvc.Spec.VolumeName = "test-pv"
+		cc.AddAnnotation(pvc, cc.AnnPodPhase, string(corev1.PodSucceeded))
 		pvcPrime := newUploadPopulatorPVC(PVCPrimeName(pvc))
 
 		volumeUploadSourceCR := newUploadPopulatorCR("", false)
@@ -209,8 +209,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(errors.IsNotFound(err)).To(BeTrue())
 
-		pvc.Annotations = make(map[string]string)
-		pvc.Annotations[cc.AnnSelectedNode] = "node01"
+		cc.AddAnnotation(pvc, cc.AnnSelectedNode, "node01")
 		err = r.client.Update(context.TODO(), pvc)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -224,6 +223,52 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(pvcPrime).ToNot(BeNil())
 		Expect(pvcPrime.Annotations[cc.AnnSelectedNode]).To(Equal("node01"))
 	})
+
+	DescribeTable("should update target pvc with desired annotations from pvc prime", func(podPhase string) {
+		pvc := newUploadPopulatorPVC("test-pvc")
+		cc.AddAnnotation(pvc, AnnPVCPrimeName, PVCPrimeName(pvc))
+		uploadPV := uploadPV(pvc)
+
+		volumeUploadSourceCR := newUploadPopulatorCR("", false)
+		scName := "test-sc"
+		sc := cc.CreateStorageClassWithProvisioner(scName, map[string]string{cc.AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
+		r := createUploadPopulatorReconciler(pvc, volumeUploadSourceCR, sc, uploadPV)
+
+		_, err := r.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-pvc", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		pvcPrime, err := r.getPVCPrime(pvc)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvcPrime.Spec.VolumeName = "test-pv"
+		pvcPrime.UID = pvcPrimeUID
+		for _, ann := range desiredAnnotations {
+			cc.AddAnnotation(pvcPrime, ann, "somevalue")
+		}
+		cc.AddAnnotation(pvcPrime, cc.AnnPodPhase, podPhase)
+		cc.AddAnnotation(pvcPrime, "undesiredAnn", "somevalue")
+		err = r.client.Update(context.TODO(), pvcPrime)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Reconcile")
+		result, err := r.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-pvc", Namespace: metav1.NamespaceDefault}})
+		Expect(err).To(Not(HaveOccurred()))
+		Expect(result).ToNot(BeNil())
+
+		updatedPVC := &corev1.PersistentVolumeClaim{}
+		err = r.client.Get(context.TODO(), types.NamespacedName{Name: "test-pvc", Namespace: metav1.NamespaceDefault}, updatedPVC)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(updatedPVC.GetAnnotations()).ToNot(BeNil())
+		for _, ann := range desiredAnnotations {
+			_, ok := updatedPVC.Annotations[ann]
+			Expect(ok).To(BeTrue())
+		}
+		_, ok := updatedPVC.Annotations["undesiredAnn"]
+		Expect(ok).To(BeFalse())
+	},
+		Entry("with pod running phase", string(corev1.PodRunning)),
+		Entry("with pod succeded phase", string(corev1.PodFailed)),
+		Entry("with pod succeded phase", string(corev1.PodSucceeded)),
+	)
 })
 
 func newUploadPopulatorPVC(name string) *corev1.PersistentVolumeClaim {

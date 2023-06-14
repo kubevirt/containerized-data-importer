@@ -327,6 +327,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			}
 			Expect(err).ToNot(HaveOccurred())
 			progressRegExp := regexp.MustCompile(`\d{1,3}\.?\d{1,2}%`)
+			By("Waiting for datavolume to indicate progress")
 			Eventually(func() bool {
 				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())

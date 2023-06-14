@@ -96,12 +96,13 @@ func NewPvcCloneController(
 	reconciler := &PvcCloneReconciler{
 		CloneReconcilerBase: CloneReconcilerBase{
 			ReconcilerBase: ReconcilerBase{
-				client:          client,
-				scheme:          mgr.GetScheme(),
-				log:             log.WithName(pvcCloneControllerName),
-				featureGates:    featuregates.NewFeatureGates(client),
-				recorder:        mgr.GetEventRecorderFor(pvcCloneControllerName),
-				installerLabels: installerLabels,
+				client:               client,
+				scheme:               mgr.GetScheme(),
+				log:                  log.WithName(pvcCloneControllerName),
+				featureGates:         featuregates.NewFeatureGates(client),
+				recorder:             mgr.GetEventRecorderFor(pvcCloneControllerName),
+				installerLabels:      installerLabels,
+				shouldUpdateProgress: true,
 			},
 			clonerImage:    clonerImage,
 			importerImage:  importerImage,
@@ -233,11 +234,6 @@ func (r *PvcCloneReconciler) prepare(syncState *dvSyncState) error {
 	if err := r.populateSourceIfSourceRef(dv); err != nil {
 		return err
 	}
-	if dv.Status.Phase == cdiv1.Succeeded {
-		if err := r.cleanup(syncState); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -338,7 +334,7 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 			return syncRes, err
 		}
 		if selectedCloneStrategy == CsiClone {
-			csiDriverAvailable, err := r.storageClassCSIDriverExists(pvcSpec.StorageClassName)
+			csiDriverAvailable, err := storageClassCSIDriverExists(r.client, r.log, pvcSpec.StorageClassName)
 			if err != nil && !k8serrors.IsNotFound(err) {
 				return syncRes, err
 			}
@@ -712,6 +708,12 @@ func (r *PvcCloneReconciler) sourceInUse(dv *cdiv1.DataVolume, eventReason strin
 
 func (r *PvcCloneReconciler) cleanup(syncState *dvSyncState) error {
 	dv := syncState.dvMutated
+
+	// This cleanup should be done if dv is marked for deletion or in case it succeeded
+	if dv.DeletionTimestamp == nil && dv.Status.Phase != cdiv1.Succeeded {
+		return nil
+	}
+
 	r.log.V(3).Info("Cleanup initiated in dv PVC clone controller")
 
 	if err := r.populateSourceIfSourceRef(dv); err != nil {

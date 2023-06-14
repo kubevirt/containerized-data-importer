@@ -1244,9 +1244,17 @@ var _ = Describe("Preallocation", func() {
 		if dv.Spec.Source.Registry != nil && dv.Spec.Source.Registry.ImageStream != nil {
 			By("Verify image lookup annotation")
 			podName := pvc.Annotations[controller.AnnImportPod]
-			pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), podName, metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred())
-			Expect(pod.Annotations[controller.AnnOpenShiftImageLookup]).To(Equal("*"))
+			if pvc.Spec.DataSourceRef != nil {
+				Expect(podName).To(BeEmpty())
+			} else {
+				// when using populators when the population completes PVC' and
+				// the importer pod are deleted, so can't check the annotation
+				// TODO: any suggestions? putting the check before dv completes is
+				// still racy
+				pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), podName, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(pod.Annotations[controller.AnnOpenShiftImageLookup]).To(Equal("*"))
+			}
 		}
 	},
 		Entry("HTTP import (ISO image)", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
@@ -1376,7 +1384,13 @@ var _ = Describe("Preallocation", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(found).To(BeTrue())
 
-		Expect(f.VerifyFSOverhead(f.Namespace, pvc, preallocation)).To(BeTrue())
+		// incase of using populators the requested size with the fsoverhead
+		// is put only on the PVC' which at thisd point we can't check
+		// TODO: any suggestions? getting the requested size from PVC' in earlier
+		// point in the test seems to be racy
+		if pvc.Spec.DataSourceRef == nil {
+			Expect(f.VerifyFSOverhead(f.Namespace, pvc, preallocation)).To(BeTrue())
+		}
 
 		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
@@ -1619,7 +1633,7 @@ var _ = Describe("Import populator", func() {
 		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
 
 		By("Verify 100.0% annotation")
-		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnImportProgressReporting)
+		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPopulatorProgress)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(ok).To(BeTrue())
 		Expect(progress).Should(BeEquivalentTo("100.0%"))
@@ -1671,7 +1685,7 @@ var _ = Describe("Import populator", func() {
 		Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultPvcMountPath)).To(BeTrue())
 
 		By("Verify 100.0% annotation")
-		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnImportProgressReporting)
+		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPopulatorProgress)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(ok).To(BeTrue())
 		Expect(progress).Should(BeEquivalentTo("100.0%"))
@@ -1710,7 +1724,7 @@ var _ = Describe("Import populator", func() {
 		Expect(same).To(BeTrue())
 
 		By("Verify 100.0% annotation")
-		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnImportProgressReporting)
+		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPopulatorProgress)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(ok).To(BeTrue())
 		Expect(progress).Should(BeEquivalentTo("100.0%"))
