@@ -399,14 +399,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Message: "exceeded quota",
 				Reason:  controller.ErrExceededQuota,
 			}
-			// for smart clone dv the dv can't be updated, only events will show the quota reason
-			if args.name == "dv-clone-test" && f.IsSnapshotStorageClassAvailable() {
-				expectedPhase = cdiv1.SnapshotForSmartCloneInProgress
-				boundCondition.Message = "in progress"
-				boundCondition.Reason = dvc.SnapshotForSmartCloneInProgress
-				readyCondition.Message = "in progress"
-				readyCondition.Reason = dvc.SnapshotForSmartCloneInProgress
-			}
+
 			waitForDvPhase(expectedPhase, dataVolume, f)
 			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.ErrExceededQuota))
 			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
@@ -939,10 +932,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeRunning,
-					Status:  v1.ConditionFalse,
-					Message: "Clone Complete",
-					Reason:  "Completed",
+					Type:   cdiv1.DataVolumeRunning,
+					Status: v1.ConditionFalse,
 				}}),
 			table.Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", dataVolumeTestArguments{
 				name:             "dv-import-registry",
@@ -1241,10 +1232,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeRunning,
-					Status:  v1.ConditionFalse,
-					Message: "Clone Complete",
-					Reason:  "Completed",
+					Type:   cdiv1.DataVolumeRunning,
+					Status: v1.ConditionFalse,
 				}}),
 		)
 

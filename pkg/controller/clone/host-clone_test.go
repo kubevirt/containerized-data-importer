@@ -148,10 +148,35 @@ var _ = Describe("HostClonePhase test", func() {
 			Expect(result.RequeueAfter).ToNot(BeZero())
 		})
 
+		It("should wait for clone to succeed with preallocation", func() {
+			desired := getCliam()
+			desired.Annotations[cc.AnnPodPhase] = "Succeeded"
+			p := creatHostClonePhase(desired)
+			p.Preallocation = true
+
+			result, err := p.Reconcile(context.Background())
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result).ToNot(BeNil())
+			Expect(result.Requeue).To(BeFalse())
+			Expect(result.RequeueAfter).ToNot(BeZero())
+		})
+
 		It("should succeed", func() {
 			desired := getCliam()
 			desired.Annotations[cc.AnnPodPhase] = "Succeeded"
 			p := creatHostClonePhase(desired)
+
+			result, err := p.Reconcile(context.Background())
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result).To(BeNil())
+		})
+
+		It("should succeed with preallocation", func() {
+			desired := getCliam()
+			desired.Annotations[cc.AnnPodPhase] = "Succeeded"
+			desired.Annotations[cc.AnnPreallocationApplied] = "true"
+			p := creatHostClonePhase(desired)
+			p.Preallocation = true
 
 			result, err := p.Reconcile(context.Background())
 			Expect(err).ToNot(HaveOccurred())
