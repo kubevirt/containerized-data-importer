@@ -103,7 +103,7 @@ func (p *HostClonePhase) Reconcile(ctx context.Context) (*reconcile.Result, erro
 		}
 	}
 
-	if !hostCloneComplete(actualClaim) {
+	if !p.hostCloneComplete(actualClaim) {
 		// requeue to update status
 		return &reconcile.Result{RequeueAfter: 3 * time.Second}, nil
 	}
@@ -140,6 +140,13 @@ func (p *HostClonePhase) createClaim(ctx context.Context) (*corev1.PersistentVol
 	return claim, nil
 }
 
-func hostCloneComplete(pvc *corev1.PersistentVolumeClaim) bool {
+func (p *HostClonePhase) hostCloneComplete(pvc *corev1.PersistentVolumeClaim) bool {
+	// this is awfully lame
+	// both the upload controller and clone controller update the PVC status to succeeded
+	// but only the clone controller will set the preallocation annotation
+	// so we have to wait for that
+	if p.Preallocation && pvc.Annotations[cc.AnnPreallocationApplied] != "true" {
+		return false
+	}
 	return pvc.Annotations[cc.AnnPodPhase] == string(cdiv1.Succeeded)
 }
