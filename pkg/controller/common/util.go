@@ -1211,8 +1211,9 @@ func IsErrCacheNotStarted(err error) bool {
 }
 
 // GetDataVolumeTTLSeconds gets the current DataVolume TTL in seconds if GC is enabled, or < 0 if GC is disabled
+// Garbage collection is disabled by default
 func GetDataVolumeTTLSeconds(config *cdiv1.CDIConfig) int32 {
-	const defaultDataVolumeTTLSeconds = 0
+	const defaultDataVolumeTTLSeconds = -1
 	if config.Spec.DataVolumeTTLSeconds != nil {
 		return *config.Spec.DataVolumeTTLSeconds
 	}
