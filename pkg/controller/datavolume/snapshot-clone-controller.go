@@ -32,18 +32,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
-
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/util"
-
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -178,7 +176,6 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 	pvc := syncRes.pvc
 	pvcSpec := syncRes.pvcSpec
 	datavolume := syncRes.dvMutated
-	transferName := getTransferName(datavolume)
 
 	pvcPopulated := pvcIsPopulated(pvc, datavolume)
 	staticProvisionPending := checkStaticProvisionPending(pvc, datavolume)
@@ -206,18 +203,7 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 		return syncRes, err
 	}
 
-	fallBackToHostAssisted, err := r.evaluateFallBackToHostAssistedNeeded(datavolume, pvcSpec, snapshot)
-	if err != nil {
-		return syncRes, err
-	}
-
 	if pvc == nil {
-		if !fallBackToHostAssisted {
-			res, err := r.reconcileRestoreSnapshot(log, datavolume, snapshot, pvcSpec, transferName, &syncRes)
-			syncRes.result = &res
-			return syncRes, err
-		}
-
 		if err := r.createTempHostAssistedSourcePvc(datavolume, snapshot, pvcSpec, &syncRes); err != nil {
 			return syncRes, err
 		}
@@ -239,31 +225,9 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 		pvc = targetHostAssistedPvc
 	}
 
-	if fallBackToHostAssisted {
-		if err := r.ensureExtendedToken(pvc); err != nil {
-			return syncRes, err
-		}
-		return syncRes, syncErr
-	}
-
-	switch pvc.Status.Phase {
-	case corev1.ClaimBound:
-		if err := r.setCloneOfOnPvc(pvc); err != nil {
-			return syncRes, err
-		}
-	}
-
-	shouldBeMarkedWaitForFirstConsumer, err := r.shouldBeMarkedWaitForFirstConsumer(pvc)
-	if err != nil {
+	if err := r.ensureExtendedToken(pvc); err != nil {
 		return syncRes, err
 	}
-
-	if !shouldBeMarkedWaitForFirstConsumer {
-		res, err := r.finishClone(log, &syncRes, transferName)
-		syncRes.result = &res
-		return syncRes, err
-	}
-
 	return syncRes, syncErr
 }
 
@@ -297,102 +261,6 @@ func (r *SnapshotCloneReconciler) validateCloneAndSourceSnapshot(syncState *dvSy
 	}
 
 	return true, nil
-}
-
-func (r *SnapshotCloneReconciler) evaluateFallBackToHostAssistedNeeded(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec, snapshot *snapshotv1.VolumeSnapshot) (bool, error) {
-	bindingMode, err := r.getStorageClassBindingMode(pvcSpec.StorageClassName)
-	if err != nil {
-		return true, err
-	}
-	if bindingMode != nil && *bindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
-		waitForFirstConsumerEnabled, err := cc.IsWaitForFirstConsumerEnabled(datavolume, r.featureGates)
-		if err != nil {
-			return true, err
-		}
-		if !waitForFirstConsumerEnabled {
-			return true, nil
-		}
-	}
-	// Storage and snapshot class validation
-	targetStorageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, pvcSpec.StorageClassName)
-	if err != nil {
-		return true, err
-	}
-	valid, err := cc.ValidateSnapshotCloneProvisioners(context.TODO(), r.client, snapshot, targetStorageClass)
-	if err != nil {
-		return true, err
-	}
-	if !valid {
-		r.log.V(3).Info("Provisioner differs, need to fall back to host assisted")
-		return true, nil
-	}
-	// Size validation
-	valid, err = cc.ValidateSnapshotCloneSize(snapshot, pvcSpec, targetStorageClass, r.log)
-	if err != nil || !valid {
-		return true, err
-	}
-
-	if !isCrossNamespaceClone(datavolume) || *bindingMode == storagev1.VolumeBindingImmediate {
-		return false, nil
-	}
-
-	return true, nil
-}
-
-func (r *SnapshotCloneReconciler) reconcileRestoreSnapshot(log logr.Logger,
-	datavolume *cdiv1.DataVolume,
-	snapshot *snapshotv1.VolumeSnapshot,
-	pvcSpec *corev1.PersistentVolumeClaimSpec,
-	transferName string,
-	syncRes *dvSyncState) (reconcile.Result, error) {
-
-	pvcName := datavolume.Name
-
-	if isCrossNamespaceClone(datavolume) {
-		pvcName = transferName
-		result, err := r.doCrossNamespaceClone(log, syncRes, pvcName, datavolume.Spec.Source.Snapshot.Namespace, false)
-		if result != nil {
-			return *result, err
-		}
-	}
-
-	if datavolume.Status.Phase == cdiv1.NamespaceTransferInProgress {
-		return reconcile.Result{}, nil
-	}
-
-	newPvc, err := r.makePvcFromSnapshot(pvcName, datavolume, snapshot, pvcSpec)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	currentRestoreFromSnapshotPvc := &corev1.PersistentVolumeClaim{}
-	if err := r.client.Get(context.TODO(), client.ObjectKeyFromObject(newPvc), currentRestoreFromSnapshotPvc); err != nil {
-		if !k8serrors.IsNotFound(err) {
-			return reconcile.Result{}, err
-		}
-		if err := r.client.Create(context.TODO(), newPvc); err != nil {
-			if cc.ErrQuotaExceeded(err) {
-				syncEventErr := r.syncDataVolumeStatusPhaseWithEvent(syncRes, cdiv1.Pending, nil,
-					Event{
-						eventType: corev1.EventTypeWarning,
-						reason:    cc.ErrExceededQuota,
-						message:   err.Error(),
-					})
-				if syncEventErr != nil {
-					r.log.Error(syncEventErr, "failed sync status phase")
-				}
-			}
-			return reconcile.Result{}, err
-		}
-	} else {
-		if currentRestoreFromSnapshotPvc.Status.Phase == corev1.ClaimBound {
-			if err := r.setCloneOfOnPvc(currentRestoreFromSnapshotPvc); err != nil {
-				return reconcile.Result{}, err
-			}
-		}
-	}
-
-	return reconcile.Result{}, r.syncCloneStatusPhase(syncRes, cdiv1.CloneFromSnapshotSourceInProgress, nil)
 }
 
 func (r *SnapshotCloneReconciler) createTempHostAssistedSourcePvc(dv *cdiv1.DataVolume, snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec, syncState *dvSyncState) error {
@@ -518,12 +386,6 @@ func (r *SnapshotCloneReconciler) cleanup(syncState *dvSyncState) error {
 
 	if err := r.populateSourceIfSourceRef(dv); err != nil {
 		return err
-	}
-
-	if isCrossNamespaceClone(dv) {
-		if err := r.cleanupTransfer(dv); err != nil {
-			return err
-		}
 	}
 
 	if err := r.cleanupHostAssistedSnapshotClone(dv); err != nil {

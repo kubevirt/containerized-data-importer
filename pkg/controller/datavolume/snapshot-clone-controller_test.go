@@ -93,40 +93,6 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 		}
 
-		It("Should create a restore PVC if snapclass exists and no reason to fall back to host assisted", func() {
-			dv := newCloneFromSnapshotDataVolume("test-dv")
-			scName := "testsc"
-			expectedSnapshotClass := "snap-class"
-			sc := CreateStorageClassWithProvisioner(scName, map[string]string{
-				AnnDefaultStorageClass: "true",
-			}, map[string]string{}, "csi-plugin")
-			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, BlockMode)
-
-			dv.Spec.PVC.StorageClassName = &scName
-			snapshot := createSnapshotInVolumeSnapshotClass("test-snap", metav1.NamespaceDefault, &expectedSnapshotClass, nil, nil, true)
-			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
-			reconciler = createSnapshotCloneReconciler(sc, sp, dv, snapshot, snapClass, createDefaultVolumeSnapshotContent(), createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
-			Expect(err).ToNot(HaveOccurred())
-
-			By("Verifying that target PVC now exists")
-			pvc := &corev1.PersistentVolumeClaim{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}, pvc)
-			Expect(err).ToNot(HaveOccurred())
-			expectedDataSource := &corev1.TypedLocalObjectReference{
-				Name:     snapshot.Name,
-				Kind:     "VolumeSnapshot",
-				APIGroup: &snapshotv1.SchemeGroupVersion.Group,
-			}
-			Expect(pvc.Spec.DataSource).To(Equal(expectedDataSource))
-			Expect(pvc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
-
-			dv = &cdiv1.DataVolume{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(dv.Status.Phase).To(Equal(cdiv1.CloneFromSnapshotSourceInProgress))
-		})
-
 		It("Should fall back to host assisted when target DV storage class has different provisioner", func() {
 			dv := newCloneFromSnapshotDataVolume("test-dv")
 			scName := "testsc"
