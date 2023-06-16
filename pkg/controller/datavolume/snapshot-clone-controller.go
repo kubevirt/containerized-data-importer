@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -82,10 +83,12 @@ func NewSnapshotCloneController(
 				installerLabels:      installerLabels,
 				shouldUpdateProgress: true,
 			},
-			clonerImage:    clonerImage,
-			importerImage:  importerImage,
-			pullPolicy:     pullPolicy,
-			tokenValidator: cc.NewCloneTokenValidator(common.CloneTokenIssuer, tokenPublicKey),
+			clonerImage:         clonerImage,
+			importerImage:       importerImage,
+			pullPolicy:          pullPolicy,
+			cloneSourceAPIGroup: pointer.String(snapshotv1.GroupName),
+			cloneSourceKind:     "VolumeSnapshot",
+			tokenValidator:      cc.NewCloneTokenValidator(common.CloneTokenIssuer, tokenPublicKey),
 			// for long term tokens to handle cross namespace dumb clones
 			tokenGenerator: newLongTermCloneTokenGenerator(tokenPrivateKey),
 		},
@@ -98,14 +101,14 @@ func NewSnapshotCloneController(
 		return nil, err
 	}
 
-	if err := addDataVolumeSnapshotCloneControllerWatches(mgr, dataVolumeCloneController); err != nil {
+	if err := reconciler.addDataVolumeSnapshotCloneControllerWatches(mgr, dataVolumeCloneController); err != nil {
 		return nil, err
 	}
 
 	return dataVolumeCloneController, nil
 }
 
-func addDataVolumeSnapshotCloneControllerWatches(mgr manager.Manager, datavolumeController controller.Controller) error {
+func (r *SnapshotCloneReconciler) addDataVolumeSnapshotCloneControllerWatches(mgr manager.Manager, datavolumeController controller.Controller) error {
 	if err := addDataVolumeControllerCommonWatches(mgr, datavolumeController, dataVolumeSnapshotClone); err != nil {
 		return err
 	}
@@ -120,7 +123,12 @@ func addDataVolumeSnapshotCloneControllerWatches(mgr manager.Manager, datavolume
 			return err
 		}
 	}
+
 	if err := addCloneWithoutSourceWatch(mgr, datavolumeController, &snapshotv1.VolumeSnapshot{}, "spec.source.snapshot"); err != nil {
+		return err
+	}
+
+	if err := r.addVolumeCloneSourceWatch(datavolumeController); err != nil {
 		return err
 	}
 
@@ -185,50 +193,88 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 		return syncRes, nil
 	}
 
-	// Check if source snapshot exists and do proper validation before attempting to clone
-	if done, err := r.validateCloneAndSourceSnapshot(&syncRes); err != nil {
-		return syncRes, err
-	} else if !done {
-		return syncRes, nil
-	}
-
-	nn := types.NamespacedName{Namespace: datavolume.Spec.Source.Snapshot.Namespace, Name: datavolume.Spec.Source.Snapshot.Name}
-	snapshot := &snapshotv1.VolumeSnapshot{}
-	if err := r.client.Get(context.TODO(), nn, snapshot); err != nil {
-		return syncRes, err
-	}
-
-	valid, err := r.isSnapshotValidForClone(snapshot)
-	if err != nil || !valid {
-		return syncRes, err
-	}
-
 	if pvc == nil {
-		if err := r.createTempHostAssistedSourcePvc(datavolume, snapshot, pvcSpec, &syncRes); err != nil {
-			return syncRes, err
+		pvcModifier := r.updateAnnotations
+		if syncRes.usePopulator {
+			if isCrossNamespaceClone(datavolume) {
+				if !cc.HasFinalizer(datavolume, crossNamespaceFinalizer) {
+					cc.AddFinalizer(datavolume, crossNamespaceFinalizer)
+					return syncRes, r.syncCloneStatusPhase(&syncRes, cdiv1.CloneScheduled, nil)
+				}
+			}
+			pvcModifier = r.updatePVCForPopulation
+		} else {
+			if done, err := r.validateAndInitLegacyClone(&syncRes); err != nil {
+				return syncRes, err
+			} else if !done {
+				return syncRes, nil
+			}
 		}
-		targetHostAssistedPvc, err := r.createPvcForDatavolume(datavolume, pvcSpec, r.updateAnnotations)
+
+		targetPvc, err := r.createPvcForDatavolume(datavolume, pvcSpec, pvcModifier)
 		if err != nil {
 			if cc.ErrQuotaExceeded(err) {
-				syncEventErr := r.syncDataVolumeStatusPhaseWithEvent(&syncRes, cdiv1.Pending, nil,
+				syncErr = r.syncDataVolumeStatusPhaseWithEvent(&syncRes, cdiv1.Pending, nil,
 					Event{
 						eventType: corev1.EventTypeWarning,
 						reason:    cc.ErrExceededQuota,
 						message:   err.Error(),
 					})
-				if syncEventErr != nil {
-					r.log.Error(syncEventErr, "failed sync status phase")
+				if syncErr != nil {
+					log.Error(syncErr, "failed to sync DataVolume status with event")
 				}
 			}
 			return syncRes, err
 		}
-		pvc = targetHostAssistedPvc
+		pvc = targetPvc
+	}
+
+	if syncRes.usePopulator {
+		if err := r.reconcileVolumeCloneSourceCR(&syncRes); err != nil {
+			return syncRes, err
+		}
+
+		ct, ok := pvc.Annotations[cc.AnnCloneType]
+		if ok {
+			cc.AddAnnotation(datavolume, cc.AnnCloneType, ct)
+		}
+	} else {
+		cc.AddAnnotation(datavolume, cc.AnnCloneType, string(cdiv1.CloneStrategyHostAssisted))
 	}
 
 	if err := r.ensureExtendedToken(pvc); err != nil {
 		return syncRes, err
 	}
+
 	return syncRes, syncErr
+}
+
+func (r *SnapshotCloneReconciler) validateAndInitLegacyClone(syncState *dvSyncState) (bool, error) {
+	// Check if source snapshot exists and do proper validation before attempting to clone
+	if done, err := r.validateCloneAndSourceSnapshot(syncState); err != nil {
+		return false, err
+	} else if !done {
+		return false, nil
+	}
+
+	datavolume := syncState.dvMutated
+	pvcSpec := syncState.pvcSpec
+	nn := types.NamespacedName{Namespace: datavolume.Spec.Source.Snapshot.Namespace, Name: datavolume.Spec.Source.Snapshot.Name}
+	snapshot := &snapshotv1.VolumeSnapshot{}
+	if err := r.client.Get(context.TODO(), nn, snapshot); err != nil {
+		return false, err
+	}
+
+	valid, err := r.isSnapshotValidForClone(snapshot)
+	if err != nil || !valid {
+		return false, err
+	}
+
+	if err := r.createTempHostAssistedSourcePvc(datavolume, snapshot, pvcSpec, syncState); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // validateCloneAndSourceSnapshot checks if the source snapshot of a clone exists and does proper validation
@@ -376,6 +422,15 @@ func getTempHostAssistedSourcePvcName(dv *cdiv1.DataVolume) string {
 
 func (r *SnapshotCloneReconciler) cleanup(syncState *dvSyncState) error {
 	dv := syncState.dvMutated
+	if err := r.populateSourceIfSourceRef(dv); err != nil {
+		return err
+	}
+
+	if dv.DeletionTimestamp != nil {
+		if err := r.reconcileVolumeCloneSourceCR(syncState); err != nil {
+			return err
+		}
+	}
 
 	// This cleanup should be done if dv is marked for deletion or in case it succeeded
 	if dv.DeletionTimestamp == nil && dv.Status.Phase != cdiv1.Succeeded {
@@ -383,10 +438,6 @@ func (r *SnapshotCloneReconciler) cleanup(syncState *dvSyncState) error {
 	}
 
 	r.log.V(3).Info("Cleanup initiated in dv snapshot clone controller")
-
-	if err := r.populateSourceIfSourceRef(dv); err != nil {
-		return err
-	}
 
 	if err := r.cleanupHostAssistedSnapshotClone(dv); err != nil {
 		return err

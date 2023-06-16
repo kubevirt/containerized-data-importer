@@ -130,11 +130,77 @@ const (
 // CloneReconcilerBase members
 type CloneReconcilerBase struct {
 	ReconcilerBase
-	clonerImage    string
-	importerImage  string
-	pullPolicy     string
-	tokenValidator token.Validator
-	tokenGenerator token.Generator
+	clonerImage         string
+	importerImage       string
+	pullPolicy          string
+	cloneSourceAPIGroup *string
+	cloneSourceKind     string
+	tokenValidator      token.Validator
+	tokenGenerator      token.Generator
+}
+
+func (r *CloneReconcilerBase) addVolumeCloneSourceWatch(datavolumeController controller.Controller) error {
+	return datavolumeController.Watch(&source.Kind{Type: &cdiv1.VolumeCloneSource{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			var err error
+			var hasDataVolumeOwner bool
+			var ownerNamespace, ownerName string
+			ownerRef := metav1.GetControllerOf(obj)
+			if ownerRef != nil && ownerRef.Kind == "DataVolume" {
+				hasDataVolumeOwner = true
+				ownerNamespace = obj.GetNamespace()
+				ownerName = obj.GetName()
+			} else if hasAnnOwnedByDataVolume(obj) {
+				hasDataVolumeOwner = true
+				ownerNamespace, ownerName, err = getAnnOwnedByDataVolume(obj)
+				if err != nil {
+					return nil
+				}
+			}
+			if !hasDataVolumeOwner {
+				return nil
+			}
+			dv := &cdiv1.DataVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: ownerNamespace,
+					Name:      ownerName,
+				},
+			}
+			if err = r.client.Get(context.TODO(), client.ObjectKeyFromObject(dv), dv); err != nil {
+				r.log.Info("Failed to get DataVolume", "error", err)
+				return nil
+			}
+			if err := r.populateSourceIfSourceRef(dv); err != nil {
+				r.log.Info("Failed to check DataSource", "error", err)
+				return nil
+			}
+			if (r.cloneSourceKind == "PersistentVolumeClaim" && dv.Spec.Source.PVC != nil) ||
+				(r.cloneSourceKind == "VolumeSnapshot" && dv.Spec.Source.Snapshot != nil) {
+				return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: ownerNamespace, Name: ownerName}}}
+			}
+			return nil
+		}),
+	)
+}
+
+func (r *CloneReconcilerBase) updatePVCForPopulation(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+	if dataVolume.Spec.Source.PVC == nil && dataVolume.Spec.Source.Snapshot == nil {
+		return errors.Errorf("no source set for clone datavolume")
+	}
+	if err := addCloneToken(dataVolume, pvc); err != nil {
+		return err
+	}
+	if isCrossNamespaceClone(dataVolume) {
+		_, _, sourcNamespace := cc.GetCloneSourceInfo(dataVolume)
+		cc.AddAnnotation(pvc, populators.AnnDataSourceNamespace, sourcNamespace)
+	}
+	apiGroup := cc.AnnAPIGroup
+	pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
+		APIGroup: &apiGroup,
+		Kind:     cdiv1.VolumeCloneSourceRef,
+		Name:     volumeCloneSourceName(dataVolume),
+	}
+	return nil
 }
 
 func (r *CloneReconcilerBase) ensureExtendedToken(pvc *corev1.PersistentVolumeClaim) error {
@@ -172,7 +238,7 @@ func (r *CloneReconcilerBase) ensureExtendedToken(pvc *corev1.PersistentVolumeCl
 	return nil
 }
 
-func (r *CloneReconcilerBase) reconcileVolumeCloneSourceCR(syncState *dvSyncState, kind string) error {
+func (r *CloneReconcilerBase) reconcileVolumeCloneSourceCR(syncState *dvSyncState) error {
 	dv := syncState.dvMutated
 	volumeCloneSource := &cdiv1.VolumeCloneSource{}
 	volumeCloneSourceName := volumeCloneSourceName(dv)
@@ -206,8 +272,9 @@ func (r *CloneReconcilerBase) reconcileVolumeCloneSourceCR(syncState *dvSyncStat
 		},
 		Spec: cdiv1.VolumeCloneSourceSpec{
 			Source: corev1.TypedLocalObjectReference{
-				Kind: "PersistentVolumeClaim",
-				Name: sourceName,
+				APIGroup: r.cloneSourceAPIGroup,
+				Kind:     r.cloneSourceKind,
+				Name:     sourceName,
 			},
 			Preallocation: dv.Spec.Preallocation,
 		},

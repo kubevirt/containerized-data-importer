@@ -2650,8 +2650,8 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				_, ok := pvc.Annotations[controller.AnnCloneRequest]
 				Expect(ok).To(BeFalse())
-				Expect(pvc.Spec.DataSource.Kind).To(Equal("VolumeSnapshot"))
-				Expect(pvc.Spec.DataSourceRef.Kind).To(Equal("VolumeSnapshot"))
+				Expect(pvc.Spec.DataSource.Kind).To(Equal("VolumeCloneSource"))
+				Expect(pvc.Spec.DataSourceRef.Kind).To(Equal("VolumeCloneSource"))
 				// All labels and annotations passed
 				Expect(pvc.Labels["test-label-1"]).To(Equal("test-label-value-1"))
 				Expect(pvc.Annotations["test-annotation-1"]).To(Equal("test-annotation-value-1"))
@@ -2720,10 +2720,11 @@ var _ = Describe("all clone tests", func() {
 					By("Check host assisted clone is taking place")
 					pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(targetNs.Name).Get(context.TODO(), dvName, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
-					suffix := "-host-assisted-source-pvc"
-					Expect(pvc.Annotations[controller.AnnCloneRequest]).To(HaveSuffix(suffix))
-					Expect(pvc.Spec.DataSource).To(BeNil())
-					Expect(pvc.Spec.DataSourceRef).To(BeNil())
+					if pvc.Spec.DataSourceRef == nil {
+						suffix := "-host-assisted-source-pvc"
+						Expect(pvc.Annotations[controller.AnnCloneRequest]).To(HaveSuffix(suffix))
+						Expect(pvc.Spec.DataSource).To(BeNil())
+					}
 				}
 
 				By("Verify MD5 on one of the DVs")
