@@ -20,14 +20,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"kubevirt.io/containerized-data-importer/pkg/token"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -39,7 +37,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
@@ -128,8 +125,6 @@ const (
 	AnnSourceCapacity = "cdi.Kubervirt.io/sourceCapacity"
 
 	crossNamespaceFinalizer = "cdi.kubevirt.io/dataVolumeFinalizer"
-
-	annReadyForTransfer = "cdi.kubevirt.io/readyForTransfer"
 )
 
 // CloneReconcilerBase members
@@ -239,326 +234,6 @@ func (r *CloneReconcilerBase) reconcileVolumeCloneSourceCR(syncState *dvSyncStat
 	}
 
 	return nil
-}
-
-// When the clone is finished some additional actions may be applied
-// like namespaceTransfer Cleanup or size expansion
-func (r *CloneReconcilerBase) finishClone(log logr.Logger, syncState *dvSyncState, transferName string) (reconcile.Result, error) {
-	//DO Nothing, not yet ready
-	if syncState.pvc.Annotations[cc.AnnCloneOf] != "true" {
-		return reconcile.Result{}, nil
-	}
-
-	// expand for non-namespace case
-	return r.expandPvcAfterClone(log, syncState, syncState.pvc, cdiv1.Succeeded, false)
-}
-
-func (r *CloneReconcilerBase) setCloneOfOnPvc(pvc *corev1.PersistentVolumeClaim) error {
-	if v, ok := pvc.Annotations[cc.AnnCloneOf]; !ok || v != "true" {
-		if pvc.Annotations == nil {
-			pvc.Annotations = make(map[string]string)
-		}
-		pvc.Annotations[cc.AnnCloneOf] = "true"
-
-		return r.updatePVC(pvc)
-	}
-
-	return nil
-}
-
-// temporary pvc is used when the clone src and tgt are in two distinct namespaces
-func (r *CloneReconcilerBase) expandPvcAfterClone(
-	log logr.Logger,
-	syncState *dvSyncState,
-	pvc *corev1.PersistentVolumeClaim,
-	nextPhase cdiv1.DataVolumePhase,
-	isTemp bool) (reconcile.Result, error) {
-
-	done, err := r.expand(log, syncState, pvc)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	if !done {
-		return reconcile.Result{Requeue: true},
-			r.syncCloneStatusPhase(syncState, cdiv1.ExpansionInProgress, pvc)
-	}
-
-	if isTemp {
-		// trigger transfer and next reconcile should have pvcExists == true
-		pvc.Annotations[annReadyForTransfer] = "true"
-		pvc.Annotations[cc.AnnPopulatedFor] = syncState.dvMutated.Name
-		if err := r.updatePVC(pvc); err != nil {
-			return reconcile.Result{}, err
-		}
-	}
-
-	return reconcile.Result{}, r.syncCloneStatusPhase(syncState, nextPhase, pvc)
-}
-
-func (r *CloneReconcilerBase) doCrossNamespaceClone(log logr.Logger,
-	syncState *dvSyncState,
-	pvcName, sourceNamespace string,
-	returnWhenCloneInProgress bool) (*reconcile.Result, error) {
-
-	initialized, err := r.initTransfer(log, syncState, pvcName, sourceNamespace)
-	if err != nil {
-		return &reconcile.Result{}, err
-	}
-
-	// get reconciled again v soon
-	if !initialized {
-		return &reconcile.Result{}, r.syncCloneStatusPhase(syncState, cdiv1.CloneScheduled, nil)
-	}
-
-	tmpPVC := &corev1.PersistentVolumeClaim{}
-	nn := types.NamespacedName{Namespace: sourceNamespace, Name: pvcName}
-	if err := r.client.Get(context.TODO(), nn, tmpPVC); err != nil {
-		if !k8serrors.IsNotFound(err) {
-			return &reconcile.Result{}, err
-		}
-	} else if tmpPVC.Annotations[cc.AnnCloneOf] == "true" {
-		result, err := r.expandPvcAfterClone(log, syncState, tmpPVC, cdiv1.NamespaceTransferInProgress, true)
-		return &result, err
-	} else {
-		// AnnCloneOf != true, so cloneInProgress
-		if returnWhenCloneInProgress {
-			return &reconcile.Result{}, nil
-		}
-	}
-
-	return nil, nil
-}
-
-func (r *CloneReconcilerBase) initTransfer(log logr.Logger, syncState *dvSyncState, name, namespace string) (bool, error) {
-	initialized := true
-	dv := syncState.dvMutated
-
-	log.Info("Initializing transfer")
-
-	if !cc.HasFinalizer(dv, crossNamespaceFinalizer) {
-		cc.AddFinalizer(dv, crossNamespaceFinalizer)
-		initialized = false
-	}
-
-	ot := &cdiv1.ObjectTransfer{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: name}, ot); err != nil {
-		if !k8serrors.IsNotFound(err) {
-			return false, err
-		}
-
-		if err := cc.ValidateCloneTokenDV(r.tokenValidator, dv); err != nil {
-			return false, err
-		}
-
-		ot = &cdiv1.ObjectTransfer{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
-				Labels: map[string]string{
-					common.CDILabelKey:       common.CDILabelValue,
-					common.CDIComponentLabel: "",
-				},
-			},
-			Spec: cdiv1.ObjectTransferSpec{
-				Source: cdiv1.TransferSource{
-					Kind:      "PersistentVolumeClaim",
-					Namespace: namespace,
-					Name:      name,
-					RequiredAnnotations: map[string]string{
-						annReadyForTransfer: "true",
-					},
-				},
-				Target: cdiv1.TransferTarget{
-					Namespace: &dv.Namespace,
-					Name:      &dv.Name,
-				},
-			},
-		}
-		util.SetRecommendedLabels(ot, r.installerLabels, "cdi-controller")
-
-		if err := setAnnOwnedByDataVolume(ot, dv); err != nil {
-			return false, err
-		}
-
-		if err := r.client.Create(context.TODO(), ot); err != nil {
-			return false, err
-		}
-
-		initialized = false
-	}
-
-	return initialized, nil
-}
-
-func expansionPodName(pvc *corev1.PersistentVolumeClaim) string {
-	return "cdi-expand-" + string(pvc.UID)
-}
-
-func (r *CloneReconcilerBase) expand(log logr.Logger, syncState *dvSyncState, pvc *corev1.PersistentVolumeClaim) (bool, error) {
-	if pvc.Status.Phase != corev1.ClaimBound {
-		return false, fmt.Errorf("cannot expand volume in %q phase", pvc.Status.Phase)
-	}
-
-	requestedSize, hasRequested := syncState.pvcSpec.Resources.Requests[corev1.ResourceStorage]
-	currentSize, hasCurrent := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-	actualSize, hasActual := pvc.Status.Capacity[corev1.ResourceStorage]
-	if !hasRequested || !hasCurrent || !hasActual {
-		return false, fmt.Errorf("PVC sizes missing")
-	}
-
-	expansionRequired := actualSize.Cmp(requestedSize) < 0
-	updateRequestSizeRequired := currentSize.Cmp(requestedSize) < 0
-
-	log.V(3).Info("Expand sizes", "req", requestedSize, "cur", currentSize, "act", actualSize, "exp", expansionRequired)
-
-	if updateRequestSizeRequired {
-		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = requestedSize
-		if err := r.updatePVC(pvc); err != nil {
-			return false, err
-		}
-
-		return false, nil
-	}
-
-	podName := expansionPodName(pvc)
-	podExists := true
-	pod := &corev1.Pod{}
-	nn := types.NamespacedName{Namespace: pvc.Namespace, Name: podName}
-	if err := r.client.Get(context.TODO(), nn, pod); err != nil {
-		if !k8serrors.IsNotFound(err) {
-			return false, err
-		}
-
-		podExists = false
-	}
-
-	if !expansionRequired && !podExists {
-		// finally done
-		return true, nil
-	}
-
-	hasPendingResizeCondition := false
-	for _, cond := range pvc.Status.Conditions {
-		if cond.Type == corev1.PersistentVolumeClaimFileSystemResizePending {
-			hasPendingResizeCondition = true
-			break
-		}
-	}
-
-	if !podExists && !hasPendingResizeCondition {
-		// wait for resize condition
-		return false, nil
-	}
-
-	if !podExists {
-		var err error
-		pod, err = r.createExpansionPod(pvc, syncState.dvMutated, podName)
-		// Check if pod has failed and, in that case, record an event with the error
-		if podErr := cc.HandleFailedPod(err, podName, pvc, r.recorder, r.client); podErr != nil {
-			return false, podErr
-		}
-	}
-
-	if pod.Status.Phase == corev1.PodSucceeded {
-		if err := r.client.Delete(context.TODO(), pod); err != nil {
-			if k8serrors.IsNotFound(err) {
-				return true, err
-			}
-
-			return false, err
-		}
-
-		return false, nil
-	}
-
-	return false, nil
-}
-
-func (r *CloneReconcilerBase) createExpansionPod(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume, podName string) (*corev1.Pod, error) {
-	resourceRequirements, err := cc.GetDefaultPodResourceRequirements(r.client)
-	if err != nil {
-		return nil, err
-	}
-
-	imagePullSecrets, err := cc.GetImagePullSecrets(r.client)
-	if err != nil {
-		return nil, err
-	}
-
-	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(context.TODO(), r.client)
-	if err != nil {
-		return nil, err
-	}
-
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      podName,
-			Namespace: pvc.Namespace,
-			Annotations: map[string]string{
-				cc.AnnCreatedBy: "yes",
-			},
-			Labels: map[string]string{
-				common.CDILabelKey:       common.CDILabelValue,
-				common.CDIComponentLabel: "cdi-expander",
-			},
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:            "dummy",
-					Image:           r.clonerImage,
-					ImagePullPolicy: corev1.PullPolicy(r.pullPolicy),
-					Command:         []string{"/bin/bash"},
-					Args:            []string{"-c", "echo", "'hello cdi'"},
-				},
-			},
-			ImagePullSecrets: imagePullSecrets,
-			RestartPolicy:    corev1.RestartPolicyOnFailure,
-			Volumes: []corev1.Volume{
-				{
-					Name: cc.DataVolName,
-					VolumeSource: corev1.VolumeSource{
-						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-							ClaimName: pvc.Name,
-						},
-					},
-				},
-			},
-			NodeSelector: workloadNodePlacement.NodeSelector,
-			Tolerations:  workloadNodePlacement.Tolerations,
-			Affinity:     workloadNodePlacement.Affinity,
-		},
-	}
-	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
-
-	if pvc.Spec.VolumeMode != nil && *pvc.Spec.VolumeMode == corev1.PersistentVolumeBlock {
-		pod.Spec.Containers[0].VolumeDevices = cc.AddVolumeDevices()
-	} else {
-		pod.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
-			{
-				Name:      cc.DataVolName,
-				MountPath: common.ClonerMountPath,
-			},
-		}
-	}
-
-	if resourceRequirements != nil {
-		pod.Spec.Containers[0].Resources = *resourceRequirements
-	}
-
-	if err := setAnnOwnedByDataVolume(pod, dv); err != nil {
-		return nil, err
-	}
-
-	cc.SetRestrictedSecurityContext(&pod.Spec)
-
-	if err := r.client.Create(context.TODO(), pod); err != nil {
-		if !k8serrors.IsAlreadyExists(err) {
-			return nil, err
-		}
-	}
-
-	return pod, nil
 }
 
 func (r *CloneReconcilerBase) syncCloneStatusPhase(syncState *dvSyncState, phase cdiv1.DataVolumePhase, pvc *corev1.PersistentVolumeClaim) error {
@@ -717,90 +392,10 @@ func (r *CloneReconcilerBase) populateSourceIfSourceRef(dv *cdiv1.DataVolume) er
 	return nil
 }
 
-func (r *CloneReconcilerBase) cleanupTransfer(dv *cdiv1.DataVolume) error {
-	transferName := getTransferName(dv)
-	if !cc.HasFinalizer(dv, crossNamespaceFinalizer) {
-		return nil
-	}
-
-	r.log.V(1).Info("Doing cleanup of transfer")
-
-	if dv.DeletionTimestamp != nil && dv.Status.Phase != cdiv1.Succeeded {
-		// delete all potential PVCs that may not have owner refs
-		namespaces := []string{dv.Namespace}
-		names := []string{dv.Name}
-		namespaces, names = appendTmpPvcIfNeeded(dv, namespaces, names, transferName)
-
-		for i := range namespaces {
-			pvc := &corev1.PersistentVolumeClaim{}
-			nn := types.NamespacedName{Namespace: namespaces[i], Name: names[i]}
-			if err := r.client.Get(context.TODO(), nn, pvc); err != nil {
-				if !k8serrors.IsNotFound(err) {
-					return err
-				}
-			} else {
-				pod := &corev1.Pod{}
-				nn := types.NamespacedName{Namespace: namespaces[i], Name: expansionPodName(pvc)}
-				if err := r.client.Get(context.TODO(), nn, pod); err != nil {
-					if !k8serrors.IsNotFound(err) {
-						return err
-					}
-				} else {
-					if err := r.client.Delete(context.TODO(), pod); err != nil {
-						if !k8serrors.IsNotFound(err) {
-							return err
-						}
-					}
-				}
-
-				if err := r.client.Delete(context.TODO(), pvc); err != nil {
-					if !k8serrors.IsNotFound(err) {
-						return err
-					}
-				}
-			}
-		}
-	}
-
-	ot := &cdiv1.ObjectTransfer{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: transferName}, ot); err != nil {
-		if !k8serrors.IsNotFound(err) {
-			return err
-		}
-	} else {
-		if ot.DeletionTimestamp == nil {
-			if err := r.client.Delete(context.TODO(), ot); err != nil {
-				if !k8serrors.IsNotFound(err) {
-					return err
-				}
-			}
-		}
-		return fmt.Errorf("waiting for ObjectTransfer %s to delete", transferName)
-	}
-
-	cc.RemoveFinalizer(dv, crossNamespaceFinalizer)
-	return nil
-}
-
-func appendTmpPvcIfNeeded(dv *cdiv1.DataVolume, namespaces, names []string, pvcName string) ([]string, []string) {
-	_, _, sourceNamespace := cc.GetCloneSourceInfo(dv)
-
-	if sourceNamespace != "" && sourceNamespace != dv.Namespace {
-		namespaces = append(namespaces, sourceNamespace)
-		names = append(names, pvcName)
-	}
-
-	return namespaces, names
-}
-
 func isCrossNamespaceClone(dv *cdiv1.DataVolume) bool {
 	_, _, sourceNamespace := cc.GetCloneSourceInfo(dv)
 
 	return sourceNamespace != "" && sourceNamespace != dv.Namespace
-}
-
-func getTransferName(dv *cdiv1.DataVolume) string {
-	return fmt.Sprintf("cdi-tmp-%s", dv.UID)
 }
 
 // addCloneWithoutSourceWatch reconciles clones created without source once the matching PVC is created
