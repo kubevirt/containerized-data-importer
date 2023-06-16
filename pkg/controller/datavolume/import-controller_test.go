@@ -1586,9 +1586,6 @@ var _ = Describe("All DataVolume Tests", func() {
 			Entry("VDDK", &cdiv1.DataVolumeSource{
 				VDDK: &cdiv1.DataVolumeSourceVDDK{},
 			}),
-			Entry("Snapshot", &cdiv1.DataVolumeSource{
-				Snapshot: &cdiv1.DataVolumeSourceSnapshot{},
-			}),
 		)
 
 		It("Should return false if storage class has wffc bindingMode and honorWaitForFirstConsumer feature gate is disabled", func() {

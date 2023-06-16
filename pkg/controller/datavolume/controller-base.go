@@ -1208,8 +1208,7 @@ func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, er
 	// currently we don't support populator with import source of VDDK or Imageio
 	// or clone either from PVC nor snapshot
 	if dv.Spec.Source.Imageio != nil ||
-		dv.Spec.Source.VDDK != nil ||
-		dv.Spec.Source.Snapshot != nil {
+		dv.Spec.Source.VDDK != nil {
 		return false, nil
 	}
 

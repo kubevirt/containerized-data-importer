@@ -42,7 +42,6 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 )
 
@@ -86,10 +85,11 @@ func NewPvcCloneController(
 				installerLabels:      installerLabels,
 				shouldUpdateProgress: true,
 			},
-			clonerImage:    clonerImage,
-			importerImage:  importerImage,
-			pullPolicy:     pullPolicy,
-			tokenValidator: cc.NewCloneTokenValidator(common.CloneTokenIssuer, tokenPublicKey),
+			clonerImage:     clonerImage,
+			importerImage:   importerImage,
+			pullPolicy:      pullPolicy,
+			cloneSourceKind: "PersistentVolumeClaim",
+			tokenValidator:  cc.NewCloneTokenValidator(common.CloneTokenIssuer, tokenPublicKey),
 			// for long term tokens to handle cross namespace dumb clones
 			tokenGenerator: newLongTermCloneTokenGenerator(tokenPrivateKey),
 		},
@@ -102,14 +102,14 @@ func NewPvcCloneController(
 		return nil, err
 	}
 
-	if err = addDataVolumeCloneControllerWatches(mgr, dataVolumeCloneController); err != nil {
+	if err = reconciler.addDataVolumeCloneControllerWatches(mgr, dataVolumeCloneController); err != nil {
 		return nil, err
 	}
 
 	return dataVolumeCloneController, nil
 }
 
-func addDataVolumeCloneControllerWatches(mgr manager.Manager, datavolumeController controller.Controller) error {
+func (r *PvcCloneReconciler) addDataVolumeCloneControllerWatches(mgr manager.Manager, datavolumeController controller.Controller) error {
 	if err := addDataVolumeControllerCommonWatches(mgr, datavolumeController, dataVolumePvcClone); err != nil {
 		return err
 	}
@@ -123,25 +123,7 @@ func addDataVolumeCloneControllerWatches(mgr manager.Manager, datavolumeControll
 		return err
 	}
 
-	if err := datavolumeController.Watch(&source.Kind{Type: &cdiv1.VolumeCloneSource{}}, &handler.EnqueueRequestForOwner{
-		OwnerType:    &cdiv1.DataVolume{},
-		IsController: true,
-	}); err != nil {
-		return err
-	}
-
-	if err := datavolumeController.Watch(&source.Kind{Type: &cdiv1.VolumeCloneSource{}}, handler.EnqueueRequestsFromMapFunc(
-		func(obj client.Object) []reconcile.Request {
-			if !hasAnnOwnedByDataVolume(obj) {
-				return nil
-			}
-			namespace, name, err := getAnnOwnedByDataVolume(obj)
-			if err != nil {
-				return nil
-			}
-			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: namespace, Name: name}}}
-		}),
-	); err != nil {
+	if err := r.addVolumeCloneSourceWatch(datavolumeController); err != nil {
 		return err
 	}
 
@@ -213,7 +195,7 @@ func (r *PvcCloneReconciler) cleanup(syncState *dvSyncState) error {
 		return nil
 	}
 
-	return r.reconcileVolumeCloneSourceCR(syncState, "PersistentVolumeClaim")
+	return r.reconcileVolumeCloneSourceCR(syncState)
 }
 
 func addCloneToken(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
@@ -227,25 +209,6 @@ func addCloneToken(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) erro
 
 func volumeCloneSourceName(dv *cdiv1.DataVolume) string {
 	return fmt.Sprintf("%s-%s", volumeCloneSourcePrefix, dv.UID)
-}
-
-func (r *PvcCloneReconciler) updatePVCForPopulation(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
-	if dataVolume.Spec.Source.PVC == nil {
-		return errors.Errorf("no source set for clone datavolume")
-	}
-	if err := addCloneToken(dataVolume, pvc); err != nil {
-		return err
-	}
-	if isCrossNamespaceClone(dataVolume) {
-		cc.AddAnnotation(pvc, populators.AnnDataSourceNamespace, dataVolume.Spec.Source.PVC.Namespace)
-	}
-	apiGroup := cc.AnnAPIGroup
-	pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
-		APIGroup: &apiGroup,
-		Kind:     cdiv1.VolumeCloneSourceRef,
-		Name:     volumeCloneSourceName(dataVolume),
-	}
-	return nil
 }
 
 func (r *PvcCloneReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
@@ -347,7 +310,7 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 	}
 
 	if syncRes.usePopulator {
-		if err := r.reconcileVolumeCloneSourceCR(&syncRes, "PersistentVolumeClaim"); err != nil {
+		if err := r.reconcileVolumeCloneSourceCR(&syncRes); err != nil {
 			return syncRes, err
 		}
 
