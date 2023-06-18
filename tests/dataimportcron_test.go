@@ -683,7 +683,8 @@ var _ = Describe("DataImportCron", func() {
 			}
 			Expect(dataSource.Spec.Source).To(Equal(expectedSource))
 			// Verify content
-			targetDV := utils.NewDataVolumeWithSourceRefAndStorageAPI("target-dv", "1Gi", dataSource.Namespace, dataSource.Name)
+			size := "1Gi"
+			targetDV := utils.NewDataVolumeWithSourceRefAndStorageAPI("target-dv", &size, dataSource.Namespace, dataSource.Name)
 			By(fmt.Sprintf("Create new target datavolume %s", targetDV.Name))
 			targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, targetDV)
 			Expect(err).ToNot(HaveOccurred())
