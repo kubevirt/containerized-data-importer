@@ -705,7 +705,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Entry("has no tag", imageStreamName, 1),
 		)
 
-		It("should pass through defaultInstancetype and defaultPreference metadata to DataVolume and DataSource", func() {
+		It("should pass through metadata to DataVolume and DataSource", func() {
 			cron = newDataImportCron(cronName)
 			cron.Annotations[AnnSourceDesiredDigest] = testDigest
 
@@ -714,6 +714,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			cron.Labels[cc.LabelDefaultInstancetypeKind] = cc.LabelDefaultInstancetypeKind
 			cron.Labels[cc.LabelDefaultPreference] = cc.LabelDefaultPreference
 			cron.Labels[cc.LabelDefaultPreferenceKind] = cc.LabelDefaultPreferenceKind
+			cron.Labels[cc.LabelDynamicCredentialSupport] = "true"
 
 			reconciler = createDataImportCronReconciler(cron)
 			_, err := reconciler.Reconcile(context.TODO(), cronReq)
@@ -733,6 +734,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultInstancetypeKind, cc.LabelDefaultInstancetypeKind))
 				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultPreference, cc.LabelDefaultPreference))
 				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultPreferenceKind, cc.LabelDefaultPreferenceKind))
+				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDynamicCredentialSupport, "true"))
 			}
 
 			dv := &cdiv1.DataVolume{}

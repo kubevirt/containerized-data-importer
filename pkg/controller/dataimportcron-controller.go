@@ -570,6 +570,8 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultPreference)
 	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultPreferenceKind)
 
+	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDynamicCredentialSupport)
+
 	sourcePVC := dataImportCron.Status.LastImportedPVC
 	populateDataSource(format, dataSource, sourcePVC)
 
@@ -1246,6 +1248,8 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	passCronLabelToDv(cron, dv, cc.LabelDefaultInstancetypeKind)
 	passCronLabelToDv(cron, dv, cc.LabelDefaultPreference)
 	passCronLabelToDv(cron, dv, cc.LabelDefaultPreferenceKind)
+
+	passCronLabelToDv(cron, dv, cc.LabelDynamicCredentialSupport)
 
 	return dv
 }
