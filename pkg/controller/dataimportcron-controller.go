@@ -724,9 +724,9 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 		}
 	} else {
 		if cc.IsSnapshotReady(currentSnapshot) {
-			// Clean up PVC as that is not needed any more
-			pvc := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: desiredSnapshot.Name, Namespace: desiredSnapshot.Namespace}}
-			if err := r.client.Delete(ctx, pvc); err != nil && !k8serrors.IsNotFound(err) {
+			// Clean up DV/PVC as they are not needed anymore
+			r.log.Info("Deleting dv/pvc as snapshot is ready", "name", desiredSnapshot.Name)
+			if err := r.deleteDvPvc(ctx, desiredSnapshot.Name, desiredSnapshot.Namespace); err != nil {
 				return err
 			}
 		}
@@ -821,18 +821,27 @@ func (r *DataImportCronReconciler) garbageCollectPVCs(ctx context.Context, names
 			return pvcList.Items[i].Annotations[AnnLastUseTime] > pvcList.Items[j].Annotations[AnnLastUseTime]
 		})
 		for _, pvc := range pvcList.Items[maxImports:] {
-			dv := cdiv1.DataVolume{ObjectMeta: metav1.ObjectMeta{Name: pvc.Name, Namespace: pvc.Namespace}}
-			if err := r.client.Delete(ctx, &dv); err == nil {
-				continue
-			} else if !k8serrors.IsNotFound(err) {
-				return err
-			}
-			if err := r.client.Delete(ctx, &pvc); err != nil && !k8serrors.IsNotFound(err) {
+			r.log.Info("Deleting dv/pvc", "name", pvc.Name, "pvc.uid", pvc.UID)
+			if err := r.deleteDvPvc(ctx, pvc.Name, pvc.Namespace); err != nil {
 				return err
 			}
 		}
 	}
 
+	return nil
+}
+
+// deleteDvPvc deletes DV or PVC if DV was GCed
+func (r *DataImportCronReconciler) deleteDvPvc(ctx context.Context, name, namespace string) error {
+	om := metav1.ObjectMeta{Name: name, Namespace: namespace}
+	dv := &cdiv1.DataVolume{ObjectMeta: om}
+	if err := r.client.Delete(ctx, dv); err == nil || !k8serrors.IsNotFound(err) {
+		return err
+	}
+	pvc := &corev1.PersistentVolumeClaim{ObjectMeta: om}
+	if err := r.client.Delete(ctx, pvc); err != nil && !k8serrors.IsNotFound(err) {
+		return err
+	}
 	return nil
 }
 
@@ -850,6 +859,7 @@ func (r *DataImportCronReconciler) garbageCollectSnapshots(ctx context.Context, 
 			return snapList.Items[i].Annotations[AnnLastUseTime] > snapList.Items[j].Annotations[AnnLastUseTime]
 		})
 		for _, snap := range snapList.Items[maxImports:] {
+			r.log.Info("Deleting snapshot", "name", snap.Name, "uid", snap.UID)
 			if err := r.client.Delete(ctx, &snap); err != nil && !k8serrors.IsNotFound(err) {
 				return err
 			}
