@@ -822,11 +822,13 @@ func (r *DataImportCronReconciler) garbageCollectPVCs(ctx context.Context, names
 		})
 		for _, pvc := range pvcList.Items[maxImports:] {
 			dv := cdiv1.DataVolume{ObjectMeta: metav1.ObjectMeta{Name: pvc.Name, Namespace: pvc.Namespace}}
+			r.log.V(3).Info("Calling delete on dv", "dv.Name", dv.Name)
 			if err := r.client.Delete(ctx, &dv); err == nil {
 				continue
 			} else if !k8serrors.IsNotFound(err) {
 				return err
 			}
+			r.log.V(3).Info("Calling delete on pvc", "pvc.Name", pvc.Name, "pvc.UID", pvc.UID)
 			if err := r.client.Delete(ctx, &pvc); err != nil && !k8serrors.IsNotFound(err) {
 				return err
 			}
@@ -850,6 +852,7 @@ func (r *DataImportCronReconciler) garbageCollectSnapshots(ctx context.Context, 
 			return snapList.Items[i].Annotations[AnnLastUseTime] > snapList.Items[j].Annotations[AnnLastUseTime]
 		})
 		for _, snap := range snapList.Items[maxImports:] {
+			r.log.V(3).Info("Calling delete on snap", "snap.Name", snap.Name, "snap.UID", snap.UID)
 			if err := r.client.Delete(ctx, &snap); err != nil && !k8serrors.IsNotFound(err) {
 				return err
 			}
@@ -1240,6 +1243,7 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	dv.Namespace = cron.Namespace
 	r.setDataImportCronResourceLabels(cron, dv)
 	cc.AddAnnotation(dv, cc.AnnImmediateBinding, "true")
+	cc.AddAnnotation(dv, AnnLastUseTime, time.Now().UTC().Format(time.RFC3339Nano))
 	passCronAnnotationToDv(cron, dv, cc.AnnPodRetainAfterCompletion)
 
 	passCronLabelToDv(cron, dv, cc.LabelDefaultInstancetype)
