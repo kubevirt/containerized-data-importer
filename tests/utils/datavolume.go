@@ -134,19 +134,22 @@ func DeleteDataVolume(clientSet *cdiclientset.Clientset, namespace, name string)
 	})
 }
 
-// CleanupDvPvc Deletes PVC if DV was GCed, otherwise wait for PVC to be gone
+// CleanupDvPvc deletes DV or PVC if DV was GCed, and waits for PVC to be gone
 func CleanupDvPvc(k8sClient *kubernetes.Clientset, cdiClient *cdiclientset.Clientset, namespace, name string) {
+	CleanupDvPvcNoWait(k8sClient, cdiClient, namespace, name)
+	deleted, err := WaitPVCDeleted(k8sClient, name, namespace, 2*time.Minute)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	gomega.Expect(deleted).To(gomega.BeTrue())
+}
+
+// CleanupDvPvcNoWait deletes DV or PVC if DV was GCed
+func CleanupDvPvcNoWait(k8sClient *kubernetes.Clientset, cdiClient *cdiclientset.Clientset, namespace, name string) {
 	err := cdiClient.CdiV1beta1().DataVolumes(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if apierrs.IsNotFound(err) {
 		// Must have been GCed, delete PVC
 		err = DeletePVC(k8sClient, namespace, name)
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		return
 	}
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	deleted, err := WaitPVCDeleted(k8sClient, name, namespace, 2*time.Minute)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	gomega.Expect(deleted).To(gomega.BeTrue())
 }
 
 // NewCloningDataVolume initializes a DataVolume struct with PVC annotations

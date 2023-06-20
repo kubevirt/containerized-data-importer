@@ -2636,11 +2636,7 @@ var _ = Describe("all clone tests", func() {
 
 			snapshot = utils.WaitSnapshotReady(f.CrClient, snapshot)
 			By("Snapshot ready, no need to keep PVC around")
-			err = f.DeletePVC(pvc)
-			Expect(err).ToNot(HaveOccurred())
-			deleted, err := utils.WaitPVCDeleted(f.K8sClient, pvc.Name, f.Namespace.Name, 2*time.Minute)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(deleted).To(BeTrue())
+			utils.CleanupDvPvc(f.K8sClient, f.CdiClient, f.Namespace.Name, pvc.Name)
 		}
 
 		BeforeEach(func() {
