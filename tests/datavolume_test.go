@@ -932,8 +932,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
-					Type:   cdiv1.DataVolumeRunning,
-					Status: v1.ConditionFalse,
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Clone Complete",
+					Reason:  "Completed",
 				}}),
 			table.Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", dataVolumeTestArguments{
 				name:             "dv-import-registry",
@@ -1232,8 +1234,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
-					Type:   cdiv1.DataVolumeRunning,
-					Status: v1.ConditionFalse,
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Clone Complete",
+					Reason:  "Completed",
 				}}),
 		)
 
