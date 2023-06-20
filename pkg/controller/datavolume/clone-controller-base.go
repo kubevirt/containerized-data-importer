@@ -149,7 +149,7 @@ func (r *CloneReconcilerBase) addVolumeCloneSourceWatch(datavolumeController con
 			if ownerRef != nil && ownerRef.Kind == "DataVolume" {
 				hasDataVolumeOwner = true
 				ownerNamespace = obj.GetNamespace()
-				ownerName = obj.GetName()
+				ownerName = ownerRef.Name
 			} else if hasAnnOwnedByDataVolume(obj) {
 				hasDataVolumeOwner = true
 				ownerNamespace, ownerName, err = getAnnOwnedByDataVolume(obj)
@@ -354,7 +354,7 @@ func (r *CloneReconcilerBase) setEventForPhase(dataVolume *cdiv1.DataVolume, pha
 		event.reason = RebindInProgress
 		event.message = fmt.Sprintf(MessageRebindInProgress, dataVolume.Namespace, dataVolume.Name)
 	default:
-		r.log.V(1).Info("No event set for phase", "phase", phase)
+		r.log.V(3).Info("No event set for phase", "phase", phase)
 	}
 }
 

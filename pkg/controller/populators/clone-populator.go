@@ -57,11 +57,9 @@ const (
 	cloneFinalizer = "cdi.kubevirt.io/clonePopulator"
 )
 
-var desiredCloneAnnotations []string
-
-func init() {
-	desiredCloneAnnotations = append(desiredCloneAnnotations, desiredAnnotations...)
-	desiredCloneAnnotations = append(desiredCloneAnnotations, cc.AnnCloneOf)
+var desiredCloneAnnotations = map[string]struct{}{
+	cc.AnnPreallocationApplied: {},
+	cc.AnnCloneOf:              {},
 }
 
 // Planner is an interface to mock out planner implementation for testing
@@ -352,17 +350,21 @@ func (r *ClonePopulatorReconciler) updateClonePhase(ctx context.Context, log log
 	claimCpy := pvc.DeepCopy()
 	delete(claimCpy.Annotations, AnnCloneError)
 	cc.AddAnnotation(claimCpy, AnnClonePhase, phase)
+
+	var mergedAnnotations = make(map[string]string)
 	for _, pp := range progress {
 		if pp.Progress != "" {
 			cc.AddAnnotation(claimCpy, cc.AnnPopulatorProgress, pp.Progress)
 		}
-		for _, anno := range desiredCloneAnnotations {
-			val, ok := pp.Annotations[anno]
-			if ok {
-				cc.AddAnnotation(claimCpy, anno, val)
+		for k, v := range pp.Annotations {
+			mergedAnnotations[k] = v
+			if _, ok := desiredCloneAnnotations[k]; ok {
+				cc.AddAnnotation(claimCpy, k, v)
 			}
 		}
 	}
+
+	r.addRunningAnnotations(claimCpy, phase, mergedAnnotations)
 
 	if !apiequality.Semantic.DeepEqual(pvc, claimCpy) {
 		return r.patchClaim(ctx, log, pvc, claimCpy)
@@ -376,13 +378,50 @@ func (r *ClonePopulatorReconciler) updateClonePhaseError(ctx context.Context, lo
 	cc.AddAnnotation(claimCpy, AnnClonePhase, clone.ErrorPhaseName)
 	cc.AddAnnotation(claimCpy, AnnCloneError, lastError.Error())
 
+	r.addRunningAnnotations(claimCpy, clone.ErrorPhaseName, nil)
+
 	if !apiequality.Semantic.DeepEqual(pvc, claimCpy) {
 		if err := r.patchClaim(ctx, log, pvc, claimCpy); err != nil {
-			r.log.V(1).Info("error setting error annotations")
+			log.V(1).Info("error setting error annotations")
 		}
 	}
 
 	return lastError
+}
+
+func (r *ClonePopulatorReconciler) addRunningAnnotations(pvc *corev1.PersistentVolumeClaim, phase string, annotations map[string]string) {
+	if !cc.OwnedByDataVolume(pvc) {
+		return
+	}
+
+	var running, message, reason string
+	if phase == clone.SucceededPhaseName {
+		running = "false"
+		message = "Clone Complete"
+		reason = "Completed"
+	} else if phase == clone.PendingPhaseName {
+		running = "false"
+		message = "Clone Pending"
+		reason = "Pending"
+	} else if phase == clone.ErrorPhaseName {
+		running = "false"
+		message = pvc.Annotations[AnnCloneError]
+		reason = "Error"
+	} else if _, ok := annotations[cc.AnnRunningCondition]; ok {
+		running = annotations[cc.AnnRunningCondition]
+		message = annotations[cc.AnnRunningConditionMessage]
+		reason = annotations[cc.AnnRunningConditionReason]
+		if restarts, ok := annotations[cc.AnnPodRestarts]; ok {
+			cc.AddAnnotation(pvc, cc.AnnPodRestarts, restarts)
+		}
+	} else {
+		running = "true"
+		reason = "Populator is running"
+	}
+
+	cc.AddAnnotation(pvc, cc.AnnRunningCondition, running)
+	cc.AddAnnotation(pvc, cc.AnnRunningConditionMessage, message)
+	cc.AddAnnotation(pvc, cc.AnnRunningConditionReason, reason)
 }
 
 func (r *ClonePopulatorReconciler) patchClaim(ctx context.Context, log logr.Logger, oldObj, obj *corev1.PersistentVolumeClaim) error {

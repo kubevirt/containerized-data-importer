@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -286,8 +288,16 @@ var _ = Describe("Clone populator tests", func() {
 		Expect(pvc.Annotations[AnnCloneError]).To(Equal("phase error"))
 	})
 
-	It("should report phase name and progress", func() {
+	DescribeTable("should report phase name and progress", func(ownedByDataVolume bool) {
 		target, source := initinializedTargetAndDataSource()
+		if ownedByDataVolume {
+			target.OwnerReferences = []metav1.OwnerReference{
+				{
+					Kind:       "DataVolume",
+					Controller: pointer.Bool(true),
+				},
+			}
+		}
 		reconciler := createClonePopulatorReconciler(target, storageClass(), source)
 		reconciler.planner = &fakePlanner{
 			planResult: []clone.Phase{
@@ -302,8 +312,10 @@ var _ = Describe("Clone populator tests", func() {
 					progress: &clone.PhaseProgress{
 						Progress: "50.0%",
 						Annotations: map[string]string{
-							"foo":                  "bar",
-							cc.AnnRunningCondition: "true",
+							"foo":                         "bar",
+							cc.AnnRunningCondition:        "true",
+							cc.AnnRunningConditionMessage: "message",
+							cc.AnnRunningConditionReason:  "reason",
 						},
 					},
 				},
@@ -314,9 +326,20 @@ var _ = Describe("Clone populator tests", func() {
 		pvc := getTarget(reconciler.client)
 		Expect(pvc.Annotations[AnnClonePhase]).To(Equal("phase2"))
 		Expect(pvc.Annotations[cc.AnnPopulatorProgress]).To(Equal("50.0%"))
-		Expect(pvc.Annotations[cc.AnnRunningCondition]).To(Equal("true"))
 		Expect(pvc.Annotations).ToNot(HaveKey("foo"))
-	})
+		if ownedByDataVolume {
+			Expect(pvc.Annotations).To(HaveKey(cc.AnnRunningCondition))
+			Expect(pvc.Annotations).To(HaveKey(cc.AnnRunningConditionMessage))
+			Expect(pvc.Annotations).To(HaveKey(cc.AnnRunningConditionReason))
+		} else {
+			Expect(pvc.Annotations).ToNot(HaveKey(cc.AnnRunningCondition))
+			Expect(pvc.Annotations).ToNot(HaveKey(cc.AnnRunningConditionMessage))
+			Expect(pvc.Annotations).ToNot(HaveKey(cc.AnnRunningConditionReason))
+		}
+	},
+		Entry("NOT owned by data volume", false),
+		Entry("owned by data volume", true),
+	)
 
 	It("should be in error phase if progress returns an error", func() {
 		target, source := initinializedTargetAndDataSource()

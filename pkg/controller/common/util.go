@@ -1305,7 +1305,7 @@ func NewImportDataVolume(name string) *cdiv1.DataVolume {
 	}
 }
 
-// GetCloneSourceInfo returns the name and namespace of the cloning source
+// GetCloneSourceInfo returns the type, name and namespace of the cloning source
 func GetCloneSourceInfo(dv *cdiv1.DataVolume) (sourceType, sourceName, sourceNamespace string) {
 	// Cloning sources are mutually exclusive
 	if dv.Spec.Source.PVC != nil {
@@ -1868,4 +1868,10 @@ func GetAnnotatedEventSource(ctx context.Context, c client.Client, obj client.Ob
 		return nil, err
 	}
 	return pvc, nil
+}
+
+// OwnedByDataVolume returns true if the object is owned by a DataVolume
+func OwnedByDataVolume(obj metav1.Object) bool {
+	owner := metav1.GetControllerOf(obj)
+	return owner != nil && owner.Kind == "DataVolume"
 }
