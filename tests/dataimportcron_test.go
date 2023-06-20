@@ -157,7 +157,7 @@ var _ = Describe("DataImportCron", func() {
 		case cdiv1.DataImportCronSourceFormatPvc:
 			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(ns).Get(context.TODO(), name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			deleteDvPvc(f, name)
+			utils.CleanupDvPvcNoWait(f.K8sClient, f.CdiClient, f.Namespace.Name, name)
 			deleted, err := f.WaitPVCDeletedByUID(pvc, time.Minute)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(deleted).To(BeTrue())
