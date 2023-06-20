@@ -728,25 +728,20 @@ var _ = Describe("All DataImportCron Tests", func() {
 			dvName := imports[0].DataVolumeName
 			Expect(dvName).ToNot(BeEmpty())
 
-			ExpectInstancetypeLabels := func(labels map[string]string) {
-				Expect(labels).ToNot(BeEmpty())
-				Expect(labels).Should(ContainElement(cc.LabelDefaultInstancetype))
-				Expect(labels[cc.LabelDefaultInstancetype]).Should(Equal(cc.LabelDefaultInstancetype))
-				Expect(labels).Should(ContainElement(cc.LabelDefaultInstancetypeKind))
-				Expect(labels[cc.LabelDefaultInstancetypeKind]).Should(Equal(cc.LabelDefaultInstancetypeKind))
-				Expect(labels).Should(ContainElement(cc.LabelDefaultPreference))
-				Expect(labels[cc.LabelDefaultPreference]).Should(Equal(cc.LabelDefaultPreference))
-				Expect(labels).Should(ContainElement(cc.LabelDefaultPreferenceKind))
-				Expect(labels[cc.LabelDefaultPreferenceKind]).Should(Equal(cc.LabelDefaultPreferenceKind))
+			expectLabels := func(labels map[string]string) {
+				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultInstancetype, cc.LabelDefaultInstancetype))
+				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultInstancetypeKind, cc.LabelDefaultInstancetypeKind))
+				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultPreference, cc.LabelDefaultPreference))
+				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultPreferenceKind, cc.LabelDefaultPreferenceKind))
 			}
 
 			dv := &cdiv1.DataVolume{}
 			Expect(reconciler.client.Get(context.TODO(), dvKey(dvName), dv)).To(Succeed())
-			ExpectInstancetypeLabels(dv.Labels)
+			expectLabels(dv.Labels)
 
 			dataSource = &cdiv1.DataSource{}
 			Expect(reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)).To(Succeed())
-			ExpectInstancetypeLabels(dataSource.Labels)
+			expectLabels(dataSource.Labels)
 		})
 
 		Context("Snapshot source format", func() {

@@ -263,10 +263,10 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(pvc.Name).To(Equal("test-dv"))
-			Expect(pvc.Labels[LabelDefaultInstancetype]).To(Equal(LabelDefaultInstancetype))
-			Expect(pvc.Labels[LabelDefaultInstancetypeKind]).To(Equal(LabelDefaultInstancetypeKind))
-			Expect(pvc.Labels[LabelDefaultPreference]).To(Equal(LabelDefaultPreference))
-			Expect(pvc.Labels[LabelDefaultPreferenceKind]).To(Equal(LabelDefaultPreferenceKind))
+			Expect(pvc.Labels).To(HaveKeyWithValue(LabelDefaultInstancetype, LabelDefaultInstancetype))
+			Expect(pvc.Labels).To(HaveKeyWithValue(LabelDefaultInstancetypeKind, LabelDefaultInstancetypeKind))
+			Expect(pvc.Labels).To(HaveKeyWithValue(LabelDefaultPreference, LabelDefaultPreference))
+			Expect(pvc.Labels).To(HaveKeyWithValue(LabelDefaultPreferenceKind, LabelDefaultPreferenceKind))
 		})
 
 		It("Should set params on a PVC from import DV.PVC", func() {
