@@ -705,7 +705,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Entry("has no tag", imageStreamName, 1),
 		)
 
-		It("should pass through defaultInstancetype and defaultPreference metadata to DataVolume and DataSource", func() {
+		It("should pass through metadata to DataVolume and DataSource", func() {
 			cron = newDataImportCron(cronName)
 			cron.Annotations[AnnSourceDesiredDigest] = testDigest
 
@@ -714,6 +714,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			cron.Labels[cc.LabelDefaultInstancetypeKind] = cc.LabelDefaultInstancetypeKind
 			cron.Labels[cc.LabelDefaultPreference] = cc.LabelDefaultPreference
 			cron.Labels[cc.LabelDefaultPreferenceKind] = cc.LabelDefaultPreferenceKind
+			cron.Labels[cc.LabelDynamicCredentialSupport] = "true"
 
 			reconciler = createDataImportCronReconciler(cron)
 			_, err := reconciler.Reconcile(context.TODO(), cronReq)
@@ -728,25 +729,21 @@ var _ = Describe("All DataImportCron Tests", func() {
 			dvName := imports[0].DataVolumeName
 			Expect(dvName).ToNot(BeEmpty())
 
-			ExpectInstancetypeLabels := func(labels map[string]string) {
-				Expect(labels).ToNot(BeEmpty())
-				Expect(labels).Should(ContainElement(cc.LabelDefaultInstancetype))
-				Expect(labels[cc.LabelDefaultInstancetype]).Should(Equal(cc.LabelDefaultInstancetype))
-				Expect(labels).Should(ContainElement(cc.LabelDefaultInstancetypeKind))
-				Expect(labels[cc.LabelDefaultInstancetypeKind]).Should(Equal(cc.LabelDefaultInstancetypeKind))
-				Expect(labels).Should(ContainElement(cc.LabelDefaultPreference))
-				Expect(labels[cc.LabelDefaultPreference]).Should(Equal(cc.LabelDefaultPreference))
-				Expect(labels).Should(ContainElement(cc.LabelDefaultPreferenceKind))
-				Expect(labels[cc.LabelDefaultPreferenceKind]).Should(Equal(cc.LabelDefaultPreferenceKind))
+			expectLabels := func(labels map[string]string) {
+				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultInstancetype, cc.LabelDefaultInstancetype))
+				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultInstancetypeKind, cc.LabelDefaultInstancetypeKind))
+				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultPreference, cc.LabelDefaultPreference))
+				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultPreferenceKind, cc.LabelDefaultPreferenceKind))
+				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDynamicCredentialSupport, "true"))
 			}
 
 			dv := &cdiv1.DataVolume{}
 			Expect(reconciler.client.Get(context.TODO(), dvKey(dvName), dv)).To(Succeed())
-			ExpectInstancetypeLabels(dv.Labels)
+			expectLabels(dv.Labels)
 
 			dataSource = &cdiv1.DataSource{}
 			Expect(reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)).To(Succeed())
-			ExpectInstancetypeLabels(dataSource.Labels)
+			expectLabels(dataSource.Labels)
 		})
 
 		Context("Snapshot source format", func() {
