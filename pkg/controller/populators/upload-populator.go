@@ -95,9 +95,9 @@ func (r *UploadPopulatorReconciler) Reconcile(_ context.Context, req reconcile.R
 }
 
 // upload-specific implementation of getPopulationSource
-func (r *UploadPopulatorReconciler) getPopulationSource(namespace, name string) (client.Object, error) {
+func (r *UploadPopulatorReconciler) getPopulationSource(pvc *corev1.PersistentVolumeClaim) (client.Object, error) {
 	uploadSource := &cdiv1.VolumeUploadSource{}
-	uploadSourceKey := types.NamespacedName{Namespace: namespace, Name: name}
+	uploadSourceKey := types.NamespacedName{Namespace: getPopulationSourceNamespace(pvc), Name: pvc.Spec.DataSourceRef.Name}
 	if err := r.client.Get(context.TODO(), uploadSourceKey, uploadSource); err != nil {
 		// reconcile will be triggered once created
 		if k8serrors.IsNotFound(err) {

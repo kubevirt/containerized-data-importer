@@ -34,7 +34,6 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -712,7 +711,7 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 		r.log.Info("Datavolume finished, no longer updating progress", "Namespace", datavolume.Namespace, "Name", datavolume.Name, "Phase", datavolume.Status.Phase)
 		return nil
 	}
-	pod, err := r.getPodFromPvc(podNamespace, pvc)
+	pod, err := cc.GetPodFromPvc(r.client, podNamespace, pvc)
 	if err == nil {
 		if pod.Status.Phase != corev1.PodRunning {
 			// Avoid long timeouts and error traces from HTTP get when pod is already gone
@@ -969,37 +968,6 @@ func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy 
 	return nil
 }
 
-// getPodFromPvc determines the pod associated with the pvc passed in.
-func (r *ReconcilerBase) getPodFromPvc(namespace string, pvc *corev1.PersistentVolumeClaim) (*corev1.Pod, error) {
-	l, _ := labels.Parse(common.PrometheusLabelKey)
-	pods := &corev1.PodList{}
-	listOptions := client.ListOptions{
-		LabelSelector: l,
-	}
-	if err := r.client.List(context.TODO(), pods, &listOptions); err != nil {
-		return nil, err
-	}
-
-	pvcUID := pvc.GetUID()
-	for _, pod := range pods.Items {
-		if cc.ShouldIgnorePod(&pod, pvc) {
-			continue
-		}
-		for _, or := range pod.OwnerReferences {
-			if or.UID == pvcUID {
-				return &pod, nil
-			}
-		}
-
-		// TODO: check this
-		val, exists := pod.Labels[cc.CloneUniqueID]
-		if exists && val == string(pvcUID)+common.ClonerSourcePodNameSuffix {
-			return &pod, nil
-		}
-	}
-	return nil, errors.Errorf("Unable to find pod owned by UID: %s, in namespace: %s", string(pvcUID), namespace)
-}
-
 func (r *ReconcilerBase) addOwnerRef(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) error {
 	if err := controllerutil.SetControllerReference(dv, pvc, r.scheme); err != nil {
 		return err
@@ -1183,7 +1151,7 @@ func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncState *dvSyncSta
 // CDI populators.
 // Currently it will use populators only if:
 // * no podRetainAfterCompletion or immediateBinding annotations
-// * source is not VDDK, Imageio, PVC, Snapshot
+// * source is not PVC or Snapshot
 // * storageClass bindingMode is not wffc while honorWaitForFirstConsumer feature gate is disabled
 // * storageClass used is CSI storageClass
 func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, error) {
@@ -1199,13 +1167,6 @@ func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, er
 	// currently populators don't support retain pod annotation so don't use populators in that case
 	if retain := dv.Annotations[cc.AnnPodRetainAfterCompletion]; retain == "true" {
 		log.Info("Not using CDI populators, currently we don't support populators with retainAfterCompletion annotation")
-		return false, nil
-	}
-	// currently we don't support populator with import source of VDDK or Imageio
-	// or clone either from PVC nor snapshot
-	if dv.Spec.Source.Imageio != nil ||
-		dv.Spec.Source.VDDK != nil {
-		log.Info("Not using CDI populators, currently we don't support populators with Imageio/VDDk source")
 		return false, nil
 	}
 

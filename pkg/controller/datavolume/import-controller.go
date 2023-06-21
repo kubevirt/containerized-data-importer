@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -51,8 +50,6 @@ const (
 	ImportFailed = "ImportFailed"
 	// ImportSucceeded provides a const to indicate import has succeeded
 	ImportSucceeded = "ImportSucceeded"
-	// ImportPaused provides a const to indicate that a multistage import is waiting for the next stage
-	ImportPaused = "ImportPaused"
 
 	// MessageImportScheduled provides a const to form import is scheduled message
 	MessageImportScheduled = "Import into %s scheduled"
@@ -62,8 +59,6 @@ const (
 	MessageImportFailed = "Failed to import into PVC %s"
 	// MessageImportSucceeded provides a const to form import has succeeded message
 	MessageImportSucceeded = "Successfully imported into PVC %s"
-	// MessageImportPaused provides a const for a "multistage import paused" message
-	MessageImportPaused = "Multistage import into PVC %s is paused"
 
 	importControllerName = "datavolume-import-controller"
 
@@ -146,7 +141,7 @@ func (r *ImportReconciler) updatePVCForPopulation(dataVolume *cdiv1.DataVolume, 
 func (r *ImportReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
 	annotations := pvc.Annotations
 
-	if checkpoint := r.getNextCheckpoint(dataVolume, pvc); checkpoint != nil {
+	if checkpoint := cc.GetNextCheckpoint(pvc, r.getCheckpointArgs(dataVolume)); checkpoint != nil {
 		annotations[cc.AnnCurrentCheckpoint] = checkpoint.Current
 		annotations[cc.AnnPreviousCheckpoint] = checkpoint.Previous
 		annotations[cc.AnnFinalCheckpoint] = strconv.FormatBool(checkpoint.IsFinal)
@@ -217,9 +212,9 @@ func (r *ImportReconciler) syncImport(log logr.Logger, req reconcile.Request) (d
 		syncErr = err
 	}
 
-	if syncState.pvc != nil && syncErr == nil {
+	if syncState.pvc != nil && syncErr == nil && !syncState.usePopulator {
 		r.setVddkAnnotations(&syncState)
-		syncErr = r.maybeSetPvcMultiStageAnnotation(syncState.pvc, syncState.dvMutated)
+		syncErr = cc.MaybeSetPvcMultiStageAnnotation(syncState.pvc, r.getCheckpointArgs(syncState.dvMutated))
 	}
 	return syncState, syncErr
 }
@@ -277,14 +272,16 @@ func (r *ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, 
 		event.message = fmt.Sprintf(MessageImportFailed, pvc.Name)
 	case string(corev1.PodSucceeded):
 		if _, ok := pvc.Annotations[cc.AnnCurrentCheckpoint]; ok {
-			if err := r.updatesMultistageImportSucceeded(pvc, dataVolumeCopy); err != nil {
-				return err
+			if !importPopulation {
+				if err := cc.UpdatesMultistageImportSucceeded(pvc, r.getCheckpointArgs(dataVolumeCopy)); err != nil {
+					return err
+				}
 			}
 			// this is a multistage import, set the datavolume status to paused
 			dataVolumeCopy.Status.Phase = cdiv1.Paused
 			event.eventType = corev1.EventTypeNormal
-			event.reason = ImportPaused
-			event.message = fmt.Sprintf(MessageImportPaused, pvc.Name)
+			event.reason = cc.ImportPaused
+			event.message = fmt.Sprintf(cc.MessageImportPaused, pvc.Name)
 			break
 		}
 		dataVolumeCopy.Status.Phase = cdiv1.Succeeded
@@ -308,202 +305,13 @@ func (r *ImportReconciler) setVddkAnnotations(syncState *dvSyncState) {
 	}
 }
 
-func (r *ImportReconciler) updatesMultistageImportSucceeded(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume) error {
-	if multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnCurrentCheckpoint); !multiStageImport {
-		return nil
+func (r *ImportReconciler) getCheckpointArgs(dv *cdiv1.DataVolume) *cc.CheckpointArgs {
+	return &cc.CheckpointArgs{
+		Checkpoints: dv.Spec.Checkpoints,
+		IsFinal:     dv.Spec.FinalCheckpoint,
+		Client:      r.client,
+		Log:         r.log,
 	}
-	// The presence of the current checkpoint annotation indicates it is a stage in a multistage import.
-	// If all the checkpoints have been copied, then we need to remove the annotations from the PVC and
-	// set the DataVolume status to Succeeded. Otherwise, we need to set the status to Paused to indicate that
-	// the import is not yet done, and change the annotations to advance to the next checkpoint.
-	currentCheckpoint := pvc.Annotations[cc.AnnCurrentCheckpoint]
-	alreadyCopied := r.checkpointAlreadyCopied(pvc, currentCheckpoint)
-	finalCheckpoint, _ := strconv.ParseBool(pvc.Annotations[cc.AnnFinalCheckpoint])
-
-	if finalCheckpoint && alreadyCopied {
-		// Last checkpoint done, so clean up and mark DV success
-		dataVolumeCopy.Status.Phase = cdiv1.Succeeded
-		if err := r.deleteMultistageImportAnnotations(pvc); err != nil {
-			return err
-		}
-	} else {
-		// Single stage of a multi-stage import
-		dataVolumeCopy.Status.Phase = cdiv1.Paused
-		// Advances annotations to next checkpoint
-		if err := r.setPvcMultistageImportAnnotations(dataVolumeCopy, pvc); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Sets the annotation if pvc needs it, and does not have it yet
-func (r *ImportReconciler) maybeSetPvcMultiStageAnnotation(pvc *corev1.PersistentVolumeClaim, datavolume *cdiv1.DataVolume) error {
-	if pvc.Status.Phase == corev1.ClaimBound {
-		// If a PVC already exists with no multi-stage annotations, check if it
-		// needs them set (if not already finished with an import).
-		multiStageImport := (len(datavolume.Spec.Checkpoints) > 0)
-		multiStageAnnotationsSet := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnCurrentCheckpoint)
-		multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnMultiStageImportDone)
-		if multiStageImport && !multiStageAnnotationsSet && !multiStageAlreadyDone {
-			err := r.setPvcMultistageImportAnnotations(datavolume, pvc)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// Set the PVC annotations related to multi-stage imports so that they point to the next checkpoint to copy.
-func (r *ImportReconciler) setPvcMultistageImportAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
-	pvcCopy := pvc.DeepCopy()
-
-	// Only mark this checkpoint complete if it was completed by the current pod.
-	// This keeps us from skipping over checkpoints when a reconcile fails at a bad time.
-	uuidAlreadyUsed := false
-	for key, value := range pvcCopy.Annotations {
-		if strings.HasPrefix(key, r.getCheckpointCopiedKey("")) { // Blank checkpoint name to get just the prefix
-			if value == pvcCopy.Annotations[cc.AnnCurrentPodID] {
-				uuidAlreadyUsed = true
-				break
-			}
-		}
-	}
-	if !uuidAlreadyUsed {
-		// Mark checkpoint complete by saving UID of current pod to a
-		// PVC annotation specific to this checkpoint.
-		currentCheckpoint := pvcCopy.Annotations[cc.AnnCurrentCheckpoint]
-		if currentCheckpoint != "" {
-			currentPodID := pvcCopy.Annotations[cc.AnnCurrentPodID]
-			annotation := r.getCheckpointCopiedKey(currentCheckpoint)
-			pvcCopy.ObjectMeta.Annotations[annotation] = currentPodID
-			r.log.V(1).Info("UUID not already used, marking checkpoint completed by current pod ID.", "checkpoint", currentCheckpoint, "podId", currentPodID)
-		} else {
-			r.log.Info("Cannot mark empty checkpoint complete. Check DataVolume spec for empty checkpoints.")
-		}
-	}
-	// else: If the UID was already used for another transfer, then we are
-	// just waiting for a new pod to start up to transfer the next checkpoint.
-
-	// Set multi-stage PVC annotations so further reconcile loops will create new pods as needed.
-	checkpoint := r.getNextCheckpoint(dataVolume, pvcCopy)
-	if checkpoint != nil { // Only move to the next checkpoint if there is a next checkpoint to move to
-		pvcCopy.ObjectMeta.Annotations[cc.AnnCurrentCheckpoint] = checkpoint.Current
-		pvcCopy.ObjectMeta.Annotations[cc.AnnPreviousCheckpoint] = checkpoint.Previous
-		pvcCopy.ObjectMeta.Annotations[cc.AnnFinalCheckpoint] = strconv.FormatBool(checkpoint.IsFinal)
-
-		// Check to see if there is a running pod for this PVC. If there are
-		// more checkpoints to copy but the PVC is stopped in Succeeded,
-		// reset the phase to get another pod started for the next checkpoint.
-		var podNamespace string
-		if dataVolume.Spec.Source.PVC != nil {
-			podNamespace = dataVolume.Spec.Source.PVC.Namespace
-		} else {
-			podNamespace = dataVolume.Namespace
-		}
-		phase := pvcCopy.ObjectMeta.Annotations[cc.AnnPodPhase]
-		pod, _ := r.getPodFromPvc(podNamespace, pvcCopy)
-		if pod == nil && phase == string(corev1.PodSucceeded) {
-			// Reset PVC phase so importer will create a new pod
-			pvcCopy.ObjectMeta.Annotations[cc.AnnPodPhase] = string(corev1.PodUnknown)
-			delete(pvcCopy.ObjectMeta.Annotations, cc.AnnImportPod)
-		}
-		// else: There's a pod already running, no need to try to start a new one.
-	}
-	// else: There aren't any checkpoints ready to be copied over.
-
-	// only update if something has changed
-	if !reflect.DeepEqual(pvc, pvcCopy) {
-		return r.updatePVC(pvcCopy)
-	}
-	return nil
-}
-
-// Clean up PVC annotations after a multi-stage import.
-func (r *ImportReconciler) deleteMultistageImportAnnotations(pvc *corev1.PersistentVolumeClaim) error {
-	pvcCopy := pvc.DeepCopy()
-	delete(pvcCopy.Annotations, cc.AnnCurrentCheckpoint)
-	delete(pvcCopy.Annotations, cc.AnnPreviousCheckpoint)
-	delete(pvcCopy.Annotations, cc.AnnFinalCheckpoint)
-	delete(pvcCopy.Annotations, cc.AnnCurrentPodID)
-
-	prefix := r.getCheckpointCopiedKey("")
-	for key := range pvcCopy.Annotations {
-		if strings.HasPrefix(key, prefix) {
-			delete(pvcCopy.Annotations, key)
-		}
-	}
-
-	pvcCopy.ObjectMeta.Annotations[cc.AnnMultiStageImportDone] = "true"
-
-	// only update if something has changed
-	if !reflect.DeepEqual(pvc, pvcCopy) {
-		return r.updatePVC(pvcCopy)
-	}
-	return nil
-}
-
-// Single place to hold the scheme for annotations that indicate a checkpoint
-// has already been copied. Currently storage.checkpoint.copied.[checkpoint] = ID,
-// where ID is the UID of the pod that successfully transferred that checkpoint.
-func (r *ImportReconciler) getCheckpointCopiedKey(checkpoint string) string {
-	return cc.AnnCheckpointsCopied + "." + checkpoint
-}
-
-// Find out if this checkpoint has already been copied by looking for an annotation
-// like storage.checkpoint.copied.[checkpoint]. If it exists, then this checkpoint
-// was already copied.
-func (r *ImportReconciler) checkpointAlreadyCopied(pvc *corev1.PersistentVolumeClaim, checkpoint string) bool {
-	annotation := r.getCheckpointCopiedKey(checkpoint)
-	return metav1.HasAnnotation(pvc.ObjectMeta, annotation)
-}
-
-// Compare the list of checkpoints in the DataVolume spec with the annotations on the
-// PVC indicating which checkpoints have already been copied. Return the first checkpoint
-// that does not have this annotation, meaning the first checkpoint that has not yet been copied.
-type checkpointRecord struct {
-	cdiv1.DataVolumeCheckpoint
-	IsFinal bool
-}
-
-func (r *ImportReconciler) getNextCheckpoint(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) *checkpointRecord {
-	numCheckpoints := len(dataVolume.Spec.Checkpoints)
-	if numCheckpoints < 1 {
-		return nil
-	}
-
-	// If there are no annotations, get the first checkpoint from the spec
-	if pvc.ObjectMeta.Annotations[cc.AnnCurrentCheckpoint] == "" {
-		checkpoint := &checkpointRecord{
-			cdiv1.DataVolumeCheckpoint{
-				Current:  dataVolume.Spec.Checkpoints[0].Current,
-				Previous: dataVolume.Spec.Checkpoints[0].Previous,
-			},
-			(numCheckpoints == 1) && dataVolume.Spec.FinalCheckpoint,
-		}
-		return checkpoint
-	}
-
-	// If there are annotations, keep checking the spec checkpoint list for an existing "copied.X" annotation until the first one not found
-	for count, specCheckpoint := range dataVolume.Spec.Checkpoints {
-		if specCheckpoint.Current == "" {
-			r.log.Info(fmt.Sprintf("DataVolume spec has a blank 'current' entry in checkpoint %d", count))
-			continue
-		}
-		if !r.checkpointAlreadyCopied(pvc, specCheckpoint.Current) {
-			checkpoint := &checkpointRecord{
-				cdiv1.DataVolumeCheckpoint{
-					Current:  specCheckpoint.Current,
-					Previous: specCheckpoint.Previous,
-				},
-				(numCheckpoints == (count + 1)) && dataVolume.Spec.FinalCheckpoint,
-			}
-			return checkpoint
-		}
-	}
-
-	return nil
 }
 
 func volumeImportSourceName(dv *cdiv1.DataVolume) string {
@@ -514,10 +322,14 @@ func (r *ImportReconciler) createVolumeImportSourceCR(syncState *dvSyncState) er
 	dv := syncState.dvMutated
 	importSource := &cdiv1.VolumeImportSource{}
 	importSourceName := volumeImportSourceName(dv)
+	isMultiStage := dv.Spec.Source != nil && len(dv.Spec.Checkpoints) > 0 &&
+		(dv.Spec.Source.VDDK != nil || dv.Spec.Source.Imageio != nil)
 
 	// check if import source already exists
-	if exists, err := cc.GetResource(context.TODO(), r.client, dv.Namespace, importSourceName, importSource); err != nil || exists {
+	if exists, err := cc.GetResource(context.TODO(), r.client, dv.Namespace, importSourceName, importSource); err != nil {
 		return err
+	} else if exists {
+		return r.updateVolumeImportSourceIfNeeded(importSource, dv, isMultiStage)
 	}
 
 	source := &cdiv1.ImportSourceType{}
@@ -551,6 +363,12 @@ func (r *ImportReconciler) createVolumeImportSourceCR(syncState *dvSyncState) er
 		},
 	}
 
+	if isMultiStage {
+		importSource.Spec.TargetClaim = &dv.Name
+		importSource.Spec.Checkpoints = dv.Spec.Checkpoints
+		importSource.Spec.FinalCheckpoint = &dv.Spec.FinalCheckpoint
+	}
+
 	if err := controllerutil.SetControllerReference(dv, importSource, r.scheme); err != nil {
 		return err
 	}
@@ -579,4 +397,25 @@ func (r *ImportReconciler) deleteVolumeImportSourceCR(syncState *dvSyncState) er
 	}
 
 	return nil
+}
+
+func (r *ImportReconciler) updateVolumeImportSourceIfNeeded(source *cdiv1.VolumeImportSource, dv *cdiv1.DataVolume, isMultiStage bool) error {
+	// Updates are only needed in multistage imports
+	if !isMultiStage {
+		return nil
+	}
+
+	// Unchanged checkpoint API, no update needed
+	finalCheckpoint := false
+	if source.Spec.FinalCheckpoint != nil {
+		finalCheckpoint = *source.Spec.FinalCheckpoint
+	}
+	if reflect.DeepEqual(source.Spec.Checkpoints, dv.Spec.Checkpoints) &&
+		finalCheckpoint == dv.Spec.FinalCheckpoint {
+		return nil
+	}
+
+	source.Spec.Checkpoints = dv.Spec.Checkpoints
+	source.Spec.FinalCheckpoint = &dv.Spec.FinalCheckpoint
+	return r.client.Update(context.TODO(), source)
 }
