@@ -86,12 +86,11 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 		if err != nil {
 			return toAdmissionResponseError(err)
 		}
+		// Garbage collection is disabled by default
+		// Annotate DV for GC only if GC is enabled in CDIConfig and the DV is not annotated to prevent GC
 		if cc.GetDataVolumeTTLSeconds(config) >= 0 {
-			if modifiedDataVolume.Annotations == nil {
-				modifiedDataVolume.Annotations = make(map[string]string)
-			}
 			if modifiedDataVolume.Annotations[cc.AnnDeleteAfterCompletion] != "false" {
-				modifiedDataVolume.Annotations[cc.AnnDeleteAfterCompletion] = "true"
+				cc.AddAnnotation(modifiedDataVolume, cc.AnnDeleteAfterCompletion, "true")
 			}
 		}
 	}

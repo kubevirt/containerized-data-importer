@@ -68,12 +68,13 @@ func NewSnapshotCloneController(
 	reconciler := &SnapshotCloneReconciler{
 		CloneReconcilerBase: CloneReconcilerBase{
 			ReconcilerBase: ReconcilerBase{
-				client:          client,
-				scheme:          mgr.GetScheme(),
-				log:             log.WithName(snapshotCloneControllerName),
-				featureGates:    featuregates.NewFeatureGates(client),
-				recorder:        mgr.GetEventRecorderFor(snapshotCloneControllerName),
-				installerLabels: installerLabels,
+				client:               client,
+				scheme:               mgr.GetScheme(),
+				log:                  log.WithName(snapshotCloneControllerName),
+				featureGates:         featuregates.NewFeatureGates(client),
+				recorder:             mgr.GetEventRecorderFor(snapshotCloneControllerName),
+				installerLabels:      installerLabels,
+				shouldUpdateProgress: true,
 			},
 			clonerImage:    clonerImage,
 			importerImage:  importerImage,
@@ -129,11 +130,6 @@ func (r *SnapshotCloneReconciler) prepare(syncState *dvSyncState) error {
 	dv := syncState.dvMutated
 	if err := r.populateSourceIfSourceRef(dv); err != nil {
 		return err
-	}
-	if dv.Status.Phase == cdiv1.Succeeded {
-		if err := r.cleanup(syncState); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -196,18 +192,10 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 	if err := r.client.Get(context.TODO(), nn, snapshot); err != nil {
 		return syncRes, err
 	}
-	if snapshot.Status == nil {
-		return syncRes, fmt.Errorf("snapshot does not have status populated yet")
-	}
-	if snapshot.Status.ReadyToUse == nil || !*snapshot.Status.ReadyToUse {
-		r.log.V(3).Info("snapshot not ReadyToUse, while we allow this, probably going to be an issue going forward", "namespace", snapshot.Namespace, "name", snapshot.Name)
-	}
-	if snapshot.Status.Error != nil {
-		errMessage := "no details"
-		if msg := snapshot.Status.Error.Message; msg != nil {
-			errMessage = *msg
-		}
-		return syncRes, fmt.Errorf("snapshot in error state with msg: %s", errMessage)
+
+	valid, err := r.isSnapshotValidForClone(snapshot)
+	if err != nil || !valid {
+		return syncRes, err
 	}
 
 	fallBackToHostAssisted, err := r.evaluateFallBackToHostAssistedNeeded(datavolume, pvcSpec, snapshot)
@@ -317,45 +305,23 @@ func (r *SnapshotCloneReconciler) evaluateFallBackToHostAssistedNeeded(datavolum
 			return true, nil
 		}
 	}
-
-	// Storage classes do not match means we can only do dumb cloning
-	if snapshot.Spec.VolumeSnapshotClassName == nil || *snapshot.Spec.VolumeSnapshotClassName == "" {
-		return true, fmt.Errorf("snapshot %s/%s does not have volume snap class populated, can't clone", snapshot.Name, snapshot.Namespace)
-	}
-	vsc := &snapshotv1.VolumeSnapshotClass{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *snapshot.Spec.VolumeSnapshotClassName}, vsc); err != nil {
-		return true, err
-	}
-	targetPvcStorageClassName := pvcSpec.StorageClassName
-	targetStorageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, targetPvcStorageClassName)
+	// Storage and snapshot class validation
+	targetStorageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, pvcSpec.StorageClassName)
 	if err != nil {
 		return true, err
 	}
-	if targetStorageClass == nil {
-		return true, fmt.Errorf("target storage class not found")
+	valid, err := cc.ValidateSnapshotCloneProvisioners(context.TODO(), r.client, snapshot, targetStorageClass)
+	if err != nil {
+		return true, err
 	}
-	if targetStorageClass.Provisioner != vsc.Driver {
+	if !valid {
 		r.log.V(3).Info("Provisioner differs, need to fall back to host assisted")
 		return true, nil
 	}
-
-	// TODO: get sourceVolumeMode from volumesnapshotcontent and validate against target spec
-	// currently don't have CRDs in CI with sourceVolumeMode which is pretty new
-	// converting volume mode is possible but has security implications
-
-	// Sizes validation
-	restoreSize := snapshot.Status.RestoreSize
-	if restoreSize == nil {
-		return true, fmt.Errorf("snapshot has no RestoreSize")
-	}
-	targetRequest, hasTargetRequest := pvcSpec.Resources.Requests[corev1.ResourceStorage]
-	allowExpansion := targetStorageClass.AllowVolumeExpansion != nil && *targetStorageClass.AllowVolumeExpansion
-	if hasTargetRequest {
-		// otherwise will just use restoreSize
-		if restoreSize.Cmp(targetRequest) < 0 && !allowExpansion {
-			r.log.V(3).Info("Can't expand restored PVC because SC does not allow expansion, need to fall back to host assisted")
-			return true, nil
-		}
+	// Size validation
+	valid, err = cc.ValidateSnapshotCloneSize(snapshot, pvcSpec, targetStorageClass, r.log)
+	if err != nil || !valid {
+		return true, err
 	}
 
 	if !isCrossNamespaceClone(datavolume) || *bindingMode == storagev1.VolumeBindingImmediate {
@@ -534,6 +500,12 @@ func getTempHostAssistedSourcePvcName(dv *cdiv1.DataVolume) string {
 
 func (r *SnapshotCloneReconciler) cleanup(syncState *dvSyncState) error {
 	dv := syncState.dvMutated
+
+	// This cleanup should be done if dv is marked for deletion or in case it succeeded
+	if dv.DeletionTimestamp == nil && dv.Status.Phase != cdiv1.Succeeded {
+		return nil
+	}
+
 	r.log.V(3).Info("Cleanup initiated in dv snapshot clone controller")
 
 	if err := r.populateSourceIfSourceRef(dv); err != nil {
@@ -587,4 +559,26 @@ func (r *SnapshotCloneReconciler) cleanupHostAssistedSnapshotClone(dv *cdiv1.Dat
 	}
 
 	return nil
+}
+
+// isSnapshotValidForClone returns true if the passed snapshot is valid for cloning
+func (r *SnapshotCloneReconciler) isSnapshotValidForClone(snapshot *snapshotv1.VolumeSnapshot) (bool, error) {
+	if snapshot.Status == nil {
+		r.log.V(3).Info("Snapshot does not have status populated yet")
+		return false, nil
+	}
+	if !cc.IsSnapshotReady(snapshot) {
+		r.log.V(3).Info("snapshot not ReadyToUse, while we allow this, probably going to be an issue going forward", "namespace", snapshot.Namespace, "name", snapshot.Name)
+	}
+	if snapshot.Status.Error != nil {
+		errMessage := "no details"
+		if msg := snapshot.Status.Error.Message; msg != nil {
+			errMessage = *msg
+		}
+		return false, fmt.Errorf("snapshot in error state with msg: %s", errMessage)
+	}
+	if snapshot.Spec.VolumeSnapshotClassName == nil || *snapshot.Spec.VolumeSnapshotClassName == "" {
+		return false, fmt.Errorf("snapshot %s/%s does not have volume snap class populated, can't clone", snapshot.Name, snapshot.Namespace)
+	}
+	return true, nil
 }

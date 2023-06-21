@@ -317,7 +317,7 @@ func (r *ClonePopulatorReconciler) updateClonePhase(ctx context.Context, pvc *co
 	delete(claimCpy.Annotations, AnnCloneError)
 	cc.AddAnnotation(claimCpy, AnnClonePhase, phase)
 	if progress != "" {
-		cc.AddAnnotation(claimCpy, AnnPopulatorProgress, progress)
+		cc.AddAnnotation(claimCpy, cc.AnnPopulatorProgress, progress)
 	}
 
 	if !apiequality.Semantic.DeepEqual(pvc, claimCpy) {

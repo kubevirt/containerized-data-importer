@@ -139,15 +139,15 @@ var _ = Describe("Population tests", func() {
 		})
 
 		It("Should provision storage with any volume data source", func() {
-			if !f.IsCSIVolumeCloneStorageClassAvailable() {
-				Skip("No CSI drivers available - Population not supported")
+			if utils.DefaultStorageClassCsiDriver == nil {
+				Skip("No CSI drivers available in default SC - Population not supported")
 			}
 			if !isAnyVolumeDataSourceEnabled() {
 				Skip("No AnyVolumeDataSource feature gate")
 			}
 
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock), nil, dataSourceRef)
+			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), nil, dataSourceRef)
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
@@ -163,7 +163,8 @@ var _ = Describe("Population tests", func() {
 			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(dvc.ExternalPopulationSucceeded))
 			expectetHash := []byte(expectedContent)
 			expectedHashString := fmt.Sprintf("%x", md5.Sum(expectetHash))
-			md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultPvcMountPath, int64(len(expectedContent)))
+			filePath := fmt.Sprintf("%s/%s", utils.DefaultPvcMountPath, fileName)
+			md5, err := f.GetMD5(f.Namespace, pvc, filePath, int64(len(expectedContent)))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(md5).To(Equal(expectedHashString))
 
@@ -218,19 +219,21 @@ var _ = Describe("Population tests", func() {
 			}
 
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", scName, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), nil, dataSourceRef)
-			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
+			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", scName, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), nil, dummySourceRef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Verifying pvc was created")
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindIfWaitForFirstConsumer(pvc)
+			executorPod := f.CreateConsumerPod(pvc)
 			// We check the expected event
+			By("Wait for expected no cdi driver event")
 			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(dvc.NoCSIDriverForExternalPopulation))
 
 			By("Cleaning up")
+			err = utils.DeletePodNoGrace(f.K8sClient, executorPod, dataVolume.Namespace)
+			Expect(err).ToNot(HaveOccurred())
 			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(func() bool {
@@ -257,6 +260,7 @@ var _ = Describe("Population tests", func() {
 
 			By(fmt.Sprintf("Creating target datavolume %s", dataVolumeName))
 			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), dataSource, nil)
+			dataVolume.Spec.Storage.StorageClassName = nil
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
@@ -299,22 +303,12 @@ var _ = Describe("Population tests", func() {
 			By("Creating source PVC")
 			pvcDef := utils.NewPVCDefinition(sourcePVCName, "80Mi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
+			pvcDef.Spec.StorageClassName = &f.SnapshotSCName
 			sourcePvc := f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 
 			By("Creating Snapshot")
 			snapshotClassName := getSnapshotClassName()
-			snapshot := &snapshotv1.VolumeSnapshot{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "snapshot-" + pvcDef.Name,
-					Namespace: pvcDef.Namespace,
-				},
-				Spec: snapshotv1.VolumeSnapshotSpec{
-					Source: snapshotv1.VolumeSnapshotSource{
-						PersistentVolumeClaimName: &pvcDef.Name,
-					},
-					VolumeSnapshotClassName: &snapshotClassName,
-				},
-			}
+			snapshot := utils.NewVolumeSnapshot("snapshot-"+pvcDef.Name, pvcDef.Namespace, pvcDef.Name, &snapshotClassName)
 			snapshotAPIGroup := snapshotAPIName
 			dataSource := &corev1.TypedLocalObjectReference{
 				APIGroup: &snapshotAPIGroup,
@@ -325,11 +319,7 @@ var _ = Describe("Population tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Waiting for Snapshot to be ready to use")
-			Eventually(func() bool {
-				err := f.CrClient.Get(context.TODO(), crclient.ObjectKeyFromObject(snapshot), snapshot)
-				Expect(err).ToNot(HaveOccurred())
-				return snapshot.Status != nil && snapshot.Status.ReadyToUse != nil && *snapshot.Status.ReadyToUse
-			}, timeout, pollingInterval).Should(BeTrue())
+			snapshot = utils.WaitSnapshotReady(f.CrClient, snapshot)
 
 			By(fmt.Sprintf("Creating target datavolume %s", dataVolumeName))
 			// PVC API because some provisioners only allow exact match between source size and restore size

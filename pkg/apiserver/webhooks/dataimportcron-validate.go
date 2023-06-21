@@ -116,13 +116,15 @@ func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *a
 		return causes
 	}
 
-	if _, err := cronexpr.Parse(spec.Schedule); err != nil {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: "Illegal cron schedule",
-			Field:   field.Child("Schedule").String(),
-		})
-		return causes
+	if spec.Schedule != "" {
+		if _, err := cronexpr.Parse(spec.Schedule); err != nil {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: "Illegal cron schedule",
+				Field:   field.Child("Schedule").String(),
+			})
+			return causes
+		}
 	}
 
 	if spec.ImportsToKeep != nil && *spec.ImportsToKeep < 0 {

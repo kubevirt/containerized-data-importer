@@ -18,6 +18,7 @@ package populators
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -200,14 +201,6 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 	}
 	util.SetRecommendedLabels(pvcPrime, r.installerLabels, "cdi-controller")
 
-	// disk or image size, inflate it with overhead
-	requestedSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-	requestedSize, err := cc.InflateSizeWithOverhead(context.TODO(), r.client, requestedSize.Value(), &pvc.Spec)
-	if err != nil {
-		return nil, err
-	}
-	pvcPrime.Spec.Resources.Requests[corev1.ResourceStorage] = requestedSize
-
 	// We use the populator-specific pvcModifierFunc to add required annotations
 	if updatePVCForPopulation != nil {
 		updatePVCForPopulation(pvcPrime, source)
@@ -218,6 +211,37 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 	}
 	r.recorder.Eventf(pvc, corev1.EventTypeNormal, createdPVCPrimeSuccessfully, messageCreatedPVCPrimeSuccessfully)
 	return pvcPrime, nil
+}
+
+type updatePVCAnnotationsFunc func(pvc, pvcPrime *corev1.PersistentVolumeClaim)
+
+var desiredAnnotations = []string{cc.AnnPodPhase, cc.AnnPodReady, cc.AnnPodRestarts,
+	cc.AnnPreallocationRequested, cc.AnnPreallocationApplied,
+	cc.AnnRunningCondition, cc.AnnRunningConditionMessage, cc.AnnRunningConditionReason}
+
+func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim, updateFunc updatePVCAnnotationsFunc) error {
+	pvcCopy := pvc.DeepCopy()
+	for _, ann := range desiredAnnotations {
+		if value, ok := pvcPrime.GetAnnotations()[ann]; ok {
+			cc.AddAnnotation(pvcCopy, ann, value)
+		} else if _, ok := pvcCopy.GetAnnotations()[ann]; ok {
+			// if the desired Annotation was deleted from pvcPrime
+			// delete it also in the target pvc
+			delete(pvcCopy.Annotations, ann)
+		}
+	}
+	if updateFunc != nil {
+		updateFunc(pvcCopy, pvcPrime)
+	}
+
+	if !reflect.DeepEqual(pvc.ObjectMeta, pvcCopy.ObjectMeta) {
+		err := r.client.Update(context.TODO(), pvcCopy)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // reconcile functions
@@ -240,7 +264,7 @@ func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorCon
 	}
 
 	// Each populator reconciles the target PVC in a different way
-	if cc.IsUnbound(pvc) {
+	if cc.IsUnbound(pvc) || !cc.IsPVCComplete(pvc) {
 		return populator.reconcileTargetPVC(pvc, pvcPrime)
 	}
 

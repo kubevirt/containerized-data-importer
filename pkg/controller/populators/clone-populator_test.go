@@ -279,7 +279,7 @@ var _ = Describe("Clone populator tests", func() {
 		isDefaultResult(result, err)
 		pvc := getTarget(reconciler.client)
 		Expect(pvc.Annotations[AnnClonePhase]).To(Equal("phase2"))
-		Expect(pvc.Annotations[AnnPopulatorProgress]).To(Equal("50.0%"))
+		Expect(pvc.Annotations[cc.AnnPopulatorProgress]).To(Equal("50.0%"))
 	})
 
 	It("should be in error phase if progress returns an error", func() {

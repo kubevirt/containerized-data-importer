@@ -24,13 +24,16 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -258,6 +261,8 @@ var _ = Describe("Import populator tests", func() {
 			pvcPrime, err := reconciler.getPVCPrime(targetPvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvcPrime).ToNot(BeNil())
+			// make sure we didnt inflate size
+			Expect(pvcPrime.Spec.Resources.Requests[corev1.ResourceStorage]).To(Equal(resource.MustParse("1G")))
 			Expect(pvcPrime.GetAnnotations()).ToNot(BeNil())
 			Expect(pvcPrime.GetAnnotations()[AnnImmediateBinding]).To(Equal(""))
 			Expect(pvcPrime.GetAnnotations()[AnnUploadRequest]).To(Equal(""))
@@ -302,6 +307,57 @@ var _ = Describe("Import populator tests", func() {
 			Expect(err).To(Not(HaveOccurred()))
 			Expect(result).To(Not(BeNil()))
 		})
+
+		table.DescribeTable("should update target pvc with desired annotations from pvc prime", func(podPhase string) {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
+			pvcPrime := getPVCPrime(targetPvc, nil)
+			for _, ann := range desiredAnnotations {
+				AddAnnotation(pvcPrime, ann, "somevalue")
+			}
+			AddAnnotation(pvcPrime, AnnPodPhase, podPhase)
+			AddAnnotation(pvcPrime, "undesiredAnn", "somevalue")
+
+			pv := &corev1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pv",
+				},
+				Spec: corev1.PersistentVolumeSpec{
+					ClaimRef: &corev1.ObjectReference{
+						Namespace: pvcPrime.Namespace,
+						Name:      pvcPrime.Name,
+					},
+				},
+			}
+			pvcPrime.Spec.VolumeName = pv.Name
+
+			By("Reconcile")
+			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, pv, volumeImportSource, sc)
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).ToNot(BeNil())
+			if podPhase == string(corev1.PodRunning) {
+				Expect(result.RequeueAfter).To(Equal(2 * time.Second))
+			} else {
+				Expect(result.RequeueAfter).To(Equal(0 * time.Second))
+			}
+
+			updatedPVC := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}, updatedPVC)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(updatedPVC.GetAnnotations()).ToNot(BeNil())
+			for _, ann := range desiredAnnotations {
+				_, ok := updatedPVC.Annotations[ann]
+				Expect(ok).To(BeTrue())
+			}
+			_, ok := updatedPVC.Annotations["undesiredAnn"]
+			Expect(ok).To(BeFalse())
+		},
+			table.Entry("with pod running phase", string(corev1.PodRunning)),
+			table.Entry("with pod failed phase", string(corev1.PodFailed)),
+			table.Entry("with pod succeded phase", string(corev1.PodSucceeded)),
+		)
 	})
 
 	var _ = Describe("Import populator progress report", func() {
@@ -312,15 +368,15 @@ var _ = Describe("Import populator tests", func() {
 			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, sc)
 			err := reconciler.updateImportProgress(string(corev1.PodSucceeded), targetPvc, pvcPrime)
 			Expect(err).To(Not(HaveOccurred()))
-			Expect(targetPvc.Annotations[AnnImportProgressReporting]).To(Equal("100.0%"))
+			Expect(targetPvc.Annotations[AnnPopulatorProgress]).To(Equal("100.0%"))
 		})
 
 		It("should return error if no metrics in pod", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
-			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, targetPvc.Name)
-			targetPvc.Annotations = map[string]string{AnnImportPod: importPodName}
 			pvcPrime := getPVCPrime(targetPvc, nil)
-			pod := CreateImporterTestPod(targetPvc, pvcPrime.Name, nil)
+			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, pvcPrime.Name)
+			pvcPrime.Annotations = map[string]string{AnnImportPod: importPodName}
+			pod := CreateImporterTestPod(pvcPrime, pvcPrime.Name, nil)
 			pod.Spec.Containers[0].Ports = nil
 			pod.Status.Phase = corev1.PodRunning
 
@@ -358,11 +414,11 @@ var _ = Describe("Import populator tests", func() {
 		})
 
 		It("should report progress in target PVC if http endpoint returns matching data", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
-			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, targetPvc.Name)
-			targetPvc.Annotations = map[string]string{AnnImportPod: importPodName}
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
 			pvcPrime := getPVCPrime(targetPvc, nil)
+			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, pvcPrime.Name)
+			pvcPrime.Annotations = map[string]string{AnnImportPod: importPodName}
 
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", targetPvc.GetUID())))
@@ -374,7 +430,7 @@ var _ = Describe("Import populator tests", func() {
 			port, err := strconv.Atoi(ep.Port())
 			Expect(err).ToNot(HaveOccurred())
 
-			pod := CreateImporterTestPod(targetPvc, pvcPrime.Name, nil)
+			pod := CreateImporterTestPod(pvcPrime, pvcPrime.Name, nil)
 			pod.Spec.Containers[0].Ports[0].ContainerPort = int32(port)
 			pod.Status.PodIP = ep.Hostname()
 			pod.Status.Phase = corev1.PodRunning
@@ -382,7 +438,7 @@ var _ = Describe("Import populator tests", func() {
 			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, pod)
 			err = reconciler.updateImportProgress(string(corev1.PodRunning), targetPvc, pvcPrime)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(targetPvc.Annotations[AnnImportProgressReporting]).To(BeEquivalentTo("13.45%"))
+			Expect(targetPvc.Annotations[AnnPopulatorProgress]).To(BeEquivalentTo("13.45%"))
 		})
 	})
 })

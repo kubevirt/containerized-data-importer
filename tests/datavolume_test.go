@@ -27,6 +27,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -232,19 +233,20 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	Describe("Verify DataVolume", func() {
 		type dataVolumeTestArguments struct {
-			name             string
-			size             string
-			url              func() string
-			dvFunc           func(string, string, string) *cdiv1.DataVolume
-			errorMessage     string
-			errorMessageFunc func() string
-			eventReason      string
-			phase            cdiv1.DataVolumePhase
-			repeat           int
-			checkPermissions bool
-			readyCondition   *cdiv1.DataVolumeCondition
-			boundCondition   *cdiv1.DataVolumeCondition
-			runningCondition *cdiv1.DataVolumeCondition
+			name                         string
+			size                         string
+			url                          func() string
+			dvFunc                       func(string, string, string) *cdiv1.DataVolume
+			errorMessage                 string
+			errorMessageFunc             func() string
+			eventReason                  string
+			phase                        cdiv1.DataVolumePhase
+			repeat                       int
+			checkPermissions             bool
+			readyCondition               *cdiv1.DataVolumeCondition
+			boundCondition               *cdiv1.DataVolumeCondition
+			boundConditionWithPopulators *cdiv1.DataVolumeCondition
+			runningCondition             *cdiv1.DataVolumeCondition
 		}
 
 		createHTTPSDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
@@ -324,13 +326,19 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 				waitForDvPhase(args.phase, dataVolume, f)
 
-				By("Verifying the DV has the correct conditions and messages for those conditions")
-				utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
-
 				// verify PVC was created
 				By("verifying pvc was created")
 				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
+
+				By("Verifying the DV has the correct conditions and messages for those conditions")
+				usePopulator, err := dvc.CheckPVCUsingPopulators(pvc)
+				Expect(err).ToNot(HaveOccurred())
+				if usePopulator && args.boundConditionWithPopulators != nil {
+					utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundConditionWithPopulators)
+				} else {
+					utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
+				}
 
 				By("Verifying event occurred")
 				Eventually(func() bool {
@@ -404,19 +412,25 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
 
 			By("Increase quota")
-			err = f.UpdateStorageQuota(int64(2), int64(2*1024*1024*1024))
+			err = f.UpdateStorageQuota(int64(4), int64(4*1024*1024*1024))
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			waitForDvPhase(args.phase, dataVolume, f)
 
-			By("Verifying the DV has the correct conditions and messages for those conditions")
-			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
-
 			// verify PVC was created
 			By("verifying pvc was created")
-			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
+
+			By("Verifying the DV has the correct conditions and messages for those conditions")
+			usePopulator, err := dvc.CheckPVCUsingPopulators(pvc)
+			Expect(err).ToNot(HaveOccurred())
+			if usePopulator && args.boundConditionWithPopulators != nil {
+				utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundConditionWithPopulators)
+			} else {
+				utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, args.readyCondition, args.runningCondition, args.boundCondition)
+			}
 
 			By("Verifying event occurred")
 			Eventually(func() bool {
@@ -485,6 +499,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "PVC dv-http-import-invalid-url Bound",
 					Reason:  "Bound",
 				},
+				boundConditionWithPopulators: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionFalse,
+					Message: "PVC dv-http-import-invalid-url Pending",
+					Reason:  "Pending",
+				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
@@ -509,6 +529,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "PVC dv-http-import-404 Bound",
 					Reason:  "Bound",
 				},
+				boundConditionWithPopulators: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionFalse,
+					Message: "PVC dv-http-import-404 Pending",
+					Reason:  "Pending",
+				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
@@ -532,6 +558,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Status:  v1.ConditionTrue,
 					Message: "PVC dv-invalid-qcow-large-memory Bound",
 					Reason:  "Bound",
+				},
+				boundConditionWithPopulators: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionFalse,
+					Message: "PVC dv-invalid-qcow-large-memory Pending",
+					Reason:  "Pending",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
@@ -749,6 +781,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "PVC upload-dv Bound",
 					Reason:  "Bound",
 				},
+				boundConditionWithPopulators: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionFalse,
+					Message: "PVC upload-dv Pending",
+					Reason:  "Pending",
+				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeRunning,
 					Status: v1.ConditionTrue,
@@ -794,6 +832,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Status:  v1.ConditionTrue,
 					Message: "PVC dv-non-tar-archive Bound",
 					Reason:  "Bound",
+				},
+				boundConditionWithPopulators: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionFalse,
+					Message: "PVC dv-non-tar-archive Pending",
+					Reason:  "Pending",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
@@ -1168,6 +1212,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "PVC upload-dv Bound",
 					Reason:  "Bound",
 				},
+				boundConditionWithPopulators: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionFalse,
+					Message: "PVC upload-dv Pending",
+					Reason:  "Pending",
+				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeRunning,
 					Status: v1.ConditionTrue,
@@ -1502,7 +1552,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				By("verifying pvc and pod were created")
 				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
+				usePopulator, err := dvc.CheckPVCUsingPopulators(pvc)
+				Expect(err).ToNot(HaveOccurred())
 				podName := pvc.Annotations[controller.AnnImportPod]
+				if usePopulator {
+					pvcPrimeName := populators.PVCPrimeName(pvc)
+					pvcPrime, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), pvcPrimeName, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					podName = pvcPrime.Annotations[controller.AnnImportPod]
+				}
 
 				pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), podName, metav1.GetOptions{})
 				Expect(err).NotTo(HaveOccurred())
@@ -1750,11 +1808,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		updateStorageProfileSpec := func(client client.Client, name string, spec cdiv1.StorageProfileSpec) {
 			storageProfile := &cdiv1.StorageProfile{}
-			err := client.Get(context.TODO(), types.NamespacedName{Name: name}, storageProfile)
-			Expect(err).ToNot(HaveOccurred())
-			storageProfile.Spec = spec
-			err = client.Update(context.TODO(), storageProfile)
-			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() error {
+				err := client.Get(context.TODO(), types.NamespacedName{Name: name}, storageProfile)
+				Expect(err).ToNot(HaveOccurred())
+				storageProfile.Spec = spec
+				return client.Update(context.TODO(), storageProfile)
+			}, 15*time.Second, time.Second).Should(BeNil())
 		}
 
 		configureStorageProfile := func(client client.Client,
@@ -2378,6 +2437,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		table.DescribeTable("import DV using StorageSpec without AccessModes, PVC is created only when", func(scName string, scFunc func(string)) {
+			if utils.IsDefaultSCNoProvisioner() {
+				Skip("Default storage class has no provisioner. The new storage class won't work")
+			}
+
 			By(fmt.Sprintf("verifying no storage class %s", testScName))
 			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
 			Expect(err).To(HaveOccurred())
@@ -2444,6 +2507,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		table.DescribeTable("import DV with AccessModes, PVC is pending until", func(scName string, scFunc func(string), dvFunc func(string) *cdiv1.DataVolume) {
+			if utils.IsDefaultSCNoProvisioner() {
+				Skip("Default storage class has no provisioner. The new storage class won't work")
+			}
+
 			By(fmt.Sprintf("verifying no storage class %s", testScName))
 			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
 			Expect(err).To(HaveOccurred())

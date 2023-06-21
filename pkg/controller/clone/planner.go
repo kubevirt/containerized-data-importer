@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
 	"sync"
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -130,7 +132,10 @@ func (p *Planner) ChooseStrategy(ctx context.Context, args *ChooseStrategyArgs) 
 		args.Log.V(3).Info("Getting strategy for PVC source")
 		return p.computeStrategyForSourcePVC(ctx, args)
 	}
-
+	if IsDataSourceSnapshot(args.DataSource.Spec.Source.Kind) {
+		args.Log.V(3).Info("Getting strategy for Snapshot source")
+		return p.computeStrategyForSourceSnapshot(ctx, args)
+	}
 	return nil, fmt.Errorf("unsupported datasource")
 }
 
@@ -163,6 +168,18 @@ func (p *Planner) Plan(ctx context.Context, args *PlanArgs) ([]Phase, error) {
 			args.Log.V(3).Info("Planning csi clone from PVC")
 
 			return p.planCSIClone(ctx, args)
+		}
+	}
+
+	if IsDataSourceSnapshot(args.DataSource.Spec.Source.Kind) {
+		if args.Strategy == cdiv1.CloneStrategyHostAssisted {
+			args.Log.V(3).Info("Planning host assisted clone from Snapshot")
+
+			return p.planHostAssistedFromSnapshot(ctx, args)
+		} else if args.Strategy == cdiv1.CloneStrategySnapshot {
+			args.Log.V(3).Info("Planning Smart clone from Snapshot")
+
+			return p.planSmartCloneFromSnapshot(ctx, args)
 		}
 	}
 
@@ -324,6 +341,56 @@ func (p *Planner) computeStrategyForSourcePVC(ctx context.Context, args *ChooseS
 	return &strategy, nil
 }
 
+func (p *Planner) computeStrategyForSourceSnapshot(ctx context.Context, args *ChooseStrategyArgs) (*cdiv1.CDICloneStrategy, error) {
+	// Defaulting to host-assisted clone since it has fewer requirements
+	strategy := cdiv1.CloneStrategyHostAssisted
+
+	if ok, err := p.validateTargetStorageClassAssignment(ctx, args); !ok || err != nil {
+		return nil, err
+	}
+
+	// Check that snapshot exists
+	sourceSnapshot := &snapshotv1.VolumeSnapshot{}
+	exists, err := getResource(ctx, p.Client, args.DataSource.Namespace, args.DataSource.Spec.Source.Name, sourceSnapshot)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		message := fmt.Sprintf(MessageCloneWithoutSource, "snapshot", args.DataSource.Spec.Source.Name)
+		p.Recorder.Event(args.TargetClaim, corev1.EventTypeWarning, CloneWithoutSource, message)
+		args.Log.V(3).Info("Source Snapshot does not exist, cannot compute strategy")
+		return nil, nil
+	}
+
+	// Do snapshot and storage class validation
+	targetStorageClass, err := GetStorageClassForClaim(ctx, p.Client, args.TargetClaim)
+	if err != nil {
+		return nil, err
+	}
+	if targetStorageClass == nil {
+		return nil, fmt.Errorf("target claim's storageclass doesn't exist, clone will not work")
+	}
+	valid, err := cc.ValidateSnapshotCloneProvisioners(ctx, p.Client, sourceSnapshot, targetStorageClass)
+	if err != nil {
+		return nil, err
+	}
+	if !valid {
+		args.Log.V(3).Info("Provisioner differs, need to fall back to host assisted")
+		return &strategy, nil
+	}
+
+	// Lastly, do size validation to determine whether to use dumb or smart cloning
+	valid, err = cc.ValidateSnapshotCloneSize(sourceSnapshot, &args.TargetClaim.Spec, targetStorageClass, args.Log)
+	if err != nil {
+		return nil, err
+	}
+	if valid {
+		strategy = cdiv1.CloneStrategySnapshot
+	}
+
+	return &strategy, nil
+}
+
 func (p *Planner) validateTargetStorageClassAssignment(ctx context.Context, args *ChooseStrategyArgs) (bool, error) {
 	if args.TargetClaim.Spec.StorageClassName == nil {
 		args.Log.V(3).Info("Target PVC has nil storage class, cannot compute strategy")
@@ -429,6 +496,129 @@ func (p *Planner) planHostAssistedFromPVC(ctx context.Context, args *PlanArgs) (
 	}
 
 	return []Phase{hcp, rp}, nil
+}
+
+func (p *Planner) planHostAssistedFromSnapshot(ctx context.Context, args *PlanArgs) ([]Phase, error) {
+	sourceSnapshot := &snapshotv1.VolumeSnapshot{}
+	exists, err := getResource(ctx, p.Client, args.DataSource.Namespace, args.DataSource.Spec.Source.Name, sourceSnapshot)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, fmt.Errorf("source claim does not exist")
+	}
+
+	sourceClaimForDumbClone, err := createTempSourceClaim(ctx, args.DataSource.Namespace, args.TargetClaim, sourceSnapshot, p.Client)
+	if err != nil {
+		return nil, err
+	}
+	cfsp := &SnapshotClonePhase{
+		Owner:          args.TargetClaim,
+		Namespace:      args.DataSource.Namespace,
+		SourceName:     args.DataSource.Spec.Source.Name,
+		DesiredClaim:   sourceClaimForDumbClone,
+		OwnershipLabel: p.OwnershipLabel,
+		Client:         p.Client,
+		Log:            args.Log,
+		Recorder:       p.Recorder,
+	}
+
+	pcp := &PrepClaimPhase{
+		Owner:           args.TargetClaim,
+		DesiredClaim:    sourceClaimForDumbClone.DeepCopy(),
+		Image:           p.Image,
+		PullPolicy:      p.PullPolicy,
+		InstallerLabels: p.InstallerLabels,
+		OwnershipLabel:  p.OwnershipLabel,
+		Client:          p.Client,
+		Log:             args.Log,
+		Recorder:        p.Recorder,
+	}
+
+	desiredClaim := createDesiredClaim(args.DataSource.Namespace, args.TargetClaim)
+	if util.ResolveVolumeMode(desiredClaim.Spec.VolumeMode) == corev1.PersistentVolumeFilesystem {
+		ds := desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage]
+		is, err := cc.InflateSizeWithOverhead(ctx, p.Client, ds.Value(), &args.TargetClaim.Spec)
+		if err != nil {
+			return nil, err
+		}
+		desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage] = is
+	}
+
+	hcp := &HostClonePhase{
+		Owner:          args.TargetClaim,
+		Namespace:      sourceClaimForDumbClone.Namespace,
+		SourceName:     sourceClaimForDumbClone.Name,
+		DesiredClaim:   desiredClaim,
+		ImmediateBind:  true,
+		OwnershipLabel: p.OwnershipLabel,
+		Client:         p.Client,
+		Log:            args.Log,
+		Recorder:       p.Recorder,
+	}
+
+	if args.DataSource.Spec.PriorityClassName != nil {
+		hcp.PriorityClassName = *args.DataSource.Spec.PriorityClassName
+	}
+
+	rp := &RebindPhase{
+		SourceNamespace: desiredClaim.Namespace,
+		SourceName:      desiredClaim.Name,
+		TargetNamespace: args.TargetClaim.Namespace,
+		TargetName:      args.TargetClaim.Name,
+		Client:          p.Client,
+		Log:             args.Log,
+		Recorder:        p.Recorder,
+	}
+
+	return []Phase{cfsp, pcp, hcp, rp}, nil
+}
+
+func (p *Planner) planSmartCloneFromSnapshot(ctx context.Context, args *PlanArgs) ([]Phase, error) {
+	sourceSnapshot := &snapshotv1.VolumeSnapshot{}
+	exists, err := getResource(ctx, p.Client, args.DataSource.Namespace, args.DataSource.Spec.Source.Name, sourceSnapshot)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, fmt.Errorf("source claim does not exist")
+	}
+
+	desiredClaim := createDesiredClaim(args.DataSource.Namespace, args.TargetClaim)
+	cfsp := &SnapshotClonePhase{
+		Owner:          args.TargetClaim,
+		Namespace:      args.DataSource.Namespace,
+		SourceName:     args.DataSource.Spec.Source.Name,
+		DesiredClaim:   desiredClaim.DeepCopy(),
+		OwnershipLabel: p.OwnershipLabel,
+		Client:         p.Client,
+		Log:            args.Log,
+		Recorder:       p.Recorder,
+	}
+
+	pcp := &PrepClaimPhase{
+		Owner:           args.TargetClaim,
+		DesiredClaim:    desiredClaim.DeepCopy(),
+		Image:           p.Image,
+		PullPolicy:      p.PullPolicy,
+		InstallerLabels: p.InstallerLabels,
+		OwnershipLabel:  p.OwnershipLabel,
+		Client:          p.Client,
+		Log:             args.Log,
+		Recorder:        p.Recorder,
+	}
+
+	rp := &RebindPhase{
+		SourceNamespace: desiredClaim.Namespace,
+		SourceName:      desiredClaim.Name,
+		TargetNamespace: args.TargetClaim.Namespace,
+		TargetName:      args.TargetClaim.Name,
+		Client:          p.Client,
+		Log:             args.Log,
+		Recorder:        p.Recorder,
+	}
+
+	return []Phase{cfsp, pcp, rp}, nil
 }
 
 func (p *Planner) planSnapshotFromPVC(ctx context.Context, args *PlanArgs) ([]Phase, error) {
@@ -552,4 +742,64 @@ func createDesiredClaim(namespace string, targetClaim *corev1.PersistentVolumeCl
 	desiredClaim.Spec.DataSourceRef = nil
 
 	return desiredClaim
+}
+
+func createTempSourceClaim(ctx context.Context, namespace string, targetClaim *corev1.PersistentVolumeClaim, snapshot *snapshotv1.VolumeSnapshot, client client.Client) (*corev1.PersistentVolumeClaim, error) {
+	scName, err := getStorageClassNameForTempSourceClaim(ctx, snapshot, client)
+	if err != nil {
+		return nil, err
+	}
+	// Get the appropriate size from the snapshot
+	targetCpy := targetClaim.DeepCopy()
+	if snapshot.Status == nil || snapshot.Status.RestoreSize == nil || snapshot.Status.RestoreSize.Sign() == -1 {
+		return nil, fmt.Errorf("snapshot has no RestoreSize")
+	}
+	restoreSize := snapshot.Status.RestoreSize
+	if restoreSize.IsZero() {
+		reqSize := targetCpy.Spec.Resources.Requests[corev1.ResourceStorage]
+		restoreSize = &reqSize
+	}
+
+	desiredClaim := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   namespace,
+			Name:        fmt.Sprintf("tmp-source-pvc-%s", string(targetClaim.UID)),
+			Labels:      targetCpy.Labels,
+			Annotations: targetCpy.Annotations,
+		},
+		Spec: targetCpy.Spec,
+	}
+	desiredClaim.Spec.DataSource = nil
+	desiredClaim.Spec.DataSourceRef = nil
+	desiredClaim.Spec.StorageClassName = &scName
+	desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage] = *restoreSize
+
+	return desiredClaim, nil
+}
+
+func getStorageClassNameForTempSourceClaim(ctx context.Context, snapshot *snapshotv1.VolumeSnapshot, client client.Client) (string, error) {
+	var matches []string
+
+	if snapshot.Status == nil || snapshot.Status.BoundVolumeSnapshotContentName == nil {
+		return "", fmt.Errorf("volumeSnapshotContent name not found")
+	}
+	volumeSnapshotContent := &snapshotv1.VolumeSnapshotContent{}
+	if err := client.Get(ctx, types.NamespacedName{Name: *snapshot.Status.BoundVolumeSnapshotContentName}, volumeSnapshotContent); err != nil {
+		return "", err
+	}
+	// Attempting to get a storageClass compatible with the source snapshot
+	storageClasses := &storagev1.StorageClassList{}
+	if err := client.List(ctx, storageClasses); err != nil {
+		return "", err
+	}
+	for _, storageClass := range storageClasses.Items {
+		if storageClass.Provisioner == volumeSnapshotContent.Spec.Driver {
+			matches = append(matches, storageClass.Name)
+		}
+	}
+	if len(matches) == 0 {
+		return "", fmt.Errorf("unable to find a valid storage class for the temporal source claim")
+	}
+	sort.Strings(matches)
+	return matches[0], nil
 }

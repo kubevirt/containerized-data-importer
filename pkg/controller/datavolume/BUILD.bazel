@@ -20,6 +20,7 @@ go_library(
     deps = [
         "//pkg/common:go_default_library",
         "//pkg/controller/common:go_default_library",
+        "//pkg/controller/populators:go_default_library",
         "//pkg/feature-gates:go_default_library",
         "//pkg/token:go_default_library",
         "//pkg/util:go_default_library",
@@ -30,7 +31,6 @@ go_library(
         "//vendor/k8s.io/api/authorization/v1:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
         "//vendor/k8s.io/api/storage/v1:go_default_library",
-        "//vendor/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/api/errors:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/api/meta:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/api/resource:go_default_library",

@@ -180,7 +180,7 @@ var _ = Describe("RebindPhase test", func() {
 				p := createRebindPhase(createTarget(), source, volume)
 				result, err := p.Reconcile(context.Background())
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal("PV pv bound to unexpected claim"))
+				Expect(err.Error()).To(Equal("PV pv bound to unexpected claim foo"))
 				Expect(result).To(BeNil())
 			})
 		})

@@ -6,10 +6,12 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -84,7 +86,12 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 
 	storageProfile.Status.StorageClass = &sc.Name
 	storageProfile.Status.Provisioner = &sc.Provisioner
-	storageProfile.Status.CloneStrategy = r.reconcileCloneStrategy(sc, storageProfile.Spec.CloneStrategy)
+	snapClass, err := cc.GetSnapshotClassForSmartClone("", &sc.Name, r.log, r.client)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	storageProfile.Status.CloneStrategy = r.reconcileCloneStrategy(sc, storageProfile.Spec.CloneStrategy, snapClass)
+	storageProfile.Status.DataImportCronSourceFormat = r.reconcileDataImportCronSourceFormat(sc, storageProfile.Spec.DataImportCronSourceFormat, snapClass)
 
 	var claimPropertySets []cdiv1.ClaimPropertySet
 
@@ -145,7 +152,7 @@ func (r *StorageProfileReconciler) getStorageProfile(sc *storagev1.StorageClass)
 
 func (r *StorageProfileReconciler) reconcilePropertySets(sc *storagev1.StorageClass) []cdiv1.ClaimPropertySet {
 	claimPropertySets := []cdiv1.ClaimPropertySet{}
-	capabilities, found := storagecapabilities.Get(r.client, sc)
+	capabilities, found := storagecapabilities.GetCapabilities(r.client, sc)
 	if found {
 		for i := range capabilities {
 			claimPropertySet := cdiv1.ClaimPropertySet{
@@ -158,30 +165,78 @@ func (r *StorageProfileReconciler) reconcilePropertySets(sc *storagev1.StorageCl
 	return claimPropertySets
 }
 
-func (r *StorageProfileReconciler) reconcileCloneStrategy(sc *storagev1.StorageClass, clonestrategy *cdiv1.CDICloneStrategy) *cdiv1.CDICloneStrategy {
-
-	if clonestrategy == nil {
-		if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "copy" {
-			strategy := cdiv1.CloneStrategyHostAssisted
-			return &strategy
-		} else if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "snapshot" {
-			strategy := cdiv1.CloneStrategySnapshot
-			return &strategy
-		} else if sc.Annotations["cdi.kubevirt.io/clone-strategy"] == "csi-clone" {
-			strategy := cdiv1.CloneStrategyCsiClone
-			return &strategy
-		} else {
-			return clonestrategy
-		}
+func (r *StorageProfileReconciler) reconcileCloneStrategy(sc *storagev1.StorageClass, desiredCloneStrategy *cdiv1.CDICloneStrategy, snapClass string) *cdiv1.CDICloneStrategy {
+	if desiredCloneStrategy != nil {
+		return desiredCloneStrategy
 	}
-	return clonestrategy
+
+	if annStrategyVal, ok := sc.Annotations["cdi.kubevirt.io/clone-strategy"]; ok {
+		return r.getCloneStrategyFromStorageClass(annStrategyVal)
+	}
+
+	// Default to trying snapshot clone unless volume snapshot class missing
+	hostAssistedStrategy := cdiv1.CloneStrategyHostAssisted
+	strategy := hostAssistedStrategy
+	if snapClass != "" {
+		strategy = cdiv1.CloneStrategySnapshot
+	}
+
+	if knownStrategy, ok := storagecapabilities.GetAdvisedCloneStrategy(sc); ok {
+		strategy = knownStrategy
+	}
+
+	if strategy == cdiv1.CloneStrategySnapshot && snapClass == "" {
+		r.log.Info("No VolumeSnapshotClass found for storage class, falling back to host assisted cloning", "StorageClass.Name", sc.Name)
+		return &hostAssistedStrategy
+	}
+
+	return &strategy
+}
+
+func (r *StorageProfileReconciler) getCloneStrategyFromStorageClass(annStrategyVal string) *cdiv1.CDICloneStrategy {
+	var strategy cdiv1.CDICloneStrategy
+
+	switch annStrategyVal {
+	case "copy":
+		strategy = cdiv1.CloneStrategyHostAssisted
+	case "snapshot":
+		strategy = cdiv1.CloneStrategySnapshot
+	case "csi-clone":
+		strategy = cdiv1.CloneStrategyCsiClone
+	}
+
+	return &strategy
+}
+
+func (r *StorageProfileReconciler) reconcileDataImportCronSourceFormat(sc *storagev1.StorageClass, desiredFormat *cdiv1.DataImportCronSourceFormat, snapClass string) *cdiv1.DataImportCronSourceFormat {
+	if desiredFormat != nil {
+		return desiredFormat
+	}
+
+	// This can be changed later on
+	// for example, if at some point we're confident snapshot sources should be the default
+	pvcFormat := cdiv1.DataImportCronSourceFormatPvc
+	format := pvcFormat
+
+	if knownFormat, ok := storagecapabilities.GetAdvisedSourceFormat(sc); ok {
+		format = knownFormat
+	}
+
+	if format == cdiv1.DataImportCronSourceFormatSnapshot && snapClass == "" {
+		// No point using snapshots without a corresponding snapshot class
+		r.log.Info("No VolumeSnapshotClass found for storage class, falling back to pvc sources for DataImportCrons", "StorageClass.Name", sc.Name)
+		return &pvcFormat
+	}
+
+	return &format
 }
 
 func (r *StorageProfileReconciler) createEmptyStorageProfile(sc *storagev1.StorageClass) (*cdiv1.StorageProfile, error) {
 	storageProfile := MakeEmptyStorageProfileSpec(sc.Name)
 	util.SetRecommendedLabels(storageProfile, r.installerLabels, "cdi-controller")
-	// uncachedClient is used to directly get the resource, SetOwnerRuntime requires some cluster-scoped resources
-	// normal/cached client does list resource, a cdi user might not have the rights to list cluster scope resource
+	// uncachedClient is used to directly get the config map
+	// the controller runtime client caches objects that are read once, and thus requires a list/watch
+	// should be cheaper than watching
 	if err := operator.SetOwnerRuntime(r.uncachedClient, storageProfile); err != nil {
 		return nil, err
 	}
@@ -285,9 +340,11 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 	if err := c.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
+
 	if err := c.Watch(&source.Kind{Type: &cdiv1.StorageProfile{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
+
 	if err := c.Watch(&source.Kind{Type: &v1.PersistentVolume{}}, handler.EnqueueRequestsFromMapFunc(
 		func(obj client.Object) []reconcile.Request {
 			return []reconcile.Request{{
@@ -302,6 +359,36 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 		}); err != nil {
 		return err
 	}
+
+	mapSnapshotClassToProfile := func(obj client.Object) (reqs []reconcile.Request) {
+		var scList storagev1.StorageClassList
+		if err := mgr.GetClient().List(context.TODO(), &scList); err != nil {
+			c.GetLogger().Error(err, "Unable to list StorageClasses")
+			return
+		}
+		vsc := obj.(*snapshotv1.VolumeSnapshotClass)
+		for _, sc := range scList.Items {
+			if sc.Provisioner == vsc.Driver {
+				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: sc.Name}})
+			}
+		}
+		return
+	}
+	if err := mgr.GetClient().List(context.TODO(), &snapshotv1.VolumeSnapshotClassList{}, &client.ListOptions{Limit: 1}); err != nil {
+		if meta.IsNoMatchError(err) {
+			// Back out if there's no point to attempt watch
+			return nil
+		}
+		if !cc.IsErrCacheNotStarted(err) {
+			return err
+		}
+	}
+	if err := c.Watch(&source.Kind{Type: &snapshotv1.VolumeSnapshotClass{}},
+		handler.EnqueueRequestsFromMapFunc(mapSnapshotClassToProfile),
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 

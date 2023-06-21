@@ -312,6 +312,9 @@ var _ = Describe("all clone tests", func() {
 			})
 
 			It("[posneg:negative][test_id:6612]Clone with CSI as PVC source with target name that already exists", func() {
+				if utils.DefaultStorageClassCsiDriver == nil {
+					Skip("No CSI driver found")
+				}
 				if cloneType == "copy" {
 					Skip("Cannot simulate target pvc name conflict for host-assisted clone ")
 				}
@@ -1467,6 +1470,7 @@ var _ = Describe("all clone tests", func() {
 
 		Context("CloneStrategy on storageclass annotation", func() {
 			cloneType := cdiv1.CloneStrategyCsiClone
+			var originalStrategy *cdiv1.CDICloneStrategy
 
 			BeforeEach(func() {
 				if !f.IsCSIVolumeCloneStorageClassAvailable() {
@@ -1476,8 +1480,8 @@ var _ = Describe("all clone tests", func() {
 				By(fmt.Sprintf("Get original storage profile: %s", cloneStorageClassName))
 				storageProfile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
+				originalStrategy = storageProfile.Status.CloneStrategy
 				Expect(storageProfile.Spec.CloneStrategy).To(BeNil())
-				Expect(storageProfile.Status.CloneStrategy).To(BeNil())
 
 				storageclass, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -1498,6 +1502,7 @@ var _ = Describe("all clone tests", func() {
 				}, time.Minute, time.Second).Should(Equal(cloneType))
 
 			})
+
 			AfterEach(func() {
 				By("[AfterEach] Restore the storage class - remove annotation ")
 				storageclass, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
@@ -1511,10 +1516,10 @@ var _ = Describe("all clone tests", func() {
 					storageProfile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
 					return storageProfile.Status.CloneStrategy
-				}, time.Minute, time.Second).Should(BeNil())
+				}, time.Minute, time.Second).Should(Equal(originalStrategy))
 			})
-			It("Should clone  with correct strategy from storageclass annotation ", func() {
 
+			It("Should clone  with correct strategy from storageclass annotation ", func() {
 				pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 				pvcDef.Spec.StorageClassName = &cloneStorageClassName
 				pvcDef.Namespace = f.Namespace.Name
@@ -1596,7 +1601,7 @@ var _ = Describe("all clone tests", func() {
 				}
 
 				By("Create the clone before the source PVC")
-				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec("clone-dv", "1Mi", f.Namespace.Name, dataVolumeName, nil, &blockVM)
+				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec("clone-dv", "1Mi", f.Namespace.Name, dataVolumeName, &f.BlockSCName, &blockVM)
 				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				Expect(err).ToNot(HaveOccurred())
 				// Check if the NoSourceClone annotation exists in target PVC
@@ -2625,31 +2630,13 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			snapClass := f.GetSnapshotClass()
-			snapshot = &snapshotv1.VolumeSnapshot{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "snap-" + snapSourceDv.Name,
-					Namespace: f.Namespace.Name,
-				},
-				Spec: snapshotv1.VolumeSnapshotSpec{
-					Source: snapshotv1.VolumeSnapshotSource{
-						PersistentVolumeClaimName: &pvc.Name,
-					},
-					VolumeSnapshotClassName: &snapClass.Name,
-				},
-			}
+			snapshot = utils.NewVolumeSnapshot("snap-"+snapSourceDv.Name, f.Namespace.Name, pvc.Name, &snapClass.Name)
 			err = f.CrClient.Create(context.TODO(), snapshot)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func() bool {
-				err = f.CrClient.Get(context.TODO(), client.ObjectKeyFromObject(snapshot), snapshot)
-				if err != nil {
-					return false
-				}
-				return snapshot.Status != nil && snapshot.Status.ReadyToUse != nil && *snapshot.Status.ReadyToUse
-			}, 10*time.Second, 1*time.Second).Should(BeTrue())
+			snapshot = utils.WaitSnapshotReady(f.CrClient, snapshot)
 			By("Snapshot ready, no need to keep PVC around")
-			err = f.DeletePVC(pvc)
-			Expect(err).ToNot(HaveOccurred())
+			utils.CleanupDvPvc(f.K8sClient, f.CdiClient, f.Namespace.Name, pvc.Name)
 		}
 
 		BeforeEach(func() {
@@ -2680,6 +2667,9 @@ var _ = Describe("all clone tests", func() {
 			if crossNamespace && f.IsBindingModeWaitForFirstConsumer(&defaultSc) {
 				Skip("only host assisted is applicable with WFFC cross namespace")
 			}
+			if !f.IsSnapshotStorageClassAvailable() {
+				Skip("Clone from volumesnapshot does not work without snapshot capable storage")
+			}
 
 			targetNs := f.Namespace
 			if crossNamespace {
@@ -2688,10 +2678,10 @@ var _ = Describe("all clone tests", func() {
 				targetNs = targetNamespace
 			}
 			size := "1Gi"
-			createSnapshot(size, nil, volumeMode)
+			createSnapshot(size, &f.SnapshotSCName, volumeMode)
 
 			for i = 0; i < repeat; i++ {
-				dataVolume := utils.NewDataVolumeForSnapshotCloningAndStorageSpec(fmt.Sprintf("clone-from-snap-%d", i), size, snapshot.Namespace, snapshot.Name, nil, &volumeMode)
+				dataVolume := utils.NewDataVolumeForSnapshotCloningAndStorageSpec(fmt.Sprintf("clone-from-snap-%d", i), size, snapshot.Namespace, snapshot.Name, &f.SnapshotSCName, &volumeMode)
 				dataVolume.Labels = map[string]string{"test-label-1": "test-label-value-1"}
 				dataVolume.Annotations = map[string]string{"test-annotation-1": "test-annotation-value-1"}
 				By(fmt.Sprintf("Create new datavolume %s which will clone from volumesnapshot", dataVolume.Name))
@@ -2855,10 +2845,13 @@ var _ = Describe("all clone tests", func() {
 
 		Context("Clone without a source snapshot", func() {
 			It("[test_id:9718] Should finish the clone after creating the source snapshot", func() {
+				if !f.IsSnapshotStorageClassAvailable() {
+					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
+				}
 				size := "1Gi"
 				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
 				By("Create the clone before the source snapshot")
-				cloneDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("clone-from-snap", size, f.Namespace.Name, "snap-"+dataVolumeName, nil, &volumeMode)
+				cloneDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("clone-from-snap", size, f.Namespace.Name, "snap-"+dataVolumeName, &f.SnapshotSCName, &volumeMode)
 				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				Expect(err).ToNot(HaveOccurred())
 				// Check if the NoSourceClone annotation exists in target PVC
@@ -2866,7 +2859,7 @@ var _ = Describe("all clone tests", func() {
 				// f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(dvc.CloneWithoutSource))
 
 				By("Create source snapshot")
-				createSnapshot(size, nil, volumeMode)
+				createSnapshot(size, &f.SnapshotSCName, volumeMode)
 
 				clonePvc, err := utils.WaitForPVC(f.K8sClient, cloneDV.Namespace, cloneDV.Name)
 				Expect(err).ToNot(HaveOccurred())
@@ -2889,13 +2882,17 @@ var _ = Describe("all clone tests", func() {
 
 		Context("Validate source snapshot", func() {
 			It("[test_id:9719] Should reject when input size is lower than recommended restore size", func() {
+				if !f.IsSnapshotStorageClassAvailable() {
+					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
+				}
+
 				recommendedSnapSize := "2Gi"
 				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
 
 				By("Create source snapshot")
-				createSnapshot(recommendedSnapSize, nil, volumeMode)
+				createSnapshot(recommendedSnapSize, &f.SnapshotSCName, volumeMode)
 
-				cloneDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("clone-from-snap", "500Mi", f.Namespace.Name, "snap-"+dataVolumeName, nil, &volumeMode)
+				cloneDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("clone-from-snap", "500Mi", f.Namespace.Name, "snap-"+dataVolumeName, &f.SnapshotSCName, &volumeMode)
 				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("target resources requests storage size is smaller than the source"))
@@ -2904,9 +2901,13 @@ var _ = Describe("all clone tests", func() {
 
 		Context("sourceRef support", func() {
 			It("[test_id:9758] Should clone data from SourceRef snapshot DataSource", func() {
+				if !f.IsSnapshotStorageClassAvailable() {
+					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
+				}
+
 				size := "1Gi"
 				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
-				createSnapshot(size, nil, volumeMode)
+				createSnapshot(size, &f.SnapshotSCName, volumeMode)
 
 				targetDS := utils.NewSnapshotDataSource("test-datasource", snapshot.Namespace, snapshot.Name, snapshot.Namespace)
 				By(fmt.Sprintf("Create new datasource %s", targetDS.Name))
@@ -2914,6 +2915,7 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				targetDV := utils.NewDataVolumeWithSourceRef("target-dv", size, targetDataSource.Namespace, targetDataSource.Name)
+				targetDV.Spec.PVC.StorageClassName = &f.SnapshotSCName
 				By(fmt.Sprintf("Create new target datavolume %s", targetDV.Name))
 				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())

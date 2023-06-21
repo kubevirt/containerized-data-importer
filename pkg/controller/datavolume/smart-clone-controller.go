@@ -228,7 +228,7 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 		return reconcile.Result{}, nil
 	}
 
-	if snapshot.Status == nil || snapshot.Status.ReadyToUse == nil || !*snapshot.Status.ReadyToUse {
+	if !cc.IsSnapshotReady(snapshot) {
 		// wait for ready to use
 		return reconcile.Result{}, nil
 	}

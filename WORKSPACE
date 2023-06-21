@@ -2063,37 +2063,25 @@ rpm(
 rpm(
     name = "python3-0__3.9.10-2.el9.aarch64",
     sha256 = "59b8a8f1473acf95f448370d587e5672b83bcfd5693f20421d060229e5565235",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/python3-3.9.10-2.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/59b8a8f1473acf95f448370d587e5672b83bcfd5693f20421d060229e5565235",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/59b8a8f1473acf95f448370d587e5672b83bcfd5693f20421d060229e5565235"],
 )
 
 rpm(
     name = "python3-0__3.9.10-2.el9.x86_64",
     sha256 = "e4f0741a08e047f06370791e8b33f952ccac106cdaae43d84db950a551fa7536",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/python3-3.9.10-2.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/e4f0741a08e047f06370791e8b33f952ccac106cdaae43d84db950a551fa7536",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/e4f0741a08e047f06370791e8b33f952ccac106cdaae43d84db950a551fa7536"],
 )
 
 rpm(
     name = "python3-libs-0__3.9.10-2.el9.aarch64",
     sha256 = "e2425e2081e428200ab730890402f076f94b7d1befed2f72295dd074b3c7be4b",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/python3-libs-3.9.10-2.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/e2425e2081e428200ab730890402f076f94b7d1befed2f72295dd074b3c7be4b",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/e2425e2081e428200ab730890402f076f94b7d1befed2f72295dd074b3c7be4b"],
 )
 
 rpm(
     name = "python3-libs-0__3.9.10-2.el9.x86_64",
     sha256 = "1c2203b76476a223996695dd4e2fca6743101d049b276d8a523a200dc60244f4",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/python3-libs-3.9.10-2.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/1c2203b76476a223996695dd4e2fca6743101d049b276d8a523a200dc60244f4",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/1c2203b76476a223996695dd4e2fca6743101d049b276d8a523a200dc60244f4"],
 )
 
 rpm(

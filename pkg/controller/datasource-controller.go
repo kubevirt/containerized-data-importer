@@ -52,8 +52,9 @@ type DataSourceReconciler struct {
 }
 
 const (
-	ready    = "Ready"
-	noSource = "NoSource"
+	ready                    = "Ready"
+	noSource                 = "NoSource"
+	dataSourceControllerName = "datasource-controller"
 )
 
 // Reconcile loop for DataSourceReconciler
@@ -136,7 +137,7 @@ func (r *DataSourceReconciler) handleSnapshotSource(ctx context.Context, sourceS
 		}
 		r.log.Info("Snapshot not found", "name", sourceSnapshot.Name)
 		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "Snapshot not found", cc.NotFound)
-	} else if snapshot.Status != nil && snapshot.Status.ReadyToUse != nil && *snapshot.Status.ReadyToUse {
+	} else if cc.IsSnapshotReady(snapshot) {
 		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionTrue, "DataSource is ready to be consumed", ready)
 	} else {
 		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "Snapshot phase is not ready", "SnapshotNotReady")
@@ -169,12 +170,12 @@ func FindDataSourceConditionByType(ds *cdiv1.DataSource, conditionType cdiv1.Dat
 func NewDataSourceController(mgr manager.Manager, log logr.Logger, installerLabels map[string]string) (controller.Controller, error) {
 	reconciler := &DataSourceReconciler{
 		client:          mgr.GetClient(),
-		recorder:        mgr.GetEventRecorderFor(dataImportControllerName),
+		recorder:        mgr.GetEventRecorderFor(dataSourceControllerName),
 		scheme:          mgr.GetScheme(),
-		log:             log.WithName(dataImportControllerName),
+		log:             log.WithName(dataSourceControllerName),
 		installerLabels: installerLabels,
 	}
-	DataSourceController, err := controller.New(dataImportControllerName, mgr, controller.Options{Reconciler: reconciler})
+	DataSourceController, err := controller.New(dataSourceControllerName, mgr, controller.Options{Reconciler: reconciler})
 	if err != nil {
 		return nil, err
 	}

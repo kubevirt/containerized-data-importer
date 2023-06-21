@@ -413,6 +413,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		}
 
 		BeforeEach(func() {
+			if utils.DefaultStorageClassCsiDriver == nil {
+				Skip("No CSI driver found")
+			}
 			verifyCleanup(pvc)
 		})
 
