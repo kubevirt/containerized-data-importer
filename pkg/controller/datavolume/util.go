@@ -292,7 +292,7 @@ func resolveVolumeSize(c client.Client, dvSpec cdiv1.DataVolumeSpec, pvcSpec *v1
 
 	if !found {
 		// Storage size can be empty when cloning
-		isClone := dvSpec.Source.PVC != nil
+		isClone := dvSpec.Source.PVC != nil || dvSpec.Source.Snapshot != nil
 		if isClone {
 			return &requestedSize, nil
 		}

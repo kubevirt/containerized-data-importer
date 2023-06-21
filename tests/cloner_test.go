@@ -741,7 +741,7 @@ var _ = Describe("all clone tests", func() {
 			})
 
 			DescribeTable("Should clone with empty volume size without using size-detection pod",
-				func(sourceVolumeMode, targetVolumeMode v1.PersistentVolumeMode) {
+				func(sourceVolumeMode, targetVolumeMode v1.PersistentVolumeMode, sourceRef bool) {
 					// When cloning without defining the target's storage size, the source's size can be attainable
 					// by different means depending on the clone type and the volume mode used.
 					// Either if "block" is used as volume mode or smart/csi cloning is used as clone strategy,
@@ -772,6 +772,11 @@ var _ = Describe("all clone tests", func() {
 						targetDiskImagePath = testBaseDir
 					}
 
+					if cloneType == "snapshot" && sourceRef {
+						// TODO: remove this when we no longer have smart clone controller
+						Skip("Smart clone controller doesn't play nice with sourceRef and is being removed soon")
+					}
+
 					// Create the source DV
 					dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 					dataVolume.Spec.Storage.VolumeMode = &sourceVolumeMode
@@ -788,9 +793,20 @@ var _ = Describe("all clone tests", func() {
 					By("Wait for source DV Succeeded phase")
 					err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, dataVolumeName, cloneCompleteTimeout)
 					Expect(err).ToNot(HaveOccurred())
+					var ds *cdiv1.DataSource
+					if sourceRef {
+						ds = utils.NewPvcDataSource("test-datasource", sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Namespace)
+						By(fmt.Sprintf("Create new datasource %s", ds.Name))
+						ds, err = f.CdiClient.CdiV1beta1().DataSources(sourcePvc.Namespace).Create(context.TODO(), ds, metav1.CreateOptions{})
+						Expect(err).ToNot(HaveOccurred())
+					}
 
 					// We attempt to create the sizeless DV
 					targetDV := utils.NewDataVolumeForCloningWithEmptySize("target-dv", sourcePvc.Namespace, sourcePvc.Name, nil, &targetVolumeMode)
+					if sourceRef {
+						targetDV = utils.NewDataVolumeWithSourceRefAndStorageAPI("target-dv", nil, ds.Namespace, ds.Name)
+						targetDV.Spec.Storage.VolumeMode = &targetVolumeMode
+					}
 					if targetSCName != "" {
 						targetDV.Spec.Storage.StorageClassName = &targetSCName
 					}
@@ -827,9 +843,10 @@ var _ = Describe("all clone tests", func() {
 					By("Checksum comparison")
 					Expect(sourceMD5).To(Equal(targetMD5))
 				},
-				Entry("[test_id:8492]Block to block (empty storage size)", v1.PersistentVolumeBlock, v1.PersistentVolumeBlock),
-				Entry("[test_id:8491]Block to filesystem (empty storage size)", v1.PersistentVolumeBlock, v1.PersistentVolumeFilesystem),
-				Entry("[test_id:8490]Filesystem to filesystem(empty storage size)", v1.PersistentVolumeFilesystem, v1.PersistentVolumeFilesystem),
+				Entry("[test_id:8492]Block to block (empty storage size)", v1.PersistentVolumeBlock, v1.PersistentVolumeBlock, false),
+				Entry("[test_id:8491]Block to filesystem (empty storage size)", v1.PersistentVolumeBlock, v1.PersistentVolumeFilesystem, false),
+				Entry("[test_id:8490]Filesystem to filesystem(empty storage size)", v1.PersistentVolumeFilesystem, v1.PersistentVolumeFilesystem, false),
+				Entry("[test_id:8490]Filesystem to filesystem(empty storage size) with sourceRef", v1.PersistentVolumeFilesystem, v1.PersistentVolumeFilesystem, true),
 			)
 
 			Context("WaitForFirstConsumer with advanced cloning methods", func() {
@@ -2900,7 +2917,7 @@ var _ = Describe("all clone tests", func() {
 		})
 
 		Context("sourceRef support", func() {
-			It("[test_id:9758] Should clone data from SourceRef snapshot DataSource", func() {
+			DescribeTable("[test_id:9758] Should clone data from SourceRef snapshot DataSource", func(sizeless bool) {
 				if !f.IsSnapshotStorageClassAvailable() {
 					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
 				}
@@ -2914,8 +2931,13 @@ var _ = Describe("all clone tests", func() {
 				targetDataSource, err := f.CdiClient.CdiV1beta1().DataSources(snapshot.Namespace).Create(context.TODO(), targetDS, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
-				targetDV := utils.NewDataVolumeWithSourceRef("target-dv", size, targetDataSource.Namespace, targetDataSource.Name)
-				targetDV.Spec.PVC.StorageClassName = &f.SnapshotSCName
+				var targetSizePtr *string
+				if !sizeless {
+					targetSizePtr = &size
+				}
+				targetDV := utils.NewDataVolumeWithSourceRefAndStorageAPI("target-dv", targetSizePtr, targetDataSource.Namespace, targetDataSource.Name)
+				targetDV.Spec.Storage.StorageClassName = &f.SnapshotSCName
+				targetDV.Spec.Storage.VolumeMode = &volumeMode
 				By(fmt.Sprintf("Create new target datavolume %s", targetDV.Name))
 				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
@@ -2929,7 +2951,10 @@ var _ = Describe("all clone tests", func() {
 				same, err := f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDV), path, utils.UploadFileMD5, utils.UploadFileSize)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(same).To(BeTrue())
-			})
+			},
+				Entry("with size specified on target", false),
+				Entry("with size omitted on target", true),
+			)
 		})
 	})
 })

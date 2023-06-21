@@ -185,7 +185,16 @@ func NewDataVolumeWithSourceRef(dataVolumeName string, size, sourceRefNamespace,
 }
 
 // NewDataVolumeWithSourceRefAndStorageAPI initializes a DataVolume struct with DataSource SourceRef and storage defaults-inferring API
-func NewDataVolumeWithSourceRefAndStorageAPI(dataVolumeName string, size, sourceRefNamespace, sourceRefName string) *cdiv1.DataVolume {
+func NewDataVolumeWithSourceRefAndStorageAPI(dataVolumeName string, size *string, sourceRefNamespace, sourceRefName string) *cdiv1.DataVolume {
+	spec := &cdiv1.StorageSpec{}
+	if size != nil {
+		spec.Resources = k8sv1.ResourceRequirements{
+			Requests: k8sv1.ResourceList{
+				k8sv1.ResourceStorage: resource.MustParse(*size),
+			},
+		}
+	}
+
 	return &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        dataVolumeName,
@@ -197,13 +206,7 @@ func NewDataVolumeWithSourceRefAndStorageAPI(dataVolumeName string, size, source
 				Namespace: &sourceRefNamespace,
 				Name:      sourceRefName,
 			},
-			Storage: &cdiv1.StorageSpec{
-				Resources: corev1.ResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: resource.MustParse(size),
-					},
-				},
-			},
+			Storage: spec,
 		},
 	}
 }
