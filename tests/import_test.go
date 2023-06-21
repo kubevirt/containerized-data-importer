@@ -182,6 +182,22 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		}
 	})
 
+	It("Should do multi-stage importer pods with populator flow", func() {
+		vcenterURL := fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
+		dataVolume := f.CreateVddkWarmImportDataVolume("import-pod-retain-test", "100Mi", vcenterURL)
+		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+	})
 })
 
 var _ = Describe("DataVolume Garbage Collection", func() {
