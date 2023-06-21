@@ -653,6 +653,12 @@ type VolumeImportSourceSpec struct {
 	Preallocation *bool `json:"preallocation,omitempty"`
 	// ContentType represents the type of the imported data (Kubevirt or archive)
 	ContentType DataVolumeContentType `json:"contentType,omitempty"`
+	// TargetClaim the name of the specific claim to be populated with a multistage import.
+	TargetClaim *string `json:"targetClaim,omitempty"`
+	// Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.
+	Checkpoints []DataVolumeCheckpoint `json:"checkpoints,omitempty"`
+	// FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.
+	FinalCheckpoint *bool `json:"finalCheckpoint,omitempty"`
 }
 
 // ImportSourceType contains each one of the source types allowed in a VolumeImportSource
