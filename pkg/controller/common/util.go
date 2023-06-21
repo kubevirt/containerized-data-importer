@@ -1337,6 +1337,18 @@ func IsWaitForFirstConsumerEnabled(obj metav1.Object, gates featuregates.Feature
 	return pvcHonorWaitForFirstConsumer && globalHonorWaitForFirstConsumer, nil
 }
 
+// AddImmediateBindingAnnotationIfWFFCDisabled adds the immediateBinding annotation if wffc feature gate is disabled
+func AddImmediateBindingAnnotationIfWFFCDisabled(obj metav1.Object, gates featuregates.FeatureGates) error {
+	globalHonorWaitForFirstConsumer, err := gates.HonorWaitForFirstConsumerEnabled()
+	if err != nil {
+		return err
+	}
+	if !globalHonorWaitForFirstConsumer {
+		AddAnnotation(obj, AnnImmediateBinding, "")
+	}
+	return nil
+}
+
 // GetRequiredSpace calculates space required taking file system overhead into account
 func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
 	// the `image` has to be aligned correctly, so the space requested has to be aligned to
