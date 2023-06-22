@@ -723,11 +723,6 @@ var _ = Describe("all clone tests", func() {
 						targetDiskImagePath = testBaseDir
 					}
 
-					if cloneType == "snapshot" && sourceRef {
-						// TODO: remove this when we no longer have smart clone controller
-						Skip("Smart clone controller doesn't play nice with sourceRef and is being removed soon")
-					}
-
 					// Create the source DV
 					dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 					dataVolume.Spec.Storage.VolumeMode = &sourceVolumeMode
