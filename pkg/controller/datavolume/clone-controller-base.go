@@ -327,16 +327,8 @@ func (r *CloneReconcilerBase) setEventForPhase(dataVolume *cdiv1.DataVolume, pha
 		event.message = fmt.Sprintf(MessageCloneFromSnapshotSourceInProgress, sourceType, sourceNamespace, sourceName)
 	case cdiv1.CSICloneInProgress:
 		event.eventType = corev1.EventTypeNormal
-		event.reason = string(cdiv1.CSICloneInProgress)
+		event.reason = CSICloneInProgress
 		event.message = fmt.Sprintf(MessageCsiCloneInProgress, sourceNamespace, sourceName)
-	case cdiv1.ExpansionInProgress:
-		event.eventType = corev1.EventTypeNormal
-		event.reason = ExpansionInProgress
-		event.message = fmt.Sprintf(MessageExpansionInProgress, dataVolume.Namespace, dataVolume.Name)
-	case cdiv1.NamespaceTransferInProgress:
-		event.eventType = corev1.EventTypeNormal
-		event.reason = NamespaceTransferInProgress
-		event.message = fmt.Sprintf(MessageNamespaceTransferInProgress, dataVolume.Namespace, dataVolume.Name)
 	case cdiv1.Succeeded:
 		event.eventType = corev1.EventTypeNormal
 		event.reason = CloneSucceeded

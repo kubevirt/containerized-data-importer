@@ -426,18 +426,16 @@ func (r *SnapshotCloneReconciler) cleanup(syncState *dvSyncState) error {
 		return err
 	}
 
-	if dv.DeletionTimestamp != nil {
-		if err := r.reconcileVolumeCloneSourceCR(syncState); err != nil {
-			return err
-		}
-	}
-
 	// This cleanup should be done if dv is marked for deletion or in case it succeeded
 	if dv.DeletionTimestamp == nil && dv.Status.Phase != cdiv1.Succeeded {
 		return nil
 	}
 
 	r.log.V(3).Info("Cleanup initiated in dv snapshot clone controller")
+
+	if err := r.reconcileVolumeCloneSourceCR(syncState); err != nil {
+		return err
+	}
 
 	if err := r.cleanupHostAssistedSnapshotClone(dv); err != nil {
 		return err

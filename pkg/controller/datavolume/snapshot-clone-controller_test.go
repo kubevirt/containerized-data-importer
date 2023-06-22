@@ -19,12 +19,15 @@ package datavolume
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -33,13 +36,17 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 )
 
@@ -202,6 +209,229 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: tempHostAssistedPvc.Namespace, Name: tempHostAssistedPvc.Name}, tempHostAssistedPvc)
 			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 		})
+
+		var _ = Describe("Snapshot clone controller populator integration", func() {
+			Context("with CSI provisioner", func() {
+				const (
+					pluginName = "csi-plugin"
+				)
+
+				var (
+					scName       = "testSC"
+					storageClass *storagev1.StorageClass
+					csiDriver    = &storagev1.CSIDriver{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: pluginName,
+						},
+					}
+					expectedSnapshotClass = "snap-class"
+				)
+
+				BeforeEach(func() {
+					storageClass = CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, pluginName)
+				})
+
+				It("should add finalizer for cross namespace clone", func() {
+					dv := newCloneFromSnapshotDataVolumeWithPVCNS("test-dv", "source-ns")
+					snapshot := createSnapshotInVolumeSnapshotClass("test-snap", "source-ns", &expectedSnapshotClass, nil, nil, true)
+					reconciler = createSnapshotCloneReconciler(storageClass, csiDriver, dv, snapshot)
+					result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(result.Requeue).To(BeFalse())
+					Expect(result.RequeueAfter).To(BeZero())
+					dv = &cdiv1.DataVolume{}
+					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dv.Finalizers).To(ContainElement(crossNamespaceFinalizer))
+					Expect(dv.Status.Phase).To(Equal(cdiv1.CloneScheduled))
+				})
+
+				DescribeTable("should create PVC and VolumeCloneSource CR", func(sourceNamespace string) {
+					dv := newCloneFromSnapshotDataVolumeWithPVCNS("test-dv", sourceNamespace)
+					if sourceNamespace != dv.Namespace {
+						dv.Finalizers = append(dv.Finalizers, crossNamespaceFinalizer)
+					}
+					snapshot := createSnapshotInVolumeSnapshotClass("test-snap", "source-ns", &expectedSnapshotClass, nil, nil, true)
+					reconciler = createSnapshotCloneReconciler(storageClass, csiDriver, dv, snapshot)
+					result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(result.Requeue).To(BeFalse())
+					Expect(result.RequeueAfter).To(BeZero())
+					dv = &cdiv1.DataVolume{}
+					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+					Expect(err).ToNot(HaveOccurred())
+					pvc := &corev1.PersistentVolumeClaim{}
+					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(pvc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+					Expect(pvc.Labels[common.KubePersistentVolumeFillingUpSuppressLabelKey]).To(Equal(common.KubePersistentVolumeFillingUpSuppressLabelValue))
+					Expect(pvc.Spec.DataSourceRef).ToNot(BeNil())
+					if sourceNamespace != dv.Namespace {
+						Expect(pvc.Annotations[populators.AnnDataSourceNamespace]).To(Equal(sourceNamespace))
+					} else {
+						Expect(pvc.Annotations).ToNot(HaveKey(populators.AnnDataSourceNamespace))
+					}
+					cloneSourceName := volumeCloneSourceName(dv)
+					Expect(pvc.Spec.DataSourceRef.Name).To(Equal(cloneSourceName))
+					Expect(pvc.Spec.DataSourceRef.Kind).To(Equal(cdiv1.VolumeCloneSourceRef))
+					Expect(pvc.GetAnnotations()[AnnUsePopulator]).To(Equal("true"))
+					vcs := &cdiv1.VolumeCloneSource{}
+					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: cloneSourceName, Namespace: sourceNamespace}, vcs)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(vcs.Spec.Source.APIGroup).ToNot(BeNil())
+					Expect(*vcs.Spec.Source.APIGroup).To(Equal("snapshot.storage.k8s.io"))
+					Expect(vcs.Spec.Source.Kind).To(Equal("VolumeSnapshot"))
+					Expect(vcs.Spec.Source.Name).To(Equal(snapshot.Name))
+				},
+					Entry("with same namespace", metav1.NamespaceDefault),
+					Entry("with different namespace", "source-ns"),
+				)
+
+				It("should add cloneType annotation", func() {
+					dv := newCloneFromSnapshotDataVolume("test-dv")
+					anno := map[string]string{
+						AnnExtendedCloneToken: "test-token",
+						AnnCloneType:          string(cdiv1.CloneStrategySnapshot),
+						AnnUsePopulator:       "true",
+					}
+					pvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, anno, nil, corev1.ClaimPending)
+					pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
+						Kind: cdiv1.VolumeCloneSourceRef,
+						Name: volumeCloneSourceName(dv),
+					}
+					pvc.OwnerReferences = append(pvc.OwnerReferences, metav1.OwnerReference{
+						Kind:       "DataVolume",
+						Controller: pointer.Bool(true),
+						Name:       "test-dv",
+						UID:        dv.UID,
+					})
+					vcs := &cdiv1.VolumeCloneSource{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: metav1.NamespaceDefault,
+							Name:      volumeCloneSourceName(dv),
+						},
+						Spec: cdiv1.VolumeCloneSourceSpec{
+							Source: corev1.TypedLocalObjectReference{
+								APIGroup: pointer.String("snapshot.storage.k8s.io"),
+								Kind:     "VolumeSnapshot",
+								Name:     dv.Spec.Source.Snapshot.Name,
+							},
+						},
+					}
+					reconciler = createSnapshotCloneReconciler(storageClass, csiDriver, dv, pvc, vcs)
+					result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(result.Requeue).To(BeFalse())
+					Expect(result.RequeueAfter).To(BeZero())
+					dv = &cdiv1.DataVolume{}
+					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dv.Annotations[AnnCloneType]).To(Equal(string(cdiv1.CloneStrategySnapshot)))
+				})
+
+				DescribeTable("should map phase correctly", func(phaseName string, dvPhase cdiv1.DataVolumePhase, eventReason string) {
+					dv := newCloneFromSnapshotDataVolume("test-dv")
+					anno := map[string]string{
+						AnnExtendedCloneToken:    "test-token",
+						AnnCloneType:             string(cdiv1.CloneStrategySnapshot),
+						populators.AnnClonePhase: phaseName,
+						AnnUsePopulator:          "true",
+					}
+					pvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, anno, nil, corev1.ClaimPending)
+					pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
+						Kind: cdiv1.VolumeCloneSourceRef,
+						Name: volumeCloneSourceName(dv),
+					}
+					pvc.OwnerReferences = append(pvc.OwnerReferences, metav1.OwnerReference{
+						Kind:       "DataVolume",
+						Controller: pointer.Bool(true),
+						Name:       "test-dv",
+						UID:        dv.UID,
+					})
+					vcs := &cdiv1.VolumeCloneSource{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: metav1.NamespaceDefault,
+							Name:      volumeCloneSourceName(dv),
+						},
+						Spec: cdiv1.VolumeCloneSourceSpec{
+							Source: corev1.TypedLocalObjectReference{
+								APIGroup: pointer.String("snapshot.storage.k8s.io"),
+								Kind:     "VolumeSnapshot",
+								Name:     dv.Spec.Source.Snapshot.Name,
+							},
+						},
+					}
+					reconciler = createSnapshotCloneReconciler(storageClass, csiDriver, dv, pvc, vcs)
+					result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(result.Requeue).To(BeFalse())
+					Expect(result.RequeueAfter).To(BeZero())
+					dv = &cdiv1.DataVolume{}
+					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dv.Status.Phase).To(Equal(dvPhase))
+					found := false
+					for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+						if strings.Contains(event, eventReason) {
+							found = true
+							break
+						}
+					}
+					Expect(found).To(BeTrue())
+				},
+					Entry("empty phase", "", cdiv1.CloneScheduled, CloneScheduled),
+					Entry("pending phase", clone.PendingPhaseName, cdiv1.CloneScheduled, CloneScheduled),
+					Entry("succeeded phase", clone.SucceededPhaseName, cdiv1.Succeeded, CloneSucceeded),
+					Entry("host clone phase", clone.HostClonePhaseName, cdiv1.CloneInProgress, CloneInProgress),
+					Entry("prep claim phase", clone.PrepClaimPhaseName, cdiv1.PrepClaimInProgress, PrepClaimInProgress),
+					Entry("rebind phase", clone.RebindPhaseName, cdiv1.RebindInProgress, RebindInProgress),
+					Entry("pvc from snapshot phase", clone.SnapshotClonePhaseName, cdiv1.CloneFromSnapshotSourceInProgress, CloneFromSnapshotSourceInProgress),
+				)
+
+				It("should delete VolumeCloneSource on success", func() {
+					dv := newCloneFromSnapshotDataVolume("test-dv")
+					dv.Status.Phase = cdiv1.Succeeded
+					anno := map[string]string{
+						AnnExtendedCloneToken:    "test-token",
+						AnnCloneType:             string(cdiv1.CloneStrategySnapshot),
+						populators.AnnClonePhase: clone.SucceededPhaseName,
+						AnnUsePopulator:          "true",
+					}
+					pvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, anno, nil, corev1.ClaimPending)
+					pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
+						Kind: cdiv1.VolumeCloneSourceRef,
+						Name: volumeCloneSourceName(dv),
+					}
+					pvc.OwnerReferences = append(pvc.OwnerReferences, metav1.OwnerReference{
+						Kind:       "DataVolume",
+						Controller: pointer.Bool(true),
+						Name:       "test-dv",
+						UID:        dv.UID,
+					})
+					vcs := &cdiv1.VolumeCloneSource{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: metav1.NamespaceDefault,
+							Name:      volumeCloneSourceName(dv),
+						},
+						Spec: cdiv1.VolumeCloneSourceSpec{
+							Source: corev1.TypedLocalObjectReference{
+								APIGroup: pointer.String("snapshot.storage.k8s.io"),
+								Kind:     "VolumeSnapshot",
+								Name:     dv.Spec.Source.Snapshot.Name,
+							},
+						},
+					}
+					reconciler = createSnapshotCloneReconciler(storageClass, csiDriver, dv, pvc, vcs)
+					result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(result.Requeue).To(BeFalse())
+					Expect(result.RequeueAfter).To(BeZero())
+					err = reconciler.client.Get(context.TODO(), client.ObjectKeyFromObject(vcs), vcs)
+					Expect(err).To(HaveOccurred())
+					Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+				})
+			})
+		})
 	})
 })
 
@@ -258,8 +488,10 @@ func createSnapshotCloneReconcilerWithoutConfig(objects ...runtime.Object) *Snap
 				},
 				shouldUpdateProgress: true,
 			},
-			tokenValidator: &FakeValidator{Match: "foobar"},
-			tokenGenerator: &FakeGenerator{token: "foobar"},
+			tokenValidator:      &FakeValidator{Match: "foobar"},
+			tokenGenerator:      &FakeGenerator{token: "foobar"},
+			cloneSourceAPIGroup: pointer.String("snapshot.storage.k8s.io"),
+			cloneSourceKind:     "VolumeSnapshot",
 		},
 	}
 	return r
