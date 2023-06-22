@@ -191,7 +191,7 @@ func (r *PvcCloneReconciler) cleanup(syncState *dvSyncState) error {
 		return err
 	}
 
-	if dv.DeletionTimestamp == nil {
+	if dv.DeletionTimestamp == nil || dv.Status.Phase != cdiv1.Succeeded {
 		return nil
 	}
 
