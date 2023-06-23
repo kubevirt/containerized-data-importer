@@ -251,7 +251,7 @@ var _ = Describe("All DataVolume Tests", func() {
 					if sourceNamespace != dv.Namespace {
 						dv.Finalizers = append(dv.Finalizers, crossNamespaceFinalizer)
 					}
-					snapshot := createSnapshotInVolumeSnapshotClass("test-snap", "source-ns", &expectedSnapshotClass, nil, nil, true)
+					snapshot := createSnapshotInVolumeSnapshotClass("test-snap", sourceNamespace, &expectedSnapshotClass, nil, nil, true)
 					reconciler = createSnapshotCloneReconciler(storageClass, csiDriver, dv, snapshot)
 					result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 					Expect(err).ToNot(HaveOccurred())
@@ -286,6 +286,29 @@ var _ = Describe("All DataVolume Tests", func() {
 					Entry("with same namespace", metav1.NamespaceDefault),
 					Entry("with different namespace", "source-ns"),
 				)
+
+				It("should handle size omitted", func() {
+					dv := newCloneFromSnapshotDataVolume("test-dv")
+					vm := corev1.PersistentVolumeFilesystem
+					dv.Spec.Storage = &cdiv1.StorageSpec{
+						AccessModes: dv.Spec.PVC.AccessModes,
+						VolumeMode:  &vm,
+					}
+					dv.Spec.PVC = nil
+					snapshot := createSnapshotInVolumeSnapshotClass("test-snap", dv.Namespace, &expectedSnapshotClass, nil, nil, true)
+					reconciler = createSnapshotCloneReconciler(storageClass, csiDriver, dv, snapshot)
+					result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(result.Requeue).To(BeFalse())
+					Expect(result.RequeueAfter).To(BeZero())
+					dv = &cdiv1.DataVolume{}
+					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+					Expect(err).ToNot(HaveOccurred())
+					pvc := &corev1.PersistentVolumeClaim{}
+					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(pvc.Spec.Resources.Requests[corev1.ResourceStorage]).To(Equal(*snapshot.Status.RestoreSize))
+				})
 
 				It("should add cloneType annotation", func() {
 					dv := newCloneFromSnapshotDataVolume("test-dv")

@@ -2715,10 +2715,16 @@ var _ = Describe("all clone tests", func() {
 					By("Check host assisted clone is taking place")
 					pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(targetNs.Name).Get(context.TODO(), dvName, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
+					// non csi
 					if pvc.Spec.DataSourceRef == nil {
 						suffix := "-host-assisted-source-pvc"
 						Expect(pvc.Annotations[controller.AnnCloneRequest]).To(HaveSuffix(suffix))
 						Expect(pvc.Spec.DataSource).To(BeNil())
+					} else {
+						dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), dvName, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						cloneType := utils.GetCloneType(f.CdiClient, dv)
+						Expect(cloneType).To(Equal(string(cdiv1.CloneStrategyHostAssisted)))
 					}
 				}
 
