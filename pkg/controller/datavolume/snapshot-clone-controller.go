@@ -194,6 +194,21 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 	}
 
 	if pvc == nil {
+		if datavolume.Spec.Storage != nil {
+			done, err := r.detectCloneSize(log, &syncRes)
+			if err != nil {
+				return syncRes, err
+			}
+			if !done {
+				if syncRes.result == nil {
+					syncRes.result = &reconcile.Result{}
+				}
+				syncRes.result.RequeueAfter = sourceInUseRequeueDuration
+				// I think pending is more accurate but doing scheduled to be consistent with PVC controller
+				return syncRes, r.syncCloneStatusPhase(&syncRes, cdiv1.CloneScheduled, nil)
+			}
+		}
+
 		pvcModifier := r.updateAnnotations
 		if syncRes.usePopulator {
 			if isCrossNamespaceClone(datavolume) {
@@ -247,6 +262,38 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 	}
 
 	return syncRes, syncErr
+}
+
+func (r *SnapshotCloneReconciler) detectCloneSize(log logr.Logger, syncState *dvSyncState) (bool, error) {
+	pvcSpec := syncState.pvcSpec
+	requestedSize := pvcSpec.Resources.Requests[corev1.ResourceStorage]
+	if !requestedSize.IsZero() {
+		log.V(3).Info("requested size is set, skipping size detection", "size", requestedSize)
+		return true, nil
+	}
+
+	datavolume := syncState.dvMutated
+	nn := types.NamespacedName{Namespace: datavolume.Spec.Source.Snapshot.Namespace, Name: datavolume.Spec.Source.Snapshot.Name}
+	snapshot := &snapshotv1.VolumeSnapshot{}
+	if err := r.client.Get(context.TODO(), nn, snapshot); err != nil {
+		if k8serrors.IsNotFound(err) {
+			log.V(3).Info("snapshot source does not exist", "namespace", nn.Namespace, "name", nn.Name)
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	if snapshot.Status == nil || snapshot.Status.RestoreSize == nil {
+		log.V(3).Info("snapshot source does not have restoreSize", "namespace", nn.Namespace, "name", nn.Name)
+		return false, nil
+	}
+
+	pvcSpec.Resources.Requests[corev1.ResourceStorage] = *snapshot.Status.RestoreSize
+
+	log.V(3).Info("set pvc request size", "size", pvcSpec.Resources.Requests[corev1.ResourceStorage])
+
+	return true, nil
 }
 
 func (r *SnapshotCloneReconciler) validateAndInitLegacyClone(syncState *dvSyncState) (bool, error) {
