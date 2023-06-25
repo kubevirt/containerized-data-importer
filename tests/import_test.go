@@ -1826,6 +1826,55 @@ var _ = Describe("Import populator", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
 	})
+
+	It("should import with ImmediateBinding requested", func() {
+		pvc = importPopulationPVCDefinition()
+		controller.AddAnnotation(pvc, controller.AnnImmediateBinding, "")
+		pvc, err = f.CreatePVCFromDefinition(pvc)
+		Expect(err).ToNot(HaveOccurred())
+		err = createHTTPImportPopulatorCR(cdiv1.DataVolumeKubeVirt, true)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC prime was created")
+		pvcPrime, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, populators.PVCPrimeName(pvc))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify target PVC is bound")
+		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify content")
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(utils.TinyCoreMD5))
+
+		By("Verifying the image is preallocated")
+		ok, err := f.VerifyImagePreallocated(f.Namespace, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeTrue())
+
+		if utils.DefaultStorageCSIRespectsFsGroup {
+			// CSI storage class, it should respect fsGroup
+			By("Checking that disk image group is qemu")
+			Expect(f.GetDiskGroup(f.Namespace, pvc, false)).To(Equal("107"))
+		}
+
+		By("Verifying permissions are 660")
+		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
+
+		By("Verify 100.0% annotation")
+		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPopulatorProgress)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeTrue())
+		Expect(progress).Should(BeEquivalentTo("100.0%"))
+
+		By("Wait for PVC prime to be deleted")
+		Eventually(func() bool {
+			// Make sure pvcPrime was deleted after import population
+			_, err := f.FindPVC(pvcPrime.Name)
+			return err != nil && k8serrors.IsNotFound(err)
+		}, timeout, pollingInterval).Should(BeTrue())
+	})
 })
 
 func generateRegistryOnlySidecar() *unstructured.Unstructured {
