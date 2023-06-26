@@ -63,7 +63,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	//AWSElasticBlockStore
 	"kubernetes.io/aws-ebs": {{rwo, block}},
 	"ebs.csi.aws.com":       {{rwo, block}},
-	// AWSFIle is done by a pod
+	//AWSElasticFileSystem
+	"efs.csi.aws.com": {{rwx, file}, {rwo, file}},
 	//Azure disk
 	"kubernetes.io/azure-disk": {{rwo, block}},
 	"disk.csi.azure.com":       {{rwo, block}},
