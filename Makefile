@@ -21,7 +21,8 @@
 		goveralls \
 		release-description \
 		bazel-generate bazel-build bazel-build-images bazel-push-images \
-		fossa
+		fossa \
+		lint-metrics
 
 DOCKER?=1
 ifeq (${DOCKER}, 1)
@@ -79,7 +80,7 @@ test-functional: build-functest
 	./hack/build/run-functional-tests.sh ${WHAT} "${TEST_ARGS}"
 
 # test-lint runs gofmt and golint tests against src files
-test-lint:
+test-lint: lint-metrics
 	${DO_BAZ} "./hack/build/run-lint-checks.sh"
 	"./hack/ci/language.sh"
 
@@ -165,6 +166,9 @@ build-docgen:
 
 fossa:
 	${DO_BAZ} "FOSSA_TOKEN_FILE=${FOSSA_TOKEN_FILE} PULL_BASE_REF=${PULL_BASE_REF} CI=${CI} ./hack/fossa.sh"
+
+lint-metrics:
+	./hack/ci/prom_metric_linter.sh --operator-name="kubevirt" --sub-operator-name="cdi"
 
 help:
 	@echo "Usage: make [Targets ...]"
