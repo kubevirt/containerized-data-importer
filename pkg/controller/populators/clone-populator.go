@@ -311,7 +311,7 @@ func (r *ClonePopulatorReconciler) reconcileDone(ctx context.Context, log logr.L
 	log.V(1).Info("removing finalizer")
 	claimCpy := pvc.DeepCopy()
 	cc.RemoveFinalizer(claimCpy, cloneFinalizer)
-	return reconcile.Result{}, r.patchClaim(ctx, log, pvc, claimCpy)
+	return reconcile.Result{}, r.client.Update(ctx, claimCpy)
 }
 
 func (r *ClonePopulatorReconciler) initTargetClaim(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, vcs *cdiv1.VolumeCloneSource, cs cdiv1.CDICloneStrategy) (bool, error) {
@@ -324,7 +324,7 @@ func (r *ClonePopulatorReconciler) initTargetClaim(ctx context.Context, log logr
 	cc.AddFinalizer(claimCpy, cloneFinalizer)
 
 	if !apiequality.Semantic.DeepEqual(pvc, claimCpy) {
-		if err := r.patchClaim(ctx, log, pvc, claimCpy); err != nil {
+		if err := r.client.Update(ctx, claimCpy); err != nil {
 			return false, err
 		}
 
@@ -367,7 +367,7 @@ func (r *ClonePopulatorReconciler) updateClonePhase(ctx context.Context, log log
 	r.addRunningAnnotations(claimCpy, phase, mergedAnnotations)
 
 	if !apiequality.Semantic.DeepEqual(pvc, claimCpy) {
-		return r.patchClaim(ctx, log, pvc, claimCpy)
+		return r.client.Update(ctx, claimCpy)
 	}
 
 	return nil
@@ -381,7 +381,7 @@ func (r *ClonePopulatorReconciler) updateClonePhaseError(ctx context.Context, lo
 	r.addRunningAnnotations(claimCpy, clone.ErrorPhaseName, nil)
 
 	if !apiequality.Semantic.DeepEqual(pvc, claimCpy) {
-		if err := r.patchClaim(ctx, log, pvc, claimCpy); err != nil {
+		if err := r.client.Update(ctx, claimCpy); err != nil {
 			log.V(1).Info("error setting error annotations")
 		}
 	}
@@ -422,16 +422,6 @@ func (r *ClonePopulatorReconciler) addRunningAnnotations(pvc *corev1.PersistentV
 	cc.AddAnnotation(pvc, cc.AnnRunningCondition, running)
 	cc.AddAnnotation(pvc, cc.AnnRunningConditionMessage, message)
 	cc.AddAnnotation(pvc, cc.AnnRunningConditionReason, reason)
-}
-
-func (r *ClonePopulatorReconciler) patchClaim(ctx context.Context, log logr.Logger, oldObj, obj *corev1.PersistentVolumeClaim) error {
-	args := &cc.PatchArgs{
-		Client: r.client,
-		Log:    log,
-		OldObj: oldObj,
-		Obj:    obj,
-	}
-	return cc.MergePatch(ctx, args)
 }
 
 func (r *ClonePopulatorReconciler) getVolumeCloneSource(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim) (*cdiv1.VolumeCloneSource, error) {

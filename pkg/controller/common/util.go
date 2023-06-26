@@ -1833,17 +1833,6 @@ type PatchArgs struct {
 	OldObj client.Object
 }
 
-// MergePatch patches a resource
-func MergePatch(ctx context.Context, args *PatchArgs) error {
-	patch := client.MergeFrom(args.OldObj)
-	bs, err := patch.Data(args.Obj)
-	if err != nil {
-		return err
-	}
-	args.Log.V(3).Info("Merge patch", "patch", string(bs))
-	return args.Client.Patch(ctx, args.Obj, patch)
-}
-
 // GetAnnotatedEventSource returns resource referenced by AnnEventSource annotations
 func GetAnnotatedEventSource(ctx context.Context, c client.Client, obj client.Object) (client.Object, error) {
 	esk, ok := obj.GetAnnotations()[AnnEventSourceKind]
