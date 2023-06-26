@@ -151,21 +151,17 @@ func (r *ClonePopulatorReconciler) Reconcile(ctx context.Context, req reconcile.
 	}
 
 	hasFinalizer := cc.HasFinalizer(pvc, cloneFinalizer)
-	isBound := cc.IsBound(pvc)
 	isDeleted := !pvc.DeletionTimestamp.IsZero()
+	isSucceeded := isClonePhaseSucceeded(pvc)
 
-	log.V(3).Info("pvc state", "hasFinalizer", hasFinalizer, "isBound", isBound, "isDeleted", isDeleted)
+	log.V(3).Info("pvc state", "hasFinalizer", hasFinalizer,
+		"isBound", cc.IsBound(pvc), "isDeleted", isDeleted, "isSucceeded", isSucceeded)
 
-	if !isDeleted && !isBound {
+	if !isDeleted && !isSucceeded {
 		return r.reconcilePending(ctx, log, pvc)
 	}
 
 	if hasFinalizer {
-		if isBound && !isDeleted && !isClonePhaseSucceeded(pvc) {
-			log.V(1).Info("setting phase to Succeeded")
-			return reconcile.Result{}, r.updateClonePhaseSucceeded(ctx, log, pvc, nil)
-		}
-
 		return r.reconcileDone(ctx, log, pvc)
 	}
 
