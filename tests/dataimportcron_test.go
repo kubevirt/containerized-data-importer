@@ -38,7 +38,7 @@ const (
 
 var _ = Describe("DataImportCron", func() {
 	var (
-		f                   = framework.NewFramework(namespacePrefix)
+		f                   = framework.NewFramework("dataimportcron-func-test")
 		log                 = logf.Log.WithName("dataimportcron_test")
 		dataSourceName      = "datasource-test"
 		pollerPodName       = "poller"

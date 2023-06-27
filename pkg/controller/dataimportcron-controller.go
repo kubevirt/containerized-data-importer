@@ -336,8 +336,10 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	}
 
 	handlePopulatedPvc := func() error {
-		if err := r.updateSource(ctx, dataImportCron, pvc); err != nil {
-			return err
+		if pvc != nil {
+			if err := r.updateSource(ctx, dataImportCron, pvc); err != nil {
+				return err
+			}
 		}
 		importSucceeded = true
 		if err := r.handleCronFormat(ctx, dataImportCron, format, dvStorageClass); err != nil {
