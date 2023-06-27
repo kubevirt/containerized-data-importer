@@ -304,12 +304,12 @@ var _ = Describe("Clone populator tests", func() {
 				&fakePhase{
 					name: "phase1",
 				},
-				&fakePhaseWithProgress{
+				&fakePhaseWithStatus{
 					fakePhase: fakePhase{
 						name:   "phase2",
 						result: &reconcile.Result{},
 					},
-					progress: &clone.PhaseProgress{
+					status: &clone.PhaseStatus{
 						Progress: "50.0%",
 						Annotations: map[string]string{
 							"foo":                         "bar",
@@ -346,12 +346,12 @@ var _ = Describe("Clone populator tests", func() {
 		reconciler := createClonePopulatorReconciler(target, storageClass(), source)
 		reconciler.planner = &fakePlanner{
 			planResult: []clone.Phase{
-				&fakePhaseWithProgress{
+				&fakePhaseWithStatus{
 					fakePhase: fakePhase{
 						name:   "phase1",
 						result: &reconcile.Result{},
 					},
-					proogressErr: fmt.Errorf("progress error"),
+					statusErr: fmt.Errorf("progress error"),
 				},
 			},
 		}
@@ -430,14 +430,14 @@ func (p *fakePhase) Reconcile(ctx context.Context) (*reconcile.Result, error) {
 	return p.result, p.err
 }
 
-type fakePhaseWithProgress struct {
+type fakePhaseWithStatus struct {
 	fakePhase
-	progress     *clone.PhaseProgress
-	proogressErr error
+	status    *clone.PhaseStatus
+	statusErr error
 }
 
-func (p *fakePhaseWithProgress) Progress(ctx context.Context) (*clone.PhaseProgress, error) {
-	return p.progress, p.proogressErr
+func (p *fakePhaseWithStatus) Status(ctx context.Context) (*clone.PhaseStatus, error) {
+	return p.status, p.statusErr
 }
 
 func createClonePopulatorReconciler(objects ...runtime.Object) *ClonePopulatorReconciler {

@@ -81,15 +81,15 @@ type Phase interface {
 	Reconcile(context.Context) (*reconcile.Result, error)
 }
 
-// PhaseProgress contains phase progress data
-type PhaseProgress struct {
+// PhaseStatus contains phase status data
+type PhaseStatus struct {
 	Progress    string
 	Annotations map[string]string
 }
 
-// ProgressReporter allows a phase to report progress
-type ProgressReporter interface {
-	Progress(context.Context) (*PhaseProgress, error)
+// StatusReporter allows a phase to report status
+type StatusReporter interface {
+	Status(context.Context) (*PhaseStatus, error)
 }
 
 // list of all possible (core) types created

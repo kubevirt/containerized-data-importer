@@ -151,14 +151,15 @@ func (r *ClonePopulatorReconciler) Reconcile(ctx context.Context, req reconcile.
 	}
 
 	hasFinalizer := cc.HasFinalizer(pvc, cloneFinalizer)
+	isBound := cc.IsBound(pvc)
 	isDeleted := !pvc.DeletionTimestamp.IsZero()
 	isSucceeded := isClonePhaseSucceeded(pvc)
 
 	log.V(3).Info("pvc state", "hasFinalizer", hasFinalizer,
-		"isBound", cc.IsBound(pvc), "isDeleted", isDeleted, "isSucceeded", isSucceeded)
+		"isBound", isBound, "isDeleted", isDeleted, "isSucceeded", isSucceeded)
 
 	if !isDeleted && !isSucceeded {
-		return r.reconcilePending(ctx, log, pvc)
+		return r.reconcilePending(ctx, log, pvc, isBound)
 	}
 
 	if hasFinalizer {
@@ -168,7 +169,7 @@ func (r *ClonePopulatorReconciler) Reconcile(ctx context.Context, req reconcile.
 	return reconcile.Result{}, nil
 }
 
-func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
+func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, statusOnly bool) (reconcile.Result, error) {
 	ready, _, err := claimReadyForPopulation(ctx, r.client, pvc)
 	if err != nil {
 		return reconcile.Result{}, r.updateClonePhaseError(ctx, log, pvc, err)
@@ -222,7 +223,7 @@ func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log log
 		Strategy:    *cs,
 	}
 
-	return r.planAndExecute(ctx, log, pvc, args)
+	return r.planAndExecute(ctx, log, pvc, statusOnly, args)
 }
 
 func (r *ClonePopulatorReconciler) getCloneStrategy(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, vcs *cdiv1.VolumeCloneSource) (*cdiv1.CDICloneStrategy, error) {
@@ -245,7 +246,7 @@ func (r *ClonePopulatorReconciler) getCloneStrategy(ctx context.Context, log log
 	return cs, nil
 }
 
-func (r *ClonePopulatorReconciler) planAndExecute(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, args *clone.PlanArgs) (reconcile.Result, error) {
+func (r *ClonePopulatorReconciler) planAndExecute(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, statusOnly bool, args *clone.PlanArgs) (reconcile.Result, error) {
 	phases, err := r.planner.Plan(ctx, args)
 	if err != nil {
 		return reconcile.Result{}, r.updateClonePhaseError(ctx, log, pvc, err)
@@ -253,32 +254,36 @@ func (r *ClonePopulatorReconciler) planAndExecute(ctx context.Context, log logr.
 
 	log.V(3).Info("created phases", "num", len(phases))
 
-	var progressResults []*clone.PhaseProgress
+	var statusResults []*clone.PhaseStatus
 	for _, p := range phases {
+		var result *reconcile.Result
+		var err error
 		var progress string
-		result, err := p.Reconcile(ctx)
-		if err != nil {
-			return reconcile.Result{}, r.updateClonePhaseError(ctx, log, pvc, err)
-		}
-
-		if pr, ok := p.(clone.ProgressReporter); ok {
-			pp, err := pr.Progress(ctx)
+		if !statusOnly {
+			result, err = p.Reconcile(ctx)
 			if err != nil {
 				return reconcile.Result{}, r.updateClonePhaseError(ctx, log, pvc, err)
 			}
-			progress = pp.Progress
-			progressResults = append(progressResults, pp)
+		}
+
+		if sr, ok := p.(clone.StatusReporter); ok {
+			ps, err := sr.Status(ctx)
+			if err != nil {
+				return reconcile.Result{}, r.updateClonePhaseError(ctx, log, pvc, err)
+			}
+			progress = ps.Progress
+			statusResults = append(statusResults, ps)
 		}
 
 		if result != nil {
 			log.V(1).Info("currently in phase, returning", "name", p.Name(), "progress", progress)
-			return *result, r.updateClonePhase(ctx, log, pvc, p.Name(), progressResults)
+			return *result, r.updateClonePhase(ctx, log, pvc, p.Name(), statusResults)
 		}
 	}
 
 	log.V(3).Info("executed all phases, setting phase to Succeeded")
 
-	return reconcile.Result{}, r.updateClonePhaseSucceeded(ctx, log, pvc, progressResults)
+	return reconcile.Result{}, r.updateClonePhaseSucceeded(ctx, log, pvc, statusResults)
 }
 
 func (r *ClonePopulatorReconciler) validateCrossNamespace(pvc *corev1.PersistentVolumeClaim, vcs *cdiv1.VolumeCloneSource) error {
@@ -334,25 +339,25 @@ func (r *ClonePopulatorReconciler) updateClonePhasePending(ctx context.Context, 
 	return r.updateClonePhase(ctx, log, pvc, clone.PendingPhaseName, nil)
 }
 
-func (r *ClonePopulatorReconciler) updateClonePhaseSucceeded(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, progress []*clone.PhaseProgress) error {
-	if progress == nil {
-		progress = []*clone.PhaseProgress{{}}
+func (r *ClonePopulatorReconciler) updateClonePhaseSucceeded(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, status []*clone.PhaseStatus) error {
+	if status == nil {
+		status = []*clone.PhaseStatus{{}}
 	}
-	progress[len(progress)-1].Progress = cc.ProgressDone
-	return r.updateClonePhase(ctx, log, pvc, clone.SucceededPhaseName, progress)
+	status[len(status)-1].Progress = cc.ProgressDone
+	return r.updateClonePhase(ctx, log, pvc, clone.SucceededPhaseName, status)
 }
 
-func (r *ClonePopulatorReconciler) updateClonePhase(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, phase string, progress []*clone.PhaseProgress) error {
+func (r *ClonePopulatorReconciler) updateClonePhase(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, phase string, status []*clone.PhaseStatus) error {
 	claimCpy := pvc.DeepCopy()
 	delete(claimCpy.Annotations, AnnCloneError)
 	cc.AddAnnotation(claimCpy, AnnClonePhase, phase)
 
 	var mergedAnnotations = make(map[string]string)
-	for _, pp := range progress {
-		if pp.Progress != "" {
-			cc.AddAnnotation(claimCpy, cc.AnnPopulatorProgress, pp.Progress)
+	for _, ps := range status {
+		if ps.Progress != "" {
+			cc.AddAnnotation(claimCpy, cc.AnnPopulatorProgress, ps.Progress)
 		}
-		for k, v := range pp.Annotations {
+		for k, v := range ps.Annotations {
 			mergedAnnotations[k] = v
 			if _, ok := desiredCloneAnnotations[k]; ok {
 				cc.AddAnnotation(claimCpy, k, v)
