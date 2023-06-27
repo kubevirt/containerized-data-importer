@@ -610,6 +610,7 @@ var _ = Describe("ALL Operator tests", func() {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "cdi-operator",
 						Namespace: f.CdiInstallNs,
+						Labels:    currentCdiOperatorDeployment.Labels,
 					},
 					Spec: currentCdiOperatorDeployment.Spec,
 				}
@@ -940,6 +941,7 @@ var _ = Describe("ALL Operator tests", func() {
 		var _ = Describe("Priority class tests", func() {
 			var (
 				cdi                   *cdiv1.CDI
+				cdiPods               *corev1.PodList
 				systemClusterCritical = cdiv1.CDIPriorityClass("system-cluster-critical")
 				osUserCrit            = &schedulev1.PriorityClass{
 					ObjectMeta: metav1.ObjectMeta{
@@ -960,6 +962,7 @@ var _ = Describe("ALL Operator tests", func() {
 			}
 
 			BeforeEach(func() {
+				cdiPods = getCDIPods(f)
 				cdi = getCDI(f)
 				if cdi.Spec.PriorityClass != nil {
 					By(fmt.Sprintf("Current priority class is: [%s]", *cdi.Spec.PriorityClass))
@@ -1007,6 +1010,7 @@ var _ = Describe("ALL Operator tests", func() {
 					return checkLogForRegEx(logIsLeaderRegex, log)
 				}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 
+				waitCDI(f, cr, cdiPods)
 			})
 
 			It("should use kubernetes priority class if set", func() {
@@ -1140,8 +1144,14 @@ func waitCDI(f *framework.Framework, cr *cdiv1.CDI, cdiPods *corev1.PodList) {
 	By("Waiting for there to be as many CDI pods as before")
 	Eventually(func() bool {
 		newCdiPods = getCDIPods(f)
-		By(fmt.Sprintf("number of cdi pods: %d\n new number of cdi pods: %d\n", len(cdiPods.Items), len(newCdiPods.Items)))
-		return len(cdiPods.Items) == len(newCdiPods.Items)
+		fmt.Fprintf(GinkgoWriter, "number of cdi pods: %d\n new number of cdi pods: %d\n", len(cdiPods.Items), len(newCdiPods.Items))
+		for _, pod := range cdiPods.Items {
+			fmt.Fprintf(GinkgoWriter, "old pod %s/%s\n", pod.Namespace, pod.Name)
+		}
+		for _, pod := range newCdiPods.Items {
+			fmt.Fprintf(GinkgoWriter, "new pod %s/%s\n", pod.Namespace, pod.Name)
+		}
+		return len(newCdiPods.Items) == len(cdiPods.Items)
 	}, 5*time.Minute, 2*time.Second).Should(BeTrue())
 
 	for _, newCdiPod := range newCdiPods.Items {
