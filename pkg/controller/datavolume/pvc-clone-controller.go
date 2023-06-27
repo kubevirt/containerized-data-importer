@@ -85,11 +85,12 @@ func NewPvcCloneController(
 				installerLabels:      installerLabels,
 				shouldUpdateProgress: true,
 			},
-			clonerImage:     clonerImage,
-			importerImage:   importerImage,
-			pullPolicy:      pullPolicy,
-			cloneSourceKind: "PersistentVolumeClaim",
-			tokenValidator:  cc.NewCloneTokenValidator(common.CloneTokenIssuer, tokenPublicKey),
+			clonerImage:         clonerImage,
+			importerImage:       importerImage,
+			pullPolicy:          pullPolicy,
+			cloneSourceKind:     "PersistentVolumeClaim",
+			shortTokenValidator: cc.NewCloneTokenValidator(common.CloneTokenIssuer, tokenPublicKey),
+			longTokenValidator:  cc.NewCloneTokenValidator(common.ExtendedCloneTokenIssuer, tokenPublicKey),
 			// for long term tokens to handle cross namespace dumb clones
 			tokenGenerator: newLongTermCloneTokenGenerator(tokenPrivateKey),
 		},
@@ -199,11 +200,18 @@ func (r *PvcCloneReconciler) cleanup(syncState *dvSyncState) error {
 }
 
 func addCloneToken(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
-	token, ok := dv.Annotations[cc.AnnCloneToken]
-	if !ok {
-		return errors.Errorf("no clone token")
+	// first clear out tokens that may have already been added
+	delete(pvc.Annotations, cc.AnnCloneToken)
+	delete(pvc.Annotations, cc.AnnExtendedCloneToken)
+	if isCrossNamespaceClone(dv) {
+		// only want this initially
+		// extended token is added later
+		token, ok := dv.Annotations[cc.AnnCloneToken]
+		if !ok {
+			return errors.Errorf("no clone token")
+		}
+		cc.AddAnnotation(pvc, cc.AnnCloneToken, token)
 	}
-	cc.AddAnnotation(pvc, cc.AnnCloneToken, token)
 	return nil
 }
 
@@ -248,6 +256,13 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 	prePopulated := dvIsPrePopulated(datavolume)
 
 	if pvcPopulated || prePopulated || staticProvisionPending {
+		return syncRes, nil
+	}
+
+	if addedToken, err := r.ensureExtendedTokenDV(datavolume); err != nil {
+		return syncRes, err
+	} else if addedToken {
+		// make sure token gets persisted before doing anything else
 		return syncRes, nil
 	}
 
@@ -322,7 +337,7 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 		cc.AddAnnotation(datavolume, cc.AnnCloneType, string(cdiv1.CloneStrategyHostAssisted))
 	}
 
-	if err := r.ensureExtendedToken(pvc); err != nil {
+	if err := r.ensureExtendedTokenPVC(datavolume, pvc); err != nil {
 		return syncRes, err
 	}
 

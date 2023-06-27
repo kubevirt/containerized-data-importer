@@ -231,8 +231,23 @@ var _ = Describe("All DataVolume Tests", func() {
 					storageClass = CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, pluginName)
 				})
 
+				It("should add extended token", func() {
+					dv := newCloneFromSnapshotDataVolumeWithPVCNS("test-dv", "source-ns")
+					snapshot := createSnapshotInVolumeSnapshotClass("test-snap", "source-ns", &expectedSnapshotClass, nil, nil, true)
+					reconciler = createSnapshotCloneReconciler(storageClass, csiDriver, dv, snapshot)
+					result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(result.Requeue).To(BeFalse())
+					Expect(result.RequeueAfter).To(BeZero())
+					dv = &cdiv1.DataVolume{}
+					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dv.Annotations).To(HaveKey(AnnExtendedCloneToken))
+				})
+
 				It("should add finalizer for cross namespace clone", func() {
 					dv := newCloneFromSnapshotDataVolumeWithPVCNS("test-dv", "source-ns")
+					dv.Annotations[AnnExtendedCloneToken] = "test-token"
 					snapshot := createSnapshotInVolumeSnapshotClass("test-snap", "source-ns", &expectedSnapshotClass, nil, nil, true)
 					reconciler = createSnapshotCloneReconciler(storageClass, csiDriver, dv, snapshot)
 					result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -248,6 +263,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 				DescribeTable("should create PVC and VolumeCloneSource CR", func(sourceNamespace string) {
 					dv := newCloneFromSnapshotDataVolumeWithPVCNS("test-dv", sourceNamespace)
+					dv.Annotations[AnnExtendedCloneToken] = "foobar"
 					if sourceNamespace != dv.Namespace {
 						dv.Finalizers = append(dv.Finalizers, crossNamespaceFinalizer)
 					}
@@ -511,7 +527,8 @@ func createSnapshotCloneReconcilerWithoutConfig(objects ...runtime.Object) *Snap
 				},
 				shouldUpdateProgress: true,
 			},
-			tokenValidator:      &FakeValidator{Match: "foobar"},
+			shortTokenValidator: &FakeValidator{Match: "foobar"},
+			longTokenValidator:  &FakeValidator{Match: "foobar", Params: map[string]string{"uid": "uid"}},
 			tokenGenerator:      &FakeGenerator{token: "foobar"},
 			cloneSourceAPIGroup: pointer.String("snapshot.storage.k8s.io"),
 			cloneSourceKind:     "VolumeSnapshot",

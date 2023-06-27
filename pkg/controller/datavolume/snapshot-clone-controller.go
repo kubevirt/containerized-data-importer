@@ -88,7 +88,8 @@ func NewSnapshotCloneController(
 			pullPolicy:          pullPolicy,
 			cloneSourceAPIGroup: pointer.String(snapshotv1.GroupName),
 			cloneSourceKind:     "VolumeSnapshot",
-			tokenValidator:      cc.NewCloneTokenValidator(common.CloneTokenIssuer, tokenPublicKey),
+			shortTokenValidator: cc.NewCloneTokenValidator(common.CloneTokenIssuer, tokenPublicKey),
+			longTokenValidator:  cc.NewCloneTokenValidator(common.ExtendedCloneTokenIssuer, tokenPublicKey),
 			// for long term tokens to handle cross namespace dumb clones
 			tokenGenerator: newLongTermCloneTokenGenerator(tokenPrivateKey),
 		},
@@ -153,15 +154,13 @@ func (r *SnapshotCloneReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume
 	if dataVolume.Spec.Source.Snapshot == nil {
 		return errors.Errorf("no source set for clone datavolume")
 	}
+	if err := addCloneToken(dataVolume, pvc); err != nil {
+		return err
+	}
 	sourceNamespace := dataVolume.Spec.Source.Snapshot.Namespace
 	if sourceNamespace == "" {
 		sourceNamespace = dataVolume.Namespace
 	}
-	token, ok := dataVolume.Annotations[cc.AnnCloneToken]
-	if !ok {
-		return errors.Errorf("no clone token")
-	}
-	pvc.Annotations[cc.AnnCloneToken] = token
 	tempPvcName := getTempHostAssistedSourcePvcName(dataVolume)
 	pvc.Annotations[cc.AnnCloneRequest] = sourceNamespace + "/" + tempPvcName
 	return nil
@@ -190,6 +189,13 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 	_, prePopulated := datavolume.Annotations[cc.AnnPrePopulated]
 
 	if pvcPopulated || prePopulated || staticProvisionPending {
+		return syncRes, nil
+	}
+
+	if addedToken, err := r.ensureExtendedTokenDV(datavolume); err != nil {
+		return syncRes, err
+	} else if addedToken {
+		// make sure token gets persisted before doing anything else
 		return syncRes, nil
 	}
 
@@ -257,7 +263,7 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 		cc.AddAnnotation(datavolume, cc.AnnCloneType, string(cdiv1.CloneStrategyHostAssisted))
 	}
 
-	if err := r.ensureExtendedToken(pvc); err != nil {
+	if err := r.ensureExtendedTokenPVC(datavolume, pvc); err != nil {
 		return syncRes, err
 	}
 
