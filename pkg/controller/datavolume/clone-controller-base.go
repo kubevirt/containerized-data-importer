@@ -135,7 +135,8 @@ type CloneReconcilerBase struct {
 	pullPolicy          string
 	cloneSourceAPIGroup *string
 	cloneSourceKind     string
-	tokenValidator      token.Validator
+	shortTokenValidator token.Validator
+	longTokenValidator  token.Validator
 	tokenGenerator      token.Generator
 }
 
@@ -203,25 +204,66 @@ func (r *CloneReconcilerBase) updatePVCForPopulation(dataVolume *cdiv1.DataVolum
 	return nil
 }
 
-func (r *CloneReconcilerBase) ensureExtendedToken(pvc *corev1.PersistentVolumeClaim) error {
-	_, ok := pvc.Annotations[cc.AnnExtendedCloneToken]
+func (r *CloneReconcilerBase) ensureExtendedTokenDV(dv *cdiv1.DataVolume) (bool, error) {
+	if !isCrossNamespaceClone(dv) {
+		return false, nil
+	}
+
+	_, ok := dv.Annotations[cc.AnnExtendedCloneToken]
 	if ok {
-		return nil
+		return false, nil
 	}
 
-	token, ok := pvc.Annotations[cc.AnnCloneToken]
+	token, ok := dv.Annotations[cc.AnnCloneToken]
 	if !ok {
-		return fmt.Errorf("token missing")
+		return false, fmt.Errorf("token missing")
 	}
 
-	payload, err := r.tokenValidator.Validate(token)
+	payload, err := r.shortTokenValidator.Validate(token)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if payload.Params == nil {
 		payload.Params = make(map[string]string)
 	}
+	payload.Params["uid"] = string(dv.UID)
+
+	newToken, err := r.tokenGenerator.Generate(payload)
+	if err != nil {
+		return false, err
+	}
+
+	dv.Annotations[cc.AnnExtendedCloneToken] = newToken
+
+	return true, nil
+}
+
+func (r *CloneReconcilerBase) ensureExtendedTokenPVC(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+	if !isCrossNamespaceClone(dv) {
+		return nil
+	}
+
+	_, ok := pvc.Annotations[cc.AnnExtendedCloneToken]
+	if ok {
+		return nil
+	}
+
+	token, ok := dv.Annotations[cc.AnnExtendedCloneToken]
+	if !ok {
+		return fmt.Errorf("token missing")
+	}
+
+	payload, err := r.longTokenValidator.Validate(token)
+	if err != nil {
+		return err
+	}
+
+	if payload.Params["uid"] != string(dv.UID) {
+		return fmt.Errorf("token uid mismatch")
+	}
+
+	// now use pvc uid
 	payload.Params["uid"] = string(pvc.UID)
 
 	newToken, err := r.tokenGenerator.Generate(payload)

@@ -2934,6 +2934,12 @@ func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolume
 	// All labels and annotations passed
 	Expect(targetPvc.Labels["test-label-1"]).To(Equal("test-label-key-1"))
 	Expect(targetPvc.Annotations["test-annotation-1"]).To(Equal("test-annotation-key-1"))
+
+	if targetNs.Name != f.Namespace.Name {
+		dataVolume, err = f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dataVolume.Annotations).To(HaveKey(controller.AnnExtendedCloneToken))
+	}
 }
 
 func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClaim, targetNs *v1.Namespace, targetDv string) {
@@ -3045,27 +3051,29 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 			}, 90*time.Second, 2*time.Second).Should(BeTrue())
 		}
 	case "copy":
-		s, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(context.TODO(), "cdi-api-signing-key", metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		bytes, ok := s.Data["id_rsa.pub"]
-		Expect(ok).To(BeTrue())
-		objs, err := cert.ParsePublicKeysPEM(bytes)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(objs).To(HaveLen(1))
-		v := token.NewValidator("cdi-deployment", objs[0].(*rsa.PublicKey), time.Minute)
+		if sns != dv.Namespace {
+			s, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(context.TODO(), "cdi-api-signing-key", metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			bytes, ok := s.Data["id_rsa.pub"]
+			Expect(ok).To(BeTrue())
+			objs, err := cert.ParsePublicKeysPEM(bytes)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(objs).To(HaveLen(1))
+			v := token.NewValidator("cdi-deployment", objs[0].(*rsa.PublicKey), time.Minute)
 
-		By("checking long token added")
-		Eventually(func(g Gomega) bool {
-			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(targetNs.Name).Get(context.TODO(), targetPvc.Name, metav1.GetOptions{})
-			g.Expect(err).ToNot(HaveOccurred())
-			t, ok := pvc.Annotations[controller.AnnExtendedCloneToken]
-			if !ok {
-				return false
-			}
-			_, err = v.Validate(t)
-			g.Expect(err).ToNot(HaveOccurred())
-			return true
-		}, 10*time.Second, assertionPollInterval).Should(BeTrue())
+			By("checking long token added")
+			Eventually(func(g Gomega) bool {
+				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(targetNs.Name).Get(context.TODO(), targetPvc.Name, metav1.GetOptions{})
+				g.Expect(err).ToNot(HaveOccurred())
+				t, ok := pvc.Annotations[controller.AnnExtendedCloneToken]
+				if !ok {
+					return false
+				}
+				_, err = v.Validate(t)
+				g.Expect(err).ToNot(HaveOccurred())
+				return true
+			}, 10*time.Second, assertionPollInterval).Should(BeTrue())
+		}
 	}
 }
 

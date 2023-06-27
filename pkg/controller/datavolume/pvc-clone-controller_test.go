@@ -85,8 +85,23 @@ var _ = Describe("All DataVolume Tests", func() {
 				storageClass = CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, pluginName)
 			})
 
+			It("should add extended token", func() {
+				dv := newCloneDataVolumeWithPVCNS("test-dv", "source-ns")
+				srcPvc := CreatePvcInStorageClass("test", "source-ns", &scName, nil, nil, corev1.ClaimBound)
+				reconciler = createCloneReconciler(storageClass, csiDriver, dv, srcPvc)
+				result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(result.Requeue).To(BeFalse())
+				Expect(result.RequeueAfter).To(BeZero())
+				dv = &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dv.Annotations).To(HaveKey(AnnExtendedCloneToken))
+			})
+
 			It("should add finalizer for cross namespace clone", func() {
 				dv := newCloneDataVolumeWithPVCNS("test-dv", "source-ns")
+				dv.Annotations[AnnExtendedCloneToken] = "test-token"
 				srcPvc := CreatePvcInStorageClass("test", "source-ns", &scName, nil, nil, corev1.ClaimBound)
 				reconciler = createCloneReconciler(storageClass, csiDriver, dv, srcPvc)
 				result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -102,6 +117,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			DescribeTable("should create PVC and VolumeCloneSource CR", func(sourceNamespace string) {
 				dv := newCloneDataVolume("test-dv")
+				dv.Annotations[AnnExtendedCloneToken] = "foobar"
 				dv.Spec.Source.PVC.Namespace = sourceNamespace
 				if sourceNamespace != dv.Namespace {
 					dv.Finalizers = append(dv.Finalizers, crossNamespaceFinalizer)
@@ -748,9 +764,10 @@ func createCloneReconcilerWithoutConfig(objects ...runtime.Object) *PvcCloneReco
 				},
 				shouldUpdateProgress: true,
 			},
-			tokenValidator:  &FakeValidator{Match: "foobar"},
-			tokenGenerator:  &FakeGenerator{token: "foobar"},
-			cloneSourceKind: "PersistentVolumeClaim",
+			shortTokenValidator: &FakeValidator{Match: "foobar"},
+			longTokenValidator:  &FakeValidator{Match: "foobar", Params: map[string]string{"uid": "uid"}},
+			tokenGenerator:      &FakeGenerator{token: "foobar"},
+			cloneSourceKind:     "PersistentVolumeClaim",
 		},
 	}
 	return r
