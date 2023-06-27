@@ -36,7 +36,7 @@ type HostClonePhase struct {
 
 var _ Phase = &HostClonePhase{}
 
-var _ ProgressReporter = &HostClonePhase{}
+var _ StatusReporter = &HostClonePhase{}
 
 var httpClient *http.Client
 
@@ -49,9 +49,9 @@ func (p *HostClonePhase) Name() string {
 	return HostClonePhaseName
 }
 
-// Progress returns the phase progress
-func (p *HostClonePhase) Progress(ctx context.Context) (*PhaseProgress, error) {
-	result := &PhaseProgress{}
+// Status returns the phase status
+func (p *HostClonePhase) Status(ctx context.Context) (*PhaseStatus, error) {
+	result := &PhaseStatus{}
 	pvc := &corev1.PersistentVolumeClaim{}
 	exists, err := getResource(ctx, p.Client, p.Namespace, p.DesiredClaim.Name, pvc)
 	if err != nil {
