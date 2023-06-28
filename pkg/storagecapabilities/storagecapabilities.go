@@ -77,6 +77,10 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"hspc.csi.hitachi.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// HPE
 	"csi.hpe.com": createRWOBlockAndFilesystemCapabilities(),
+	// IBM HCI/GPFS2 (Spectrum Scale / Spectrum Fusion)
+	"spectrumscale.csi.ibm.com": {{rwx, file}, {rwo, file}},
+	// IBM block arrays (FlashSystem)
+	"block.csi.ibm.com": {{rwo, block}, {rwo, file}},
 	// Portworx in-tree CSI
 	"kubernetes.io/portworx-volume/shared": {{rwx, file}},
 	"kubernetes.io/portworx-volume":        {{rwo, file}},
@@ -114,6 +118,7 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"csi-powerstore.dellemc.com": cdiv1.CloneStrategyCsiClone,
 	"hspc.csi.hitachi.com":       cdiv1.CloneStrategyCsiClone,
 	"csi.hpe.com":                cdiv1.CloneStrategyCsiClone,
+	"spectrumscale.csi.ibm.com":  cdiv1.CloneStrategyCsiClone,
 }
 
 // ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
