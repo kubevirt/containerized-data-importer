@@ -2554,9 +2554,10 @@ var _ = Describe("all clone tests", func() {
 			cdiCr = crList.Items[0]
 
 			By("[BeforeEach] Forcing Host Assisted cloning")
-			var cloneStrategy cdiv1.CDICloneStrategy = cdiv1.CloneStrategyHostAssisted
+			cloneStrategy := cdiv1.CloneStrategyHostAssisted
 			cdiCr.Spec.CloneStrategyOverride = &cloneStrategy
-			Expect(f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &cdiCr, metav1.UpdateOptions{})).Error().ToNot(HaveOccurred())
+			_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &cdiCr, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred())
 
 			Expect(utils.WaitForCDICrCloneStrategy(f.CdiClient, cloneStrategy)).To(Succeed())
 		})
@@ -2578,7 +2579,8 @@ var _ = Describe("all clone tests", func() {
 
 			newCdiCr := crList.Items[0]
 			newCdiCr.Spec = *cdiCrSpec
-			Expect(f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &newCdiCr, metav1.UpdateOptions{})).Error().ToNot(HaveOccurred())
+			_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &newCdiCr, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred())
 
 			if cdiCrSpec.CloneStrategyOverride == nil {
 				err = utils.WaitForCDICrCloneStrategyNil(f.CdiClient)
@@ -3303,7 +3305,8 @@ func VerifyDisabledGC(f *framework.Framework, dvName, dvNamespace string) {
 		Expect(err).NotTo(HaveOccurred())
 		return log
 	}, timeout, pollingInterval).Should(ContainSubstring(matchString))
-	Expect(f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})).Error().ToNot(HaveOccurred())
+	_, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
 }
 
 // EnableGcAndAnnotateLegacyDv enables garbage collection, annotates the DV and verifies it is garbage collected
@@ -3324,7 +3327,8 @@ func EnableGcAndAnnotateLegacyDv(f *framework.Framework, dvName, dvNamespace str
 
 	By("Add true DeleteAfterCompletion annotation to DV")
 	controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "true")
-	Expect(f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})).Error().ToNot(HaveOccurred())
+	_, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
+	Expect(err).ToNot(HaveOccurred())
 	VerifyGC(f, dvName, dvNamespace, false, nil)
 }
 
