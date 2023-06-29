@@ -20,28 +20,26 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/common"
-
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-
 	"kubevirt.io/containerized-data-importer/pkg/token"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 )
 
 const (
@@ -58,16 +56,8 @@ const (
 	CloneFromSnapshotSourceInProgress = "CloneFromSnapshotSourceInProgress"
 	// SnapshotForSmartCloneCreated provides a const to indicate snapshot creation for smart-clone has been completed
 	SnapshotForSmartCloneCreated = "SnapshotForSmartCloneCreated"
-	// SmartClonePVCInProgress provides a const to indicate snapshot creation for smart-clone is in progress
-	SmartClonePVCInProgress = "SmartClonePVCInProgress"
-	// SmartCloneSourceInUse provides a const to indicate a smart clone is being delayed because the source is in use
-	SmartCloneSourceInUse = "SmartCloneSourceInUse"
 	// CSICloneInProgress provides a const to indicate  csi volume clone is in progress
 	CSICloneInProgress = "CSICloneInProgress"
-	// CSICloneSourceInUse provides a const to indicate a csi volume clone is being delayed because the source is in use
-	CSICloneSourceInUse = "CSICloneSourceInUse"
-	// HostAssistedCloneSourceInUse provides a const to indicate a host-assisted clone is being delayed because the source is in use
-	HostAssistedCloneSourceInUse = "HostAssistedCloneSourceInUse"
 	// CloneFailed provides a const to indicate clone has failed
 	CloneFailed = "CloneFailed"
 	// CloneSucceeded provides a const to indicate clone has succeeded
@@ -84,9 +74,7 @@ const (
 	// MessageSmartCloneInProgress provides a const to form snapshot for smart-clone is in progress message
 	MessageSmartCloneInProgress = "Creating snapshot for smart-clone is in progress (for pvc %s/%s)"
 	// MessageCloneFromSnapshotSourceInProgress provides a const to form clone from snapshot source is in progress message
-	MessageCloneFromSnapshotSourceInProgress = "Creating PVC from snapshot source is in progress (for snapshot %s/%s)"
-	// MessageSmartClonePVCInProgress provides a const to form snapshot for smart-clone is in progress message
-	MessageSmartClonePVCInProgress = "Creating PVC for smart-clone is in progress (for pvc %s/%s)"
+	MessageCloneFromSnapshotSourceInProgress = "Creating PVC from snapshot source is in progress (for %s %s/%s)"
 	// MessageCsiCloneInProgress provides a const to form a CSI Volume Clone in progress message
 	MessageCsiCloneInProgress = "CSI Volume clone in progress (for pvc %s/%s)"
 
@@ -118,6 +106,14 @@ const (
 	CloneWithoutSource = "CloneWithoutSource"
 	// MessageCloneWithoutSource reports that the source of a clone doesn't exists (message)
 	MessageCloneWithoutSource = "The source %s %s doesn't exist"
+	// PrepClaimInProgress is const representing target PVC prep
+	PrepClaimInProgress = "PrepClaimInProgress"
+	// MessagePrepClaimInProgress is a const for reporting target prep
+	MessagePrepClaimInProgress = "Prepping PersistentVolumeClaim for DataVolume %s/%s"
+	// RebindInProgress is const representing target PVC rebind
+	RebindInProgress = "RebindInProgress"
+	// MessageRebindInProgress is a const for reporting target rebind
+	MessageRebindInProgress = "Rebinding PersistentVolumeClaim for DataVolume %s/%s"
 
 	// AnnCSICloneRequest annotation associates object with CSI Clone Request
 	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"
@@ -129,39 +125,145 @@ const (
 	AnnSourceCapacity = "cdi.Kubervirt.io/sourceCapacity"
 
 	crossNamespaceFinalizer = "cdi.kubevirt.io/dataVolumeFinalizer"
-
-	annReadyForTransfer = "cdi.kubevirt.io/readyForTransfer"
 )
 
 // CloneReconcilerBase members
 type CloneReconcilerBase struct {
 	ReconcilerBase
-	clonerImage    string
-	importerImage  string
-	pullPolicy     string
-	tokenValidator token.Validator
-	tokenGenerator token.Generator
+	clonerImage         string
+	importerImage       string
+	pullPolicy          string
+	cloneSourceAPIGroup *string
+	cloneSourceKind     string
+	shortTokenValidator token.Validator
+	longTokenValidator  token.Validator
+	tokenGenerator      token.Generator
 }
 
-func (r *CloneReconcilerBase) ensureExtendedToken(pvc *corev1.PersistentVolumeClaim) error {
-	_, ok := pvc.Annotations[cc.AnnExtendedCloneToken]
-	if ok {
-		return nil
-	}
+func (r *CloneReconcilerBase) addVolumeCloneSourceWatch(datavolumeController controller.Controller) error {
+	return datavolumeController.Watch(&source.Kind{Type: &cdiv1.VolumeCloneSource{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			var err error
+			var hasDataVolumeOwner bool
+			var ownerNamespace, ownerName string
+			ownerRef := metav1.GetControllerOf(obj)
+			if ownerRef != nil && ownerRef.Kind == "DataVolume" {
+				hasDataVolumeOwner = true
+				ownerNamespace = obj.GetNamespace()
+				ownerName = ownerRef.Name
+			} else if hasAnnOwnedByDataVolume(obj) {
+				hasDataVolumeOwner = true
+				ownerNamespace, ownerName, err = getAnnOwnedByDataVolume(obj)
+				if err != nil {
+					return nil
+				}
+			}
+			if !hasDataVolumeOwner {
+				return nil
+			}
+			dv := &cdiv1.DataVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: ownerNamespace,
+					Name:      ownerName,
+				},
+			}
+			if err = r.client.Get(context.TODO(), client.ObjectKeyFromObject(dv), dv); err != nil {
+				r.log.Info("Failed to get DataVolume", "error", err)
+				return nil
+			}
+			if err := r.populateSourceIfSourceRef(dv); err != nil {
+				r.log.Info("Failed to check DataSource", "error", err)
+				return nil
+			}
+			if (r.cloneSourceKind == "PersistentVolumeClaim" && dv.Spec.Source.PVC != nil) ||
+				(r.cloneSourceKind == "VolumeSnapshot" && dv.Spec.Source.Snapshot != nil) {
+				return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: ownerNamespace, Name: ownerName}}}
+			}
+			return nil
+		}),
+	)
+}
 
-	token, ok := pvc.Annotations[cc.AnnCloneToken]
-	if !ok {
-		return fmt.Errorf("token missing")
+func (r *CloneReconcilerBase) updatePVCForPopulation(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+	if dataVolume.Spec.Source.PVC == nil && dataVolume.Spec.Source.Snapshot == nil {
+		return errors.Errorf("no source set for clone datavolume")
 	}
-
-	payload, err := r.tokenValidator.Validate(token)
-	if err != nil {
+	if err := addCloneToken(dataVolume, pvc); err != nil {
 		return err
+	}
+	if isCrossNamespaceClone(dataVolume) {
+		_, _, sourcNamespace := cc.GetCloneSourceInfo(dataVolume)
+		cc.AddAnnotation(pvc, populators.AnnDataSourceNamespace, sourcNamespace)
+	}
+	apiGroup := cc.AnnAPIGroup
+	pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
+		APIGroup: &apiGroup,
+		Kind:     cdiv1.VolumeCloneSourceRef,
+		Name:     volumeCloneSourceName(dataVolume),
+	}
+	return nil
+}
+
+func (r *CloneReconcilerBase) ensureExtendedTokenDV(dv *cdiv1.DataVolume) (bool, error) {
+	if !isCrossNamespaceClone(dv) {
+		return false, nil
+	}
+
+	_, ok := dv.Annotations[cc.AnnExtendedCloneToken]
+	if ok {
+		return false, nil
+	}
+
+	token, ok := dv.Annotations[cc.AnnCloneToken]
+	if !ok {
+		return false, fmt.Errorf("token missing")
+	}
+
+	payload, err := r.shortTokenValidator.Validate(token)
+	if err != nil {
+		return false, err
 	}
 
 	if payload.Params == nil {
 		payload.Params = make(map[string]string)
 	}
+	payload.Params["uid"] = string(dv.UID)
+
+	newToken, err := r.tokenGenerator.Generate(payload)
+	if err != nil {
+		return false, err
+	}
+
+	dv.Annotations[cc.AnnExtendedCloneToken] = newToken
+
+	return true, nil
+}
+
+func (r *CloneReconcilerBase) ensureExtendedTokenPVC(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+	if !isCrossNamespaceClone(dv) {
+		return nil
+	}
+
+	_, ok := pvc.Annotations[cc.AnnExtendedCloneToken]
+	if ok {
+		return nil
+	}
+
+	token, ok := dv.Annotations[cc.AnnExtendedCloneToken]
+	if !ok {
+		return fmt.Errorf("token missing")
+	}
+
+	payload, err := r.longTokenValidator.Validate(token)
+	if err != nil {
+		return err
+	}
+
+	if payload.Params["uid"] != string(dv.UID) {
+		return fmt.Errorf("token uid mismatch")
+	}
+
+	// now use pvc uid
 	payload.Params["uid"] = string(pvc.UID)
 
 	newToken, err := r.tokenGenerator.Generate(payload)
@@ -178,332 +280,80 @@ func (r *CloneReconcilerBase) ensureExtendedToken(pvc *corev1.PersistentVolumeCl
 	return nil
 }
 
-// When the clone is finished some additional actions may be applied
-// like namespaceTransfer Cleanup or size expansion
-func (r *CloneReconcilerBase) finishClone(log logr.Logger, syncState *dvSyncState, transferName string) (reconcile.Result, error) {
-	//DO Nothing, not yet ready
-	if syncState.pvc.Annotations[cc.AnnCloneOf] != "true" {
-		return reconcile.Result{}, nil
+func (r *CloneReconcilerBase) reconcileVolumeCloneSourceCR(syncState *dvSyncState) error {
+	dv := syncState.dvMutated
+	volumeCloneSource := &cdiv1.VolumeCloneSource{}
+	volumeCloneSourceName := volumeCloneSourceName(dv)
+	_, sourceName, sourceNamespace := cc.GetCloneSourceInfo(dv)
+	deletedOrSucceeded := dv.DeletionTimestamp != nil || dv.Status.Phase == cdiv1.Succeeded
+	exists, err := cc.GetResource(context.TODO(), r.client, sourceNamespace, volumeCloneSourceName, volumeCloneSource)
+	if err != nil {
+		return err
 	}
 
-	// expand for non-namespace case
-	return r.expandPvcAfterClone(log, syncState, syncState.pvc, cdiv1.Succeeded, false)
-}
-
-func (r *CloneReconcilerBase) setCloneOfOnPvc(pvc *corev1.PersistentVolumeClaim) error {
-	if v, ok := pvc.Annotations[cc.AnnCloneOf]; !ok || v != "true" {
-		if pvc.Annotations == nil {
-			pvc.Annotations = make(map[string]string)
+	if deletedOrSucceeded || exists {
+		if deletedOrSucceeded && exists {
+			if err := r.client.Delete(context.TODO(), volumeCloneSource); err != nil {
+				if !k8serrors.IsNotFound(err) {
+					return err
+				}
+			}
 		}
-		pvc.Annotations[cc.AnnCloneOf] = "true"
 
-		return r.updatePVC(pvc)
+		if deletedOrSucceeded {
+			cc.RemoveFinalizer(dv, crossNamespaceFinalizer)
+		}
+
+		return nil
+	}
+
+	volumeCloneSource = &cdiv1.VolumeCloneSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      volumeCloneSourceName,
+			Namespace: sourceNamespace,
+		},
+		Spec: cdiv1.VolumeCloneSourceSpec{
+			Source: corev1.TypedLocalObjectReference{
+				APIGroup: r.cloneSourceAPIGroup,
+				Kind:     r.cloneSourceKind,
+				Name:     sourceName,
+			},
+			Preallocation: dv.Spec.Preallocation,
+		},
+	}
+
+	if dv.Spec.PriorityClassName != "" {
+		volumeCloneSource.Spec.PriorityClassName = &dv.Spec.PriorityClassName
+	}
+
+	if sourceNamespace == dv.Namespace {
+		if err := controllerutil.SetControllerReference(dv, volumeCloneSource, r.scheme); err != nil {
+			return err
+		}
+	} else {
+		if err := setAnnOwnedByDataVolume(volumeCloneSource, dv); err != nil {
+			return err
+		}
+	}
+
+	if err := r.client.Create(context.TODO(), volumeCloneSource); err != nil {
+		if !k8serrors.IsAlreadyExists(err) {
+			return err
+		}
 	}
 
 	return nil
 }
 
-// temporary pvc is used when the clone src and tgt are in two distinct namespaces
-func (r *CloneReconcilerBase) expandPvcAfterClone(
-	log logr.Logger,
-	syncState *dvSyncState,
-	pvc *corev1.PersistentVolumeClaim,
-	nextPhase cdiv1.DataVolumePhase,
-	isTemp bool) (reconcile.Result, error) {
-
-	done, err := r.expand(log, syncState, pvc)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	if !done {
-		return reconcile.Result{Requeue: true},
-			r.syncCloneStatusPhase(syncState, cdiv1.ExpansionInProgress, pvc)
-	}
-
-	if isTemp {
-		// trigger transfer and next reconcile should have pvcExists == true
-		pvc.Annotations[annReadyForTransfer] = "true"
-		pvc.Annotations[cc.AnnPopulatedFor] = syncState.dvMutated.Name
-		if err := r.updatePVC(pvc); err != nil {
-			return reconcile.Result{}, err
-		}
-	}
-
-	return reconcile.Result{}, r.syncCloneStatusPhase(syncState, nextPhase, pvc)
-}
-
-func (r *CloneReconcilerBase) doCrossNamespaceClone(log logr.Logger,
-	syncState *dvSyncState,
-	pvcName, sourceNamespace string,
-	returnWhenCloneInProgress bool,
-	selectedCloneStrategy cloneStrategy) (*reconcile.Result, error) {
-
-	initialized, err := r.initTransfer(log, syncState, pvcName, sourceNamespace)
-	if err != nil {
-		return &reconcile.Result{}, err
-	}
-
-	// get reconciled again v soon
-	if !initialized {
-		return &reconcile.Result{}, r.syncCloneStatusPhase(syncState, cdiv1.CloneScheduled, nil)
-	}
-
-	tmpPVC := &corev1.PersistentVolumeClaim{}
-	nn := types.NamespacedName{Namespace: sourceNamespace, Name: pvcName}
-	if err := r.client.Get(context.TODO(), nn, tmpPVC); err != nil {
-		if !k8serrors.IsNotFound(err) {
-			return &reconcile.Result{}, err
-		}
-	} else if tmpPVC.Annotations[cc.AnnCloneOf] == "true" {
-		result, err := r.expandPvcAfterClone(log, syncState, tmpPVC, cdiv1.NamespaceTransferInProgress, true)
-		return &result, err
-	} else {
-		// AnnCloneOf != true, so cloneInProgress
-		if returnWhenCloneInProgress {
-			return &reconcile.Result{}, nil
-		}
-	}
-
-	return nil, nil
-}
-
-func (r *CloneReconcilerBase) initTransfer(log logr.Logger, syncState *dvSyncState, name, namespace string) (bool, error) {
-	initialized := true
-	dv := syncState.dvMutated
-
-	log.Info("Initializing transfer")
-
-	if !cc.HasFinalizer(dv, crossNamespaceFinalizer) {
-		cc.AddFinalizer(dv, crossNamespaceFinalizer)
-		initialized = false
-	}
-
-	ot := &cdiv1.ObjectTransfer{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: name}, ot); err != nil {
-		if !k8serrors.IsNotFound(err) {
-			return false, err
-		}
-
-		if err := cc.ValidateCloneTokenDV(r.tokenValidator, dv); err != nil {
-			return false, err
-		}
-
-		ot = &cdiv1.ObjectTransfer{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
-				Labels: map[string]string{
-					common.CDILabelKey:       common.CDILabelValue,
-					common.CDIComponentLabel: "",
-				},
-			},
-			Spec: cdiv1.ObjectTransferSpec{
-				Source: cdiv1.TransferSource{
-					Kind:      "PersistentVolumeClaim",
-					Namespace: namespace,
-					Name:      name,
-					RequiredAnnotations: map[string]string{
-						annReadyForTransfer: "true",
-					},
-				},
-				Target: cdiv1.TransferTarget{
-					Namespace: &dv.Namespace,
-					Name:      &dv.Name,
-				},
-			},
-		}
-		util.SetRecommendedLabels(ot, r.installerLabels, "cdi-controller")
-
-		if err := setAnnOwnedByDataVolume(ot, dv); err != nil {
-			return false, err
-		}
-
-		if err := r.client.Create(context.TODO(), ot); err != nil {
-			return false, err
-		}
-
-		initialized = false
-	}
-
-	return initialized, nil
-}
-
-func expansionPodName(pvc *corev1.PersistentVolumeClaim) string {
-	return "cdi-expand-" + string(pvc.UID)
-}
-
-func (r *CloneReconcilerBase) expand(log logr.Logger, syncState *dvSyncState, pvc *corev1.PersistentVolumeClaim) (bool, error) {
-	if pvc.Status.Phase != corev1.ClaimBound {
-		return false, fmt.Errorf("cannot expand volume in %q phase", pvc.Status.Phase)
-	}
-
-	requestedSize, hasRequested := syncState.pvcSpec.Resources.Requests[corev1.ResourceStorage]
-	currentSize, hasCurrent := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-	actualSize, hasActual := pvc.Status.Capacity[corev1.ResourceStorage]
-	if !hasRequested || !hasCurrent || !hasActual {
-		return false, fmt.Errorf("PVC sizes missing")
-	}
-
-	expansionRequired := actualSize.Cmp(requestedSize) < 0
-	updateRequestSizeRequired := currentSize.Cmp(requestedSize) < 0
-
-	log.V(3).Info("Expand sizes", "req", requestedSize, "cur", currentSize, "act", actualSize, "exp", expansionRequired)
-
-	if updateRequestSizeRequired {
-		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = requestedSize
-		if err := r.updatePVC(pvc); err != nil {
-			return false, err
-		}
-
-		return false, nil
-	}
-
-	podName := expansionPodName(pvc)
-	podExists := true
-	pod := &corev1.Pod{}
-	nn := types.NamespacedName{Namespace: pvc.Namespace, Name: podName}
-	if err := r.client.Get(context.TODO(), nn, pod); err != nil {
-		if !k8serrors.IsNotFound(err) {
-			return false, err
-		}
-
-		podExists = false
-	}
-
-	if !expansionRequired && !podExists {
-		// finally done
-		return true, nil
-	}
-
-	hasPendingResizeCondition := false
-	for _, cond := range pvc.Status.Conditions {
-		if cond.Type == corev1.PersistentVolumeClaimFileSystemResizePending {
-			hasPendingResizeCondition = true
-			break
-		}
-	}
-
-	if !podExists && !hasPendingResizeCondition {
-		// wait for resize condition
-		return false, nil
-	}
-
-	if !podExists {
-		var err error
-		pod, err = r.createExpansionPod(pvc, syncState.dvMutated, podName)
-		// Check if pod has failed and, in that case, record an event with the error
-		if podErr := cc.HandleFailedPod(err, podName, pvc, r.recorder, r.client); podErr != nil {
-			return false, podErr
-		}
-	}
-
-	if pod.Status.Phase == corev1.PodSucceeded {
-		if err := r.client.Delete(context.TODO(), pod); err != nil {
-			if k8serrors.IsNotFound(err) {
-				return true, err
-			}
-
-			return false, err
-		}
-
-		return false, nil
-	}
-
-	return false, nil
-}
-
-func (r *CloneReconcilerBase) createExpansionPod(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume, podName string) (*corev1.Pod, error) {
-	resourceRequirements, err := cc.GetDefaultPodResourceRequirements(r.client)
-	if err != nil {
-		return nil, err
-	}
-
-	imagePullSecrets, err := cc.GetImagePullSecrets(r.client)
-	if err != nil {
-		return nil, err
-	}
-
-	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(context.TODO(), r.client)
-	if err != nil {
-		return nil, err
-	}
-
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      podName,
-			Namespace: pvc.Namespace,
-			Annotations: map[string]string{
-				cc.AnnCreatedBy: "yes",
-			},
-			Labels: map[string]string{
-				common.CDILabelKey:       common.CDILabelValue,
-				common.CDIComponentLabel: "cdi-expander",
-			},
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:            "dummy",
-					Image:           r.clonerImage,
-					ImagePullPolicy: corev1.PullPolicy(r.pullPolicy),
-					Command:         []string{"/bin/bash"},
-					Args:            []string{"-c", "echo", "'hello cdi'"},
-				},
-			},
-			ImagePullSecrets: imagePullSecrets,
-			RestartPolicy:    corev1.RestartPolicyOnFailure,
-			Volumes: []corev1.Volume{
-				{
-					Name: cc.DataVolName,
-					VolumeSource: corev1.VolumeSource{
-						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-							ClaimName: pvc.Name,
-						},
-					},
-				},
-			},
-			NodeSelector: workloadNodePlacement.NodeSelector,
-			Tolerations:  workloadNodePlacement.Tolerations,
-			Affinity:     workloadNodePlacement.Affinity,
-		},
-	}
-	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
-
-	if pvc.Spec.VolumeMode != nil && *pvc.Spec.VolumeMode == corev1.PersistentVolumeBlock {
-		pod.Spec.Containers[0].VolumeDevices = cc.AddVolumeDevices()
-	} else {
-		pod.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
-			{
-				Name:      cc.DataVolName,
-				MountPath: common.ClonerMountPath,
-			},
-		}
-	}
-
-	if resourceRequirements != nil {
-		pod.Spec.Containers[0].Resources = *resourceRequirements
-	}
-
-	if err := setAnnOwnedByDataVolume(pod, dv); err != nil {
-		return nil, err
-	}
-
-	cc.SetRestrictedSecurityContext(&pod.Spec)
-
-	if err := r.client.Create(context.TODO(), pod); err != nil {
-		if !k8serrors.IsAlreadyExists(err) {
-			return nil, err
-		}
-	}
-
-	return pod, nil
-}
-
 func (r *CloneReconcilerBase) syncCloneStatusPhase(syncState *dvSyncState, phase cdiv1.DataVolumePhase, pvc *corev1.PersistentVolumeClaim) error {
 	var event Event
 	dataVolume := syncState.dvMutated
-	sourceName, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dataVolume)
+	r.setEventForPhase(dataVolume, phase, &event)
+	return r.syncDataVolumeStatusPhaseWithEvent(syncState, phase, pvc, event)
+}
 
+func (r *CloneReconcilerBase) setEventForPhase(dataVolume *cdiv1.DataVolume, phase cdiv1.DataVolumePhase, event *Event) {
+	sourceType, sourceName, sourceNamespace := cc.GetCloneSourceInfo(dataVolume)
 	switch phase {
 	case cdiv1.CloneScheduled:
 		event.eventType = corev1.EventTypeNormal
@@ -516,29 +366,72 @@ func (r *CloneReconcilerBase) syncCloneStatusPhase(syncState *dvSyncState, phase
 	case cdiv1.CloneFromSnapshotSourceInProgress:
 		event.eventType = corev1.EventTypeNormal
 		event.reason = CloneFromSnapshotSourceInProgress
-		event.message = fmt.Sprintf(MessageCloneFromSnapshotSourceInProgress, sourceNamespace, sourceName)
+		event.message = fmt.Sprintf(MessageCloneFromSnapshotSourceInProgress, sourceType, sourceNamespace, sourceName)
 	case cdiv1.CSICloneInProgress:
 		event.eventType = corev1.EventTypeNormal
-		event.reason = string(cdiv1.CSICloneInProgress)
+		event.reason = CSICloneInProgress
 		event.message = fmt.Sprintf(MessageCsiCloneInProgress, sourceNamespace, sourceName)
-	case cdiv1.ExpansionInProgress:
-		event.eventType = corev1.EventTypeNormal
-		event.reason = ExpansionInProgress
-		event.message = fmt.Sprintf(MessageExpansionInProgress, dataVolume.Namespace, dataVolume.Name)
-	case cdiv1.NamespaceTransferInProgress:
-		event.eventType = corev1.EventTypeNormal
-		event.reason = NamespaceTransferInProgress
-		event.message = fmt.Sprintf(MessageNamespaceTransferInProgress, dataVolume.Namespace, dataVolume.Name)
 	case cdiv1.Succeeded:
 		event.eventType = corev1.EventTypeNormal
 		event.reason = CloneSucceeded
 		event.message = fmt.Sprintf(MessageCloneSucceeded, sourceNamespace, sourceName, dataVolume.Namespace, dataVolume.Name)
+	case cdiv1.CloneInProgress:
+		event.eventType = corev1.EventTypeNormal
+		event.reason = CloneInProgress
+		event.message = fmt.Sprintf(MessageCloneInProgress, sourceNamespace, sourceName, dataVolume.Namespace, dataVolume.Name)
+	case cdiv1.PrepClaimInProgress:
+		event.eventType = corev1.EventTypeNormal
+		event.reason = PrepClaimInProgress
+		event.message = fmt.Sprintf(MessagePrepClaimInProgress, dataVolume.Namespace, dataVolume.Name)
+	case cdiv1.RebindInProgress:
+		event.eventType = corev1.EventTypeNormal
+		event.reason = RebindInProgress
+		event.message = fmt.Sprintf(MessageRebindInProgress, dataVolume.Namespace, dataVolume.Name)
+	default:
+		r.log.V(3).Info("No event set for phase", "phase", phase)
 	}
+}
 
-	return r.syncDataVolumeStatusPhaseWithEvent(syncState, phase, pvc, event)
+var populatorPhaseMap = map[string]cdiv1.DataVolumePhase{
+	"":                           cdiv1.CloneScheduled,
+	clone.PendingPhaseName:       cdiv1.CloneScheduled,
+	clone.SucceededPhaseName:     cdiv1.Succeeded,
+	clone.CSIClonePhaseName:      cdiv1.CSICloneInProgress,
+	clone.HostClonePhaseName:     cdiv1.CloneInProgress,
+	clone.PrepClaimPhaseName:     cdiv1.PrepClaimInProgress,
+	clone.RebindPhaseName:        cdiv1.RebindInProgress,
+	clone.SnapshotClonePhaseName: cdiv1.CloneFromSnapshotSourceInProgress,
+	clone.SnapshotPhaseName:      cdiv1.SnapshotForSmartCloneInProgress,
+	//clone.ErrorPhaseName:         cdiv1.Error, // Want to hold off on this for now
+}
+
+func (r *CloneReconcilerBase) updateStatusPhaseForPopulator(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+	popPhase := pvc.Annotations[populators.AnnClonePhase]
+	dvPhase, ok := populatorPhaseMap[popPhase]
+	if !ok {
+		r.log.V(1).Info("Unknown populator phase", "phase", popPhase)
+		//dataVolumeCopy.Status.Phase = cdiv1.Unknown // hold off on this for now
+		return nil
+	}
+	dataVolumeCopy.Status.Phase = dvPhase
+	r.setEventForPhase(dataVolumeCopy, dvPhase, event)
+	return nil
 }
 
 func (r *CloneReconcilerBase) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+	if err := r.populateSourceIfSourceRef(dataVolumeCopy); err != nil {
+		return err
+	}
+	_, sourceName, sourceNamespace := cc.GetCloneSourceInfo(dataVolumeCopy)
+
+	usePopulator, err := CheckPVCUsingPopulators(pvc)
+	if err != nil {
+		return err
+	}
+	if usePopulator {
+		return r.updateStatusPhaseForPopulator(pvc, dataVolumeCopy, event)
+	}
+
 	phase, ok := pvc.Annotations[cc.AnnPodPhase]
 	if phase != string(corev1.PodSucceeded) {
 		_, ok = pvc.Annotations[cc.AnnCloneRequest]
@@ -550,11 +443,6 @@ func (r *CloneReconcilerBase) updateStatusPhase(pvc *corev1.PersistentVolumeClai
 	if !ok {
 		return nil
 	}
-
-	if err := r.populateSourceIfSourceRef(dataVolumeCopy); err != nil {
-		return err
-	}
-	sourceName, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dataVolumeCopy)
 
 	switch phase {
 	case string(corev1.PodPending):
@@ -605,90 +493,10 @@ func (r *CloneReconcilerBase) populateSourceIfSourceRef(dv *cdiv1.DataVolume) er
 	return nil
 }
 
-func (r *CloneReconcilerBase) cleanupTransfer(dv *cdiv1.DataVolume) error {
-	transferName := getTransferName(dv)
-	if !cc.HasFinalizer(dv, crossNamespaceFinalizer) {
-		return nil
-	}
-
-	r.log.V(1).Info("Doing cleanup of transfer")
-
-	if dv.DeletionTimestamp != nil && dv.Status.Phase != cdiv1.Succeeded {
-		// delete all potential PVCs that may not have owner refs
-		namespaces := []string{dv.Namespace}
-		names := []string{dv.Name}
-		namespaces, names = appendTmpPvcIfNeeded(dv, namespaces, names, transferName)
-
-		for i := range namespaces {
-			pvc := &corev1.PersistentVolumeClaim{}
-			nn := types.NamespacedName{Namespace: namespaces[i], Name: names[i]}
-			if err := r.client.Get(context.TODO(), nn, pvc); err != nil {
-				if !k8serrors.IsNotFound(err) {
-					return err
-				}
-			} else {
-				pod := &corev1.Pod{}
-				nn := types.NamespacedName{Namespace: namespaces[i], Name: expansionPodName(pvc)}
-				if err := r.client.Get(context.TODO(), nn, pod); err != nil {
-					if !k8serrors.IsNotFound(err) {
-						return err
-					}
-				} else {
-					if err := r.client.Delete(context.TODO(), pod); err != nil {
-						if !k8serrors.IsNotFound(err) {
-							return err
-						}
-					}
-				}
-
-				if err := r.client.Delete(context.TODO(), pvc); err != nil {
-					if !k8serrors.IsNotFound(err) {
-						return err
-					}
-				}
-			}
-		}
-	}
-
-	ot := &cdiv1.ObjectTransfer{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: transferName}, ot); err != nil {
-		if !k8serrors.IsNotFound(err) {
-			return err
-		}
-	} else {
-		if ot.DeletionTimestamp == nil {
-			if err := r.client.Delete(context.TODO(), ot); err != nil {
-				if !k8serrors.IsNotFound(err) {
-					return err
-				}
-			}
-		}
-		return fmt.Errorf("waiting for ObjectTransfer %s to delete", transferName)
-	}
-
-	cc.RemoveFinalizer(dv, crossNamespaceFinalizer)
-	return nil
-}
-
-func appendTmpPvcIfNeeded(dv *cdiv1.DataVolume, namespaces, names []string, pvcName string) ([]string, []string) {
-	_, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dv)
-
-	if sourceNamespace != "" && sourceNamespace != dv.Namespace {
-		namespaces = append(namespaces, sourceNamespace)
-		names = append(names, pvcName)
-	}
-
-	return namespaces, names
-}
-
 func isCrossNamespaceClone(dv *cdiv1.DataVolume) bool {
-	_, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dv)
+	_, _, sourceNamespace := cc.GetCloneSourceInfo(dv)
 
 	return sourceNamespace != "" && sourceNamespace != dv.Namespace
-}
-
-func getTransferName(dv *cdiv1.DataVolume) string {
-	return fmt.Sprintf("cdi-tmp-%s", dv.UID)
 }
 
 // addCloneWithoutSourceWatch reconciles clones created without source once the matching PVC is created
@@ -700,7 +508,7 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, indexingKey, func(obj client.Object) []string {
 		dv := obj.(*cdiv1.DataVolume)
 		if source := dv.Spec.Source; source != nil {
-			sourceName, sourceNamespace := cc.GetCloneSourceNameAndNamespace(dv)
+			_, sourceName, sourceNamespace := cc.GetCloneSourceInfo(dv)
 			if sourceName != "" {
 				ns := cc.GetNamespace(sourceNamespace, obj.GetNamespace())
 				return []string{getKey(ns, sourceName)}

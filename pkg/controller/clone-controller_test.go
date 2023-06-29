@@ -115,11 +115,11 @@ var _ = Describe("Clone controller reconcile loop", func() {
 			AnnUploadClientName: "uploadclient"}, nil)
 		reconciler = createCloneReconciler(testPvc, cc.CreatePvc("source", "default", map[string]string{}, nil))
 		By("Setting up the match token")
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Name = "source"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Namespace = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Name = "source"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Namespace = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
 		By("Verifying no source pod exists")
 		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
 		Expect(sourcePod).To(BeNil())
@@ -147,11 +147,11 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		sourcePvc := cc.CreatePvc("source", "default", map[string]string{}, nil)
 		reconciler = createCloneReconciler(testPvc, sourcePvc, podFunc(sourcePvc))
 		By("Setting up the match token")
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Name = "source"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Namespace = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Name = "source"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Namespace = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
 		By("Verifying no source pod exists")
 		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
@@ -197,11 +197,11 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		}
 		reconciler = createCloneReconciler(objs...)
 		By("Setting up the match token")
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Name = "source"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Namespace = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Name = "source"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Namespace = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
 		By("Verifying no source pod exists")
 		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
@@ -269,11 +269,11 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		sourcePod.Namespace = "default"
 		reconciler = createCloneReconciler(testPvc, cc.CreatePvc("source", "default", map[string]string{}, nil), sourcePod)
 		By("Setting up the match token")
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Name = "source"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Namespace = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Name = "source"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Namespace = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("missing required " + AnnUploadClientName + " annotation"))
@@ -286,11 +286,11 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		sourcePod.Namespace = "default"
 		reconciler = createCloneReconciler(testPvc, cc.CreatePvc("source", "default", map[string]string{}, nil), sourcePod)
 		By("Setting up the match token")
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Name = "source"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Namespace = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Name = "source"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Namespace = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		secret := &corev1.Secret{}
@@ -303,11 +303,11 @@ var _ = Describe("Clone controller reconcile loop", func() {
 			cc.AnnCloneRequest: "default/source", cc.AnnPodReady: "true", cc.AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", cc.AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
 		reconciler = createCloneReconciler(testPvc, cc.CreatePvc("source", "default", map[string]string{}, nil))
 		By("Setting up the match token")
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Name = "source"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Namespace = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Name = "source"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Namespace = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
 		By("Verifying no source pod exists")
 		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
@@ -324,11 +324,11 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		testPvc := createTargetPvcFunc()
 		reconciler = createCloneReconciler(testPvc, createSourcePvcFunc())
 		By("Setting up the match token")
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Name = "source"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Namespace = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Name = "source"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Namespace = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
 		By("Verifying no source pod exists")
 		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
@@ -431,11 +431,11 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		testPvc := createTargetPvcFunc()
 		reconciler = createCloneReconciler(testPvc, createSourcePvcFunc())
 		By("Setting up the match token")
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Name = "source"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Namespace = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
-		reconciler.shortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Name = "source"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Namespace = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
 		By("Verifying no source pod exists")
 		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
@@ -721,8 +721,10 @@ func createCloneReconciler(objects ...runtime.Object) *CloneReconciler {
 		scheme:   s,
 		log:      cloneLog,
 		recorder: rec,
-		shortTokenValidator: &cc.FakeValidator{
-			Params: make(map[string]string, 0),
+		multiTokenValidator: &cc.MultiTokenValidator{
+			ShortTokenValidator: &cc.FakeValidator{
+				Params: make(map[string]string, 0),
+			},
 		},
 		image:               testImage,
 		clientCertGenerator: &fakeCertGenerator{},

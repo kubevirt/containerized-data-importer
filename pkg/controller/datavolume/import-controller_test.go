@@ -34,7 +34,6 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -82,7 +81,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).To(HaveOccurred())
-			if !k8serrors.IsNotFound(err) {
+			if !errors.IsNotFound(err) {
 				Fail("Error getting pvc")
 			}
 		})
@@ -1586,12 +1585,6 @@ var _ = Describe("All DataVolume Tests", func() {
 			}),
 			Entry("VDDK", &cdiv1.DataVolumeSource{
 				VDDK: &cdiv1.DataVolumeSourceVDDK{},
-			}),
-			Entry("PVC", &cdiv1.DataVolumeSource{
-				PVC: &cdiv1.DataVolumeSourcePVC{},
-			}),
-			Entry("Snapshot", &cdiv1.DataVolumeSource{
-				Snapshot: &cdiv1.DataVolumeSourceSnapshot{},
 			}),
 		)
 

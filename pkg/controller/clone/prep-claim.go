@@ -16,6 +16,9 @@ import (
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
+// PrepClaimPhaseName is the name of the prep claim phase
+const PrepClaimPhaseName = "PrepClaim"
+
 // PrepClaimPhase is responsible for prepping a PVC for rebind
 type PrepClaimPhase struct {
 	Owner           client.Object
@@ -33,7 +36,7 @@ var _ Phase = &PrepClaimPhase{}
 
 // Name returns the name of the phase
 func (p *PrepClaimPhase) Name() string {
-	return "PrepClaim"
+	return PrepClaimPhaseName
 }
 
 // Reconcile ensures that a pvc is bound and resized if necessary

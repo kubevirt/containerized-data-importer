@@ -16,6 +16,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+// SnapshotClonePhaseName is the name of the snapshot clone phase
+const SnapshotClonePhaseName = "SnapshotClone"
+
 // SnapshotClonePhase waits for a snapshot to be ready and creates a PVC from it
 type SnapshotClonePhase struct {
 	Owner          client.Object
@@ -32,7 +35,7 @@ var _ Phase = &SnapshotClonePhase{}
 
 // Name returns the name of the phase
 func (p *SnapshotClonePhase) Name() string {
-	return "SnapshotClone"
+	return SnapshotClonePhaseName
 }
 
 // Reconcile ensures a snapshot is created correctly

@@ -15,6 +15,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+// CSIClonePhaseName is the name of the csi clone phase
+const CSIClonePhaseName = "CSIClone"
+
 // CSIClonePhase is responsible for csi cloning a pvc
 type CSIClonePhase struct {
 	Owner          client.Object
@@ -31,7 +34,7 @@ var _ Phase = &CSIClonePhase{}
 
 // Name returns the name of the phase
 func (p *CSIClonePhase) Name() string {
-	return "CSIClone"
+	return CSIClonePhaseName
 }
 
 // Reconcile ensures a csi cloned pvc is created correctly
@@ -43,7 +46,16 @@ func (p *CSIClonePhase) Reconcile(ctx context.Context) (*reconcile.Result, error
 	}
 
 	if !exists {
-		ready, err := IsSourceClaimReady(ctx, p.Client, p.Namespace, p.SourceName)
+		args := &IsSourceClaimReadyArgs{
+			Target:          p.Owner,
+			SourceNamespace: p.Namespace,
+			SourceName:      p.SourceName,
+			Client:          p.Client,
+			Log:             p.Log,
+			Recorder:        p.Recorder,
+		}
+
+		ready, err := IsSourceClaimReady(ctx, args)
 		if err != nil {
 			return nil, err
 		}

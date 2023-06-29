@@ -16,6 +16,9 @@ import (
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
+// HostClonePhaseName is the name of the host clone phase
+const HostClonePhaseName = "HostClone"
+
 // HostClonePhase creates and monitors a dumb clone operation
 type HostClonePhase struct {
 	Owner             client.Object
@@ -33,7 +36,7 @@ type HostClonePhase struct {
 
 var _ Phase = &HostClonePhase{}
 
-var _ ProgressReporter = &HostClonePhase{}
+var _ StatusReporter = &HostClonePhase{}
 
 var httpClient *http.Client
 
@@ -43,20 +46,27 @@ func init() {
 
 // Name returns the name of the phase
 func (p *HostClonePhase) Name() string {
-	return "HostClone"
+	return HostClonePhaseName
 }
 
-// Progress returns the progress of the operation as a percentage
-func (p *HostClonePhase) Progress(ctx context.Context) (string, error) {
+// Status returns the phase status
+func (p *HostClonePhase) Status(ctx context.Context) (*PhaseStatus, error) {
+	result := &PhaseStatus{}
 	pvc := &corev1.PersistentVolumeClaim{}
 	exists, err := getResource(ctx, p.Client, p.Namespace, p.DesiredClaim.Name, pvc)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
+	if !exists {
+		return result, nil
+	}
+
+	result.Annotations = pvc.Annotations
+
 	podName := pvc.Annotations[cc.AnnCloneSourcePod]
-	if !exists || podName == "" {
-		return "", nil
+	if podName == "" {
+		return result, nil
 	}
 
 	args := &cc.ProgressFromClaimArgs{
@@ -70,10 +80,12 @@ func (p *HostClonePhase) Progress(ctx context.Context) (string, error) {
 
 	progress, err := cc.ProgressFromClaim(ctx, args)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return progress, nil
+	result.Progress = progress
+
+	return result, nil
 }
 
 // Reconcile creates the desired pvc and waits for the operation to complete
@@ -91,7 +103,7 @@ func (p *HostClonePhase) Reconcile(ctx context.Context) (*reconcile.Result, erro
 		}
 	}
 
-	if !hostCloneComplete(actualClaim) {
+	if !p.hostCloneComplete(actualClaim) {
 		// requeue to update status
 		return &reconcile.Result{RequeueAfter: 3 * time.Second}, nil
 	}
@@ -108,6 +120,8 @@ func (p *HostClonePhase) createClaim(ctx context.Context) (*corev1.PersistentVol
 	cc.AddAnnotation(claim, cc.AnnPodRestarts, "0")
 	cc.AddAnnotation(claim, cc.AnnCloneRequest, fmt.Sprintf("%s/%s", p.Namespace, p.SourceName))
 	cc.AddAnnotation(claim, cc.AnnPopulatorKind, cdiv1.VolumeCloneSourceRef)
+	cc.AddAnnotation(claim, cc.AnnEventSourceKind, p.Owner.GetObjectKind().GroupVersionKind().Kind)
+	cc.AddAnnotation(claim, cc.AnnEventSource, fmt.Sprintf("%s/%s", p.Owner.GetNamespace(), p.Owner.GetName()))
 	if p.OwnershipLabel != "" {
 		AddOwnershipLabel(p.OwnershipLabel, claim, p.Owner)
 	}
@@ -126,6 +140,13 @@ func (p *HostClonePhase) createClaim(ctx context.Context) (*corev1.PersistentVol
 	return claim, nil
 }
 
-func hostCloneComplete(pvc *corev1.PersistentVolumeClaim) bool {
+func (p *HostClonePhase) hostCloneComplete(pvc *corev1.PersistentVolumeClaim) bool {
+	// this is awfully lame
+	// both the upload controller and clone controller update the PVC status to succeeded
+	// but only the clone controller will set the preallocation annotation
+	// so we have to wait for that
+	if p.Preallocation && pvc.Annotations[cc.AnnPreallocationApplied] != "true" {
+		return false
+	}
 	return pvc.Annotations[cc.AnnPodPhase] == string(cdiv1.Succeeded)
 }
