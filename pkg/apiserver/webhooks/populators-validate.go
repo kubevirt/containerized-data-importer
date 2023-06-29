@@ -133,7 +133,6 @@ func (wh *populatorValidatingWebhook) validateVolumeImportSource(ar admissionv1.
 		return nil, err
 	}
 
-	// Reject spec updates
 	if ar.Request.Operation == admissionv1.Update {
 		cause, err := wh.validateVolumeImportSourceUpdate(ar, &volumeImportSource)
 		if err != nil {

@@ -1022,6 +1022,16 @@ func IsPVCComplete(pvc *corev1.PersistentVolumeClaim) bool {
 	return false
 }
 
+// IsMultiStageImportInProgress returns true when a PVC is being part of an ongoing multi-stage import
+func IsMultiStageImportInProgress(pvc *corev1.PersistentVolumeClaim) bool {
+	if pvc != nil {
+		multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, AnnCurrentCheckpoint)
+		multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, AnnMultiStageImportDone)
+		return multiStageImport && !multiStageAlreadyDone
+	}
+	return false
+}
+
 // SetRestrictedSecurityContext sets the pod security params to be compatible with restricted PSA
 func SetRestrictedSecurityContext(podSpec *corev1.PodSpec) {
 	hasVolumeMounts := false

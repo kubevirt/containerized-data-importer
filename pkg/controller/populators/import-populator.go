@@ -128,7 +128,6 @@ func (r *ImportPopulatorReconciler) getPopulationSource(pvc *corev1.PersistentVo
 func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
 	pvcCopy := pvc.DeepCopy()
 	phase := pvcPrime.Annotations[cc.AnnPodPhase]
-	multiStageInProgress := false
 	source, err := r.getPopulationSource(pvc)
 	if source == nil {
 		return reconcile.Result{}, err
@@ -148,13 +147,14 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		// We'll get called later once it succeeds
 		r.recorder.Eventf(pvc, corev1.EventTypeWarning, importFailed, messageImportFailed, pvc.Name)
 	case string(corev1.PodSucceeded):
-		if _, multiStageInProgress = pvc.Annotations[cc.AnnCurrentCheckpoint]; multiStageInProgress {
+		if cc.IsMultiStageImportInProgress(pvcPrime) {
 			if err := cc.UpdatesMultistageImportSucceeded(pvcPrime, r.getCheckpointArgs(source)); err != nil {
 				return reconcile.Result{}, err
 			}
 			r.recorder.Eventf(pvc, corev1.EventTypeNormal, cc.ImportPaused, cc.MessageImportPaused, pvc.Name)
 			break
 		}
+
 		// Once the import is succeeded, we rebind the PV from PVC' to target PVC
 		if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvc); err != nil {
 			return reconcile.Result{}, err
@@ -165,7 +165,7 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	if !multiStageInProgress && cc.IsPVCComplete(pvcPrime) {
+	if cc.IsPVCComplete(pvcPrime) && !cc.IsMultiStageImportInProgress(pvc) {
 		r.recorder.Eventf(pvc, corev1.EventTypeNormal, importSucceeded, messageImportSucceeded, pvc.Name)
 	}
 

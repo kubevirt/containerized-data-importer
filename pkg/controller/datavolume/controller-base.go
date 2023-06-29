@@ -1150,8 +1150,7 @@ func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncState *dvSyncSta
 // shouldUseCDIPopulator returns if the population of the PVC should be done using
 // CDI populators.
 // Currently it will use populators only if:
-// * no podRetainAfterCompletion or immediateBinding annotations
-// * source is not PVC or Snapshot
+// * no podRetainAfterCompletion annotation
 // * storageClass bindingMode is not wffc while honorWaitForFirstConsumer feature gate is disabled
 // * storageClass used is CSI storageClass
 func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, error) {

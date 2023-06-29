@@ -200,7 +200,7 @@ func (r *ImportReconciler) syncImport(log logr.Logger, req reconcile.Request) (d
 	pvcModifier := r.updateAnnotations
 	if syncState.usePopulator {
 		if syncState.dvMutated.Status.Phase != cdiv1.Succeeded {
-			err := r.createVolumeImportSourceCR(&syncState)
+			err := r.reconcileVolumeImportSourceCR(&syncState)
 			if err != nil {
 				return syncState, err
 			}
@@ -271,7 +271,8 @@ func (r *ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, 
 		event.reason = ImportFailed
 		event.message = fmt.Sprintf(MessageImportFailed, pvc.Name)
 	case string(corev1.PodSucceeded):
-		if _, ok := pvc.Annotations[cc.AnnCurrentCheckpoint]; ok {
+		if cc.IsMultiStageImportInProgress(pvc) {
+			// Multi-stage annotations will be updated by import-populator if populators are in use
 			if !importPopulation {
 				if err := cc.UpdatesMultistageImportSucceeded(pvc, r.getCheckpointArgs(dataVolumeCopy)); err != nil {
 					return err
@@ -318,7 +319,7 @@ func volumeImportSourceName(dv *cdiv1.DataVolume) string {
 	return fmt.Sprintf("%s-%s", volumeImportSourcePrefix, dv.UID)
 }
 
-func (r *ImportReconciler) createVolumeImportSourceCR(syncState *dvSyncState) error {
+func (r *ImportReconciler) reconcileVolumeImportSourceCR(syncState *dvSyncState) error {
 	dv := syncState.dvMutated
 	importSource := &cdiv1.VolumeImportSource{}
 	importSourceName := volumeImportSourceName(dv)

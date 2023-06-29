@@ -217,7 +217,7 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 type updatePVCAnnotationsFunc func(pvc, pvcPrime *corev1.PersistentVolumeClaim)
 
 var desiredAnnotations = []string{cc.AnnPodPhase, cc.AnnPodReady, cc.AnnPodRestarts,
-	cc.AnnPreallocationRequested, cc.AnnPreallocationApplied,
+	cc.AnnPreallocationRequested, cc.AnnPreallocationApplied, cc.AnnCurrentCheckpoint, cc.AnnMultiStageImportDone,
 	cc.AnnRunningCondition, cc.AnnRunningConditionMessage, cc.AnnRunningConditionReason}
 
 func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim, updateFunc updatePVCAnnotationsFunc) error {
@@ -265,7 +265,7 @@ func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorCon
 	}
 
 	// Each populator reconciles the target PVC in a different way
-	if cc.IsUnbound(pvc) || !cc.IsPVCComplete(pvc) {
+	if cc.IsUnbound(pvc) || !cc.IsPVCComplete(pvc) || cc.IsMultiStageImportInProgress(pvc) {
 		return populator.reconcileTargetPVC(pvc, pvcPrime)
 	}
 

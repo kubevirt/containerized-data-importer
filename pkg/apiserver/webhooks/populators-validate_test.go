@@ -112,6 +112,43 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(BeFalse())
 		})
 
+		It("should accept VolumeImportSource spec checkpoints update", func() {
+			source := &cdiv1.ImportSourceType{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{
+					URL: "http://www.example.com",
+				},
+			}
+			importCR := newVolumeImportSource(cdiv1.DataVolumeKubeVirt, source)
+			importCR.Spec.Checkpoints = []cdiv1.DataVolumeCheckpoint{
+				{Current: "test", Previous: ""},
+			}
+			newBytes, _ := json.Marshal(&importCR)
+
+			oldSource := importCR.DeepCopy()
+			oldSource.Spec.Source.HTTP.URL = "http://www.example.es"
+			oldSource.Spec.Checkpoints = nil
+			oldBytes, _ := json.Marshal(oldSource)
+
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdiv1.SchemeGroupVersion.Group,
+						Version:  cdiv1.SchemeGroupVersion.Version,
+						Resource: "volumeimportsources",
+					},
+					Object: runtime.RawExtension{
+						Raw: newBytes,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: oldBytes,
+					},
+				},
+			}
+			resp := validatePopulatorsAdmissionReview(ar)
+			Expect(resp.Allowed).To(BeFalse())
+		})
+
 		It("should accept VolumeImportSource with HTTP source on create", func() {
 			source := &cdiv1.ImportSourceType{
 				HTTP: &cdiv1.DataVolumeSourceHTTP{

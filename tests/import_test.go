@@ -158,6 +158,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	It("[test_id:6688] Should retain all multi-stage importer pods after completion with dv annotation cdi.kubevirt.io/storage.pod.retainAfterCompletion=true", func() {
 		vcenterURL := fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
 		dataVolume := f.CreateVddkWarmImportDataVolume("import-pod-retain-test", "100Mi", vcenterURL)
+
 		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
 		dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -180,23 +181,6 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			Expect(err).ToNot(HaveOccurred())
 			Expect(importer.DeletionTimestamp).To(BeNil())
 		}
-	})
-
-	It("Should do multi-stage importer pods with populator flow", func() {
-		vcenterURL := fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
-		dataVolume := f.CreateVddkWarmImportDataVolume("import-pod-retain-test", "100Mi", vcenterURL)
-		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
-		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Verify pvc was created")
-		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
-
-		By("Wait for import to be completed")
-		err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 	})
 })
 
@@ -1877,6 +1861,105 @@ var _ = Describe("Import populator", func() {
 
 		By("Verifying permissions are 660")
 		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
+
+		By("Verify 100.0% annotation")
+		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPopulatorProgress)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeTrue())
+		Expect(progress).Should(BeEquivalentTo("100.0%"))
+
+		By("Wait for PVC prime to be deleted")
+		Eventually(func() bool {
+			// Make sure pvcPrime was deleted after import population
+			_, err := f.FindPVC(pvcPrime.Name)
+			return err != nil && k8serrors.IsNotFound(err)
+		}, timeout, pollingInterval).Should(BeTrue())
+	})
+
+	It("Should do multi-stage import with dataVolume populator flow", func() {
+		vcenterURL := fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
+		dataVolume := f.CreateVddkWarmImportDataVolume("multi-stage-import-test", "100Mi", vcenterURL)
+		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify pvc was created")
+		pvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceSchedulingIfWaitForFirstConsumerPopulationPVC(pvc)
+
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+	})
+
+	It("Should update volumeImportSource accordingly when doind a multi-stage import", func() {
+		vcenterURL := fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
+		dataVolume := f.CreateVddkWarmImportDataVolume("multi-stage-import-test", "100Mi", vcenterURL)
+
+		// Set FinalCheckpoint to false to pause the DataVolume
+		dataVolume.Spec.FinalCheckpoint = false
+		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+		volumeImportSourceName := fmt.Sprintf("%s-%s", "volume-import-source", dataVolume.UID)
+
+		By("Verify pvc was created")
+		pvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		By("Verify volumeimportSource")
+		volumeImportSource, err := f.CdiClient.CdiV1beta1().VolumeImportSources(f.Namespace.Name).Get(context.TODO(), volumeImportSourceName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(reflect.DeepEqual(dataVolume.Spec.Checkpoints, volumeImportSource.Spec.Checkpoints)).To(BeTrue())
+
+		By("Update DataVolume checkpoints")
+		Eventually(func() bool {
+			dataVolume, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			dataVolume.Spec.Checkpoints = []cdiv1.DataVolumeCheckpoint{
+				{Current: "test", Previous: "foo"},
+				{Current: "foo", Previous: "test"},
+			}
+			_, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Update(context.TODO(), dataVolume, metav1.UpdateOptions{})
+			return err == nil
+		}, timeout, pollingInterval).Should(BeTrue())
+
+		By("Check volumeImportSource is also updated")
+		Eventually(func() bool {
+			volumeImportSource, err := f.CdiClient.CdiV1beta1().VolumeImportSources(f.Namespace.Name).Get(context.TODO(), volumeImportSourceName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return reflect.DeepEqual(dataVolume.Spec.Checkpoints, volumeImportSource.Spec.Checkpoints)
+		}, timeout, pollingInterval).Should(BeTrue())
+	})
+
+	It("Should do multi-stage import with manually created volumeImportSource and PVC", func() {
+		pvcName := "multi-stage-import-pvc-test"
+		importSourceName := "multi-stage-import-test"
+		vcenterURL := fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
+
+		By(fmt.Sprintf("Create volumeImportSource %s", importSourceName))
+		volumeImportSource := f.CreateVddkWarmImportPopulatorSource(importSourceName, pvcName, vcenterURL)
+		_, err := f.CdiClient.CdiV1beta1().VolumeImportSources(f.Namespace.Name).Create(
+			context.TODO(), volumeImportSource, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By(fmt.Sprintf("Create PVC to be populated %s", pvcName))
+		pvcDef := utils.NewPVCDefinition(pvcName, "1Gi", nil, nil)
+		apiGroup := controller.AnnAPIGroup
+		pvcDef.Spec.DataSourceRef = &v1.TypedObjectReference{
+			APIGroup: &apiGroup,
+			Kind:     cdiv1.VolumeImportSourceRef,
+			Name:     importSourceName,
+		}
+		pvc = f.CreateScheduledPVCFromDefinition(pvcDef)
+
+		By("Verify PVC prime was created")
+		pvcPrime, err := utils.WaitForPVC(f.K8sClient, pvc.Namespace, populators.PVCPrimeName(pvc))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify target PVC is bound")
+		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify 100.0% annotation")
 		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPopulatorProgress)
