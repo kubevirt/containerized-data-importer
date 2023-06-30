@@ -46,6 +46,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
@@ -58,7 +59,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
+	runtimecache "sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -292,6 +293,11 @@ const (
 
 	// ProgressDone this means we are DONE
 	ProgressDone = "100.0%"
+
+	// AnnEventSourceKind is the source kind that should be related to events
+	AnnEventSourceKind = "cdi.kubevirt.io/events.source.kind"
+	// AnnEventSource is the source that should be related to events (namespace/name)
+	AnnEventSource = "cdi.kubevirt.io/events.source"
 )
 
 // Size-detection pod error codes
@@ -339,6 +345,62 @@ func (v *FakeValidator) Validate(value string) (*token.Payload, error) {
 		Resource:  resource,
 		Params:    v.Params,
 	}, nil
+}
+
+// MultiTokenValidator is a token validator that can validate both short and long tokens
+type MultiTokenValidator struct {
+	ShortTokenValidator token.Validator
+	LongTokenValidator  token.Validator
+}
+
+// ValidatePVC validates a PVC
+func (mtv *MultiTokenValidator) ValidatePVC(source, target *corev1.PersistentVolumeClaim) error {
+	tok, v := mtv.getTokenAndValidator(target)
+	return ValidateCloneTokenPVC(tok, v, source, target)
+}
+
+// ValidatePopulator valades a token for a populator
+func (mtv *MultiTokenValidator) ValidatePopulator(vcs *cdiv1.VolumeCloneSource, pvc *corev1.PersistentVolumeClaim) error {
+	if vcs.Namespace == pvc.Namespace {
+		return nil
+	}
+
+	tok, v := mtv.getTokenAndValidator(pvc)
+
+	tokenData, err := v.Validate(tok)
+	if err != nil {
+		return errors.Wrap(err, "error verifying token")
+	}
+
+	var tokenResourceName string
+	switch vcs.Spec.Source.Kind {
+	case "PersistentVolumeClaim":
+		tokenResourceName = "persistentvolumeclaims"
+	case "VolumeSnapshot":
+		tokenResourceName = "volumesnapshots"
+	}
+	srcName := vcs.Spec.Source.Name
+
+	return validateTokenData(tokenData, vcs.Namespace, srcName, pvc.Namespace, pvc.Name, string(pvc.UID), tokenResourceName)
+}
+
+func (mtv *MultiTokenValidator) getTokenAndValidator(pvc *corev1.PersistentVolumeClaim) (string, token.Validator) {
+	v := mtv.LongTokenValidator
+	tok, ok := pvc.Annotations[AnnExtendedCloneToken]
+	if !ok {
+		// if token doesn't exist, no prob for same namespace
+		tok = pvc.Annotations[AnnCloneToken]
+		v = mtv.ShortTokenValidator
+	}
+	return tok, v
+}
+
+// NewMultiTokenValidator returns a new multi token validator
+func NewMultiTokenValidator(key *rsa.PublicKey) *MultiTokenValidator {
+	return &MultiTokenValidator{
+		ShortTokenValidator: NewCloneTokenValidator(common.CloneTokenIssuer, key),
+		LongTokenValidator:  NewCloneTokenValidator(common.ExtendedCloneTokenIssuer, key),
+	}
 }
 
 // NewCloneTokenValidator returns a new token validator
@@ -648,7 +710,7 @@ func ValidateCloneTokenPVC(t string, v token.Validator, source, target *corev1.P
 
 // ValidateCloneTokenDV validates clone token for DV
 func ValidateCloneTokenDV(validator token.Validator, dv *cdiv1.DataVolume) error {
-	sourceName, sourceNamespace := GetCloneSourceNameAndNamespace(dv)
+	_, sourceName, sourceNamespace := GetCloneSourceInfo(dv)
 	if sourceNamespace == "" || sourceNamespace == dv.Namespace {
 		return nil
 	}
@@ -900,7 +962,7 @@ func ValidateRequestedCloneSize(sourceResources corev1.ResourceRequirements, tar
 
 	// Verify that the target PVC size is equal or larger than the source.
 	if sourceRequest.Value() > targetRequest.Value() {
-		return errors.New("target resources requests storage size is smaller than the source")
+		return errors.Errorf("target resources requests storage size is smaller than the source %d < %d", targetRequest.Value(), sourceRequest.Value())
 	}
 	return nil
 }
@@ -1206,7 +1268,7 @@ func IsErrCacheNotStarted(err error) bool {
 	if err == nil {
 		return false
 	}
-	_, ok := err.(*cache.ErrCacheNotStarted)
+	_, ok := err.(*runtimecache.ErrCacheNotStarted)
 	return ok
 }
 
@@ -1243,19 +1305,20 @@ func NewImportDataVolume(name string) *cdiv1.DataVolume {
 	}
 }
 
-// GetCloneSourceNameAndNamespace returns the name and namespace of the cloning source
-func GetCloneSourceNameAndNamespace(dv *cdiv1.DataVolume) (name, namespace string) {
-	var sourceName, sourceNamespace string
+// GetCloneSourceInfo returns the type, name and namespace of the cloning source
+func GetCloneSourceInfo(dv *cdiv1.DataVolume) (sourceType, sourceName, sourceNamespace string) {
 	// Cloning sources are mutually exclusive
 	if dv.Spec.Source.PVC != nil {
+		sourceType = "pvc"
 		sourceName = dv.Spec.Source.PVC.Name
 		sourceNamespace = dv.Spec.Source.PVC.Namespace
 	} else if dv.Spec.Source.Snapshot != nil {
+		sourceType = "snapshot"
 		sourceName = dv.Spec.Source.Snapshot.Name
 		sourceNamespace = dv.Spec.Source.Snapshot.Namespace
 	}
 
-	return sourceName, sourceNamespace
+	return
 }
 
 // IsWaitForFirstConsumerEnabled tells us if we should respect "real" WFFC behavior or just let our worker pods randomly spawn
@@ -1757,4 +1820,47 @@ func GetResource(ctx context.Context, c client.Client, namespace, name string, o
 	}
 
 	return true, nil
+}
+
+// PatchArgs are the args for Patch
+type PatchArgs struct {
+	Client client.Client
+	Log    logr.Logger
+	Obj    client.Object
+	OldObj client.Object
+}
+
+// GetAnnotatedEventSource returns resource referenced by AnnEventSource annotations
+func GetAnnotatedEventSource(ctx context.Context, c client.Client, obj client.Object) (client.Object, error) {
+	esk, ok := obj.GetAnnotations()[AnnEventSourceKind]
+	if !ok {
+		return obj, nil
+	}
+	if esk != "PersistentVolumeClaim" {
+		return obj, nil
+	}
+	es, ok := obj.GetAnnotations()[AnnEventSource]
+	if !ok {
+		return obj, nil
+	}
+	namespace, name, err := cache.SplitMetaNamespaceKey(es)
+	if err != nil {
+		return nil, err
+	}
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+	}
+	if err := c.Get(ctx, client.ObjectKeyFromObject(pvc), pvc); err != nil {
+		return nil, err
+	}
+	return pvc, nil
+}
+
+// OwnedByDataVolume returns true if the object is owned by a DataVolume
+func OwnedByDataVolume(obj metav1.Object) bool {
+	owner := metav1.GetControllerOf(obj)
+	return owner != nil && owner.Kind == "DataVolume"
 }

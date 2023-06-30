@@ -779,7 +779,7 @@ func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, &event)
 }
 
-func (r ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPhaseSync, dvc dvController) (reconcile.Result, error) {
+func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPhaseSync, dvc dvController) (reconcile.Result, error) {
 	result := reconcile.Result{}
 	dv, err := r.getDataVolume(req.NamespacedName)
 	if dv == nil || err != nil {
@@ -944,7 +944,7 @@ func (r *ReconcilerBase) emitFailureConditionEvent(dataVolume *cdiv1.DataVolume,
 	if curReady.Status == corev1.ConditionFalse && curRunning.Status == corev1.ConditionFalse &&
 		dvBoundOrPopulationInProgress(dataVolume, curBound) {
 		//Bound or in progress, not ready, and not running
-		if curRunning.Message != "" && orgRunning.Message != curRunning.Message {
+		if curRunning.Message != "" && (orgRunning == nil || orgRunning.Message != curRunning.Message) {
 			r.recorder.Event(dataVolume, corev1.EventTypeWarning, curRunning.Reason, curRunning.Message)
 		}
 	}
@@ -1207,9 +1207,9 @@ func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, er
 	}
 	// currently we don't support populator with import source of VDDK or Imageio
 	// or clone either from PVC nor snapshot
-	if dv.Spec.Source.Imageio != nil || dv.Spec.Source.VDDK != nil ||
-		dv.Spec.Source.PVC != nil || dv.Spec.Source.Snapshot != nil {
-		log.Info("Not using CDI populators, currently we don't support populators with Imageio/VDDk/Clone source")
+	if dv.Spec.Source.Imageio != nil ||
+		dv.Spec.Source.VDDK != nil {
+		log.Info("Not using CDI populators, currently we don't support populators with Imageio/VDDk source")
 		return false, nil
 	}
 

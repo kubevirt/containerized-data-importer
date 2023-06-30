@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
@@ -45,6 +46,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/token"
 )
 
 const (
@@ -116,7 +118,7 @@ var _ = Describe("Clone populator tests", func() {
 	initinializedTargetAndDataSource := func() (*corev1.PersistentVolumeClaim, *cdiv1.VolumeCloneSource) {
 		target, source := targetAndDataSource()
 		target.Annotations = map[string]string{
-			AnnClonePhase:   pendingPhase,
+			AnnClonePhase:   clone.PendingPhaseName,
 			cc.AnnCloneType: "snapshot",
 		}
 		clone.AddCommonClaimLabels(target)
@@ -126,7 +128,7 @@ var _ = Describe("Clone populator tests", func() {
 
 	succeededTarget := func() *corev1.PersistentVolumeClaim {
 		target, _ := initinializedTargetAndDataSource()
-		target.Annotations[AnnClonePhase] = string(succeededPhase)
+		target.Annotations[AnnClonePhase] = string(clone.SucceededPhaseName)
 		target.Spec.VolumeName = "volume"
 		return target
 	}
@@ -149,7 +151,7 @@ var _ = Describe("Clone populator tests", func() {
 
 	verifyPending := func(c client.Client) {
 		target := getTarget(c)
-		Expect(target.Annotations[AnnClonePhase]).To(Equal(string(pendingPhase)))
+		Expect(target.Annotations[AnnClonePhase]).To(Equal(string(clone.PendingPhaseName)))
 	}
 
 	It("should do nothing if PVC is not found", func() {
@@ -158,13 +160,14 @@ var _ = Describe("Clone populator tests", func() {
 		isDefaultResult(result, err)
 	})
 
-	It("should error if cross namespace datasource is used", func() {
+	It("should do nothing if unexpected PVC", func() {
 		target, _ := targetAndDataSource()
-		target.Spec.DataSourceRef.Namespace = pointer.String("other")
+		target.Spec.DataSourceRef.Kind = "Unexpected"
 		reconciler := createClonePopulatorReconciler(target)
-		_, err := reconciler.Reconcile(context.Background(), nn)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(Equal("cross namespace datasource not supported yet"))
+		result, err := reconciler.Reconcile(context.Background(), nn)
+		isDefaultResult(result, err)
+		target = getTarget(reconciler.client)
+		Expect(target.Annotations).ToNot(HaveKey(AnnClonePhase))
 	})
 
 	It("should be pending storageclass is nil", func() {
@@ -212,6 +215,33 @@ var _ = Describe("Clone populator tests", func() {
 		verifyPending(reconciler.client)
 	})
 
+	It("should be pending if choosestrategy returns nil (cross namespace validation)", func() {
+		target, source := targetAndDataSource()
+		source.Namespace = "other"
+		cc.AddAnnotation(target, AnnDataSourceNamespace, source.Namespace)
+		cc.AddAnnotation(target, cc.AnnCloneToken, "foo")
+		reconciler := createClonePopulatorReconciler(target, storageClass(), source)
+		reconciler.planner = &fakePlanner{}
+		reconciler.multiTokenValidator = &cc.MultiTokenValidator{
+			ShortTokenValidator: &cc.FakeValidator{
+				Match:     "foo",
+				Operation: token.OperationClone,
+				Name:      source.Spec.Source.Name,
+				Namespace: "other",
+				Resource: metav1.GroupVersionResource{
+					Resource: "persistentvolumeclaims",
+				},
+				Params: map[string]string{
+					"targetName":      target.Name,
+					"targetNamespace": target.Namespace,
+				},
+			},
+		}
+		result, err := reconciler.Reconcile(context.Background(), nn)
+		isRequeueResult(result, err)
+		verifyPending(reconciler.client)
+	})
+
 	It("should be pending and initialize target if choosestrategy returns something", func() {
 		target, source := targetAndDataSource()
 		reconciler := createClonePopulatorReconciler(target, storageClass(), source)
@@ -222,7 +252,7 @@ var _ = Describe("Clone populator tests", func() {
 		result, err := reconciler.Reconcile(context.Background(), nn)
 		isDefaultResult(result, err)
 		pvc := getTarget(reconciler.client)
-		Expect(pvc.Annotations[AnnClonePhase]).To(Equal(string(pendingPhase)))
+		Expect(pvc.Annotations[AnnClonePhase]).To(Equal(string(clone.PendingPhaseName)))
 		Expect(pvc.Annotations[cc.AnnCloneType]).To(Equal(string(csr)))
 		Expect(pvc.Finalizers).To(ContainElement(cloneFinalizer))
 	})
@@ -258,20 +288,36 @@ var _ = Describe("Clone populator tests", func() {
 		Expect(pvc.Annotations[AnnCloneError]).To(Equal("phase error"))
 	})
 
-	It("should report phase name and progress", func() {
+	DescribeTable("should report phase name and progress", func(ownedByDataVolume bool) {
 		target, source := initinializedTargetAndDataSource()
+		if ownedByDataVolume {
+			target.OwnerReferences = []metav1.OwnerReference{
+				{
+					Kind:       "DataVolume",
+					Controller: pointer.Bool(true),
+				},
+			}
+		}
 		reconciler := createClonePopulatorReconciler(target, storageClass(), source)
 		reconciler.planner = &fakePlanner{
 			planResult: []clone.Phase{
 				&fakePhase{
 					name: "phase1",
 				},
-				&fakePhaseWithProgress{
+				&fakePhaseWithStatus{
 					fakePhase: fakePhase{
 						name:   "phase2",
 						result: &reconcile.Result{},
 					},
-					progress: "50.0%",
+					status: &clone.PhaseStatus{
+						Progress: "50.0%",
+						Annotations: map[string]string{
+							"foo":                         "bar",
+							cc.AnnRunningCondition:        "true",
+							cc.AnnRunningConditionMessage: "message",
+							cc.AnnRunningConditionReason:  "reason",
+						},
+					},
 				},
 			},
 		}
@@ -280,19 +326,32 @@ var _ = Describe("Clone populator tests", func() {
 		pvc := getTarget(reconciler.client)
 		Expect(pvc.Annotations[AnnClonePhase]).To(Equal("phase2"))
 		Expect(pvc.Annotations[cc.AnnPopulatorProgress]).To(Equal("50.0%"))
-	})
+		Expect(pvc.Annotations).ToNot(HaveKey("foo"))
+		if ownedByDataVolume {
+			Expect(pvc.Annotations).To(HaveKey(cc.AnnRunningCondition))
+			Expect(pvc.Annotations).To(HaveKey(cc.AnnRunningConditionMessage))
+			Expect(pvc.Annotations).To(HaveKey(cc.AnnRunningConditionReason))
+		} else {
+			Expect(pvc.Annotations).ToNot(HaveKey(cc.AnnRunningCondition))
+			Expect(pvc.Annotations).ToNot(HaveKey(cc.AnnRunningConditionMessage))
+			Expect(pvc.Annotations).ToNot(HaveKey(cc.AnnRunningConditionReason))
+		}
+	},
+		Entry("NOT owned by data volume", false),
+		Entry("owned by data volume", true),
+	)
 
 	It("should be in error phase if progress returns an error", func() {
 		target, source := initinializedTargetAndDataSource()
 		reconciler := createClonePopulatorReconciler(target, storageClass(), source)
 		reconciler.planner = &fakePlanner{
 			planResult: []clone.Phase{
-				&fakePhaseWithProgress{
+				&fakePhaseWithStatus{
 					fakePhase: fakePhase{
 						name:   "phase1",
 						result: &reconcile.Result{},
 					},
-					proogressErr: fmt.Errorf("progress error"),
+					statusErr: fmt.Errorf("progress error"),
 				},
 			},
 		}
@@ -371,14 +430,14 @@ func (p *fakePhase) Reconcile(ctx context.Context) (*reconcile.Result, error) {
 	return p.result, p.err
 }
 
-type fakePhaseWithProgress struct {
+type fakePhaseWithStatus struct {
 	fakePhase
-	progress     string
-	proogressErr error
+	status    *clone.PhaseStatus
+	statusErr error
 }
 
-func (p *fakePhaseWithProgress) Progress(ctx context.Context) (string, error) {
-	return p.progress, p.proogressErr
+func (p *fakePhaseWithStatus) Status(ctx context.Context) (*clone.PhaseStatus, error) {
+	return p.status, p.statusErr
 }
 
 func createClonePopulatorReconciler(objects ...runtime.Object) *ClonePopulatorReconciler {

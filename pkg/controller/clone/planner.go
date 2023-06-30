@@ -24,7 +24,6 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -82,9 +81,15 @@ type Phase interface {
 	Reconcile(context.Context) (*reconcile.Result, error)
 }
 
-// ProgressReporter allows a phase to report progress
-type ProgressReporter interface {
-	Progress(context.Context) (string, error)
+// PhaseStatus contains phase status data
+type PhaseStatus struct {
+	Progress    string
+	Annotations map[string]string
+}
+
+// StatusReporter allows a phase to report status
+type StatusReporter interface {
+	Status(context.Context) (*PhaseStatus, error)
 }
 
 // list of all possible (core) types created
@@ -416,7 +421,14 @@ func (p *Planner) validateTargetStorageClassAssignment(ctx context.Context, args
 }
 
 func (p *Planner) validateSourcePVC(args *ChooseStrategyArgs, sourceClaim *corev1.PersistentVolumeClaim) error {
+	_, permissive := args.TargetClaim.Annotations[cc.AnnPermissiveClone]
+	if permissive {
+		args.Log.V(3).Info("permissive clone annotation found, skipping size validation")
+		return nil
+	}
+
 	if err := cc.ValidateRequestedCloneSize(sourceClaim.Spec.Resources, args.TargetClaim.Spec.Resources); err != nil {
+		p.Recorder.Eventf(args.TargetClaim, corev1.EventTypeWarning, cc.ErrIncompatiblePVC, err.Error())
 		return err
 	}
 
@@ -458,15 +470,6 @@ func (p *Planner) validateAdvancedClonePVC(ctx context.Context, args *ChooseStra
 
 func (p *Planner) planHostAssistedFromPVC(ctx context.Context, args *PlanArgs) ([]Phase, error) {
 	desiredClaim := createDesiredClaim(args.DataSource.Namespace, args.TargetClaim)
-
-	if util.ResolveVolumeMode(desiredClaim.Spec.VolumeMode) == corev1.PersistentVolumeFilesystem {
-		ds := desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage]
-		is, err := cc.InflateSizeWithOverhead(ctx, p.Client, ds.Value(), &args.TargetClaim.Spec)
-		if err != nil {
-			return nil, err
-		}
-		desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage] = is
-	}
 
 	hcp := &HostClonePhase{
 		Owner:          args.TargetClaim,
@@ -536,14 +539,6 @@ func (p *Planner) planHostAssistedFromSnapshot(ctx context.Context, args *PlanAr
 	}
 
 	desiredClaim := createDesiredClaim(args.DataSource.Namespace, args.TargetClaim)
-	if util.ResolveVolumeMode(desiredClaim.Spec.VolumeMode) == corev1.PersistentVolumeFilesystem {
-		ds := desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage]
-		is, err := cc.InflateSizeWithOverhead(ctx, p.Client, ds.Value(), &args.TargetClaim.Spec)
-		if err != nil {
-			return nil, err
-		}
-		desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage] = is
-	}
 
 	hcp := &HostClonePhase{
 		Owner:          args.TargetClaim,
@@ -650,6 +645,7 @@ func (p *Planner) planSnapshotFromPVC(ctx context.Context, args *PlanArgs) ([]Ph
 		OwnershipLabel:      p.OwnershipLabel,
 		Client:              p.Client,
 		Log:                 args.Log,
+		Recorder:            p.Recorder,
 	}
 
 	desiredClaim := createDesiredClaim(args.DataSource.Namespace, args.TargetClaim)

@@ -83,7 +83,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		verifyCSIClone(dataVolume, f)
 	})
 
-	It("[posneg:negative][test_id:6655] Support for CSI Clone strategy in storage profile with SC HPP - negative", func() {
+	It("StorageProfile setting ignored with non-csi clone", func() {
 		if f.IsCSIVolumeCloneStorageClassAvailable() {
 			Skip("Test should only run on non-csi storage")
 		}
@@ -97,8 +97,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		).To(Succeed())
 
 		dataVolume, _ := createDataVolumeDontWait("dv-csi-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, cloneStorageClassName, f)
-		waitForDvPhase(cdiv1.CloneScheduled, dataVolume, f)
-		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.ErrUnableToClone))
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 	})
 
 	It("[test_id:7736] Should fail to create pvc in namespace with storage quota, then succeed once the quota is large enough", func() {
@@ -134,7 +134,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
 
 		By("Increase quota")
-		Expect(f.UpdateStorageQuota(int64(2), int64(2*1024*1024*1024))).To(Succeed())
+		Expect(f.UpdateStorageQuota(int64(3), int64(4*1024*1024*1024))).To(Succeed())
 
 		By("Verify clone completed after quota increase")
 		// Wait for operation Succeeded
@@ -185,6 +185,6 @@ func createDataVolumeDontWait(dataVolumeName, testPath string, volumeMode v1.Per
 func verifyCSIClone(dataVolume *cdiv1.DataVolume, f *framework.Framework) {
 	targetPvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
-	Expect(targetPvc.Spec.DataSource.Kind).To(Equal("PersistentVolumeClaim"))
-	Expect(targetPvc.Spec.DataSourceRef.Kind).To(Equal("PersistentVolumeClaim"))
+	Expect(targetPvc.Spec.DataSource.Kind).To(Equal("VolumeCloneSource"))
+	Expect(targetPvc.Spec.DataSourceRef.Kind).To(Equal("VolumeCloneSource"))
 }

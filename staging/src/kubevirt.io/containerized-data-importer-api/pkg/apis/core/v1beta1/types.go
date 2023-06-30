@@ -379,6 +379,11 @@ const (
 	// Paused represents a DataVolumePhase of Paused
 	Paused DataVolumePhase = "Paused"
 
+	// PrepClaimInProgress represents a data volume with a current phase of PrepClaimInProgress
+	PrepClaimInProgress DataVolumePhase = "PrepClaimInProgress"
+	// RebindInProgress represents a data volume with a current phase of RebindInProgress
+	RebindInProgress DataVolumePhase = "RebindInProgress"
+
 	// DataVolumeReady is the condition that indicates if the data volume is ready to be consumed.
 	DataVolumeReady DataVolumeConditionType = "Ready"
 	// DataVolumeBound is the condition that indicates if the underlying PVC is bound or not.
