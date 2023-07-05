@@ -8,8 +8,7 @@ import (
 	"strings"
 
 	"github.com/ghodss/yaml"
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -86,7 +85,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			table.DescribeTable("with Datavolume source validation should", func(sourceType string, args ...string) {
+			DescribeTable("with Datavolume source validation should", func(sourceType string, args ...string) {
 
 				By("Reading yaml file from: " + datavolumeTestFile)
 				err := yamlFiletoStruct(datavolumeTestFile, &dv)
@@ -103,20 +102,20 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				}, timeout, pollingInterval).Should(BeTrue())
 
 			},
-				table.Entry("[test_id:1321]fail with http source with invalid url format", "http", invalidURLFormat),
-				table.Entry("[test_id:1322]fail with http source with empty url", "http", ""),
-				table.Entry("[test_id:1323][crit:low]fail with s3 source with invalid url format", "s3", invalidURLFormat),
-				table.Entry("[test_id:1324][crit:low]fail with s3 source with empty url", "s3", ""),
-				table.Entry("[test_id:1325]fail with empty PVC source namespace", "pvc", "", "test-pvc"),
-				table.Entry("[test_id:1326]fail with empty PVC source name", "pvc", "test", ""),
-				table.Entry("[test_id:3917]fail with source PVC doesn't exist", "pvc", "test", "test-pvc"),
-				table.Entry("[test_id:3918]fail with empty Imageio source diskId", "imageio", validURL, "secret", "tls-cert", ""),
-				table.Entry("[test_id:3926]fail with empty VDDK source UUID", "vddk", validURL, "secret", "", "backingfile", "thumbprint"),
-				table.Entry("[test_id:3927]fail with empty VDDK source backing file", "vddk", validURL, "secret", "uuid", "", "thumbprint"),
-				table.Entry("[test_id:3928]fail with empty VDDK source thumbprint", "vddk", validURL, "secret", "uuid", "backingfile", ""),
+				Entry("[test_id:1321]fail with http source with invalid url format", "http", invalidURLFormat),
+				Entry("[test_id:1322]fail with http source with empty url", "http", ""),
+				Entry("[test_id:1323][crit:low]fail with s3 source with invalid url format", "s3", invalidURLFormat),
+				Entry("[test_id:1324][crit:low]fail with s3 source with empty url", "s3", ""),
+				Entry("[test_id:1325]fail with empty PVC source namespace", "pvc", "", "test-pvc"),
+				Entry("[test_id:1326]fail with empty PVC source name", "pvc", "test", ""),
+				Entry("[test_id:3917]fail with source PVC doesn't exist", "pvc", "test", "test-pvc"),
+				Entry("[test_id:3918]fail with empty Imageio source diskId", "imageio", validURL, "secret", "tls-cert", ""),
+				Entry("[test_id:3926]fail with empty VDDK source UUID", "vddk", validURL, "secret", "", "backingfile", "thumbprint"),
+				Entry("[test_id:3927]fail with empty VDDK source backing file", "vddk", validURL, "secret", "uuid", "", "thumbprint"),
+				Entry("[test_id:3928]fail with empty VDDK source thumbprint", "vddk", validURL, "secret", "uuid", "backingfile", ""),
 			)
 
-			table.DescribeTable("with DataVolume sourceRef validation should", func(kind, namespace, name string) {
+			DescribeTable("with DataVolume sourceRef validation should", func(kind, namespace, name string) {
 				By("Reading yaml file from: " + datavolumeTestFile)
 				err := yamlFiletoStruct(datavolumeTestFile, &dv)
 				Expect(err).ToNot(HaveOccurred())
@@ -138,13 +137,13 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				}, timeout, pollingInterval).Should(BeTrue())
 
 			},
-				table.Entry("[test_id:6780]fail with empty kind", "", "test", "test-pvc"),
-				table.Entry("[test_id:6781]fail with unsupported kind", "no-such-kind", "test", "test-pvc"),
-				table.Entry("[test_id:6782]fail with empty sourceRef name", "DataSource", "test", ""),
-				table.Entry("[test_id:6783]fail with sourceRef DataSource doesn't exist", "DataSource", "test", "test-pvc"),
+				Entry("[test_id:6780]fail with empty kind", "", "test", "test-pvc"),
+				Entry("[test_id:6781]fail with unsupported kind", "no-such-kind", "test", "test-pvc"),
+				Entry("[test_id:6782]fail with empty sourceRef name", "DataSource", "test", ""),
+				Entry("[test_id:6783]fail with sourceRef DataSource doesn't exist", "DataSource", "test", "test-pvc"),
 			)
 
-			table.DescribeTable("with Datavolume PVC size should", func(size string) {
+			DescribeTable("with Datavolume PVC size should", func(size string) {
 
 				By("Reading yaml file from: " + datavolumeTestFile)
 				err := yamlFiletoStruct(datavolumeTestFile, &dv)
@@ -160,9 +159,9 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 					return err != nil
 				}, timeout, pollingInterval).Should(BeTrue())
 			},
-				table.Entry("[test_id:1033]fail with zero PVC size", "0"),
-				table.Entry("[test_id:1327]fail with negative PVC size", "-500m"),
-				table.Entry("[test_id:1328]fail with invalid PVC size", "invalid_size"),
+				Entry("[test_id:1033]fail with zero PVC size", "0"),
+				Entry("[test_id:1327]fail with negative PVC size", "-500m"),
+				Entry("[test_id:1328]fail with invalid PVC size", "invalid_size"),
 			)
 
 		})
@@ -261,7 +260,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 	})
 
 	Context("when creating data volumes from manual manifests", func() {
-		table.DescribeTable("with manifests Datavolume should", func(destinationFile string, expectError bool, errorContains ...string) {
+		DescribeTable("with manifests Datavolume should", func(destinationFile string, expectError bool, errorContains ...string) {
 			By("Verifying kubectl apply")
 			out, err := f.RunKubectlCommand("create", "-f", destinationFile, "-n", f.Namespace.Name)
 			fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
@@ -279,31 +278,31 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				Expect(err).ToNot(HaveOccurred())
 			}
 		},
-			table.Entry("[test_id:1760]fail with blank image source and contentType archive", "manifests/dvBlankArchive.yaml", true, "SourceType cannot be blank and the contentType be archive"),
-			table.Entry("[test_id:1761]fail with invalid contentType", "manifests/dvInvalidContentType.yaml", true, "ContentType not one of: kubevirt, archive", "Unsupported value: \"invalid\": supported values: \"kubevirt\", \"archive\""),
-			table.Entry("[test_id:1762]fail with missing both source and sourceRef", "manifests/dvMissingSource.yaml", true, "Data volume should have either Source or SourceRef", "spec.source in body must be of type object", "spec.sourceRef in body must be of type object"),
-			table.Entry("[test_id:1763]fail with multiple sources", "manifests/dvMultiSource.yaml", true, "Multiple Data volume sources"),
-			table.Entry("[test_id:1764]fail with invalid URL for http source", "manifests/dvInvalidURL.yaml", true, "spec.source Invalid source URL"),
-			table.Entry("[test_id:1765]fail with invalid source PVC", "manifests/dvInvalidSourcePVC.yaml", true, "spec.source.pvc.name in body is required", "spec.source.pvc.name: Required value", "missing required field \"name\" in io.kubevirt.cdi.v1beta1.DataVolume.spec.source.pvc"),
-			table.Entry("[test_id:1766][posneg:positive]succeed with valid source http", "manifests/datavolume.yaml", false, ""),
-			table.Entry("[test_id:1767]fail with missing PVC spec", "manifests/dvMissingPVCSpec.yaml", true, "Missing Data volume PVC", "missing required field \"pvc\" in io.kubevirt.cdi.v1beta1.DataVolume.spec", "invalid: spec.pvc: Required value"),
-			table.Entry("[test_id:3920]fail with missing PVC accessModes", "manifests/dvMissingPVCAccessModes.yaml", true, "spec.pvc.accessModes in body is required", "spec.pvc.accessModes: Required value", "Required value: at least 1 access mode is required"),
-			table.Entry("[test_id:1768]fail with missing resources spec", "manifests/dvMissingResourceSpec.yaml", true, "spec.pvc.resources in body is required", "spec.pvc.resources: Required value", "PVC size is missing"),
-			table.Entry("[test_id:3921]fail with missing PVC size", "manifests/dvMissingPVCSize.yaml", true, "PVC size is missing", "spec.pvc.resources.requests in body must be of type object"),
-			table.Entry("[test_id:1769]fail with 0 size PVC", "manifests/dv0SizePVC.yaml", true, "PVC size can't be equal or less than zero"),
-			table.Entry("[test_id:1937]fail with invalid content type on blank image", "manifests/dvBlankInvalidContentType.yaml", true, "ContentType not one of: kubevirt, archive", "Unsupported value: \"test\": supported values: \"kubevirt\", \"archive\""),
-			table.Entry("[test_id:1931][posneg:positive]succeed with leading zero in requests storage size", "manifests/dvLeadingZero.yaml", false, ""),
-			table.Entry("[test_id:1925]fail with invalid request storage size", "manifests/dvInvalidStorageSizeQuantity.yaml", true, "quantities must match the regular expression '^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$"),
-			table.Entry("[test_id:1923]fail with missing storage size", "manifests/dvMissingRequestSpec.yaml", true, "PVC size is missing", "spec.pvc.resources in body must be of type object"),
-			table.Entry("[test_id:1915]fail with invalid access modes", "manifests/dvInvalidAccessModes.yaml", true, "supported values: \"ReadOnlyMany\", \"ReadWriteMany\", \"ReadWriteOnce\""),
-			table.Entry("[test_id:3922]fail with multiple access modes", "manifests/dvMultipleAccessModes.yaml", true, "PVC multiple accessModes"),
-			table.Entry("[test_id:1861]fail with missing both source and sourceRef (but having both keys)", "manifests/dvMissingSource2.yaml", true, "Data volume should have either Source or SourceRef"),
-			table.Entry("[test_id:1860]fail with missing http url key", "manifests/dvMissingSourceHttp.yaml", true, "Missing Data volume source", "spec.source.http in body must be of type object"),
-			table.Entry("[test_id:1858]fail with missing datavolume spec", "manifests/dvMissingCompleteSpec.yaml", true, "Missing Data volume source", "missing required field \"spec\" in io.kubevirt.cdi.v1beta1.DataVolume", " invalid: spec: Required value"),
+			Entry("[test_id:1760]fail with blank image source and contentType archive", "manifests/dvBlankArchive.yaml", true, "SourceType cannot be blank and the contentType be archive"),
+			Entry("[test_id:1761]fail with invalid contentType", "manifests/dvInvalidContentType.yaml", true, "ContentType not one of: kubevirt, archive", "Unsupported value: \"invalid\": supported values: \"kubevirt\", \"archive\""),
+			Entry("[test_id:1762]fail with missing both source and sourceRef", "manifests/dvMissingSource.yaml", true, "Data volume should have either Source or SourceRef", "spec.source in body must be of type object", "spec.sourceRef in body must be of type object"),
+			Entry("[test_id:1763]fail with multiple sources", "manifests/dvMultiSource.yaml", true, "Multiple Data volume sources"),
+			Entry("[test_id:1764]fail with invalid URL for http source", "manifests/dvInvalidURL.yaml", true, "spec.source Invalid source URL"),
+			Entry("[test_id:1765]fail with invalid source PVC", "manifests/dvInvalidSourcePVC.yaml", true, "spec.source.pvc.name in body is required", "spec.source.pvc.name: Required value", "missing required field \"name\" in io.kubevirt.cdi.v1beta1.DataVolume.spec.source.pvc"),
+			Entry("[test_id:1766][posneg:positive]succeed with valid source http", "manifests/datavolume.yaml", false, ""),
+			Entry("[test_id:1767]fail with missing PVC spec", "manifests/dvMissingPVCSpec.yaml", true, "Missing Data volume PVC", "missing required field \"pvc\" in io.kubevirt.cdi.v1beta1.DataVolume.spec", "invalid: spec.pvc: Required value"),
+			Entry("[test_id:3920]fail with missing PVC accessModes", "manifests/dvMissingPVCAccessModes.yaml", true, "spec.pvc.accessModes in body is required", "spec.pvc.accessModes: Required value", "Required value: at least 1 access mode is required"),
+			Entry("[test_id:1768]fail with missing resources spec", "manifests/dvMissingResourceSpec.yaml", true, "spec.pvc.resources in body is required", "spec.pvc.resources: Required value", "PVC size is missing"),
+			Entry("[test_id:3921]fail with missing PVC size", "manifests/dvMissingPVCSize.yaml", true, "PVC size is missing", "spec.pvc.resources.requests in body must be of type object"),
+			Entry("[test_id:1769]fail with 0 size PVC", "manifests/dv0SizePVC.yaml", true, "PVC size can't be equal or less than zero"),
+			Entry("[test_id:1937]fail with invalid content type on blank image", "manifests/dvBlankInvalidContentType.yaml", true, "ContentType not one of: kubevirt, archive", "Unsupported value: \"test\": supported values: \"kubevirt\", \"archive\""),
+			Entry("[test_id:1931][posneg:positive]succeed with leading zero in requests storage size", "manifests/dvLeadingZero.yaml", false, ""),
+			Entry("[test_id:1925]fail with invalid request storage size", "manifests/dvInvalidStorageSizeQuantity.yaml", true, "quantities must match the regular expression '^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$"),
+			Entry("[test_id:1923]fail with missing storage size", "manifests/dvMissingRequestSpec.yaml", true, "PVC size is missing", "spec.pvc.resources in body must be of type object"),
+			Entry("[test_id:1915]fail with invalid access modes", "manifests/dvInvalidAccessModes.yaml", true, "supported values: \"ReadOnlyMany\", \"ReadWriteMany\", \"ReadWriteOnce\""),
+			Entry("[test_id:3922]fail with multiple access modes", "manifests/dvMultipleAccessModes.yaml", true, "PVC multiple accessModes"),
+			Entry("[test_id:1861]fail with missing both source and sourceRef (but having both keys)", "manifests/dvMissingSource2.yaml", true, "Data volume should have either Source or SourceRef"),
+			Entry("[test_id:1860]fail with missing http url key", "manifests/dvMissingSourceHttp.yaml", true, "Missing Data volume source", "spec.source.http in body must be of type object"),
+			Entry("[test_id:1858]fail with missing datavolume spec", "manifests/dvMissingCompleteSpec.yaml", true, "Missing Data volume source", "missing required field \"spec\" in io.kubevirt.cdi.v1beta1.DataVolume", " invalid: spec: Required value"),
 			// k8s < 1.15 return Required value: name or generateName is required, >= 1.15 return error validating data: unknown object type "nil" in DataVolume.metadata
-			table.Entry("[test_id:1857]fail without datavolume name", "manifests/dvNoName.yaml", true, "Required value: name or generateName is required", "error validating data: unknown object type \"nil\" in DataVolume.metadata"),
-			table.Entry("[test_id:1856]fail without meta data", "manifests/dvNoMetaData.yaml", true, "Required value: name or generateName is required"),
-			table.Entry("[test_id:6786]fail with both source and sourceRef", "manifests/dvBothSourceAndSourceRef.yaml", true, "Data volume should have either Source or SourceRef"),
+			Entry("[test_id:1857]fail without datavolume name", "manifests/dvNoName.yaml", true, "Required value: name or generateName is required", "error validating data: unknown object type \"nil\" in DataVolume.metadata"),
+			Entry("[test_id:1856]fail without meta data", "manifests/dvNoMetaData.yaml", true, "Required value: name or generateName is required"),
+			Entry("[test_id:6786]fail with both source and sourceRef", "manifests/dvBothSourceAndSourceRef.yaml", true, "Data volume should have either Source or SourceRef"),
 		)
 
 		It("[test_id:4895][posneg:positive]report progress while importing 1024Mi PVC", func() {
@@ -397,7 +396,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			table.DescribeTable("volumeimportsource should", func(contentType, sourceType string, args ...string) {
+			DescribeTable("volumeimportsource should", func(contentType, sourceType string, args ...string) {
 				By("Reading yaml file from: " + importPopulatorTestFile)
 				err := yamlFiletoStruct(importPopulatorTestFile, &populatorSource)
 				Expect(err).ToNot(HaveOccurred())
@@ -414,17 +413,17 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				}, timeout, pollingInterval).Should(BeTrue())
 
 			},
-				table.Entry("fail with no source", "", ""),
-				table.Entry("fail with http source with invalid url format", "", "http", invalidURLFormat),
-				table.Entry("fail with http source with empty url", "http", "", ""),
-				table.Entry("fail with s3 source with invalid url format", "", "s3", invalidURLFormat),
-				table.Entry("fail with s3 source with empty url", "", "s3", ""),
-				table.Entry("fail with empty Imageio source diskId", "", "imageio", validURL, "secret", "tls-cert", ""),
-				table.Entry("fail with empty VDDK source UUID", "", "vddk", validURL, "secret", "", "backingfile", "thumbprint"),
-				table.Entry("fail with empty VDDK source backing file", "", "vddk", validURL, "secret", "uuid", "", "thumbprint"),
-				table.Entry("fail with empty VDDK source thumbprint", "", "vddk", validURL, "secret", "uuid", "backingfile", ""),
-				table.Entry("fail with invalid content type", "invalid", "http", validURL),
-				table.Entry("succeed with valid http source", "", "http", validURL),
+				Entry("fail with no source", "", ""),
+				Entry("fail with http source with invalid url format", "", "http", invalidURLFormat),
+				Entry("fail with http source with empty url", "http", "", ""),
+				Entry("fail with s3 source with invalid url format", "", "s3", invalidURLFormat),
+				Entry("fail with s3 source with empty url", "", "s3", ""),
+				Entry("fail with empty Imageio source diskId", "", "imageio", validURL, "secret", "tls-cert", ""),
+				Entry("fail with empty VDDK source UUID", "", "vddk", validURL, "secret", "", "backingfile", "thumbprint"),
+				Entry("fail with empty VDDK source backing file", "", "vddk", validURL, "secret", "uuid", "", "thumbprint"),
+				Entry("fail with empty VDDK source thumbprint", "", "vddk", validURL, "secret", "uuid", "backingfile", ""),
+				Entry("fail with invalid content type", "invalid", "http", validURL),
+				Entry("succeed with valid http source", "", "http", validURL),
 			)
 
 			It("volumeimportsource should fail when multiple sources are set", func() {
@@ -445,7 +444,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 
 			})
 
-			table.DescribeTable("volumeuploadsource should", func(contentType string) {
+			DescribeTable("volumeuploadsource should", func(contentType string) {
 				By("Reading yaml file from: " + uploadPopulatorTestFile)
 				err := yamlFiletoStruct(uploadPopulatorTestFile, &populatorSource)
 				Expect(err).ToNot(HaveOccurred())
@@ -459,10 +458,10 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 					return err != nil
 				}, timeout, pollingInterval).Should(BeTrue())
 			},
-				table.Entry("fail with invalid content type", "invalid"),
-				table.Entry("succeed with empty content type", ""),
-				table.Entry("succeed with archive content type", "archive"),
-				table.Entry("succeed with kubevirt content type", "kubevirt"),
+				Entry("fail with invalid content type", "invalid"),
+				Entry("succeed with empty content type", ""),
+				Entry("succeed with archive content type", "archive"),
+				Entry("succeed with kubevirt content type", "kubevirt"),
 			)
 		})
 

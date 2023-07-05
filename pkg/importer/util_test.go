@@ -7,8 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -27,7 +26,7 @@ var _ = Describe("Parse endpoints", func() {
 		os.Unsetenv(common.ImporterEndpoint)
 	})
 
-	table.DescribeTable("with env set", func(ep string, expect *url.URL, wantErr bool) {
+	DescribeTable("with env set", func(ep string, expect *url.URL, wantErr bool) {
 		result, err := ParseEndpoint(ep)
 		if !wantErr {
 			Expect(err).NotTo(HaveOccurred())
@@ -36,9 +35,9 @@ var _ = Describe("Parse endpoints", func() {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		table.Entry("successfully get url, with valid ep", "http://www.bing.com", validURL, false),
-		table.Entry("successfully get env url, with blank ep", "", envURL, false),
-		table.Entry("fail to get url, with invalid ep", "htdsd://@#$%&%$^@#%%$&", nil, true),
+		Entry("successfully get url, with valid ep", "http://www.bing.com", validURL, false),
+		Entry("successfully get env url, with blank ep", "", envURL, false),
+		Entry("fail to get url, with invalid ep", "htdsd://@#$%&%$^@#%%$&", nil, true),
 	)
 
 	It("with env set to specific value", func() {
@@ -66,7 +65,7 @@ var _ = Describe("Stream Data To File", func() {
 		os.RemoveAll(tmpDir)
 	})
 
-	table.DescribeTable("should", func(fileName string, useTmpDir bool, r io.Reader, errMsg string, wantErr bool) {
+	DescribeTable("should", func(fileName string, useTmpDir bool, r io.Reader, errMsg string, wantErr bool) {
 		if useTmpDir {
 			fileName = filepath.Join(tmpDir, fileName)
 		}
@@ -78,8 +77,8 @@ var _ = Describe("Stream Data To File", func() {
 			Expect(strings.Contains(err.Error(), errMsg)).To(BeTrue())
 		}
 	},
-		table.Entry("succeed with valid reader and filename", "valid", true, strings.NewReader("test reader"), "", false),
-		table.Entry("fail with valid reader and invalid filename", "/invalidpath/invalidfile", false, strings.NewReader("test reader"), "no such file or directory", true),
+		Entry("succeed with valid reader and filename", "valid", true, strings.NewReader("test reader"), "", false),
+		Entry("fail with valid reader and invalid filename", "/invalidpath/invalidfile", false, strings.NewReader("test reader"), "no such file or directory", true),
 	)
 })
 

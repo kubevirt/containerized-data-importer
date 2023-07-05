@@ -2,8 +2,7 @@ package tests
 
 import (
 	"fmt"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"kubevirt.io/containerized-data-importer/tests/framework"

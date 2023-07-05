@@ -7,8 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -30,38 +29,38 @@ var _ = Describe("Util", func() {
 		Expect(regexp.MustCompile(pattern).Match([]byte(got))).To(BeTrue())
 	})
 
-	table.DescribeTable("Round down", func(input, multiple, expectedResult int64) {
+	DescribeTable("Round down", func(input, multiple, expectedResult int64) {
 		result := RoundDown(input, multiple)
 		Expect(result).To(Equal(expectedResult))
 	},
-		table.Entry("Round down 513 to nearest multiple of 512", int64(513), int64(512), int64(512)),
-		table.Entry("Round down 512 to nearest multiple of 512", int64(512), int64(512), int64(512)),
-		table.Entry("Round down 510 to nearest multiple of 512", int64(510), int64(512), int64(0)),
-		table.Entry("Round down 0 to nearest multiple of 512", int64(0), int64(512), int64(0)),
-		table.Entry("Round down 513 to nearest multiple of 2", int64(513), int64(2), int64(512)),
-		table.Entry("Round down 512 to nearest multiple of 2", int64(512), int64(2), int64(512)),
-		table.Entry("Round down 510 to nearest multiple of 2", int64(510), int64(2), int64(510)),
+		Entry("Round down 513 to nearest multiple of 512", int64(513), int64(512), int64(512)),
+		Entry("Round down 512 to nearest multiple of 512", int64(512), int64(512), int64(512)),
+		Entry("Round down 510 to nearest multiple of 512", int64(510), int64(512), int64(0)),
+		Entry("Round down 0 to nearest multiple of 512", int64(0), int64(512), int64(0)),
+		Entry("Round down 513 to nearest multiple of 2", int64(513), int64(2), int64(512)),
+		Entry("Round down 512 to nearest multiple of 2", int64(512), int64(2), int64(512)),
+		Entry("Round down 510 to nearest multiple of 2", int64(510), int64(2), int64(510)),
 	)
 
-	table.DescribeTable("Round up", func(input, multiple, expectedResult int64) {
+	DescribeTable("Round up", func(input, multiple, expectedResult int64) {
 		result := RoundUp(input, multiple)
 		Expect(result).To(Equal(expectedResult))
 	},
-		table.Entry("Round up 513 to nearest multiple of 512", int64(513), int64(512), int64(1024)),
-		table.Entry("Round up 512 to nearest multiple of 512", int64(512), int64(512), int64(512)),
-		table.Entry("Round up 510 to nearest multiple of 512", int64(510), int64(512), int64(512)),
-		table.Entry("Round up 0 to nearest multiple of 512", int64(0), int64(512), int64(0)),
-		table.Entry("Round up 513 to nearest multiple of 2", int64(513), int64(2), int64(514)),
-		table.Entry("Round up 512 to nearest multiple of 2", int64(512), int64(2), int64(512)),
-		table.Entry("Round up 510 to nearest multiple of 2", int64(510), int64(2), int64(510)),
+		Entry("Round up 513 to nearest multiple of 512", int64(513), int64(512), int64(1024)),
+		Entry("Round up 512 to nearest multiple of 512", int64(512), int64(512), int64(512)),
+		Entry("Round up 510 to nearest multiple of 512", int64(510), int64(512), int64(512)),
+		Entry("Round up 0 to nearest multiple of 512", int64(0), int64(512), int64(0)),
+		Entry("Round up 513 to nearest multiple of 2", int64(513), int64(2), int64(514)),
+		Entry("Round up 512 to nearest multiple of 2", int64(512), int64(2), int64(512)),
+		Entry("Round up 510 to nearest multiple of 2", int64(510), int64(2), int64(510)),
 	)
 
-	table.DescribeTable("Find Namespace", func(inputFile, expectedResult string) {
+	DescribeTable("Find Namespace", func(inputFile, expectedResult string) {
 		result := getNamespace(inputFile)
 		Expect(result).To(Equal(expectedResult))
 	},
-		table.Entry("Valid namespace", filepath.Join(fileDir, "namespace.txt"), "test-namespace"),
-		table.Entry("Invalid file", "doesnotexist", "cdi"),
+		Entry("Valid namespace", filepath.Join(fileDir, "namespace.txt"), "test-namespace"),
+		Entry("Invalid file", "doesnotexist", "cdi"),
 	)
 })
 
@@ -194,7 +193,7 @@ var _ = Describe("Zero out ranges in files", func() {
 		Expect(comparison).To(Equal(0))
 	})
 
-	table.DescribeTable("Should successfully append zeroes to a file", func(appendFunction func(f *os.File, start, length int64) error) {
+	DescribeTable("Should successfully append zeroes to a file", func(appendFunction func(f *os.File, start, length int64) error) {
 		length := 1024
 		err := appendFunction(testFile, int64(len(testData)), int64(length))
 		Expect(err).ToNot(HaveOccurred())
@@ -210,18 +209,18 @@ var _ = Describe("Zero out ranges in files", func() {
 		comparison = bytes.Compare(data[len(testData):], bytes.Repeat([]byte{0}, length))
 		Expect(comparison).To(Equal(0))
 	},
-		table.Entry("using truncate", AppendZeroWithTruncate),
-		table.Entry("using write", AppendZeroWithWrite),
+		Entry("using truncate", AppendZeroWithTruncate),
+		Entry("using write", AppendZeroWithWrite),
 	)
 
-	table.DescribeTable("Should fail to append zeroes to a file using seek if it already has data at the specified starting index", func(appendFunction func(f *os.File, start, length int64) error) {
+	DescribeTable("Should fail to append zeroes to a file using seek if it already has data at the specified starting index", func(appendFunction func(f *os.File, start, length int64) error) {
 		length := 1024
 		err := appendFunction(testFile, 0, int64(length))
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).Should(MatchRegexp(".*cannot safely append.*"))
 	},
-		table.Entry("using truncate", AppendZeroWithTruncate),
-		table.Entry("using write", AppendZeroWithWrite),
+		Entry("using truncate", AppendZeroWithTruncate),
+		Entry("using write", AppendZeroWithWrite),
 	)
 })
 var _ = Describe("Usable Space calculation", func() {
@@ -233,7 +232,7 @@ var _ = Describe("Usable Space calculation", func() {
 		defaultOverhead = float64(0.055)
 		largeOverhead   = float64(0.75)
 	)
-	table.DescribeTable("getusablespace should return properly aligned sizes,", func(virtualSize int64, overhead float64) {
+	DescribeTable("getusablespace should return properly aligned sizes,", func(virtualSize int64, overhead float64) {
 		for i := int64(virtualSize - 1024); i < virtualSize+1024; i++ {
 			// Requested space is virtualSize rounded up to 1Mi alignment / (1 - overhead) rounded up
 			requestedSpace := int64(float64(RoundUp(i, DefaultAlignBlockSize)+1) / float64(1-overhead))
@@ -244,17 +243,17 @@ var _ = Describe("Usable Space calculation", func() {
 			}
 		}
 	},
-		table.Entry("1Mi virtual size, 0 overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, noOverhead),
-		table.Entry("1Mi virtual size, default overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, defaultOverhead),
-		table.Entry("1Mi virtual size, large overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, largeOverhead),
-		table.Entry("40Mi virtual size, 0 overhead to be 40Mi if <= 1Mi and 41Mi if > 40Mi", 40*Mi, noOverhead),
-		table.Entry("40Mi virtual size, default overhead to be 40Mi if <= 1Mi and 41Mi if > 40Mi", 40*Mi, defaultOverhead),
-		table.Entry("40Mi virtual size, large overhead to be 40Mi if <= 40Mi and 41Mi if > 40Mi", 40*Mi, largeOverhead),
-		table.Entry("1Gi virtual size, 0 overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, noOverhead),
-		table.Entry("1Gi virtual size, default overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, defaultOverhead),
-		table.Entry("1Gi virtual size, large overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, largeOverhead),
-		table.Entry("40Gi virtual size, 0 overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, noOverhead),
-		table.Entry("40Gi virtual size, default overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, defaultOverhead),
-		table.Entry("40Gi virtual size, large overhead to be 40Gi if <= 40Gi and 41Gi if > 40Gi", 40*Gi, largeOverhead),
+		Entry("1Mi virtual size, 0 overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, noOverhead),
+		Entry("1Mi virtual size, default overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, defaultOverhead),
+		Entry("1Mi virtual size, large overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, largeOverhead),
+		Entry("40Mi virtual size, 0 overhead to be 40Mi if <= 1Mi and 41Mi if > 40Mi", 40*Mi, noOverhead),
+		Entry("40Mi virtual size, default overhead to be 40Mi if <= 1Mi and 41Mi if > 40Mi", 40*Mi, defaultOverhead),
+		Entry("40Mi virtual size, large overhead to be 40Mi if <= 40Mi and 41Mi if > 40Mi", 40*Mi, largeOverhead),
+		Entry("1Gi virtual size, 0 overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, noOverhead),
+		Entry("1Gi virtual size, default overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, defaultOverhead),
+		Entry("1Gi virtual size, large overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, largeOverhead),
+		Entry("40Gi virtual size, 0 overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, noOverhead),
+		Entry("40Gi virtual size, default overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, defaultOverhead),
+		Entry("40Gi virtual size, large overhead to be 40Gi if <= 40Gi and 41Gi if > 40Gi", 40*Gi, largeOverhead),
 	)
 })

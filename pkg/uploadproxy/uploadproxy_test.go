@@ -8,8 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
@@ -181,7 +180,7 @@ func setupProxyTests(handler http.HandlerFunc) *uploadProxyApp {
 }
 
 var _ = Describe("submit request and check status", func() {
-	table.DescribeTable("Test proxy status code", func(path string, statusCode int) {
+	DescribeTable("Test proxy status code", func(path string, statusCode int) {
 		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(statusCode)
 		}))
@@ -190,16 +189,16 @@ var _ = Describe("submit request and check status", func() {
 		req := newProxyRequest(path, "Bearer valid")
 		submitRequestAndCheckStatus(req, statusCode, app)
 	},
-		table.Entry("Test Sync OK", common.UploadPathSync, http.StatusOK),
-		table.Entry("Test Sync error", common.UploadPathSync, http.StatusInternalServerError),
-		table.Entry("Test Async OK", common.UploadPathAsync, http.StatusOK),
-		table.Entry("Test Async error", common.UploadPathAsync, http.StatusInternalServerError),
-		table.Entry("Test Form Sync OK", common.UploadFormSync, http.StatusOK),
-		table.Entry("Test Form Sync error", common.UploadFormSync, http.StatusInternalServerError),
-		table.Entry("Test Form Async OK", common.UploadFormAsync, http.StatusOK),
-		table.Entry("Test Form Async error", common.UploadFormAsync, http.StatusInternalServerError),
+		Entry("Test Sync OK", common.UploadPathSync, http.StatusOK),
+		Entry("Test Sync error", common.UploadPathSync, http.StatusInternalServerError),
+		Entry("Test Async OK", common.UploadPathAsync, http.StatusOK),
+		Entry("Test Async error", common.UploadPathAsync, http.StatusInternalServerError),
+		Entry("Test Form Sync OK", common.UploadFormSync, http.StatusOK),
+		Entry("Test Form Sync error", common.UploadFormSync, http.StatusInternalServerError),
+		Entry("Test Form Async OK", common.UploadFormAsync, http.StatusOK),
+		Entry("Test Form Async error", common.UploadFormAsync, http.StatusInternalServerError),
 	)
-	table.DescribeTable("Test proxy status code with CORS", func(path string, statusCode int) {
+	DescribeTable("Test proxy status code with CORS", func(path string, statusCode int) {
 		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(statusCode)
 		}))
@@ -209,16 +208,16 @@ var _ = Describe("submit request and check status", func() {
 		req.Header.Set("Origin", "foo.bar.com")
 		submitRequestAndCheckStatusAndCORS(req, statusCode, app)
 	},
-		table.Entry("Test Sync OK", common.UploadPathSync, http.StatusOK),
-		table.Entry("Test Sync error", common.UploadPathSync, http.StatusInternalServerError),
-		table.Entry("Test Async OK", common.UploadPathAsync, http.StatusOK),
-		table.Entry("Test Async error", common.UploadPathAsync, http.StatusInternalServerError),
-		table.Entry("Test Form Sync OK", common.UploadFormSync, http.StatusOK),
-		table.Entry("Test Form Sync error", common.UploadFormSync, http.StatusInternalServerError),
-		table.Entry("Test Form Async OK", common.UploadFormAsync, http.StatusOK),
-		table.Entry("Test Form Async error", common.UploadFormAsync, http.StatusInternalServerError),
+		Entry("Test Sync OK", common.UploadPathSync, http.StatusOK),
+		Entry("Test Sync error", common.UploadPathSync, http.StatusInternalServerError),
+		Entry("Test Async OK", common.UploadPathAsync, http.StatusOK),
+		Entry("Test Async error", common.UploadPathAsync, http.StatusInternalServerError),
+		Entry("Test Form Sync OK", common.UploadFormSync, http.StatusOK),
+		Entry("Test Form Sync error", common.UploadFormSync, http.StatusInternalServerError),
+		Entry("Test Form Async OK", common.UploadFormAsync, http.StatusOK),
+		Entry("Test Form Async error", common.UploadFormAsync, http.StatusInternalServerError),
 	)
-	table.DescribeTable("Test head proxy status code", func(statusCode int) {
+	DescribeTable("Test head proxy status code", func(statusCode int) {
 		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(statusCode)
 		}))
@@ -227,8 +226,8 @@ var _ = Describe("submit request and check status", func() {
 		req := newProxyHeadRequest("Bearer valid")
 		submitRequestAndCheckStatus(req, statusCode, app)
 	},
-		table.Entry("Test OK", http.StatusOK),
-		table.Entry("Test error", http.StatusInternalServerError),
+		Entry("Test OK", http.StatusOK),
+		Entry("Test error", http.StatusInternalServerError),
 	)
 	It("Invalid token", func() {
 		app := createApp()
@@ -238,12 +237,12 @@ var _ = Describe("submit request and check status", func() {
 
 		submitRequestAndCheckStatus(req, http.StatusUnauthorized, app)
 	})
-	table.DescribeTable("Test proxy auth header", func(headerValue string, statusCode int) {
+	DescribeTable("Test proxy auth header", func(headerValue string, statusCode int) {
 		req := newProxyRequest(common.UploadPathSync, headerValue)
 		submitRequestAndCheckStatus(req, statusCode, nil)
 	},
-		table.Entry("No auth header", "", http.StatusBadRequest),
-		table.Entry("Malformed auth header: invalid prefix", "Beereer valid", http.StatusBadRequest),
+		Entry("No auth header", "", http.StatusBadRequest),
+		Entry("Malformed auth header: invalid prefix", "Beereer valid", http.StatusBadRequest),
 	)
 	It("Test healthz", func() {
 		req, err := http.NewRequest("GET", healthzPath, nil)
@@ -251,7 +250,7 @@ var _ = Describe("submit request and check status", func() {
 		submitRequestAndCheckStatus(req, http.StatusOK, nil)
 	})
 
-	table.DescribeTable("Test proxy upload possible", func(uploadPossible uploadPossibleFunc, statusCode int) {
+	DescribeTable("Test proxy upload possible", func(uploadPossible uploadPossibleFunc, statusCode int) {
 		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(statusCode)
 		}))
@@ -260,8 +259,8 @@ var _ = Describe("submit request and check status", func() {
 		req := newProxyRequest(common.UploadPathSync, "Bearer valid")
 		submitRequestAndCheckStatus(req, statusCode, app)
 	},
-		table.Entry("Test OK", func(*v1.PersistentVolumeClaim) error { return nil }, http.StatusOK),
-		table.Entry("Test no annotation", func(*v1.PersistentVolumeClaim) error { return fmt.Errorf("NOPE") }, http.StatusBadRequest),
+		Entry("Test OK", func(*v1.PersistentVolumeClaim) error { return nil }, http.StatusOK),
+		Entry("Test no annotation", func(*v1.PersistentVolumeClaim) error { return fmt.Errorf("NOPE") }, http.StatusBadRequest),
 	)
 
 	It("Test healthz", func() {

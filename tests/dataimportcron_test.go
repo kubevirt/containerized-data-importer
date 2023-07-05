@@ -9,8 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -225,7 +224,7 @@ var _ = Describe("DataImportCron", func() {
 		}
 	}
 
-	table.DescribeTable("should", func(retention, createErrorDv bool, repeat int, format cdiv1.DataImportCronSourceFormat) {
+	DescribeTable("should", func(retention, createErrorDv bool, repeat int, format cdiv1.DataImportCronSourceFormat) {
 		if format == cdiv1.DataImportCronSourceFormatSnapshot && !f.IsSnapshotStorageClassAvailable() {
 			Skip("Volumesnapshot support needed to test DataImportCron with Volumesnapshot sources")
 		}
@@ -361,11 +360,11 @@ var _ = Describe("DataImportCron", func() {
 			verifyDeletion(format)
 		}
 	},
-		table.Entry("[test_id:7403] succeed importing initial PVC from registry URL", true, false, 1, cdiv1.DataImportCronSourceFormatPvc),
-		table.Entry("[test_id:7414] succeed importing PVC from registry URL on source digest update", true, false, 2, cdiv1.DataImportCronSourceFormatPvc),
-		table.Entry("[test_id:10031] succeed importing initially into a snapshot from registry URL", true, false, 1, cdiv1.DataImportCronSourceFormatSnapshot),
-		table.Entry("[test_id:10032] succeed importing to a snapshot from registry URL on source digest update", true, false, 2, cdiv1.DataImportCronSourceFormatSnapshot),
-		table.Entry("[test_id:8266] succeed deleting error DVs when importing new ones", false, true, 2, cdiv1.DataImportCronSourceFormatPvc),
+		Entry("[test_id:7403] succeed importing initial PVC from registry URL", true, false, 1, cdiv1.DataImportCronSourceFormatPvc),
+		Entry("[test_id:7414] succeed importing PVC from registry URL on source digest update", true, false, 2, cdiv1.DataImportCronSourceFormatPvc),
+		Entry("[test_id:10031] succeed importing initially into a snapshot from registry URL", true, false, 1, cdiv1.DataImportCronSourceFormatSnapshot),
+		Entry("[test_id:10032] succeed importing to a snapshot from registry URL on source digest update", true, false, 2, cdiv1.DataImportCronSourceFormatSnapshot),
+		Entry("[test_id:8266] succeed deleting error DVs when importing new ones", false, true, 2, cdiv1.DataImportCronSourceFormatPvc),
 	)
 
 	It("[test_id:10040] Should get digest updated by external poller", func() {
@@ -440,7 +439,7 @@ var _ = Describe("DataImportCron", func() {
 		Expect(errors.IsNotFound(err)).To(BeTrue())
 	})
 
-	table.DescribeTable("Succeed garbage collecting sources when importing new ones", func(format cdiv1.DataImportCronSourceFormat) {
+	DescribeTable("Succeed garbage collecting sources when importing new ones", func(format cdiv1.DataImportCronSourceFormat) {
 		if format == cdiv1.DataImportCronSourceFormatSnapshot && !f.IsSnapshotStorageClassAvailable() {
 			Skip("Volumesnapshot support needed to test DataImportCron with Volumesnapshot sources")
 		}
@@ -552,8 +551,8 @@ var _ = Describe("DataImportCron", func() {
 			Expect(found).To(BeTrue())
 		}
 	},
-		table.Entry("[test_id:7406] with PVC sources", cdiv1.DataImportCronSourceFormatPvc),
-		table.Entry("[test_id:10033] with snapshot sources", cdiv1.DataImportCronSourceFormatSnapshot),
+		Entry("[test_id:7406] with PVC sources", cdiv1.DataImportCronSourceFormatPvc),
+		Entry("[test_id:10033] with snapshot sources", cdiv1.DataImportCronSourceFormatSnapshot),
 	)
 
 	It("[test_id:8033] should delete jobs on deletion", func() {

@@ -30,6 +30,7 @@ go_library(
         "equal_matcher.go",
         "have_cap_matcher.go",
         "have_each_matcher.go",
+        "have_exact_elements.go",
         "have_existing_field_matcher.go",
         "have_field.go",
         "have_http_body_matcher.go",

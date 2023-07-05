@@ -24,8 +24,7 @@ import (
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -448,7 +447,7 @@ var _ = Describe("reconcilePVC loop", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		table.DescribeTable("should pass correct crypto config to created pod", func(profile *ocpconfigv1.TLSSecurityProfile) {
+		DescribeTable("should pass correct crypto config to created pod", func(profile *ocpconfigv1.TLSSecurityProfile) {
 			testPvc := cc.CreatePvc(testPvcName, "default", map[string]string{cc.AnnUploadRequest: "", AnnUploadPod: uploadResourceName}, nil)
 			reconciler := createUploadReconciler(testPvc)
 			cdiConfig := &cdiv1.CDIConfig{}
@@ -487,8 +486,8 @@ var _ = Describe("reconcilePVC loop", func() {
 			}
 			Expect(foundCiphersEnvVar).To(BeTrue())
 		},
-			table.Entry("no profile set", nil),
-			table.Entry("'Old' profile set", &ocpconfigv1.TLSSecurityProfile{Type: ocpconfigv1.TLSProfileOldType, Old: &ocpconfigv1.OldTLSProfile{}}),
+			Entry("no profile set", nil),
+			Entry("'Old' profile set", &ocpconfigv1.TLSSecurityProfile{Type: ocpconfigv1.TLSProfileOldType, Old: &ocpconfigv1.OldTLSProfile{}}),
 		)
 	})
 })

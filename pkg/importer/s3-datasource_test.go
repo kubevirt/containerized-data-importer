@@ -8,8 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/s3"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/pkg/errors"
@@ -98,7 +97,7 @@ var _ = Describe("S3 data source", func() {
 		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
 	})
 
-	table.DescribeTable("calling transfer should", func(fileName, scratchPath string, want []byte, wantErr bool) {
+	DescribeTable("calling transfer should", func(fileName, scratchPath string, want []byte, wantErr bool) {
 		if scratchPath == "" {
 			scratchPath = tmpDir
 		}
@@ -131,8 +130,8 @@ var _ = Describe("S3 data source", func() {
 			Expect(ProcessingPhaseError).To(Equal(result))
 		}
 	},
-		table.Entry("return Error with missing scratch space", cirrosFilePath, "/imaninvalidpath", nil, true),
-		table.Entry("return Convert with scratch space and valid qcow file", cirrosFilePath, "", cirrosData, false),
+		Entry("return Error with missing scratch space", cirrosFilePath, "/imaninvalidpath", nil, true),
+		Entry("return Convert with scratch space and valid qcow file", cirrosFilePath, "", cirrosData, false),
 	)
 
 	It("Transfer should fail on reader error", func() {

@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -111,7 +110,7 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	})
 
 	Context("CRDs must be a structural schema", func() {
-		table.DescribeTable("crd name", func(crdName string) {
+		DescribeTable("crd name", func(crdName string) {
 			crd, err := f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
 			if k8serrors.IsNotFound(err) {
 				Skip("Doesn't work on openshift 3.11")
@@ -126,9 +125,9 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 				}
 			}
 		},
-			table.Entry("[test_id:5056]CDIConfigs", "cdiconfigs.cdi.kubevirt.io"),
-			table.Entry("[test_id:5057]CDIs", "cdis.cdi.kubevirt.io"),
-			table.Entry("[test_id:5056]Datavolumes", "datavolumes.cdi.kubevirt.io"),
+			Entry("[test_id:5056]CDIConfigs", "cdiconfigs.cdi.kubevirt.io"),
+			Entry("[test_id:5057]CDIs", "cdis.cdi.kubevirt.io"),
+			Entry("[test_id:5056]Datavolumes", "datavolumes.cdi.kubevirt.io"),
 		)
 	})
 })

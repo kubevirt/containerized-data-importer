@@ -16,6 +16,7 @@ go_library(
     deps = [
         "//vendor/golang.org/x/mod/module:go_default_library",
         "//vendor/golang.org/x/tools/go/ast/astutil:go_default_library",
+        "//vendor/golang.org/x/tools/internal/event:go_default_library",
         "//vendor/golang.org/x/tools/internal/gocommand:go_default_library",
         "//vendor/golang.org/x/tools/internal/gopathwalk:go_default_library",
     ],

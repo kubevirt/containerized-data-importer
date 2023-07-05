@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -34,13 +33,13 @@ var _ = Describe("getVolumeMode", func() {
 	pvcVolumeModeFilesystem := CreatePvc("testPVCVolumeModeFS", "default", map[string]string{AnnSource: SourceHTTP}, nil)
 	pvcVolumeModeFilesystemDefault := CreatePvc("testPVCVolumeModeFS", "default", map[string]string{AnnSource: SourceHTTP}, nil)
 
-	table.DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult corev1.PersistentVolumeMode) {
+	DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult corev1.PersistentVolumeMode) {
 		result := GetVolumeMode(pvc)
 		Expect(result).To(Equal(expectedResult))
 	},
-		table.Entry("return block if pvc has block volume mode", pvcVolumeModeBlock, corev1.PersistentVolumeBlock),
-		table.Entry("return file system if pvc has filesystem mode", pvcVolumeModeFilesystem, corev1.PersistentVolumeFilesystem),
-		table.Entry("return file system if pvc has no mode defined", pvcVolumeModeFilesystemDefault, corev1.PersistentVolumeFilesystem),
+		Entry("return block if pvc has block volume mode", pvcVolumeModeBlock, corev1.PersistentVolumeBlock),
+		Entry("return file system if pvc has filesystem mode", pvcVolumeModeFilesystem, corev1.PersistentVolumeFilesystem),
+		Entry("return file system if pvc has no mode defined", pvcVolumeModeFilesystemDefault, corev1.PersistentVolumeFilesystem),
 	)
 })
 
@@ -48,15 +47,15 @@ var _ = Describe("CheckIfLabelExists", func() {
 	pvc := CreatePvc("testPVC", "default", nil, map[string]string{common.CDILabelKey: common.CDILabelValue})
 	pvcNoLbl := CreatePvc("testPVC2", "default", nil, nil)
 
-	table.DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, key, value string, expectedResult bool) {
+	DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, key, value string, expectedResult bool) {
 		result := checkIfLabelExists(pvc, key, value)
 		Expect(result).To(Equal(expectedResult))
 	},
-		table.Entry("return true if label with value exists", pvc, common.CDILabelKey, common.CDILabelValue, true),
-		table.Entry("return false if label with value does not exists", pvc, AnnCreatedBy, "yes", false),
-		table.Entry("return false if label exists, but value doesn't match", pvc, common.CDILabelKey, "something", false),
-		table.Entry("return false if pvc has no labels", pvcNoLbl, common.CDILabelKey, common.CDILabelValue, false),
-		table.Entry("return false if pvc has no labels and check key and value are blank", pvcNoLbl, "", "", false),
+		Entry("return true if label with value exists", pvc, common.CDILabelKey, common.CDILabelValue, true),
+		Entry("return false if label with value does not exists", pvc, AnnCreatedBy, "yes", false),
+		Entry("return false if label exists, but value doesn't match", pvc, common.CDILabelKey, "something", false),
+		Entry("return false if pvc has no labels", pvcNoLbl, common.CDILabelKey, common.CDILabelValue, false),
+		Entry("return false if pvc has no labels and check key and value are blank", pvcNoLbl, "", "", false),
 	)
 })
 
@@ -348,7 +347,7 @@ var _ = Describe("HandleFailedPod", func() {
 	pvc := CreatePvc("test-pvc", "test-ns", nil, nil)
 	podName := "test-pod"
 
-	table.DescribeTable("Should record an event with pertinent information if pod fails due to", func(errMsg, reason string) {
+	DescribeTable("Should record an event with pertinent information if pod fails due to", func(errMsg, reason string) {
 		// Create a mock reconciler to record the events
 		cl := CreateClient(pvc)
 		rec := record.NewFakeRecorder(10)
@@ -362,8 +361,8 @@ var _ = Describe("HandleFailedPod", func() {
 		Expect(event).To(ContainSubstring(msg))
 		Expect(event).To(ContainSubstring(reason))
 	},
-		table.Entry("generic error", "test error", ErrStartingPod),
-		table.Entry("quota error", "exceeded quota:", ErrExceededQuota),
+		Entry("generic error", "test error", ErrStartingPod),
+		Entry("quota error", "exceeded quota:", ErrExceededQuota),
 	)
 
 	It("Should return a different error if the PVC isn't able to update, but still record the event", func() {
@@ -387,13 +386,13 @@ var _ = Describe("check PVC", func() {
 	pvcWithEndPointAnno := CreatePvc("testPvcWithEndPointAnno", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
 	pvcWithCloneRequestAnno := CreatePvc("testPvcWithCloneRequestAnno", "default", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
 
-	table.DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, annotation string, expectedResult bool) {
+	DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, annotation string, expectedResult bool) {
 		result := checkPVC(pvc, annotation, utilLog)
 		Expect(result).To(Equal(expectedResult))
 	},
-		table.Entry("return false if no annotation provided", pvcNoAnno, AnnEndpoint, false),
-		table.Entry("return true if annotation provided that matches test http", pvcWithEndPointAnno, AnnEndpoint, true),
-		table.Entry("return true if annotation provided that matches test clone", pvcWithCloneRequestAnno, AnnCloneRequest, true),
+		Entry("return false if no annotation provided", pvcNoAnno, AnnEndpoint, false),
+		Entry("return true if annotation provided that matches test http", pvcWithEndPointAnno, AnnEndpoint, true),
+		Entry("return true if annotation provided that matches test clone", pvcWithCloneRequestAnno, AnnCloneRequest, true),
 	)
 })
 

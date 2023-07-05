@@ -7,8 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"kubevirt.io/containerized-data-importer/pkg/image"
@@ -41,7 +40,7 @@ var _ = Describe("Format Readers", func() {
 		}
 	})
 
-	table.DescribeTable("can construct readers", func(filename string, numRdrs int, wantErr, archived, convert bool) {
+	DescribeTable("can construct readers", func(filename string, numRdrs int, wantErr, archived, convert bool) {
 		f, err := os.Open(filename)
 		Expect(err).ToNot(HaveOccurred())
 		defer f.Close()
@@ -59,14 +58,14 @@ var _ = Describe("Format Readers", func() {
 			Expect(archived).To(Equal(fr.Archived))
 		}
 	},
-		table.Entry("successfully construct a xz reader", tinyCoreXzFilePath, 4, false, true, false),              // [stream, multi-r, xz, multi-r] convert = false
-		table.Entry("successfully construct a gz reader", tinyCoreGzFilePath, 4, false, true, false),              // [stream, multi-r, gz, multi-r] convert = false
-		table.Entry("successfully return the base reader when archived", archiveFilePath, 3, false, false, false), // [stream, multi-r, multi-r] convert = false
-		table.Entry("successfully construct qcow2 reader", cirrosFilePath, 2, false, false, true),                 // [stream, multi-r] convert = true
-		table.Entry("successfully construct .iso reader", tinyCoreFilePath, 2, false, false, false),               // [stream, multi-r] convert = false
+		Entry("successfully construct a xz reader", tinyCoreXzFilePath, 4, false, true, false),              // [stream, multi-r, xz, multi-r] convert = false
+		Entry("successfully construct a gz reader", tinyCoreGzFilePath, 4, false, true, false),              // [stream, multi-r, gz, multi-r] convert = false
+		Entry("successfully return the base reader when archived", archiveFilePath, 3, false, false, false), // [stream, multi-r, multi-r] convert = false
+		Entry("successfully construct qcow2 reader", cirrosFilePath, 2, false, false, true),                 // [stream, multi-r] convert = true
+		Entry("successfully construct .iso reader", tinyCoreFilePath, 2, false, false, false),               // [stream, multi-r] convert = false
 	)
 
-	table.DescribeTable("can append readers", func(rType int, r interface{}, numRdrs int, isCloser bool) {
+	DescribeTable("can append readers", func(rType int, r interface{}, numRdrs int, isCloser bool) {
 		f, err := os.Open(cirrosFilePath)
 		Expect(err).ToNot(HaveOccurred())
 		defer f.Close()
@@ -84,10 +83,10 @@ var _ = Describe("Format Readers", func() {
 			}
 		}
 	},
-		table.Entry("should not append nil reader", rdrGz, nil, 2, false),
-		table.Entry("should not append non reader", rdrGz, nil, 2, false),
-		table.Entry("should append io.reader", rdrGz, stringRdr, 3, false),
-		table.Entry("should append io.Multireader", rdrMulti, stringRdr, 3, false),
+		Entry("should not append nil reader", rdrGz, nil, 2, false),
+		Entry("should not append non reader", rdrGz, nil, 2, false),
+		Entry("should append io.reader", rdrGz, stringRdr, 3, false),
+		Entry("should append io.Multireader", rdrMulti, stringRdr, 3, false),
 	)
 
 	It("should not crash on no progress reader", func() {

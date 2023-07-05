@@ -17,7 +17,7 @@ limitations under the License.
 package reporters
 
 import (
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 
 	ginkgo_reporters "kubevirt.io/qe-tools/pkg/ginkgo-reporters"
 )
