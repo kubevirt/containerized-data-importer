@@ -87,9 +87,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"kubernetes.io/portworx-volume":        {{rwo, file}},
 	// Portworx CSI
 	"pxd.openstorage.org/shared": createOpenStorageSharedVolumeCapabilities(),
-	"pxd.openstorage.org":        createRWOBlockAndFilesystemCapabilities(),
+	"pxd.openstorage.org":        createOpenStorageSharedVolumeCapabilities(),
 	"pxd.portworx.com/shared":    createOpenStorageSharedVolumeCapabilities(),
-	"pxd.portworx.com":           createRWOBlockAndFilesystemCapabilities(),
+	"pxd.portworx.com":           createOpenStorageSharedVolumeCapabilities(),
 	// Trident
 	"csi.trident.netapp.io/ontap-nas": {{rwx, file}},
 	"csi.trident.netapp.io/ontap-san": {{rwo, block}},
@@ -297,7 +297,8 @@ func createTopoLVMCapabilities() []StorageCapabilities {
 
 func createOpenStorageSharedVolumeCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
-		{rwx, block},
+		{rwx, file},
+		{rwo, block},
 		{rwo, file},
 	}
 }
