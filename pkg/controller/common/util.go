@@ -291,6 +291,9 @@ const (
 	// LabelDefaultPreferenceKind provides a default kind of either VirtualMachineClusterPreference or VirtualMachinePreference
 	LabelDefaultPreferenceKind = "instancetype.kubevirt.io/default-preference-kind"
 
+	// LabelDynamicCredentialSupport specifies if the OS supports updating credentials at runtime.
+	LabelDynamicCredentialSupport = "kubevirt.io/dynamic-credentials-support"
+
 	// ProgressDone this means we are DONE
 	ProgressDone = "100.0%"
 

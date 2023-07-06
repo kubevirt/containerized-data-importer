@@ -846,6 +846,8 @@ github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1 h1:OqBS3UAo3eGWp
 github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1/go.mod h1:tnHiLn3P10N95fjn7O40QH5ovN0EFGAxqdTpUMrX6bU=
 github.com/kubernetes-csi/lib-volume-populator v1.2.0 h1:7ooY7P/5xEMNKQS1NwcqipUF1FMD2uGBjp13UGQmGpY=
 github.com/kubernetes-csi/lib-volume-populator v1.2.0/go.mod h1:euAJwBP1NcKCm4ifQLmPgwJvlakPjGLDbbSvchlUr3I=
+github.com/kubevirt/monitoring/pkg/metrics/parser v0.0.0-20230627123556-81a891d4462a h1:cdX+oxWw1lJDS3EchP+7Oz1XbErk4r7ffVJu1b1MKgI=
+github.com/kubevirt/monitoring/pkg/metrics/parser v0.0.0-20230627123556-81a891d4462a/go.mod h1:qGj2agzgwQ27nYhP3xhLs+IBzE5+ALNUg8bDfMcwPqo=
 github.com/kylelemons/godebug v0.0.0-20160406211939-eadb3ce320cb/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/leanovate/gopter v0.2.4/go.mod h1:gNcbPWNEWRe4lm+bycKqxUYoH5uoVje5SkOJ3uoLer8=

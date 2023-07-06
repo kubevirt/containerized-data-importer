@@ -336,8 +336,10 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	}
 
 	handlePopulatedPvc := func() error {
-		if err := r.updateSource(ctx, dataImportCron, pvc); err != nil {
-			return err
+		if pvc != nil {
+			if err := r.updateSource(ctx, dataImportCron, pvc); err != nil {
+				return err
+			}
 		}
 		importSucceeded = true
 		if err := r.handleCronFormat(ctx, dataImportCron, format, dvStorageClass); err != nil {
@@ -569,6 +571,8 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultInstancetypeKind)
 	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultPreference)
 	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultPreferenceKind)
+
+	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDynamicCredentialSupport)
 
 	sourcePVC := dataImportCron.Status.LastImportedPVC
 	populateDataSource(format, dataSource, sourcePVC)
@@ -1256,6 +1260,8 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	passCronLabelToDv(cron, dv, cc.LabelDefaultInstancetypeKind)
 	passCronLabelToDv(cron, dv, cc.LabelDefaultPreference)
 	passCronLabelToDv(cron, dv, cc.LabelDefaultPreferenceKind)
+
+	passCronLabelToDv(cron, dv, cc.LabelDynamicCredentialSupport)
 
 	return dv
 }
