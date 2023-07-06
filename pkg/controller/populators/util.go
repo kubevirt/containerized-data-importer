@@ -120,7 +120,7 @@ func claimReadyForPopulation(ctx context.Context, c client.Client, pvc *corev1.P
 
 	if storageClass.VolumeBindingMode != nil && *storageClass.VolumeBindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
 		nodeName = pvc.Annotations[cc.AnnSelectedNode]
-		_, isImmediateBindingRequested := pvc.Annotations[cc.AnnImmediateBinding]
+		isImmediateBindingRequested := cc.ImmediateBindingRequested(pvc)
 		if nodeName == "" && !isImmediateBindingRequested {
 			// Wait for the PVC to get a node name before continuing
 			return false, nodeName, nil

@@ -1150,7 +1150,7 @@ func (r *ReconcilerBase) shouldBeMarkedPendingPopulation(pvc *corev1.PersistentV
 		return false, err
 	}
 	nodeName := pvc.Annotations[cc.AnnSelectedNode]
-	_, immediateBindingRequested := pvc.Annotations[cc.AnnImmediateBinding]
+	immediateBindingRequested := cc.ImmediateBindingRequested(pvc)
 
 	return wffc && nodeName == "" && !immediateBindingRequested, nil
 }

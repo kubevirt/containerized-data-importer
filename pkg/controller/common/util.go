@@ -648,6 +648,12 @@ func GetPreallocation(ctx context.Context, client client.Client, preallocation *
 	return cdiconfig.Status.Preallocation
 }
 
+// ImmediateBindingRequested returns if an object has the ImmediateBinding annotation
+func ImmediateBindingRequested(obj metav1.Object) bool {
+	_, isImmediateBindingRequested := obj.GetAnnotations()[AnnImmediateBinding]
+	return isImmediateBindingRequested
+}
+
 // GetPriorityClass gets PVC priority class
 func GetPriorityClass(pvc *corev1.PersistentVolumeClaim) string {
 	anno := pvc.GetAnnotations()
@@ -1327,7 +1333,7 @@ func GetCloneSourceInfo(dv *cdiv1.DataVolume) (sourceType, sourceName, sourceNam
 // IsWaitForFirstConsumerEnabled tells us if we should respect "real" WFFC behavior or just let our worker pods randomly spawn
 func IsWaitForFirstConsumerEnabled(obj metav1.Object, gates featuregates.FeatureGates) (bool, error) {
 	// when PVC requests immediateBinding it cannot honor wffc logic
-	_, isImmediateBindingRequested := obj.GetAnnotations()[AnnImmediateBinding]
+	isImmediateBindingRequested := ImmediateBindingRequested(obj)
 	pvcHonorWaitForFirstConsumer := !isImmediateBindingRequested
 	globalHonorWaitForFirstConsumer, err := gates.HonorWaitForFirstConsumerEnabled()
 	if err != nil {
