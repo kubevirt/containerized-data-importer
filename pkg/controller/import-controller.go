@@ -1180,7 +1180,7 @@ func setImporterPodCommons(pod *corev1.Pod, podEnvVar *importPodEnvVar, pvc *cor
 
 	pod.Spec.Containers[0].Env = makeImportEnv(podEnvVar, ownerUID)
 
-	setPodPvcAnnotations(pod, pvc)
+	cc.SetPvcAllowedAnnotations(pod, pvc)
 }
 
 func makeImporterContainerSpec(image, verbose, pullPolicy string) *corev1.Container {
