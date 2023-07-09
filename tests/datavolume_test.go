@@ -2650,10 +2650,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			// verify PVC was created
-			By("verifying pvc was created and is Bound")
+			By("verifying pvc was created")
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
-			err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+			expectedPVCPhase := v1.ClaimBound
+			if phase != cdiv1.Succeeded && pvc.Spec.DataSourceRef != nil {
+				expectedPVCPhase = v1.ClaimPending
+			}
+			By(fmt.Sprintf("waiting for pvc to match phase %s", string(expectedPVCPhase)))
+			err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, expectedPVCPhase, pvc.Name)
 			Expect(err).ToNot(HaveOccurred())
 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
@@ -2748,10 +2753,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			// verify PVC was created
-			By("verifying pvc was created and is Bound")
+			By("verifying pvc was created")
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
-			err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+			expectedPVCPhase := v1.ClaimBound
+			if phase != cdiv1.Succeeded && pvc.Spec.DataSourceRef != nil {
+				expectedPVCPhase = v1.ClaimPending
+			}
+			By(fmt.Sprintf("waiting for pvc to match phase %s", string(expectedPVCPhase)))
+			err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, expectedPVCPhase, pvc.Name)
 			Expect(err).ToNot(HaveOccurred())
 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))

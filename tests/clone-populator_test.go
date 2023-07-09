@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -122,7 +123,7 @@ var _ = Describe("Clone Populator tests", func() {
 		return vcs
 	}
 
-	createTargetWithStrategy := func(sz resource.Quantity, vm corev1.PersistentVolumeMode, strategy, scName string) *corev1.PersistentVolumeClaim {
+	generateTargetPVCWithStrategy := func(sz resource.Quantity, vm corev1.PersistentVolumeMode, strategy, scName string) *corev1.PersistentVolumeClaim {
 		pvc := &corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: f.Namespace.Name,
@@ -151,9 +152,25 @@ var _ = Describe("Clone Populator tests", func() {
 				"cdi.kubevirt.io/cloneType": strategy,
 			}
 		}
+		return pvc
+	}
+
+	createTargetWithStrategy := func(sz resource.Quantity, vm corev1.PersistentVolumeMode, strategy, scName string) *corev1.PersistentVolumeClaim {
+		pvc := generateTargetPVCWithStrategy(sz, vm, strategy, scName)
 		err := f.CrClient.Create(context.Background(), pvc)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceSchedulingIfWaitForFirstConsumerPopulationPVC(pvc)
+		result := &corev1.PersistentVolumeClaim{}
+		err = f.CrClient.Get(context.Background(), client.ObjectKeyFromObject(pvc), result)
+		Expect(err).ToNot(HaveOccurred())
+		return result
+	}
+
+	createTargetWithImmediateBinding := func(sz resource.Quantity, vm corev1.PersistentVolumeMode) *corev1.PersistentVolumeClaim {
+		pvc := generateTargetPVCWithStrategy(sz, vm, "", utils.DefaultStorageClass.GetName())
+		cc.AddAnnotation(pvc, cc.AnnImmediateBinding, "")
+		err := f.CrClient.Create(context.Background(), pvc)
+		Expect(err).ToNot(HaveOccurred())
 		result := &corev1.PersistentVolumeClaim{}
 		err = f.CrClient.Get(context.Background(), client.ObjectKeyFromObject(pvc), result)
 		Expect(err).ToNot(HaveOccurred())
@@ -192,10 +209,10 @@ var _ = Describe("Clone Populator tests", func() {
 	}
 
 	Context("Clone from PVC", func() {
-		It("should do filesystem to filesystem clone", func() {
+		It("should do filesystem to filesystem clone, with immediateBinding annotation", func() {
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()
-			target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
+			target := createTargetWithImmediateBinding(defaultSize, corev1.PersistentVolumeFilesystem)
 			target = waitSucceeded(target)
 			sourceHash := getHash(source, 0)
 			targetHash := getHash(target, 0)

@@ -119,6 +119,9 @@ func (r *UploadReconciler) updatePVCForPopulation(dataVolume *cdiv1.DataVolume, 
 	if dataVolume.Spec.Source.Upload == nil {
 		return errors.Errorf("no source set for upload datavolume")
 	}
+	if err := cc.AddImmediateBindingAnnotationIfWFFCDisabled(pvc, r.featureGates); err != nil {
+		return err
+	}
 	apiGroup := cc.AnnAPIGroup
 	pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
 		APIGroup: &apiGroup,

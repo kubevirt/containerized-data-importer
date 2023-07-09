@@ -870,7 +870,7 @@ var _ = Describe("all clone tests", func() {
 					Expect(err).ToNot(HaveOccurred())
 				})
 
-				It("should fall back to host assisted if immediate bind requested for smart/CSI clones", func() {
+				immediateBindWithSmartOrCSIClones := func() {
 					volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
 
 					dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
@@ -900,9 +900,13 @@ var _ = Describe("all clone tests", func() {
 					By("Wait for target DV Succeeded phase")
 					err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, targetDataVolume.Name)
 					Expect(err).ToNot(HaveOccurred())
-					Expect(targetPvc.Annotations[controller.AnnCloneRequest]).To(Equal(fmt.Sprintf("%s/%s", sourcePvc.Namespace, sourcePvc.Name)))
-					Expect(targetPvc.Spec.DataSource).To(BeNil())
-					Expect(targetPvc.Spec.DataSourceRef).To(BeNil())
+					if targetPvc.Spec.DataSourceRef != nil && targetPvc.Spec.DataSourceRef.Kind == cdiv1.VolumeCloneSourceRef {
+						Expect(targetPvc.Annotations[controller.AnnCloneType]).To(Equal(cloneType))
+					} else {
+						Expect(targetPvc.Annotations[controller.AnnCloneRequest]).To(Equal(fmt.Sprintf("%s/%s", sourcePvc.Namespace, sourcePvc.Name)))
+						Expect(targetPvc.Spec.DataSource).To(BeNil())
+						Expect(targetPvc.Spec.DataSourceRef).To(BeNil())
+					}
 
 					By("Verify content")
 					same, err := f.VerifyTargetPVCContentMD5(f.Namespace, targetPvc, utils.DefaultImagePath, utils.UploadFileMD5, utils.UploadFileSize)
@@ -911,6 +915,20 @@ var _ = Describe("all clone tests", func() {
 					By("Deleting verifier pod")
 					err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 					Expect(err).ToNot(HaveOccurred())
+				}
+
+				It("should fall back to host assisted if immediate bind requested for smart/CSI clones", func() {
+					if utils.DefaultStorageClassCsiDriver != nil {
+						Skip("test only without CSI storage")
+					}
+					immediateBindWithSmartOrCSIClones()
+				})
+
+				It("should succeed smart/CSI clones with immediate bind requested ", func() {
+					if utils.DefaultStorageClassCsiDriver == nil {
+						Skip("No CSI driver found")
+					}
+					immediateBindWithSmartOrCSIClones()
 				})
 			})
 
@@ -2753,6 +2771,9 @@ var _ = Describe("all clone tests", func() {
 			var wffcStorageClass *storagev1.StorageClass
 
 			BeforeEach(func() {
+				if utils.DefaultStorageClassCsiDriver != nil {
+					Skip("test only without CSI storage")
+				}
 				sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), utils.DefaultStorageClass.GetName(), metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				wffcStorageClass = sc
