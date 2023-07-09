@@ -1885,3 +1885,21 @@ func OwnedByDataVolume(obj metav1.Object) bool {
 	owner := metav1.GetControllerOf(obj)
 	return owner != nil && owner.Kind == "DataVolume"
 }
+
+// SetPvcAllowedAnnotations applies PVC annotations on the given obj
+func SetPvcAllowedAnnotations(obj metav1.Object, pvc *corev1.PersistentVolumeClaim) {
+	allowedAnnotations := map[string]string{
+		AnnPodNetwork:              "",
+		AnnPodSidecarInjection:     AnnPodSidecarInjectionDefault,
+		AnnPodMultusDefaultNetwork: ""}
+	for ann, def := range allowedAnnotations {
+		val, ok := pvc.Annotations[ann]
+		if !ok && def != "" {
+			val = def
+		}
+		if val != "" {
+			klog.V(1).Info("Applying PVC annotation", "Name", obj.GetName(), ann, val)
+			AddAnnotation(obj, ann, val)
+		}
+	}
+}

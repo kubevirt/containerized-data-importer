@@ -893,7 +893,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			MountPath: common.ScratchDataDir,
 		})
 	}
-	setPodPvcAnnotations(pod, args.PVC)
+	cc.SetPvcAllowedAnnotations(pod, args.PVC)
 	cc.SetNodeNameIfPopulator(args.PVC, &pod.Spec)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
 	return pod

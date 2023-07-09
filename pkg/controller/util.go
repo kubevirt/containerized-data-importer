@@ -374,27 +374,6 @@ func getScratchNameFromPod(pod *v1.Pod) (string, bool) {
 	return "", false
 }
 
-// setPodPvcAnnotations applies PVC annotations on the pod
-func setPodPvcAnnotations(pod *v1.Pod, pvc *v1.PersistentVolumeClaim) {
-	allowedAnnotations := map[string]string{
-		cc.AnnPodNetwork:              "",
-		cc.AnnPodSidecarInjection:     cc.AnnPodSidecarInjectionDefault,
-		cc.AnnPodMultusDefaultNetwork: ""}
-	for ann, def := range allowedAnnotations {
-		val, ok := pvc.Annotations[ann]
-		if !ok && def != "" {
-			val = def
-		}
-		if val != "" {
-			klog.V(1).Info("Applying PVC annotation on the pod", ann, val)
-			if pod.Annotations == nil {
-				pod.Annotations = map[string]string{}
-			}
-			pod.Annotations[ann] = val
-		}
-	}
-}
-
 func podUsingPVC(pvc *corev1.PersistentVolumeClaim, readOnly bool) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
