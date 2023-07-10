@@ -351,6 +351,55 @@ func updateDataVolumeUseCDIPopulator(syncState *dvSyncState) {
 	cc.AddAnnotation(syncState.dvMutated, cc.AnnUsePopulator, strconv.FormatBool(syncState.usePopulator))
 }
 
+func updateDataVolumeDefaultInstancetypeLabels(client client.Client, syncState *dvSyncState) error {
+	// Skip looking anything up if any default instance type labels are already present
+	dv := syncState.dvMutated
+	for _, defaultInstanceTypeLabel := range cc.DefaultInstanceTypeLabels {
+		if _, ok := dv.Labels[defaultInstanceTypeLabel]; ok {
+			return nil
+		}
+	}
+	if dv.Spec.Source != nil && dv.Spec.Source.PVC != nil {
+		pvc := &v1.PersistentVolumeClaim{}
+		key := types.NamespacedName{
+			Name:      dv.Spec.Source.PVC.Name,
+			Namespace: dv.Spec.Source.PVC.Namespace,
+		}
+		if err := client.Get(context.TODO(), key, pvc); err != nil {
+			if k8serrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+		copyDefaultInstancetypeLabels(dv, pvc.Labels)
+		return nil
+	}
+	if dv.Spec.SourceRef != nil && dv.Spec.SourceRef.Namespace != nil && dv.Spec.SourceRef.Kind == cdiv1.DataVolumeDataSource {
+		ds := &cdiv1.DataSource{}
+		key := types.NamespacedName{
+			Name:      dv.Spec.SourceRef.Name,
+			Namespace: *dv.Spec.SourceRef.Namespace,
+		}
+		if err := client.Get(context.TODO(), key, ds); err != nil {
+			if k8serrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+		copyDefaultInstancetypeLabels(dv, ds.Labels)
+		return nil
+	}
+	return nil
+}
+
+func copyDefaultInstancetypeLabels(dataVolume *cdiv1.DataVolume, labels map[string]string) {
+	for _, defaultInstancetypeLabel := range cc.DefaultInstanceTypeLabels {
+		if v, ok := labels[defaultInstancetypeLabel]; ok {
+			cc.AddLabel(dataVolume, defaultInstancetypeLabel, v)
+		}
+	}
+}
+
 func checkDVUsingPopulators(dv *cdiv1.DataVolume) (bool, error) {
 	usePopulator, ok := dv.Annotations[cc.AnnUsePopulator]
 	if !ok {

@@ -320,6 +320,14 @@ var (
 	// FilesystemMode is filesystem device mode
 	FilesystemMode = corev1.PersistentVolumeFilesystem
 
+	// DefaultInstanceTypeLabels is a list of currently supported default instance type labels
+	DefaultInstanceTypeLabels = []string{
+		LabelDefaultInstancetype,
+		LabelDefaultInstancetypeKind,
+		LabelDefaultPreference,
+		LabelDefaultPreferenceKind,
+	}
+
 	apiServerKeyOnce sync.Once
 	apiServerKey     *rsa.PrivateKey
 )

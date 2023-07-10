@@ -3115,6 +3115,69 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 		})
 	})
+
+	Describe("Default instance type labels", func() {
+
+		var (
+			sourceDataVolume *cdiv1.DataVolume
+			err              error
+		)
+
+		BeforeEach(func() {
+			By("creating a labelled DataVolume and PVC")
+			sourceDataVolume = utils.NewDataVolumeForBlankRawImage("", "1Gi")
+			sourceDataVolume.GenerateName = "source-datavolume"
+			sourceDataVolume.Labels = make(map[string]string)
+			for _, defaultInstancetypeLabel := range controller.DefaultInstanceTypeLabels {
+				sourceDataVolume.Labels[defaultInstancetypeLabel] = "defined"
+			}
+			sourceDataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying PVC was created")
+			_, err = utils.WaitForPVC(f.K8sClient, sourceDataVolume.Namespace, sourceDataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		DescribeTable("should be passed to DataVolume from source", func(createDataVolume func() *cdiv1.DataVolume) {
+			dv := createDataVolume()
+			By("asserting that all default instance type labels have been passed to the DataVolume")
+			Eventually(func() bool {
+				dv, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				for _, defaultInstancetypeLabel := range controller.DefaultInstanceTypeLabels {
+					if _, ok := dv.Labels[defaultInstancetypeLabel]; !ok {
+						return false
+					}
+				}
+				return true
+			}, 60*time.Second, 1*time.Second).Should(BeTrue())
+		},
+			Entry("PVC", func() *cdiv1.DataVolume {
+				By("createing a DataVolume pointing to a labelled PVC")
+				dv := utils.NewDataVolumeForImageCloning("datavolume-from-pvc", "1Gi", sourceDataVolume.Namespace, sourceDataVolume.Name, nil, nil)
+				dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+				Expect(err).ToNot(HaveOccurred())
+				return dv
+			}),
+			Entry("DataSource", func() *cdiv1.DataVolume {
+				By("createing a labelled DataSource")
+				ds := utils.NewPvcDataSource("datasource-from-pvc", f.Namespace.Name, sourceDataVolume.Name, sourceDataVolume.Namespace)
+				ds.Labels = make(map[string]string)
+				for _, defaultInstancetypeLabel := range controller.DefaultInstanceTypeLabels {
+					ds.Labels[defaultInstancetypeLabel] = "defined"
+				}
+				ds, err := f.CdiClient.CdiV1beta1().DataSources(f.Namespace.Name).Create(context.TODO(), ds, metav1.CreateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("createing a DataVolume pointing to a labelled DataSource")
+				dv := utils.NewDataVolumeWithSourceRef("datavolume-from-datasource", "1Gi", f.Namespace.Name, ds.Name)
+				dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+				Expect(err).ToNot(HaveOccurred())
+				return dv
+			}),
+		)
+	})
 })
 
 func SetFilesystemOverhead(f *framework.Framework, globalOverhead, scOverhead string) {
