@@ -9,14 +9,15 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/ginkgo/v2"
+	ginkgo_reporters "github.com/onsi/ginkgo/v2/reporters"
 	. "github.com/onsi/gomega"
+	qe_reporters "kubevirt.io/qe-tools/pkg/ginkgo-reporters"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
 	"kubevirt.io/containerized-data-importer/tests/framework"
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
@@ -47,11 +48,26 @@ func cdiFailHandler(message string, callerSkip ...int) {
 	ginkgo.Fail(message, callerSkip...)
 }
 
+//nolint:staticcheck // Ignore SA1019. Need to keep deprecated function for compatibility.
+var afterSuiteReporters []ginkgo.Reporter
+var _ = ReportAfterSuite("TestTests", func(report Report) {
+	for _, reporter := range afterSuiteReporters {
+		//nolint:staticcheck // Ignore SA1019. Need to keep deprecated function for compatibility.
+		ginkgo_reporters.ReportViaDeprecatedReporter(reporter, report)
+	}
+})
+
 func TestTests(t *testing.T) {
+	if qe_reporters.Polarion.Run {
+		afterSuiteReporters = append(afterSuiteReporters, &qe_reporters.Polarion)
+	}
+	if qe_reporters.JunitOutput != "" {
+		afterSuiteReporters = append(afterSuiteReporters, qe_reporters.NewJunitReporter())
+	}
 	defer GinkgoRecover()
 	RegisterFailHandler(cdiFailHandler)
 	BuildTestSuite()
-	RunSpecsWithDefaultAndCustomReporters(t, "Tests Suite", reporters.NewReporters())
+	RunSpecs(t, "Tests Suite")
 }
 
 // To understand the order in which things are run, read http://onsi.github.io/ginkgo/#understanding-ginkgos-lifecycle

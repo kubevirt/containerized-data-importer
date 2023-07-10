@@ -20,7 +20,6 @@ go_test(
     ],
     embed = [":go_default_library"],
     deps = [
-        "//tests/reporters:go_default_library",
         "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",

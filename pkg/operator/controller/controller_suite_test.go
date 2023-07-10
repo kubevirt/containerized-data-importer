@@ -24,13 +24,11 @@ import (
 
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
 func TestOperator(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Controller Suite", reporters.NewReporters())
+	RunSpecs(t, "Controller Suite")
 }
 
 var _ = BeforeSuite(func() {

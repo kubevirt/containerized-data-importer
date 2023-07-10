@@ -27,7 +27,6 @@ go_test(
     embed = [":go_default_library"],
     deps = [
         "//pkg/keys/keystest:go_default_library",
-        "//tests/reporters:go_default_library",
         "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",

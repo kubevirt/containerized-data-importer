@@ -56,7 +56,6 @@ go_test(
         "//pkg/util/tls-crypto-watch:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1:go_default_library",
-        "//tests/reporters:go_default_library",
         "//vendor/github.com/emicklei/go-restful/v3:go_default_library",
         "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",

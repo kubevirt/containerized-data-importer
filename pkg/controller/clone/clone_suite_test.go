@@ -8,13 +8,11 @@ import (
 
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
 func TestPopulators(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Clone Suite", reporters.NewReporters())
+	RunSpecs(t, "Clone Suite")
 }
 
 var _ = BeforeSuite(func() {

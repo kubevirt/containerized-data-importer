@@ -5,11 +5,9 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
 func TestToken(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Token Suite", reporters.NewReporters())
+	RunSpecs(t, "Token Suite")
 }

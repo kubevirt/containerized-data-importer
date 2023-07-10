@@ -8,8 +8,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
 // Known size.Size() exceptions due to:
@@ -27,7 +25,7 @@ var testfiles = []string{tinyCoreXzFilePath, tinyCoreGzFilePath, tinyCoreTarFile
 
 func TestImporter(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Importer Suite", reporters.NewReporters())
+	RunSpecs(t, "Importer Suite")
 }
 
 var _ = AfterSuite(func() {
