@@ -23,7 +23,10 @@ import (
 )
 
 // NewReporters is a function to gather new ginkgo test reporters
+//
+//nolint:staticcheck // Ignore SA1019. Need to keep deprecated function for compatibility.
 func NewReporters() []ginkgo.Reporter {
+	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated function for compatibility.
 	reporters := make([]ginkgo.Reporter, 0)
 	if ginkgo_reporters.Polarion.Run {
 		reporters = append(reporters, &ginkgo_reporters.Polarion)
