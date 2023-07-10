@@ -1150,8 +1150,9 @@ func (r *ReconcilerBase) shouldBeMarkedPendingPopulation(pvc *corev1.PersistentV
 		return false, err
 	}
 	nodeName := pvc.Annotations[cc.AnnSelectedNode]
+	immediateBindingRequested := cc.ImmediateBindingRequested(pvc)
 
-	return wffc && nodeName == "", nil
+	return wffc && nodeName == "" && !immediateBindingRequested, nil
 }
 
 // handlePvcCreation works as a wrapper for non-clone PVC creation and error handling
@@ -1200,33 +1201,11 @@ func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, er
 		log.Info("Not using CDI populators, currently we don't support populators with retainAfterCompletion annotation")
 		return false, nil
 	}
-	// currently populators don't support immediate bind annotation so don't use populators in that case
-	if forceBind := dv.Annotations[cc.AnnImmediateBinding]; forceBind == "true" {
-		log.Info("Not using CDI populators, currently we don't support populators with bind immediate annotation")
-		return false, nil
-	}
 	// currently we don't support populator with import source of VDDK or Imageio
 	// or clone either from PVC nor snapshot
 	if dv.Spec.Source.Imageio != nil ||
 		dv.Spec.Source.VDDK != nil {
 		log.Info("Not using CDI populators, currently we don't support populators with Imageio/VDDk source")
-		return false, nil
-	}
-
-	wffc, err := r.storageClassWaitForFirstConsumer(syncState.pvcSpec.StorageClassName)
-	if err != nil {
-		return false, err
-	}
-
-	honorWaitForFirstConsumerEnabled, err := r.featureGates.HonorWaitForFirstConsumerEnabled()
-	if err != nil {
-		return false, err
-	}
-	// currently since we don't support force bind in populators in case the storage class
-	// is wffc but the honorWaitForFirstConsumer feature gate is disabled we can't
-	// do immediate bind anyways, instead do regular flow
-	if wffc && !honorWaitForFirstConsumerEnabled {
-		log.Info("Not using CDI populators, currently we don't WFFC storage with disabled honorWaitForFirstConsumer feature gate")
 		return false, nil
 	}
 

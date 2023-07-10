@@ -123,7 +123,7 @@ var _ = Describe("All DataVolume Tests", func() {
 					dv.Finalizers = append(dv.Finalizers, crossNamespaceFinalizer)
 				}
 				srcPvc := CreatePvcInStorageClass("test", sourceNamespace, &scName, nil, nil, corev1.ClaimBound)
-				reconciler = createCloneReconciler(storageClass, csiDriver, dv, srcPvc)
+				reconciler = createCloneReconcilerWFFCDisabled(storageClass, csiDriver, dv, srcPvc)
 				result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(result.Requeue).To(BeFalse())
@@ -146,6 +146,8 @@ var _ = Describe("All DataVolume Tests", func() {
 				Expect(pvc.Spec.DataSourceRef.Name).To(Equal(cloneSourceName))
 				Expect(pvc.Spec.DataSourceRef.Kind).To(Equal(cdiv1.VolumeCloneSourceRef))
 				Expect(pvc.GetAnnotations()[AnnUsePopulator]).To(Equal("true"))
+				_, annExists := pvc.Annotations[AnnImmediateBinding]
+				Expect(annExists).To(BeTrue())
 				vcs := &cdiv1.VolumeCloneSource{}
 				err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: cloneSourceName, Namespace: sourceNamespace}, vcs)
 				Expect(err).ToNot(HaveOccurred())
@@ -710,6 +712,20 @@ var _ = Describe("All DataVolume Tests", func() {
 		)
 	})
 })
+
+func createCloneReconcilerWFFCDisabled(objects ...runtime.Object) *PvcCloneReconciler {
+	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
+	cdiConfig.Status = cdiv1.CDIConfigStatus{
+		ScratchSpaceStorageClass: testStorageClass,
+	}
+	cdiConfig.Spec.FeatureGates = []string{}
+
+	objs := []runtime.Object{}
+	objs = append(objs, objects...)
+	objs = append(objs, cdiConfig)
+
+	return createCloneReconcilerWithoutConfig(objs...)
+}
 
 func createCloneReconciler(objects ...runtime.Object) *PvcCloneReconciler {
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)

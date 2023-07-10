@@ -191,6 +191,9 @@ func (r *CloneReconcilerBase) updatePVCForPopulation(dataVolume *cdiv1.DataVolum
 	if err := addCloneToken(dataVolume, pvc); err != nil {
 		return err
 	}
+	if err := cc.AddImmediateBindingAnnotationIfWFFCDisabled(pvc, r.featureGates); err != nil {
+		return err
+	}
 	if isCrossNamespaceClone(dataVolume) {
 		_, _, sourcNamespace := cc.GetCloneSourceInfo(dataVolume)
 		cc.AddAnnotation(pvc, populators.AnnDataSourceNamespace, sourcNamespace)

@@ -131,6 +131,9 @@ func (r *ImportReconciler) updatePVCForPopulation(dataVolume *cdiv1.DataVolume, 
 		dataVolume.Spec.Source.Blank == nil {
 		return errors.Errorf("no source set for import datavolume")
 	}
+	if err := cc.AddImmediateBindingAnnotationIfWFFCDisabled(pvc, r.featureGates); err != nil {
+		return err
+	}
 	apiGroup := cc.AnnAPIGroup
 	pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
 		APIGroup: &apiGroup,

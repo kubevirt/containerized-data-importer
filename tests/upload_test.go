@@ -528,6 +528,66 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				Entry("fail given an invalid token", uploadImage, false, false, http.StatusUnauthorized),
 				Entry("succeed given a valid token and block mode", uploadImage, true, true, http.StatusOK),
 			)
+
+			It("should upload with ImmediateBinding requested", func() {
+				pvcDef := utils.UploadPopulationPVCDefinition()
+				controller.AddAnnotation(pvcDef, controller.AnnImmediateBinding, "")
+				pvc, err = f.CreatePVCFromDefinition(pvcDef)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verify PVC prime was created")
+				pvcPrime, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, populators.PVCPrimeName(pvc))
+				Expect(err).ToNot(HaveOccurred())
+				By("Verify PVC prime annotation says ready")
+				found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvcPrime)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue())
+
+				checkUploadCertSecrets(pvcPrime)
+
+				By("Get an upload token")
+				token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(token).ToNot(BeEmpty())
+
+				By("Do upload")
+				Eventually(func() bool {
+					err = uploadImage(uploadProxyURL, token, http.StatusOK)
+					if err != nil {
+						fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+						return false
+					}
+					return true
+				}, timeout, 5*time.Second).Should(BeTrue(), "Upload should eventually succeed, even if initially pod is not ready")
+
+				By("Verify target PVC is bound")
+				err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verify content")
+				same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5100kbytes, 100000)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(same).To(BeTrue())
+				By("Verifying the image is sparse")
+				Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
+				if utils.DefaultStorageCSIRespectsFsGroup {
+					// CSI storage class, it should respect fsGroup
+					By("Checking that disk image group is qemu")
+					Expect(f.GetDiskGroup(f.Namespace, pvc, false)).To(Equal("107"))
+				}
+				By("Verifying permissions are 660")
+				Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
+				By("Wait for PVC prime to be deleted")
+				Eventually(func() bool {
+					// Make sure pvcPrime was deleted after upload population
+					_, err := f.FindPVC(pvcPrime.Name)
+					return err != nil && k8serrors.IsNotFound(err)
+				}, timeout, pollingInterval).Should(BeTrue())
+				By("Wait for upload population pod to be deleted")
+				deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvcPrime), f.Namespace.Name, time.Second*20)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(deleted).To(BeTrue())
+			})
 		})
 
 		Context("archive", func() {
