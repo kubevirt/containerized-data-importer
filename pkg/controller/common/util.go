@@ -43,6 +43,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -525,6 +526,37 @@ func GetImagePullSecrets(client client.Client) ([]corev1.LocalObjectReference, e
 	return cdiconfig.Status.ImagePullSecrets, nil
 }
 
+// GetPodFromPvc determines the pod associated with the pvc passed in.
+func GetPodFromPvc(c client.Client, namespace string, pvc *corev1.PersistentVolumeClaim) (*corev1.Pod, error) {
+	l, _ := labels.Parse(common.PrometheusLabelKey)
+	pods := &corev1.PodList{}
+	listOptions := client.ListOptions{
+		LabelSelector: l,
+	}
+	if err := c.List(context.TODO(), pods, &listOptions); err != nil {
+		return nil, err
+	}
+
+	pvcUID := pvc.GetUID()
+	for _, pod := range pods.Items {
+		if ShouldIgnorePod(&pod, pvc) {
+			continue
+		}
+		for _, or := range pod.OwnerReferences {
+			if or.UID == pvcUID {
+				return &pod, nil
+			}
+		}
+
+		// TODO: check this
+		val, exists := pod.Labels[CloneUniqueID]
+		if exists && val == string(pvcUID)+common.ClonerSourcePodNameSuffix {
+			return &pod, nil
+		}
+	}
+	return nil, errors.Errorf("Unable to find pod owned by UID: %s, in namespace: %s", string(pvcUID), namespace)
+}
+
 // AddVolumeDevices returns VolumeDevice slice with one block device for pods using PV with block volume mode
 func AddVolumeDevices() []corev1.VolumeDevice {
 	volumeDevices := []corev1.VolumeDevice{
@@ -986,6 +1018,16 @@ func IsPVCComplete(pvc *corev1.PersistentVolumeClaim) bool {
 	if pvc != nil {
 		phase, exists := pvc.ObjectMeta.Annotations[AnnPodPhase]
 		return exists && (phase == string(corev1.PodSucceeded))
+	}
+	return false
+}
+
+// IsMultiStageImportInProgress returns true when a PVC is being part of an ongoing multi-stage import
+func IsMultiStageImportInProgress(pvc *corev1.PersistentVolumeClaim) bool {
+	if pvc != nil {
+		multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, AnnCurrentCheckpoint)
+		multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, AnnMultiStageImportDone)
+		return multiStageImport && !multiStageAlreadyDone
 	}
 	return false
 }

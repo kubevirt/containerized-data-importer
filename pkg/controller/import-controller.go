@@ -177,10 +177,7 @@ func (r *ImportReconciler) shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim,
 		return false, err
 	}
 
-	multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnCurrentCheckpoint)
-	multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnMultiStageImportDone)
-
-	return (!cc.IsPVCComplete(pvc) || (cc.IsPVCComplete(pvc) && multiStageImport && !multiStageAlreadyDone)) &&
+	return (!cc.IsPVCComplete(pvc) || cc.IsMultiStageImportInProgress(pvc)) &&
 			(checkPVC(pvc, cc.AnnEndpoint, log) || checkPVC(pvc, cc.AnnSource, log)) &&
 			shouldHandlePvc(pvc, waitForFirstConsumerEnabled, log),
 		nil

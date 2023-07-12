@@ -1344,7 +1344,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		})
 
 		It("Should return error if no pods can be found", func() {
-			_, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc)
+			_, err := GetPodFromPvc(reconciler.client, metav1.NamespaceDefault, pvc)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Unable to find pod owned by UID: %s, in namespace: %s", string(pvc.GetUID()), metav1.NamespaceDefault)))
 		})
@@ -1355,7 +1355,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pod.GetLabels()[common.PrometheusLabelKey] = common.PrometheusLabelValue
 			err := reconciler.client.Create(context.TODO(), pod)
 			Expect(err).ToNot(HaveOccurred())
-			foundPod, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc)
+			foundPod, err := GetPodFromPvc(reconciler.client, metav1.NamespaceDefault, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(foundPod.Name).To(Equal(pod.Name))
 		})
@@ -1368,7 +1368,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pod.OwnerReferences = nil
 			err := reconciler.client.Create(context.TODO(), pod)
 			Expect(err).ToNot(HaveOccurred())
-			foundPod, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc)
+			foundPod, err := GetPodFromPvc(reconciler.client, metav1.NamespaceDefault, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(foundPod.Name).To(Equal(pod.Name))
 		})
@@ -1381,7 +1381,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pod.OwnerReferences = nil
 			err := reconciler.client.Create(context.TODO(), pod)
 			Expect(err).ToNot(HaveOccurred())
-			_, err = reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc)
+			_, err = GetPodFromPvc(reconciler.client, metav1.NamespaceDefault, pvc)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Unable to find pod owned by UID: %s, in namespace: %s", string(pvc.GetUID()), metav1.NamespaceDefault)))
 		})
@@ -1395,7 +1395,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pod.Status.Phase = corev1.PodSucceeded
 			err := reconciler.client.Create(context.TODO(), pod)
 			Expect(err).ToNot(HaveOccurred())
-			foundPod, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc)
+			foundPod, err := GetPodFromPvc(reconciler.client, metav1.NamespaceDefault, pvc)
 			Expect(err).To(HaveOccurred())
 			Expect(foundPod).To(BeNil())
 			Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Unable to find pod owned by UID: %s, in namespace: %s", string(pvc.GetUID()), metav1.NamespaceDefault)))
@@ -1409,7 +1409,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pod.Status.Phase = corev1.PodSucceeded
 			err := reconciler.client.Create(context.TODO(), pod)
 			Expect(err).ToNot(HaveOccurred())
-			foundPod, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc)
+			foundPod, err := GetPodFromPvc(reconciler.client, metav1.NamespaceDefault, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(foundPod).ToNot(BeNil())
 		})
@@ -1568,25 +1568,6 @@ var _ = Describe("All DataVolume Tests", func() {
 			Entry("AnnUsePopulator=true return true", AnnUsePopulator, "true", true),
 			Entry("AnnUsePopulator=false return false", AnnUsePopulator, "false", false),
 			Entry("AnnPodRetainAfterCompletion return false", AnnPodRetainAfterCompletion, "true", false),
-		)
-
-		DescribeTable("Should return false if source is", func(source *cdiv1.DataVolumeSource) {
-			storageSpec := &cdiv1.StorageSpec{}
-			dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", source, storageSpec)
-			reconciler = createImportReconciler()
-			syncState := dvSyncState{
-				dvMutated: dv,
-			}
-			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(usePopulator).To(BeFalse())
-		},
-			Entry("Imageio", &cdiv1.DataVolumeSource{
-				Imageio: &cdiv1.DataVolumeSourceImageIO{},
-			}),
-			Entry("VDDK", &cdiv1.DataVolumeSource{
-				VDDK: &cdiv1.DataVolumeSourceVDDK{},
-			}),
 		)
 
 		It("Should return true if storage class has wffc bindingMode and honorWaitForFirstConsumer feature gate is disabled", func() {

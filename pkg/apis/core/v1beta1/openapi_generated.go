@@ -27691,11 +27691,39 @@ func schema_pkg_apis_core_v1beta1_VolumeImportSourceSpec(ref common.ReferenceCal
 							Format:      "",
 						},
 					},
+					"targetClaim": {
+						SchemaProps: spec.SchemaProps{
+							Description: "TargetClaim the name of the specific claim to be populated with a multistage import.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"checkpoints": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeCheckpoint"),
+									},
+								},
+							},
+						},
+					},
+					"finalCheckpoint": {
+						SchemaProps: spec.SchemaProps{
+							Description: "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportSourceType"},
+			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeCheckpoint", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportSourceType"},
 	}
 }
 

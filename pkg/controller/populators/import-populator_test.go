@@ -40,6 +40,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -358,6 +359,54 @@ var _ = Describe("Import populator tests", func() {
 			table.Entry("with pod failed phase", string(corev1.PodFailed)),
 			table.Entry("with pod succeded phase", string(corev1.PodSucceeded)),
 		)
+
+		It("Should set multistage migration annotations on PVC prime", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
+			volumeImportSource.Spec.Source = &cdiv1.ImportSourceType{
+				VDDK: &cdiv1.DataVolumeSourceVDDK{
+					BackingFile: "testBackingFile",
+					SecretRef:   "testSecret",
+					Thumbprint:  "testThumbprint",
+					URL:         "testUrl",
+					UUID:        "testUUID",
+				},
+			}
+			volumeImportSource.Spec.Checkpoints = []cdiv1.DataVolumeCheckpoint{
+				{
+					Previous: "previous",
+					Current:  "current",
+				},
+			}
+			volumeImportSource.Spec.FinalCheckpoint = pointer.Bool(true)
+
+			By("Reconcile")
+			reconciler = createImportPopulatorReconciler(targetPvc, volumeImportSource, sc)
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Checking events recorded")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, createdPVCPrimeSuccessfully) {
+					found = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(found).To(BeTrue())
+
+			By("Checking PVC' annotations")
+			pvcPrime, err := reconciler.getPVCPrime(targetPvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvcPrime).ToNot(BeNil())
+			Expect(pvcPrime.GetAnnotations()).ToNot(BeNil())
+			Expect(pvcPrime.GetAnnotations()[AnnPreviousCheckpoint]).To(Equal("previous"))
+			Expect(pvcPrime.GetAnnotations()[AnnCurrentCheckpoint]).To(Equal("current"))
+			Expect(pvcPrime.GetAnnotations()[AnnFinalCheckpoint]).To(Equal("true"))
+		})
 	})
 
 	var _ = Describe("Import populator progress report", func() {

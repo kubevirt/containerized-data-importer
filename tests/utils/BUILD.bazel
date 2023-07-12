@@ -11,6 +11,7 @@ go_library(
         "deployments.go",
         "fileConversion.go",
         "pod.go",
+        "populators.go",
         "pv.go",
         "pvc.go",
         "secrets.go",

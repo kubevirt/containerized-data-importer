@@ -106,15 +106,20 @@ func (r *ImportPopulatorReconciler) Reconcile(_ context.Context, req reconcile.R
 // Implementations of populatorController methods
 
 // Import-specific implementation of getPopulationSource
-func (r *ImportPopulatorReconciler) getPopulationSource(namespace, name string) (client.Object, error) {
+func (r *ImportPopulatorReconciler) getPopulationSource(pvc *corev1.PersistentVolumeClaim) (client.Object, error) {
+	volumeImportSourceKey := types.NamespacedName{Namespace: getPopulationSourceNamespace(pvc), Name: pvc.Spec.DataSourceRef.Name}
 	volumeImportSource := &cdiv1.VolumeImportSource{}
-	volumeImportSourceKey := types.NamespacedName{Namespace: namespace, Name: name}
 	if err := r.client.Get(context.TODO(), volumeImportSourceKey, volumeImportSource); err != nil {
 		// reconcile will be triggered once created
 		if k8serrors.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, err
+	}
+	targetClaim := volumeImportSource.Spec.TargetClaim
+	if targetClaim != nil && *targetClaim != "" && *targetClaim != pvc.Name {
+		r.log.V(1).Info("volumeImportSource is meant for a different PVC, ignoring")
+		return nil, nil
 	}
 	return volumeImportSource, nil
 }
@@ -123,27 +128,44 @@ func (r *ImportPopulatorReconciler) getPopulationSource(namespace, name string) 
 func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
 	pvcCopy := pvc.DeepCopy()
 	phase := pvcPrime.Annotations[cc.AnnPodPhase]
+	source, err := r.getPopulationSource(pvc)
+	if source == nil {
+		return reconcile.Result{}, err
+	}
 
 	switch phase {
 	case string(corev1.PodRunning):
-		err := r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations)
+		if err = cc.MaybeSetPvcMultiStageAnnotation(pvcPrime, r.getCheckpointArgs(source)); err != nil {
+			return reconcile.Result{}, err
+		}
+		if err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations); err != nil {
+			return reconcile.Result{}, err
+		}
 		// We requeue to keep reporting progress
-		return reconcile.Result{RequeueAfter: 2 * time.Second}, err
+		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 	case string(corev1.PodFailed):
 		// We'll get called later once it succeeds
 		r.recorder.Eventf(pvc, corev1.EventTypeWarning, importFailed, messageImportFailed, pvc.Name)
 	case string(corev1.PodSucceeded):
+		if cc.IsMultiStageImportInProgress(pvcPrime) {
+			if err := cc.UpdatesMultistageImportSucceeded(pvcPrime, r.getCheckpointArgs(source)); err != nil {
+				return reconcile.Result{}, err
+			}
+			r.recorder.Eventf(pvc, corev1.EventTypeNormal, cc.ImportPaused, cc.MessageImportPaused, pvc.Name)
+			break
+		}
+
 		// Once the import is succeeded, we rebind the PV from PVC' to target PVC
 		if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvc); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
 
-	err := r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations)
+	err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	if cc.IsPVCComplete(pvcPrime) {
+	if cc.IsPVCComplete(pvcPrime) && !cc.IsMultiStageImportInProgress(pvc) {
 		r.recorder.Eventf(pvc, corev1.EventTypeNormal, importSucceeded, messageImportSucceeded, pvc.Name)
 	}
 
@@ -157,6 +179,12 @@ func (r *ImportPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	annotations[cc.AnnPopulatorKind] = cdiv1.VolumeImportSourceRef
 	annotations[cc.AnnContentType] = cc.GetContentType(string(volumeImportSource.Spec.ContentType))
 	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, volumeImportSource.Spec.Preallocation))
+
+	if checkpoint := cc.GetNextCheckpoint(pvc, r.getCheckpointArgs(source)); checkpoint != nil {
+		annotations[cc.AnnCurrentCheckpoint] = checkpoint.Current
+		annotations[cc.AnnPreviousCheckpoint] = checkpoint.Previous
+		annotations[cc.AnnFinalCheckpoint] = strconv.FormatBool(checkpoint.IsFinal)
+	}
 
 	if http := volumeImportSource.Spec.Source.HTTP; http != nil {
 		cc.UpdateHTTPAnnotations(annotations, http)
@@ -263,4 +291,18 @@ func (r *ImportPopulatorReconciler) getImportPod(pvc *corev1.PersistentVolumeCla
 		return nil, errors.Errorf("Pod is not owned by PVC")
 	}
 	return pod, nil
+}
+
+func (r *ImportPopulatorReconciler) getCheckpointArgs(source client.Object) *cc.CheckpointArgs {
+	volumeImportSource := source.(*cdiv1.VolumeImportSource)
+	isFinal := false
+	if volumeImportSource.Spec.FinalCheckpoint != nil {
+		isFinal = *volumeImportSource.Spec.FinalCheckpoint
+	}
+	return &cc.CheckpointArgs{
+		Checkpoints: volumeImportSource.Spec.Checkpoints,
+		IsFinal:     isFinal,
+		Client:      r.client,
+		Log:         r.log,
+	}
 }

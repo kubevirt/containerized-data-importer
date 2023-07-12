@@ -318,10 +318,13 @@ func (VolumeImportSource) SwaggerDoc() map[string]string {
 
 func (VolumeImportSourceSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":              "VolumeImportSourceSpec defines the Spec field for VolumeImportSource",
-		"source":        "Source is the src of the data to be imported in the target PVC",
-		"preallocation": "Preallocation controls whether storage for the target PVC should be allocated in advance.",
-		"contentType":   "ContentType represents the type of the imported data (Kubevirt or archive)",
+		"":                "VolumeImportSourceSpec defines the Spec field for VolumeImportSource",
+		"source":          "Source is the src of the data to be imported in the target PVC",
+		"preallocation":   "Preallocation controls whether storage for the target PVC should be allocated in advance.",
+		"contentType":     "ContentType represents the type of the imported data (Kubevirt or archive)",
+		"targetClaim":     "TargetClaim the name of the specific claim to be populated with a multistage import.",
+		"checkpoints":     "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
+		"finalCheckpoint": "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
 	}
 }
 

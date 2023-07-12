@@ -7051,10 +7051,33 @@ spec:
           spec:
             description: VolumeImportSourceSpec defines the Spec field for VolumeImportSource
             properties:
+              checkpoints:
+                description: Checkpoints is a list of DataVolumeCheckpoints, representing
+                  stages in a multistage import.
+                items:
+                  description: DataVolumeCheckpoint defines a stage in a warm migration.
+                  properties:
+                    current:
+                      description: Current is the identifier of the snapshot created
+                        for this checkpoint.
+                      type: string
+                    previous:
+                      description: Previous is the identifier of the snapshot from
+                        the previous checkpoint.
+                      type: string
+                  required:
+                  - current
+                  - previous
+                  type: object
+                type: array
               contentType:
                 description: ContentType represents the type of the imported data
                   (Kubevirt or archive)
                 type: string
+              finalCheckpoint:
+                description: FinalCheckpoint indicates whether the current DataVolumeCheckpoint
+                  is the final checkpoint.
+                type: boolean
               preallocation:
                 description: Preallocation controls whether storage for the target
                   PVC should be allocated in advance.
@@ -7211,6 +7234,10 @@ spec:
                         type: string
                     type: object
                 type: object
+              targetClaim:
+                description: TargetClaim the name of the specific claim to be populated
+                  with a multistage import.
+                type: string
             type: object
           status:
             description: VolumeImportSourceStatus provides the most recently observed

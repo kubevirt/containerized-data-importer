@@ -112,6 +112,43 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(BeFalse())
 		})
 
+		It("should accept VolumeImportSource spec checkpoints update", func() {
+			source := &cdiv1.ImportSourceType{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{
+					URL: "http://www.example.com",
+				},
+			}
+			importCR := newVolumeImportSource(cdiv1.DataVolumeKubeVirt, source)
+			importCR.Spec.Checkpoints = []cdiv1.DataVolumeCheckpoint{
+				{Current: "test", Previous: ""},
+			}
+			newBytes, _ := json.Marshal(&importCR)
+
+			oldSource := importCR.DeepCopy()
+			oldSource.Spec.Source.HTTP.URL = "http://www.example.es"
+			oldSource.Spec.Checkpoints = nil
+			oldBytes, _ := json.Marshal(oldSource)
+
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdiv1.SchemeGroupVersion.Group,
+						Version:  cdiv1.SchemeGroupVersion.Version,
+						Resource: "volumeimportsources",
+					},
+					Object: runtime.RawExtension{
+						Raw: newBytes,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: oldBytes,
+					},
+				},
+			}
+			resp := validatePopulatorsAdmissionReview(ar)
+			Expect(resp.Allowed).To(BeFalse())
+		})
+
 		It("should accept VolumeImportSource with HTTP source on create", func() {
 			source := &cdiv1.ImportSourceType{
 				HTTP: &cdiv1.DataVolumeSourceHTTP{
@@ -143,6 +180,59 @@ var _ = Describe("Validating Webhook", func() {
 			importCR := newVolumeImportSource(cdiv1.DataVolumeKubeVirt, source)
 			resp := validateVolumeImportSourceCreate(importCR)
 			Expect(resp.Allowed).To(BeFalse())
+		})
+
+		It("should reject VolumeImportSource with incomplete VDDK source", func() {
+			source := &cdiv1.ImportSourceType{
+				VDDK: &cdiv1.DataVolumeSourceVDDK{
+					BackingFile: "",
+					URL:         "",
+					UUID:        "",
+					Thumbprint:  "",
+					SecretRef:   "",
+				},
+			}
+			importCR := newVolumeImportSource(cdiv1.DataVolumeKubeVirt, source)
+			resp := validateVolumeImportSourceCreate(importCR)
+			Expect(resp.Allowed).To(BeFalse())
+		})
+
+		It("should reject multi-stage VolumeImportSource without TargetClaim", func() {
+			source := &cdiv1.ImportSourceType{
+				VDDK: &cdiv1.DataVolumeSourceVDDK{
+					BackingFile: "[iSCSI_Datastore] vm/vm_1.vmdk",
+					URL:         "https://vcenter.corp.com",
+					UUID:        "52260566-b032-36cb-55b1-79bf29e30490",
+					Thumbprint:  "20:6C:8A:5D:44:40:B3:79:4B:28:EA:76:13:60:90:6E:49:D9:D9:A3",
+					SecretRef:   "vddk-credentials",
+				},
+			}
+			importCR := newVolumeImportSource(cdiv1.DataVolumeKubeVirt, source)
+			importCR.Spec.Checkpoints = []cdiv1.DataVolumeCheckpoint{
+				{Current: "test", Previous: ""},
+			}
+			resp := validateVolumeImportSourceCreate(importCR)
+			Expect(resp.Allowed).To(BeFalse())
+		})
+
+		It("should accept multi-stage VolumeImportSource with TargetClaim", func() {
+			source := &cdiv1.ImportSourceType{
+				VDDK: &cdiv1.DataVolumeSourceVDDK{
+					BackingFile: "[iSCSI_Datastore] vm/vm_1.vmdk",
+					URL:         "https://vcenter.corp.com",
+					UUID:        "52260566-b032-36cb-55b1-79bf29e30490",
+					Thumbprint:  "20:6C:8A:5D:44:40:B3:79:4B:28:EA:76:13:60:90:6E:49:D9:D9:A3",
+					SecretRef:   "vddk-credentials",
+				},
+			}
+			importCR := newVolumeImportSource(cdiv1.DataVolumeKubeVirt, source)
+			importCR.Spec.Checkpoints = []cdiv1.DataVolumeCheckpoint{
+				{Current: "test", Previous: ""},
+			}
+			targetClaim := "test-pvc"
+			importCR.Spec.TargetClaim = &targetClaim
+			resp := validateVolumeImportSourceCreate(importCR)
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should accept VolumeImportSource with Registry source URL on create", func() {

@@ -1812,6 +1812,21 @@ func (in *VolumeImportSourceSpec) DeepCopyInto(out *VolumeImportSourceSpec) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.TargetClaim != nil {
+		in, out := &in.TargetClaim, &out.TargetClaim
+		*out = new(string)
+		**out = **in
+	}
+	if in.Checkpoints != nil {
+		in, out := &in.Checkpoints, &out.Checkpoints
+		*out = make([]DataVolumeCheckpoint, len(*in))
+		copy(*out, *in)
+	}
+	if in.FinalCheckpoint != nil {
+		in, out := &in.FinalCheckpoint, &out.FinalCheckpoint
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 

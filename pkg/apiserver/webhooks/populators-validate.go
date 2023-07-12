@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
@@ -132,21 +133,13 @@ func (wh *populatorValidatingWebhook) validateVolumeImportSource(ar admissionv1.
 		return nil, err
 	}
 
-	// Reject spec updates
 	if ar.Request.Operation == admissionv1.Update {
-		oldSource := cdiv1.VolumeImportSource{}
-		err = json.Unmarshal(ar.Request.OldObject.Raw, &oldSource)
+		cause, err := wh.validateVolumeImportSourceUpdate(ar, &volumeImportSource)
 		if err != nil {
 			return nil, err
 		}
-
-		if !apiequality.Semantic.DeepEqual(volumeImportSource.Spec, oldSource.Spec) {
-			klog.Errorf("Cannot update spec for VolumeImportSource %s/%s", volumeImportSource.GetNamespace(), volumeImportSource.GetName())
-			return []metav1.StatusCause{{
-				Type:    metav1.CauseTypeFieldValueDuplicate,
-				Message: "Cannot update VolumeImportSource Spec",
-				Field:   k8sfield.NewPath("VolumeImportSource").Child("Spec").String(),
-			}}, nil
+		if cause != nil {
+			return cause, nil
 		}
 	}
 
@@ -174,6 +167,15 @@ func (wh *populatorValidatingWebhook) validateVolumeImportSourceSpec(field *k8sf
 		return causes
 	}
 
+	// validate multi-stage import
+	if isMultiStageImport(spec) && (spec.TargetClaim == nil || *spec.TargetClaim == "") {
+		return []metav1.StatusCause{{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: "Unable to do multi-stage import without specifying a target claim",
+			Field:   field.Child("targetClaim").String(),
+		}}
+	}
+
 	// Validate import sources
 	if http := spec.Source.HTTP; http != nil {
 		return validateHTTPSource(http, field)
@@ -198,4 +200,39 @@ func (wh *populatorValidatingWebhook) validateVolumeImportSourceSpec(field *k8sf
 	}
 	// Should never reach this return
 	return nil
+}
+
+func (wh *populatorValidatingWebhook) validateVolumeImportSourceUpdate(ar admissionv1.AdmissionReview, volumeImportSource *cdiv1.VolumeImportSource) ([]metav1.StatusCause, error) {
+	oldSource := cdiv1.VolumeImportSource{}
+	err := json.Unmarshal(ar.Request.OldObject.Raw, &oldSource)
+	if err != nil {
+		return nil, err
+	}
+	newSpec := volumeImportSource.Spec.DeepCopy()
+	oldSpec := oldSource.Spec.DeepCopy()
+
+	// Always admit checkpoint updates for multi-stage migrations.
+	if isMultiStageImport(newSpec) {
+		oldSpec.FinalCheckpoint = pointer.Bool(false)
+		oldSpec.Checkpoints = nil
+		newSpec.FinalCheckpoint = pointer.Bool(false)
+		newSpec.Checkpoints = nil
+	}
+
+	// Reject all other updates
+	if !apiequality.Semantic.DeepEqual(newSpec, oldSpec) {
+		klog.Errorf("Cannot update spec for VolumeImportSource %s/%s", volumeImportSource.GetNamespace(), volumeImportSource.GetName())
+		return []metav1.StatusCause{{
+			Type:    metav1.CauseTypeFieldValueDuplicate,
+			Message: "Cannot update VolumeImportSource Spec",
+			Field:   k8sfield.NewPath("VolumeImportSource").Child("Spec").String(),
+		}}, nil
+	}
+
+	return nil, nil
+}
+
+func isMultiStageImport(spec *cdiv1.VolumeImportSourceSpec) bool {
+	return spec.Source != nil && len(spec.Checkpoints) > 0 &&
+		(spec.Source.VDDK != nil || spec.Source.Imageio != nil)
 }
