@@ -91,6 +91,9 @@ func getViewPolicyRules() []rbacv1.PolicyRule {
 				"datavolumes",
 				"objecttransfers",
 				"storageprofiles",
+				"volumeimportsources",
+				"volumeuploadsources",
+				"volumeclonesources",
 			},
 			Verbs: []string{
 				"get",

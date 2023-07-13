@@ -261,6 +261,9 @@ var _ = Describe("Aggregated role definition tests", func() {
 				"datavolumes",
 				"objecttransfers",
 				"storageprofiles",
+				"volumeimportsources",
+				"volumeuploadsources",
+				"volumeclonesources",
 			},
 			Verbs: []string{
 				"get",
