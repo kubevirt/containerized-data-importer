@@ -2399,9 +2399,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			updatePV(func(pv *v1.PersistentVolume) {
 				pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimRetain
 			})
-
-			err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Delete(context.TODO(), pvc.Name, metav1.DeleteOptions{})
-			Expect(err).ToNot(HaveOccurred())
+			utils.CleanupDvPvc(f.K8sClient, f.CdiClient, pvc.Namespace, pvc.Name)
 
 			updatePV(func(pv *v1.PersistentVolume) {
 				pv.Spec.StorageClassName = scName
