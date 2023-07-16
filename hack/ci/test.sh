@@ -12,5 +12,5 @@ bash -x ./hack/cluster-deploy.sh
 
 echo "testing"
 mkdir -p "$ARTIFACT_DIR"
-FUNC_TEST_ARGS='--ginkgo.noColor --ginkgo.focus=\[crit:high\] --junit-output='"$ARTIFACT_DIR"'/junit.functest.xml' \
+FUNC_TEST_ARGS='--ginkgo.timeout=24h --ginkgo.noColor --ginkgo.focus=\[crit:high\] --junit-output='"$ARTIFACT_DIR"'/junit.functest.xml' \
     bash -x ./hack/functests.sh

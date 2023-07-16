@@ -110,7 +110,7 @@ make cluster-sync
 
 kubectl version
 
-ginko_params="--test-args=--ginkgo.noColor --junit-output=${ARTIFACTS_PATH}/junit.functest.xml"
+ginko_params="--test-args=--ginkgo.timeout=24h --ginkgo.noColor --junit-output=${ARTIFACTS_PATH}/junit.functest.xml"
 
 if [[ -n "$CDI_E2E_FOCUS" ]]; then
   ginko_params="${ginko_params} --ginkgo.focus=${CDI_E2E_FOCUS}"
