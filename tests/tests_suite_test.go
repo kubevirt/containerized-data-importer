@@ -61,9 +61,6 @@ func TestTests(t *testing.T) {
 	if qe_reporters.Polarion.Run {
 		afterSuiteReporters = append(afterSuiteReporters, &qe_reporters.Polarion)
 	}
-	if qe_reporters.JunitOutput != "" {
-		afterSuiteReporters = append(afterSuiteReporters, qe_reporters.NewJunitReporter())
-	}
 	defer GinkgoRecover()
 	RegisterFailHandler(cdiFailHandler)
 	BuildTestSuite()
