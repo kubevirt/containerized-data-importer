@@ -56,6 +56,12 @@ const (
 
 	// MessageNoVolumeExpansion reports that no volume expansion is possible (message)
 	MessageNoVolumeExpansion = "No volume expansion is possible"
+
+	// NoProvisionerMatch reports that the storageclass provisioner does not match the volumesnapshotcontent driver (reason)
+	NoProvisionerMatch = "NoProvisionerMatch"
+
+	// MessageNoProvisionerMatch reports that the storageclass provisioner does not match the volumesnapshotcontent driver (message)
+	MessageNoProvisionerMatch = "The storageclass provisioner does not match the volumesnapshotcontent driver"
 )
 
 // Planner plans clone operations
@@ -131,8 +137,14 @@ type ChooseStrategyArgs struct {
 	DataSource  *cdiv1.VolumeCloneSource
 }
 
+// ChooseStrategyResult is result returned by ChooseStrategy function
+type ChooseStrategyResult struct {
+	Strategy       cdiv1.CDICloneStrategy
+	FallbackReason *string
+}
+
 // ChooseStrategy picks the strategy for a clone op
-func (p *Planner) ChooseStrategy(ctx context.Context, args *ChooseStrategyArgs) (*cdiv1.CDICloneStrategy, error) {
+func (p *Planner) ChooseStrategy(ctx context.Context, args *ChooseStrategyArgs) (*ChooseStrategyResult, error) {
 	if IsDataSourcePVC(args.DataSource.Spec.Source.Kind) {
 		args.Log.V(3).Info("Getting strategy for PVC source")
 		return p.computeStrategyForSourcePVC(ctx, args)
@@ -271,7 +283,9 @@ func (p *Planner) watchOwned(log logr.Logger, obj client.Object) error {
 	return nil
 }
 
-func (p *Planner) computeStrategyForSourcePVC(ctx context.Context, args *ChooseStrategyArgs) (*cdiv1.CDICloneStrategy, error) {
+func (p *Planner) computeStrategyForSourcePVC(ctx context.Context, args *ChooseStrategyArgs) (*ChooseStrategyResult, error) {
+	res := &ChooseStrategyResult{}
+
 	if ok, err := p.validateTargetStorageClassAssignment(ctx, args); !ok || err != nil {
 		return nil, err
 	}
@@ -326,29 +340,24 @@ func (p *Planner) computeStrategyForSourcePVC(ctx context.Context, args *ChooseS
 		}
 
 		if n == nil {
-			p.Recorder.Event(args.TargetClaim, corev1.EventTypeWarning, NoVolumeSnapshotClass, MessageNoVolumeSnapshotClass)
-			strategy = cdiv1.CloneStrategyHostAssisted
+			p.fallbackToHostAssisted(args.TargetClaim, res, NoVolumeSnapshotClass, MessageNoVolumeSnapshotClass)
+			return res, nil
 		}
 	}
 
+	res.Strategy = strategy
 	if strategy == cdiv1.CloneStrategySnapshot ||
 		strategy == cdiv1.CloneStrategyCsiClone {
-		ok, err := p.validateAdvancedClonePVC(ctx, args, sourceClaim)
-		if err != nil {
+		if err := p.validateAdvancedClonePVC(ctx, args, res, sourceClaim); err != nil {
 			return nil, err
-		}
-
-		if !ok {
-			strategy = cdiv1.CloneStrategyHostAssisted
 		}
 	}
 
-	return &strategy, nil
+	return res, nil
 }
 
-func (p *Planner) computeStrategyForSourceSnapshot(ctx context.Context, args *ChooseStrategyArgs) (*cdiv1.CDICloneStrategy, error) {
-	// Defaulting to host-assisted clone since it has fewer requirements
-	strategy := cdiv1.CloneStrategyHostAssisted
+func (p *Planner) computeStrategyForSourceSnapshot(ctx context.Context, args *ChooseStrategyArgs) (*ChooseStrategyResult, error) {
+	res := &ChooseStrategyResult{}
 
 	if ok, err := p.validateTargetStorageClassAssignment(ctx, args); !ok || err != nil {
 		return nil, err
@@ -380,8 +389,9 @@ func (p *Planner) computeStrategyForSourceSnapshot(ctx context.Context, args *Ch
 		return nil, err
 	}
 	if !valid {
+		p.fallbackToHostAssisted(args.TargetClaim, res, NoProvisionerMatch, MessageNoProvisionerMatch)
 		args.Log.V(3).Info("Provisioner differs, need to fall back to host assisted")
-		return &strategy, nil
+		return res, nil
 	}
 
 	// Lastly, do size validation to determine whether to use dumb or smart cloning
@@ -389,11 +399,12 @@ func (p *Planner) computeStrategyForSourceSnapshot(ctx context.Context, args *Ch
 	if err != nil {
 		return nil, err
 	}
-	if valid {
-		strategy = cdiv1.CloneStrategySnapshot
+	if !valid {
+		p.fallbackToHostAssisted(args.TargetClaim, res, NoVolumeExpansion, MessageNoVolumeExpansion)
+		return res, nil
 	}
-
-	return &strategy, nil
+	res.Strategy = cdiv1.CloneStrategySnapshot
+	return res, nil
 }
 
 func (p *Planner) validateTargetStorageClassAssignment(ctx context.Context, args *ChooseStrategyArgs) (bool, error) {
@@ -435,37 +446,42 @@ func (p *Planner) validateSourcePVC(args *ChooseStrategyArgs, sourceClaim *corev
 	return nil
 }
 
-func (p *Planner) validateAdvancedClonePVC(ctx context.Context, args *ChooseStrategyArgs, sourceClaim *corev1.PersistentVolumeClaim) (bool, error) {
+func (p *Planner) validateAdvancedClonePVC(ctx context.Context, args *ChooseStrategyArgs, res *ChooseStrategyResult, sourceClaim *corev1.PersistentVolumeClaim) error {
 	if !SameVolumeMode(sourceClaim, args.TargetClaim) {
-		p.Recorder.Event(args.TargetClaim, corev1.EventTypeWarning, IncompatibleVolumeModes, MessageIncompatibleVolumeModes)
+		p.fallbackToHostAssisted(args.TargetClaim, res, IncompatibleVolumeModes, MessageIncompatibleVolumeModes)
 		args.Log.V(3).Info("volume modes not compatible for advanced clone")
-		return false, nil
+		return nil
 	}
 
 	sc, err := GetStorageClassForClaim(ctx, p.Client, args.TargetClaim)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	if sc == nil {
 		args.Log.V(3).Info("target storage class not found")
-		return false, fmt.Errorf("target storage class not found")
+		return fmt.Errorf("target storage class not found")
 	}
 
 	srcCapacity, hasSrcCapacity := sourceClaim.Status.Capacity[corev1.ResourceStorage]
 	targetRequest, hasTargetRequest := args.TargetClaim.Spec.Resources.Requests[corev1.ResourceStorage]
 	allowExpansion := sc.AllowVolumeExpansion != nil && *sc.AllowVolumeExpansion
 	if !hasSrcCapacity || !hasTargetRequest {
-		return false, fmt.Errorf("source/target size info missing")
+		return fmt.Errorf("source/target size info missing")
 	}
 
 	if srcCapacity.Cmp(targetRequest) < 0 && !allowExpansion {
-		p.Recorder.Event(args.TargetClaim, corev1.EventTypeWarning, NoVolumeExpansion, MessageNoVolumeExpansion)
+		p.fallbackToHostAssisted(args.TargetClaim, res, NoVolumeExpansion, MessageNoVolumeExpansion)
 		args.Log.V(3).Info("advanced clone not possible, no volume expansion")
-		return false, nil
 	}
 
-	return true, nil
+	return nil
+}
+
+func (p *Planner) fallbackToHostAssisted(targetClaim *corev1.PersistentVolumeClaim, res *ChooseStrategyResult, reason, message string) {
+	res.Strategy = cdiv1.CloneStrategyHostAssisted
+	res.FallbackReason = &message
+	p.Recorder.Event(targetClaim, corev1.EventTypeWarning, reason, message)
 }
 
 func (p *Planner) planHostAssistedFromPVC(ctx context.Context, args *PlanArgs) ([]Phase, error) {
