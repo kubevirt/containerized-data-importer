@@ -48,6 +48,9 @@ const (
 	// AnnCloneError has the error string for error phase
 	AnnCloneError = "cdi.kubevirt.io/cloneError"
 
+	// AnnCloneFallbackReason has the host-assisted clone fallback reason
+	AnnCloneFallbackReason = "cdi.kubevirt.io/cloneFallbackReason"
+
 	// AnnDataSourceNamespace has the namespace of the DataSource
 	// this will be deprecated when cross namespace datasource goes beta
 	AnnDataSourceNamespace = "cdi.kubevirt.io/dataSourceNamespace"
@@ -64,7 +67,7 @@ var desiredCloneAnnotations = map[string]struct{}{
 
 // Planner is an interface to mock out planner implementation for testing
 type Planner interface {
-	ChooseStrategy(context.Context, *clone.ChooseStrategyArgs) (*cdiv1.CDICloneStrategy, error)
+	ChooseStrategy(context.Context, *clone.ChooseStrategyArgs) (*clone.ChooseStrategyResult, error)
 	Plan(context.Context, *clone.PlanArgs) ([]clone.Phase, error)
 	Cleanup(context.Context, logr.Logger, client.Object) error
 }
@@ -194,18 +197,18 @@ func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log log
 		return reconcile.Result{}, r.updateClonePhaseError(ctx, log, pvc, err)
 	}
 
-	cs, err := r.getCloneStrategy(ctx, log, pvc, vcs)
+	csr, err := r.getCloneStrategy(ctx, log, pvc, vcs)
 	if err != nil {
 		return reconcile.Result{}, r.updateClonePhaseError(ctx, log, pvc, err)
 	}
 
-	if cs == nil {
+	if csr == nil {
 		log.V(3).Info("unable to choose clone strategy now")
 		// TODO maybe create index/watch to deal with this
 		return reconcile.Result{RequeueAfter: 5 * time.Second}, r.updateClonePhasePending(ctx, log, pvc)
 	}
 
-	updated, err := r.initTargetClaim(ctx, log, pvc, vcs, *cs)
+	updated, err := r.initTargetClaim(ctx, log, pvc, vcs, csr)
 	if err != nil {
 		return reconcile.Result{}, r.updateClonePhaseError(ctx, log, pvc, err)
 	}
@@ -220,16 +223,15 @@ func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log log
 		Log:         log,
 		TargetClaim: pvc,
 		DataSource:  vcs,
-		Strategy:    *cs,
+		Strategy:    csr.Strategy,
 	}
 
 	return r.planAndExecute(ctx, log, pvc, statusOnly, args)
 }
 
-func (r *ClonePopulatorReconciler) getCloneStrategy(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, vcs *cdiv1.VolumeCloneSource) (*cdiv1.CDICloneStrategy, error) {
-	cs := getSavedCloneStrategy(pvc)
-	if cs != nil {
-		return cs, nil
+func (r *ClonePopulatorReconciler) getCloneStrategy(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, vcs *cdiv1.VolumeCloneSource) (*clone.ChooseStrategyResult, error) {
+	if cs := getSavedCloneStrategy(pvc); cs != nil {
+		return &clone.ChooseStrategyResult{Strategy: *cs}, nil
 	}
 
 	args := &clone.ChooseStrategyArgs{
@@ -238,12 +240,7 @@ func (r *ClonePopulatorReconciler) getCloneStrategy(ctx context.Context, log log
 		DataSource:  vcs,
 	}
 
-	cs, err := r.planner.ChooseStrategy(ctx, args)
-	if err != nil {
-		return nil, err
-	}
-
-	return cs, nil
+	return r.planner.ChooseStrategy(ctx, args)
 }
 
 func (r *ClonePopulatorReconciler) planAndExecute(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, statusOnly bool, args *clone.PlanArgs) (reconcile.Result, error) {
@@ -315,12 +312,15 @@ func (r *ClonePopulatorReconciler) reconcileDone(ctx context.Context, log logr.L
 	return reconcile.Result{}, r.client.Update(ctx, claimCpy)
 }
 
-func (r *ClonePopulatorReconciler) initTargetClaim(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, vcs *cdiv1.VolumeCloneSource, cs cdiv1.CDICloneStrategy) (bool, error) {
+func (r *ClonePopulatorReconciler) initTargetClaim(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim, vcs *cdiv1.VolumeCloneSource, csr *clone.ChooseStrategyResult) (bool, error) {
 	claimCpy := pvc.DeepCopy()
 	clone.AddCommonClaimLabels(claimCpy)
-	setSavedCloneStrategy(claimCpy, cs)
+	setSavedCloneStrategy(claimCpy, csr.Strategy)
 	if claimCpy.Annotations[AnnClonePhase] == "" {
 		cc.AddAnnotation(claimCpy, AnnClonePhase, clone.PendingPhaseName)
+	}
+	if claimCpy.Annotations[AnnCloneFallbackReason] == "" && csr.FallbackReason != nil {
+		cc.AddAnnotation(claimCpy, AnnCloneFallbackReason, *csr.FallbackReason)
 	}
 	cc.AddFinalizer(claimCpy, cloneFinalizer)
 
