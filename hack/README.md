@@ -76,7 +76,7 @@ These may be passed to a target as `$ make VARIABLE=value target`
 - `PULL_POLICY`: (default: IfNotPresent) Set global CDI pull policy
 - `TEST_ARGS`: A variable containing a list of additional ginkgo flags to be passed to functional tests. The string "--test-args=" must prefix the variable value. For example:
 
-             `make TEST_ARGS="--test-args=-ginkgo.noColor=true" test-functional >& foo`.
+             `make TEST_ARGS="--test-args=-ginkgo.no-color=true" test-functional >& foo`.
 
   Note: the following extra flags are not supported in TEST_ARGS: -kubeurl, -cdi-namespace, -kubeconfig, -kubectl-path
 since these flags are overridden by the _hack/build/run-functional-tests.sh_ script.
