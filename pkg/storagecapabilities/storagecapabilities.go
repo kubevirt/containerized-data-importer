@@ -113,13 +113,17 @@ var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 
 // CloneStrategyByProvisionerKey defines the advised clone strategy for a provisioner
 var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
-	"csi-vxflexos.dellemc.com":   cdiv1.CloneStrategyCsiClone,
-	"csi-isilon.dellemc.com":     cdiv1.CloneStrategyCsiClone,
-	"csi-powermax.dellemc.com":   cdiv1.CloneStrategyCsiClone,
-	"csi-powerstore.dellemc.com": cdiv1.CloneStrategyCsiClone,
-	"hspc.csi.hitachi.com":       cdiv1.CloneStrategyCsiClone,
-	"csi.hpe.com":                cdiv1.CloneStrategyCsiClone,
-	"spectrumscale.csi.ibm.com":  cdiv1.CloneStrategyCsiClone,
+	"csi-vxflexos.dellemc.com":              cdiv1.CloneStrategyCsiClone,
+	"csi-isilon.dellemc.com":                cdiv1.CloneStrategyCsiClone,
+	"csi-powermax.dellemc.com":              cdiv1.CloneStrategyCsiClone,
+	"csi-powerstore.dellemc.com":            cdiv1.CloneStrategyCsiClone,
+	"hspc.csi.hitachi.com":                  cdiv1.CloneStrategyCsiClone,
+	"csi.hpe.com":                           cdiv1.CloneStrategyCsiClone,
+	"spectrumscale.csi.ibm.com":             cdiv1.CloneStrategyCsiClone,
+	"rook-ceph.rbd.csi.ceph.com":            cdiv1.CloneStrategyCsiClone,
+	"openshift-storage.rbd.csi.ceph.com":    cdiv1.CloneStrategyCsiClone,
+	"cephfs.csi.ceph.com":                   cdiv1.CloneStrategyCsiClone,
+	"openshift-storage.cephfs.csi.ceph.com": cdiv1.CloneStrategyCsiClone,
 }
 
 // ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
