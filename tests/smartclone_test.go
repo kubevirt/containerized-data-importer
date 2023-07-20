@@ -114,7 +114,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		}
 		dataVolume, expectedMd5 := createDataVolume("dv-smart-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
-		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneFromSnapshotSourceInProgress))
+		if !f.IsBindingModeWaitForFirstConsumer(&cloneStorageClassName) {
+			// We don't hit this event for WFFC targets ATM
+			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneFromSnapshotSourceInProgress))
+		}
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
@@ -128,7 +131,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		}
 		dataVolume, expectedMd5 := createDataVolume("dv-smart-clone-test-1", utils.DefaultPvcMountPath, v1.PersistentVolumeBlock, f.SnapshotSCName, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
-		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneFromSnapshotSourceInProgress))
+		if !f.IsBindingModeWaitForFirstConsumer(&cloneStorageClassName) {
+			// We don't hit this event for WFFC targets ATM
+			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneFromSnapshotSourceInProgress))
+		}
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
@@ -159,15 +165,18 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(cc.CloneSourceInUse))
 		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
-		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneFromSnapshotSourceInProgress))
+		if !f.IsBindingModeWaitForFirstConsumer(&cloneStorageClassName) {
+			// We don't hit this event for WFFC targets ATM
+			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneFromSnapshotSourceInProgress))
+		}
 		// Wait for operation Succeeded
-		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 		// Verify PVC's content
