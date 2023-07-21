@@ -15,6 +15,10 @@ import (
 //	creates the destination file too large, by the difference between this const and 512.
 const MaxExpectedHdrSize = 512
 
+func CompressedFormat(format string) bool {
+	return format == "gz" || format == "xz" || format == "zst"
+}
+
 // Headers provides a map for header info, key is file format, eg. "gz" or "tar", value is metadata describing the layout for this hdr
 type Headers map[string]Header
 

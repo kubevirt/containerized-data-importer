@@ -52,6 +52,8 @@ func main() {
 		[]string{".qcow2", ".gz"},
 		[]string{".qcow2", ".xz"},
 		[]string{".qcow2", ".zst"},
+		[]string{".tar", ".gz"},
+		[]string{".tar", ".xz"},
 	}
 
 	if err := utils.CreateCertForTestService(util.GetNamespace(), serviceName, configMapName, *certDir, certFile, keyFile); err != nil {

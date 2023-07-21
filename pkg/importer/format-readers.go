@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/pkg/errors"
@@ -65,16 +66,52 @@ type reader struct {
 	rdr     io.ReadCloser
 }
 
+// file extension can be converted by qemu-img
+var conversionKnownExts = []string{
+	"qcow2", "vmdk", "vdi", "vhd", "vhdx", "iso", "raw", "img",
+}
+
+type knownExtFileMatcher struct {
+	calledFilepath      map[string]struct{}
+	firstCalledFilepath *string
+}
+
+func NewKnownExtFileMatcher() *knownExtFileMatcher {
+	return &knownExtFileMatcher{
+		calledFilepath: map[string]struct{}{},
+	}
+}
+
+func (m *knownExtFileMatcher) Match(filepath string) bool {
+	m.calledFilepath[filepath] = struct{}{}
+	if m.firstCalledFilepath == nil {
+		m.firstCalledFilepath = &filepath
+	}
+	for _, ext := range conversionKnownExts {
+		if strings.HasSuffix(filepath, "."+ext) {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *knownExtFileMatcher) CalledTimes() int {
+	return len(m.calledFilepath)
+}
+
+type formatAttr struct {
+	Convert    bool // need convert to raw image, such as qcow2, vmdk
+	Compressed bool
+	ArchiveTar bool // tar archive
+}
+
 // FormatReaders contains the stack of readers needed to get information from the input stream (io.ReadCloser)
 type FormatReaders struct {
+	formatAttr     // for .tar.gz, it will be ArchiveTar and Compressed
 	readers        []reader
 	buf            []byte // holds file headers
-	Convert        bool
-	Archived       bool
-	ArchiveXz      bool
-	ArchiveGz      bool
-	ArchiveZstd    bool
 	progressReader *prometheusutil.ProgressReader
+	total          uint64
 }
 
 const (
@@ -82,6 +119,7 @@ const (
 	rdrMulti
 	rdrXz
 	rdrStream
+	rdrTar
 )
 
 // map scheme and format to rdrType
@@ -89,13 +127,15 @@ var rdrTypM = map[string]int{
 	"gz":     rdrGz,
 	"xz":     rdrXz,
 	"stream": rdrStream,
+	"tar":    rdrTar,
 }
 
 // NewFormatReaders creates a new instance of FormatReaders using the input stream and content type passed in.
 func NewFormatReaders(stream io.ReadCloser, total uint64) (*FormatReaders, error) {
 	var err error
 	readers := &FormatReaders{
-		buf: make([]byte, image.MaxExpectedHdrSize),
+		buf:   make([]byte, image.MaxExpectedHdrSize),
+		total: total,
 	}
 	if total > uint64(0) {
 		readers.progressReader = prometheusutil.NewProgressReader(stream, total, progress, ownerUID)
@@ -107,11 +147,17 @@ func NewFormatReaders(stream io.ReadCloser, total uint64) (*FormatReaders, error
 }
 
 func (fr *FormatReaders) constructReaders(r io.ReadCloser) error {
+	var hdr *image.Header
+	var err error
 	fr.appendReader(rdrTypM["stream"], r)
 	knownHdrs := image.CopyKnownHdrs() // need local copy since keys are removed
 	klog.V(3).Infof("constructReaders: checking compression and archive formats\n")
 	for {
-		hdr, err := fr.matchHeader(&knownHdrs)
+		if hdr != nil && image.CompressedFormat(hdr.Format) {
+			// reset hdrs, look inner file format
+			knownHdrs = image.CopyKnownHdrs()
+		}
+		hdr, err = fr.matchHeader(&knownHdrs)
 		if err != nil {
 			return errors.WithMessage(err, "could not process image header")
 		}
@@ -166,14 +212,12 @@ func (fr *FormatReaders) fileFormatSelector(hdr *image.Header) {
 	case "gz":
 		r, err = fr.gzReader()
 		if err == nil {
-			fr.Archived = true
-			fr.ArchiveGz = true
+			fr.Compressed = true
 		}
 	case "zst":
 		r, err = fr.zstReader()
 		if err == nil {
-			fr.Archived = true
-			fr.ArchiveZstd = true
+			fr.Compressed = true
 		}
 	case "qcow2":
 		r, err = fr.qcow2NopReader(hdr)
@@ -181,8 +225,7 @@ func (fr *FormatReaders) fileFormatSelector(hdr *image.Header) {
 	case "xz":
 		r, err = fr.xzReader()
 		if err == nil {
-			fr.Archived = true
-			fr.ArchiveXz = true
+			fr.Compressed = true
 		}
 	case "vmdk":
 		r = nil
@@ -196,6 +239,9 @@ func (fr *FormatReaders) fileFormatSelector(hdr *image.Header) {
 	case "vhdx":
 		r = nil
 		fr.Convert = true
+	case "tar":
+		r = nil
+		fr.ArchiveTar = true
 	}
 	if err == nil && r != nil {
 		fr.appendReader(rdrTypM[fFmt], r)
@@ -253,6 +299,13 @@ func (fr *FormatReaders) xzReader() (io.Reader, error) {
 		return nil, errors.Wrap(err, "could not create xz reader")
 	}
 	return xz, nil
+}
+
+func (fr *FormatReaders) AppendArchiveInnerFileReader(matcher util.FileMatcher) {
+	if !fr.ArchiveTar || fr.readers[len(fr.readers)-1].rdrType == rdrTar {
+		return
+	}
+	fr.appendReader(rdrTar, util.NewTarReader(fr.TopReader(), matcher))
 }
 
 // Return the matching header, if one is found, from the passed-in map of known headers. After a

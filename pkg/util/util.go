@@ -1,6 +1,7 @@
 package util
 
 import (
+	"archive/tar"
 	"bufio"
 	"bytes"
 	"crypto/md5"
@@ -462,4 +463,56 @@ func ResolveVolumeMode(volumeMode *v1.PersistentVolumeMode) v1.PersistentVolumeM
 		retVolumeMode = v1.PersistentVolumeBlock
 	}
 	return retVolumeMode
+}
+
+type FileMatcher interface {
+	Match(filepath string) bool
+}
+
+// TarReader is a reader that read tar inner file meet matcher
+type TarReader struct {
+	Reader           io.Reader
+	InnerFileMatcher FileMatcher
+	innerReader      io.Reader
+}
+
+func NewTarReader(reader io.Reader, matcher FileMatcher) *TarReader {
+	return &TarReader{
+		Reader:           reader,
+		InnerFileMatcher: matcher,
+	}
+}
+
+func (r *TarReader) Read(p []byte) (n int, err error) {
+	if r.innerReader == nil {
+		_, innerReader, err := FindTarInnerFile(r.Reader, r.InnerFileMatcher)
+		if err != nil {
+			return 0, err
+		} else if innerReader == nil {
+			return 0, io.EOF
+		}
+		r.innerReader = innerReader
+	}
+	return r.innerReader.Read(p)
+}
+
+// find the first file path and it's reader meet matcher in tar archive,
+func FindTarInnerFile(reader io.Reader, matcher FileMatcher) (filepath string, innerFileReader io.Reader, err error) {
+	tarReader := tar.NewReader(reader)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			klog.Errorf("failed to read file in tar: %s", err.Error())
+			return "", nil, err
+		} else if header.Typeflag != tar.TypeReg {
+			continue
+		}
+
+		if matcher.Match(header.Name) {
+			return header.Name, tarReader, nil
+		}
+	}
+	return "", nil, nil
 }

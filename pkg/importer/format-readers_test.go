@@ -15,17 +15,18 @@ import (
 )
 
 var (
-	archiveFileName           = "archive.tar"
-	imageDir, _               = filepath.Abs(TestImagesDir)
-	tinyCoreFileName          = "tinyCore.iso"
-	tinyCoreFilePath          = filepath.Join(imageDir, tinyCoreFileName)
-	tinyCoreXzFilePath, _     = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtXz)
-	tinyCoreGzFilePath, _     = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtGz)
-	tinyCoreTarFilePath, _    = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtTar)
-	archiveFilePath, _        = utils.ArchiveFiles(archiveFileNameWithoutExt, os.TempDir(), tinyCoreFilePath, cirrosFilePath)
-	archiveFileNameWithoutExt = strings.TrimSuffix(archiveFileName, filepath.Ext(archiveFileName))
-	cirrosFilePath            = filepath.Join(imageDir, cirrosFileName)
-	stringRdr                 = strings.NewReader("test data for reader 1")
+	imageDir, _            = filepath.Abs(TestImagesDir)
+	noDiskTarFileName      = "archive.tar"
+	noDiskTarFilePath      = filepath.Join(imageDir, noDiskTarFileName)
+	tinyCoreFileName       = "tinyCore.iso"
+	tinyCoreFilePath       = filepath.Join(imageDir, tinyCoreFileName)
+	tinyCoreXzFilePath, _  = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtXz)
+	tinyCoreGzFilePath, _  = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtGz)
+	tinyCoreTarFilePath, _ = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtTar)
+	archiveFilePath, _     = utils.ArchiveFiles("archive.tar", os.TempDir(), tinyCoreFilePath, cirrosFilePath)
+	archiveGzFilePath, _   = utils.ToGz(archiveFilePath, os.TempDir(), "")
+	archiveXzFilePath, _   = utils.ToXz(archiveFilePath, os.TempDir(), "")
+	stringRdr              = strings.NewReader("test data for reader 1")
 )
 
 var _ = Describe("Format Readers", func() {
@@ -40,7 +41,7 @@ var _ = Describe("Format Readers", func() {
 		}
 	})
 
-	DescribeTable("can construct readers", func(filename string, numRdrs int, wantErr, archived, convert bool) {
+	DescribeTable("can construct readers", func(filename string, numRdrs int, wantErr bool, wantAttr formatAttr) {
 		f, err := os.Open(filename)
 		Expect(err).ToNot(HaveOccurred())
 		defer f.Close()
@@ -54,15 +55,41 @@ var _ = Describe("Format Readers", func() {
 				fmt.Fprintf(GinkgoWriter, "INFO: Reader type: %d\n", r.rdrType)
 			}
 			Expect(numRdrs).To(Equal(len(fr.readers)))
-			Expect(convert).To(Equal(fr.Convert))
-			Expect(archived).To(Equal(fr.Archived))
+			Expect(wantAttr).To(Equal(fr.formatAttr))
 		}
 	},
-		Entry("successfully construct a xz reader", tinyCoreXzFilePath, 4, false, true, false),              // [stream, multi-r, xz, multi-r] convert = false
-		Entry("successfully construct a gz reader", tinyCoreGzFilePath, 4, false, true, false),              // [stream, multi-r, gz, multi-r] convert = false
-		Entry("successfully return the base reader when archived", archiveFilePath, 3, false, false, false), // [stream, multi-r, multi-r] convert = false
-		Entry("successfully construct qcow2 reader", cirrosFilePath, 2, false, false, true),                 // [stream, multi-r] convert = true
-		Entry("successfully construct .iso reader", tinyCoreFilePath, 2, false, false, false),               // [stream, multi-r] convert = false
+		Entry("successfully construct a xz reader", tinyCoreXzFilePath, 4, false, formatAttr{
+			Convert:    false,
+			Compressed: true,
+		}), // [stream, multi-r, xz, multi-r] convert = false
+		Entry("successfully construct a gz reader", tinyCoreGzFilePath, 4, false, formatAttr{
+			Convert:    false,
+			Compressed: true,
+		}), // [stream, multi-r, gz, multi-r] convert = false
+		Entry("successfully construct a tar reader", archiveFilePath, 3, false, formatAttr{
+			Convert:    false,
+			ArchiveTar: true,
+		}), // [stream, multi-r, multi-r] convert = false
+		Entry("return the base reader when archive has no disk file", noDiskTarFilePath, 3, false, formatAttr{
+			Convert:    false,
+			ArchiveTar: true,
+		}), // [stream, multi-r, multi-r] convert = false
+		Entry("successfully construct a qcow2 reader", cirrosFilePath, 2, false, formatAttr{
+			Convert: true,
+		}), // [stream, multi-r] convert = true
+		Entry("successfully construct a iso reader", tinyCoreFilePath, 2, false, formatAttr{
+			Convert: false,
+		}), // [stream, multi-r] convert = false
+		Entry("successfully construct a tar.gz reader", archiveGzFilePath, 5, false, formatAttr{
+			Convert:    false,
+			ArchiveTar: true,
+			Compressed: true,
+		}), // [stream, multi-r, gz, multi-r, multi-r] convert = false
+		Entry("successfully construct a tar.xz reader", archiveXzFilePath, 5, false, formatAttr{
+			Convert:    false,
+			ArchiveTar: true,
+			Compressed: true,
+		}), // [stream, multi-r, xz, multi-r, multi-r] convert = false
 	)
 
 	DescribeTable("can append readers", func(rType int, r interface{}, numRdrs int, isCloser bool) {
