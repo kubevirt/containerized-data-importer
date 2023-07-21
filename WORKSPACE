@@ -2574,6 +2574,18 @@ rpm(
 )
 
 rpm(
+    name = "nbdkit-tar-filter-0__1.34.1-1.el9.aarch64",
+    sha256 = "208907d22f384f0e61a041e5a1280329270725f05534836a4ba40779284aed37",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nbdkit-tar-filter-1.34.1-1.el9.aarch64.rpm"],
+)
+
+rpm(
+    name = "nbdkit-tar-filter-0__1.34.1-1.el9.x86_64",
+    sha256 = "3e5af1676e95434776e6136adbafbb832f1b53e338f4f77249134f2f57edfbcc",
+    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nbdkit-tar-filter-1.34.1-1.el9.x86_64.rpm"],
+)
+
+rpm(
     name = "ncurses-base-0__6.2-8.20210508.el9.aarch64",
     sha256 = "e4cc4a4a479b8c27776debba5c20e8ef21dc4b513da62a25ed09f88386ac08a8",
     urls = [

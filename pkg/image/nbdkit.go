@@ -53,6 +53,12 @@ const (
 	NbdkitReadAheadFilter    NbdkitFilter = "readahead"
 )
 
+// Nbdkit tar filter arguments
+const (
+	// target filepath in the tar archive to serve
+	NbdkitTarFilterArgsEntryName = "tar-entry"
+)
+
 // Nbdkit represents struct for an nbdkit instance
 type Nbdkit struct {
 	c          *exec.Cmd
@@ -62,6 +68,7 @@ type Nbdkit struct {
 	pluginArgs []string
 	redactArgs []string
 	filters    []NbdkitFilter
+	filterArgs []string
 	Socket     string
 	Env        []string
 	LogWatcher NbdkitLogWatcher
@@ -73,6 +80,7 @@ type NbdkitOperation interface {
 	KillNbdkit() error
 	AddEnvVariable(v string)
 	AddFilter(filter NbdkitFilter)
+	AddFilterWithArgs(filter NbdkitFilter, args map[string]string)
 }
 
 // NewNbdkit creates a new Nbdkit instance with an nbdkit plugin and pid file
@@ -179,6 +187,14 @@ func (n *Nbdkit) AddFilter(filter NbdkitFilter) {
 	n.filters = append(n.filters, filter)
 }
 
+// AddFilterWithArgs adds a nbdkit filter and its arguments if it doesn't already exist
+func (n *Nbdkit) AddFilterWithArgs(filter NbdkitFilter, args map[string]string) {
+	n.AddFilter(filter)
+	for k, v := range args {
+		n.filterArgs = append(n.filterArgs, fmt.Sprintf("%s=%s", k, v))
+	}
+}
+
 func getVddkPluginPath() NbdkitPlugin {
 	_, err := os.Stat(string(NbdkitVddkMockPlugin))
 	if !os.IsNotExist(err) {
@@ -222,6 +238,9 @@ func (n *Nbdkit) StartNbdkit(source string) error {
 	argsNbdkit = append(argsNbdkit, n.pluginArgs...)
 	argsNbdkit = append(argsNbdkit, n.redactArgs...)
 	argsNbdkit = append(argsNbdkit, n.getSourceArg(source))
+
+	// append filter arguments
+	argsNbdkit = append(argsNbdkit, n.filterArgs...)
 
 	isRedacted := func(arg string) bool {
 		for _, value := range n.redactArgs {
@@ -410,5 +429,6 @@ func (m *mockNbdkit) StartNbdkit(source string) error {
 func (m *mockNbdkit) KillNbdkit() error {
 	return nil
 }
-func (m *mockNbdkit) AddEnvVariable(v string)       {}
-func (m *mockNbdkit) AddFilter(filter NbdkitFilter) {}
+func (m *mockNbdkit) AddEnvVariable(v string)                                       {}
+func (m *mockNbdkit) AddFilter(filter NbdkitFilter)                                 {}
+func (m *mockNbdkit) AddFilterWithArgs(filter NbdkitFilter, args map[string]string) {}

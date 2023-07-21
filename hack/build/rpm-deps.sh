@@ -46,6 +46,7 @@ nbdkit-basic-filters
 nbdkit-curl-plugin
 nbdkit-xz-filter
 nbdkit-gzip-filter
+nbdkit-tar-filter
 qemu-img
 "
 
