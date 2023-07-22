@@ -141,13 +141,13 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	}
 	if hs.readers.ArchiveTar {
 		if hs.readers.Compressed {
-			hs.readers.AppendArchiveInnerFileReader(NewKnownExtFileMatcher())
+			hs.readers.appendArchiveInnerFileReader(newKnownExtFileMatcher())
 			// for unseekable compressed tar archive (gzip, xz with large block size),
 			// qemu-img over nbdkit will be super slow,
 			// so fallback to download to scratch
 			return ProcessingPhaseTransferScratch, nil
 		}
-		matcher := NewKnownExtFileMatcher()
+		matcher := newKnownExtFileMatcher()
 		innerFilepath, _, err := util.FindTarInnerFile(hs.readers.TopReader(), matcher)
 		if err != nil {
 			return ProcessingPhaseError, err

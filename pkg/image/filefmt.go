@@ -15,6 +15,7 @@ import (
 //	creates the destination file too large, by the difference between this const and 512.
 const MaxExpectedHdrSize = 512
 
+// CompressedFormat return whether file format is compressed
 func CompressedFormat(format string) bool {
 	return format == "gz" || format == "xz" || format == "zst"
 }

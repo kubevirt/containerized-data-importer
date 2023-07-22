@@ -76,7 +76,7 @@ type knownExtFileMatcher struct {
 	firstCalledFilepath *string
 }
 
-func NewKnownExtFileMatcher() *knownExtFileMatcher {
+func newKnownExtFileMatcher() *knownExtFileMatcher {
 	return &knownExtFileMatcher{
 		calledFilepath: map[string]struct{}{},
 	}
@@ -301,7 +301,7 @@ func (fr *FormatReaders) xzReader() (io.Reader, error) {
 	return xz, nil
 }
 
-func (fr *FormatReaders) AppendArchiveInnerFileReader(matcher util.FileMatcher) {
+func (fr *FormatReaders) appendArchiveInnerFileReader(matcher util.FileMatcher) {
 	if !fr.ArchiveTar || fr.readers[len(fr.readers)-1].rdrType == rdrTar {
 		return
 	}

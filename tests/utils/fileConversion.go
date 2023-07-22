@@ -94,6 +94,7 @@ func ArchiveFiles(targetFile, tgtDir string, sourceFilesNames ...string) (string
 	return tgtPath, nil
 }
 
+// ToGz create gzipped src file into tgtDir wit extension
 func ToGz(src, tgtDir, ext string) (string, error) {
 	tgtFile, tgtPath, _ := createTargetFile(src, tgtDir, image.ExtGz)
 	defer tgtFile.Close()
@@ -137,6 +138,7 @@ func toZst(src, tgtDir, ext string) (string, error) {
 	return tgtPath, nil
 }
 
+// ToXz create xz src file into tgtDir wit extension
 func ToXz(src, tgtDir, ext string) (string, error) {
 	tgtFile, tgtPath, _ := createTargetFile(src, tgtDir, image.ExtXz)
 	defer tgtFile.Close()

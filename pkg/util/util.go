@@ -465,6 +465,7 @@ func ResolveVolumeMode(volumeMode *v1.PersistentVolumeMode) v1.PersistentVolumeM
 	return retVolumeMode
 }
 
+// FileMatcher is a interface of file path matcher
 type FileMatcher interface {
 	Match(filepath string) bool
 }
@@ -476,6 +477,7 @@ type TarReader struct {
 	innerReader      io.Reader
 }
 
+// NewTarReader construct TarReader
 func NewTarReader(reader io.Reader, matcher FileMatcher) *TarReader {
 	return &TarReader{
 		Reader:           reader,
@@ -483,6 +485,8 @@ func NewTarReader(reader io.Reader, matcher FileMatcher) *TarReader {
 	}
 }
 
+// Read reads bytes from the inner reader,
+// the inner reader point to the tar inner file
 func (r *TarReader) Read(p []byte) (n int, err error) {
 	if r.innerReader == nil {
 		_, innerReader, err := FindTarInnerFile(r.Reader, r.InnerFileMatcher)
@@ -496,7 +500,7 @@ func (r *TarReader) Read(p []byte) (n int, err error) {
 	return r.innerReader.Read(p)
 }
 
-// find the first file path and it's reader meet matcher in tar archive,
+// FindTarInnerFile find the first file path and it's reader meet matcher in tar archive,
 func FindTarInnerFile(reader io.Reader, matcher FileMatcher) (filepath string, innerFileReader io.Reader, err error) {
 	tarReader := tar.NewReader(reader)
 	for {
