@@ -26,6 +26,10 @@ var _ = Describe("Transport Tests", func() {
 		targetArchivedImage     = "tinycoreisotar"
 		targetArchivedImageHash = "b354a50183e70ee2ed3413eea67fe153"
 		targetNodePullImage     = "cdi-func-test-tinycore"
+		fakeOva                 = "fake.ova"
+		blankImageHash          = "cbc95b63ee5c6cf0a4eb8f27b2674485"
+		noDiskFileTar           = "archive.tar"
+		unknownInnerExtTar      = "qcow2-but-other-extension.tar"
 	)
 
 	var (
@@ -102,7 +106,7 @@ var _ = Describe("Transport Tests", func() {
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", pvcAnn[controller.AnnEndpoint]))
-		pvc := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition("transport-e2e", "400Mi", pvcAnn, nil))
+		pvc := f.CreateBoundPVCFromDefinition(utils.NewPVCDefinition("transport-e2e", "900Mi", pvcAnn, nil))
 
 		if shouldSucceed {
 			By("Verify PVC status annotation says succeeded")
@@ -167,6 +171,9 @@ var _ = Describe("Transport Tests", func() {
 		Entry("[test_id:5072]should succeed to import from registry when image contains valid archived raw file", registryNoAuthEp, targetArchivedImage, targetArchivedImageHash, "", "", controller.SourceRegistry, "cdi-docker-registry-host-certs", "", false, true),
 		Entry("[test_id:5073]should not connect to https endpoint without cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "", "", false, false),
 		Entry("[test_id:5074]should connect to https endpoint with cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "cdi-file-host-certs", "", false, true),
+		Entry("[test_id:7250]should connect to OVA archive at http endpoint", httpNoAuthEp, fakeOva, blankImageHash, "", "", controller.SourceHTTP, "", "", false, true),
+		Entry("[test_id:7251]should connect to tar archive has unknow inner file extension at http endpoint", httpNoAuthEp, unknownInnerExtTar, blankImageHash, "", "", controller.SourceHTTP, "", "", false, true),
+		Entry("[test_id:7252]should connect to tar archive has no disk file at http endpoint", httpNoAuthEp, noDiskFileTar, blankImageHash, "", "", controller.SourceHTTP, "", "", false, true),
 		Entry("[test_id:5075]should not connect to https endpoint with bad cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "cdi-docker-registry-host-certs", "", false, false),
 		Entry("[test_id:7240]should succeed to node pull import from registry when image contains valid iso file, no auth", trustedRegistryEp, targetNodePullImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "", string(cdiv1.RegistryPullNode), false, true),
 	)

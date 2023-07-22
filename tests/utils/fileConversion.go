@@ -17,8 +17,8 @@ import (
 )
 
 var formatTable = map[string]func(string, string, string) (string, error){
-	image.ExtGz:    toGz,
-	image.ExtXz:    toXz,
+	image.ExtGz:    ToGz,
+	image.ExtXz:    ToXz,
 	image.ExtZst:   toZst,
 	image.ExtTar:   toTar,
 	image.ExtQcow2: convertUsingQemuImg,
@@ -94,7 +94,7 @@ func ArchiveFiles(targetFile, tgtDir string, sourceFilesNames ...string) (string
 	return tgtPath, nil
 }
 
-func toGz(src, tgtDir, ext string) (string, error) {
+func ToGz(src, tgtDir, ext string) (string, error) {
 	tgtFile, tgtPath, _ := createTargetFile(src, tgtDir, image.ExtGz)
 	defer tgtFile.Close()
 
@@ -137,7 +137,7 @@ func toZst(src, tgtDir, ext string) (string, error) {
 	return tgtPath, nil
 }
 
-func toXz(src, tgtDir, ext string) (string, error) {
+func ToXz(src, tgtDir, ext string) (string, error) {
 	tgtFile, tgtPath, _ := createTargetFile(src, tgtDir, image.ExtXz)
 	defer tgtFile.Close()
 

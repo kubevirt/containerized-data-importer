@@ -61,6 +61,10 @@ const (
 	HTTPSTinyCoreVhdURL = "https://cdi-file-host.%s/tinyCore.vhd"
 	// HTTPSTinyCoreVhdxURL provides a test url for the tineyCore qcow2 image
 	HTTPSTinyCoreVhdxURL = "https://cdi-file-host.%s/tinyCore.vhdx"
+	// TinyCoreIsoTarGzURL provides a test url for the tineyCore iso.tar.gz image
+	TinyCoreIsoTarGzURL = "http://cdi-file-host.%s:82/tinyCore.iso.tar.gz"
+	// TinyCoreIsoTarXzURL provides a test url for the tineyCore iso.tar.xz image
+	TinyCoreIsoTarXzURL = "http://cdi-file-host.%s:82/tinyCore.iso.tar.xz"
 	// InvalidQcowImagesURL provides a test url for invalid qcow images
 	InvalidQcowImagesURL = "http://cdi-file-host.%s/invalid_qcow_images/"
 	// LargeVirtualDiskQcow provides a test url for a cirros image with a large virtual size, in qcow2 format
@@ -79,6 +83,8 @@ const (
 	CirrosGCSQCOWURL = "http://cdi-file-host.%s/gcs-bucket/cirros-qcow2.img"
 	// CirrosGCSRAWURL provides the standard cirros image raw image for GCS
 	CirrosGCSRAWURL = "http://cdi-file-host.%s/gcs-bucket/cirros.raw"
+	// CirrosTarURL provides the cirros image in a tar archive
+	CirrosTarURL = "http://cdi-file-host.%s/cirros.tar"
 	// ImageioURL provides URL of oVirt engine hosting imageio
 	ImageioURL = "https://imageio.%s:12346/ovirt-engine/api"
 	// ImageioRootURL provides the base path to fakeovirt, for inventory modifications
@@ -104,6 +110,8 @@ const (
 	VcenterMD5 = "91150be031835ccfac458744da57d4f6"
 	// BlankMD5 is the MD5 hash of first 100k bytes of blank image
 	BlankMD5 = "0019d23bef56a136a1891211d7007f6f"
+	// CirrosMD5 is the MD5 hash of first 100k bytes of cirros image
+	CirrosMD5 = "91150be031835ccfac458744da57d4f6"
 )
 
 // CreateDataVolumeFromDefinition is used by tests to create a testable Data Volume

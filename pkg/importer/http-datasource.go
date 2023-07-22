@@ -131,12 +131,37 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 		return ProcessingPhaseTransferDataDir, nil
 	}
 	if hs.readers.Convert {
-		if hs.brokenForQemuImg || hs.readers.Archived || hs.customCA != "" {
+		if hs.brokenForQemuImg || (hs.readers.Compressed && !hs.readers.ArchiveTar) || hs.customCA != "" {
 			return ProcessingPhaseTransferScratch, nil
 		}
 	} else {
-		if hs.readers.Archived || hs.customCA != "" {
+		if (hs.readers.Compressed && !hs.readers.ArchiveTar) || hs.customCA != "" {
 			return ProcessingPhaseTransferDataFile, nil
+		}
+	}
+	if hs.readers.ArchiveTar {
+		if hs.readers.Compressed {
+			hs.readers.AppendArchiveInnerFileReader(NewKnownExtFileMatcher())
+			// for unseekable compressed tar archive (gzip, xz with large block size),
+			// qemu-img over nbdkit will be super slow,
+			// so fallback to download to scratch
+			return ProcessingPhaseTransferScratch, nil
+		}
+		matcher := NewKnownExtFileMatcher()
+		innerFilepath, _, err := util.FindTarInnerFile(hs.readers.TopReader(), matcher)
+		if err != nil {
+			return ProcessingPhaseError, err
+		}
+		// if the archive only contains one file, use the file path regardless extension
+		if matcher.CalledTimes() == 1 {
+			innerFilepath = *matcher.firstCalledFilepath
+		}
+		if innerFilepath != "" {
+			hs.n.AddFilterWithArgs(image.NbdkitTarFilter, map[string]string{
+				image.NbdkitTarFilterArgsEntryName: innerFilepath,
+			})
+		} else {
+			return ProcessingPhaseTransferScratch, nil
 		}
 	}
 	hs.url, _ = url.Parse(fmt.Sprintf("nbd+unix:///?socket=%s", nbdkitSocket))

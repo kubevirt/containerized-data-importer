@@ -117,6 +117,7 @@ exports_files(
         "images/tinyCore.iso",
         "images/tinyCore.vdi",
         "images/archive.tar",
+        "images/cirros.tar",
         "images/cirros-qcow2.img",
         "images/cirros.raw",
         "images/cirros-large-virtual-size.raw.xz",
@@ -126,6 +127,8 @@ exports_files(
         "images/invalid_qcow_images/invalid-qcow-large-memory.img",
         "images/cirros-snapshot1.qcow2",
         "images/cirros-snapshot2.qcow2",
+        "images/fake.ova",
+        "images/qcow2-but-other-extension.tar",
     ],
 )
 

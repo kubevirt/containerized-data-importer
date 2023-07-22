@@ -1094,10 +1094,13 @@ var _ = Describe("Preallocation", func() {
 		err                 error
 		tinyCoreIsoURL      = func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
 		tinyCoreQcow2URL    = func() string { return fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs) }
-		tinyCoreTarURL      = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
 		tinyCoreRegistryURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
+		tinyCoreIsoTarGzURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoTarGzURL, f.CdiInstallNs) }
+		tinyCoreIsoTarXzURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoTarXzURL, f.CdiInstallNs) }
 		imageioURL          = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
 		vcenterURL          = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
+		cirrosTarURL        = func() string { return fmt.Sprintf(utils.CirrosTarURL, f.CdiInstallNs) }
+		noDiskFileTarURL    = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
 		config              *cdiv1.CDIConfig
 		origSpec            *cdiv1.CDIConfigSpec
 		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
@@ -1262,18 +1265,24 @@ var _ = Describe("Preallocation", func() {
 		Entry("HTTP import (QCOW2 image)", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", tinyCoreQcow2URL())
 		}),
-		Entry("HTTP import (TAR image)", true, utils.TinyCoreTarMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
-			return utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", tinyCoreTarURL())
+		Entry("HTTP import (TAR image)", true, utils.CirrosMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
+			return utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", cirrosTarURL())
+		}),
+		Entry("HTTP import (TAR GZ image)", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
+			return utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", tinyCoreIsoTarGzURL())
+		}),
+		Entry("HTTP import (TAR XZ image)", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
+			return utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", tinyCoreIsoTarXzURL())
 		}),
 		Entry("HTTP import (archive content)", false, "", "", func() *cdiv1.DataVolume {
-			return utils.NewDataVolumeWithArchiveContent("import-dv", "100Mi", tinyCoreTarURL())
+			return utils.NewDataVolumeWithArchiveContent("import-dv", "100Mi", noDiskFileTarURL())
 		}),
-		Entry("HTTP Import (TAR image, block DataVolume)", true, utils.TinyCoreTarMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
+		Entry("HTTP Import (TAR image, block DataVolume)", true, utils.CirrosMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
 			if !f.IsBlockVolumeStorageClassAvailable() {
 				Skip("Storage Class for block volume is not available")
 			}
 
-			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreTarURL(), f.BlockSCName)
+			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", cirrosTarURL(), f.BlockSCName)
 		}),
 		Entry("HTTP Import (ISO image, block DataVolume)", true, utils.TinyCoreMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
 			if !f.IsBlockVolumeStorageClassAvailable() {

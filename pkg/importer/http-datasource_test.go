@@ -26,12 +26,17 @@ import (
 )
 
 var (
-	cirrosFileName          = "cirros-qcow2.img"
-	diskimageTarFileName    = "cirros.tar"
-	tinyCoreGz              = "tinyCore.iso.gz"
-	tinyCoreXz              = "tinyCore.iso.xz"
-	cirrosData, _           = readFile(cirrosFilePath)
-	diskimageArchiveData, _ = readFile(diskimageTarFileName)
+	cirrosFileName         = "cirros-qcow2.img"
+	cirrosFilePath         = filepath.Join(imageDir, cirrosFileName)
+	cirrosTarFileName      = "cirros.qcow2.tar"
+	cirrosTarGzFileName    = "cirros.qcow2.tar.gz"
+	tinyCoreGz             = "tinyCore.iso.gz"
+	tinyCoreXz             = "tinyCore.iso.xz"
+	ovaFileName            = "fake.ova"
+	singleInnerTarFileName = "qcow2-but-other-extension.tar"
+	cirrosData, _          = readFile(cirrosFilePath)
+	cirrosTarData, _       = readFile(cirrosTarFileName)
+	cirrosTarGzData, _     = readFile(cirrosTarGzFileName)
 )
 
 var _ = Describe("Http data source", func() {
@@ -104,7 +109,12 @@ var _ = Describe("Http data source", func() {
 	},
 		Entry("return Convert phase ", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseConvert, cirrosData, false),
 		Entry("return TransferTarget with archive content type but not archive endpoint ", cirrosFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, cirrosData, false),
-		Entry("return TransferTarget with archive content type and archive endpoint ", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, diskimageArchiveData, false),
+		Entry("return TransferTarget with archive content type and archive endpoint ", cirrosTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, cirrosTarData, false),
+		Entry("return Convert with archive endpoint ", cirrosTarFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseConvert, cirrosTarData, false),
+		Entry("return Convert with OVA archive endpoint ", ovaFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseConvert, nil, false),
+		Entry("return Scratch with gzipped archive endpoint ", cirrosTarGzFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseTransferScratch, cirrosTarGzData, false),
+		Entry("return Scratch with multiple inner archive endpoint but has no disk ", noDiskTarFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseTransferScratch, nil, false),
+		Entry("return Convert with single inner archive endpoint but has no disk ", singleInnerTarFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseConvert, nil, false),
 	)
 
 	It("calling info with raw gz image should return TransferDataFile", func() {
@@ -148,8 +158,7 @@ var _ = Describe("Http data source", func() {
 	},
 		Entry("return Error with missing scratch space", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseError, "/imaninvalidpath", cirrosData, true),
 		Entry("return Error with invalid content type ", cirrosFileName, cdiv1.DataVolumeContentType("invalid"), ProcessingPhaseError, "", cirrosData, true),
-		Entry("return Complete with archive content type and archive endpoint ", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseComplete, "", diskimageArchiveData, false),
-		Entry("return Error with invalid target path and archive", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseError, "/imaninvalidpath", cirrosData, true),
+		Entry("return Error with invalid target path and archive", cirrosTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseError, "/imaninvalidpath", cirrosTarData, true),
 		Entry("return Convert with scratch space and valid qcow file", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseConvert, "", cirrosData, false),
 	)
 
