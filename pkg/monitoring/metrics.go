@@ -44,13 +44,13 @@ var MetricOptsList = map[MetricsKey]MetricOpts{
 		Type: "Gauge",
 	},
 	IncompleteProfile: {
-		Name: "kubevirt_cdi_incomplete_storageprofiles_total",
+		Name: "kubevirt_cdi_incomplete_storageprofiles",
 		Help: "Total number of incomplete and hence unusable StorageProfile",
 		Type: "Gauge",
 	},
 	ReadyGauge: {
 		Name: "kubevirt_cdi_cr_ready",
-		Help: "CDI CR Ready",
+		Help: "CDI install ready",
 		Type: "Gauge",
 	},
 }
@@ -60,7 +60,7 @@ func GetRecordRulesDesc(namespace string) []RecordRulesDesc {
 	return []RecordRulesDesc{
 		{
 			MetricOpts{
-				"kubevirt_cdi_operator_up_total",
+				"kubevirt_cdi_operator_up",
 				"CDI operator status",
 				"Gauge",
 			},
@@ -68,33 +68,33 @@ func GetRecordRulesDesc(namespace string) []RecordRulesDesc {
 		},
 		{
 			MetricOpts{
-				"kubevirt_cdi_import_dv_unusual_restartcount_total",
-				"Total restart count in CDI Data Volume importer pod",
-				"Counter",
+				"kubevirt_cdi_import_pods_high_restart",
+				"The number of CDI import pods with high restart count",
+				"Gauge",
 			},
 			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
 		},
 		{
 			MetricOpts{
-				"kubevirt_cdi_upload_dv_unusual_restartcount_total",
-				"Total restart count in CDI Data Volume upload server pod",
-				"Counter",
+				"kubevirt_cdi_upload_pods_high_restart",
+				"The number of CDI upload server pods with high restart count",
+				"Gauge",
 			},
 			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
 		},
 		{
 			MetricOpts{
-				"kubevirt_cdi_clone_dv_unusual_restartcount_total",
-				"Total restart count in CDI Data Volume cloner pod",
-				"Counter",
+				"kubevirt_cdi_clone_pods_high_restart",
+				"The number of CDI clone pods with high restart count",
+				"Gauge",
 			},
 			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
 		},
 		{
 			MetricOpts{
-				"kubevirt_cdi_dataimportcron_outdated_total",
+				"kubevirt_cdi_dataimportcron_outdated_aggregated",
 				"Total count of outdated DataImportCron imports",
-				"Counter",
+				"Gauge",
 			},
 			"sum(kubevirt_cdi_dataimportcron_outdated or vector(0))",
 		},
