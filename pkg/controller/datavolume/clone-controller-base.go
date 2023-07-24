@@ -19,6 +19,7 @@ package datavolume
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -114,6 +115,10 @@ const (
 	RebindInProgress = "RebindInProgress"
 	// MessageRebindInProgress is a const for reporting target rebind
 	MessageRebindInProgress = "Rebinding PersistentVolumeClaim for DataVolume %s/%s"
+	// NoPopulator reports CDI populator is not used so we fallback to host-assisted cloning (reason)
+	NoPopulator = "NoPopulator"
+	// NoPopulatorMessage reports CDI populator is not used so we fallback to host-assisted cloning (message)
+	NoPopulatorMessage = "In tree storage class does not support snapshot/clone"
 
 	// AnnCSICloneRequest annotation associates object with CSI Clone Request
 	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"
@@ -240,6 +245,22 @@ func (r *CloneReconcilerBase) ensureExtendedTokenDV(dv *cdiv1.DataVolume) (bool,
 	dv.Annotations[cc.AnnExtendedCloneToken] = newToken
 
 	return true, nil
+}
+
+func (r *CloneReconcilerBase) fallbackToHostAssisted(pvc *corev1.PersistentVolumeClaim) error {
+	pvcCpy := pvc.DeepCopy()
+
+	cc.AddAnnotation(pvcCpy, cc.AnnCloneType, string(cdiv1.CloneStrategyHostAssisted))
+	cc.AddAnnotation(pvcCpy, populators.AnnCloneFallbackReason, NoPopulatorMessage)
+
+	if !reflect.DeepEqual(pvc, pvcCpy) {
+		r.recorder.Event(pvcCpy, corev1.EventTypeWarning, NoPopulator, NoPopulatorMessage)
+		if err := r.updatePVC(pvcCpy); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (r *CloneReconcilerBase) ensureExtendedTokenPVC(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
