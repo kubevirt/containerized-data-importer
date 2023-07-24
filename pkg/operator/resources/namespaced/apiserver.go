@@ -70,7 +70,10 @@ func createAPIServerRole() *rbacv1.Role {
 				"configmaps",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
 			},
 		},
 	}
