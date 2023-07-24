@@ -20,6 +20,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -197,6 +198,44 @@ var _ = Describe("All DataVolume Tests", func() {
 				err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(dv.Annotations[AnnCloneType]).To(Equal(string(cdiv1.CloneStrategySnapshot)))
+			})
+
+			It("Fallback to host-assisted cloning when populator is not used", func() {
+				dv := newCloneDataVolume("test-dv")
+				dv.Annotations[AnnUsePopulator] = "false"
+
+				anno := map[string]string{
+					AnnExtendedCloneToken: "test-token",
+					AnnCloneType:          string(cdiv1.CloneStrategySnapshot),
+				}
+				pvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, anno, nil, corev1.ClaimPending)
+				pvc.OwnerReferences = append(pvc.OwnerReferences, metav1.OwnerReference{
+					Kind:       "DataVolume",
+					Controller: pointer.Bool(true),
+					Name:       "test-dv",
+					UID:        dv.UID,
+				})
+
+				reconciler = createCloneReconciler(storageClass, csiDriver, dv, pvc /*, vcs*/)
+				result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(result.Requeue).To(BeFalse())
+				Expect(result.RequeueAfter).To(Equal(2 * time.Second))
+
+				dv = &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dv.Annotations[AnnCloneType]).To(Equal(string(cdiv1.CloneStrategyHostAssisted)))
+
+				pvc = &corev1.PersistentVolumeClaim{}
+				err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(pvc.Annotations[AnnCloneType]).To(Equal(string(cdiv1.CloneStrategyHostAssisted)))
+				Expect(pvc.Annotations[populators.AnnCloneFallbackReason]).To(Equal(NoPopulatorMessage))
+
+				event := <-reconciler.recorder.(*record.FakeRecorder).Events
+				Expect(event).To(ContainSubstring(NoPopulator))
+				Expect(event).To(ContainSubstring(NoPopulatorMessage))
 			})
 
 			DescribeTable("should map phase correctly", func(phaseName string, dvPhase cdiv1.DataVolumePhase, eventReason string) {
