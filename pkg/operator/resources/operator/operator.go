@@ -74,21 +74,6 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 		},
 		{
 			APIGroups: []string{
-				"",
-			},
-			Resources: []string{
-				"pods",
-				"services",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-				"delete",
-			},
-		},
-		{
-			APIGroups: []string{
 				"apiextensions.k8s.io",
 			},
 			Resources: []string{
@@ -96,7 +81,12 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"customresourcedefinitions/status",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"delete",
 			},
 		},
 		{
@@ -131,7 +121,12 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"apiservices",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"delete",
 			},
 		},
 	}
@@ -180,7 +175,13 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 				"services",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"patch",
+				"delete",
 			},
 		},
 		{
@@ -192,7 +193,12 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 				"deployments/finalizers",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"delete",
 			},
 		},
 		{
@@ -204,7 +210,11 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 				"routes/custom-host",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
 			},
 		},
 		{
@@ -246,7 +256,9 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 				"leases",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"create",
+				"update",
 			},
 		},
 	}

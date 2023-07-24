@@ -70,7 +70,12 @@ func createControllerRole() *rbacv1.Role {
 				"configmaps",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"delete",
 			},
 		},
 		{
@@ -113,6 +118,8 @@ func createControllerRole() *rbacv1.Role {
 			Verbs: []string{
 				"create",
 				"delete",
+				"list",
+				"watch",
 			},
 		},
 		{
@@ -123,7 +130,9 @@ func createControllerRole() *rbacv1.Role {
 				"leases",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"create",
+				"update",
 			},
 		},
 		{

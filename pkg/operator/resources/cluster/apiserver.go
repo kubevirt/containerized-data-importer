@@ -136,7 +136,6 @@ func getAPIServerClusterPolicyRules() []rbacv1.PolicyRule {
 				"datasources",
 			},
 			Verbs: []string{
-				"list",
 				"get",
 			},
 		},
@@ -159,7 +158,7 @@ func getAPIServerClusterPolicyRules() []rbacv1.PolicyRule {
 				"cdis/finalizers",
 			},
 			Verbs: []string{
-				"*",
+				"update",
 			},
 		},
 	}
