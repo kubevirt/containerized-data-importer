@@ -77,7 +77,36 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests th
 })
 
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", func() {
+	var originalProfileSpec *cdiv1.StorageProfileSpec
+	var cloneStorageClassName string
+
 	f := framework.NewFramework("dv-func-test")
+
+	BeforeEach(func() {
+		cloneStorageClassName = utils.DefaultStorageClass.GetName()
+		if f.IsCSIVolumeCloneStorageClassAvailable() {
+			cloneStorageClassName = f.CsiCloneSCName
+		}
+
+		By(fmt.Sprintf("Get original storage profile: %s", cloneStorageClassName))
+
+		spec, err := utils.GetStorageProfileSpec(f.CdiClient, cloneStorageClassName)
+		originalProfileSpec = spec
+		Expect(err).ToNot(HaveOccurred())
+		By(fmt.Sprintf("Got original storage profile: %v", originalProfileSpec))
+
+		By(fmt.Sprintf("configure storage profile %s", cloneStorageClassName))
+		Expect(
+			utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, cloneStorageClassName, originalProfileSpec, cdiv1.CloneStrategySnapshot),
+		).Should(Succeed())
+	})
+
+	AfterEach(func() {
+		if originalProfileSpec != nil {
+			By("Restore the profile")
+			Expect(utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)).To(Succeed())
+		}
+	})
 
 	It("[rfe_id:1106][test_id:3494][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - volumeMode filesystem - Positive flow", func() {
 		if !f.IsSnapshotStorageClassAvailable() {
