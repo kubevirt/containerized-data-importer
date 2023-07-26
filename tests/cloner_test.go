@@ -1122,6 +1122,11 @@ var _ = Describe("all clone tests", func() {
 
 				By(fmt.Sprintf("Got original storage profile: %v", spec))
 				originalProfileSpec = spec
+
+				By(fmt.Sprintf("configure storage profile %s", cloneStorageClassName))
+				Expect(
+					utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, cloneStorageClassName, originalProfileSpec, cdiv1.CloneStrategySnapshot),
+				).Should(Succeed())
 			})
 			AfterEach(func() {
 				By("[AfterEach] Restore the profile")
@@ -3162,13 +3167,13 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 		isCrossNamespaceClone := sourcePVC.Namespace != targetPVC.Namespace
 
 		if sourcePVC.Spec.StorageClassName != nil {
-			spec, err := utils.GetStorageProfileSpec(f.CdiClient, *sourcePVC.Spec.StorageClassName)
-			Expect(err).NotTo(HaveOccurred())
+			storageProfile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), *sourcePVC.Spec.StorageClassName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
 
 			defaultCloneStrategy := cdiv1.CloneStrategySnapshot
 			cloneStrategy := &defaultCloneStrategy
-			if spec.CloneStrategy != nil {
-				cloneStrategy = spec.CloneStrategy
+			if strategy := storageProfile.Status.CloneStrategy; strategy != nil {
+				cloneStrategy = strategy
 			}
 
 			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
