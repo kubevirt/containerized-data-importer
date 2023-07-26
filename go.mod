@@ -21,7 +21,6 @@ require (
 	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1
 	github.com/kubernetes-csi/lib-volume-populator v1.2.0
 	github.com/kubevirt/monitoring/pkg/metrics/parser v0.0.0-20230627123556-81a891d4462a
-	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/ginkgo/v2 v2.11.0
 	github.com/onsi/gomega v1.27.8
 	github.com/openshift/api v0.0.0-20230406152840-ce21e3fe5da2
