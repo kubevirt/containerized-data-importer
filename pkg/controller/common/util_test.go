@@ -3,8 +3,7 @@ package common
 import (
 	"context"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -35,7 +34,7 @@ var _ = Describe("validateContentTypes", func() {
 		return cdiv1.DataVolumeContentType(contentType)
 	}
 
-	table.DescribeTable("should return", func(sourceContentType, targetContentType string, expectedResult bool) {
+	DescribeTable("should return", func(sourceContentType, targetContentType string, expectedResult bool) {
 		sourcePvc := CreatePvc("testPVC", "default", map[string]string{AnnContentType: sourceContentType}, nil)
 		dvSpec := &cdiv1.DataVolumeSpec{}
 		dvSpec.ContentType = cdiv1.DataVolumeContentType(targetContentType)
@@ -45,15 +44,15 @@ var _ = Describe("validateContentTypes", func() {
 		Expect(sourceContent).To(Equal(getContentType(sourceContentType)))
 		Expect(targetContent).To(Equal(getContentType(targetContentType)))
 	},
-		table.Entry("true when using archive in source and target", string(cdiv1.DataVolumeArchive), string(cdiv1.DataVolumeArchive), true),
-		table.Entry("false when using archive in source and KubeVirt in target", string(cdiv1.DataVolumeArchive), string(cdiv1.DataVolumeKubeVirt), false),
-		table.Entry("false when using KubeVirt in source and archive in target", string(cdiv1.DataVolumeKubeVirt), string(cdiv1.DataVolumeArchive), false),
-		table.Entry("true when using KubeVirt in source and target", string(cdiv1.DataVolumeKubeVirt), string(cdiv1.DataVolumeKubeVirt), true),
-		table.Entry("true when using default in source and target", "", "", true),
-		table.Entry("true when using default in source and KubeVirt (explicit) in target", "", string(cdiv1.DataVolumeKubeVirt), true),
-		table.Entry("true when using KubeVirt (explicit) in source and default in target", string(cdiv1.DataVolumeKubeVirt), "", true),
-		table.Entry("false when using default in source and archive in target", "", string(cdiv1.DataVolumeArchive), false),
-		table.Entry("false when using archive in source and default in target", string(cdiv1.DataVolumeArchive), "", false),
+		Entry("true when using archive in source and target", string(cdiv1.DataVolumeArchive), string(cdiv1.DataVolumeArchive), true),
+		Entry("false when using archive in source and KubeVirt in target", string(cdiv1.DataVolumeArchive), string(cdiv1.DataVolumeKubeVirt), false),
+		Entry("false when using KubeVirt in source and archive in target", string(cdiv1.DataVolumeKubeVirt), string(cdiv1.DataVolumeArchive), false),
+		Entry("true when using KubeVirt in source and target", string(cdiv1.DataVolumeKubeVirt), string(cdiv1.DataVolumeKubeVirt), true),
+		Entry("true when using default in source and target", "", "", true),
+		Entry("true when using default in source and KubeVirt (explicit) in target", "", string(cdiv1.DataVolumeKubeVirt), true),
+		Entry("true when using KubeVirt (explicit) in source and default in target", string(cdiv1.DataVolumeKubeVirt), "", true),
+		Entry("false when using default in source and archive in target", "", string(cdiv1.DataVolumeArchive), false),
+		Entry("false when using archive in source and default in target", string(cdiv1.DataVolumeArchive), "", false),
 	)
 })
 

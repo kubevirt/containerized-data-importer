@@ -29,7 +29,7 @@ go_library(
         "//vendor/github.com/docker/go-units:go_default_library",
         "//vendor/github.com/google/uuid:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1:go_default_library",
-        "//vendor/github.com/onsi/ginkgo:go_default_library",
+        "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/k8s.io/api/authentication/v1:go_default_library",

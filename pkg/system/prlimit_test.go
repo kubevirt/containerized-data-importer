@@ -29,8 +29,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/pkg/errors"
@@ -40,7 +39,7 @@ var _ = Describe("Process Limits", func() {
 	limits := &ProcessLimitValues{1, 1}
 	nullLimiter := newTestProcessLimiter(nil, nil)
 
-	table.DescribeTable("exec", func(commandOverride func(context.Context, string, ...string) *exec.Cmd, limiter ProcessLimiter, limits *ProcessLimitValues, command, output, errString string, args ...string) {
+	DescribeTable("exec", func(commandOverride func(context.Context, string, ...string) *exec.Cmd, limiter ProcessLimiter, limits *ProcessLimitValues, command, output, errString string, args ...string) {
 		replaceExecCommandContext(commandOverride, func() {
 			replaceLimiter(limiter, func() {
 				result, err := ExecWithLimits(limits, testProgress, command, args...)
@@ -60,18 +59,18 @@ var _ = Describe("Process Limits", func() {
 			})
 		})
 	},
-		table.Entry("command success with real limits", fakeCommandContext, nil, &ProcessLimitValues{1 << 30, 10}, "faker", "", "", "0", "", ""),
-		table.Entry("command start fails", badCommand, nullLimiter, limits, "faker", "", "fork/exec /usr/bin/doesnotexist: no such file or directory", "", "", ""),
-		table.Entry("address space limit fails", fakeCommandContext, newTestProcessLimiter(errors.New("Set address limit fails"), nil), limits, "faker", "", "Set address limit fails", "", "", ""),
-		table.Entry("command exit bad", fakeCommandContext, nullLimiter, limits, "faker", "", "exit status 1", "1", "", ""),
+		Entry("command success with real limits", fakeCommandContext, nil, &ProcessLimitValues{1 << 30, 10}, "faker", "", "", "0", "", ""),
+		Entry("command start fails", badCommand, nullLimiter, limits, "faker", "", "fork/exec /usr/bin/doesnotexist: no such file or directory", "", "", ""),
+		Entry("address space limit fails", fakeCommandContext, newTestProcessLimiter(errors.New("Set address limit fails"), nil), limits, "faker", "", "Set address limit fails", "", "", ""),
+		Entry("command exit bad", fakeCommandContext, nullLimiter, limits, "faker", "", "exit status 1", "1", "", ""),
 	)
 
-	table.DescribeTable("limits actually work", func(timeout time.Duration, f limitFunction, command, errString string, args ...string) {
+	DescribeTable("limits actually work", func(timeout time.Duration, f limitFunction, command, errString string, args ...string) {
 		_, err := runFakeCommandWithTimeout(timeout, f, command, args...)
 		Expect(err.Error()).To(Equal(errString))
 	},
-		table.Entry("killed by cpu time limit", 10*time.Second, func(p int) error { return SetCPUTimeLimit(p, 1) }, "spinner", "signal: killed"),
-		table.Entry("killed by memory limit", 10*time.Second, func(p int) error { return SetAddressSpaceLimit(p, (1<<21)*10) }, "hog", "exit status 2"),
+		Entry("killed by cpu time limit", 10*time.Second, func(p int) error { return SetCPUTimeLimit(p, 1) }, "spinner", "signal: killed"),
+		Entry("killed by memory limit", 10*time.Second, func(p int) error { return SetAddressSpaceLimit(p, (1<<21)*10) }, "hog", "exit status 2"),
 	)
 
 	It("Carriage return split should work", func() {

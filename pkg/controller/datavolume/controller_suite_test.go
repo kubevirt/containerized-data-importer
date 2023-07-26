@@ -3,13 +3,11 @@ package datavolume_test
 import (
 	"testing"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
 var _ = BeforeSuite(func() {
@@ -18,5 +16,5 @@ var _ = BeforeSuite(func() {
 
 func TestController(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Datavolume controllers Suite", reporters.NewReporters())
+	RunSpecs(t, "Datavolume controllers Suite")
 }

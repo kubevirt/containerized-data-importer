@@ -30,8 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -696,7 +695,7 @@ var _ = Describe("Update PVC from POD", func() {
 var _ = Describe("Create Importer Pod", func() {
 	var scratchPvcName = "scratchPvc"
 
-	table.DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, scratchPvcName *string) {
+	DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, scratchPvcName *string) {
 		reconciler := createImportReconciler(pvc)
 		podEnvVar := &importPodEnvVar{
 			ep:                 "",
@@ -751,13 +750,13 @@ var _ = Describe("Create Importer Pod", func() {
 		Expect(pod.Spec.Containers[0].Args[0]).To(Equal("-v=5"))
 		Expect(pod.Spec.PriorityClassName).To(Equal(pvc.Annotations[cc.AnnPriorityClassName]))
 	},
-		table.Entry("should create pod with file system volume mode", cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending), cc.AnnImportPod: "podName", cc.AnnPriorityClassName: "p0"}, nil), nil),
-		table.Entry("should create pod with block volume mode", createBlockPvc("testBlockPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending), cc.AnnImportPod: "podName", cc.AnnPriorityClassName: "p0"}, nil), nil),
-		table.Entry("should create pod with file system volume mode and scratchspace", cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending), cc.AnnImportPod: "podName", cc.AnnPriorityClassName: "p0"}, nil), &scratchPvcName),
-		table.Entry("should create pod with block volume mode and scratchspace", createBlockPvc("testBlockPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending), cc.AnnImportPod: "podName", cc.AnnPriorityClassName: "p0"}, nil), &scratchPvcName),
+		Entry("should create pod with file system volume mode", cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending), cc.AnnImportPod: "podName", cc.AnnPriorityClassName: "p0"}, nil), nil),
+		Entry("should create pod with block volume mode", createBlockPvc("testBlockPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending), cc.AnnImportPod: "podName", cc.AnnPriorityClassName: "p0"}, nil), nil),
+		Entry("should create pod with file system volume mode and scratchspace", cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending), cc.AnnImportPod: "podName", cc.AnnPriorityClassName: "p0"}, nil), &scratchPvcName),
+		Entry("should create pod with block volume mode and scratchspace", createBlockPvc("testBlockPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending), cc.AnnImportPod: "podName", cc.AnnPriorityClassName: "p0"}, nil), &scratchPvcName),
 	)
 
-	table.DescribeTable("should append current checkpoint name to importer pod", func(pvcName, checkpointID string) {
+	DescribeTable("should append current checkpoint name to importer pod", func(pvcName, checkpointID string) {
 		pvc := cc.CreatePvc(pvcName, "default", map[string]string{cc.AnnCurrentCheckpoint: checkpointID, cc.AnnEndpoint: testEndPoint}, nil)
 		pvc.Status.Phase = v1.ClaimBound
 
@@ -785,10 +784,10 @@ var _ = Describe("Create Importer Pod", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: expectedName, Namespace: "default"}, resPod)
 		Expect(err).ToNot(HaveOccurred())
 	},
-		table.Entry("with short PVC and checkpoint names", "testPvc1", "snap1"),
-		table.Entry("with long checkpoint name", "testPvc1", strings.Repeat("repeating-checkpoint-id-", 10)),
-		table.Entry("with long PVC name", strings.Repeat("test-pvc-", 20), "snap1"),
-		table.Entry("with long PVC and checkpoint names", strings.Repeat("test-pvc-", 20), strings.Repeat("repeating-checkpoint-id-", 10)),
+		Entry("with short PVC and checkpoint names", "testPvc1", "snap1"),
+		Entry("with long checkpoint name", "testPvc1", strings.Repeat("repeating-checkpoint-id-", 10)),
+		Entry("with long PVC name", strings.Repeat("test-pvc-", 20), "snap1"),
+		Entry("with long PVC and checkpoint names", strings.Repeat("test-pvc-", 20), strings.Repeat("repeating-checkpoint-id-", 10)),
 	)
 })
 
@@ -888,7 +887,7 @@ var _ = Describe("getInsecureTLS", func() {
 	hostWithPort := host + ":5000"
 	endpointWithPort := "docker://" + hostWithPort
 
-	table.DescribeTable("should", func(endpoint string, insecureHost string, isInsecure bool) {
+	DescribeTable("should", func(endpoint string, insecureHost string, isInsecure bool) {
 		pvc := cc.CreatePvc("testPVC", "default", map[string]string{cc.AnnEndpoint: endpoint}, nil)
 		reconciler := createImportReconciler(pvc)
 
@@ -904,12 +903,12 @@ var _ = Describe("getInsecureTLS", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(result).To(Equal(isInsecure))
 	},
-		table.Entry("return true on endpoint with no port, and host defined", endpointNoPort, host, true),
-		table.Entry("return true on endpoint with port, and host with port", endpointWithPort, hostWithPort, true),
-		table.Entry("return false on endpoint with no port, and host with port", endpointNoPort, hostWithPort, false),
-		table.Entry("return false on endpoint with port, and host defined", endpointWithPort, host, false),
-		table.Entry("return false on endpoint with no port, and blank host", endpointNoPort, "", false),
-		table.Entry("return false on blank endpoint, and host defined", "", host, false),
+		Entry("return true on endpoint with no port, and host defined", endpointNoPort, host, true),
+		Entry("return true on endpoint with port, and host with port", endpointWithPort, hostWithPort, true),
+		Entry("return false on endpoint with no port, and host with port", endpointNoPort, hostWithPort, false),
+		Entry("return false on endpoint with port, and host defined", endpointWithPort, host, false),
+		Entry("return false on endpoint with no port, and blank host", endpointNoPort, "", false),
+		Entry("return false on blank endpoint, and host defined", "", host, false),
 	)
 })
 
@@ -919,14 +918,14 @@ var _ = Describe("GetContentType", func() {
 	pvcKubevirtAnno := cc.CreatePvc("testPVCKubevirtAnno", "default", map[string]string{cc.AnnContentType: string(cdiv1.DataVolumeKubeVirt)}, nil)
 	pvcInvalidValue := cc.CreatePvc("testPVCInvalidValue", "default", map[string]string{cc.AnnContentType: "iaminvalid"}, nil)
 
-	table.DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult cdiv1.DataVolumeContentType) {
+	DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult cdiv1.DataVolumeContentType) {
 		result := cc.GetPVCContentType(pvc)
 		Expect(result).To(BeEquivalentTo(expectedResult))
 	},
-		table.Entry("return kubevirt contenttype if no annotation provided", pvcNoAnno, cdiv1.DataVolumeKubeVirt),
-		table.Entry("return archive contenttype if archive annotation present", pvcArchiveAnno, cdiv1.DataVolumeArchive),
-		table.Entry("return kubevirt contenttype if kubevirt annotation present", pvcKubevirtAnno, cdiv1.DataVolumeKubeVirt),
-		table.Entry("return kubevirt contenttype if invalid annotation provided", pvcInvalidValue, cdiv1.DataVolumeKubeVirt),
+		Entry("return kubevirt contenttype if no annotation provided", pvcNoAnno, cdiv1.DataVolumeKubeVirt),
+		Entry("return archive contenttype if archive annotation present", pvcArchiveAnno, cdiv1.DataVolumeArchive),
+		Entry("return kubevirt contenttype if kubevirt annotation present", pvcKubevirtAnno, cdiv1.DataVolumeKubeVirt),
+		Entry("return kubevirt contenttype if invalid annotation provided", pvcInvalidValue, cdiv1.DataVolumeKubeVirt),
 	)
 })
 
@@ -939,17 +938,17 @@ var _ = Describe("getSource", func() {
 	pvcImageIOAnno := cc.CreatePvc("testPVCImageIOAnno", "default", map[string]string{cc.AnnSource: cc.SourceImageio}, nil)
 	pvcVDDKAnno := cc.CreatePvc("testPVCVDDKAnno", "default", map[string]string{cc.AnnSource: cc.SourceVDDK}, nil)
 
-	table.DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult string) {
+	DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult string) {
 		result := cc.GetSource(pvc)
 		Expect(result).To(BeEquivalentTo(expectedResult))
 	},
-		table.Entry("return none if none annotation provided", pvcNoneAnno, cc.SourceNone),
-		table.Entry("return http if no annotation provided", pvcNoAnno, cc.SourceHTTP),
-		table.Entry("return glance if glance annotation provided", pvcGlanceAnno, cc.SourceGlance),
-		table.Entry("return http if invalid annotation provided", pvcInvalidValue, cc.SourceHTTP),
-		table.Entry("return registry if registry annotation provided", pvcRegistryAnno, cc.SourceRegistry),
-		table.Entry("return imageio if imageio annotation provided", pvcImageIOAnno, cc.SourceImageio),
-		table.Entry("return vddk if vddk annotation provided", pvcVDDKAnno, cc.SourceVDDK),
+		Entry("return none if none annotation provided", pvcNoneAnno, cc.SourceNone),
+		Entry("return http if no annotation provided", pvcNoAnno, cc.SourceHTTP),
+		Entry("return glance if glance annotation provided", pvcGlanceAnno, cc.SourceGlance),
+		Entry("return http if invalid annotation provided", pvcInvalidValue, cc.SourceHTTP),
+		Entry("return registry if registry annotation provided", pvcRegistryAnno, cc.SourceRegistry),
+		Entry("return imageio if imageio annotation provided", pvcImageIOAnno, cc.SourceImageio),
+		Entry("return vddk if vddk annotation provided", pvcVDDKAnno, cc.SourceVDDK),
 	)
 })
 
@@ -958,7 +957,7 @@ var _ = Describe("GetEndpoint", func() {
 	pvcWithAnno := cc.CreatePvc("testPVCWithAnno", "default", map[string]string{cc.AnnEndpoint: "http://test"}, nil)
 	pvcNoValue := cc.CreatePvc("testPVCNoValue", "default", map[string]string{cc.AnnEndpoint: ""}, nil)
 
-	table.DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult string, expectErr bool) {
+	DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult string, expectErr bool) {
 		result, err := cc.GetEndpoint(pvc)
 		Expect(result).To(BeEquivalentTo(expectedResult))
 		if expectErr {
@@ -967,9 +966,9 @@ var _ = Describe("GetEndpoint", func() {
 			Expect(err).ToNot(HaveOccurred())
 		}
 	},
-		table.Entry("return blank and error if no annotation provided", pvcNoAnno, "", true),
-		table.Entry("return value and no error if valid annotation provided", pvcWithAnno, "http://test", false),
-		table.Entry("return blank and error if blank annotation provided", pvcNoValue, "", true),
+		Entry("return blank and error if no annotation provided", pvcNoAnno, "", true),
+		Entry("return value and no error if valid annotation provided", pvcWithAnno, "http://test", false),
+		Entry("return blank and error if blank annotation provided", pvcNoValue, "", true),
 	)
 })
 

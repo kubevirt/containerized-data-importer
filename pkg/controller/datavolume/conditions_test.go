@@ -17,8 +17,7 @@ limitations under the License.
 package datavolume
 
 import (
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 
@@ -79,7 +78,7 @@ var _ = Describe("updateRunningCondition", func() {
 		Expect(conditions[0].Reason).To(Equal("this is a \" reason with \" quotes"))
 	})
 
-	table.DescribeTable("runningCondition", func(conditionString string, status corev1.ConditionStatus, noAnnotation bool) {
+	DescribeTable("runningCondition", func(conditionString string, status corev1.ConditionStatus, noAnnotation bool) {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
 		if noAnnotation {
 			conditions = updateRunningCondition(conditions, map[string]string{})
@@ -91,13 +90,13 @@ var _ = Describe("updateRunningCondition", func() {
 		Expect(condition.Message).To(BeEmpty())
 		Expect(condition.Status).To(Equal(status))
 	},
-		table.Entry("condition true", "true", corev1.ConditionTrue, false),
-		table.Entry("condition false", "false", corev1.ConditionFalse, false),
-		table.Entry("condition invalid", "invalid", corev1.ConditionUnknown, false),
-		table.Entry("no condition", "", corev1.ConditionFalse, true),
+		Entry("condition true", "true", corev1.ConditionTrue, false),
+		Entry("condition false", "false", corev1.ConditionFalse, false),
+		Entry("condition invalid", "invalid", corev1.ConditionUnknown, false),
+		Entry("no condition", "", corev1.ConditionFalse, true),
 	)
 
-	table.DescribeTable("runningConditionAndsource", func(conditionString, message, reason, sourceConditionString, sourceConditionMessage, sourceConditionReason string, status corev1.ConditionStatus, expectedMessage, expectedReason string) {
+	DescribeTable("runningConditionAndsource", func(conditionString, message, reason, sourceConditionString, sourceConditionMessage, sourceConditionReason string, status corev1.ConditionStatus, expectedMessage, expectedReason string) {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
 		if sourceConditionString != "" {
 			conditions = updateRunningCondition(conditions, map[string]string{AnnRunningCondition: conditionString, AnnRunningConditionMessage: message, AnnRunningConditionReason: reason, AnnSourceRunningCondition: sourceConditionString, AnnSourceRunningConditionMessage: sourceConditionMessage, AnnSourceRunningConditionReason: sourceConditionReason})
@@ -110,13 +109,13 @@ var _ = Describe("updateRunningCondition", func() {
 		Expect(condition.Reason).To(Equal(expectedReason))
 		Expect(condition.Status).To(Equal(status))
 	},
-		table.Entry("condition true, source true", "true", "", "", "true", "", "", corev1.ConditionTrue, "", ""),
-		table.Entry("condition true, source false", "true", "", "", "false", "scratch creating", "Creating Scratch", corev1.ConditionFalse, "scratch creating", "Creating Scratch"),
-		table.Entry("condition true, source unknown", "true", "", "", "invalid", "unknown message", "unknown reason", corev1.ConditionUnknown, "unknown message", "unknown reason"),
-		table.Entry("condition true, no source", "true", "", "", "", "", "", corev1.ConditionTrue, "", ""),
-		table.Entry("condition false, source true", "false", "Pod Pending", "Pending", "true", "", "", corev1.ConditionFalse, "Pod Pending", "Pending"),
-		table.Entry("condition false, source false", "false", "Pod Pending", "Pending", "false", "Pod Pending", "Pending", corev1.ConditionFalse, "Pod Pending and Pod Pending", "Pending and Pending"),
-		table.Entry("condition false, source unknown", "false", "Pod Pending", "Pending", "unknown", "unknown", "unknown", corev1.ConditionUnknown, "Pod Pending and unknown", "Pending and unknown"),
+		Entry("condition true, source true", "true", "", "", "true", "", "", corev1.ConditionTrue, "", ""),
+		Entry("condition true, source false", "true", "", "", "false", "scratch creating", "Creating Scratch", corev1.ConditionFalse, "scratch creating", "Creating Scratch"),
+		Entry("condition true, source unknown", "true", "", "", "invalid", "unknown message", "unknown reason", corev1.ConditionUnknown, "unknown message", "unknown reason"),
+		Entry("condition true, no source", "true", "", "", "", "", "", corev1.ConditionTrue, "", ""),
+		Entry("condition false, source true", "false", "Pod Pending", "Pending", "true", "", "", corev1.ConditionFalse, "Pod Pending", "Pending"),
+		Entry("condition false, source false", "false", "Pod Pending", "Pending", "false", "Pod Pending", "Pending", corev1.ConditionFalse, "Pod Pending and Pod Pending", "Pending and Pending"),
+		Entry("condition false, source unknown", "false", "Pod Pending", "Pending", "unknown", "unknown", "unknown", corev1.ConditionUnknown, "Pod Pending and unknown", "Pending and unknown"),
 	)
 })
 

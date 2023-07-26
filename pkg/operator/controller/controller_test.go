@@ -29,8 +29,7 @@ import (
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 	sdkr "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/reconciler"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"

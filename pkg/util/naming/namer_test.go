@@ -20,8 +20,7 @@
 package naming
 
 import (
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 
@@ -40,14 +39,14 @@ var _ = Describe("GetName", func() {
 		Expect(result).ToNot(Equal(anotherDifferentResult))
 	})
 
-	table.DescribeTable("getName", func(inputName, suffix string, resultMatcher types.GomegaMatcher) {
+	DescribeTable("getName", func(inputName, suffix string, resultMatcher types.GomegaMatcher) {
 		result := GetResourceName(inputName, suffix)
 		Expect(len(result)).To(BeNumerically("<=", 253))
 		Expect(result).To(resultMatcher)
 	},
-		table.Entry("Should not changed short name that fits under limits ", "abc", "suffix", Equal("abc-suffix")),
-		table.Entry("Should shorten name and join with -hash-suffix", word260, "suffix", HaveSuffix("-suffix")),
-		table.Entry("Should shorten too long name dropping too long suffix", "abc123", suffix250, And(HavePrefix("abc123"), HaveLen(15))),
+		Entry("Should not changed short name that fits under limits ", "abc", "suffix", Equal("abc-suffix")),
+		Entry("Should shorten name and join with -hash-suffix", word260, "suffix", HaveSuffix("-suffix")),
+		Entry("Should shorten too long name dropping too long suffix", "abc123", suffix250, And(HavePrefix("abc123"), HaveLen(15))),
 	)
 
 	It("Should handle dot '.' correctly", func() {

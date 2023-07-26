@@ -26,8 +26,7 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
@@ -309,7 +308,7 @@ var _ = Describe("Import populator tests", func() {
 			Expect(result).To(Not(BeNil()))
 		})
 
-		table.DescribeTable("should update target pvc with desired annotations from pvc prime", func(podPhase string) {
+		DescribeTable("should update target pvc with desired annotations from pvc prime", func(podPhase string) {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
 			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
@@ -355,9 +354,9 @@ var _ = Describe("Import populator tests", func() {
 			_, ok := updatedPVC.Annotations["undesiredAnn"]
 			Expect(ok).To(BeFalse())
 		},
-			table.Entry("with pod running phase", string(corev1.PodRunning)),
-			table.Entry("with pod failed phase", string(corev1.PodFailed)),
-			table.Entry("with pod succeded phase", string(corev1.PodSucceeded)),
+			Entry("with pod running phase", string(corev1.PodRunning)),
+			Entry("with pod failed phase", string(corev1.PodFailed)),
+			Entry("with pod succeded phase", string(corev1.PodSucceeded)),
 		)
 
 		It("Should set multistage migration annotations on PVC prime", func() {

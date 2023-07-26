@@ -9,8 +9,7 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/google/uuid"
@@ -449,8 +448,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 		}
 
-		table.DescribeTable("should", testDataVolume,
-			table.Entry("[rfe_id:1115][crit:high][test_id:1357]succeed creating import dv with given valid url", dataVolumeTestArguments{
+		DescribeTable("should", testDataVolume,
+			Entry("[rfe_id:1115][crit:high][test_id:1357]succeed creating import dv with given valid url", dataVolumeTestArguments{
 				name:             "dv-http-import",
 				size:             "1Gi",
 				url:              tinyCoreIsoURL,
@@ -474,7 +473,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1358]fail creating import dv due to invalid DNS entry", dataVolumeTestArguments{
+			Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1358]fail creating import dv due to invalid DNS entry", dataVolumeTestArguments{
 				name:         "dv-http-import-invalid-url",
 				size:         "1Gi",
 				url:          func() string { return "http://i-made-this-up.kube-system/tinyCore.iso" },
@@ -504,7 +503,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Unable to connect to http data source",
 					Reason:  "Error",
 				}}),
-			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1359]fail creating import dv due to file not found", dataVolumeTestArguments{
+			Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1359]fail creating import dv due to file not found", dataVolumeTestArguments{
 				name:         "dv-http-import-404",
 				size:         "1Gi",
 				url:          func() string { return tinyCoreIsoURL() + "not.real.file" },
@@ -534,7 +533,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Unable to connect to http data source: expected status code 200, got 404. Status: 404 Not Found",
 					Reason:  "Error",
 				}}),
-			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2253]fail creating import dv: invalid qcow large memory", dataVolumeTestArguments{
+			Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2253]fail creating import dv: invalid qcow large memory", dataVolumeTestArguments{
 				name:             "dv-invalid-qcow-large-memory",
 				size:             "1Gi",
 				url:              invalidQcowLargeMemoryURL,
@@ -564,7 +563,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "L1 size too big",
 					Reason:  "Error",
 				}}),
-			table.Entry("[test_id:3931]succeed creating import dv with streaming image conversion", dataVolumeTestArguments{
+			Entry("[test_id:3931]succeed creating import dv with streaming image conversion", dataVolumeTestArguments{
 				name:             "dv-http-stream-import",
 				size:             "1Gi",
 				url:              cirrosURL,
@@ -588,7 +587,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid url (https)", dataVolumeTestArguments{
+			Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid url (https)", dataVolumeTestArguments{
 				name:             "dv-https-import",
 				size:             "1Gi",
 				url:              httpsTinyCoreIsoURL,
@@ -612,7 +611,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid qcow2 url (https)", dataVolumeTestArguments{
+			Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid qcow2 url (https)", dataVolumeTestArguments{
 				name:             "dv-https-import-qcow2",
 				size:             "1Gi",
 				url:              httpsTinyCoreQcow2URL,
@@ -636,7 +635,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid zst url (https)", dataVolumeTestArguments{
+			Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid zst url (https)", dataVolumeTestArguments{
 				name:             "dv-https-import-zst",
 				size:             "1Gi",
 				url:              httpsTinyCoreZstURL,
@@ -660,7 +659,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("succeed creating import dv with custom https cert that has a weird filename", dataVolumeTestArguments{
+			Entry("succeed creating import dv with custom https cert that has a weird filename", dataVolumeTestArguments{
 				name:             "dv-https-import-qcow2",
 				size:             "1Gi",
 				url:              httpsTinyCoreQcow2URL,
@@ -684,7 +683,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[rfe_id:7202][crit:high][posneg:positive][test_id:8277]succeed creating import dv with custom https headers", dataVolumeTestArguments{
+			Entry("[rfe_id:7202][crit:high][posneg:positive][test_id:8277]succeed creating import dv with custom https headers", dataVolumeTestArguments{
 				name:             "dv-http-import-headers",
 				size:             "1Gi",
 				url:              tinyCoreIsoAuthURL,
@@ -708,7 +707,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[rfe_id:7202][crit:high][posneg:positive][test_id:8278]succeed creating import dv with custom https headers from a secret", dataVolumeTestArguments{
+			Entry("[rfe_id:7202][crit:high][posneg:positive][test_id:8278]succeed creating import dv with custom https headers from a secret", dataVolumeTestArguments{
 				name:             "dv-http-import-headers",
 				size:             "1Gi",
 				url:              tinyCoreIsoAuthURL,
@@ -732,7 +731,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[rfe_id:1111][crit:high][test_id:1361]succeed creating blank image dv", dataVolumeTestArguments{
+			Entry("[rfe_id:1111][crit:high][test_id:1361]succeed creating blank image dv", dataVolumeTestArguments{
 				name:             "blank-image-dv",
 				size:             "1Gi",
 				url:              func() string { return "" },
@@ -756,7 +755,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[rfe_id:138][crit:high][test_id:1362]succeed creating upload dv", dataVolumeTestArguments{
+			Entry("[rfe_id:138][crit:high][test_id:1362]succeed creating upload dv", dataVolumeTestArguments{
 				name:        "upload-dv",
 				size:        "1Gi",
 				url:         func() string { return "" },
@@ -785,7 +784,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Status: v1.ConditionTrue,
 					Reason: "Pod is running",
 				}}),
-			table.Entry("[rfe_id:1947][crit:high][test_id:2145]succeed creating import dv with given tar archive url", dataVolumeTestArguments{
+			Entry("[rfe_id:1947][crit:high][test_id:2145]succeed creating import dv with given tar archive url", dataVolumeTestArguments{
 				name:        "dv-tar-archive",
 				size:        "1Gi",
 				url:         tarArchiveURL,
@@ -808,7 +807,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[rfe_id:1947][crit:high][test_id:2220]fail creating import dv with non tar archive url", dataVolumeTestArguments{
+			Entry("[rfe_id:1947][crit:high][test_id:2220]fail creating import dv with non tar archive url", dataVolumeTestArguments{
 				name:         "dv-non-tar-archive",
 				size:         "1Gi",
 				url:          tinyCoreIsoURL,
@@ -838,7 +837,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Unable to process data",
 					Reason:  "Error",
 				}}),
-			table.Entry("[test_id:3932]succeed creating dv from imageio source", dataVolumeTestArguments{
+			Entry("[test_id:3932]succeed creating dv from imageio source", dataVolumeTestArguments{
 				name:             "dv-imageio-test",
 				size:             "1Gi",
 				url:              imageioURL,
@@ -862,7 +861,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.PEntry("[quarantine][test_id:3937]succeed creating warm import dv from imageio source", dataVolumeTestArguments{
+			PEntry("[quarantine][test_id:3937]succeed creating warm import dv from imageio source", dataVolumeTestArguments{
 				// The final snapshot importer pod will give an error due to the static response from the fake imageio
 				// it returns the previous snapshot data, which will fail the commit to the target image.
 				// the importer pod will restart and then succeed because the fake imageio now sends the
@@ -890,7 +889,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[test_id:3945]succeed creating dv from imageio source that does not support extents query", dataVolumeTestArguments{
+			Entry("[test_id:3945]succeed creating dv from imageio source that does not support extents query", dataVolumeTestArguments{
 				name:             "dv-imageio-test",
 				size:             "1Gi",
 				url:              imageioURL,
@@ -914,7 +913,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[rfe_id:1277][crit:high][test_id:1360]succeed creating clone dv", dataVolumeTestArguments{
+			Entry("[rfe_id:1277][crit:high][test_id:1360]succeed creating clone dv", dataVolumeTestArguments{
 				name:        "dv-clone-test1",
 				size:        "1Gi",
 				url:         func() string { return fillCommand }, // its not URL, but command, but the parameter lines up.
@@ -937,7 +936,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Clone Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", dataVolumeTestArguments{
+			Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", dataVolumeTestArguments{
 				name:             "dv-import-registry",
 				size:             "1Gi",
 				url:              tinyCoreIsoRegistryURL,
@@ -962,7 +961,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[rfe_id:4334][test_id:6433]succeed creating import dv with given valid registry url and DV barely big enough", dataVolumeTestArguments{
+			Entry("[rfe_id:4334][test_id:6433]succeed creating import dv with given valid registry url and DV barely big enough", dataVolumeTestArguments{
 				name:             "dv-import-registry",
 				size:             "22Mi", // The image has 18M
 				url:              tinyCoreIsoRegistryURL,
@@ -986,7 +985,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[test_id:5077]succeed creating import dv from VDDK source", dataVolumeTestArguments{
+			Entry("[test_id:5077]succeed creating import dv from VDDK source", dataVolumeTestArguments{
 				name:             "dv-import-vddk",
 				size:             "1Gi",
 				url:              vcenterURL,
@@ -1010,7 +1009,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete; VDDK: {\"Version\":\"1.2.3\",\"Host\":\"esx.test\"}",
 					Reason:  "Completed",
 				}}),
-			table.PEntry("[quarantine][test_id:5078]succeed creating warm import dv from VDDK source", dataVolumeTestArguments{
+			PEntry("[quarantine][test_id:5078]succeed creating warm import dv from VDDK source", dataVolumeTestArguments{
 				name:             "dv-import-vddk",
 				size:             "1Gi",
 				url:              vcenterURL,
@@ -1034,7 +1033,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete; VDDK: {\"Version\":\"1.2.3\",\"Host\":\"esx.test\"}",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[rfe_id:XXXX][crit:high][test_id:XXXX]succeed creating import dv from GCS URL using RAW image", dataVolumeTestArguments{
+			Entry("[rfe_id:XXXX][crit:high][test_id:XXXX]succeed creating import dv from GCS URL using RAW image", dataVolumeTestArguments{
 				name:             "dv-gcs-raw-import",
 				size:             "1Gi",
 				url:              cirrosGCSRAWURL,
@@ -1058,7 +1057,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[rfe_id:XXXX][crit:high][test_id:XXXX]succeed creating import dv from GCS URL using QCOW2 image", dataVolumeTestArguments{
+			Entry("[rfe_id:XXXX][crit:high][test_id:XXXX]succeed creating import dv from GCS URL using QCOW2 image", dataVolumeTestArguments{
 				name:             "dv-gcs-qcow-import",
 				size:             "1Gi",
 				url:              cirrosGCSQCOWURL,
@@ -1097,7 +1096,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		// Similar to previous table, but with additional cleanup steps to save and restore VDDK image config map
-		table.DescribeTable("should", func(args dataVolumeTestArguments) {
+		DescribeTable("should", func(args dataVolumeTestArguments) {
 			_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, common.VddkConfigMap, f.CdiInstallNs, savedVddkConfigMap, "")
 			Expect(err).ToNot(HaveOccurred())
 
@@ -1114,7 +1113,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			testDataVolume(args)
 		},
-			table.Entry("[test_id:5079]should fail with \"AwaitingVDDK\" reason when VDDK image config map is not present", dataVolumeTestArguments{
+			Entry("[test_id:5079]should fail with \"AwaitingVDDK\" reason when VDDK image config map is not present", dataVolumeTestArguments{
 				name:             "dv-awaiting-vddk",
 				size:             "1Gi",
 				url:              vcenterURL,
@@ -1142,7 +1141,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:   cdiv1.DataVolumeRunning,
 					Status: v1.ConditionFalse,
 				}}),
-			table.Entry("[test_id:5080]succeed importing VDDK data volume with init image URL set", dataVolumeTestArguments{
+			Entry("[test_id:5080]succeed importing VDDK data volume with init image URL set", dataVolumeTestArguments{
 				name:             "dv-import-vddk",
 				size:             "1Gi",
 				url:              vcenterURL,
@@ -1169,8 +1168,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		)
 
 		// similar to other tables but with check of quota
-		table.DescribeTable("should fail create pvc in namespace with storge quota, then succeed once the quota is large enough", testDataVolumeWithQuota,
-			table.Entry("[test_id:7737]when creating import dv with given valid url", dataVolumeTestArguments{
+		DescribeTable("should fail create pvc in namespace with storge quota, then succeed once the quota is large enough", testDataVolumeWithQuota,
+			Entry("[test_id:7737]when creating import dv with given valid url", dataVolumeTestArguments{
 				name:        "dv-http-import",
 				size:        "1Gi",
 				url:         tinyCoreIsoURL,
@@ -1193,7 +1192,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("[test_id:7738]when creating upload dv", dataVolumeTestArguments{
+			Entry("[test_id:7738]when creating upload dv", dataVolumeTestArguments{
 				name:        "upload-dv",
 				size:        "1Gi",
 				url:         func() string { return "" },
@@ -1222,7 +1221,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Status: v1.ConditionTrue,
 					Reason: "Pod is running",
 				}}),
-			table.Entry("[test_id:7739]when creating clone dv", dataVolumeTestArguments{
+			Entry("[test_id:7739]when creating clone dv", dataVolumeTestArguments{
 				name:        "dv-clone-test",
 				size:        "500Mi",
 				url:         func() string { return fillCommand }, // its not URL, but command, but the parameter lines up.
@@ -1247,7 +1246,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				}}),
 		)
 
-		table.DescribeTable("should have an alert suppressing label on corresponding PVC", func(dvFunc func(string, string, string) *cdiv1.DataVolume, url string) {
+		DescribeTable("should have an alert suppressing label on corresponding PVC", func(dvFunc func(string, string, string) *cdiv1.DataVolume, url string) {
 			dataVolume := dvFunc("suppress-fillingup-alert-dv", "1Gi", url)
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
@@ -1262,12 +1261,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			// Alert-suppressing label exists
 			Expect(pvc.Labels[common.KubePersistentVolumeFillingUpSuppressLabelKey]).To(Equal(common.KubePersistentVolumeFillingUpSuppressLabelValue))
 		},
-			table.Entry("[test_id:8043]for import DataVolume", utils.NewDataVolumeWithHTTPImport, tinyCoreIsoURL()),
-			table.Entry("[test_id:8044]for upload DataVolume", createUploadDataVolume, tinyCoreIsoURL()),
-			table.Entry("[test_id:8045]for clone DataVolume", createCloneDataVolume, fillCommand),
+			Entry("[test_id:8043]for import DataVolume", utils.NewDataVolumeWithHTTPImport, tinyCoreIsoURL()),
+			Entry("[test_id:8044]for upload DataVolume", createUploadDataVolume, tinyCoreIsoURL()),
+			Entry("[test_id:8045]for clone DataVolume", createCloneDataVolume, fillCommand),
 		)
 
-		table.DescribeTable("Should pass all DV labels and annotations to the PVC", func(dvFunc func(string, string, string) *cdiv1.DataVolume, url string) {
+		DescribeTable("Should pass all DV labels and annotations to the PVC", func(dvFunc func(string, string, string) *cdiv1.DataVolume, url string) {
 			dataVolume := dvFunc("pass-all-labels-dv", "1Gi", url)
 			dataVolume.Labels = map[string]string{"test-label-1": "test-label-1", "test-label-2": "test-label-2"}
 			dataVolume.Annotations = map[string]string{"test-annotation-1": "test-annotation-1", "test-annotation-2": "test-annotation-2"}
@@ -1287,9 +1286,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(pvc.Annotations["test-annotation-1"]).To(Equal("test-annotation-1"))
 			Expect(pvc.Annotations["test-annotation-2"]).To(Equal("test-annotation-2"))
 		},
-			table.Entry("for import DataVolume", utils.NewDataVolumeWithHTTPImport, tinyCoreIsoURL()),
-			table.Entry("for upload DataVolume", createUploadDataVolume, tinyCoreIsoURL()),
-			table.Entry("for clone DataVolume", createCloneDataVolume, fillCommand),
+			Entry("for import DataVolume", utils.NewDataVolumeWithHTTPImport, tinyCoreIsoURL()),
+			Entry("for upload DataVolume", createUploadDataVolume, tinyCoreIsoURL()),
+			Entry("for clone DataVolume", createCloneDataVolume, fillCommand),
 		)
 
 		It("Should handle a pre populated DV", func() {
@@ -1440,7 +1439,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 		})
 
-		table.DescribeTable("should", func(name, command string, url func() string, dataVolumeName, eventReason string, phase cdiv1.DataVolumePhase) {
+		DescribeTable("should", func(name, command string, url func() string, dataVolumeName, eventReason string, phase cdiv1.DataVolumePhase) {
 			if !f.IsBlockVolumeStorageClassAvailable() {
 				Skip("Storage Class for block volume is not available")
 			}
@@ -1493,15 +1492,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				return false
 			}, timeout, pollingInterval).Should(BeTrue())
 		},
-			table.Entry("[test_id:3933]succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", dvc.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[test_id:3935]succeed import from VDDK to block volume", "import-vddk", "", nil, "dv-vddk-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[test_id:3936]succeed warm import from VDDK to block volume", "warm-import-vddk", "", nil, "dv-vddk-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[test_id:3938]succeed import from ImageIO to block volume", "import-imageio", "", nil, "dv-imageio-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[test_id:3944]succeed warm import from ImageIO to block volume", "warm-import-imageio", "", nil, "dv-imageio-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
+			Entry("[test_id:3933]succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", dvc.ImportSucceeded, cdiv1.Succeeded),
+			Entry("[test_id:3935]succeed import from VDDK to block volume", "import-vddk", "", nil, "dv-vddk-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
+			Entry("[test_id:3936]succeed warm import from VDDK to block volume", "warm-import-vddk", "", nil, "dv-vddk-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
+			Entry("[test_id:3938]succeed import from ImageIO to block volume", "import-imageio", "", nil, "dv-imageio-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
+			Entry("[test_id:3944]succeed warm import from ImageIO to block volume", "warm-import-imageio", "", nil, "dv-imageio-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 
-	table.DescribeTable("Succeed HTTPS import in various formats", func(url func() string, skipOnOpenshift bool) {
+	DescribeTable("Succeed HTTPS import in various formats", func(url func() string, skipOnOpenshift bool) {
 		if skipOnOpenshift && utils.IsOpenshift(f.K8sClient) {
 			Skip("This test doesn't work when building using centos, see: https://bugzilla.redhat.com/show_bug.cgi?id=2013331")
 		}
@@ -1527,10 +1526,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.TinyCoreMD5))
 	},
-		table.Entry("when importing in the VMDK format", httpsTinyCoreVmdkURL, false),
-		table.Entry("When importing in the VDI format", httpsTinyCoreVdiURL, true),
-		table.Entry("when importing in the VHD format", httpsTinyCoreVhdURL, false),
-		table.Entry("when importing in the VHDX format", httpsTinyCoreVhdxURL, false),
+		Entry("when importing in the VMDK format", httpsTinyCoreVmdkURL, false),
+		Entry("When importing in the VDI format", httpsTinyCoreVdiURL, true),
+		Entry("when importing in the VHD format", httpsTinyCoreVhdURL, false),
+		Entry("when importing in the VHDX format", httpsTinyCoreVhdxURL, false),
 	)
 
 	Describe("[rfe_id:1115][crit:high][posneg:negative]Delete resources of DataVolume with an invalid URL (POD in retry loop)", func() {
@@ -2433,7 +2432,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 		})
 
-		table.DescribeTable("import DV using StorageSpec without AccessModes, PVC is created only when", func(scName string, scFunc func(string)) {
+		DescribeTable("import DV using StorageSpec without AccessModes, PVC is created only when", func(scName string, scFunc func(string)) {
 			if utils.IsDefaultSCNoProvisioner() {
 				Skip("Default storage class has no provisioner. The new storage class won't work")
 			}
@@ -2485,9 +2484,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 		},
-			table.Entry("[test_id:9922]the storage class is created", testScName, createStorageClass),
-			table.Entry("[test_id:9924]PV with the SC name is created", testScName, createPV),
-			table.Entry("[test_id:9925]PV with the SC name (\"\" blank) is created", "", createPV),
+			Entry("[test_id:9922]the storage class is created", testScName, createStorageClass),
+			Entry("[test_id:9924]PV with the SC name is created", testScName, createPV),
+			Entry("[test_id:9925]PV with the SC name (\"\" blank) is created", "", createPV),
 		)
 
 		newDataVolumeWithStorageSpec := func(scName string) *cdiv1.DataVolume {
@@ -2503,7 +2502,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return dv
 		}
 
-		table.DescribeTable("import DV with AccessModes, PVC is pending until", func(scName string, scFunc func(string), dvFunc func(string) *cdiv1.DataVolume) {
+		DescribeTable("import DV with AccessModes, PVC is pending until", func(scName string, scFunc func(string), dvFunc func(string) *cdiv1.DataVolume) {
 			if utils.IsDefaultSCNoProvisioner() {
 				Skip("Default storage class has no provisioner. The new storage class won't work")
 			}
@@ -2547,17 +2546,17 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 		},
-			table.Entry("[test_id:9926]the storage class is created (PvcSpec)", testScName, createStorageClass, newDataVolumeWithPvcSpec),
-			table.Entry("[test_id:9927]PV with the SC name is created (PvcSpec)", testScName, createPV, newDataVolumeWithPvcSpec),
-			table.Entry("[test_id:9928]PV with the SC name (\"\" blank) is created (PvcSpec)", "", createPV, newDataVolumeWithPvcSpec),
-			table.Entry("[test_id:9929]the storage class is created (StorageSpec)", testScName, createStorageClass, newDataVolumeWithStorageSpec),
-			table.Entry("[test_id:9930]PV with the SC name is created (StorageSpec)", testScName, createPV, newDataVolumeWithStorageSpec),
-			table.Entry("[test_id:9931]PV with the SC name (\"\" blank) is created (StorageSpec)", "", createPV, newDataVolumeWithStorageSpec),
+			Entry("[test_id:9926]the storage class is created (PvcSpec)", testScName, createStorageClass, newDataVolumeWithPvcSpec),
+			Entry("[test_id:9927]PV with the SC name is created (PvcSpec)", testScName, createPV, newDataVolumeWithPvcSpec),
+			Entry("[test_id:9928]PV with the SC name (\"\" blank) is created (PvcSpec)", "", createPV, newDataVolumeWithPvcSpec),
+			Entry("[test_id:9929]the storage class is created (StorageSpec)", testScName, createStorageClass, newDataVolumeWithStorageSpec),
+			Entry("[test_id:9930]PV with the SC name is created (StorageSpec)", testScName, createPV, newDataVolumeWithStorageSpec),
+			Entry("[test_id:9931]PV with the SC name (\"\" blank) is created (StorageSpec)", "", createPV, newDataVolumeWithStorageSpec),
 		)
 	})
 
 	Describe("Progress reporting on import datavolume", func() {
-		table.DescribeTable("Should report progress while importing", func(url string) {
+		DescribeTable("Should report progress while importing", func(url string) {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(url, f.CdiInstallNs))
 			dataVolume.Annotations[controller.AnnDeleteAfterCompletion] = "false"
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
@@ -2588,8 +2587,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				return progressRegExp.MatchString(string(progress))
 			}, timeout, pollingInterval).Should(BeTrue())
 		},
-			table.Entry("[test_id:3934]when image is qcow2", utils.TinyCoreQcow2URLRateLimit),
-			table.Entry("[test_id:6902]when image is qcow2.gz", utils.TinyCoreQcow2GzURLRateLimit),
+			Entry("[test_id:3934]when image is qcow2", utils.TinyCoreQcow2URLRateLimit),
+			Entry("[test_id:6902]when image is qcow2.gz", utils.TinyCoreQcow2GzURLRateLimit),
 		)
 	})
 
@@ -2633,7 +2632,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 		})
 
-		table.DescribeTable("Feature Gate - disabled", func(
+		DescribeTable("Feature Gate - disabled", func(
 			dvName string,
 			url func() string,
 			dvFunc func(string, string, string) *cdiv1.DataVolume,
@@ -2682,32 +2681,32 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				return k8serrors.IsNotFound(err)
 			}, timeout, pollingInterval).Should(BeTrue())
 		},
-			table.Entry("[test_id:4459] Import Positive flow",
+			Entry("[test_id:4459] Import Positive flow",
 				"dv-wffc-http-import",
 				func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) },
 				utils.NewDataVolumeWithHTTPImport,
 				cdiv1.Succeeded),
-			table.Entry("[test_id:4460] Import invalid url",
+			Entry("[test_id:4460] Import invalid url",
 				"dv-wffc-http-url-not-valid-import",
 				func() string { return fmt.Sprintf(noSuchFileFileURL, f.CdiInstallNs) },
 				utils.NewDataVolumeWithHTTPImport,
 				cdiv1.ImportInProgress),
-			table.Entry("[test_id:4461] Import qcow2 scratch space",
+			Entry("[test_id:4461] Import qcow2 scratch space",
 				"dv-wffc-qcow2-import",
 				func() string { return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs) },
 				createHTTPSDataVolume,
 				cdiv1.Succeeded),
-			table.Entry("[test_id:4462] Import blank image",
+			Entry("[test_id:4462] Import blank image",
 				"dv-wffc-blank-import",
 				func() string { return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs) },
 				createBlankRawDataVolume,
 				cdiv1.Succeeded),
-			table.Entry("[test_id:4463] Upload - positive flow",
+			Entry("[test_id:4463] Upload - positive flow",
 				"dv-wffc-upload",
 				func() string { return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs) },
 				createUploadDataVolume,
 				cdiv1.UploadReady),
-			table.Entry("[test_id:4464] Clone - positive flow",
+			Entry("[test_id:4464] Clone - positive flow",
 				"dv-wffc-clone",
 				func() string { return fillCommand }, // its not URL, but command, but the parameter lines up.
 				createCloneDataVolume,
@@ -2739,7 +2738,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return utils.NewCloningDataVolume(dataVolumeName, size, sourcePvc)
 		}
 
-		table.DescribeTable("WFFC Feature Gate enabled - ImmediateBinding requested", func(
+		DescribeTable("WFFC Feature Gate enabled - ImmediateBinding requested", func(
 			dvName string,
 			url func() string,
 			dvFunc func(string, string, string) *cdiv1.DataVolume,
@@ -2785,22 +2784,22 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				return k8serrors.IsNotFound(err)
 			}, timeout, pollingInterval).Should(BeTrue())
 		},
-			table.Entry("Import qcow2 scratch space",
+			Entry("Import qcow2 scratch space",
 				"dv-immediate-wffc-qcow2-import",
 				func() string { return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs) },
 				createHTTPSDataVolume,
 				cdiv1.Succeeded),
-			table.Entry("Import blank image",
+			Entry("Import blank image",
 				"dv-immediate-wffc-blank-import",
 				func() string { return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs) },
 				createBlankRawDataVolume,
 				cdiv1.Succeeded),
-			table.Entry("Upload - positive flow",
+			Entry("Upload - positive flow",
 				"dv-immediate-wffc-upload",
 				func() string { return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs) },
 				createUploadDataVolume,
 				cdiv1.UploadReady),
-			table.Entry("Clone - positive flow",
+			Entry("Clone - positive flow",
 				"dv-immediate-wffc-clone",
 				func() string { return fillCommand }, // its not URL, but command, but the parameter lines up.
 				createCloneDataVolume,

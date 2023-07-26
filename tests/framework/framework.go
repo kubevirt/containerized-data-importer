@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 
@@ -209,10 +209,10 @@ func (f *Framework) AfterEach() {
 		}
 	}()
 
-	if ginkgo.CurrentGinkgoTestDescription().Failed {
+	if ginkgo.CurrentSpecReport().Failed() {
 		f.reporter.FailureCount++
 		fmt.Fprintf(ginkgo.GinkgoWriter, "On failure, artifacts will be collected in %s/%d_*\n", f.reporter.artifactsDir, f.reporter.FailureCount)
-		f.reporter.Dump(f.K8sClient, f.CdiClient, ginkgo.CurrentGinkgoTestDescription().Duration)
+		f.reporter.Dump(f.K8sClient, f.CdiClient, ginkgo.CurrentSpecReport().RunTime)
 	}
 }
 

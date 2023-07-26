@@ -22,8 +22,7 @@ import (
 	"reflect"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	prometheus "github.com/prometheus/client_golang/prometheus/testutil"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -291,7 +290,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(updatedSp.Spec.ClaimPropertySets).To(Equal(claimPropertySets))
 	})
 
-	table.DescribeTable("should create clone strategy", func(cloneStrategy cdiv1.CDICloneStrategy) {
+	DescribeTable("should create clone strategy", func(cloneStrategy cdiv1.CDICloneStrategy) {
 		storageClass := CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"})
 
 		storageClass.Annotations["cdi.kubevirt.io/clone-strategy"] = string(cloneStrategy)
@@ -309,12 +308,12 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
 		Expect(*sp.Status.CloneStrategy).To(Equal(cloneStrategy))
 	},
-		table.Entry("None", cdiv1.CloneStrategyHostAssisted),
-		table.Entry("Snapshot", cdiv1.CloneStrategySnapshot),
-		table.Entry("Clone", cdiv1.CloneStrategyCsiClone),
+		Entry("None", cdiv1.CloneStrategyHostAssisted),
+		Entry("Snapshot", cdiv1.CloneStrategySnapshot),
+		Entry("Clone", cdiv1.CloneStrategyCsiClone),
 	)
 
-	table.DescribeTable("should set advised source format for dataimportcrons", func(provisioner string, expectedFormat cdiv1.DataImportCronSourceFormat, deploySnapClass bool) {
+	DescribeTable("should set advised source format for dataimportcrons", func(provisioner string, expectedFormat cdiv1.DataImportCronSourceFormat, deploySnapClass bool) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
 		reconciler := createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 		if deploySnapClass {
@@ -335,12 +334,12 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
 		Expect(*sp.Status.DataImportCronSourceFormat).To(Equal(expectedFormat))
 	},
-		table.Entry("provisioners where snapshot source is more appropriate", "rook-ceph.rbd.csi.ceph.com", cdiv1.DataImportCronSourceFormatSnapshot, true),
-		table.Entry("provisioners where snapshot source is more appropriate but lack volumesnapclass", "rook-ceph.rbd.csi.ceph.com", cdiv1.DataImportCronSourceFormatPvc, false),
-		table.Entry("provisioners where there is no known preferred format", "format.unknown.provisioner.csi.com", cdiv1.DataImportCronSourceFormatPvc, false),
+		Entry("provisioners where snapshot source is more appropriate", "rook-ceph.rbd.csi.ceph.com", cdiv1.DataImportCronSourceFormatSnapshot, true),
+		Entry("provisioners where snapshot source is more appropriate but lack volumesnapclass", "rook-ceph.rbd.csi.ceph.com", cdiv1.DataImportCronSourceFormatPvc, false),
+		Entry("provisioners where there is no known preferred format", "format.unknown.provisioner.csi.com", cdiv1.DataImportCronSourceFormatPvc, false),
 	)
 
-	table.DescribeTable("should set cloneStrategy", func(provisioner string, expectedCloneStrategy cdiv1.CDICloneStrategy, deploySnapClass bool) {
+	DescribeTable("should set cloneStrategy", func(provisioner string, expectedCloneStrategy cdiv1.CDICloneStrategy, deploySnapClass bool) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
 		reconciler := createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 		if deploySnapClass {
@@ -361,12 +360,12 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
 		Expect(*sp.Status.CloneStrategy).To(Equal(expectedCloneStrategy))
 	},
-		table.Entry("provisioner with volumesnapshotclass and no known advised strategy", "strategy.unknown.provisioner.csi.com", cdiv1.CloneStrategySnapshot, true),
-		table.Entry("provisioner without volumesnapshotclass and no known advised strategy", "strategy.unknown.provisioner.csi.com", cdiv1.CloneStrategyHostAssisted, false),
-		table.Entry("provisioner that is known to prefer csi clone", "csi-powermax.dellemc.com", cdiv1.CloneStrategyCsiClone, false),
+		Entry("provisioner with volumesnapshotclass and no known advised strategy", "strategy.unknown.provisioner.csi.com", cdiv1.CloneStrategySnapshot, true),
+		Entry("provisioner without volumesnapshotclass and no known advised strategy", "strategy.unknown.provisioner.csi.com", cdiv1.CloneStrategyHostAssisted, false),
+		Entry("provisioner that is known to prefer csi clone", "csi-powermax.dellemc.com", cdiv1.CloneStrategyCsiClone, false),
 	)
 
-	table.DescribeTable("Should set the IncompleteProfileGauge correctly", func(provisioner string, count int) {
+	DescribeTable("Should set the IncompleteProfileGauge correctly", func(provisioner string, count int) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
 		reconciler := createStorageProfileReconciler(storageClass)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
@@ -380,8 +379,8 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(sp.Status.ClaimPropertySets).To(BeEmpty())
 		Expect(int(prometheus.ToFloat64(IncompleteProfileGauge))).To(Equal(count))
 	},
-		table.Entry("Noobaa (not supported)", storagecapabilities.ProvisionerNoobaa, 0),
-		table.Entry("Unknown provisioner", "unknown-provisioner", 1),
+		Entry("Noobaa (not supported)", storagecapabilities.ProvisionerNoobaa, 0),
+		Entry("Unknown provisioner", "unknown-provisioner", 1),
 	)
 })
 

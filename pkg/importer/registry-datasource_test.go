@@ -5,8 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -41,7 +40,7 @@ var _ = Describe("Registry data source", func() {
 		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
 	})
 
-	table.DescribeTable("Transfer should ", func(ep, accKey, secKey, certDir, scratchPath string, insecureRegistry bool, wantErr bool) {
+	DescribeTable("Transfer should ", func(ep, accKey, secKey, certDir, scratchPath string, insecureRegistry bool, wantErr bool) {
 		if scratchPath == "" {
 			scratchPath = tmpDir
 		}
@@ -58,10 +57,10 @@ var _ = Describe("Registry data source", func() {
 			Expect(ProcessingPhaseError).To(Equal(result))
 		}
 	},
-		table.Entry("successfully return Convert on valid scratch space and empty user parameters", "oci-archive:"+imageFile, "", "", "", "", true, false),
-		table.Entry("successfully return Convert on valid scratch space and parameters", "oci-archive:"+imageFile, "username", "password", "/path/to/cert", "", true, false),
-		table.Entry("return Error on invalid scratch space", "oci-archive:"+imageFile, "", "", "", "/invalid", true, true),
-		table.Entry("return Error on valid scratch space, but CopyImage failed", "invalid", "", "", "", "", true, true),
+		Entry("successfully return Convert on valid scratch space and empty user parameters", "oci-archive:"+imageFile, "", "", "", "", true, false),
+		Entry("successfully return Convert on valid scratch space and parameters", "oci-archive:"+imageFile, "username", "password", "/path/to/cert", "", true, false),
+		Entry("return Error on invalid scratch space", "oci-archive:"+imageFile, "", "", "", "/invalid", true, true),
+		Entry("return Error on valid scratch space, but CopyImage failed", "invalid", "", "", "", "", true, true),
 	)
 
 	It("TransferFile should not be called", func() {

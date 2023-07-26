@@ -28,8 +28,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	restful "github.com/emicklei/go-restful/v3"
@@ -212,7 +211,7 @@ var _ = Describe("API server tests", func() {
 		checkActions(actions, client.Actions())
 	})
 
-	table.DescribeTable("Get API resource list", func(version string) {
+	DescribeTable("Get API resource list", func(version string) {
 		rr := doGetRequest("/apis/upload.cdi.kubevirt.io/" + version)
 
 		resourceList := metav1.APIResourceList{}
@@ -241,7 +240,7 @@ var _ = Describe("API server tests", func() {
 
 		Expect(reflect.DeepEqual(expectedResourceList, resourceList)).To(BeTrue())
 	},
-		table.Entry("for beta api", "v1beta1"),
+		Entry("for beta api", "v1beta1"),
 	)
 
 	It("Get API group", func() {
@@ -338,7 +337,7 @@ var _ = Describe("API server tests", func() {
 
 	authorizeSuccess := &testAuthorizer{allowed: true}
 
-	table.DescribeTable("Get token", func(args args, expectedStatus int, checkToken bool) {
+	DescribeTable("Get token", func(args args, expectedStatus int, checkToken bool) {
 		kubeobjects := []runtime.Object{}
 		if args.pvc != nil {
 			kubeobjects = append(kubeobjects, args.pvc)
@@ -370,28 +369,28 @@ var _ = Describe("API server tests", func() {
 			Expect(uploadTokenRequest.Status.Token).To(Not(Equal("")))
 		}
 	},
-		table.Entry("authoriser error",
+		Entry("authoriser error",
 			args{
 				authorizer: &testAuthorizer{allowed: false, reason: "", err: fmt.Errorf("Error")},
 			},
 			http.StatusInternalServerError,
 			false),
 
-		table.Entry("authoriser not allowed",
+		Entry("authoriser not allowed",
 			args{
 				authorizer: &testAuthorizer{allowed: false, reason: "bad person", err: nil},
 			},
 			http.StatusUnauthorized,
 			false),
 
-		table.Entry("pvc does not exist",
+		Entry("pvc does not exist",
 			args{
 				authorizer: authorizeSuccess,
 			},
 			http.StatusOK,
 			false),
 
-		table.Entry("upload possible",
+		Entry("upload possible",
 			args{
 				authorizer: authorizeSuccess,
 				pvc:        pvc,

@@ -6,8 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -82,7 +81,7 @@ var _ = Describe("Upload data source", func() {
 		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
 	})
 
-	table.DescribeTable("calling transfer should", func(fileName string, dvContentType cdiv1.DataVolumeContentType, expectedPhase ProcessingPhase, scratchPath string, want []byte, wantErr bool) {
+	DescribeTable("calling transfer should", func(fileName string, dvContentType cdiv1.DataVolumeContentType, expectedPhase ProcessingPhase, scratchPath string, want []byte, wantErr bool) {
 		if scratchPath == "" {
 			scratchPath = tmpDir
 		}
@@ -110,9 +109,9 @@ var _ = Describe("Upload data source", func() {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		table.Entry("return Error with missing scratch space", cirrosFilePath, dvKubevirt, ProcessingPhaseError, "/imaninvalidpath", nil, true),
-		table.Entry("return Convert with scratch space and valid qcow file", cirrosFilePath, dvKubevirt, ProcessingPhaseConvert, "", cirrosData, false),
-		table.Entry("return Complete with archive content type and archive file ", archiveFilePath, dvArchive, ProcessingPhaseComplete, "", []byte{}, false),
+		Entry("return Error with missing scratch space", cirrosFilePath, dvKubevirt, ProcessingPhaseError, "/imaninvalidpath", nil, true),
+		Entry("return Convert with scratch space and valid qcow file", cirrosFilePath, dvKubevirt, ProcessingPhaseConvert, "", cirrosData, false),
+		Entry("return Complete with archive content type and archive file ", archiveFilePath, dvArchive, ProcessingPhaseComplete, "", []byte{}, false),
 	)
 
 	It("Transfer should fail on reader error", func() {
@@ -215,7 +214,7 @@ var _ = Describe("Async Upload data source", func() {
 		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
 	})
 
-	table.DescribeTable("calling transfer should", func(fileName, scratchPath string, want []byte, wantErr bool) {
+	DescribeTable("calling transfer should", func(fileName, scratchPath string, want []byte, wantErr bool) {
 		if scratchPath == "" {
 			scratchPath = tmpDir
 		}
@@ -235,8 +234,8 @@ var _ = Describe("Async Upload data source", func() {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		table.Entry("return Error with missing scratch space", cirrosFilePath, "/imaninvalidpath", nil, true),
-		table.Entry("return Convert with scratch space and valid qcow file", cirrosFilePath, "", cirrosData, false),
+		Entry("return Error with missing scratch space", cirrosFilePath, "/imaninvalidpath", nil, true),
+		Entry("return Convert with scratch space and valid qcow file", cirrosFilePath, "", cirrosData, false),
 	)
 
 	It("Transfer should fail on reader error", func() {

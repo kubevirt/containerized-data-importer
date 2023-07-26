@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -31,7 +30,7 @@ var _ = Describe("[Upgrade]", func() {
 		}
 	})
 
-	table.DescribeTable("[rfe_id:5493]DV status.name is populated after upgrade", func(dvName string) {
+	DescribeTable("[rfe_id:5493]DV status.name is populated after upgrade", func(dvName string) {
 		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(oldVersionArtifactsNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
 		if apierrs.IsNotFound(err) {
 			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(oldVersionArtifactsNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
@@ -41,6 +40,6 @@ var _ = Describe("[Upgrade]", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dv.Status.ClaimName).To(Equal(dvName))
 	},
-		table.Entry("[test_id:7715]with v1beta1 datavolume", "olddv"),
+		Entry("[test_id:7715]with v1beta1 datavolume", "olddv"),
 	)
 })

@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
