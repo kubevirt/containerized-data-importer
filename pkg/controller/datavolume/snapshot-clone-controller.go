@@ -261,6 +261,9 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 		}
 	} else {
 		cc.AddAnnotation(datavolume, cc.AnnCloneType, string(cdiv1.CloneStrategyHostAssisted))
+		if err := r.fallbackToHostAssisted(pvc); err != nil {
+			return syncRes, err
+		}
 	}
 
 	if err := r.ensureExtendedTokenPVC(datavolume, pvc); err != nil {

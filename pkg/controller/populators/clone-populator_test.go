@@ -244,7 +244,7 @@ var _ = Describe("Clone populator tests", func() {
 	It("should be pending and initialize target if choosestrategy returns something", func() {
 		target, source := targetAndDataSource()
 		reconciler := createClonePopulatorReconciler(target, storageClass(), source)
-		csr := cdiv1.CloneStrategySnapshot
+		csr := clone.ChooseStrategyResult{}
 		reconciler.planner = &fakePlanner{
 			chooseStrategyResult: &csr,
 		}
@@ -252,7 +252,7 @@ var _ = Describe("Clone populator tests", func() {
 		isDefaultResult(result, err)
 		pvc := getTarget(reconciler.client)
 		Expect(pvc.Annotations[AnnClonePhase]).To(Equal(string(clone.PendingPhaseName)))
-		Expect(pvc.Annotations[cc.AnnCloneType]).To(Equal(string(csr)))
+		Expect(pvc.Annotations[cc.AnnCloneType]).To(Equal(string(csr.Strategy)))
 		Expect(pvc.Finalizers).To(ContainElement(cloneFinalizer))
 	})
 
@@ -395,14 +395,14 @@ var _ = Describe("Clone populator tests", func() {
 
 // fakePlanner implements Plan interface
 type fakePlanner struct {
-	chooseStrategyResult *cdiv1.CDICloneStrategy
+	chooseStrategyResult *clone.ChooseStrategyResult
 	chooseStrategyError  error
 	planResult           []clone.Phase
 	planError            error
 	cleanupCalled        bool
 }
 
-func (p *fakePlanner) ChooseStrategy(ctx context.Context, args *clone.ChooseStrategyArgs) (*cdiv1.CDICloneStrategy, error) {
+func (p *fakePlanner) ChooseStrategy(ctx context.Context, args *clone.ChooseStrategyArgs) (*clone.ChooseStrategyResult, error) {
 	return p.chooseStrategyResult, p.chooseStrategyError
 }
 

@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -261,6 +262,7 @@ var _ = Describe("Clone Populator tests", func() {
 			sourceHash := getHash(source, 100000)
 			targetHash := getHash(target, 100000)
 			Expect(targetHash).To(Equal(sourceHash))
+			f.ExpectCloneFallback(target, clone.IncompatibleVolumeModes, clone.MessageIncompatibleVolumeModes)
 		})
 
 		It("should do filesystem to block clone", func() {
@@ -276,6 +278,7 @@ var _ = Describe("Clone Populator tests", func() {
 			sourceHash := getHash(source, 100000)
 			targetHash := getHash(target, 100000)
 			Expect(targetHash).To(Equal(sourceHash))
+			f.ExpectCloneFallback(target, clone.IncompatibleVolumeModes, clone.MessageIncompatibleVolumeModes)
 		})
 
 		DescribeTable("should clone explicit types requested by user", func(cloneType string, canDo func() bool) {
@@ -357,6 +360,7 @@ var _ = Describe("Clone Populator tests", func() {
 				By("Check tmp source PVC is deleted")
 				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(snapshot.Namespace).Get(context.TODO(), tmpSourcePVCforSnapshot, metav1.GetOptions{})
 				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+				f.ExpectCloneFallback(target, clone.NoVolumeExpansion, clone.MessageNoVolumeExpansion)
 			})
 
 			It("should finish the clone after creating the source snapshot", func() {
@@ -374,6 +378,7 @@ var _ = Describe("Clone Populator tests", func() {
 				By("Check tmp source PVC is deleted")
 				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(snapshot.Namespace).Get(context.TODO(), tmpSourcePVCforSnapshot, metav1.GetOptions{})
 				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+				f.ExpectCloneFallback(target, clone.NoVolumeExpansion, clone.MessageNoVolumeExpansion)
 			})
 		})
 	})
