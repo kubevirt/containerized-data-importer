@@ -224,7 +224,6 @@ func (fr *FormatReaders) gzReader() (io.ReadCloser, error) {
 	return gz, nil
 }
 
-<<<<<<< Updated upstream
 // Return the zst reader.
 func (fr *FormatReaders) zstReader() (io.ReadCloser, error) {
 	zst, err := zstd.NewReader(fr.TopReader())
@@ -232,7 +231,8 @@ func (fr *FormatReaders) zstReader() (io.ReadCloser, error) {
 		return nil, errors.Wrap(err, "could not create zst reader")
 	}
 	return zst.IOReadCloser(), nil
-=======
+}
+
 func (fr *FormatReaders) tarReader() (io.ReadCloser, error) {
 	tr := tar.NewReader(fr.TopReader())
 
@@ -242,7 +242,6 @@ func (fr *FormatReaders) tarReader() (io.ReadCloser, error) {
 	}
 	klog.V(2).Infof("tar: extracting %q\n", hdr.Name)
 	return io.NopCloser(tr), nil
->>>>>>> Stashed changes
 }
 
 // Return the size of the endpoint "through the eye" of the previous reader. Note: there is no
