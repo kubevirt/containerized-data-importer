@@ -41,6 +41,8 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -654,6 +656,17 @@ func (f *Framework) ExpectEvent(dataVolumeNamespace string) gomega.AsyncAssertio
 	}, timeout, pollingInterval)
 }
 
+// ExpectCloneFallback checks PVC annotations and event of clone fallback to host-assisted
+func (f *Framework) ExpectCloneFallback(pvc *v1.PersistentVolumeClaim, reason, message string) {
+	ginkgo.By("Check PVC annotations and event of clone fallback to host-assisted")
+	gomega.Expect(pvc.Annotations[cc.AnnCloneType]).To(gomega.Equal("copy"))
+	gomega.Expect(pvc.Annotations[populators.AnnCloneFallbackReason]).To(gomega.Equal(message))
+	f.ExpectEvent(pvc.Namespace).Should(gomega.And(
+		gomega.ContainSubstring(pvc.Name),
+		gomega.ContainSubstring(reason),
+		gomega.ContainSubstring(message)))
+}
+
 // runKubectlCommand ...
 func (f *Framework) runKubectlCommand(args ...string) (string, error) {
 	var errb bytes.Buffer
@@ -711,6 +724,31 @@ func (f *Framework) IsSnapshotStorageClassAvailable() bool {
 	}
 
 	return false
+}
+
+// GetNoSnapshotStorageClass gets storage class without snapshot support
+func (f *Framework) GetNoSnapshotStorageClass() *string {
+	scs, err := f.K8sClient.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil
+	}
+	vscs := &snapshotv1.VolumeSnapshotClassList{}
+	if err = f.CrClient.List(context.TODO(), vscs); err != nil {
+		return nil
+	}
+	for _, sc := range scs.Items {
+		if sc.Name == "local" || strings.Contains(sc.Provisioner, "no-provisioner") {
+			continue
+		}
+		for _, vsc := range vscs.Items {
+			if vsc.Driver == sc.Provisioner {
+				continue
+			}
+		}
+		return &sc.Name
+	}
+
+	return nil
 }
 
 // GetSnapshotClass returns the volume snapshot class.

@@ -52,6 +52,7 @@ go_test(
         "//pkg/client/clientset/versioned:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/controller:go_default_library",
+        "//pkg/controller/clone:go_default_library",
         "//pkg/controller/common:go_default_library",
         "//pkg/controller/datavolume:go_default_library",
         "//pkg/controller/populators:go_default_library",

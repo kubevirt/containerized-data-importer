@@ -267,9 +267,9 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner()
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).To(BeNil())
+				Expect(csr).To(BeNil())
 			})
 
 			It("should error if emptystring storageclass name", func() {
@@ -281,10 +281,10 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner()
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("claim has emptystring storageclass, will not work"))
-				Expect(strategy).To(BeNil())
+				Expect(csr).To(BeNil())
 			})
 
 			It("should error if no storageclass exists", func() {
@@ -294,10 +294,10 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner()
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("target storage class not found"))
-				Expect(strategy).To(BeNil())
+				Expect(csr).To(BeNil())
 			})
 
 			It("should return nil if no source", func() {
@@ -307,9 +307,9 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner(createStorageClass())
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).To(BeNil())
+				Expect(csr).To(BeNil())
 				expectEvent(planner, CloneWithoutSource)
 			})
 
@@ -323,10 +323,10 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner(createStorageClass(), source)
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(HavePrefix("target resources requests storage size is smaller than the source"))
-				Expect(strategy).To(BeNil())
+				Expect(csr).To(BeNil())
 				expectEvent(planner, CloneValidationFailed)
 			})
 
@@ -337,10 +337,12 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner(createStorageClass(), createSourceClaim())
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).ToNot(BeNil())
-				Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				Expect(csr.FallbackReason).ToNot(BeNil())
+				Expect(*csr.FallbackReason).To(Equal(MessageNoVolumeSnapshotClass))
 				expectEvent(planner, NoVolumeSnapshotClass)
 			})
 
@@ -351,10 +353,10 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass(), createSourceVolume())
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).ToNot(BeNil())
-				Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategySnapshot))
 			})
 
 			It("should return snapshot with volumesnapshotclass (no source vol)", func() {
@@ -364,10 +366,10 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass())
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).ToNot(BeNil())
-				Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategySnapshot))
 			})
 
 			It("should return snapshot with volumesnapshotclass and source storageclass does not exist but same driver", func() {
@@ -381,10 +383,10 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner(createStorageClass(), createVolumeSnapshotClass(), sourceClaim, sourceVolume)
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).ToNot(BeNil())
-				Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategySnapshot))
 			})
 
 			It("should returnsnapshot with bigger target", func() {
@@ -396,10 +398,10 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass())
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).ToNot(BeNil())
-				Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategySnapshot))
 			})
 
 			It("should return host assisted with bigger target and no volumeexpansion", func() {
@@ -413,10 +415,12 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner(storageClass, createSourceClaim(), createVolumeSnapshotClass())
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).ToNot(BeNil())
-				Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				Expect(csr.FallbackReason).ToNot(BeNil())
+				Expect(*csr.FallbackReason).To(Equal(MessageNoVolumeExpansion))
 				expectEvent(planner, NoVolumeExpansion)
 			})
 
@@ -430,10 +434,12 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner(createStorageClass(), createVolumeSnapshotClass(), source)
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).ToNot(BeNil())
-				Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				Expect(csr.FallbackReason).ToNot(BeNil())
+				Expect(*csr.FallbackReason).To(Equal(MessageIncompatibleVolumeModes))
 				expectEvent(planner, IncompatibleVolumeModes)
 			})
 
@@ -451,10 +457,10 @@ var _ = Describe("Planner test", func() {
 				cdi.Spec.CloneStrategyOverride = &cs
 				err = planner.Client.Update(context.Background(), cdi)
 				Expect(err).ToNot(HaveOccurred())
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).ToNot(BeNil())
-				Expect(*strategy).To(Equal(cdiv1.CloneStrategyCsiClone))
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategyCsiClone))
 			})
 
 			It("should return csi-clone if storage profile is set", func() {
@@ -473,10 +479,10 @@ var _ = Describe("Planner test", func() {
 					},
 				}
 				planner := createPlanner(sp, createStorageClass(), createSourceClaim())
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).ToNot(BeNil())
-				Expect(*strategy).To(Equal(cdiv1.CloneStrategyCsiClone))
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategyCsiClone))
 			})
 		})
 
@@ -499,9 +505,9 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner(createStorageClass())
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).To(BeNil())
+				Expect(csr).To(BeNil())
 				expectEvent(planner, CloneWithoutSource)
 			})
 
@@ -512,10 +518,10 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner()
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("target storage class not found"))
-				Expect(strategy).To(BeNil())
+				Expect(csr).To(BeNil())
 			})
 
 			It("should fail when snapshot doesn't have populated volumeSnapshotContent name", func() {
@@ -528,10 +534,10 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner(createStorageClass(), source)
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("volumeSnapshotContent name not found"))
-				Expect(strategy).To(BeNil())
+				Expect(csr).To(BeNil())
 			})
 
 			It("should fallback to host-assisted when snapshot and storage class provisioners differ", func() {
@@ -543,10 +549,13 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner(createStorageClass(), source, createDefaultVolumeSnapshotContent("test"))
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).ToNot(BeNil())
-				Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				Expect(csr.FallbackReason).ToNot(BeNil())
+				Expect(*csr.FallbackReason).To(Equal(MessageNoProvisionerMatch))
+				expectEvent(planner, MessageNoProvisionerMatch)
 			})
 
 			It("should fail if snapshot doesn't have restore size", func() {
@@ -559,10 +568,10 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner(createStorageClass(), source, createDefaultVolumeSnapshotContent("driver"))
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("snapshot has no RestoreSize"))
-				Expect(strategy).To(BeNil())
+				Expect(csr).To(BeNil())
 			})
 
 			It("should fallback to host-assisted when expansion is not supported", func() {
@@ -576,10 +585,13 @@ var _ = Describe("Planner test", func() {
 				sc := createStorageClass()
 				sc.AllowVolumeExpansion = nil
 				planner := createPlanner(sc, source, createDefaultVolumeSnapshotContent("driver"))
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).ToNot(BeNil())
-				Expect(*strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				Expect(csr.FallbackReason).ToNot(BeNil())
+				Expect(*csr.FallbackReason).To(Equal(MessageNoVolumeExpansion))
+				expectEvent(planner, NoVolumeExpansion)
 			})
 
 			It("should do smart clone when meeting all prerequisites", func() {
@@ -591,10 +603,10 @@ var _ = Describe("Planner test", func() {
 					Log:         log,
 				}
 				planner := createPlanner(createStorageClass(), source, createDefaultVolumeSnapshotContent("driver"))
-				strategy, err := planner.ChooseStrategy(context.Background(), args)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(strategy).ToNot(BeNil())
-				Expect(*strategy).To(Equal(cdiv1.CloneStrategySnapshot))
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategySnapshot))
 			})
 		})
 	})

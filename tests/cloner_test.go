@@ -26,6 +26,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/token"
@@ -98,18 +99,15 @@ var _ = Describe("all clone tests", func() {
 		})
 
 		It("[test_id:6693]Should clone imported data and retain transfer pods after completion", func() {
-			smartApplicable := f.IsSnapshotStorageClassAvailable()
-			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
-			if err == nil {
-				value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
-				if smartApplicable && ok && strings.Compare(value, "true") == 0 {
-					Skip("Cannot test host assisted cloning for within namespace when all pvcs are smart clone capable.")
-				}
+			scName := f.GetNoSnapshotStorageClass()
+			if scName == nil {
+				Skip("Cannot test host-assisted cloning when all storage classes are smart clone capable")
 			}
 
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+			dataVolume.Spec.PVC.StorageClassName = scName
 			By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
-			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
@@ -117,6 +115,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvc)
 			targetDV.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+			targetDV.Spec.PVC.StorageClassName = scName
 			By(fmt.Sprintf("Create new target datavolume %s", targetDV.Name))
 			targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
@@ -124,6 +123,10 @@ var _ = Describe("all clone tests", func() {
 
 			By("Wait for target datavolume phase Succeeded")
 			Expect(utils.WaitForDataVolumePhaseWithTimeout(f, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)).Should(Succeed())
+
+			target, err := f.K8sClient.CoreV1().PersistentVolumeClaims(targetDataVolume.Namespace).Get(context.TODO(), targetDataVolume.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			f.ExpectCloneFallback(target, dvc.NoPopulator, dvc.NoPopulatorMessage)
 
 			By("Find cloner source pod after completion")
 			cloner, err := utils.FindPodBySuffixOnce(f.K8sClient, targetDataVolume.Namespace, common.ClonerSourcePodNameSuffix, common.CDILabelSelector)
@@ -2740,6 +2743,8 @@ var _ = Describe("all clone tests", func() {
 					By("Check host assisted clone is taking place")
 					pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(targetNs.Name).Get(context.TODO(), dvName, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
+					f.ExpectCloneFallback(pvc, clone.NoVolumeExpansion, clone.MessageNoVolumeExpansion)
+
 					// non csi
 					if pvc.Spec.DataSourceRef == nil {
 						suffix := "-host-assisted-source-pvc"
