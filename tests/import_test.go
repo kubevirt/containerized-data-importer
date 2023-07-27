@@ -1875,6 +1875,44 @@ var _ = Describe("Import populator", func() {
 			return err != nil && k8serrors.IsNotFound(err)
 		}, timeout, pollingInterval).Should(BeTrue())
 	})
+
+	It("should continue normally with the population even if the volueImportSource is deleted", func() {
+		pvc = importPopulationPVCDefinition()
+		controller.AddAnnotation(pvc, controller.AnnImmediateBinding, "")
+		pvc, err = f.CreatePVCFromDefinition(pvc)
+		Expect(err).ToNot(HaveOccurred())
+		err = createHTTPImportPopulatorCR(cdiv1.DataVolumeKubeVirt, true)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC prime was created")
+		pvcPrime, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, populators.PVCPrimeName(pvc))
+		Expect(err).ToNot(HaveOccurred())
+
+		err = f.CdiClient.CdiV1beta1().VolumeImportSources(f.Namespace.Name).Delete(context.TODO(), "import-populator-test", metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify target PVC is bound")
+		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify content")
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(utils.TinyCoreMD5))
+
+		By("Verify 100.0% annotation")
+		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPopulatorProgress)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeTrue())
+		Expect(progress).Should(BeEquivalentTo("100.0%"))
+
+		By("Wait for PVC prime to be deleted")
+		Eventually(func() bool {
+			// Make sure pvcPrime was deleted after import population
+			_, err := f.FindPVC(pvcPrime.Name)
+			return err != nil && k8serrors.IsNotFound(err)
+		}, timeout, pollingInterval).Should(BeTrue())
+	})
 })
 
 func generateRegistryOnlySidecar() *unstructured.Unstructured {
