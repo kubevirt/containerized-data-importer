@@ -1009,7 +1009,7 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 	if util.ResolveVolumeMode(targetPvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
 		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
 	}
-	for k, v := range dataVolume.Labels {
+	for k, v := range dataVolume.ObjectMeta.Labels {
 		labels[k] = v
 	}
 
