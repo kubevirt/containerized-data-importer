@@ -394,13 +394,14 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		return res, err
 	}
 
-	// We use the poller returned reconcile.Result for RequeueAfter if needed
-	// skip if we disabled schedule
+	// Skip if schedule is disabled
 	if isImageStreamSource(dataImportCron) && dataImportCron.Spec.Schedule != "" {
-		res, err := r.pollImageStreamDigest(ctx, dataImportCron)
+		// We use the poll returned reconcile.Result for RequeueAfter if needed
+		pollRes, err := r.pollImageStreamDigest(ctx, dataImportCron)
 		if err != nil {
-			return res, err
+			return pollRes, err
 		}
+		res = pollRes
 	}
 
 	desiredDigest := dataImportCron.Annotations[AnnSourceDesiredDigest]

@@ -613,8 +613,10 @@ var _ = Describe("All DataImportCron Tests", func() {
 			imageStream := newImageStream(imageStreamName)
 			imageStream.Status.Tags = imageStream.Status.Tags[imageStreamTagsFromIndex:]
 			reconciler = createDataImportCronReconciler(cron, imageStream)
-			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			res, err := reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(res.Requeue).To(BeTrue())
+			Expect(res.RequeueAfter.Seconds()).To(And(BeNumerically(">", 0), BeNumerically("<=", 60)))
 
 			err = reconciler.client.Get(context.TODO(), cronKey, cron)
 			Expect(err).ToNot(HaveOccurred())
