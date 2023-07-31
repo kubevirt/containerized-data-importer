@@ -5,3 +5,16 @@ Get rid of sync/updateStatus shared state (#2607)
 Respect bind.immediate annotation by not attempting fancy clones (#2612)
 Add manila csi to list of known provisioners (#2614)
 Add sourceRef support for VolumeSnapshot sources (#2616)
+
+v1.56.1
+Enable DV status subresource (#2626)
+Pass DV labels to PVC
+Annotate DIC-created DV for immediate binding (#2653)
+Report last DV phase in tests when garbage collection fails (#2668)
+Allow restoreSize to be 0, and use request size if 0 (#2719)
+Add Dell EMC, HPE & Hitachi to known provisioners (#2720)
+Skip TLS crypto test when routes are used/ensure anyvolumedatasource test pvc is gone (#2677) (#2706)
+Propagate CDI workload NodePlacement to DIC CronJob and initial Job (#2733)
+Add IBM and AWS EFS CSI to known provisioners (#2790)
+Fix DataImportCron PVC update error check (#2795)
+
