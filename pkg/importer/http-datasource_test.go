@@ -102,7 +102,7 @@ var _ = Describe("Http data source", func() {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		Entry("return Convert phase ", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseConvert, cirrosData, false),
+		Entry("return TransferScratch phase ", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseTransferScratch, cirrosData, false),
 		Entry("return TransferTarget with archive content type but not archive endpoint ", cirrosFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, cirrosData, false),
 		Entry("return TransferTarget with archive content type and archive endpoint ", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, diskimageArchiveData, false),
 	)
