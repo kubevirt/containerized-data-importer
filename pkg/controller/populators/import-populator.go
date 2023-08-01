@@ -129,7 +129,7 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	pvcCopy := pvc.DeepCopy()
 	phase := pvcPrime.Annotations[cc.AnnPodPhase]
 	source, err := r.getPopulationSource(pvc)
-	if source == nil {
+	if err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -294,13 +294,20 @@ func (r *ImportPopulatorReconciler) getImportPod(pvc *corev1.PersistentVolumeCla
 }
 
 func (r *ImportPopulatorReconciler) getCheckpointArgs(source client.Object) *cc.CheckpointArgs {
-	volumeImportSource := source.(*cdiv1.VolumeImportSource)
 	isFinal := false
-	if volumeImportSource.Spec.FinalCheckpoint != nil {
-		isFinal = *volumeImportSource.Spec.FinalCheckpoint
+	checkpoints := []cdiv1.DataVolumeCheckpoint{}
+	// We attempt to allow finishing the population
+	// even if the VolumeImportSource is deleted.
+	// The VolumeImportSource would only be required in multi-stage imports.
+	if source != nil {
+		volumeImportSource := source.(*cdiv1.VolumeImportSource)
+		if volumeImportSource.Spec.FinalCheckpoint != nil {
+			isFinal = *volumeImportSource.Spec.FinalCheckpoint
+		}
+		checkpoints = volumeImportSource.Spec.Checkpoints
 	}
 	return &cc.CheckpointArgs{
-		Checkpoints: volumeImportSource.Spec.Checkpoints,
+		Checkpoints: checkpoints,
 		IsFinal:     isFinal,
 		Client:      r.client,
 		Log:         r.log,

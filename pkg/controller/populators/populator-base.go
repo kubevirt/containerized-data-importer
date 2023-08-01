@@ -279,6 +279,16 @@ func (r *ReconcilerBase) reconcileCommon(pvc *corev1.PersistentVolumeClaim, popu
 		return nil, nil
 	}
 
+	// Get the PVC'. If it does exist, return it and skip the rest of the checks
+	// If it doesn't, we'll attempt to create it.
+	pvcPrime, err := r.getPVCPrime(pvc)
+	if err != nil {
+		return nil, err
+	}
+	if pvcPrime != nil {
+		return pvcPrime, nil
+	}
+
 	// We should ignore PVCs that aren't for this populator to handle
 	dataSourceRef := pvc.Spec.DataSourceRef
 	if !IsPVCDataSourceRefKind(pvc, r.sourceKind) {
@@ -302,16 +312,10 @@ func (r *ReconcilerBase) reconcileCommon(pvc *corev1.PersistentVolumeClaim, popu
 		return nil, err
 	}
 
-	// Get the PVC'
-	pvcPrime, err := r.getPVCPrime(pvc)
-	if err != nil {
-		return nil, err
-	}
-
 	// If PVC' doesn't exist and target PVC is not bound, we should create the PVC' to start the population.
-	// We still return the nil PVC' as we'll get called again once PVC' exists.
+	// We still return nil as we'll get called again once PVC' exists.
 	// If target PVC is bound, we don't really need to populate anything.
-	if pvcPrime == nil && cc.IsUnbound(pvc) {
+	if cc.IsUnbound(pvc) {
 		_, err := r.createPVCPrime(pvc, populationSource, nodeName != "", populator.updatePVCForPopulation)
 		if err != nil {
 			r.recorder.Eventf(pvc, corev1.EventTypeWarning, errCreatingPVCPrime, err.Error())
@@ -319,7 +323,7 @@ func (r *ReconcilerBase) reconcileCommon(pvc *corev1.PersistentVolumeClaim, popu
 		}
 	}
 
-	return pvcPrime, nil
+	return nil, nil
 }
 
 func (r *ReconcilerBase) reconcileCleanup(pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
