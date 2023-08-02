@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"kubevirt.io/containerized-data-importer/pkg/monitoring"
+	pv_krbd_rxbounce "kubevirt.io/containerized-data-importer/pkg/monitoring/rbd-volumes-collector"
 	"sort"
 )
 
@@ -31,6 +32,7 @@ func main() {
 	for _, opts := range monitoring.MetricOptsList {
 		metricsList = append(metricsList, opts)
 	}
+	metricsList = append(metricsList, pv_krbd_rxbounce.RbdPVMetricOpts)
 
 	sort.Slice(metricsList, func(i, j int) bool {
 		return metricsList[i].Name < metricsList[j].Name

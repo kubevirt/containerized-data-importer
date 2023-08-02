@@ -19,6 +19,8 @@ The number of CDI import pods with high restart count. Type: Gauge.
 Total number of incomplete and hence unusable StorageProfile. Type: Gauge.
 ### kubevirt_cdi_operator_up
 CDI operator status. Type: Gauge.
+### kubevirt_cdi_rbd_volume
+RBD mounted volume. Type: Gauge.
 ### kubevirt_cdi_upload_pods_high_restart
 The number of CDI upload server pods with high restart count. Type: Gauge.
 ## Developing new metrics

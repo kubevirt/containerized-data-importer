@@ -19,6 +19,7 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
@@ -37,6 +38,7 @@ import (
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/pkg/controller/transfer"
+	rbd_volumes_collector "kubevirt.io/containerized-data-importer/pkg/monitoring/rbd-volumes-collector"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
@@ -286,6 +288,12 @@ func start() {
 	}
 
 	klog.V(1).Infoln("created cdi controllers")
+
+	// Setup Collectors
+	factory := informers.NewSharedInformerFactory(client, 0)
+	pvcInformer := factory.Core().V1().PersistentVolumeClaims().Informer()
+	pvInformer := factory.Core().V1().PersistentVolumes().Informer()
+	rbd_volumes_collector.SetupCollector(pvcInformer, pvInformer)
 
 	if err := mgr.Start(ctx); err != nil {
 		klog.Errorf("Error running manager: %v", err)
