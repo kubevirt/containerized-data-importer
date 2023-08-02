@@ -66,6 +66,8 @@ ${LINK_OPERATIONS}
 __END__
 
 if [ "$OUTPUT_FORMAT" = "html" ]; then
+    # Skipping code-block formatting so it doesn't break the api-reference
+    sed -i 's|```||g' "$WORKDIR/definitions.adoc"
     # $$ has special meaning in asciidoc, we need to escape it
     sed -i 's|\$\$|+++$$+++|g' "$WORKDIR/definitions.adoc"
     sed -i '1 i\:last-update-label!:' "$WORKDIR/"*.adoc
