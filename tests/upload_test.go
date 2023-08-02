@@ -588,6 +588,56 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				Expect(err).ToNot(HaveOccurred())
 				Expect(deleted).To(BeTrue())
 			})
+
+			It("should cleanup appropriately even without volumeUploadSource", func() {
+				pvcDef := utils.UploadPopulationPVCDefinition()
+				controller.AddAnnotation(pvcDef, controller.AnnImmediateBinding, "")
+				pvc, err = f.CreatePVCFromDefinition(pvcDef)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verify PVC prime was created")
+				pvcPrime, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, populators.PVCPrimeName(pvc))
+				Expect(err).ToNot(HaveOccurred())
+
+				err = f.DynamicClient.Resource(uploadSourceGVR).Namespace(f.Namespace.Name).Delete(context.TODO(), "upload-populator-test", metav1.DeleteOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verify PVC prime annotation says ready")
+				found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvcPrime)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue())
+
+				checkUploadCertSecrets(pvcPrime)
+
+				By("Get an upload token")
+				token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(token).ToNot(BeEmpty())
+
+				By("Do upload")
+				Eventually(func() bool {
+					err = uploadImage(uploadProxyURL, token, http.StatusOK)
+					if err != nil {
+						fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+						return false
+					}
+					return true
+				}, timeout, 5*time.Second).Should(BeTrue(), "Upload should eventually succeed, even if initially pod is not ready")
+
+				By("Verify target PVC is bound")
+				err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verify content")
+				same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5100kbytes, 100000)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(same).To(BeTrue())
+
+				By("Wait for upload population pod to be deleted")
+				deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvcPrime), f.Namespace.Name, time.Second*20)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(deleted).To(BeTrue())
+			})
 		})
 
 		Context("archive", func() {
