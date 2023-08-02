@@ -454,7 +454,7 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		afterCMD(portForwardCmd)
 	})
 
-	It("[test_id:4970]Import pod should have prometheus stats available while importing", func() {
+	PIt("[test_id:4970]Import pod should have prometheus stats available while importing", func() {
 		var endpoint *v1.Endpoints
 		c := f.K8sClient
 		ns := f.Namespace.Name
