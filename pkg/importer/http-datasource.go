@@ -130,7 +130,7 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	if hs.contentType == cdiv1.DataVolumeArchive {
 		return ProcessingPhaseTransferDataDir, nil
 	}
-	if !hs.readers.Convert && (hs.readers.Archived || hs.customCA != "") {
+	if !hs.readers.Convert {
 		return ProcessingPhaseTransferDataFile, nil
 	}
 	// removing check for hs.brokenForQemuImg, and always assuming it is true

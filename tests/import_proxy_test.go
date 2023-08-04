@@ -204,7 +204,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreIso,
 				isHTTPS:       false,
 				withBasicAuth: false,
-				userAgent:     nbdKitUserAgent,
+				userAgent:     golangUserAgent,
 				expected:      BeTrue}),
 			Entry("succeed creating iso.gz import dv with a proxied server (http)", importProxyTestArguments{
 				name:          "dv-import-http-proxy",
@@ -231,7 +231,7 @@ var _ = Describe("Import Proxy tests", func() {
 				imgName:       tinyCoreIso,
 				isHTTPS:       false,
 				withBasicAuth: true,
-				userAgent:     nbdKitUserAgent,
+				userAgent:     golangUserAgent,
 				expected:      BeTrue}),
 			Entry("succeed creating iso.gz import dv with a proxied server (http) with basic autentication", importProxyTestArguments{
 				name:          "dv-import-http-proxy-auth",
