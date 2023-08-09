@@ -736,6 +736,8 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 }
 
 func (r *DataImportCronReconciler) updateDataImportCronSuccessCondition(ctx context.Context, dataImportCron *cdiv1.DataImportCron, format cdiv1.DataImportCronSourceFormat, snapshot *snapshotv1.VolumeSnapshot) error {
+	dataImportCron.Status.SourceFormat = &format
+
 	switch format {
 	case cdiv1.DataImportCronSourceFormatPvc:
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionTrue, "Latest import is up to date", upToDate)
