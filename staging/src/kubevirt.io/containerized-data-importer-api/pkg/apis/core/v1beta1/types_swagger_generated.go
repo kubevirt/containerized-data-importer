@@ -262,7 +262,7 @@ func (DataSourceList) SwaggerDoc() map[string]string {
 
 func (DataImportCron) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "DataImportCron defines a cron job for recurring polling/importing disk images as PVCs into a golden image namespace\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion\n+kubebuilder:resource:shortName=dic;dics,categories=all",
+		"": "DataImportCron defines a cron job for recurring polling/importing disk images as PVCs into a golden image namespace\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion\n+kubebuilder:resource:shortName=dic;dics,categories=all\n+kubebuilder:printcolumn:name=\"Format\",type=\"string\",JSONPath=\".status.sourceFormat\",description=\"The format in which created sources are saved\"",
 	}
 }
 
@@ -285,6 +285,7 @@ func (DataImportCronStatus) SwaggerDoc() map[string]string {
 		"lastImportedPVC":        "LastImportedPVC is the last imported PVC",
 		"lastExecutionTimestamp": "LastExecutionTimestamp is the time of the last polling",
 		"lastImportTimestamp":    "LastImportTimestamp is the time of the last import",
+		"sourceFormat":           "SourceFormat defines the format of the DataImportCron-created disk image sources",
 	}
 }
 

@@ -549,6 +549,11 @@ func (in *DataImportCronStatus) DeepCopyInto(out *DataImportCronStatus) {
 		in, out := &in.LastImportTimestamp, &out.LastImportTimestamp
 		*out = (*in).DeepCopy()
 	}
+	if in.SourceFormat != nil {
+		in, out := &in.SourceFormat, &out.SourceFormat
+		*out = new(DataImportCronSourceFormat)
+		**out = **in
+	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
 		*out = make([]DataImportCronCondition, len(*in))

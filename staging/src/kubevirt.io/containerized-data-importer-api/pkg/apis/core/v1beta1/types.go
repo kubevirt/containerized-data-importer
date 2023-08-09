@@ -533,6 +533,7 @@ type DataSourceList struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:storageversion
 // +kubebuilder:resource:shortName=dic;dics,categories=all
+// +kubebuilder:printcolumn:name="Format",type="string",JSONPath=".status.sourceFormat",description="The format in which created sources are saved"
 type DataImportCron struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -591,8 +592,10 @@ type DataImportCronStatus struct {
 	// LastExecutionTimestamp is the time of the last polling
 	LastExecutionTimestamp *metav1.Time `json:"lastExecutionTimestamp,omitempty"`
 	// LastImportTimestamp is the time of the last import
-	LastImportTimestamp *metav1.Time              `json:"lastImportTimestamp,omitempty"`
-	Conditions          []DataImportCronCondition `json:"conditions,omitempty" optional:"true"`
+	LastImportTimestamp *metav1.Time `json:"lastImportTimestamp,omitempty"`
+	// SourceFormat defines the format of the DataImportCron-created disk image sources
+	SourceFormat *DataImportCronSourceFormat `json:"sourceFormat,omitempty"`
+	Conditions   []DataImportCronCondition   `json:"conditions,omitempty" optional:"true"`
 }
 
 // ImportStatus of a currently in progress import
