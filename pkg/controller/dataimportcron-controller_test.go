@@ -902,6 +902,51 @@ var _ = Describe("All DataImportCron Tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(snapList.Items).To(BeEmpty())
 			})
+
+			It("Should not create snapshot from old storage class PVCs", func() {
+				cron = newDataImportCron(cronName)
+				dataSource = nil
+				retentionPolicy := cdiv1.DataImportCronRetainNone
+				cron.Spec.RetentionPolicy = &retentionPolicy
+				err := reconciler.client.Create(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				verifyConditions("Before DesiredDigest is set", false, false, false, noImport, noDigest, "", &snapshotv1.VolumeSnapshot{})
+
+				cc.AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
+				err = reconciler.client.Update(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				dataSource = &cdiv1.DataSource{}
+				verifyConditions("After DesiredDigest is set", false, false, false, noImport, outdated, noSource, &snapshotv1.VolumeSnapshot{})
+
+				imports := cron.Status.CurrentImports
+				Expect(imports).ToNot(BeNil())
+				Expect(imports).ToNot(BeEmpty())
+				dvName := imports[0].DataVolumeName
+				Expect(dvName).ToNot(BeEmpty())
+				digest := imports[0].Digest
+				Expect(digest).To(Equal(testDigest))
+
+				dv := &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(*dv.Spec.Source.Registry.URL).To(Equal(testRegistryURL + "@" + testDigest))
+				Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
+
+				prevSc := "previous-storage-class"
+				pvc := cc.CreatePvcInStorageClass(dv.Name, dv.Namespace, &prevSc, nil, nil, corev1.ClaimBound)
+				err = reconciler.client.Create(context.TODO(), pvc)
+				Expect(err).ToNot(HaveOccurred())
+				// DV GCed after hitting succeeded
+				err = reconciler.client.Delete(context.TODO(), dv)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+				snap := &snapshotv1.VolumeSnapshot{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), snap)
+				Expect(err).To(HaveOccurred())
+				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+			})
 		})
 	})
 })
