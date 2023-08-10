@@ -26,13 +26,11 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-// excludedMetrics defines the metrics to ignore,
-// open issue:https://github.com/kubevirt/containerized-data-importer/issues/2773
-// Do not add metrics to this list!
+// This should be used only for very rare cases where the naming conventions that are explained in the best practices:
+// https://sdk.operatorframework.io/docs/best-practices/observability-best-practices/#metrics-guidelines
+// should be ignored, open issue: https://github.com/kubevirt/containerized-data-importer/issues/2515.
 var excludedMetrics = map[string]struct{}{
-	"clone_progress":                                {},
-	"kubevirt_cdi_operator_up_total":                {},
-	"kubevirt_cdi_incomplete_storageprofiles_total": {},
+	"clone_progress": {},
 }
 
 func recordRulesDescToMetricList(mdl []monitoring.RecordRulesDesc) []monitoring.MetricOpts {

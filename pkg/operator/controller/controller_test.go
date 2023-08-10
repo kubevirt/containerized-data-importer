@@ -296,7 +296,7 @@ var _ = Describe("Controller", func() {
 				rule = obj.(*promv1.PrometheusRule)
 				cdiDownAlert := promv1.Rule{
 					Alert: "CDIOperatorDown",
-					Expr:  intstr.FromString("kubevirt_cdi_operator_up_total == 0"),
+					Expr:  intstr.FromString("kubevirt_cdi_operator_up == 0"),
 					For:   "5m",
 					Annotations: map[string]string{
 						"summary":     "CDI operator is down",

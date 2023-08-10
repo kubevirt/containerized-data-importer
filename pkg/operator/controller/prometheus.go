@@ -147,7 +147,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 	return []promv1.Rule{
 		generateAlertRule(
 			"CDIOperatorDown",
-			"kubevirt_cdi_operator_up_total == 0",
+			"kubevirt_cdi_operator_up == 0",
 			"5m",
 			map[string]string{
 				"summary":     "CDI operator is down",
@@ -177,10 +177,10 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		),
 		generateAlertRule(
 			"CDIDataVolumeUnusualRestartCount",
-			"kubevirt_cdi_import_dv_unusual_restartcount_total > 0 or kubevirt_cdi_upload_dv_unusual_restartcount_total > 0 or kubevirt_cdi_clone_dv_unusual_restartcount_total > 0",
+			"kubevirt_cdi_import_pods_high_restart > 0 or kubevirt_cdi_upload_pods_high_restart > 0 or kubevirt_cdi_clone_pods_high_restart > 0",
 			"5m",
 			map[string]string{
-				"summary":     "Cluster has DataVolumes (PVC population request) with an unusual restart count, meaning they are probably failing and need to be investigated",
+				"summary":     "Some CDI population workloads have an unusual restart count, meaning they are probably failing and need to be investigated",
 				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIDataVolumeUnusualRestartCount"),
 			},
 			map[string]string{
@@ -192,7 +192,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		),
 		generateAlertRule(
 			"CDIStorageProfilesIncomplete",
-			"kubevirt_cdi_incomplete_storageprofiles_total > 0",
+			"kubevirt_cdi_incomplete_storageprofiles > 0",
 			"5m",
 			map[string]string{
 				"summary":     "Incomplete StorageProfiles exist, accessMode/volumeMode cannot be inferred by CDI for PVC population request",
@@ -207,7 +207,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		),
 		generateAlertRule(
 			"CDIDataImportCronOutdated",
-			"kubevirt_cdi_dataimportcron_outdated_total > 0",
+			"kubevirt_cdi_dataimportcron_outdated_aggregated > 0",
 			"15m",
 			map[string]string{
 				"summary":     "DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule",
