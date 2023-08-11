@@ -176,30 +176,50 @@ func GetDriverFromVolume(ctx context.Context, c client.Client, pvc *corev1.Persi
 	return &pv.Spec.CSI.Driver, nil
 }
 
-// GetCompatibleVolumeSnapshotClass returns a VolumeSnapshotClass name that works for all PVCs
-func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, pvcs ...*corev1.PersistentVolumeClaim) (*string, error) {
-	var drivers []string
+// GetCommonDriver returns the name of the CSI driver shared by all PVCs
+func GetCommonDriver(ctx context.Context, c client.Client, pvcs ...*corev1.PersistentVolumeClaim) (*string, error) {
+	var result *string
+
 	for _, pvc := range pvcs {
 		driver, err := GetDriverFromVolume(ctx, c, pvc)
 		if err != nil {
 			return nil, err
 		}
 
-		if driver != nil {
-			drivers = append(drivers, *driver)
-			continue
+		if driver == nil {
+			sc, err := GetStorageClassForClaim(ctx, c, pvc)
+			if err != nil {
+				return nil, err
+			}
+
+			if sc == nil {
+				return nil, nil
+			}
+
+			driver = &sc.Provisioner
 		}
 
-		sc, err := GetStorageClassForClaim(ctx, c, pvc)
-		if err != nil {
-			return nil, err
+		if result == nil {
+			result = driver
 		}
 
-		if sc == nil {
+		if *result != *driver {
 			return nil, nil
 		}
+	}
 
-		drivers = append(drivers, sc.Provisioner)
+	return result, nil
+}
+
+// GetCompatibleVolumeSnapshotClass returns a VolumeSnapshotClass name that works for all PVCs
+func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, pvcs ...*corev1.PersistentVolumeClaim) (*string, error) {
+	driver, err := GetCommonDriver(ctx, c, pvcs...)
+	if err != nil {
+		return nil, err
+	}
+
+	if driver == nil {
+		return nil, nil
 	}
 
 	volumeSnapshotClasses := &snapshotv1.VolumeSnapshotClassList{}
@@ -212,14 +232,7 @@ func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, pvcs
 
 	var candidates []string
 	for _, vcs := range volumeSnapshotClasses.Items {
-		matches := true
-		for _, driver := range drivers {
-			if driver != vcs.Driver {
-				matches = false
-				break
-			}
-		}
-		if matches {
+		if *driver == vcs.Driver {
 			candidates = append(candidates, vcs.Name)
 		}
 	}
