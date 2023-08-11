@@ -711,10 +711,9 @@ var _ = Describe("All DataImportCron Tests", func() {
 			cron.Annotations[AnnSourceDesiredDigest] = testDigest
 
 			cron.Labels = map[string]string{}
-			cron.Labels[cc.LabelDefaultInstancetype] = cc.LabelDefaultInstancetype
-			cron.Labels[cc.LabelDefaultInstancetypeKind] = cc.LabelDefaultInstancetypeKind
-			cron.Labels[cc.LabelDefaultPreference] = cc.LabelDefaultPreference
-			cron.Labels[cc.LabelDefaultPreferenceKind] = cc.LabelDefaultPreferenceKind
+			for _, defaultInstanceTypeLabel := range cc.DefaultInstanceTypeLabels {
+				cron.Labels[defaultInstanceTypeLabel] = defaultInstanceTypeLabel
+			}
 			cron.Labels[cc.LabelDynamicCredentialSupport] = "true"
 
 			reconciler = createDataImportCronReconciler(cron)
@@ -731,10 +730,9 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(dvName).ToNot(BeEmpty())
 
 			expectLabels := func(labels map[string]string) {
-				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultInstancetype, cc.LabelDefaultInstancetype))
-				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultInstancetypeKind, cc.LabelDefaultInstancetypeKind))
-				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultPreference, cc.LabelDefaultPreference))
-				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDefaultPreferenceKind, cc.LabelDefaultPreferenceKind))
+				for _, defaultInstanceTypeLabel := range cc.DefaultInstanceTypeLabels {
+					ExpectWithOffset(1, labels).To(HaveKeyWithValue(defaultInstanceTypeLabel, defaultInstanceTypeLabel))
+				}
 				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDynamicCredentialSupport, "true"))
 			}
 
