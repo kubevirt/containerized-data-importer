@@ -307,8 +307,8 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 		if err != nil {
 			return ProcessingPhaseError, err
 		}
-		dp.preallocationApplied = dp.preallocation
 	}
+	dp.preallocationApplied = dp.preallocation
 	if dp.dataFile != "" && !isBlockDev {
 		// Change permissions to 0660
 		err := os.Chmod(dp.dataFile, 0660)

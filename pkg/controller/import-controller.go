@@ -601,19 +601,19 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 
 		var field string
 		if field, err = GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP); err != nil {
-			r.log.V(3).Info("no proxy http url will be supplied:", err.Error())
+			r.log.V(3).Info("no proxy http url will be supplied:", "error", err.Error())
 		}
 		podEnvVar.httpProxy = field
 		if field, err = GetImportProxyConfig(cdiConfig, common.ImportProxyHTTPS); err != nil {
-			r.log.V(3).Info("no proxy https url will be supplied:", err.Error())
+			r.log.V(3).Info("no proxy https url will be supplied:", "error", err.Error())
 		}
 		podEnvVar.httpsProxy = field
 		if field, err = GetImportProxyConfig(cdiConfig, common.ImportProxyNoProxy); err != nil {
-			r.log.V(3).Info("the noProxy field will not be supplied:", err.Error())
+			r.log.V(3).Info("the noProxy field will not be supplied:", "error", err.Error())
 		}
 		podEnvVar.noProxy = field
 		if field, err = GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName); err != nil {
-			r.log.V(3).Info("no proxy CA certiticate will be supplied:", err.Error())
+			r.log.V(3).Info("no proxy CA certiticate will be supplied:", "error", err.Error())
 		}
 		podEnvVar.certConfigMapProxy = field
 	}
