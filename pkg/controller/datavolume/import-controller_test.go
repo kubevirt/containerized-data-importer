@@ -269,10 +269,9 @@ var _ = Describe("All DataVolume Tests", func() {
 		It("Should pass labels from DV to PVC", func() {
 			dv := NewImportDataVolume("test-dv")
 			dv.Labels = map[string]string{}
-			dv.Labels[LabelDefaultInstancetype] = LabelDefaultInstancetype
-			dv.Labels[LabelDefaultInstancetypeKind] = LabelDefaultInstancetypeKind
-			dv.Labels[LabelDefaultPreference] = LabelDefaultPreference
-			dv.Labels[LabelDefaultPreferenceKind] = LabelDefaultPreferenceKind
+			for _, defaultInstanceTypeLabel := range DefaultInstanceTypeLabels {
+				dv.Labels[defaultInstanceTypeLabel] = defaultInstanceTypeLabel
+			}
 			dv.Labels[LabelDynamicCredentialSupport] = "true"
 
 			reconciler = createImportReconciler(dv)
@@ -284,10 +283,9 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(pvc.Name).To(Equal("test-dv"))
-			Expect(pvc.Labels).To(HaveKeyWithValue(LabelDefaultInstancetype, LabelDefaultInstancetype))
-			Expect(pvc.Labels).To(HaveKeyWithValue(LabelDefaultInstancetypeKind, LabelDefaultInstancetypeKind))
-			Expect(pvc.Labels).To(HaveKeyWithValue(LabelDefaultPreference, LabelDefaultPreference))
-			Expect(pvc.Labels).To(HaveKeyWithValue(LabelDefaultPreferenceKind, LabelDefaultPreferenceKind))
+			for _, defaultInstanceTypeLabel := range DefaultInstanceTypeLabels {
+				Expect(pvc.Labels).To(HaveKeyWithValue(defaultInstanceTypeLabel, defaultInstanceTypeLabel))
+			}
 			Expect(pvc.Labels).To(HaveKeyWithValue(LabelDynamicCredentialSupport, "true"))
 		})
 

@@ -568,10 +568,9 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 	dataSourceCopy := dataSource.DeepCopy()
 	r.setDataImportCronResourceLabels(dataImportCron, dataSource)
 
-	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultInstancetype)
-	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultInstancetypeKind)
-	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultPreference)
-	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDefaultPreferenceKind)
+	for _, defaultInstanceTypeLabel := range cc.DefaultInstanceTypeLabels {
+		passCronLabelToDataSource(dataImportCron, dataSource, defaultInstanceTypeLabel)
+	}
 
 	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDynamicCredentialSupport)
 
@@ -1260,10 +1259,9 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	cc.AddAnnotation(dv, cc.AnnImmediateBinding, "true")
 	passCronAnnotationToDv(cron, dv, cc.AnnPodRetainAfterCompletion)
 
-	passCronLabelToDv(cron, dv, cc.LabelDefaultInstancetype)
-	passCronLabelToDv(cron, dv, cc.LabelDefaultInstancetypeKind)
-	passCronLabelToDv(cron, dv, cc.LabelDefaultPreference)
-	passCronLabelToDv(cron, dv, cc.LabelDefaultPreferenceKind)
+	for _, defaultInstanceTypeLabel := range cc.DefaultInstanceTypeLabels {
+		passCronLabelToDv(cron, dv, defaultInstanceTypeLabel)
+	}
 
 	passCronLabelToDv(cron, dv, cc.LabelDynamicCredentialSupport)
 

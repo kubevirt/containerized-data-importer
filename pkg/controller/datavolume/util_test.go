@@ -5,16 +5,19 @@ import (
 	"strconv"
 
 	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/pointer"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -97,6 +100,165 @@ var _ = Describe("resolveVolumeSize", func() {
 	})
 })
 
+var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
+
+	const (
+		namespace            = "namespace"
+		sourcePVCName        = "sourcePVC"
+		sourceDataSourceName = "sourceDataSource"
+	)
+
+	var (
+		fakeClient                     client.Client
+		dataVolumeWithSourcePVC        cdiv1.DataVolume
+		dataVolumeWithSourceDataSource cdiv1.DataVolume
+	)
+
+	defaultInstancetypeLabelMap := map[string]string{
+		LabelDefaultInstancetype:     LabelDefaultInstancetype,
+		LabelDefaultInstancetypeKind: LabelDefaultInstancetypeKind,
+		LabelDefaultPreference:       LabelDefaultPreference,
+		LabelDefaultPreferenceKind:   LabelDefaultPreferenceKind,
+	}
+
+	BeforeEach(func() {
+		dataVolumeWithSourcePVC = cdiv1.DataVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pvc-datavolume",
+				Namespace: namespace,
+			},
+			Spec: cdiv1.DataVolumeSpec{
+				Source: &cdiv1.DataVolumeSource{
+					PVC: &cdiv1.DataVolumeSourcePVC{
+						Name:      sourcePVCName,
+						Namespace: namespace,
+					},
+				},
+			},
+		}
+
+		dataVolumeWithSourceDataSource = cdiv1.DataVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "datasource-datavolume",
+				Namespace: namespace,
+			},
+			Spec: cdiv1.DataVolumeSpec{
+				SourceRef: &cdiv1.DataVolumeSourceRef{
+					Kind:      cdiv1.DataVolumeDataSource,
+					Name:      sourceDataSourceName,
+					Namespace: pointer.String(namespace),
+				},
+			},
+		}
+		fakeClient = createClient(
+			&corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      sourcePVCName,
+					Namespace: namespace,
+					Labels:    defaultInstancetypeLabelMap,
+				},
+			},
+			&cdiv1.DataSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      sourceDataSourceName,
+					Namespace: namespace,
+					Labels:    defaultInstancetypeLabelMap,
+				},
+				Spec: cdiv1.DataSourceSpec{
+					Source: cdiv1.DataSourceSource{
+						PVC: &cdiv1.DataVolumeSourcePVC{
+							Name: sourcePVCName,
+						},
+					},
+				},
+			},
+		)
+	})
+
+	table.DescribeTable("should update DataVolume with labels from source using", func(dataVolume *cdiv1.DataVolume) {
+		syncState := &dvSyncState{
+			dvMutated: dataVolume,
+		}
+		Expect(syncState.dvMutated.Labels).To(BeEmpty())
+		Expect(updateDataVolumeDefaultInstancetypeLabels(fakeClient, syncState)).To(Succeed())
+		Expect(syncState.dvMutated.Labels).ToNot(BeEmpty())
+		for k, v := range defaultInstancetypeLabelMap {
+			Expect(syncState.dvMutated.Labels).To(HaveKeyWithValue(k, v))
+		}
+	},
+		table.Entry("PVC", &dataVolumeWithSourcePVC),
+		table.Entry("dataSource", &dataVolumeWithSourceDataSource),
+	)
+
+	table.DescribeTable("should not update DataVolume with labels from source if already present using", func(dataVolume *cdiv1.DataVolume) {
+		const customDefaultInstancetype = "customDefaultInstancetype"
+		dv := dataVolume
+		dv.Labels = map[string]string{
+			LabelDefaultInstancetype: customDefaultInstancetype,
+		}
+		syncState := &dvSyncState{
+			dvMutated: dv,
+		}
+
+		Expect(updateDataVolumeDefaultInstancetypeLabels(fakeClient, syncState)).To(Succeed())
+		Expect(syncState.dvMutated.Labels).To(HaveLen(1))
+		Expect(syncState.dvMutated.Labels).To(HaveKeyWithValue(LabelDefaultInstancetype, customDefaultInstancetype))
+	},
+		table.Entry("PVC", &dataVolumeWithSourcePVC),
+		table.Entry("DataSource", &dataVolumeWithSourceDataSource),
+	)
+
+	table.DescribeTable("should ignore IsNotFound errors", func(dataVolume *cdiv1.DataVolume) {
+		syncState := &dvSyncState{
+			dvMutated: dataVolume,
+		}
+		Expect(updateDataVolumeDefaultInstancetypeLabels(fakeClient, syncState)).To(Succeed())
+	},
+		table.Entry("PVC", &cdiv1.DataVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pvc-datavolume",
+				Namespace: namespace,
+			},
+			Spec: cdiv1.DataVolumeSpec{
+				Source: &cdiv1.DataVolumeSource{
+					PVC: &cdiv1.DataVolumeSourcePVC{
+						Name:      "unknown",
+						Namespace: namespace,
+					},
+				},
+			},
+		}),
+		table.Entry("DataSource", &cdiv1.DataVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "datasource-datavolume",
+				Namespace: namespace,
+			},
+			Spec: cdiv1.DataVolumeSpec{
+				SourceRef: &cdiv1.DataVolumeSourceRef{
+					Kind:      cdiv1.DataVolumeDataSource,
+					Name:      "unknown",
+					Namespace: pointer.String(namespace),
+				},
+			},
+		}),
+	)
+
+	table.DescribeTable("should return all non IsNotFound errors", func(dataVolume *cdiv1.DataVolume) {
+		err := updateDataVolumeDefaultInstancetypeLabels(
+			fakeClientWithGetServiceUnavailableErr{
+				fakeClient,
+			},
+			&dvSyncState{
+				dvMutated: dataVolume,
+			},
+		)
+		Expect(errors.IsServiceUnavailable(err)).To(BeTrue())
+	},
+		table.Entry("PVC", &dataVolumeWithSourcePVC),
+		table.Entry("DataSource", &dataVolumeWithSourceDataSource),
+	)
+})
+
 func createDataVolumeWithStorageAPI(name, ns string, source *cdiv1.DataVolumeSource, storageSpec *cdiv1.StorageSpec) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
@@ -118,4 +280,12 @@ func createClient(objs ...runtime.Object) client.Client {
 	_ = ocpconfigv1.Install(s)
 	// Create a fake client to mock API calls.
 	return fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
+}
+
+type fakeClientWithGetServiceUnavailableErr struct {
+	client.Client
+}
+
+func (c fakeClientWithGetServiceUnavailableErr) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	return errors.NewServiceUnavailable("error")
 }
