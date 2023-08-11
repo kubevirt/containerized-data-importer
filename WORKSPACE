@@ -2499,18 +2499,6 @@ rpm(
 )
 
 rpm(
-    name = "nbdkit-server-0__1.30.1-2.el9.aarch64",
-    sha256 = "66a465ea8d131491fb581082ec7c5044c3918e6d2016db361796cd76cb4286ee",
-    urls = ["https://storage.googleapis.com/builddeps/66a465ea8d131491fb581082ec7c5044c3918e6d2016db361796cd76cb4286ee"],
-)
-
-rpm(
-    name = "nbdkit-server-0__1.30.1-2.el9.x86_64",
-    sha256 = "3e677a5613e9fea1bc27503e282222b7131db4f177d9222948313c912c57b610",
-    urls = ["https://storage.googleapis.com/builddeps/3e677a5613e9fea1bc27503e282222b7131db4f177d9222948313c912c57b610"],
-)
-
-rpm(
     name = "nbdkit-server-0__1.34.1-1.el9.aarch64",
     sha256 = "92c9b1ea142bfae32266ea15522f82e12ed68bbd03dd6eca09f8e38b36c16332",
     urls = [

@@ -130,20 +130,13 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	if hs.contentType == cdiv1.DataVolumeArchive {
 		return ProcessingPhaseTransferDataDir, nil
 	}
-	if hs.readers.Convert {
-		if hs.brokenForQemuImg || hs.readers.Archived || hs.customCA != "" {
-			return ProcessingPhaseTransferScratch, nil
-		}
-	} else {
-		if hs.readers.Archived || hs.customCA != "" {
-			return ProcessingPhaseTransferDataFile, nil
-		}
+	if !hs.readers.Convert {
+		return ProcessingPhaseTransferDataFile, nil
 	}
-	hs.url, _ = url.Parse(fmt.Sprintf("nbd+unix:///?socket=%s", nbdkitSocket))
-	if err = hs.n.StartNbdkit(hs.endpoint.String()); err != nil {
-		return ProcessingPhaseError, err
-	}
-	return ProcessingPhaseConvert, nil
+	// removing check for hs.brokenForQemuImg, and always assuming it is true
+	// revert once we are able to get nbdkit 1.35.8, which contains a fix for the
+	// slow download speed.
+	return ProcessingPhaseTransferScratch, nil
 }
 
 // Transfer is called to transfer the data from the source to a scratch location.
