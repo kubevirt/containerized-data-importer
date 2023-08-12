@@ -484,6 +484,35 @@ var _ = Describe("Planner test", func() {
 				Expect(csr).ToNot(BeNil())
 				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategyCsiClone))
 			})
+
+			It("should return host assisted if csi-clone in storage profile is set but source is different driver", func() {
+				cs := cdiv1.CloneStrategyCsiClone
+				args := &ChooseStrategyArgs{
+					TargetClaim: createTargetClaim(),
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				sp := &cdiv1.StorageProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: storageClassName,
+					},
+					Status: cdiv1.StorageProfileStatus{
+						CloneStrategy: &cs,
+					},
+				}
+				sourceClaim := createSourceClaim()
+				sourceClaim.Spec.StorageClassName = pointer.String("foo")
+				sourceVolume := createSourceVolume()
+				sourceVolume.Spec.StorageClassName = "foo"
+				sourceVolume.Spec.PersistentVolumeSource.CSI.Driver = "baz"
+				planner := createPlanner(sp, createStorageClass(), sourceClaim, sourceVolume)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				Expect(csr.FallbackReason).ToNot(BeNil())
+				Expect(*csr.FallbackReason).To(Equal(MessageIncompatibleProvisioners))
+			})
 		})
 
 		Context("Snapshot source", func() {

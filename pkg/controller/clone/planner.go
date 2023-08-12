@@ -62,6 +62,12 @@ const (
 
 	// MessageNoProvisionerMatch reports that the storageclass provisioner does not match the volumesnapshotcontent driver (message)
 	MessageNoProvisionerMatch = "The storageclass provisioner does not match the volumesnapshotcontent driver"
+
+	// IncompatibleProvisioners reports that the provisioners are incompatible (reason)
+	IncompatibleProvisioners = "IncompatibleProvisioners"
+
+	// MessageIncompatibleProvisioners reports that the provisioners are incompatible (message)
+	MessageIncompatibleProvisioners = "Provisioners are incompatible"
 )
 
 // Planner plans clone operations
@@ -447,6 +453,17 @@ func (p *Planner) validateSourcePVC(args *ChooseStrategyArgs, sourceClaim *corev
 }
 
 func (p *Planner) validateAdvancedClonePVC(ctx context.Context, args *ChooseStrategyArgs, res *ChooseStrategyResult, sourceClaim *corev1.PersistentVolumeClaim) error {
+	driver, err := GetCommonDriver(ctx, p.Client, sourceClaim, args.TargetClaim)
+	if err != nil {
+		return err
+	}
+
+	if driver == nil {
+		p.fallbackToHostAssisted(args.TargetClaim, res, IncompatibleProvisioners, MessageIncompatibleProvisioners)
+		args.Log.V(3).Info("CSIDrivers not compatible for advanced clone")
+		return nil
+	}
+
 	if !SameVolumeMode(sourceClaim, args.TargetClaim) {
 		p.fallbackToHostAssisted(args.TargetClaim, res, IncompatibleVolumeModes, MessageIncompatibleVolumeModes)
 		args.Log.V(3).Info("volume modes not compatible for advanced clone")
