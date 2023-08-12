@@ -94,16 +94,11 @@ var _ = Describe("Http data source", func() {
 		if !wantErr {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(expectedPhase).To(Equal(newPhase))
-			if newPhase == ProcessingPhaseConvert {
-				expectURL, err := url.Parse("nbd+unix:///?socket=/tmp/nbdkit.sock")
-				Expect(err).NotTo(HaveOccurred())
-				Expect(expectURL).To(Equal(dp.GetURL()))
-			}
 		} else {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		table.Entry("return Convert phase ", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseConvert, cirrosData, false),
+		table.Entry("return TransferScratch phase ", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseTransferScratch, cirrosData, false),
 		table.Entry("return TransferTarget with archive content type but not archive endpoint ", cirrosFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, cirrosData, false),
 		table.Entry("return TransferTarget with archive content type and archive endpoint ", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, diskimageArchiveData, false),
 	)

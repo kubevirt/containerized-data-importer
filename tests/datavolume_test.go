@@ -1717,25 +1717,25 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			var sourcePod *v1.Pod
 			var uploadPod *v1.Pod
-			Eventually(func() bool {
+			Eventually(func() error {
 				uploadPod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.UploadPodName, common.CDILabelSelector)
-				return err == nil
-			}, timeout, pollingInterval).Should(BeTrue())
+				return err
+			}, timeout, pollingInterval).Should(BeNil())
 			verifyAnnotations(uploadPod)
 			// Remove non existent network so upload pod succeeds and clone can continue (some envs like OpenShift check network validity)
-			Eventually(func() bool {
+			Eventually(func() error {
 				uploadPod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
 				if err != nil {
-					return false
+					return err
 				}
 				delete(uploadPod.Annotations, controller.AnnPodNetwork)
 				_, err = f.K8sClient.CoreV1().Pods(dataVolume.Namespace).Update(context.TODO(), uploadPod, metav1.UpdateOptions{})
-				return err == nil
-			}, 60*time.Second, 2*time.Second).Should(BeTrue())
-			Eventually(func() bool {
+				return err
+			}, 60*time.Second, 2*time.Second).Should(BeNil())
+			Eventually(func() error {
 				sourcePod, err = utils.FindPodBySuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
-				return err == nil
-			}, timeout, pollingInterval).Should(BeTrue())
+				return err
+			}, timeout, pollingInterval).Should(BeNil())
 			verifyAnnotations(sourcePod)
 		})
 	})
@@ -2859,14 +2859,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			// here we want to have more than 0, to be sure it started
-			progressRegExp := regexp.MustCompile(`[1-9]\d{0,2}\.?\d{1,2}%`)
-			Eventually(func() bool {
+			Eventually(func() string {
 				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
-				progress := dv.Status.Progress
-				fmt.Fprintf(GinkgoWriter, "INFO: current progress:%v, matches:%v\n", progress, progressRegExp.MatchString(string(progress)))
-				return progressRegExp.MatchString(string(progress))
-			}, timeout, pollingInterval).Should(BeTrue())
+				return string(dv.Status.Progress)
+			}, timeout, pollingInterval).Should(Equal("N/A"))
 
 			By("Remove source image file & kill http container to force restart")
 			fileHostPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, utils.FileHostName, "name="+utils.FileHostName)
