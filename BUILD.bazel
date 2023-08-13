@@ -65,6 +65,7 @@ container_bundle(
         "$(container_prefix)/vddk-test:$(container_tag)": "//tools/vddk-test:vddk-test-image",
         "$(container_prefix)/cdi-func-test-tinycore:$(container_tag)": "//tests:cdi-func-test-tinycore",
         "$(container_prefix)/cdi-func-test-imageio:$(container_tag)": "//tools/image-io:cdi-func-test-imageio-image",
+        "$(container_prefix)/cdi-func-test-cirros-qcow2:$(container_tag)": "//tests:cdi-func-test-cirros-qcow2",
     },
 )
 
@@ -83,6 +84,7 @@ container_bundle(
         "$(container_prefix)/vcenter-simulator:$(container_tag)": "//tools/vddk-test:vcenter-simulator",
         "$(container_prefix)/cdi-func-test-tinycore:$(container_tag)": "//tests:cdi-func-test-tinycore",
         "$(container_prefix)/cdi-func-test-imageio:$(container_tag)": "//tools/image-io:cdi-func-test-imageio-image",
+        "$(container_prefix)/cdi-func-test-cirros-qcow2:$(container_tag)": "//tests:cdi-func-test-cirros-qcow2",
     },
 )
 

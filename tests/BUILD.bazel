@@ -142,3 +142,17 @@ container_image(
     tars = [":tinycore-tar"],
     visibility = ["//visibility:public"],
 )
+
+pkg_tar(
+    name = "cirros-qcow2-tar",
+    srcs = [":images/cirros-qcow2.img"],
+    owner = "107.107",
+    package_dir = "/disk",
+    strip_prefix = "/tests/images",
+)
+
+container_image(
+    name = "cdi-func-test-cirros-qcow2",
+    tars = [":cirros-qcow2-tar"],
+    visibility = ["//visibility:public"],
+)
