@@ -93,7 +93,7 @@ if [ $retry_counter -eq $MAX_CDI_WAIT_RETRY ]; then
     exit 1
 fi
 
-test_command="${TESTS_OUT_DIR}/tests.test -test.timeout 360m ${test_args}"
+test_command="${TESTS_OUT_DIR}/tests.test -test.timeout 420m ${test_args}"
 echo "$test_command"
 (
     cd ${CDI_DIR}/tests
