@@ -82,6 +82,7 @@ type importPodEnvVar struct {
 	certConfigMap      string
 	diskID             string
 	uuid               string
+	pullMethod         string
 	readyFile          string
 	doneFile           string
 	backingFile        string
@@ -979,6 +980,7 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 
 	args.podEnvVar.source = cc.SourceHTTP
 	args.podEnvVar.ep = "http://localhost:8100/disk.img"
+	args.podEnvVar.pullMethod = string(cdiv1.RegistryPullNode)
 	args.podEnvVar.readyFile = "/shared/ready"
 	args.podEnvVar.doneFile = "/shared/done"
 	setImporterPodCommons(pod, args.podEnvVar, args.pvc, args.podResourceRequirements, args.imagePullSecrets)
@@ -1258,6 +1260,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.ImporterUUID,
 			Value: podEnvVar.uuid,
+		},
+		{
+			Name:  common.ImporterPullMethod,
+			Value: podEnvVar.pullMethod,
 		},
 		{
 			Name:  common.ImporterReadyFile,

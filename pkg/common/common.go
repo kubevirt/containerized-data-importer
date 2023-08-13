@@ -107,6 +107,8 @@ const (
 	ImporterDiskID = "IMPORTER_DISK_ID"
 	// ImporterUUID provides a constant to capture our env variable "IMPORTER_UUID"
 	ImporterUUID = "IMPORTER_UUID"
+	// ImporterPullMethod provides a constant to capture our env variable "IMPORTER_PULL_METHOD"
+	ImporterPullMethod = "IMPORTER_PULL_METHOD"
 	// ImporterReadyFile provides a constant to capture our env variable "IMPORTER_READY_FILE"
 	ImporterReadyFile = "IMPORTER_READY_FILE"
 	// ImporterDoneFile provides a constant to capture our env variable "IMPORTER_DONE_FILE"

@@ -1093,18 +1093,19 @@ var _ = Describe("Preallocation", func() {
 	dvName := "import-dv"
 
 	var (
-		dataVolume          *cdiv1.DataVolume
-		err                 error
-		tinyCoreIsoURL      = func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
-		tinyCoreQcow2URL    = func() string { return fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs) }
-		tinyCoreTarURL      = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
-		tinyCoreRegistryURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
-		imageioURL          = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
-		vcenterURL          = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
-		config              *cdiv1.CDIConfig
-		origSpec            *cdiv1.CDIConfigSpec
-		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
-		trustedRegistryIS   = func() string { return fmt.Sprintf(utils.TrustedRegistryIS, f.DockerPrefix) }
+		dataVolume              *cdiv1.DataVolume
+		err                     error
+		tinyCoreIsoURL          = func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
+		tinyCoreQcow2URL        = func() string { return fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs) }
+		tinyCoreTarURL          = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
+		tinyCoreRegistryURL     = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
+		imageioURL              = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
+		vcenterURL              = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
+		config                  *cdiv1.CDIConfig
+		origSpec                *cdiv1.CDIConfigSpec
+		trustedRegistryURL      = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
+		trustedRegistryURLQcow2 = func() string { return fmt.Sprintf(utils.TrustedRegistryURLQcow2, f.DockerPrefix) }
+		trustedRegistryIS       = func() string { return fmt.Sprintf(utils.TrustedRegistryIS, f.DockerPrefix) }
 	)
 
 	BeforeEach(func() {
@@ -1310,9 +1311,15 @@ var _ = Describe("Preallocation", func() {
 			dataVolume.Spec.Source.Registry.CertConfigMap = &cm
 			return dataVolume
 		}),
-		Entry("Registry node pull import", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
+		Entry("Registry node pull import raw", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
 			pullMethod := cdiv1.RegistryPullNode
 			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", trustedRegistryURL())
+			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
+			return dataVolume
+		}),
+		Entry("Registry node pull import qcow2", true, utils.CirrosMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
+			pullMethod := cdiv1.RegistryPullNode
+			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", trustedRegistryURLQcow2())
 			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
 			return dataVolume
 		}),
