@@ -89,6 +89,8 @@ const (
 	VcenterURL = "https://vcenter.%s:8989/sdk"
 	// TrustedRegistryURL provides the base path to trusted registry test url for the tinycore.iso image wrapped in docker container
 	TrustedRegistryURL = "docker://%s/cdi-func-test-tinycore"
+	// TrustedRegistryURLQcow2 provides the base path to trusted registry test url for the cirros qcow2 image wrapped in docker container
+	TrustedRegistryURLQcow2 = "docker://%s/cdi-func-test-cirros-qcow2"
 	// TrustedRegistryIS provides the base path to trusted registry test fake imagestream for the tinycore.iso image wrapped in docker container
 	TrustedRegistryIS = "%s/cdi-func-test-tinycore"
 
@@ -96,6 +98,8 @@ const (
 	MD5PrefixSize = int64(100000)
 	// TinyCoreMD5 is the MD5 hash of first 100k bytes of tinyCore image
 	TinyCoreMD5 = "3710416a680523c7d07538cb1026c60c"
+	// CirrosMD5 is the MD5 hash of first 100k bytes of cirros image
+	CirrosMD5 = "91150be031835ccfac458744da57d4f6"
 	// TinyCoreTarMD5 is the MD5 hash of first 100k bytes of tinyCore tar image
 	TinyCoreTarMD5 = "aec1a39d753b4b7cc81ee02bc625a342"
 	// ImageioMD5 is the MD5 hash of first 100k bytes of imageio image

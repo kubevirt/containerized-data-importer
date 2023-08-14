@@ -1048,6 +1048,10 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 			Value: podEnvVar.uuid,
 		},
 		{
+			Name:  common.ImporterPullMethod,
+			Value: podEnvVar.pullMethod,
+		},
+		{
 			Name:  common.ImporterReadyFile,
 			Value: podEnvVar.readyFile,
 		},

@@ -123,7 +123,7 @@ func convertToRaw(src, dest string, preallocate bool) error {
 			return qemuExecFunction(nil, reportProgress, "qemu-img", args...)
 		})
 	} else {
-		klog.V(3).Infof("Running qemu-img convert with args: %v", args)
+		klog.V(1).Infof("Running qemu-img with args: %v", args)
 		_, err = qemuExecFunction(nil, reportProgress, "qemu-img", args...)
 	}
 	if err != nil {
@@ -333,7 +333,7 @@ func addPreallocation(args []string, preallocationMethods [][]string, qemuFn fun
 		// For some subcommands (e.g. resize), preallocation optinos must come before other options
 		argsToTry := append([]string{args[0]}, preallocationMethod...)
 		argsToTry = append(argsToTry, args[1:]...)
-		klog.V(3).Infof("Attempting preallocation method, qemu-img convert args: %v", argsToTry)
+		klog.V(1).Infof("Attempting preallocation method, qemu-img args: %v", argsToTry)
 
 		output, err = qemuFn(argsToTry)
 		if err != nil && strings.Contains(string(output), "Unsupported preallocation mode") {
