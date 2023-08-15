@@ -1,2 +1,12 @@
 v1.57.0-rc1
 release candidate 1
+
+v1.57.0
+BugFix: Update populator CRDs roles to include cluster-readers (#2806)
+Enhancement: Set clone strategy for ceph to CSI clone (#2817)
+Enhancement: Annotate PVC with host-assisted clone fallback reason; add missing events (#2824)
+BugFix: Fix DIC returned reconcile.Result for ImageStream (#2826)
+BugFix: Fix race condition in populators so we clean PVC' after population in all cases (#2833)
+BugFix: Always use scratchspace when importing and converting (#2832) (#2841)
+BugFix: Fix broken local -> rook-ceph-block clone (#2842)
+BugFix: Don't use scratch space for registry node pull imports (#2846)
