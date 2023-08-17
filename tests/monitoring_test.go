@@ -47,7 +47,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 	waitForIncompleteMetricInitialization := func() {
 		Eventually(func() int {
-			return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles_total")
+			return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles")
 		}, 2*time.Minute, 1*time.Second).ShouldNot(Equal(-1))
 	}
 
@@ -60,7 +60,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		cdiPods = getCDIPods(f)
 
 		waitForIncompleteMetricInitialization()
-		originalMetricVal = getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles_total")
+		originalMetricVal = getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles")
 	})
 
 	AfterEach(func() {
@@ -82,7 +82,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		}
 
 		Eventually(func() int {
-			return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles_total")
+			return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles")
 		}, 5*time.Minute, 5*time.Second).Should(BeNumerically("==", originalMetricVal))
 	})
 
@@ -150,7 +150,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 			expectedIncomplete := originalMetricVal + numAddedStorageClasses
 			Eventually(func() int {
-				return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles_total")
+				return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles")
 			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", expectedIncomplete))
 
 			By("Check that the CDIStorageProfilesIncomplete alert is triggered")
@@ -167,7 +167,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				expectedIncomplete--
 				Eventually(func() int {
-					return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles_total")
+					return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles")
 				}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", expectedIncomplete))
 			}
 		})
@@ -185,13 +185,13 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 			By("Metric stays the same because we don't support this provisioner")
 			Consistently(func() int {
-				return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles_total")
+				return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles")
 			}, metricPollingTimeout, metricPollingInterval).Should(Equal(originalMetricVal))
 		})
 
 		It("[test_id:7964] DataImportCron failing metric expected value when patching DesiredDigest annotation with junk sha256 value", func() {
 			numCrons := 2
-			originalCronMetricVal := getMetricValue(f, "kubevirt_cdi_dataimportcron_outdated_total")
+			originalCronMetricVal := getMetricValue(f, "kubevirt_cdi_dataimportcron_outdated_aggregated")
 			expectedFailingCrons := originalCronMetricVal + numCrons
 
 			reg, err := getDataVolumeSourceRegistry(f)
@@ -227,7 +227,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				}, dataImportCronTimeout, pollingInterval).Should(BeNil())
 				By(fmt.Sprintf("Ensuring metric value incremented to %d", originalCronMetricVal+i))
 				Eventually(func() int {
-					return getMetricValue(f, "kubevirt_cdi_dataimportcron_outdated_total")
+					return getMetricValue(f, "kubevirt_cdi_dataimportcron_outdated_aggregated")
 				}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", originalCronMetricVal+i))
 			}
 			By("Ensure metric value decrements when crons are cleaned up")
@@ -235,7 +235,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Delete(context.TODO(), fmt.Sprintf("cron-test-%d", i), metav1.DeleteOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				Eventually(func() int {
-					return getMetricValue(f, "kubevirt_cdi_dataimportcron_outdated_total")
+					return getMetricValue(f, "kubevirt_cdi_dataimportcron_outdated_aggregated")
 				}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", expectedFailingCrons-i))
 			}
 		})
@@ -250,9 +250,9 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				return dep.Status.Replicas == 0
 			}, 20*time.Second, 1*time.Second).Should(BeTrue())
 
-			By("Waiting for kubevirt_cdi_operator_up_total metric to be 0")
+			By("Waiting for kubevirt_cdi_operator_up metric to be 0")
 			Eventually(func() int {
-				return getMetricValue(f, "kubevirt_cdi_operator_up_total")
+				return getMetricValue(f, "kubevirt_cdi_operator_up")
 			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", 0))
 
 			By("Waiting for CDIOperatorDown alert to be triggered")
@@ -303,7 +303,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 func dataVolumeUnusualRestartTest(f *framework.Framework) {
 	By("Test metric for unusual restart count")
 	Eventually(func() bool {
-		return getMetricValue(f, "kubevirt_cdi_import_dv_unusual_restartcount_total") == 1
+		return getMetricValue(f, "kubevirt_cdi_import_pods_high_restart") == 1
 	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 
 	By("checking that the CDIDataVolumeUnusualRestartCount alert is triggered")
