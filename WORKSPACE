@@ -440,19 +440,13 @@ rpm(
 rpm(
     name = "centos-gpg-keys-0__9.0-12.el9.aarch64",
     sha256 = "3af698b9f4dbf5368d1454df4e06cb8ffb75247b7b8385cfb0f7698f3db7d3ab",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/centos-gpg-keys-9.0-12.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/3af698b9f4dbf5368d1454df4e06cb8ffb75247b7b8385cfb0f7698f3db7d3ab",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/3af698b9f4dbf5368d1454df4e06cb8ffb75247b7b8385cfb0f7698f3db7d3ab"],
 )
 
 rpm(
     name = "centos-gpg-keys-0__9.0-12.el9.x86_64",
     sha256 = "3af698b9f4dbf5368d1454df4e06cb8ffb75247b7b8385cfb0f7698f3db7d3ab",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/centos-gpg-keys-9.0-12.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/3af698b9f4dbf5368d1454df4e06cb8ffb75247b7b8385cfb0f7698f3db7d3ab",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/3af698b9f4dbf5368d1454df4e06cb8ffb75247b7b8385cfb0f7698f3db7d3ab"],
 )
 
 rpm(
@@ -494,19 +488,13 @@ rpm(
 rpm(
     name = "centos-stream-release-0__9.0-12.el9.aarch64",
     sha256 = "400b77fb28443d36a6fa3c25c95e84b843ac9ae17b205651f1e2bea32c7289cc",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/centos-stream-release-9.0-12.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/400b77fb28443d36a6fa3c25c95e84b843ac9ae17b205651f1e2bea32c7289cc",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/400b77fb28443d36a6fa3c25c95e84b843ac9ae17b205651f1e2bea32c7289cc"],
 )
 
 rpm(
     name = "centos-stream-release-0__9.0-12.el9.x86_64",
     sha256 = "400b77fb28443d36a6fa3c25c95e84b843ac9ae17b205651f1e2bea32c7289cc",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/centos-stream-release-9.0-12.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/400b77fb28443d36a6fa3c25c95e84b843ac9ae17b205651f1e2bea32c7289cc",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/400b77fb28443d36a6fa3c25c95e84b843ac9ae17b205651f1e2bea32c7289cc"],
 )
 
 rpm(
@@ -530,19 +518,13 @@ rpm(
 rpm(
     name = "centos-stream-repos-0__9.0-12.el9.aarch64",
     sha256 = "d093d9f9021a8edc28843f61059a94bd8aa0109f6a9a865c2a1560cf6602a2ab",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/centos-stream-repos-9.0-12.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/d093d9f9021a8edc28843f61059a94bd8aa0109f6a9a865c2a1560cf6602a2ab",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/d093d9f9021a8edc28843f61059a94bd8aa0109f6a9a865c2a1560cf6602a2ab"],
 )
 
 rpm(
     name = "centos-stream-repos-0__9.0-12.el9.x86_64",
     sha256 = "d093d9f9021a8edc28843f61059a94bd8aa0109f6a9a865c2a1560cf6602a2ab",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/centos-stream-repos-9.0-12.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/d093d9f9021a8edc28843f61059a94bd8aa0109f6a9a865c2a1560cf6602a2ab",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/d093d9f9021a8edc28843f61059a94bd8aa0109f6a9a865c2a1560cf6602a2ab"],
 )
 
 rpm(
@@ -3074,19 +3056,13 @@ rpm(
 rpm(
     name = "qemu-img-17__8.0.0-4.el9.aarch64",
     sha256 = "eaf4c3ffc56222a7a0888993e33c816e8b7c31406ecdae6f73ce9751620ba17b",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/qemu-img-8.0.0-4.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/eaf4c3ffc56222a7a0888993e33c816e8b7c31406ecdae6f73ce9751620ba17b",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/eaf4c3ffc56222a7a0888993e33c816e8b7c31406ecdae6f73ce9751620ba17b"],
 )
 
 rpm(
     name = "qemu-img-17__8.0.0-4.el9.x86_64",
     sha256 = "707e865253cd7ceaf98aeb639bcd9501c636d87fc940243d8314fb8107200a70",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/qemu-img-8.0.0-4.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/707e865253cd7ceaf98aeb639bcd9501c636d87fc940243d8314fb8107200a70",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/707e865253cd7ceaf98aeb639bcd9501c636d87fc940243d8314fb8107200a70"],
 )
 
 rpm(
