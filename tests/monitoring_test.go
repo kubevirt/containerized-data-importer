@@ -273,8 +273,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 					for _, rule := range group.Rules {
 						if rule.Alert != "" {
 							Expect(rule.Annotations).ToNot(BeNil())
-							checkForRunbookURL(rule)
-							checkForSummary(rule)
+							checkRequiredAnnotations(rule)
 						}
 					}
 				}
@@ -288,10 +287,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 					for _, rule := range group.Rules {
 						if rule.Alert != "" {
 							Expect(rule.Labels).ToNot(BeNil())
-							checkForSeverityLabel(rule)
-							checkForHealthImpactLabel(rule)
-							checkForPartOfLabel(rule)
-							checkForComponentLabel(rule)
+							checkRequiredLabels(rule)
 						}
 					}
 				}
@@ -413,40 +409,26 @@ func getPrometheusAlerts(f *framework.Framework) (alerts map[string]interface{},
 	return alerts, nil
 }
 
-func checkForRunbookURL(rule promv1.Rule) {
-	url, ok := rule.Annotations["runbook_url"]
-	ExpectWithOffset(1, ok).To(BeTrue(), fmt.Sprintf("%s does not have runbook_url annotation", rule.Alert))
-	resp, err := http.Head(url)
+func checkRequiredAnnotations(rule promv1.Rule) {
+	ExpectWithOffset(1, rule.Annotations).To(HaveKeyWithValue("summary", Not(BeEmpty())),
+		"%s summary is missing or empty", rule.Alert)
+	ExpectWithOffset(1, rule.Annotations).To(HaveKey("runbook_url"),
+		"%s runbook_url is missing", rule.Alert)
+	ExpectWithOffset(1, rule.Annotations).To(HaveKeyWithValue("runbook_url", HaveSuffix(rule.Alert)),
+		"%s runbook is not equal to alert name", rule.Alert)
+
+	resp, err := http.Head(rule.Annotations["runbook_url"])
 	ExpectWithOffset(1, err).ToNot(HaveOccurred(), fmt.Sprintf("%s runbook is not available", rule.Alert))
 	ExpectWithOffset(1, resp.StatusCode).Should(Equal(http.StatusOK), fmt.Sprintf("%s runbook is not available", rule.Alert))
 }
 
-func checkForSummary(rule promv1.Rule) {
-	summary, ok := rule.Annotations["summary"]
-	ExpectWithOffset(1, ok).To(BeTrue(), fmt.Sprintf("%s does not have summary annotation", rule.Alert))
-	ExpectWithOffset(1, summary).ToNot(BeEmpty(), fmt.Sprintf("%s has an empty summary", rule.Alert))
-}
-
-func checkForSeverityLabel(rule promv1.Rule) {
-	severity, ok := rule.Labels["severity"]
-	ExpectWithOffset(1, ok).To(BeTrue(), fmt.Sprintf("%s does not have severity label", rule.Alert))
-	ExpectWithOffset(1, severity).To(BeElementOf("info", "warning", "critical"), fmt.Sprintf("%s severity label is not valid", rule.Alert))
-}
-
-func checkForHealthImpactLabel(rule promv1.Rule) {
-	operatorHealthImpact, ok := rule.Labels["operator_health_impact"]
-	ExpectWithOffset(1, ok).To(BeTrue(), fmt.Sprintf("%s does not have operator_health_impact label", rule.Alert))
-	ExpectWithOffset(1, operatorHealthImpact).To(BeElementOf("none", "warning", "critical"), fmt.Sprintf("%s operator_health_impact label is not valid", rule.Alert))
-}
-
-func checkForPartOfLabel(rule promv1.Rule) {
-	kubernetesOperatorPartOf, ok := rule.Labels["kubernetes_operator_part_of"]
-	ExpectWithOffset(1, ok).To(BeTrue(), fmt.Sprintf("%s does not have kubernetes_operator_part_of label", rule.Alert))
-	ExpectWithOffset(1, kubernetesOperatorPartOf).To(Equal("kubevirt"), fmt.Sprintf("%s kubernetes_operator_part_of label is not valid", rule.Alert))
-}
-
-func checkForComponentLabel(rule promv1.Rule) {
-	kubernetesOperatorComponent, ok := rule.Labels["kubernetes_operator_component"]
-	ExpectWithOffset(1, ok).To(BeTrue(), fmt.Sprintf("%s does not have kubernetes_operator_component label", rule.Alert))
-	ExpectWithOffset(1, kubernetesOperatorComponent).To(Equal("containerized-data-importer"), fmt.Sprintf("%s kubernetes_operator_component label is not valid", rule.Alert))
+func checkRequiredLabels(rule promv1.Rule) {
+	ExpectWithOffset(1, rule.Labels).To(HaveKeyWithValue("severity", BeElementOf("info", "warning", "critical")),
+		"%s severity label is missing or not valid", rule.Alert)
+	ExpectWithOffset(1, rule.Labels).To(HaveKeyWithValue("operator_health_impact", BeElementOf("none", "warning", "critical")),
+		"%s operator_health_impact label is missing or not valid", rule.Alert)
+	ExpectWithOffset(1, rule.Labels).To(HaveKeyWithValue("kubernetes_operator_part_of", "kubevirt"),
+		"%s kubernetes_operator_part_of label is missing or not valid", rule.Alert)
+	ExpectWithOffset(1, rule.Labels).To(HaveKeyWithValue("kubernetes_operator_component", "containerized-data-importer"),
+		"%s kubernetes_operator_component label is missing or not valid", rule.Alert)
 }
