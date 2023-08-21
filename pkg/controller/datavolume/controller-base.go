@@ -265,7 +265,7 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 	if err := dataVolumeController.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, handler.EnqueueRequestsFromMapFunc(
 		func(obj client.Object) (reqs []reconcile.Request) {
 			dvList := &cdiv1.DataVolumeList{}
-			if err := mgr.GetClient().List(context.TODO(), dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
+			if err := mgr.GetClient().List(context.TODO(), dvList, client.MatchingFields{dvPhaseField: string(cdiv1.Pending)}); err != nil {
 				return
 			}
 			for _, dv := range dvList.Items {
@@ -394,6 +394,10 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 
 	syncState.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, dv)
 	if err != nil {
+		if errors.Is(err, ErrStorageClassNotFound) {
+			syncState.result = &reconcile.Result{}
+			return syncState, nil
+		}
 		return syncState, err
 	}
 

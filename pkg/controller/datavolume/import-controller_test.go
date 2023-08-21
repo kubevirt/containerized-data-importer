@@ -89,6 +89,19 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 		})
 
+		It("Should return nil when storage spec has no AccessModes, no StorageClassName, and no default storage class set", func() {
+			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
+			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{}
+
+			reconciler = createImportReconciler(importDataVolume)
+			res, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(res).To(Equal(reconcile.Result{}))
+
+			event := <-reconciler.recorder.(*record.FakeRecorder).Events
+			Expect(event).To(ContainSubstring(MessageErrStorageClassNotFound))
+		})
+
 		It("Should create a PVC on a valid import DV", func() {
 			reconciler = createImportReconciler(NewImportDataVolume("test-dv"))
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
