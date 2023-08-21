@@ -455,6 +455,10 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 			Event{corev1.EventTypeWarning, cc.ErrClaimNotValid, err.Error()}); syncErr != nil {
 			log.Error(syncErr, "failed to sync DataVolume status with event")
 		}
+		if errors.Is(err, ErrStorageClassNotFound) {
+			syncState.result = &reconcile.Result{}
+			return syncState, nil
+		}
 		return syncState, err
 	}
 
