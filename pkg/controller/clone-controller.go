@@ -96,7 +96,8 @@ func NewCloneController(mgr manager.Manager,
 		installerLabels:     installerLabels,
 	}
 	cloneController, err := controller.New("clone-controller", mgr, controller.Options{
-		Reconciler: reconciler,
+		MaxConcurrentReconciles: 3,
+		Reconciler:              reconciler,
 	})
 	if err != nil {
 		return nil, err

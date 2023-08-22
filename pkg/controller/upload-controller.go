@@ -662,7 +662,8 @@ func NewUploadController(mgr manager.Manager, log logr.Logger, uploadImage, pull
 		installerLabels:     installerLabels,
 	}
 	uploadController, err := controller.New("upload-controller", mgr, controller.Options{
-		Reconciler: reconciler,
+		MaxConcurrentReconciles: 3,
+		Reconciler:              reconciler,
 	})
 	if err != nil {
 		return nil, err

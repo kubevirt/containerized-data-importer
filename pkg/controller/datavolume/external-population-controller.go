@@ -71,7 +71,10 @@ func NewPopulatorController(ctx context.Context, mgr manager.Manager, log logr.L
 		},
 	}
 
-	datavolumeController, err := controller.New(populatorControllerName, mgr, controller.Options{Reconciler: reconciler})
+	datavolumeController, err := controller.New(populatorControllerName, mgr, controller.Options{
+		MaxConcurrentReconciles: 3,
+		Reconciler:              reconciler,
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -175,7 +175,10 @@ func NewDataSourceController(mgr manager.Manager, log logr.Logger, installerLabe
 		log:             log.WithName(dataSourceControllerName),
 		installerLabels: installerLabels,
 	}
-	DataSourceController, err := controller.New(dataSourceControllerName, mgr, controller.Options{Reconciler: reconciler})
+	DataSourceController, err := controller.New(dataSourceControllerName, mgr, controller.Options{
+		MaxConcurrentReconciles: 3,
+		Reconciler:              reconciler,
+	})
 	if err != nil {
 		return nil, err
 	}
