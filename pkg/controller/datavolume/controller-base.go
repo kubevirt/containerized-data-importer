@@ -492,10 +492,17 @@ func (r *ReconcilerBase) syncUpdate(log logr.Logger, syncState *dvSyncState) err
 		return fmt.Errorf("status update is not allowed in sync phase")
 	}
 	if !reflect.DeepEqual(syncState.dv.ObjectMeta, syncState.dvMutated.ObjectMeta) {
+		_, ok := syncState.dv.Annotations[cc.AnnExtendedCloneToken]
+		_, ok2 := syncState.dvMutated.Annotations[cc.AnnExtendedCloneToken]
 		if err := r.updateDataVolume(syncState.dvMutated); err != nil {
 			r.log.Error(err, "Unable to sync update dv meta", "name", syncState.dvMutated.Name)
 			return err
 		}
+		if !ok && ok2 {
+			delta := time.Since(syncState.dv.ObjectMeta.CreationTimestamp.Time)
+			log.V(3).Info("Adding extended DataVolume token took", "delta", delta)
+		}
+		syncState.dv = syncState.dvMutated.DeepCopy()
 	}
 	return nil
 }

@@ -104,7 +104,7 @@ func NewClonePopulator(
 	}
 
 	clonePopulator, err := controller.New(clonePopulatorName, mgr, controller.Options{
-		MaxConcurrentReconciles: 5,
+		MaxConcurrentReconciles: 3,
 		Reconciler:              reconciler,
 	})
 	if err != nil {

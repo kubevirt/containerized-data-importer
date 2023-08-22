@@ -236,7 +236,10 @@ func (r *ReconcileCDI) Reconcile(_ context.Context, request reconcile.Request) (
 
 func (r *ReconcileCDI) add(mgr manager.Manager) error {
 	// Create a new controller
-	c, err := controller.New("cdi-operator-controller", mgr, controller.Options{Reconciler: r})
+	c, err := controller.New("cdi-operator-controller", mgr, controller.Options{
+		MaxConcurrentReconciles: 3,
+		Reconciler:              r,
+	})
 	if err != nil {
 		return err
 	}

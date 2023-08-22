@@ -140,7 +140,8 @@ func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pu
 		installerLabels: installerLabels,
 	}
 	importController, err := controller.New("import-controller", mgr, controller.Options{
-		Reconciler: reconciler,
+		MaxConcurrentReconciles: 3,
+		Reconciler:              reconciler,
 	})
 	if err != nil {
 		return nil, err
