@@ -279,7 +279,7 @@ func (r *ReconcileCDI) watchCDICRD() error {
 				return nil
 			}
 			cr, err := cc.GetActiveCDI(r.client)
-			if err != nil {
+			if err != nil || cr == nil {
 				return nil
 			}
 			return []reconcile.Request{
