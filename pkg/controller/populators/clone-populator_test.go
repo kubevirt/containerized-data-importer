@@ -114,7 +114,7 @@ var _ = Describe("Clone populator tests", func() {
 		return target, source
 	}
 
-	initinializedTargetAndDataSource := func() (*corev1.PersistentVolumeClaim, *cdiv1.VolumeCloneSource) {
+	initializedTargetAndDataSource := func() (*corev1.PersistentVolumeClaim, *cdiv1.VolumeCloneSource) {
 		target, source := targetAndDataSource()
 		target.Annotations = map[string]string{
 			AnnClonePhase:   clone.PendingPhaseName,
@@ -126,7 +126,7 @@ var _ = Describe("Clone populator tests", func() {
 	}
 
 	succeededTarget := func() *corev1.PersistentVolumeClaim {
-		target, _ := initinializedTargetAndDataSource()
+		target, _ := initializedTargetAndDataSource()
 		target.Annotations[AnnClonePhase] = string(clone.SucceededPhaseName)
 		target.Spec.VolumeName = "volume"
 		return target
@@ -257,7 +257,7 @@ var _ = Describe("Clone populator tests", func() {
 	})
 
 	It("should be in error phase if plan returns an error", func() {
-		target, source := initinializedTargetAndDataSource()
+		target, source := initializedTargetAndDataSource()
 		reconciler := createClonePopulatorReconciler(target, storageClass(), source)
 		reconciler.planner = &fakePlanner{
 			planError: fmt.Errorf("plan error"),
@@ -270,7 +270,7 @@ var _ = Describe("Clone populator tests", func() {
 	})
 
 	It("should be in error phase if phase returns an error", func() {
-		target, source := initinializedTargetAndDataSource()
+		target, source := initializedTargetAndDataSource()
 		reconciler := createClonePopulatorReconciler(target, storageClass(), source)
 		reconciler.planner = &fakePlanner{
 			planResult: []clone.Phase{
@@ -288,7 +288,7 @@ var _ = Describe("Clone populator tests", func() {
 	})
 
 	DescribeTable("should report phase name and progress", func(ownedByDataVolume bool) {
-		target, source := initinializedTargetAndDataSource()
+		target, source := initializedTargetAndDataSource()
 		if ownedByDataVolume {
 			target.OwnerReferences = []metav1.OwnerReference{
 				{
@@ -341,7 +341,7 @@ var _ = Describe("Clone populator tests", func() {
 	)
 
 	It("should be in error phase if progress returns an error", func() {
-		target, source := initinializedTargetAndDataSource()
+		target, source := initializedTargetAndDataSource()
 		reconciler := createClonePopulatorReconciler(target, storageClass(), source)
 		reconciler.planner = &fakePlanner{
 			planResult: []clone.Phase{
@@ -362,7 +362,7 @@ var _ = Describe("Clone populator tests", func() {
 	})
 
 	It("should go to succeeded phase if all phases are done", func() {
-		target, source := initinializedTargetAndDataSource()
+		target, source := initializedTargetAndDataSource()
 		reconciler := createClonePopulatorReconciler(target, storageClass(), source)
 		reconciler.planner = &fakePlanner{
 			planResult: []clone.Phase{
