@@ -247,7 +247,7 @@ func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.
 
 // reconcile functions
 
-func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorController, log logr.Logger) (reconcile.Result, error) {
+func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorController, pvcNameLogger logr.Logger) (reconcile.Result, error) {
 	// Get the target PVC
 	pvc := &corev1.PersistentVolumeClaim{}
 	if err := r.client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {
@@ -259,7 +259,7 @@ func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorCon
 
 	// We first perform the common reconcile steps.
 	// We should only continue if we get a valid PVC'
-	pvcPrime, err := r.reconcileCommon(pvc, populator)
+	pvcPrime, err := r.reconcileCommon(pvc, populator, pvcNameLogger)
 	if err != nil || pvcPrime == nil {
 		return reconcile.Result{}, err
 	}
@@ -273,9 +273,9 @@ func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorCon
 	return r.reconcileCleanup(pvcPrime)
 }
 
-func (r *ReconcilerBase) reconcileCommon(pvc *corev1.PersistentVolumeClaim, populator populatorController) (*corev1.PersistentVolumeClaim, error) {
+func (r *ReconcilerBase) reconcileCommon(pvc *corev1.PersistentVolumeClaim, populator populatorController, pvcNameLogger logr.Logger) (*corev1.PersistentVolumeClaim, error) {
 	if pvc.DeletionTimestamp != nil {
-		r.log.V(1).Info("PVC being terminated, ignoring")
+		pvcNameLogger.V(1).Info("PVC being terminated, ignoring")
 		return nil, nil
 	}
 
@@ -292,12 +292,12 @@ func (r *ReconcilerBase) reconcileCommon(pvc *corev1.PersistentVolumeClaim, popu
 	// We should ignore PVCs that aren't for this populator to handle
 	dataSourceRef := pvc.Spec.DataSourceRef
 	if !IsPVCDataSourceRefKind(pvc, r.sourceKind) {
-		r.log.V(1).Info("reconciled unexpected PVC, ignoring")
+		pvcNameLogger.V(1).Info("reconciled unexpected PVC, ignoring")
 		return nil, nil
 	}
 	// TODO: Remove this check once we support cross-namespace dataSourceRef
 	if dataSourceRef.Namespace != nil {
-		r.log.V(1).Info("cross-namespace dataSourceRef not supported yet, ignoring")
+		pvcNameLogger.V(1).Info("cross-namespace dataSourceRef not supported yet, ignoring")
 		return nil, nil
 	}
 
