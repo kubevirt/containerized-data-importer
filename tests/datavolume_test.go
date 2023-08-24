@@ -1895,7 +1895,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
-					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume.storage spec is missing accessMode and no storageClass to choose profile")
+					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, dvc.MessageErrStorageClassNotFound)
 				}
 				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
 				return false

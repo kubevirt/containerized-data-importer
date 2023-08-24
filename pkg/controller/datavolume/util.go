@@ -44,6 +44,14 @@ import (
 const (
 	// AnnOwnedByDataVolume annotation has the owner DataVolume name
 	AnnOwnedByDataVolume = "cdi.kubevirt.io/ownedByDataVolume"
+
+	// MessageErrStorageClassNotFound provides a const to indicate the DV storage spec is missing accessMode and no storageClass to choose profile
+	MessageErrStorageClassNotFound = "DataVolume.storage spec is missing accessMode and no storageClass to choose profile"
+)
+
+var (
+	// ErrStorageClassNotFound indicates the DV storage spec is missing accessMode and no storageClass to choose profile
+	ErrStorageClassNotFound = errors.New(MessageErrStorageClassNotFound)
 )
 
 // renderPvcSpec creates a new PVC Spec based on either the dv.spec.pvc or dv.spec.storage section
@@ -82,8 +90,8 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 		// Not even default storageClass on the cluster, cannot apply the defaults, verify spec is ok
 		if len(pvcSpec.AccessModes) == 0 {
 			log.V(1).Info("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
-			recorder.Eventf(dv, v1.EventTypeWarning, cc.ErrClaimNotValid, "DataVolume.storage spec is missing accessMode and no storageClass to choose profile")
-			return nil, errors.Errorf("DataVolume spec is missing accessMode")
+			recorder.Eventf(dv, v1.EventTypeWarning, cc.ErrClaimNotValid, MessageErrStorageClassNotFound)
+			return nil, ErrStorageClassNotFound
 		}
 	} else {
 		pvcSpec.StorageClassName = &storageClass.Name
