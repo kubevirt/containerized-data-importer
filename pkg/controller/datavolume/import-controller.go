@@ -96,7 +96,8 @@ func NewImportController(
 	}
 
 	datavolumeController, err := controller.New(importControllerName, mgr, controller.Options{
-		Reconciler: reconciler,
+		MaxConcurrentReconciles: 3,
+		Reconciler:              reconciler,
 	})
 	if err != nil {
 		return nil, err

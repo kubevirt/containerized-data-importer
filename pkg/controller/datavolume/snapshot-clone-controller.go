@@ -96,7 +96,8 @@ func NewSnapshotCloneController(
 	}
 
 	dataVolumeCloneController, err := controller.New(snapshotCloneControllerName, mgr, controller.Options{
-		Reconciler: reconciler,
+		MaxConcurrentReconciles: 3,
+		Reconciler:              reconciler,
 	})
 	if err != nil {
 		return nil, err

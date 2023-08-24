@@ -97,7 +97,8 @@ func NewPvcCloneController(
 	}
 
 	dataVolumeCloneController, err := controller.New(pvcCloneControllerName, mgr, controller.Options{
-		Reconciler: reconciler,
+		MaxConcurrentReconciles: 3,
+		Reconciler:              reconciler,
 	})
 	if err != nil {
 		return nil, err
