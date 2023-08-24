@@ -947,7 +947,10 @@ func NewDataImportCronController(mgr manager.Manager, log logr.Logger, importerI
 		cdiNamespace:    util.GetNamespace(),
 		installerLabels: installerLabels,
 	}
-	dataImportCronController, err := controller.New(dataImportControllerName, mgr, controller.Options{Reconciler: reconciler})
+	dataImportCronController, err := controller.New(dataImportControllerName, mgr, controller.Options{
+		MaxConcurrentReconciles: 3,
+		Reconciler:              reconciler,
+	})
 	if err != nil {
 		return nil, err
 	}

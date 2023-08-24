@@ -97,7 +97,8 @@ func NewObjectTransferController(mgr manager.Manager, log logr.Logger, installer
 	}
 
 	ctrl, err := controller.New(name, mgr, controller.Options{
-		Reconciler: reconciler,
+		MaxConcurrentReconciles: 3,
+		Reconciler:              reconciler,
 	})
 	if err != nil {
 		return nil, err

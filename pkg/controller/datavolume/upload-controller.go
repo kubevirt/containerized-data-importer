@@ -90,7 +90,8 @@ func NewUploadController(
 	}
 
 	datavolumeController, err := controller.New(uploadControllerName, mgr, controller.Options{
-		Reconciler: reconciler,
+		MaxConcurrentReconciles: 3,
+		Reconciler:              reconciler,
 	})
 	if err != nil {
 		return nil, err
