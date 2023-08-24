@@ -92,7 +92,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"pxd.portworx.com":           createOpenStorageSharedVolumeCapabilities(),
 	// Trident
 	"csi.trident.netapp.io/ontap-nas": {{rwx, file}},
-	"csi.trident.netapp.io/ontap-san": {{rwo, block}},
+	"csi.trident.netapp.io/ontap-san": {{rwx, block}},
 	// topolvm
 	"topolvm.cybozu.com": createTopoLVMCapabilities(),
 	"topolvm.io":         createTopoLVMCapabilities(),
