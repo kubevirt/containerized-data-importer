@@ -233,7 +233,7 @@ var _ = Describe("Import populator tests", func() {
 			Expect(result.RequeueAfter).To(BeNumerically(">", 0))
 		})
 
-		DescribeTable("Should create PVC Prime with proper import annotations", func(key, value, expectedValue string) {
+		table.DescribeTable("Should create PVC Prime with proper import annotations", func(key, value, expectedValue string) {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, map[string]string{}, nil, corev1.ClaimBound)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
 			targetPvc.Annotations[key] = value
@@ -271,12 +271,12 @@ var _ = Describe("Import populator tests", func() {
 			Expect(pvcPrime.GetAnnotations()[AnnSource]).To(Equal(SourceHTTP))
 			Expect(pvcPrime.Annotations[key]).To(Equal(expectedValue))
 		},
-			Entry("No extra annotations", "", "", ""),
-			Entry("Invalid extra annotation is not passed", "invalid", "test", ""),
-			Entry("Priority class is passed", AnnPriorityClassName, "test", "test"),
-			Entry("pod network is passed", AnnPodNetwork, "test", "test"),
-			Entry("side car injection is passed", AnnPodSidecarInjection, AnnPodSidecarInjectionDefault, AnnPodSidecarInjectionDefault),
-			Entry("multus default network is passed", AnnPodMultusDefaultNetwork, "test", "test"),
+			table.Entry("No extra annotations", "", "", ""),
+			table.Entry("Invalid extra annotation is not passed", "invalid", "test", ""),
+			table.Entry("Priority class is passed", AnnPriorityClassName, "test", "test"),
+			table.Entry("pod network is passed", AnnPodNetwork, "test", "test"),
+			table.Entry("side car injection is passed", AnnPodSidecarInjection, AnnPodSidecarInjectionDefault, AnnPodSidecarInjectionDefault),
+			table.Entry("multus default network is passed", AnnPodMultusDefaultNetwork, "test", "test"),
 		)
 
 		It("shouldn't error when reconciling PVC with non-import DataSourceRef", func() {
