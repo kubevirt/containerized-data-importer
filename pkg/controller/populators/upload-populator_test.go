@@ -269,6 +269,53 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Entry("with pod succeded phase", string(corev1.PodFailed)),
 		Entry("with pod succeded phase", string(corev1.PodSucceeded)),
 	)
+
+	DescribeTable("Should create PVC Prime with proper upload annotations", func(key, value, expectedValue string) {
+		pvc := newUploadPopulatorPVC("test-pvc")
+		cc.AddAnnotation(pvc, AnnPVCPrimeName, PVCPrimeName(pvc))
+		uploadPV := uploadPV(pvc)
+
+		volumeUploadSourceCR := newUploadPopulatorCR("", false)
+		scName := "test-sc"
+		sc := cc.CreateStorageClassWithProvisioner(scName, map[string]string{cc.AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
+		pvc.Annotations[key] = value
+
+		By("Reconcile")
+		r := createUploadPopulatorReconciler(pvc, volumeUploadSourceCR, sc, uploadPV)
+		result, err := r.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-pvc", Namespace: metav1.NamespaceDefault}})
+		Expect(err).To(Not(HaveOccurred()))
+		Expect(result).To(Not(BeNil()))
+
+		By("Checking events recorded")
+		close(r.recorder.(*record.FakeRecorder).Events)
+		found := false
+		for event := range r.recorder.(*record.FakeRecorder).Events {
+			if strings.Contains(event, createdPVCPrimeSuccessfully) {
+				found = true
+			}
+		}
+		r.recorder = nil
+		Expect(found).To(BeTrue())
+
+		By("Checking PVC' annotations")
+		pvcPrime, err := r.getPVCPrime(pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvcPrime).ToNot(BeNil())
+		// make sure we didnt inflate size
+		Expect(pvcPrime.Spec.Resources.Requests[corev1.ResourceStorage]).To(Equal(resource.MustParse("1Gi")))
+		Expect(pvcPrime.GetAnnotations()).ToNot(BeNil())
+		Expect(pvcPrime.GetAnnotations()[cc.AnnImmediateBinding]).To(Equal(""))
+		Expect(pvcPrime.GetAnnotations()[cc.AnnUploadRequest]).To(Equal(""))
+		Expect(pvcPrime.GetAnnotations()[cc.AnnPopulatorKind]).To(Equal(cdiv1.VolumeUploadSourceRef))
+		Expect(pvcPrime.Annotations[key]).To(Equal(expectedValue))
+	},
+		Entry("No extra annotations", "", "", ""),
+		Entry("Invalid extra annotation is not passed", "invalid", "test", ""),
+		Entry("Priority class is passed", cc.AnnPriorityClassName, "test", "test"),
+		Entry("pod network is passed", cc.AnnPodNetwork, "test", "test"),
+		Entry("side car injection is passed", cc.AnnPodSidecarInjection, cc.AnnPodSidecarInjectionDefault, cc.AnnPodSidecarInjectionDefault),
+		Entry("multus default network is passed", cc.AnnPodMultusDefaultNetwork, "test", "test"),
+	)
 })
 
 func newUploadPopulatorPVC(name string) *corev1.PersistentVolumeClaim {
