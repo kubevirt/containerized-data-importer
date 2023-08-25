@@ -3001,7 +3001,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs))
 			By(fmt.Sprintf("creating new datavolume %s with priority class", dataVolume.Name))
 			dataVolume.Spec.PriorityClassName = "system-cluster-critical"
-			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -3028,7 +3027,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume := utils.NewDataVolumeForUpload(dataVolumeName, "1Gi")
 			By(fmt.Sprintf("creating new datavolume %s with priority class\"", dataVolume.Name))
 			dataVolume.Spec.PriorityClassName = "system-cluster-critical"
-			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
