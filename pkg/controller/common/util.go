@@ -1941,6 +1941,7 @@ func SetPvcAllowedAnnotations(obj metav1.Object, pvc *corev1.PersistentVolumeCla
 	allowedAnnotations := map[string]string{
 		AnnPodNetwork:              "",
 		AnnPodSidecarInjection:     AnnPodSidecarInjectionDefault,
+		AnnPriorityClassName:       "",
 		AnnPodMultusDefaultNetwork: ""}
 	for ann, def := range allowedAnnotations {
 		val, ok := pvc.Annotations[ann]
