@@ -396,7 +396,7 @@ var _ = Describe("DataImportCron", func() {
 		waitForDigest()
 	})
 
-	It("[test_id:XXXX] Should allow an empty schedule to trigger an external update to the source", func() {
+	It("[test_id:10360] Should allow an empty schedule to trigger an external update to the source", func() {
 		configureStorageProfileResultingFormat(cdiv1.DataImportCronSourceFormatPvc)
 
 		By("Create DataImportCron with empty schedule")
