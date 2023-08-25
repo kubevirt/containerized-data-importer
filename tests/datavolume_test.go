@@ -2031,7 +2031,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
-					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume.storage spec is missing accessMode and no storageClass to choose profile")
+					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, dvc.MessageErrStorageClassNotFound)
 				}
 				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
 				return false
@@ -2446,19 +2446,19 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			By("verifying event occurred")
-			f.ExpectEvent(dataVolume.Namespace).Should(And(ContainSubstring(controller.ErrClaimNotValid), ContainSubstring("DataVolume spec is missing accessMode")))
+			f.ExpectEvent(dataVolume.Namespace).Should(And(ContainSubstring(controller.ErrClaimNotValid), ContainSubstring(dvc.MessageErrStorageClassNotFound)))
 
 			By("verifying conditions")
 			boundCondition := &cdiv1.DataVolumeCondition{
 				Type:    cdiv1.DataVolumeBound,
 				Status:  v1.ConditionUnknown,
-				Message: "DataVolume spec is missing accessMode",
+				Message: dvc.MessageErrStorageClassNotFound,
 				Reason:  controller.ErrClaimNotValid,
 			}
 			readyCondition := &cdiv1.DataVolumeCondition{
 				Type:    cdiv1.DataVolumeReady,
 				Status:  v1.ConditionFalse,
-				Message: "DataVolume spec is missing accessMode",
+				Message: dvc.MessageErrStorageClassNotFound,
 				Reason:  controller.ErrClaimNotValid,
 			}
 			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
