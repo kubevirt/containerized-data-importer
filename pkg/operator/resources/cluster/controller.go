@@ -58,7 +58,6 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"",
 			},
 			Resources: []string{
-				"persistentvolumes",
 				"persistentvolumeclaims",
 			},
 			Verbs: []string{
@@ -70,6 +69,20 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"delete",
 				"deletecollection",
 				"patch",
+			},
+		},
+		{
+			APIGroups: []string{
+				"",
+			},
+			Resources: []string{
+				"persistentvolumes",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+				"update",
 			},
 		},
 		{
