@@ -110,7 +110,45 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"mutatingwebhookconfigurations",
 			},
 			Verbs: []string{
-				"*",
+				"create",
+				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
+				"admissionregistration.k8s.io",
+			},
+			Resources: []string{
+				"validatingwebhookconfigurations",
+			},
+			ResourceNames: []string{
+				"cdi-api-dataimportcron-validate",
+				"cdi-api-populator-validate",
+				"cdi-api-datavolume-validate",
+				"cdi-api-validate",
+				"objecttransfer-api-validate",
+			},
+			Verbs: []string{
+				"get",
+				"update",
+				"delete",
+			},
+		},
+		{
+			APIGroups: []string{
+				"admissionregistration.k8s.io",
+			},
+			Resources: []string{
+				"mutatingwebhookconfigurations",
+			},
+			ResourceNames: []string{
+				"cdi-api-datavolume-mutate",
+			},
+			Verbs: []string{
+				"get",
+				"update",
+				"delete",
 			},
 		},
 		{
