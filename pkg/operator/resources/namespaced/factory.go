@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -96,4 +97,13 @@ func assignNamspaceIfMissing(resource client.Object, namespace string) {
 	if obj.GetNamespace() == "" {
 		obj.SetNamespace(namespace)
 	}
+}
+
+// GetRolePolicyRules returns all namespaced PolicyRules
+func GetRolePolicyRules() []rbacv1.PolicyRule {
+	result := getAPIServerNamespacedRules()
+	result = append(result, getControllerNamespacedRules()...)
+	result = append(result, getUploadProxyNamespacedRules()...)
+	result = append(result, GetPrometheusNamespacedRules()...)
+	return result
 }

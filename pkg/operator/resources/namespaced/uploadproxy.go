@@ -67,8 +67,8 @@ func createUploadProxyRoleBinding() *rbacv1.RoleBinding {
 	return utils.ResourceBuilder.CreateRoleBinding(uploadProxyResourceName, uploadProxyResourceName, uploadProxyResourceName, "")
 }
 
-func createUploadProxyRole() *rbacv1.Role {
-	rules := []rbacv1.PolicyRule{
+func getUploadProxyNamespacedRules() []rbacv1.PolicyRule {
+	return []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
 				"",
@@ -81,7 +81,10 @@ func createUploadProxyRole() *rbacv1.Role {
 			},
 		},
 	}
-	return utils.ResourceBuilder.CreateRole(uploadProxyResourceName, rules)
+}
+
+func createUploadProxyRole() *rbacv1.Role {
+	return utils.ResourceBuilder.CreateRole(uploadProxyResourceName, getUploadProxyNamespacedRules())
 }
 
 func createUploadProxyDeployment(image, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {

@@ -33,7 +33,8 @@ import (
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources"
-	cluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
+	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
+	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
@@ -54,7 +55,12 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"clusterroles",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"delete",
 			},
 		},
 		{
@@ -168,7 +174,7 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 			},
 		},
 	}
-	rules = append(rules, cluster.GetClusterRolePolicyRules()...)
+	rules = append(rules, cdicluster.GetClusterRolePolicyRules()...)
 	return rules
 }
 
@@ -198,7 +204,12 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 				"roles",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"delete",
 			},
 		},
 		{
@@ -300,6 +311,7 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 			},
 		},
 	}
+	rules = append(rules, cdinamespaced.GetRolePolicyRules()...)
 	return rules
 }
 

@@ -60,8 +60,8 @@ func createControllerRoleBinding() *rbacv1.RoleBinding {
 	return utils.ResourceBuilder.CreateRoleBinding(controllerResourceName, controllerResourceName, common.ControllerServiceAccountName, "")
 }
 
-func createControllerRole() *rbacv1.Role {
-	rules := []rbacv1.PolicyRule{
+func getControllerNamespacedRules() []rbacv1.PolicyRule {
+	return []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
 				"",
@@ -162,7 +162,10 @@ func createControllerRole() *rbacv1.Role {
 			},
 		},
 	}
-	return utils.ResourceBuilder.CreateRole(controllerResourceName, rules)
+}
+
+func createControllerRole() *rbacv1.Role {
+	return utils.ResourceBuilder.CreateRole(controllerResourceName, getControllerNamespacedRules())
 }
 
 func createControllerServiceAccount() *corev1.ServiceAccount {
