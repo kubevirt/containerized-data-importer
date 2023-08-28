@@ -1574,9 +1574,12 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv := createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault, httpSource, storageSpec)
 			AddAnnotation(dv, annotation, value)
 
-			reconciler = createImportReconciler()
+			reconciler = createImportReconciler(sc, csiDriver)
 			syncState := dvSyncState{
 				dvMutated: dv,
+				pvcSpec: &corev1.PersistentVolumeClaimSpec{
+					StorageClassName: &scName,
+				},
 			}
 			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
 			Expect(err).ToNot(HaveOccurred())
@@ -1584,7 +1587,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		},
 			Entry("AnnUsePopulator=true return true", AnnUsePopulator, "true", true),
 			Entry("AnnUsePopulator=false return false", AnnUsePopulator, "false", false),
-			Entry("AnnPodRetainAfterCompletion return false", AnnPodRetainAfterCompletion, "true", false),
+			Entry("AnnPodRetainAfterCompletion return true", AnnPodRetainAfterCompletion, "true", true),
 		)
 
 		DescribeTable("Should return false if source is", func(source *cdiv1.DataVolumeSource) {

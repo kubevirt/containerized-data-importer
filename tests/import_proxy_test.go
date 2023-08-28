@@ -23,6 +23,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cont "kubevirt.io/containerized-data-importer/pkg/controller"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 
@@ -130,17 +131,25 @@ var _ = Describe("Import Proxy tests", func() {
 		}, 30*time.Second, time.Second).Should(BeTrue())
 	})
 
-	verifyImportProxyConfigMap := func(pvcName string) {
+	getPVCNameForConfigMap := func(pvc *corev1.PersistentVolumeClaim) string {
+		if pvc.Spec.DataSourceRef != nil {
+			return populators.PVCPrimeName(pvc)
+		}
+		return pvc.Name
+	}
+
+	verifyImportProxyConfigMap := func(pvc *corev1.PersistentVolumeClaim) {
 		By("Verify import proxy ConfigMap copied to the import namespace")
-		trustedCAProxy := cont.GetImportProxyConfigMapName(pvcName)
+		trustedCAProxy := cont.GetImportProxyConfigMapName(getPVCNameForConfigMap(pvc))
 		Eventually(func() error {
 			_, err := f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Get(context.TODO(), trustedCAProxy, metav1.GetOptions{})
 			return err
 		}, time.Second*60, time.Second).Should(BeNil())
 	}
 
-	verifyImportProxyConfigMapIsDeletedOnPodDeletion := func(pvcName string) {
+	verifyImportProxyConfigMapIsDeletedOnPodDeletion := func(pvc *corev1.PersistentVolumeClaim) {
 		By("Verify import proxy ConfigMap is deleted from import namespace on importer pod deletion")
+		pvcName := getPVCNameForConfigMap(pvc)
 		pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), pvcName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		err = utils.DeletePodByName(f.K8sClient, pvc.Annotations[controller.AnnImportPod], f.Namespace.Name, nil)
@@ -179,7 +188,7 @@ var _ = Describe("Import Proxy tests", func() {
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dvName)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(pvc)
-			verifyImportProxyConfigMap(dvName)
+			verifyImportProxyConfigMap(pvc)
 			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.Succeeded)))
 			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
 			Expect(err).ToNot(HaveOccurred())
@@ -187,7 +196,7 @@ var _ = Describe("Import Proxy tests", func() {
 			By("Checking the importer pod information in the proxy log to verify if the requests were proxied")
 			verifyImporterPodInfoInProxyLogs(f, imgURL, args.userAgent, now, args.expected)
 
-			verifyImportProxyConfigMapIsDeletedOnPodDeletion(dvName)
+			verifyImportProxyConfigMapIsDeletedOnPodDeletion(pvc)
 		},
 			Entry("succeed creating import dv with a proxied server (http)", importProxyTestArguments{
 				name:          "dv-import-http-proxy",
@@ -334,7 +343,7 @@ var _ = Describe("Import Proxy tests", func() {
 			pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(pvc)
-			verifyImportProxyConfigMap(dvName)
+			verifyImportProxyConfigMap(pvc)
 			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.Succeeded)))
 			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
 			Expect(err).ToNot(HaveOccurred())
@@ -342,7 +351,7 @@ var _ = Describe("Import Proxy tests", func() {
 			By("Checking the importer pod information in the proxy log to verify if the requests were proxied")
 			verifyImporterPodInfoInProxyLogs(f, *dv.Spec.Source.Registry.URL, registryUserAgent, now, BeTrue)
 
-			verifyImportProxyConfigMapIsDeletedOnPodDeletion(dvName)
+			verifyImportProxyConfigMapIsDeletedOnPodDeletion(pvc)
 		},
 			Entry("with http proxy, no auth", false, false),
 			Entry("with http proxy, auth", false, true),
@@ -422,7 +431,9 @@ var _ = Describe("Import Proxy tests", func() {
 				return dvName
 			}, timeout, pollingInterval).ShouldNot(BeEmpty())
 
-			verifyImportProxyConfigMap(dvName)
+			pvc, err := utils.WaitForPVC(f.K8sClient, ns, dvName)
+			Expect(err).ToNot(HaveOccurred())
+			verifyImportProxyConfigMap(pvc)
 
 			By("Wait for DataImportCron UpToDate")
 			Eventually(func() bool {
@@ -437,7 +448,7 @@ var _ = Describe("Import Proxy tests", func() {
 			err = utils.WaitForDataVolumePhase(f, ns, cdiv1.Succeeded, dvName)
 			Expect(err).ToNot(HaveOccurred())
 
-			verifyImportProxyConfigMapIsDeletedOnPodDeletion(dvName)
+			verifyImportProxyConfigMapIsDeletedOnPodDeletion(pvc)
 		},
 			Entry("with http proxy, no auth", false, false),
 			Entry("with http proxy, auth", false, true),
