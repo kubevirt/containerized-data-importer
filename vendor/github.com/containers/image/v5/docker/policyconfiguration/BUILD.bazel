@@ -6,8 +6,5 @@ go_library(
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/docker/policyconfiguration",
     importpath = "github.com/containers/image/v5/docker/policyconfiguration",
     visibility = ["//visibility:public"],
-    deps = [
-        "//vendor/github.com/containers/image/v5/docker/reference:go_default_library",
-        "//vendor/github.com/pkg/errors:go_default_library",
-    ],
+    deps = ["//vendor/github.com/containers/image/v5/docker/reference:go_default_library"],
 )
