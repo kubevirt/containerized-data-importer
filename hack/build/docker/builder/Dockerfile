@@ -33,20 +33,20 @@ RUN pip3 install --upgrade j2cli operator-courier==2.1.11 && \
 	ln -s /opt/gradle/gradle-6.6/bin/gradle /usr/local/bin/gradle && \
 	rm gradle-6.6-bin.zip
 
-ENV GIMME_GO_VERSION=1.19.5 GOPATH="/go" GO111MODULE="on"
+ENV GIMME_GO_VERSION=1.20.7 GOPATH="/go" GO111MODULE="on"
 
 RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
 
 RUN \
 	source /etc/profile.d/gimme.sh && \
 	eval $(go env) && \
-	go install github.com/onsi/ginkgo/ginkgo@v1.14.1 && \
+	go install github.com/onsi/ginkgo/ginkgo@v2.12.0 && \
 	go install golang.org/x/tools/cmd/goimports@latest && \
 	go install mvdan.cc/sh/cmd/shfmt@latest && \
 	go install github.com/mattn/goveralls@latest && \
 	go install golang.org/x/lint/golint@latest && \
 	go install github.com/rmohr/go-swagger-utils/swagger-doc@latest && \
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.11.3 && \
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.13.0 && \
 	go install github.com/securego/gosec/v2/cmd/gosec@latest && \
 	rm -rf "${GOPATH}/pkg"
 
