@@ -176,6 +176,9 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 	if waitForFirstConsumer {
 		annotations[cc.AnnSelectedNode] = pvc.Annotations[cc.AnnSelectedNode]
 	}
+	if _, ok := pvc.Annotations[cc.AnnPodRetainAfterCompletion]; ok {
+		annotations[cc.AnnPodRetainAfterCompletion] = pvc.Annotations[cc.AnnPodRetainAfterCompletion]
+	}
 
 	// Assemble PVC' spec
 	pvcPrime := &corev1.PersistentVolumeClaim{
@@ -328,8 +331,13 @@ func (r *ReconcilerBase) reconcileCommon(pvc *corev1.PersistentVolumeClaim, popu
 
 func (r *ReconcilerBase) reconcileCleanup(pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
 	if pvcPrime != nil {
-		if err := r.client.Delete(context.TODO(), pvcPrime); err != nil {
-			return reconcile.Result{}, err
+		if pvcPrime.Annotations[cc.AnnPodRetainAfterCompletion] == "true" {
+			// Retaining PVC' in Lost state. We can then keep the pod for debugging purposes.
+			r.recorder.Eventf(pvcPrime, corev1.EventTypeWarning, retainedPVCPrime, messageRetainedPVCPrime)
+		} else {
+			if err := r.client.Delete(context.TODO(), pvcPrime); err != nil {
+				return reconcile.Result{}, err
+			}
 		}
 	}
 	return reconcile.Result{}, nil

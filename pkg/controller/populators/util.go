@@ -40,6 +40,11 @@ const (
 	// messageCreatedPVCPrimeSuccessfully provides a const to indicate we created PVC prime for population (message)
 	messageCreatedPVCPrimeSuccessfully = "PVC Prime created successfully"
 
+	// retainedPVCPrime provides a const to indicate that the PVC prime has been retained in lost state (reason)
+	retainedPVCPrime = "RetainedPVCPrime"
+	// messageRetainedPVCPrime provides a const to indicate that the PVC prime has been retained in lost state (message)
+	messageRetainedPVCPrime = "PVC Prime retained in Lost state for debugging purposes"
+
 	// AnnPVCPrimeName annotation is the name of the PVC' that is added to the target PVC
 	// used by the upload-proxy in order to get the service name
 	AnnPVCPrimeName = cc.AnnAPIGroup + "/storage.populator.pvcPrime"

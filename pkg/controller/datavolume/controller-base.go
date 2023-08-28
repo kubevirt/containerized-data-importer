@@ -1177,12 +1177,6 @@ func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, er
 		return boolUsePopulator, nil
 	}
 	log := r.log.WithValues("DataVolume", dv.Name, "Namespace", dv.Namespace)
-	// currently populators don't support retain pod annotation so don't use populators in that case
-	if retain := dv.Annotations[cc.AnnPodRetainAfterCompletion]; retain == "true" {
-		log.Info("Not using CDI populators, currently we don't support populators with retainAfterCompletion annotation")
-		return false, nil
-	}
-
 	usePopulator, err := storageClassCSIDriverExists(r.client, r.log, syncState.pvcSpec.StorageClassName)
 	if err != nil {
 		return false, err
