@@ -59,8 +59,8 @@ func createAPIServerRoleBinding() *rbacv1.RoleBinding {
 	return utils.ResourceBuilder.CreateRoleBinding(apiServerRessouceName, apiServerRessouceName, apiServerRessouceName, "")
 }
 
-func createAPIServerRole() *rbacv1.Role {
-	rules := []rbacv1.PolicyRule{
+func getAPIServerNamespacedRules() []rbacv1.PolicyRule {
+	return []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
 				"",
@@ -77,7 +77,10 @@ func createAPIServerRole() *rbacv1.Role {
 			},
 		},
 	}
-	return utils.ResourceBuilder.CreateRole(apiServerRessouceName, rules)
+}
+
+func createAPIServerRole() *rbacv1.Role {
+	return utils.ResourceBuilder.CreateRole(apiServerRessouceName, getAPIServerNamespacedRules())
 }
 
 func createAPIServerService() *corev1.Service {
