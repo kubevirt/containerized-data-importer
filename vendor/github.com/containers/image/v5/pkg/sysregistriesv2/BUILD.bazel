@@ -3,6 +3,8 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "go_default_library",
     srcs = [
+        "paths_common.go",
+        "paths_freebsd.go",
         "shortnames.go",
         "system_registries_v2.go",
     ],
@@ -16,7 +18,8 @@ go_library(
         "//vendor/github.com/containers/image/v5/types:go_default_library",
         "//vendor/github.com/containers/storage/pkg/homedir:go_default_library",
         "//vendor/github.com/containers/storage/pkg/lockfile:go_default_library",
-        "//vendor/github.com/pkg/errors:go_default_library",
+        "//vendor/github.com/containers/storage/pkg/regexp:go_default_library",
         "//vendor/github.com/sirupsen/logrus:go_default_library",
+        "//vendor/golang.org/x/exp/maps:go_default_library",
     ],
 )

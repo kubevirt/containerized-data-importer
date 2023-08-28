@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "annotations.go",
+        "artifact.go",
         "config.go",
         "descriptor.go",
         "index.go",

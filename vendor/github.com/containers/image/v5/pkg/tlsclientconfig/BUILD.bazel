@@ -7,9 +7,7 @@ go_library(
     importpath = "github.com/containers/image/v5/pkg/tlsclientconfig",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/docker/go-connections/sockets:go_default_library",
-        "//vendor/github.com/docker/go-connections/tlsconfig:go_default_library",
-        "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/github.com/sirupsen/logrus:go_default_library",
+        "//vendor/golang.org/x/exp/slices:go_default_library",
     ],
 )

@@ -3,13 +3,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "go_default_library",
     srcs = [
-        "docker_list.go",
-        "docker_schema1.go",
         "docker_schema2.go",
-        "manifest.go",
-        "memory.go",
-        "oci.go",
-        "oci_index.go",
         "sourced.go",
         "unparsed.go",
     ],
@@ -17,14 +11,8 @@ go_library(
     importpath = "github.com/containers/image/v5/image",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/containers/image/v5/docker/reference:go_default_library",
-        "//vendor/github.com/containers/image/v5/internal/iolimits:go_default_library",
-        "//vendor/github.com/containers/image/v5/manifest:go_default_library",
-        "//vendor/github.com/containers/image/v5/pkg/blobinfocache/none:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/image:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",
         "//vendor/github.com/opencontainers/go-digest:go_default_library",
-        "//vendor/github.com/opencontainers/image-spec/specs-go/v1:go_default_library",
-        "//vendor/github.com/pkg/errors:go_default_library",
-        "//vendor/github.com/sirupsen/logrus:go_default_library",
     ],
 )
