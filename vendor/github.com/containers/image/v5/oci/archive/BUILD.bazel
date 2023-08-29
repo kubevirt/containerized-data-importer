@@ -13,7 +13,14 @@ go_library(
     deps = [
         "//vendor/github.com/containers/image/v5/directory/explicitfilepath:go_default_library",
         "//vendor/github.com/containers/image/v5/docker/reference:go_default_library",
-        "//vendor/github.com/containers/image/v5/image:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/blobinfocache:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/image:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/imagedestination:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/imagedestination/impl:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/imagesource:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/imagesource/impl:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/private:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/signature:go_default_library",
         "//vendor/github.com/containers/image/v5/internal/tmpdir:go_default_library",
         "//vendor/github.com/containers/image/v5/oci/internal:go_default_library",
         "//vendor/github.com/containers/image/v5/oci/layout:go_default_library",
@@ -22,7 +29,6 @@ go_library(
         "//vendor/github.com/containers/storage/pkg/archive:go_default_library",
         "//vendor/github.com/opencontainers/go-digest:go_default_library",
         "//vendor/github.com/opencontainers/image-spec/specs-go/v1:go_default_library",
-        "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/github.com/sirupsen/logrus:go_default_library",
     ],
 )
