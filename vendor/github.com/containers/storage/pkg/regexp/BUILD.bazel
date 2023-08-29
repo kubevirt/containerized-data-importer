@@ -1,0 +1,12 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "regexp.go",
+        "regexp_dontprecompile.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/storage/pkg/regexp",
+    importpath = "github.com/containers/storage/pkg/regexp",
+    visibility = ["//visibility:public"],
+)

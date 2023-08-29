@@ -33,6 +33,7 @@ go_library(
         "node.go",
         "page.go",
         "tx.go",
+        "tx_check.go",
         "unsafe.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/go.etcd.io/bbolt",
@@ -77,6 +78,9 @@ go_library(
         ],
         "@io_bazel_rules_go//go/platform:solaris": [
             "//vendor/golang.org/x/sys/unix:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:windows": [
+            "//vendor/golang.org/x/sys/windows:go_default_library",
         ],
         "//conditions:default": [],
     }),

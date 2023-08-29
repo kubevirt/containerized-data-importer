@@ -36,7 +36,7 @@ func (o overlayWhiteoutConverter) ConvertWrite(hdr *tar.Header, path string, fi 
 		// we just rename the file and make it normal
 		dir, filename := filepath.Split(hdr.Name)
 		hdr.Name = filepath.Join(dir, WhiteoutPrefix+filename)
-		hdr.Mode = 0600
+		hdr.Mode = 0
 		hdr.Typeflag = tar.TypeReg
 		hdr.Size = 0
 	}
@@ -53,7 +53,7 @@ func (o overlayWhiteoutConverter) ConvertWrite(hdr *tar.Header, path string, fi 
 			}
 			// If there are no lower layers, then it can't have been deleted in this layer.
 			if len(o.rolayers) == 0 {
-				return nil, nil
+				return nil, nil //nolint: nilnil
 			}
 			// At this point, we have a directory that's opaque.  If it appears in one of the lower
 			// layers, then it was newly-created here, so it wasn't also deleted here.
@@ -66,7 +66,7 @@ func (o overlayWhiteoutConverter) ConvertWrite(hdr *tar.Header, path string, fi 
 				if statErr == nil {
 					if stat.Mode()&os.ModeCharDevice != 0 {
 						if isWhiteOut(stat) {
-							return nil, nil
+							return nil, nil //nolint: nilnil
 						}
 					}
 					// It's not whiteout, so it was there in the older layer, so we need to
@@ -100,7 +100,7 @@ func (o overlayWhiteoutConverter) ConvertWrite(hdr *tar.Header, path string, fi 
 							// original directory wasn't inherited into this layer,
 							// so we don't need to emit whiteout for it.
 							if isWhiteOut(stat) {
-								return nil, nil
+								return nil, nil //nolint: nilnil
 							}
 						}
 					}
@@ -188,4 +188,23 @@ func GetFileOwner(path string) (uint32, uint32, uint32, error) {
 		return s.Uid, s.Gid, s.Mode & 07777, nil
 	}
 	return 0, 0, uint32(f.Mode()), nil
+}
+
+func handleLChmod(hdr *tar.Header, path string, hdrInfo os.FileInfo, forceMask *os.FileMode) error {
+	permissionsMask := hdrInfo.Mode()
+	if forceMask != nil {
+		permissionsMask = *forceMask
+	}
+	if hdr.Typeflag == tar.TypeLink {
+		if fi, err := os.Lstat(hdr.Linkname); err == nil && (fi.Mode()&os.ModeSymlink == 0) {
+			if err := os.Chmod(path, permissionsMask); err != nil {
+				return err
+			}
+		}
+	} else if hdr.Typeflag != tar.TypeSymlink {
+		if err := os.Chmod(path, permissionsMask); err != nil {
+			return err
+		}
+	}
+	return nil
 }

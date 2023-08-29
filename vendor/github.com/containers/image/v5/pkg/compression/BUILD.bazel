@@ -15,7 +15,6 @@ go_library(
         "//vendor/github.com/containers/storage/pkg/chunked/compressor:go_default_library",
         "//vendor/github.com/klauspost/compress/zstd:go_default_library",
         "//vendor/github.com/klauspost/pgzip:go_default_library",
-        "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/github.com/sirupsen/logrus:go_default_library",
         "//vendor/github.com/ulikunitz/xz:go_default_library",
     ],

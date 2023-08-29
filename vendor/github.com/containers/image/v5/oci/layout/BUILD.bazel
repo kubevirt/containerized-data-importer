@@ -13,9 +13,14 @@ go_library(
     deps = [
         "//vendor/github.com/containers/image/v5/directory/explicitfilepath:go_default_library",
         "//vendor/github.com/containers/image/v5/docker/reference:go_default_library",
-        "//vendor/github.com/containers/image/v5/image:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/image:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/imagedestination/impl:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/imagedestination/stubs:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/imagesource/impl:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/imagesource/stubs:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/manifest:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/private:go_default_library",
         "//vendor/github.com/containers/image/v5/internal/putblobdigest:go_default_library",
-        "//vendor/github.com/containers/image/v5/manifest:go_default_library",
         "//vendor/github.com/containers/image/v5/oci/internal:go_default_library",
         "//vendor/github.com/containers/image/v5/pkg/tlsclientconfig:go_default_library",
         "//vendor/github.com/containers/image/v5/transports:go_default_library",
@@ -24,6 +29,5 @@ go_library(
         "//vendor/github.com/opencontainers/go-digest:go_default_library",
         "//vendor/github.com/opencontainers/image-spec/specs-go:go_default_library",
         "//vendor/github.com/opencontainers/image-spec/specs-go/v1:go_default_library",
-        "//vendor/github.com/pkg/errors:go_default_library",
     ],
 )
