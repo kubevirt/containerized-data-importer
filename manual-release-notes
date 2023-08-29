@@ -18,3 +18,4 @@ Propagate CDI workload NodePlacement to DIC CronJob and initial Job (#2733)
 Add IBM and AWS EFS CSI to known provisioners (#2790)
 Fix DataImportCron PVC update error check (#2795)
 
+v1.56.2
