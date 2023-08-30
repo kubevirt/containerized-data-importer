@@ -40,7 +40,7 @@ RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimm
 RUN \
 	source /etc/profile.d/gimme.sh && \
 	eval $(go env) && \
-	go install github.com/onsi/ginkgo/v2@v2.12.0 && \
+	go install github.com/onsi/ginkgo/v2/ginkgo@v2.12.0 && \
 	go install golang.org/x/tools/cmd/goimports@latest && \
 	go install mvdan.cc/sh/cmd/shfmt@latest && \
 	go install github.com/mattn/goveralls@latest && \
