@@ -27,21 +27,22 @@ import (
 )
 
 const (
+	testHTTPURL           = "http://tinycorelinux.net/14.x/x86/release/"
 	dataImportCronTimeout = 4 * time.Minute
 	scheduleEveryMinute   = "* * * * *"
 	scheduleOnceAYear     = "0 0 1 1 *"
 	importsToKeep         = 1
 	emptySchedule         = ""
 	errorDigest           = "sha256:12345678900987654321"
+	dataSourceName        = "datasource-test"
+	pollerPodName         = "poller"
+	cronName              = "cron-test"
 )
 
 var _ = Describe("DataImportCron", func() {
 	var (
 		f                   = framework.NewFramework("dataimportcron-func-test")
 		log                 = logf.Log.WithName("dataimportcron_test")
-		dataSourceName      = "datasource-test"
-		pollerPodName       = "poller"
-		cronName            = "cron-test"
 		cron                *cdiv1.DataImportCron
 		reg                 *cdiv1.DataVolumeSourceRegistry
 		err                 error
@@ -267,6 +268,7 @@ var _ = Describe("DataImportCron", func() {
 					By("Wait for CurrentImports update")
 					Eventually(func() string {
 						cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
 						currentImportDv = cron.Status.CurrentImports[0].DataVolumeName
 						Expect(currentImportDv).ToNot(BeEmpty())
 						return currentImportDv
@@ -366,6 +368,31 @@ var _ = Describe("DataImportCron", func() {
 		Entry("[test_id:10032] succeed importing to a snapshot from registry URL on source digest update", true, false, 2, cdiv1.DataImportCronSourceFormatSnapshot),
 		Entry("[test_id:8266] succeed deleting error DVs when importing new ones", false, true, 2, cdiv1.DataImportCronSourceFormatPvc),
 	)
+
+	It("[test_id:XXXXX] Should allow HTTP source import", func() {
+		By("Create DataImportCron with HTTP import")
+		cron = utils.NewDataImportCronForHTTP(cronName, "5Gi", dataSourceName, emptySchedule, testHTTPURL, importsToKeep)
+		retentionPolicy := cdiv1.DataImportCronRetainNone
+		cron.Spec.RetentionPolicy = &retentionPolicy
+		cron, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		digests := []string{"Core-14.0.iso", "CorePlus-14.0.iso", "TinyCore-14.0.iso"}
+		for _, tag := range digests {
+			By("Trigger image import with digest " + tag)
+			retryOnceOnErr(updateDataImportCron(f.CdiClient, ns, cron.Name, updateDigest(tag))).Should(BeNil())
+			// wait for next import
+			waitForConditions(corev1.ConditionTrue, corev1.ConditionFalse)
+			// wait for the import to finish
+			waitForConditions(corev1.ConditionFalse, corev1.ConditionTrue)
+
+			By("Verify CurrentImports update:")
+			cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			dvName := cron.Status.CurrentImports[0].DataVolumeName
+			Expect(dvName).ToNot(BeEmpty())
+		}
+	})
 
 	It("[test_id:10040] Should get digest updated by external poller", func() {
 		By("Create DataImportCron with only initial poller job")

@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"reflect"
 	"sort"
@@ -62,16 +63,8 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
-)
 
-const (
-	// ErrDataSourceAlreadyManaged provides a const to indicate DataSource already managed error
-	ErrDataSourceAlreadyManaged = "ErrDataSourceAlreadyManaged"
-	// MessageDataSourceAlreadyManaged provides a const to form DataSource already managed error message
-	MessageDataSourceAlreadyManaged = "DataSource %s is already managed by DataImportCron %s"
-
-	prometheusNsLabel       = "ns"
-	prometheusCronNameLabel = "cron_name"
+	kvalidation "k8s.io/apimachinery/pkg/util/validation"
 )
 
 var (
@@ -117,6 +110,14 @@ const (
 	digestDvNameSuffixLength    = 12
 	cronJobUIDSuffixLength      = 8
 	defaultImportsToKeepPerCron = 3
+
+	// ErrDataSourceAlreadyManaged provides a const to indicate DataSource already managed error
+	ErrDataSourceAlreadyManaged = "ErrDataSourceAlreadyManaged"
+	// MessageDataSourceAlreadyManaged provides a const to form DataSource already managed error message
+	MessageDataSourceAlreadyManaged = "DataSource %s is already managed by DataImportCron %s"
+
+	prometheusNsLabel       = "ns"
+	prometheusCronNameLabel = "cron_name"
 )
 
 // Reconcile loop for DataImportCronReconciler
@@ -178,7 +179,7 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 		}
 		return nil
 	}
-	if !isURLSource(dataImportCron) {
+	if !isRegistryURLSource(dataImportCron) && !isHTTPSource(dataImportCron) {
 		return nil
 	}
 	exists, err := r.cronJobExistsAndUpdated(ctx, dataImportCron)
@@ -259,15 +260,21 @@ func splitImageStreamName(imageStreamName string) (string, string, error) {
 	return "", "", errors.Errorf("Illegal ImageStream name %s", imageStreamName)
 }
 
-func (r *DataImportCronReconciler) pollImageStreamDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
+func (r *DataImportCronReconciler) pollDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
 	if nextTimeStr := dataImportCron.Annotations[AnnNextCronTime]; nextTimeStr != "" {
 		nextTime, err := time.Parse(time.RFC3339, nextTimeStr)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
 		if nextTime.Before(time.Now()) {
-			if err := r.updateImageStreamDesiredDigest(ctx, dataImportCron); err != nil {
-				return reconcile.Result{}, err
+			if isImageStreamSource(dataImportCron) {
+				if err := r.updateImageStreamDesiredDigest(ctx, dataImportCron); err != nil {
+					return reconcile.Result{}, err
+				}
+			} else {
+				if err := r.updateHTTPSourceDesiredDigest(ctx, dataImportCron); err != nil {
+					return reconcile.Result{}, err
+				}
 			}
 		}
 	}
@@ -292,9 +299,14 @@ func isImageStreamSource(dataImportCron *cdiv1.DataImportCron) bool {
 	return err == nil && regSource.ImageStream != nil
 }
 
-func isURLSource(dataImportCron *cdiv1.DataImportCron) bool {
+func isRegistryURLSource(dataImportCron *cdiv1.DataImportCron) bool {
 	regSource, err := getCronRegistrySource(dataImportCron)
 	return err == nil && regSource.URL != nil
+}
+
+func isHTTPSource(dataImportCron *cdiv1.DataImportCron) bool {
+	httpSource, err := getCronHTTPSource(dataImportCron)
+	return err == nil && httpSource != nil && len(httpSource.URL) > 0
 }
 
 func getCronRegistrySource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourceRegistry, error) {
@@ -303,6 +315,14 @@ func getCronRegistrySource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourceR
 		return nil, errors.Errorf("Cron with no registry source %s", cron.Name)
 	}
 	return source.Registry, nil
+}
+
+func getCronHTTPSource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourceHTTP, error) {
+	source := cron.Spec.Template.Spec.Source
+	if source == nil || source.HTTP == nil {
+		return nil, errors.Errorf("Cron with no HTTP source %s", cron.Name)
+	}
+	return source.HTTP, nil
 }
 
 func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
@@ -395,9 +415,9 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	}
 
 	// Skip if schedule is disabled
-	if isImageStreamSource(dataImportCron) && dataImportCron.Spec.Schedule != "" {
+	if (isImageStreamSource(dataImportCron) || isHTTPSource(dataImportCron)) && dataImportCron.Spec.Schedule != "" {
 		// We use the poll returned reconcile.Result for RequeueAfter if needed
-		pollRes, err := r.pollImageStreamDigest(ctx, dataImportCron)
+		pollRes, err := r.pollDigest(ctx, dataImportCron)
 		if err != nil {
 			return pollRes, err
 		}
@@ -546,6 +566,46 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 	return nil
 }
 
+func (r *DataImportCronReconciler) updateHTTPSourceDesiredDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+	log := r.log.WithValues("name", dataImportCron.Name).WithValues("uid", dataImportCron.UID)
+	httpSource, err := getCronHTTPSource(dataImportCron)
+	if err != nil {
+		return err
+	}
+
+	lastImportTime := dataImportCron.Annotations[AnnLastCronTime]
+	response, err := httpSourceRequest(httpSource.URL, lastImportTime)
+	if err != nil {
+		return err
+	}
+
+	cc.AddAnnotation(dataImportCron, AnnLastCronTime, time.Now().Format(time.RFC3339))
+
+	if response.Status == "200" {
+		digest := "LastImport:" + strings.ReplaceAll(time.Now().Format(time.RFC3339), " ", "")
+		log.Info("Updating DataImportCron", "digest", dataImportCron.Annotations[AnnSourceDesiredDigest])
+		cc.AddAnnotation(dataImportCron, AnnSourceDesiredDigest, digest)
+	}
+
+	return nil
+}
+
+func httpSourceRequest(path, time string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("If-Modified-Since", time)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
 func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImportCron *cdiv1.DataImportCron, format cdiv1.DataImportCronSourceFormat) error {
 	log := r.log.WithName("updateDataSource")
 	dataSourceName := dataImportCron.Spec.ManagedDataSource
@@ -643,10 +703,18 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 	if digest == "" {
 		return nil
 	}
-	dvName, err := createDvName(dataSourceName, digest)
+
+	var dvName string
+	var err error
+	if isHTTPSource(dataImportCron) {
+		dvName, err = createDvNameForHTTPImport(dataSourceName, digest)
+	} else {
+		dvName, err = createDvName(dataSourceName, digest)
+	}
 	if err != nil {
 		return err
 	}
+
 	dataImportCron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: dvName, Digest: digest}}
 
 	sources := []client.Object{&snapshotv1.VolumeSnapshot{}, &corev1.PersistentVolumeClaim{}}
@@ -1095,6 +1163,16 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 
 // InitPollerPodSpec inits poller PodSpec
 func InitPollerPodSpec(c client.Client, cron *cdiv1.DataImportCron, podSpec *corev1.PodSpec, image string, pullPolicy corev1.PullPolicy, log logr.Logger) error {
+	if isHTTPSource(cron) {
+		err := initPollerPodSpecHTTP(c, cron, podSpec, image, pullPolicy, log)
+		return err
+	}
+
+	err := initPollerPodSpecRegistry(c, cron, podSpec, image, pullPolicy, log)
+	return err
+}
+
+func initPollerPodSpecRegistry(c client.Client, cron *cdiv1.DataImportCron, podSpec *corev1.PodSpec, image string, pullPolicy corev1.PullPolicy, log logr.Logger) error {
 	regSource, err := getCronRegistrySource(cron)
 	if err != nil {
 		return err
@@ -1172,6 +1250,94 @@ func InitPollerPodSpec(c client.Client, cron *cdiv1.DataImportCron, podSpec *cor
 		)
 	}
 
+	err = createPodSpec(container, insecureTLS, *cdiConfig, c, podSpec, volumes)
+
+	return err
+}
+
+func initPollerPodSpecHTTP(c client.Client, cron *cdiv1.DataImportCron, podSpec *corev1.PodSpec, image string, pullPolicy corev1.PullPolicy, log logr.Logger) error {
+	httpSource, err := getCronHTTPSource(cron)
+	if err != nil {
+		return err
+	}
+	if httpSource.URL == "" {
+		return errors.Errorf("No URL source in cron %s", cron.Name)
+	}
+	cdiConfig := &cdiv1.CDIConfig{}
+	if err := c.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
+		return err
+	}
+	insecureTLS, err := IsInsecureTLS(httpSource.URL, cdiConfig, log)
+	if err != nil {
+		return err
+	}
+	container := corev1.Container{
+		Name:  "cdi-source-update-poller",
+		Image: image,
+		Command: []string{
+			"/usr/bin/cdi-source-update-poller",
+			"-ns", cron.Namespace,
+			"-cron", cron.Name,
+			"-url", httpSource.URL,
+		},
+		ImagePullPolicy:          pullPolicy,
+		TerminationMessagePath:   corev1.TerminationMessagePathDefault,
+		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+	}
+
+	var volumes []corev1.Volume
+	hasCertConfigMap := httpSource.CertConfigMap != ""
+	if hasCertConfigMap {
+		vm := corev1.VolumeMount{
+			Name:      CertVolName,
+			MountPath: common.ImporterCertDir,
+		}
+		container.VolumeMounts = append(container.VolumeMounts, vm)
+		container.Command = append(container.Command, "-certdir", common.ImporterCertDir)
+		volumes = append(volumes, createConfigMapVolume(CertVolName, httpSource.CertConfigMap))
+	}
+
+	if volName, _ := GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName); volName != "" {
+		vm := corev1.VolumeMount{
+			Name:      ProxyCertVolName,
+			MountPath: common.ImporterProxyCertDir,
+		}
+		container.VolumeMounts = append(container.VolumeMounts, vm)
+		volumes = append(volumes, createConfigMapVolume(ProxyCertVolName, volName))
+	}
+
+	if httpSource.SecretRef != "" {
+		container.Env = append(container.Env,
+			corev1.EnvVar{
+				Name: common.ImporterAccessKeyID,
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: httpSource.SecretRef,
+						},
+						Key: common.KeyAccess,
+					},
+				},
+			},
+			corev1.EnvVar{
+				Name: common.ImporterSecretKey,
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: httpSource.SecretRef,
+						},
+						Key: common.KeySecret,
+					},
+				},
+			},
+		)
+	}
+	err = createPodSpec(container, insecureTLS, *cdiConfig, c, podSpec, volumes)
+
+	return err
+}
+
+func createPodSpec(container corev1.Container, insecureTLS bool, cdiConfig cdiv1.CDIConfig, c client.Client, podSpec *corev1.PodSpec, volumes []corev1.Volume) error {
 	addEnvVar := func(varName, value string) {
 		container.Env = append(container.Env, corev1.EnvVar{Name: varName, Value: value})
 	}
@@ -1181,7 +1347,7 @@ func InitPollerPodSpec(c client.Client, cron *cdiv1.DataImportCron, podSpec *cor
 	}
 
 	addEnvVarFromImportProxyConfig := func(varName string) {
-		if value, err := GetImportProxyConfig(cdiConfig, varName); err == nil {
+		if value, err := GetImportProxyConfig(&cdiConfig, varName); err == nil {
 			addEnvVar(varName, value)
 		}
 	}
@@ -1263,14 +1429,19 @@ func (r *DataImportCronReconciler) setJobCommon(cron *cdiv1.DataImportCron, obj 
 func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdiv1.DataVolume {
 	var digestedURL string
 	dv := cron.Spec.Template.DeepCopy()
-	if isURLSource(cron) {
+	if isRegistryURLSource(cron) {
 		digestedURL = untagDigestedDockerURL(*dv.Spec.Source.Registry.URL + "@" + cron.Annotations[AnnSourceDesiredDigest])
+		dv.Spec.Source.Registry.URL = &digestedURL
 	} else if isImageStreamSource(cron) {
 		// No way to import image stream by name when we want specific digest, so we use its docker reference
 		digestedURL = "docker://" + cron.Annotations[AnnImageStreamDockerRef]
 		dv.Spec.Source.Registry.ImageStream = nil
+		dv.Spec.Source.Registry.URL = &digestedURL
+	} else if isHTTPSource(cron) {
+		digestedURL = dv.Spec.Source.HTTP.URL + cron.Annotations[AnnSourceDesiredDigest]
+		dv.Spec.Source.HTTP.URL = digestedURL
 	}
-	dv.Spec.Source.Registry.URL = &digestedURL
+
 	dv.Name = dataVolumeName
 	dv.Namespace = cron.Namespace
 	r.setDataImportCronResourceLabels(cron, dv)
@@ -1351,6 +1522,14 @@ func createDvName(prefix, digest string) (string, error) {
 		return "", errors.Errorf("Digest is too short")
 	}
 	return naming.GetResourceName(prefix, digest[fromIdx:toIdx]), nil
+}
+
+func createDvNameForHTTPImport(prefix, digest string) (string, error) {
+	name := strings.ToLower(prefix + digest)
+	if len(name) > kvalidation.DNS1123SubdomainMaxLength {
+		name = name[:kvalidation.DNS1123SubdomainMaxLength]
+	}
+	return name, nil
 }
 
 // GetCronJobName get CronJob name based on cron name and UID

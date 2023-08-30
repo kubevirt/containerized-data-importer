@@ -63,6 +63,7 @@ var (
 )
 
 const (
+	testHTTPURL     = "http://tinycorelinux.net/14.x/x86/release/"
 	testRegistryURL = "docker://quay.io/kubevirt/junk"
 	testTag         = ":12.34_56-7890"
 	testDigest      = "sha256:68b44fc891f3fae6703d4b74bcc9b5f24df8d23f12e642805d1420cbe7a4be70"
@@ -203,7 +204,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("Should create and delete CronJob if DataImportCron is created and deleted", func() {
+		DescribeTable("Should create and delete CronJob if DataImportCron is created and deleted", func(isRegistry bool, errorString string) {
 			cdiConfig := cc.MakeEmptyCDIConfigSpec(common.ConfigName)
 			cdiConfig.Status.ImportProxy = &cdiv1.ImportProxy{
 				HTTPProxy:      &httpProxy,
@@ -212,7 +213,11 @@ var _ = Describe("All DataImportCron Tests", func() {
 				TrustedCAProxy: &trustedCAProxy,
 			}
 
-			cron = newDataImportCron(cronName)
+			if isRegistry {
+				cron = newDataImportCron(cronName)
+			} else {
+				cron = newDataImportCronForHTTP(cronName)
+			}
 			reconciler = createDataImportCronReconcilerWithoutConfig(cron, cdiConfig)
 			_, err := reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
@@ -261,7 +266,10 @@ var _ = Describe("All DataImportCron Tests", func() {
 
 			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
 			Expect(err).To(HaveOccurred())
-		})
+		},
+			Entry("Registry import", true, "Should create and delete CronJob with registry import"),
+			Entry("HTTP import", false, "Should create and delete CronJob with HTTP import"),
+		)
 
 		It("Should verify CronJob container env variables are empty and no extra volume is set when proxy is not configured", func() {
 			cron = newDataImportCron(cronName)
@@ -380,8 +388,13 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(cronJob).To(Equal(cronJobCopy))
 		})
 
-		DescribeTable("Should create DataVolume on AnnSourceDesiredDigest annotation update, and update DataImportCron and DataSource on DataVolume Succeeded", func(schedule, errorString string) {
-			cron = newDataImportCron(cronName)
+		DescribeTable("Should create DataVolume on AnnSourceDesiredDigest annotation update, and update DataImportCron and DataSource on DataVolume Succeeded", func(isRegistry bool, schedule, errorString string) {
+			if isRegistry {
+				cron = newDataImportCron(cronName)
+			} else {
+				cron = newDataImportCronForHTTP(cronName)
+			}
+
 			cron.Spec.Schedule = schedule
 			dataSource = nil
 			retentionPolicy := cdiv1.DataImportCronRetainNone
@@ -406,7 +419,11 @@ var _ = Describe("All DataImportCron Tests", func() {
 			dv := &cdiv1.DataVolume{}
 			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(*dv.Spec.Source.Registry.URL).To(Equal(testRegistryURL + "@" + testDigest))
+			if isHTTPSource(cron) {
+				Expect(dv.Spec.Source.HTTP.URL).To(Equal(testHTTPURL + testDigest))
+			} else {
+				Expect(*dv.Spec.Source.Registry.URL).To(Equal(testRegistryURL + "@" + testDigest))
+			}
 			Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
 
 			if cron.Spec.Schedule == emptySchedule {
@@ -460,8 +477,10 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dvList.Items).To(BeEmpty())
 		},
-			Entry("default schedule", defaultSchedule, "should succeed with a default schedule"),
-			Entry("empty schedule", emptySchedule, "should succeed with an empty schedule"),
+			Entry("Default schedule with registry import", true, defaultSchedule, "Should succeed with a registry import and a default schedule"),
+			Entry("Empty schedule with registry import", true, emptySchedule, "Should succeed with a registry import and an empty schedule"),
+			Entry("Default schedule with HTTP import", false, defaultSchedule, "Should succeed with a HTTP import and a default schedule"),
+			Entry("Empty schedule with HTTP import", false, emptySchedule, "Should succeed with a HTTP import and an empty schedule"),
 		)
 
 		It("Should not create DV if PVC exists on DesiredDigest update; Should update DIC and DAS, and GC LRU PVCs", func() {
@@ -1075,6 +1094,40 @@ func newImageStream(name string) *imagev1.ImageStream {
 					},
 				},
 			},
+		},
+	}
+}
+
+func newDataImportCronForHTTP(name string) *cdiv1.DataImportCron {
+	garbageCollect := cdiv1.DataImportCronGarbageCollectOutdated
+	importsToKeep := int32(2)
+	url := testHTTPURL
+
+	return &cdiv1.DataImportCron{
+		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Namespace:   metav1.NamespaceDefault,
+			UID:         types.UID(uuid.NewString()),
+			Annotations: map[string]string{},
+		},
+		Spec: cdiv1.DataImportCronSpec{
+			Template: cdiv1.DataVolume{
+				Spec: cdiv1.DataVolumeSpec{
+					Source: &cdiv1.DataVolumeSource{
+						HTTP: &cdiv1.DataVolumeSourceHTTP{
+							URL: url,
+						},
+					},
+					PVC: &corev1.PersistentVolumeClaimSpec{
+						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+					},
+				},
+			},
+			Schedule:          defaultSchedule,
+			ManagedDataSource: dataSourceName,
+			GarbageCollect:    &garbageCollect,
+			ImportsToKeep:     &importsToKeep,
 		},
 	}
 }
