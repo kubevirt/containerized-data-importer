@@ -1,0 +1,21 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "record.go",
+        "ticketsender.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/google/s2a-go/internal/record",
+    importpath = "github.com/google/s2a-go/internal/record",
+    visibility = ["//vendor/github.com/google/s2a-go:__subpackages__"],
+    deps = [
+        "//vendor/github.com/google/s2a-go/internal/handshaker/service:go_default_library",
+        "//vendor/github.com/google/s2a-go/internal/proto/common_go_proto:go_default_library",
+        "//vendor/github.com/google/s2a-go/internal/proto/s2a_go_proto:go_default_library",
+        "//vendor/github.com/google/s2a-go/internal/record/internal/halfconn:go_default_library",
+        "//vendor/github.com/google/s2a-go/internal/tokenmanager:go_default_library",
+        "//vendor/google.golang.org/grpc/codes:go_default_library",
+        "//vendor/google.golang.org/grpc/grpclog:go_default_library",
+    ],
+)

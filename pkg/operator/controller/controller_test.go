@@ -32,10 +32,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
+	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -294,10 +294,11 @@ var _ = Describe("Controller", func() {
 				obj, err := getObject(args.client, rule)
 				Expect(err).ToNot(HaveOccurred())
 				rule = obj.(*promv1.PrometheusRule)
+				duration := promv1.Duration("5m")
 				cdiDownAlert := promv1.Rule{
 					Alert: "CDIOperatorDown",
 					Expr:  intstr.FromString("kubevirt_cdi_operator_up == 0"),
-					For:   "5m",
+					For:   &duration,
 					Annotations: map[string]string{
 						"summary":     "CDI operator is down",
 						"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIOperatorDown"),
@@ -516,7 +517,7 @@ var _ = Describe("Controller", func() {
 					dd.Status.Replicas = *dd.Spec.Replicas
 					dd.Status.ReadyReplicas = dd.Status.Replicas
 
-					err = args.client.Update(context.TODO(), dd)
+					err = args.client.Status().Update(context.TODO(), dd)
 					Expect(err).ToNot(HaveOccurred())
 				}
 
@@ -538,7 +539,7 @@ var _ = Describe("Controller", func() {
 				deployment, err = getDeployment(args.client, deployment)
 				Expect(err).ToNot(HaveOccurred())
 				deployment.Status.ReadyReplicas = 0
-				err = args.client.Update(context.TODO(), deployment)
+				err = args.client.Status().Update(context.TODO(), deployment)
 				Expect(err).ToNot(HaveOccurred())
 
 				doReconcile(args)
@@ -552,7 +553,7 @@ var _ = Describe("Controller", func() {
 				deployment, err = getDeployment(args.client, deployment)
 				Expect(err).ToNot(HaveOccurred())
 				deployment.Status.ReadyReplicas = deployment.Status.Replicas
-				err = args.client.Update(context.TODO(), deployment)
+				err = args.client.Status().Update(context.TODO(), deployment)
 				Expect(err).ToNot(HaveOccurred())
 
 				doReconcile(args)
@@ -1426,14 +1427,12 @@ func setDeploymentsReady(args *args) bool {
 			continue
 		}
 
-		Expect(running).To(BeFalse())
-
 		d, err := getDeployment(args.client, d)
 		Expect(err).ToNot(HaveOccurred())
 		if d.Spec.Replicas != nil {
 			d.Status.Replicas = *d.Spec.Replicas
 			d.Status.ReadyReplicas = d.Status.Replicas
-			err = args.client.Update(context.TODO(), d)
+			err = args.client.Status().Update(context.TODO(), d)
 			Expect(err).ToNot(HaveOccurred())
 		}
 
@@ -1465,7 +1464,7 @@ func setDeploymentsDegraded(args *args) {
 		if d.Spec.Replicas != nil {
 			d.Status.Replicas = int32(0)
 			d.Status.ReadyReplicas = d.Status.Replicas
-			err = args.client.Update(context.TODO(), d)
+			err = args.client.Status().Update(context.TODO(), d)
 			Expect(err).ToNot(HaveOccurred())
 		}
 

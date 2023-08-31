@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["remotesigner.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/google/s2a-go/internal/v2/remotesigner",
+    importpath = "github.com/google/s2a-go/internal/v2/remotesigner",
+    visibility = ["//vendor/github.com/google/s2a-go:__subpackages__"],
+    deps = [
+        "//vendor/github.com/google/s2a-go/internal/proto/v2/s2a_go_proto:go_default_library",
+        "//vendor/github.com/google/s2a-go/stream:go_default_library",
+        "//vendor/google.golang.org/grpc/codes:go_default_library",
+        "//vendor/google.golang.org/grpc/grpclog:go_default_library",
+    ],
+)

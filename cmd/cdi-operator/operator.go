@@ -23,10 +23,10 @@ import (
 	"runtime"
 	"strconv"
 
-	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
+	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"go.uber.org/zap/zapcore"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"

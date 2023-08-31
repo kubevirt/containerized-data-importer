@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["profile-printer.go"],
+    importpath = "kubevirt.io/containerized-data-importer/tools/profile-printer",
+    visibility = ["//visibility:private"],
+    deps = ["//pkg/storagecapabilities:go_default_library"],
+)
+
+go_binary(
+    name = "profile-printer",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)

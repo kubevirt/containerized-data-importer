@@ -14,7 +14,7 @@ import (
 // DefaultResponseMimeType is DEPRECATED, use DefaultResponseContentType(mime)
 var DefaultResponseMimeType string
 
-//PrettyPrintResponses controls the indentation feature of XML and JSON serialization
+// PrettyPrintResponses controls the indentation feature of XML and JSON serialization
 var PrettyPrintResponses = true
 
 // Response is a wrapper on the actual http ResponseWriter
@@ -40,7 +40,8 @@ func NewResponse(httpWriter http.ResponseWriter) *Response {
 // If Accept header matching fails, fall back to this type.
 // Valid values are restful.MIME_JSON and restful.MIME_XML
 // Example:
-// 	restful.DefaultResponseContentType(restful.MIME_JSON)
+//
+//	restful.DefaultResponseContentType(restful.MIME_JSON)
 func DefaultResponseContentType(mime string) {
 	DefaultResponseMimeType = mime
 }
@@ -108,6 +109,9 @@ func (r *Response) EntityWriter() (EntityReaderWriter, bool) {
 		}
 		if DefaultResponseMimeType == MIME_XML {
 			return entityAccessRegistry.accessorAt(MIME_XML)
+		}
+		if DefaultResponseMimeType == MIME_ZIP {
+			return entityAccessRegistry.accessorAt(MIME_ZIP)
 		}
 		// Fallback to whatever the route says it can produce.
 		// https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html

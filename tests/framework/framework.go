@@ -18,8 +18,8 @@ import (
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 
-	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
