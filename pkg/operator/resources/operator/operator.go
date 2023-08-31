@@ -33,7 +33,8 @@ import (
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources"
-	cluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
+	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
+	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
@@ -54,7 +55,12 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"clusterroles",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"delete",
 			},
 		},
 		{
@@ -74,21 +80,6 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 		},
 		{
 			APIGroups: []string{
-				"",
-			},
-			Resources: []string{
-				"pods",
-				"services",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-				"delete",
-			},
-		},
-		{
-			APIGroups: []string{
 				"apiextensions.k8s.io",
 			},
 			Resources: []string{
@@ -96,7 +87,12 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"customresourcedefinitions/status",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"delete",
 			},
 		},
 		{
@@ -120,7 +116,45 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"mutatingwebhookconfigurations",
 			},
 			Verbs: []string{
-				"*",
+				"create",
+				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
+				"admissionregistration.k8s.io",
+			},
+			Resources: []string{
+				"validatingwebhookconfigurations",
+			},
+			ResourceNames: []string{
+				"cdi-api-dataimportcron-validate",
+				"cdi-api-populator-validate",
+				"cdi-api-datavolume-validate",
+				"cdi-api-validate",
+				"objecttransfer-api-validate",
+			},
+			Verbs: []string{
+				"get",
+				"update",
+				"delete",
+			},
+		},
+		{
+			APIGroups: []string{
+				"admissionregistration.k8s.io",
+			},
+			Resources: []string{
+				"mutatingwebhookconfigurations",
+			},
+			ResourceNames: []string{
+				"cdi-api-datavolume-mutate",
+			},
+			Verbs: []string{
+				"get",
+				"update",
+				"delete",
 			},
 		},
 		{
@@ -131,11 +165,16 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"apiservices",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"delete",
 			},
 		},
 	}
-	rules = append(rules, cluster.GetClusterRolePolicyRules()...)
+	rules = append(rules, cdicluster.GetClusterRolePolicyRules()...)
 	return rules
 }
 
@@ -165,7 +204,12 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 				"roles",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"delete",
 			},
 		},
 		{
@@ -180,7 +224,13 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 				"services",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"patch",
+				"delete",
 			},
 		},
 		{
@@ -192,7 +242,12 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 				"deployments/finalizers",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"delete",
 			},
 		},
 		{
@@ -204,7 +259,11 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 				"routes/custom-host",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
 			},
 		},
 		{
@@ -246,10 +305,13 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 				"leases",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"create",
+				"update",
 			},
 		},
 	}
+	rules = append(rules, cdinamespaced.GetRolePolicyRules()...)
 	return rules
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap/zapcore"
+	batchv1 "k8s.io/api/batch/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -385,6 +386,12 @@ func getNewManagerCache(cdiNamespace string) cache.NewCacheFunc {
 					Field: namespaceSelector,
 				},
 				&routev1.Route{}: {
+					Field: namespaceSelector,
+				},
+				&batchv1.CronJob{}: {
+					Field: namespaceSelector,
+				},
+				&batchv1.Job{}: {
 					Field: namespaceSelector,
 				},
 			},
