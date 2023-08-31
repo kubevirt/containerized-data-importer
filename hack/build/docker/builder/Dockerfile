@@ -50,7 +50,7 @@ RUN \
 	go install github.com/securego/gosec/v2/cmd/gosec@latest && \
 	rm -rf "${GOPATH}/pkg"
 
-ENV BAZEL_VERSION 5.2.0
+ENV BAZEL_VERSION 5.3.1
 
 COPY output-bazel-arch.sh /output-bazel-arch.sh
 

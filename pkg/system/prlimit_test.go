@@ -127,7 +127,7 @@ func fakeCommandContext(ctx context.Context, command string, args ...string) *ex
 	cs = append(cs, args...)
 
 	cmd := exec.CommandContext(ctx, os.Args[0], cs...)
-	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
+	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1", "GOCOVERDIR=/tmp"}
 	return cmd
 }
 
