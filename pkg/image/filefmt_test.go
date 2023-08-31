@@ -1,7 +1,7 @@
 package image
 
 import (
-	"math/rand"
+	rand "crypto/rand"
 	"reflect"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -17,7 +17,8 @@ var _ = Describe("File format tests", func() {
 	//tar bytes and offset
 	token := make([]byte, 257)
 	tarheader := []byte{0x75, 0x73, 0x74, 0x61, 0x72, 0x20}
-	rand.Read(token)
+	_, err := rand.Read(token)
+	Expect(err).ToNot(HaveOccurred())
 	tarbyte := append(token, tarheader...)
 
 	DescribeTable("Header match", func(h Header, b []byte, want bool) {
@@ -65,7 +66,8 @@ var _ = Describe("File format tests", func() {
 	tokenQcow := make([]byte, 20)
 	qcowMagic := []byte{'Q', 'F', 'I', 0xfb}
 	qcowSize := []byte("10561056")
-	rand.Read(tokenQcow)
+	_, err = rand.Read(tokenQcow)
+	Expect(err).ToNot(HaveOccurred())
 	qcowbyte := append(qcowMagic, tokenQcow...)
 	qcowbyte = append(qcowbyte, qcowSize...)
 

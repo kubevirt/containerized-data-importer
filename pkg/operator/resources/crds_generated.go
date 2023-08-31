@@ -6,7 +6,7 @@ var CDICRDs map[string]string = map[string]string{
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.3
+    controller-gen.kubebuilder.io/version: v0.13.0
   creationTimestamp: null
   name: cdis.cdi.kubevirt.io
 spec:
@@ -4502,7 +4502,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.3
+    controller-gen.kubebuilder.io/version: v0.13.0
   creationTimestamp: null
   name: cdiconfigs.cdi.kubevirt.io
 spec:
@@ -4908,7 +4908,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.3
+    controller-gen.kubebuilder.io/version: v0.13.0
   creationTimestamp: null
   name: dataimportcrons.cdi.kubevirt.io
 spec:
@@ -5789,7 +5789,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.3
+    controller-gen.kubebuilder.io/version: v0.13.0
   creationTimestamp: null
   name: datasources.cdi.kubevirt.io
 spec:
@@ -5940,7 +5940,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.3
+    controller-gen.kubebuilder.io/version: v0.13.0
   creationTimestamp: null
   name: datavolumes.cdi.kubevirt.io
 spec:
@@ -6689,7 +6689,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.3
+    controller-gen.kubebuilder.io/version: v0.13.0
   creationTimestamp: null
   name: objecttransfers.cdi.kubevirt.io
 spec:
@@ -6821,7 +6821,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.3
+    controller-gen.kubebuilder.io/version: v0.13.0
   creationTimestamp: null
   name: storageprofiles.cdi.kubevirt.io
 spec:
@@ -6938,7 +6938,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.3
+    controller-gen.kubebuilder.io/version: v0.13.0
   creationTimestamp: null
   name: volumeclonesources.cdi.kubevirt.io
 spec:
@@ -7018,7 +7018,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.3
+    controller-gen.kubebuilder.io/version: v0.13.0
   creationTimestamp: null
   name: volumeimportsources.cdi.kubevirt.io
 spec:
@@ -7259,7 +7259,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.3
+    controller-gen.kubebuilder.io/version: v0.13.0
   creationTimestamp: null
   name: volumeuploadsources.cdi.kubevirt.io
 spec:

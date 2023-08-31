@@ -40,33 +40,7 @@
      }
     }
    },
-   "/apis": {
-    "get": {
-     "description": "Get a CDI API GroupList",
-     "produces": [
-      "application/json"
-     ],
-     "operationId": "getUploadAPIs",
-     "responses": {
-      "200": {
-       "description": "OK",
-       "schema": {
-        "$ref": "#/definitions/v1.APIGroupList"
-       }
-      },
-      "401": {
-       "description": "Unauthorized"
-      },
-      "404": {
-       "description": "Not Found",
-       "schema": {
-        "type": "string"
-       }
-      }
-     }
-    }
-   },
-   "/apis/cdi.kubevirt.io/": {
+   "/apis/cdi.kubevirt.io": {
     "get": {
      "description": "Get a KubeVirt CDI API group",
      "produces": [
@@ -92,7 +66,7 @@
      }
     }
    },
-   "/apis/cdi.kubevirt.io/v1beta1/": {
+   "/apis/cdi.kubevirt.io/v1beta1": {
     "get": {
      "description": "Get KubeVirt API Resources",
      "produces": [
@@ -3509,7 +3483,7 @@
      }
     }
    },
-   "/apis/upload.cdi.kubevirt.io/v1beta1/": {
+   "/apis/upload.cdi.kubevirt.io/v1beta1": {
     "get": {
      "description": "Get a CDI API resources",
      "produces": [
@@ -3596,22 +3570,6 @@
    "/healthz": {
     "get": {
      "operationId": "healthzHandler",
-     "responses": {
-      "401": {
-       "description": "Unauthorized"
-      }
-     }
-    }
-   },
-   "/openapi/v2": {
-    "get": {
-     "consumes": [
-      "application/json"
-     ],
-     "produces": [
-      "application/json"
-     ],
-     "operationId": "func5",
      "responses": {
       "401": {
        "description": "Unauthorized"
@@ -4363,8 +4321,12 @@
       "type": "string"
      },
      "volumeMode": {
-      "description": "volumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.",
-      "type": "string"
+      "description": "volumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.\n\nPossible enum values:\n - `\"Block\"` means the volume will not be formatted with a filesystem and will remain a raw block device.\n - `\"Filesystem\"` means the volume will be or is formatted with a filesystem.",
+      "type": "string",
+      "enum": [
+       "Block",
+       "Filesystem"
+      ]
      },
      "volumeName": {
       "description": "volumeName is the binding reference to the PersistentVolume backing this claim.",
@@ -5999,8 +5961,12 @@
       "type": "string"
      },
      "volumeMode": {
-      "description": "volumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.",
-      "type": "string"
+      "description": "volumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.\n\nPossible enum values:\n - `\"Block\"` means the volume will not be formatted with a filesystem and will remain a raw block device.\n - `\"Filesystem\"` means the volume will be or is formatted with a filesystem.",
+      "type": "string",
+      "enum": [
+       "Block",
+       "Filesystem"
+      ]
      },
      "volumeName": {
       "description": "VolumeName is the binding reference to the PersistentVolume backing this claim.",
