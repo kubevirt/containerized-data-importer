@@ -5311,6 +5311,10 @@
      "lastImportedPVC": {
       "description": "LastImportedPVC is the last imported PVC",
       "$ref": "#/definitions/v1beta1.DataVolumeSourcePVC"
+     },
+     "sourceFormat": {
+      "description": "SourceFormat defines the format of the DataImportCron-created disk image sources",
+      "type": "string"
      }
     }
    },
