@@ -19,6 +19,7 @@ go_library(
         "//pkg/util:go_default_library",
         "//pkg/util/openapi:go_default_library",
         "//pkg/util/tls-crypto-watch:go_default_library",
+        "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1:go_default_library",
         "//vendor/github.com/emicklei/go-restful/v3:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
@@ -33,7 +34,6 @@ go_library(
         "//vendor/k8s.io/klog/v2:go_default_library",
         "//vendor/k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset:go_default_library",
         "//vendor/k8s.io/kube-openapi/pkg/validation/spec:go_default_library",
-        "//vendor/kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1:go_default_library",
     ],
 )
 
@@ -54,6 +54,8 @@ go_test(
         "//pkg/util/cert:go_default_library",
         "//pkg/util/cert/triple:go_default_library",
         "//pkg/util/tls-crypto-watch:go_default_library",
+        "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
+        "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1:go_default_library",
         "//vendor/github.com/emicklei/go-restful/v3:go_default_library",
         "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
@@ -67,7 +69,5 @@ go_test(
         "//vendor/k8s.io/client-go/tools/cache:go_default_library",
         "//vendor/k8s.io/client-go/util/cert:go_default_library",
         "//vendor/k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake:go_default_library",
-        "//vendor/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
-        "//vendor/kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1:go_default_library",
     ],
 )

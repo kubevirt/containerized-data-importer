@@ -20,6 +20,7 @@ go_library(
         "//pkg/common:go_default_library",
         "//pkg/controller/common:go_default_library",
         "//pkg/token:go_default_library",
+        "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/appscode/jsonpatch:go_default_library",
         "//vendor/github.com/gorhill/cronexpr:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned:go_default_library",
@@ -38,7 +39,6 @@ go_library(
         "//vendor/k8s.io/client-go/kubernetes:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
         "//vendor/k8s.io/utils/pointer:go_default_library",
-        "//vendor/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/api:go_default_library",
     ],
 )
@@ -59,6 +59,7 @@ go_test(
         "//pkg/client/clientset/versioned/fake:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/controller/common:go_default_library",
+        "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/appscode/jsonpatch:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake:go_default_library",
@@ -73,7 +74,6 @@ go_test(
         "//vendor/k8s.io/client-go/kubernetes/fake:go_default_library",
         "//vendor/k8s.io/client-go/testing:go_default_library",
         "//vendor/k8s.io/utils/pointer:go_default_library",
-        "//vendor/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/api:go_default_library",
     ],
 )
