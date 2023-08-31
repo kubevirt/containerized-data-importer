@@ -25086,6 +25086,13 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 							},
 						},
 					},
+					"logVerbosity": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LogVerbosity overrides the default verbosity level used to initialize loggers",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
 				},
 			},
 		},

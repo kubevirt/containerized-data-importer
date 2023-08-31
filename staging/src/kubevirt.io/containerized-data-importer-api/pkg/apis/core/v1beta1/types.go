@@ -949,6 +949,9 @@ type CDIConfigSpec struct {
 	TLSSecurityProfile *ocpconfigv1.TLSSecurityProfile `json:"tlsSecurityProfile,omitempty"`
 	// The imagePullSecrets used to pull the container images
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
+	// LogVerbosity overrides the default verbosity level used to initialize loggers
+	// +optional
+	LogVerbosity *int32 `json:"logVerbosity,omitempty"`
 }
 
 // CDIConfigStatus provides the most recently observed status of the CDI Config resource

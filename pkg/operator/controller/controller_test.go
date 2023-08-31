@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -556,6 +557,28 @@ var _ = Describe("Controller", func() {
 				_, ok := cdi.Annotations["cdi.kubevirt.io/configAuthority"]
 				Expect(ok).To(BeTrue())
 				Expect(cdi.Spec.Config).To(Equal(&cfg.Spec))
+			})
+
+			It("should set verbosity level into namespacedArguments", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(args.reconciler.namespacedArgs.Verbosity).To(Equal("1"))
+				expectedValue := int32(5)
+				cfg := &cdiv1.CDIConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "config",
+					},
+					Spec: cdiv1.CDIConfigSpec{
+						LogVerbosity: &expectedValue,
+					},
+				}
+
+				err := args.client.Create(context.TODO(), cfg)
+				Expect(err).ToNot(HaveOccurred())
+				doReconcile(args)
+				Expect(*args.cdi.Spec.Config.LogVerbosity).To(Equal(expectedValue))
+				args.reconciler.namespacedArgs = args.reconciler.getNamespacedArgs(args.cdi)
+				Expect(args.reconciler.namespacedArgs.Verbosity).To(Equal(strconv.Itoa(int(expectedValue))))
 			})
 
 			It("can become become ready, un-ready, and ready again", func() {

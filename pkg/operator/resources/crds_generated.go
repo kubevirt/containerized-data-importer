@@ -175,6 +175,11 @@ spec:
                     items:
                       type: string
                     type: array
+                  logVerbosity:
+                    description: LogVerbosity overrides the default verbosity level
+                      used to initialize loggers
+                    format: int32
+                    type: integer
                   podResourceRequirements:
                     description: ResourceRequirements describes the compute resource
                       requirements.
@@ -2410,6 +2415,11 @@ spec:
                     items:
                       type: string
                     type: array
+                  logVerbosity:
+                    description: LogVerbosity overrides the default verbosity level
+                      used to initialize loggers
+                    format: int32
+                    type: integer
                   podResourceRequirements:
                     description: ResourceRequirements describes the compute resource
                       requirements.
@@ -4616,6 +4626,11 @@ spec:
                 items:
                   type: string
                 type: array
+              logVerbosity:
+                description: LogVerbosity overrides the default verbosity level used
+                  to initialize loggers
+                format: int32
+                type: integer
               podResourceRequirements:
                 description: ResourceRequirements describes the compute resource requirements.
                 properties:
