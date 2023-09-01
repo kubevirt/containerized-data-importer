@@ -19,7 +19,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-//runGoCLICommand runs a gocli Cmd and returns output and err
+// runGoCLICommand runs a gocli Cmd and returns output and err
 func (f *Framework) runGoCLICommand(args ...string) (string, error) {
 	var errb bytes.Buffer
 	path := f.GoCLIPath
@@ -47,7 +47,7 @@ func (f *Framework) createOcCommand(args ...string) *exec.Cmd {
 	return cmd
 }
 
-//runOcCommand runs an oc Cmd and returns output and err
+// runOcCommand runs an oc Cmd and returns output and err
 func (f *Framework) runOcCommand(args ...string) (string, error) {
 	var errb bytes.Buffer
 	cmd := f.createOcCommand(args...)

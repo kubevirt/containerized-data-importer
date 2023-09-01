@@ -1,6 +1,6 @@
 package resources
 
-//CDICRDs is a map containing yaml strings of all CRDs
+// CDICRDs is a map containing yaml strings of all CRDs
 var CDICRDs map[string]string = map[string]string{
 	"cdi": `apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition

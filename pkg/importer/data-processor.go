@@ -93,7 +93,7 @@ type DataSourceInterface interface {
 	Close() error
 }
 
-//ResumableDataSource is the interface all resumeable data sources should implement
+// ResumableDataSource is the interface all resumeable data sources should implement
 type ResumableDataSource interface {
 	DataSourceInterface
 	GetResumePhase() ProcessingPhase

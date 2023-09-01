@@ -30,8 +30,9 @@ var formatTable = map[string]func(string, string, string) (string, error){
 // FormatTestData accepts the path of a single file (srcFile) and attempts to generate an output
 // file in the format defined by targetFormats (e.g. ".tar", ".gz" will produce a .tar.gz formatted file).  The output file is written to the directory in `tgtDir`.
 // returns:
-//		(string) Path of output file
-//		(error)  Errors that occur during formatting
+//
+//	(string) Path of output file
+//	(error)  Errors that occur during formatting
 func FormatTestData(srcFile, tgtDir string, targetFormats ...string) (string, error) {
 	var err error
 	for _, extension := range targetFormats {
