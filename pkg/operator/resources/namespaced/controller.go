@@ -60,8 +60,8 @@ func createControllerRoleBinding() *rbacv1.RoleBinding {
 	return utils.ResourceBuilder.CreateRoleBinding(controllerResourceName, controllerResourceName, common.ControllerServiceAccountName, "")
 }
 
-func createControllerRole() *rbacv1.Role {
-	rules := []rbacv1.PolicyRule{
+func getControllerNamespacedRules() []rbacv1.PolicyRule {
+	return []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
 				"",
@@ -70,7 +70,12 @@ func createControllerRole() *rbacv1.Role {
 				"configmaps",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"delete",
 			},
 		},
 		{
@@ -113,6 +118,8 @@ func createControllerRole() *rbacv1.Role {
 			Verbs: []string{
 				"create",
 				"delete",
+				"list",
+				"watch",
 			},
 		},
 		{
@@ -123,7 +130,9 @@ func createControllerRole() *rbacv1.Role {
 				"leases",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"create",
+				"update",
 			},
 		},
 		{
@@ -153,7 +162,10 @@ func createControllerRole() *rbacv1.Role {
 			},
 		},
 	}
-	return utils.ResourceBuilder.CreateRole(controllerResourceName, rules)
+}
+
+func createControllerRole() *rbacv1.Role {
+	return utils.ResourceBuilder.CreateRole(controllerResourceName, getControllerNamespacedRules())
 }
 
 func createControllerServiceAccount() *corev1.ServiceAccount {

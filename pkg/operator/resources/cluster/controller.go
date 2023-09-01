@@ -58,7 +58,6 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"",
 			},
 			Resources: []string{
-				"persistentvolumes",
 				"persistentvolumeclaims",
 			},
 			Verbs: []string{
@@ -70,6 +69,20 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"delete",
 				"deletecollection",
 				"patch",
+			},
+		},
+		{
+			APIGroups: []string{
+				"",
+			},
+			Resources: []string{
+				"persistentvolumes",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+				"update",
 			},
 		},
 		{
@@ -155,10 +168,28 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"snapshot.storage.k8s.io",
 			},
 			Resources: []string{
-				"*",
+				"volumesnapshots",
+				"volumesnapshotclasses",
+				"volumesnapshotcontents",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
+				"create",
+				"delete",
+			},
+		},
+		{
+			APIGroups: []string{
+				"snapshot.storage.k8s.io",
+			},
+			Resources: []string{
+				"volumesnapshots",
+			},
+			Verbs: []string{
+				"update",
+				"deletecollection",
 			},
 		},
 		{
@@ -209,30 +240,6 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 			},
 			Verbs: []string{
 				"create",
-			},
-		},
-		{
-			APIGroups: []string{
-				"batch",
-			},
-			Resources: []string{
-				"cronjobs",
-			},
-			Verbs: []string{
-				"list",
-				"watch",
-			},
-		},
-		{
-			APIGroups: []string{
-				"batch",
-			},
-			Resources: []string{
-				"jobs",
-			},
-			Verbs: []string{
-				"list",
-				"watch",
 			},
 		},
 		{

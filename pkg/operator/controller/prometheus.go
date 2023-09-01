@@ -36,11 +36,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"kubevirt.io/containerized-data-importer/pkg/monitoring"
-
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring"
+	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+
 	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 )
 
@@ -256,21 +257,7 @@ func newPrometheusRole(namespace string) *rbacv1.Role {
 				common.PrometheusLabelKey: common.PrometheusLabelValue,
 			},
 		},
-		Rules: []rbacv1.PolicyRule{
-			{
-				APIGroups: []string{
-					"",
-				},
-				Resources: []string{
-					"services",
-					"endpoints",
-					"pods",
-				},
-				Verbs: []string{
-					"get", "list", "watch",
-				},
-			},
-		},
+		Rules: cdinamespaced.GetPrometheusNamespacedRules(),
 	}
 }
 
