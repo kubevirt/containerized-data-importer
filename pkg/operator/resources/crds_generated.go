@@ -4925,7 +4925,12 @@ spec:
     singular: dataimportcron
   scope: Namespaced
   versions:
-  - name: v1beta1
+  - additionalPrinterColumns:
+    - description: The format in which created sources are saved
+      jsonPath: .status.sourceFormat
+      name: Format
+      type: string
+    name: v1beta1
     schema:
       openAPIV3Schema:
         description: DataImportCron defines a cron job for recurring polling/importing
@@ -5772,12 +5777,17 @@ spec:
                 - name
                 - namespace
                 type: object
+              sourceFormat:
+                description: SourceFormat defines the format of the DataImportCron-created
+                  disk image sources
+                type: string
             type: object
         required:
         - spec
         type: object
     served: true
     storage: true
+    subresources: {}
 status:
   acceptedNames:
     kind: ""

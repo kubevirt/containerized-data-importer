@@ -25652,6 +25652,13 @@ func schema_pkg_apis_core_v1beta1_DataImportCronStatus(ref common.ReferenceCallb
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
+					"sourceFormat": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SourceFormat defines the format of the DataImportCron-created disk image sources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"conditions": {
 						SchemaProps: spec.SchemaProps{
 							Type: []string{"array"},

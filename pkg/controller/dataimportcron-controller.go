@@ -319,14 +319,14 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 
 	dataVolume := dataImportCron.Spec.Template
 	explicitScName := getStorageClassFromTemplate(&dataVolume)
-	dvStorageClass, err := cc.GetStorageClassByName(ctx, r.client, explicitScName)
+	desiredStorageClass, err := cc.GetStorageClassByName(ctx, r.client, explicitScName)
 	if err != nil {
 		return res, err
 	}
-	if dvStorageClass != nil {
-		cc.AddAnnotation(dataImportCron, AnnStorageClass, dvStorageClass.Name)
+	if desiredStorageClass != nil {
+		cc.AddAnnotation(dataImportCron, AnnStorageClass, desiredStorageClass.Name)
 	}
-	format, err := r.getSourceFormat(ctx, dataImportCron, dvStorageClass)
+	format, err := r.getSourceFormat(ctx, dataImportCron, desiredStorageClass)
 	if err != nil {
 		return res, err
 	}
@@ -342,7 +342,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			}
 		}
 		importSucceeded = true
-		if err := r.handleCronFormat(ctx, dataImportCron, format, dvStorageClass); err != nil {
+		if err := r.handleCronFormat(ctx, dataImportCron, pvc, format, desiredStorageClass); err != nil {
 			return err
 		}
 
@@ -673,29 +673,24 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 	return nil
 }
 
-func (r *DataImportCronReconciler) handleCronFormat(ctx context.Context, dataImportCron *cdiv1.DataImportCron, format cdiv1.DataImportCronSourceFormat, dvStorageClass *storagev1.StorageClass) error {
+func (r *DataImportCronReconciler) handleCronFormat(ctx context.Context, dataImportCron *cdiv1.DataImportCron, pvc *corev1.PersistentVolumeClaim, format cdiv1.DataImportCronSourceFormat, desiredStorageClass *storagev1.StorageClass) error {
 	switch format {
 	case cdiv1.DataImportCronSourceFormatPvc:
 		return nil
 	case cdiv1.DataImportCronSourceFormatSnapshot:
-		return r.handleSnapshot(ctx, dataImportCron, &dataImportCron.Spec.Template, dvStorageClass)
+		return r.handleSnapshot(ctx, dataImportCron, pvc, desiredStorageClass)
 	default:
 		return fmt.Errorf("unknown source format for snapshot")
 	}
 }
 
-func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImportCron *cdiv1.DataImportCron, dataVolume *cdiv1.DataVolume, dvStorageClass *storagev1.StorageClass) error {
-	dataSourceName := dataImportCron.Spec.ManagedDataSource
-	digest := dataImportCron.Annotations[AnnSourceDesiredDigest]
-	if digest == "" {
+func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImportCron *cdiv1.DataImportCron, pvc *corev1.PersistentVolumeClaim, desiredStorageClass *storagev1.StorageClass) error {
+	if sc := pvc.Spec.StorageClassName; sc != nil && *sc != desiredStorageClass.Name {
+		r.log.Info("Attempt to change storage class, will not try making a snapshot of the old PVC")
 		return nil
 	}
-	dvName, err := createDvName(dataSourceName, digest)
-	if err != nil {
-		return err
-	}
 
-	className, err := cc.GetSnapshotClassForSmartClone(dataVolume.Name, &dvStorageClass.Name, r.log, r.client)
+	className, err := cc.GetSnapshotClassForSmartClone(pvc.Name, &desiredStorageClass.Name, r.log, r.client)
 	if err != nil {
 		return err
 	}
@@ -705,13 +700,13 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 	}
 	desiredSnapshot := &snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dvName,
+			Name:      pvc.Name,
 			Namespace: dataImportCron.Namespace,
 			Labels:    labels,
 		},
 		Spec: snapshotv1.VolumeSnapshotSpec{
 			Source: snapshotv1.VolumeSnapshotSource{
-				PersistentVolumeClaimName: &dvName,
+				PersistentVolumeClaimName: &pvc.Name,
 			},
 			VolumeSnapshotClassName: &className,
 		},
@@ -741,6 +736,8 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 }
 
 func (r *DataImportCronReconciler) updateDataImportCronSuccessCondition(ctx context.Context, dataImportCron *cdiv1.DataImportCron, format cdiv1.DataImportCronSourceFormat, snapshot *snapshotv1.VolumeSnapshot) error {
+	dataImportCron.Status.SourceFormat = &format
+
 	switch format {
 	case cdiv1.DataImportCronSourceFormatPvc:
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronUpToDate, corev1.ConditionTrue, "Latest import is up to date", upToDate)
@@ -761,14 +758,14 @@ func (r *DataImportCronReconciler) updateDataImportCronSuccessCondition(ctx cont
 	return nil
 }
 
-func (r *DataImportCronReconciler) getSourceFormat(ctx context.Context, dataImportCron *cdiv1.DataImportCron, dvStorageClass *storagev1.StorageClass) (cdiv1.DataImportCronSourceFormat, error) {
+func (r *DataImportCronReconciler) getSourceFormat(ctx context.Context, dataImportCron *cdiv1.DataImportCron, desiredStorageClass *storagev1.StorageClass) (cdiv1.DataImportCronSourceFormat, error) {
 	format := cdiv1.DataImportCronSourceFormatPvc
-	if dvStorageClass == nil {
+	if desiredStorageClass == nil {
 		return format, nil
 	}
 
 	storageProfile := &cdiv1.StorageProfile{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: dvStorageClass.Name}, storageProfile); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: desiredStorageClass.Name}, storageProfile); err != nil {
 		return format, err
 	}
 	if storageProfile.Status.DataImportCronSourceFormat != nil {
