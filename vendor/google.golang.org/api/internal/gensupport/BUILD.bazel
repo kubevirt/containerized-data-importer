@@ -23,6 +23,7 @@ go_library(
         "//vendor/github.com/google/uuid:go_default_library",
         "//vendor/github.com/googleapis/gax-go/v2:go_default_library",
         "//vendor/github.com/googleapis/gax-go/v2/apierror:go_default_library",
+        "//vendor/github.com/googleapis/gax-go/v2/callctx:go_default_library",
         "//vendor/google.golang.org/api/googleapi:go_default_library",
         "//vendor/google.golang.org/api/internal:go_default_library",
     ],

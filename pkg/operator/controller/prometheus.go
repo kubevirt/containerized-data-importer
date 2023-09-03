@@ -24,8 +24,8 @@ import (
 	"reflect"
 	"strings"
 
-	promv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/go-logr/logr"
+	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -149,7 +149,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		generateAlertRule(
 			"CDIOperatorDown",
 			"kubevirt_cdi_operator_up == 0",
-			"5m",
+			promv1.Duration("5m"),
 			map[string]string{
 				"summary":     "CDI operator is down",
 				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIOperatorDown"),
@@ -164,7 +164,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		generateAlertRule(
 			"CDINotReady",
 			"kubevirt_cdi_cr_ready == 0",
-			"5m",
+			promv1.Duration("5m"),
 			map[string]string{
 				"summary":     "CDI is not available to use",
 				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDINotReady"),
@@ -179,7 +179,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		generateAlertRule(
 			"CDIDataVolumeUnusualRestartCount",
 			"kubevirt_cdi_import_pods_high_restart > 0 or kubevirt_cdi_upload_pods_high_restart > 0 or kubevirt_cdi_clone_pods_high_restart > 0",
-			"5m",
+			promv1.Duration("5m"),
 			map[string]string{
 				"summary":     "Some CDI population workloads have an unusual restart count, meaning they are probably failing and need to be investigated",
 				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIDataVolumeUnusualRestartCount"),
@@ -194,7 +194,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		generateAlertRule(
 			"CDIStorageProfilesIncomplete",
 			"kubevirt_cdi_incomplete_storageprofiles > 0",
-			"5m",
+			promv1.Duration("5m"),
 			map[string]string{
 				"summary":     "Incomplete StorageProfiles exist, accessMode/volumeMode cannot be inferred by CDI for PVC population request",
 				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIStorageProfilesIncomplete"),
@@ -209,7 +209,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		generateAlertRule(
 			"CDIDataImportCronOutdated",
 			"kubevirt_cdi_dataimportcron_outdated_aggregated > 0",
-			"15m",
+			promv1.Duration("15m"),
 			map[string]string{
 				"summary":     "DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule",
 				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIDataImportCronOutdated"),
@@ -321,7 +321,9 @@ func newPrometheusServiceMonitor(namespace string) *promv1.ServiceMonitor {
 					Port:   "metrics",
 					Scheme: "http",
 					TLSConfig: &promv1.TLSConfig{
-						InsecureSkipVerify: true,
+						SafeTLSConfig: promv1.SafeTLSConfig{
+							InsecureSkipVerify: true,
+						},
 					},
 				},
 			},
@@ -329,11 +331,11 @@ func newPrometheusServiceMonitor(namespace string) *promv1.ServiceMonitor {
 	}
 }
 
-func generateAlertRule(alert, expr, duration string, annotations, labels map[string]string) promv1.Rule {
+func generateAlertRule(alert, expr string, duration promv1.Duration, annotations, labels map[string]string) promv1.Rule {
 	return promv1.Rule{
 		Alert:       alert,
 		Expr:        intstr.FromString(expr),
-		For:         duration,
+		For:         &duration,
 		Annotations: annotations,
 		Labels:      labels,
 	}

@@ -15,10 +15,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//vendor/github.com/googleapis/gax-go/v2/apierror:go_default_library",
+        "//vendor/github.com/googleapis/gax-go/v2/callctx:go_default_library",
         "//vendor/github.com/googleapis/gax-go/v2/internal:go_default_library",
         "//vendor/google.golang.org/api/googleapi:go_default_library",
         "//vendor/google.golang.org/grpc:go_default_library",
         "//vendor/google.golang.org/grpc/codes:go_default_library",
+        "//vendor/google.golang.org/grpc/metadata:go_default_library",
         "//vendor/google.golang.org/grpc/status:go_default_library",
         "//vendor/google.golang.org/protobuf/encoding/protojson:go_default_library",
         "//vendor/google.golang.org/protobuf/proto:go_default_library",

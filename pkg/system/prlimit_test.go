@@ -20,8 +20,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	rand "crypto/rand"
 	"fmt"
-	"math/rand"
 	"os"
 	"os/exec"
 	"strconv"
@@ -126,7 +126,7 @@ func fakeCommandContext(ctx context.Context, command string, args ...string) *ex
 	cs = append(cs, args...)
 
 	cmd := exec.CommandContext(ctx, os.Args[0], cs...)
-	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
+	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1", "GOCOVERDIR=/tmp"}
 	return cmd
 }
 
@@ -220,7 +220,11 @@ func doHog(args []string) {
 
 	for i := 0; i < (1 << 20); i++ {
 		bytes := make([]byte, 1024)
-		rand.Read(bytes)
+		_, err := rand.Read(bytes)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 		arrays = append(arrays, bytes) //nolint:staticcheck
 	}
 }
