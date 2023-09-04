@@ -472,6 +472,10 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 		return syncState, err
 	}
 
+	if err = updateDataVolumeDefaultInstancetypeLabels(r.client, &syncState); err != nil {
+		return syncState, err
+	}
+
 	if syncState.pvc != nil {
 		if err := r.garbageCollect(&syncState, log); err != nil {
 			return syncState, err
