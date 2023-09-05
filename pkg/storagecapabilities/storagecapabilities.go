@@ -85,9 +85,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"kubernetes.io/portworx-volume":        {{rwo, file}},
 	// Portworx CSI
 	"pxd.openstorage.org/shared": createOpenStorageSharedVolumeCapabilities(),
-	"pxd.openstorage.org":        createOpenStorageVolumeCapabilities(),
+	"pxd.openstorage.org":        createOpenStorageSharedVolumeCapabilities(),
 	"pxd.portworx.com/shared":    createOpenStorageSharedVolumeCapabilities(),
-	"pxd.portworx.com":           createOpenStorageVolumeCapabilities(),
+	"pxd.portworx.com":           createOpenStorageSharedVolumeCapabilities(),
 	// Trident
 	"csi.trident.netapp.io/ontap-nas": {{rwx, file}},
 	"csi.trident.netapp.io/ontap-san": {{rwx, block}},
@@ -112,8 +112,8 @@ var UnsupportedProvisioners = map[string]struct{}{
 	ProvisionerNoobaa:                       {},
 }
 
-// Get finds and returns a predefined StorageCapabilities for a given StorageClass
-func Get(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
+// GetCapabilities finds and returns a predefined StorageCapabilities for a given StorageClass
+func GetCapabilities(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
 	provisionerKey := storageProvisionerKey(sc)
 	if provisionerKey == "kubernetes.io/no-provisioner" {
 		return capabilitiesForNoProvisioner(cl, sc)
@@ -128,10 +128,7 @@ func isLocalStorageOperator(sc *storagev1.StorageClass) bool {
 }
 
 func knownNoProvisioner(sc *storagev1.StorageClass) bool {
-	if isLocalStorageOperator(sc) {
-		return true
-	}
-	return false
+	return isLocalStorageOperator(sc)
 }
 
 func capabilitiesForNoProvisioner(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
@@ -260,16 +257,10 @@ func createTopoLVMCapabilities() []StorageCapabilities {
 	}
 }
 
-func createOpenStorageVolumeCapabilities() []StorageCapabilities {
-	return []StorageCapabilities{
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeBlock},
-		{AccessMode: v1.ReadWriteOnce, VolumeMode: v1.PersistentVolumeFilesystem},
-	}
-}
-
 func createOpenStorageSharedVolumeCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
-		{rwx, block},
+		{rwx, file},
+		{rwo, block},
 		{rwo, file},
 	}
 }
