@@ -265,6 +265,20 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"update",
 			},
 		},
+		{
+			APIGroups: []string{
+				"forklift.konveyor.io",
+			},
+			Resources: []string{
+				"ovirtvolumepopulators",
+				"openstackvolumepopulators",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
 	}
 }
 

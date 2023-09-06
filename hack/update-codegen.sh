@@ -42,7 +42,7 @@ chmod u+x "${CODEGEN_PKG}/generate-internal-groups.sh"
 trap 'chmod u-x "${CODEGEN_PKG}/generate-internal-groups.sh"' ERR EXIT
 /bin/bash ${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
     kubevirt.io/containerized-data-importer/pkg/client kubevirt.io/containerized-data-importer-api/pkg/apis \
-    "core:v1alpha1 core:v1beta1 upload:v1beta1" \
+    "core:v1alpha1 core:v1beta1 upload:v1beta1 forklift:v1beta1" \
     --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
 echo "Generating swagger doc"
@@ -50,6 +50,10 @@ swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-import
 
 swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1/types.go
 swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1/types.go
+swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1/types.go
+
+swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1/types.go
+
 
 (go install ${CODEGEN_PKG}/cmd/openapi-gen)
 
@@ -88,6 +92,8 @@ echo "************* running controller-gen to generate schema yaml *************
     find "${SCRIPT_ROOT}/_out/manifests/schema/" -type f -exec rm {} -f \;
     cd ./staging/src/kubevirt.io/containerized-data-importer-api
     controller-gen crd:crdVersions=v1 output:dir=${SCRIPT_ROOT}/_out/manifests/schema paths=./pkg/apis/core/...
+    controller-gen crd:crdVersions=v1 output:dir=${SCRIPT_ROOT}/_out/manifests/schema paths=./pkg/apis/forklift/...
+
 )
 (cd "${SCRIPT_ROOT}/tools/crd-generator/" && go build -o "${SCRIPT_ROOT}/bin/crd-generator" ./...)
 
