@@ -205,26 +205,26 @@ http_file(
 #imageio rpms and dependencies
 http_file(
     name = "ovirt-imageio-client",
-    sha256 = "4447b2e6c659f0b486f8db82b415eaa065adb09092b00308eade30632be0c4bf",
-    urls = ["https://storage.googleapis.com/builddeps/4447b2e6c659f0b486f8db82b415eaa065adb09092b00308eade30632be0c4bf"],
+    sha256 = "1b382eb8b39e03412d0a7c238505f559c5c16f28e9aa0aa025ab9f0695522434",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/05749705-ovirt-imageio/ovirt-imageio-client-2.5.1-0.202304060651.git4e5f7e0.el9.x86_64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-client-aarch64",
-    sha256 = "ab2cdec494c6ed22cb718779bf1445d3ede79c051337e506b3c05c77c28f5b2d",
-    urls = ["https://storage.googleapis.com/builddeps/ab2cdec494c6ed22cb718779bf1445d3ede79c051337e506b3c05c77c28f5b2d"],
+    sha256 = "f59d2ea74f9f8f53e7de1e0cc6a9724982e8fb22394f7a52840e31277370e5ff",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/05749705-ovirt-imageio/ovirt-imageio-client-2.5.1-0.202304060651.git4e5f7e0.el9.aarch64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-common",
-    sha256 = "d6562eb701afcbde7ab1f14e1cc5f3a8be3ecc7fa25b9f3b831e342c3e14bc2a",
-    urls = ["https://storage.googleapis.com/builddeps/d6562eb701afcbde7ab1f14e1cc5f3a8be3ecc7fa25b9f3b831e342c3e14bc2a"],
+    sha256 = "7f826ec3e6d61ba6833ea28d755d1ad5a14c89110008f0666cca5ecb3a1a9498",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-x86_64/05749705-ovirt-imageio/ovirt-imageio-common-2.5.1-0.202304060651.git4e5f7e0.el9.x86_64.rpm"],
 )
 
 http_file(
     name = "ovirt-imageio-common-aarch64",
-    sha256 = "f8a9273463657244fdf34fef0077f2c79f1216891439472df0543eb5133d7922",
-    urls = ["https://storage.googleapis.com/builddeps/f8a9273463657244fdf34fef0077f2c79f1216891439472df0543eb5133d7922"],
+    sha256 = "a4942c9201614a6d5fb7f7a4e386e72a4d6c5dfd38d7b5adc63dc5929bb137ad",
+    urls = ["https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/05749705-ovirt-imageio/ovirt-imageio-common-2.5.1-0.202304060651.git4e5f7e0.el9.aarch64.rpm"],
 )
 
 http_file(
