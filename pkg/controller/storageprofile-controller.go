@@ -92,9 +92,12 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 
 	storageProfile.Status.StorageClass = &sc.Name
 	storageProfile.Status.Provisioner = &sc.Provisioner
-	snapClass, err := cc.GetSnapshotClassForSmartClone("", &sc.Name, r.log, r.client)
+	snapClass, err := cc.GetSnapshotClassForSmartClone("", &sc.Name, storageProfile.Spec.SnapshotClass, r.log, r.client)
 	if err != nil {
 		return reconcile.Result{}, err
+	}
+	if snapClass != "" {
+		storageProfile.Status.SnapshotClass = &snapClass
 	}
 	storageProfile.Status.CloneStrategy = r.reconcileCloneStrategy(sc, storageProfile.Spec.CloneStrategy, snapClass)
 	storageProfile.Status.DataImportCronSourceFormat = r.reconcileDataImportCronSourceFormat(sc, storageProfile.Spec.DataImportCronSourceFormat, snapClass)

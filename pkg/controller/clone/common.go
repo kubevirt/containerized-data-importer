@@ -3,14 +3,11 @@ package clone
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	"github.com/go-logr/logr"
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
@@ -222,27 +219,8 @@ func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, pvcs
 		return nil, nil
 	}
 
-	volumeSnapshotClasses := &snapshotv1.VolumeSnapshotClassList{}
-	if err := c.List(ctx, volumeSnapshotClasses); err != nil {
-		if meta.IsNoMatchError(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	var candidates []string
-	for _, vcs := range volumeSnapshotClasses.Items {
-		if *driver == vcs.Driver {
-			candidates = append(candidates, vcs.Name)
-		}
-	}
-
-	if len(candidates) > 0 {
-		sort.Strings(candidates)
-		return &candidates[0], nil
-	}
-
-	return nil, nil
+	//FIXME: may pass snapshotClassName if common to all pvcs?
+	return cc.GetVolumeSnapshotClass(context.TODO(), c, *driver, nil)
 }
 
 // SameVolumeMode returns true if all pvcs have the same volume mode

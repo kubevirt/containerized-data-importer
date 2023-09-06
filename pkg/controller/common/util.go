@@ -207,13 +207,15 @@ const (
 	// AnnPopulatorKind annotation is added to a PVC' to specify the population kind, so it's later
 	// checked by the common populator watches.
 	AnnPopulatorKind = AnnAPIGroup + "/storage.populator.kind"
-	//AnnUsePopulator annotation indicates if the datavolume population will use populators
+	// AnnUsePopulator annotation indicates if the datavolume population will use populators
 	AnnUsePopulator = AnnAPIGroup + "/storage.usePopulator"
 
-	//AnnDefaultStorageClass is the annotation indicating that a storage class is the default one.
+	// AnnDefaultStorageClass is the annotation indicating that a storage class is the default one
 	AnnDefaultStorageClass = "storageclass.kubernetes.io/is-default-class"
 	// AnnDefaultVirtStorageClass is the annotation indicating that a storage class is the default one for virtualization purposes
 	AnnDefaultVirtStorageClass = "storageclass.kubevirt.io/is-default-virt-class"
+	// AnnDefaultSnapshotClass is the annotation indicating that a snapshot class is the default one
+	AnnDefaultSnapshotClass = "snapshot.storage.kubernetes.io/is-default-class"
 
 	// AnnOpenShiftImageLookup is the annotation for OpenShift image stream lookup
 	AnnOpenShiftImageLookup = "alpha.image.policy.openshift.io/resolve-names"
@@ -1870,7 +1872,7 @@ func ValidateSnapshotCloneProvisioners(ctx context.Context, c client.Client, sna
 }
 
 // GetSnapshotClassForSmartClone looks up the snapshot class based on the storage class
-func GetSnapshotClassForSmartClone(dvName string, targetPvcStorageClassName *string, log logr.Logger, client client.Client) (string, error) {
+func GetSnapshotClassForSmartClone(dvName string, targetPvcStorageClassName, snapshotClassName *string, log logr.Logger, client client.Client) (string, error) {
 	logger := log.WithName("GetSnapshotClassForSmartClone").V(3)
 	// Check if relevant CRDs are available
 	if !isCsiCrdsDeployed(client, log) {
@@ -1887,23 +1889,57 @@ func GetSnapshotClassForSmartClone(dvName string, targetPvcStorageClassName *str
 		return "", nil
 	}
 
-	// List the snapshot classes
-	scs := &snapshotv1.VolumeSnapshotClassList{}
-	if err := client.List(context.TODO(), scs); err != nil {
-		logger.Info("Cannot list snapshot classes, falling back to host assisted clone")
+	vscName, err := GetVolumeSnapshotClass(context.TODO(), client, targetStorageClass.Provisioner, snapshotClassName)
+	if err != nil {
 		return "", err
 	}
-	for _, snapshotClass := range scs.Items {
-		// Validate association between snapshot class and storage class
-		if snapshotClass.Driver == targetStorageClass.Provisioner {
-			logger.Info("smart-clone is applicable for datavolume", "datavolume",
-				dvName, "snapshot class", snapshotClass.Name)
-			return snapshotClass.Name, nil
-		}
+	if vscName != nil {
+		logger.Info("smart-clone is applicable for datavolume", "datavolume",
+			dvName, "snapshot class", *vscName)
+		return *vscName, nil
 	}
 
 	logger.Info("Could not match snapshotter with storage class, falling back to host assisted clone")
 	return "", nil
+}
+
+// GetVolumeSnapshotClass looks up the snapshot class based on the driver and an optional specific name
+func GetVolumeSnapshotClass(ctx context.Context, c client.Client, driver string, snapshotClassName *string) (*string, error) {
+	if snapshotClassName != nil {
+		vsc := &snapshotv1.VolumeSnapshotClass{}
+		if err := c.Get(context.TODO(), types.NamespacedName{Name: *snapshotClassName}, vsc); err != nil {
+			return nil, err
+		}
+		if vsc.Driver == driver {
+			return &vsc.Name, nil
+		}
+		return nil, nil
+	}
+
+	vscList := &snapshotv1.VolumeSnapshotClassList{}
+	if err := c.List(ctx, vscList); err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var candidates []string
+	for _, vsc := range vscList.Items {
+		if vsc.Driver == driver {
+			if vsc.Annotations[AnnDefaultSnapshotClass] == "true" {
+				return &vsc.Name, nil
+			}
+			candidates = append(candidates, vsc.Name)
+		}
+	}
+
+	if len(candidates) > 0 {
+		sort.Strings(candidates)
+		return &candidates[0], nil
+	}
+
+	return nil, nil
 }
 
 // isCsiCrdsDeployed checks whether the CSI snapshotter CRD are deployed
