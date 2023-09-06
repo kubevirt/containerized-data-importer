@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "clone-populator.go",
+        "forklift-populator.go",
         "import-populator.go",
         "populator-base.go",
         "upload-populator.go",
@@ -18,6 +19,7 @@ go_library(
         "//pkg/feature-gates:go_default_library",
         "//pkg/util:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
+        "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1:go_default_library",
         "//vendor/github.com/go-logr/logr:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",

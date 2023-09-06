@@ -67,13 +67,15 @@ type ClusterServiceVersionData struct {
 
 	OperatorVersion string
 
-	ControllerImage   string
-	ImporterImage     string
-	ClonerImage       string
-	APIServerImage    string
-	UplodaProxyImage  string
-	UplodaServerImage string
-	OperatorImage     string
+	ControllerImage         string
+	ImporterImage           string
+	ClonerImage             string
+	APIServerImage          string
+	UplodaProxyImage        string
+	UplodaServerImage       string
+	OvirtPopulatorImage     string
+	OpenstackPopulatorImage string
+	OperatorImage           string
 }
 
 // CreateAllOperatorResources creates all cluster-wide resources

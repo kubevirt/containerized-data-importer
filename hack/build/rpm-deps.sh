@@ -69,6 +69,12 @@ openssl
 buildah
 "
 
+ovirt_populator="
+python3-pycurl
+python3-six
+qemu-img
+"
+
 # XXX: passing --nobest otherwise we fail to solve the dependencies
 bazel run \
     --config=${ARCHITECTURE} \
@@ -114,6 +120,17 @@ bazel run \
     $centos_base \
     $centos_extra \
     $cdi_uploadserver
+
+bazel run \
+    --config=${ARCHITECTURE} \
+    //:bazeldnf -- rpmtree \
+    --public --nobest \
+    --name ovirt_populator_base_x86_64 \
+    --basesystem centos-stream-release \
+    ${bazeldnf_repos} \
+    $centos_base \
+    $centos_extra \
+    $ovirt_populator
 
 # remove all RPMs which are no longer referenced by a rpmtree
 bazel run \
@@ -164,6 +181,18 @@ bazel run \
     $centos_base \
     $centos_extra \
     $cdi_uploadserver
+
+bazel run \
+    --config=${ARCHITECTURE} \
+    //:bazeldnf -- rpmtree \
+    --public --nobest \
+    --name ovirt_populator_base_aarch64 --arch aarch64 \
+    --basesystem centos-stream-release \
+    ${bazeldnf_repos} \
+    $centos_base \
+    $centos_extra \
+    $ovirt_populator
+
 
 # remove all RPMs which are no longer referenced by a rpmtree
 bazel run \

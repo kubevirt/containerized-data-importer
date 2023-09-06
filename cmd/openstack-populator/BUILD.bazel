@@ -1,0 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_image",
+)
+
+go_library(
+    name = "go_default_library",
+    srcs = ["openstack-populator.go"],
+    importpath = "kubevirt.io/containerized-data-importer/cmd/openstack-populator",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//vendor/github.com/gophercloud/gophercloud:go_default_library",
+        "//vendor/github.com/gophercloud/gophercloud/openstack:go_default_library",
+        "//vendor/github.com/gophercloud/gophercloud/openstack/imageservice/v2/imagedata:go_default_library",
+        "//vendor/github.com/gophercloud/utils/openstack/clientconfig:go_default_library",
+        "//vendor/github.com/prometheus/client_golang/prometheus:go_default_library",
+        "//vendor/github.com/prometheus/client_golang/prometheus/promhttp:go_default_library",
+        "//vendor/k8s.io/klog/v2:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "openstack-populator",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)
+
+container_image(
+    name = "openstack-populator-image",
+    base = "@centos//image",
+    directory = "/usr/local/bin/",
+    entrypoint = ["/usr/local/bin/openstack-populator"],
+    files = [":openstack-populator"],
+    visibility = ["//visibility:public"],
+)

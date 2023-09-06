@@ -27,41 +27,45 @@ import (
 )
 
 type templateData struct {
-	DockerRepo             string
-	DockerTag              string
-	OperatorVersion        string
-	DeployClusterResources string
-	OperatorImage          string
-	ControllerImage        string
-	ImporterImage          string
-	ClonerImage            string
-	APIServerImage         string
-	UploadProxyImage       string
-	UploadServerImage      string
-	Verbosity              string
-	PullPolicy             string
-	CrName                 string
-	Namespace              string
-	GeneratedManifests     map[string]string
+	DockerRepo              string
+	DockerTag               string
+	OperatorVersion         string
+	DeployClusterResources  string
+	OperatorImage           string
+	ControllerImage         string
+	ImporterImage           string
+	ClonerImage             string
+	APIServerImage          string
+	UploadProxyImage        string
+	UploadServerImage       string
+	OvirtPopulatorImage     string
+	OpenstackPopulatorImage string
+	Verbosity               string
+	PullPolicy              string
+	CrName                  string
+	Namespace               string
+	GeneratedManifests      map[string]string
 }
 
 var (
-	dockerRepo             = flag.String("docker-repo", "", "")
-	dockertag              = flag.String("docker-tag", "", "")
-	operatorVersion        = flag.String("operator-version", "", "")
-	genManifestsPath       = flag.String("generated-manifests-path", "", "")
-	deployClusterResources = flag.String("deploy-cluster-resources", "", "")
-	operatorImage          = flag.String("operator-image", "", "")
-	controllerImage        = flag.String("controller-image", "", "")
-	importerImage          = flag.String("importer-image", "", "")
-	clonerImage            = flag.String("cloner-image", "", "")
-	apiServerImage         = flag.String("apiserver-image", "", "")
-	uploadProxyImage       = flag.String("uploadproxy-image", "", "")
-	uploadServerImage      = flag.String("uploadserver-image", "", "")
-	verbosity              = flag.String("verbosity", "1", "")
-	pullPolicy             = flag.String("pull-policy", "", "")
-	crName                 = flag.String("cr-name", "", "")
-	namespace              = flag.String("namespace", "", "")
+	dockerRepo              = flag.String("docker-repo", "", "")
+	dockertag               = flag.String("docker-tag", "", "")
+	operatorVersion         = flag.String("operator-version", "", "")
+	genManifestsPath        = flag.String("generated-manifests-path", "", "")
+	deployClusterResources  = flag.String("deploy-cluster-resources", "", "")
+	operatorImage           = flag.String("operator-image", "", "")
+	controllerImage         = flag.String("controller-image", "", "")
+	importerImage           = flag.String("importer-image", "", "")
+	clonerImage             = flag.String("cloner-image", "", "")
+	apiServerImage          = flag.String("apiserver-image", "", "")
+	uploadProxyImage        = flag.String("uploadproxy-image", "", "")
+	uploadServerImage       = flag.String("uploadserver-image", "", "")
+	ovirtPopulatorImage     = flag.String("ovirt-populator-image", "", "")
+	openstackPopulatorImage = flag.String("openstack-populator-image", "", "")
+	verbosity               = flag.String("verbosity", "1", "")
+	pullPolicy              = flag.String("pull-policy", "", "")
+	crName                  = flag.String("cr-name", "", "")
+	namespace               = flag.String("namespace", "", "")
 )
 
 func main() {
@@ -92,20 +96,22 @@ func main() {
 
 func generateFromFile(templFile string) {
 	data := &templateData{
-		Verbosity:              *verbosity,
-		DockerRepo:             *dockerRepo,
-		DockerTag:              *dockertag,
-		DeployClusterResources: *deployClusterResources,
-		OperatorImage:          *operatorImage,
-		ControllerImage:        *controllerImage,
-		ImporterImage:          *importerImage,
-		ClonerImage:            *clonerImage,
-		APIServerImage:         *apiServerImage,
-		UploadProxyImage:       *uploadProxyImage,
-		UploadServerImage:      *uploadServerImage,
-		PullPolicy:             *pullPolicy,
-		CrName:                 *crName,
-		Namespace:              *namespace,
+		Verbosity:               *verbosity,
+		DockerRepo:              *dockerRepo,
+		DockerTag:               *dockertag,
+		DeployClusterResources:  *deployClusterResources,
+		OperatorImage:           *operatorImage,
+		ControllerImage:         *controllerImage,
+		ImporterImage:           *importerImage,
+		ClonerImage:             *clonerImage,
+		APIServerImage:          *apiServerImage,
+		UploadProxyImage:        *uploadProxyImage,
+		UploadServerImage:       *uploadServerImage,
+		OvirtPopulatorImage:     *ovirtPopulatorImage,
+		OpenstackPopulatorImage: *openstackPopulatorImage,
+		PullPolicy:              *pullPolicy,
+		CrName:                  *crName,
+		Namespace:               *namespace,
 	}
 
 	file, err := os.Open(templFile)
@@ -171,17 +177,19 @@ func generateFromCode(resourceType, resourceGroup string) {
 func getOperatorResources(resourceGroup string) ([]client.Object, error) {
 	args := &cdioperator.FactoryArgs{
 		NamespacedArgs: cdinamespaced.FactoryArgs{
-			Verbosity:              *verbosity,
-			OperatorVersion:        *operatorVersion,
-			DeployClusterResources: *deployClusterResources,
-			ControllerImage:        *controllerImage,
-			ImporterImage:          *importerImage,
-			ClonerImage:            *clonerImage,
-			APIServerImage:         *apiServerImage,
-			UploadProxyImage:       *uploadProxyImage,
-			UploadServerImage:      *uploadServerImage,
-			PullPolicy:             *pullPolicy,
-			Namespace:              *namespace,
+			Verbosity:               *verbosity,
+			OperatorVersion:         *operatorVersion,
+			DeployClusterResources:  *deployClusterResources,
+			ControllerImage:         *controllerImage,
+			ImporterImage:           *importerImage,
+			ClonerImage:             *clonerImage,
+			APIServerImage:          *apiServerImage,
+			UploadProxyImage:        *uploadProxyImage,
+			UploadServerImage:       *uploadServerImage,
+			OvirtPopulatorImage:     *ovirtPopulatorImage,
+			OpenstackPopulatorImage: *openstackPopulatorImage,
+			PullPolicy:              *pullPolicy,
+			Namespace:               *namespace,
 		},
 		Image: *operatorImage,
 	}
@@ -199,16 +207,18 @@ func getClusterResources(codeGroup string) ([]client.Object, error) {
 
 func getNamespacedResources(codeGroup string) ([]client.Object, error) {
 	args := &cdinamespaced.FactoryArgs{
-		Verbosity:         *verbosity,
-		OperatorVersion:   *operatorVersion,
-		ControllerImage:   *controllerImage,
-		ImporterImage:     *importerImage,
-		ClonerImage:       *clonerImage,
-		APIServerImage:    *apiServerImage,
-		UploadProxyImage:  *uploadProxyImage,
-		UploadServerImage: *uploadServerImage,
-		PullPolicy:        *pullPolicy,
-		Namespace:         *namespace,
+		Verbosity:               *verbosity,
+		OperatorVersion:         *operatorVersion,
+		ControllerImage:         *controllerImage,
+		ImporterImage:           *importerImage,
+		ClonerImage:             *clonerImage,
+		APIServerImage:          *apiServerImage,
+		UploadProxyImage:        *uploadProxyImage,
+		UploadServerImage:       *uploadServerImage,
+		OvirtPopulatorImage:     *ovirtPopulatorImage,
+		OpenstackPopulatorImage: *openstackPopulatorImage,
+		PullPolicy:              *pullPolicy,
+		Namespace:               *namespace,
 	}
 
 	return cdinamespaced.CreateResourceGroup(codeGroup, args)

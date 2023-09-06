@@ -49,19 +49,21 @@ const (
 )
 
 var (
-	kubeconfig             string
-	kubeURL                string
-	importerImage          string
-	clonerImage            string
-	uploadServerImage      string
-	uploadProxyServiceName string
-	configName             string
-	pullPolicy             string
-	verbose                string
-	installerLabels        map[string]string
-	log                    = logf.Log.WithName("controller")
-	controllerEnvs         ControllerEnvs
-	resourcesSchemeFuncs   = []func(*apiruntime.Scheme) error{
+	kubeconfig              string
+	kubeURL                 string
+	importerImage           string
+	clonerImage             string
+	uploadServerImage       string
+	ovirtPopulatorImage     string
+	openstackPopulatorImage string
+	uploadProxyServiceName  string
+	configName              string
+	pullPolicy              string
+	verbose                 string
+	installerLabels         map[string]string
+	log                     = logf.Log.WithName("controller")
+	controllerEnvs          ControllerEnvs
+	resourcesSchemeFuncs    = []func(*apiruntime.Scheme) error{
 		clientgoscheme.AddToScheme,
 		cdiv1.AddToScheme,
 		extv1.AddToScheme,
@@ -99,6 +101,9 @@ func init() {
 	clonerImage = getRequiredEnvVar("CLONER_IMAGE")
 	uploadServerImage = getRequiredEnvVar("UPLOADSERVER_IMAGE")
 	uploadProxyServiceName = getRequiredEnvVar("UPLOADPROXY_SERVICE")
+	ovirtPopulatorImage = getRequiredEnvVar("OVIRT_POPULATOR_IMAGE")
+	openstackPopulatorImage = getRequiredEnvVar("OPENSTACK_POPULATOR_IMAGE")
+
 	installerLabels = map[string]string{}
 
 	pullPolicy = common.DefaultPullPolicy

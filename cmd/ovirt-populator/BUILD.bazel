@@ -1,0 +1,60 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_image",
+)
+load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
+
+go_binary(
+    name = "ovirt-populator",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)
+
+rpm_image(
+    name = "ovirt-populator-base",
+    base = "@centos//image",
+    directory = "/",
+    files = [":ovirt-populator"],
+    rpms = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "@ovirt-imageio-client-aarch64//file",
+            "@ovirt-imageio-common-aarch64//file",
+            "@ovirt-engine-sdk//file",
+        ],
+        "//conditions:default": [
+            "@ovirt-imageio-client//file",
+            "@ovirt-imageio-common//file",
+            "@ovirt-engine-sdk//file",
+        ],
+    }),
+    tars = select({
+        "//conditions:default": [
+            "//rpm:ovirt_populator_base_x86_64",
+        ],
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "//rpm:ovirt_populator_base_aarch64",
+        ],
+    }),
+)
+
+container_image(
+    name = "ovirt-populator-image",
+    base = ":ovirt-populator-base",
+    directory = "/usr/local/bin/",
+    entrypoint = ["/usr/local/bin/ovirt-populator"],
+    files = [":ovirt-populator"],
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "go_default_library",
+    srcs = ["ovirt-populator.go"],
+    importpath = "kubevirt.io/containerized-data-importer/cmd/ovirt-populator",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//vendor/github.com/prometheus/client_golang/prometheus:go_default_library",
+        "//vendor/github.com/prometheus/client_golang/prometheus/promhttp:go_default_library",
+        "//vendor/k8s.io/klog/v2:go_default_library",
+    ],
+)

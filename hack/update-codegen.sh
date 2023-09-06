@@ -40,11 +40,18 @@ ${SCRIPT_ROOT}/hack/build/build-go.sh generate
     "core:v1alpha1 core:v1beta1 upload:v1beta1" \
     --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
+/bin/bash ${CODEGEN_PKG}/generate-groups.sh "deepcopy" \
+    kubevirt.io/containerized-data-importer/pkg/client kubevirt.io/containerized-data-importer-api/pkg/apis \
+    "forklift:v1beta1" \
+    --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
+
 echo "Generating swagger doc"
 swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1/types.go
 
 swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1/types.go
 swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1/types.go
+swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1/types.go
+
 
 (go install ${CODEGEN_PKG}/cmd/openapi-gen)
 
@@ -70,6 +77,11 @@ swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-import
     openapi-gen --input-dirs k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/api/core/v1,kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1 \
         --output-base ${GOPATH} \
         --output-package kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1 \
+        --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
+
+    openapi-gen --input-dirs k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/api/core/v1,kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1 \
+        --output-base ${GOPATH} \
+        --output-package kubevirt.io/containerized-data-importer/pkg/apis/forklift/v1beta1 \
         --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 )
 

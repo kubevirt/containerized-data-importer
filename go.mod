@@ -13,7 +13,8 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v1.2.4
 	github.com/golang/snappy v0.0.4
-	github.com/google/uuid v1.3.1
+	github.com/google/uuid v1.3.0
+	github.com/gophercloud/utils v0.0.0-20230523080330-de873b9cf00d
 	github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/klauspost/compress v1.16.7
@@ -63,6 +64,12 @@ require (
 )
 
 require (
+	github.com/google/s2a-go v0.1.4 // indirect
+	github.com/hashicorp/go-uuid v1.0.3 // indirect
+	github.com/mitchellh/go-homedir v1.1.0 // indirect
+)
+
+require (
 	cloud.google.com/go v0.110.4 // indirect
 	cloud.google.com/go/compute v1.20.1 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
@@ -95,9 +102,9 @@ require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20230602150820-91b7bce49751 // indirect
-	github.com/google/s2a-go v0.1.4 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.5 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
+	github.com/gophercloud/gophercloud v1.6.0
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect

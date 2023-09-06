@@ -45,6 +45,8 @@ function generateResourceManifest() {
             -apiserver-image="${DOCKER_PREFIX}/${APISERVER_IMAGE_NAME}:${DOCKER_TAG}" \
             -uploadproxy-image="${DOCKER_PREFIX}/${UPLOADPROXY_IMAGE_NAME}:${DOCKER_TAG}" \
             -uploadserver-image="${DOCKER_PREFIX}/${UPLOADSERVER_IMAGE_NAME}:${DOCKER_TAG}" \
+            -ovirt-populator-image="${DOCKER_PREFIX}/${OVIRT_POPULATOR_IMAGE_NAME}:${DOCKER_TAG}" \
+            -openstack-populator-image="${DOCKER_PREFIX}/${OPENSTACK_POPULATOR_IMAGE_NAME}:${DOCKER_TAG}" \
             -verbosity="${VERBOSITY}" \
             -pull-policy="${PULL_POLICY}" \
             -namespace="${CDI_NAMESPACE}"
@@ -64,6 +66,8 @@ function generateResourceManifest() {
             -apiserver-image="{{ apiserver_image }}" \
             -uploadproxy-image="{{ uploadproxy_image }}" \
             -uploadserver-image="{{ uploadserver_image }}" \
+            -ovirt-populator-image="{{ ovirt_populator_image }}" \
+            -openstack-populator-image="{{ openstack_populator_image }}" \
             -verbosity="${VERBOSITY}" \
             -pull-policy="{{ pull_policy }}" \
             -namespace="{{ cdi_namespace }}"
@@ -127,6 +131,7 @@ function populateResourceManifest() {
             -apiserver-image="${DOCKER_PREFIX}/${APISERVER_IMAGE_NAME}:${DOCKER_TAG}" \
             -uploadproxy-image="${DOCKER_PREFIX}/${UPLOADPROXY_IMAGE_NAME}:${DOCKER_TAG}" \
             -uploadserver-image="${DOCKER_PREFIX}/${UPLOADSERVER_IMAGE_NAME}:${DOCKER_TAG}" \
+            -ovirt-populator-image="${DOCKER_PREFIX}/${OVIRT_POPULATOR_IMAGE_NAME}:${DOCKER_TAG}" \
             -verbosity="${VERBOSITY}" \
             -pull-policy="${PULL_POLICY}" \
             -cr-name="${CR_NAME}" \
@@ -147,6 +152,7 @@ function populateResourceManifest() {
             -apiserver-image="{{ apiserver_image }}" \
             -uploadproxy-image="{{ uploadproxy_image }}" \
             -uploadserver-image="{{ uploadserver_image }}" \
+            -ovirt-populator-image="{{ ovirt_populator_image }}" \
             -verbosity="${VERBOSITY}" \
             -pull-policy="{{ pull_policy }}" \
             -namespace="{{ cdi_namespace }}" \

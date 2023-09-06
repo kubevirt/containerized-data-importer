@@ -47,6 +47,8 @@ func createControllerResources(args *FactoryArgs) []client.Object {
 			args.ImporterImage,
 			args.ClonerImage,
 			args.UploadServerImage,
+			args.OvirtPopulatorImage,
+			args.OpenstackPopulatorImage,
 			args.Verbosity,
 			args.PullPolicy,
 			args.ImagePullSecrets,
@@ -172,7 +174,7 @@ func createControllerServiceAccount() *corev1.ServiceAccount {
 	return utils.ResourceBuilder.CreateServiceAccount(common.ControllerServiceAccountName)
 }
 
-func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
+func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, ovirtVolumePopulatorImage, openstackVolumePopulatorImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
 	deployment := utils.CreateDeployment(controllerResourceName, "app", "containerized-data-importer", common.ControllerServiceAccountName, imagePullSecrets, int32(1), infraNodePlacement)
 	if priorityClassName != "" {
@@ -201,6 +203,14 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 		{
 			Name:  "UPLOADSERVER_IMAGE",
 			Value: uploadServerImage,
+		},
+		{
+			Name:  "OVIRT_POPULATOR_IMAGE",
+			Value: ovirtVolumePopulatorImage,
+		},
+		{
+			Name:  "OPENSTACK_POPULATOR_IMAGE",
+			Value: openstackVolumePopulatorImage,
 		},
 		{
 			Name:  "UPLOADPROXY_SERVICE",

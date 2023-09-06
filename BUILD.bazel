@@ -168,6 +168,24 @@ container_push(
     tag = "$(container_tag)",
 )
 
+container_push(
+    name = "push-ovirt-populator",
+    format = "Docker",
+    image = "//cmd/ovirt-populator:ovirt-populator-image",
+    registry = "$(container_prefix)",
+    repository = "ovirt-populator",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-openstack-populator",
+    format = "Docker",
+    image = "//cmd/openstack-populator:openstack-populator-image",
+    registry = "$(container_prefix)",
+    repository = "openstack-populator",
+    tag = "$(container_tag)",
+)
+
 filegroup(
     name = "test-images",
     srcs = [
