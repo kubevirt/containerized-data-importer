@@ -62,6 +62,8 @@ func createCRDResources(args *FactoryArgs) []client.Object {
 		createVolumeImportSourceCRD(),
 		createVolumeUploadSourceCRD(),
 		createVolumeCloneSourceCRD(),
+		createOvirtVolumePopulatorCRD(),
+		createOpenstackVolumePopulator(),
 	}
 }
 

@@ -10,6 +10,7 @@ go_library(
         "datasource.go",
         "datavolume.go",
         "factory.go",
+        "forklift.go",
         "object-transfer.go",
         "populationsources.go",
         "rbac.go",
