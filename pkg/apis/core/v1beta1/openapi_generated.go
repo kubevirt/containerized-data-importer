@@ -27276,6 +27276,13 @@ func schema_pkg_apis_core_v1beta1_StorageProfileSpec(ref common.ReferenceCallbac
 							Format:      "",
 						},
 					},
+					"snapshotClass": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SnapshotClass is optional specific VolumeSnapshotClass for CloneStrategySnapshot. If not set, a VolumeSnapshotClass is chosen according to the provisioner.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},
@@ -27329,6 +27336,13 @@ func schema_pkg_apis_core_v1beta1_StorageProfileStatus(ref common.ReferenceCallb
 					"dataImportCronSourceFormat": {
 						SchemaProps: spec.SchemaProps{
 							Description: "DataImportCronSourceFormat defines the format of the DataImportCron-created disk image sources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"snapshotClass": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SnapshotClass is optional specific VolumeSnapshotClass for CloneStrategySnapshot. If not set, a VolumeSnapshotClass is chosen according to the provisioner.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
