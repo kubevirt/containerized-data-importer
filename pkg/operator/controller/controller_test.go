@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
@@ -422,6 +423,67 @@ var _ = Describe("Controller", func() {
 				Expect(role.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 				Expect(roleBinding.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 				validateEvents(args.reconciler, createReadyEventValidationMap())
+			})
+
+			Context("RBAC testing", func() {
+				// https://kubernetes.io/docs/concepts/security/rbac-good-practices/#persistent-volume-creation
+				checkPersistentVolumeCreateViolation := func(rsc string, rule *rbacv1.PolicyRule) {
+					if rsc == "persistentvolumes" {
+						Expect(rule.Verbs).ToNot(ContainElement("create"))
+					}
+				}
+
+				// https://kubernetes.io/docs/concepts/security/rbac-good-practices/#control-admission-webhooks
+				checkWebhookViolation := func(rsc string, rule *rbacv1.PolicyRule) {
+					if rsc == "validatingwebhookconfigurations" || rsc == "mutatingwebhookconfigurations" {
+						for _, verb := range rule.Verbs {
+							if verb == "update" || verb == "patch" || verb == "delete" || verb == "get" {
+								Expect(rule.ResourceNames).ToNot(BeEmpty())
+							}
+						}
+					}
+				}
+
+				verifyRule := func(rule *rbacv1.PolicyRule) {
+					Expect(rule.Verbs).ToNot(ContainElement("escalate"))
+					Expect(rule.Verbs).ToNot(ContainElement("bind"))
+					Expect(rule.Verbs).ToNot(ContainElement("impersonate"))
+					Expect(rule.APIGroups).ToNot(ContainElement("*"))
+					if len(rule.APIGroups) == 1 && strings.HasSuffix(rule.APIGroups[0], "cdi.kubevirt.io") {
+						return
+					}
+					Expect(rule.Resources).ToNot(ContainElement("*"))
+					Expect(rule.Verbs).ToNot(ContainElement("*"))
+
+					for _, rsc := range rule.Resources {
+						checkPersistentVolumeCreateViolation(rsc, rule)
+						checkWebhookViolation(rsc, rule)
+					}
+				}
+
+				It("should not have global rbac", func() {
+					args := createArgs()
+					doReconcile(args)
+					Expect(setDeploymentsReady(args)).To(BeTrue())
+
+					roles := &rbacv1.RoleList{}
+					err := args.client.List(context.TODO(), roles)
+					Expect(err).ToNot(HaveOccurred())
+					for _, role := range roles.Items {
+						for _, rule := range role.Rules {
+							verifyRule(&rule)
+						}
+					}
+
+					croles := &rbacv1.ClusterRoleList{}
+					err = args.client.List(context.TODO(), croles)
+					Expect(err).ToNot(HaveOccurred())
+					for _, crole := range croles.Items {
+						for _, rule := range crole.Rules {
+							verifyRule(&rule)
+						}
+					}
+				})
 			})
 
 			It("should reconcile configmap labels on update", func() {
