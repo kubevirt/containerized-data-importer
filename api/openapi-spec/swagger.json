@@ -4935,6 +4935,11 @@
        "default": ""
       }
      },
+     "logVerbosity": {
+      "description": "LogVerbosity overrides the default verbosity level used to initialize loggers",
+      "type": "integer",
+      "format": "int32"
+     },
      "podResourceRequirements": {
       "description": "ResourceRequirements describes the compute resource requirements.",
       "$ref": "#/definitions/v1.ResourceRequirements"

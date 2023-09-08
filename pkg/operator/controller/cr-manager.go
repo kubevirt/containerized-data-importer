@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"strconv"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 
@@ -83,8 +84,14 @@ func (r *ReconcileCDI) getNamespacedArgs(cr *cdiv1.CDI) *cdinamespaced.FactoryAr
 		if cr.Spec.ImagePullPolicy != "" {
 			result.PullPolicy = string(cr.Spec.ImagePullPolicy)
 		}
-		if cr.Spec.Config != nil && len(cr.Spec.Config.ImagePullSecrets) > 0 {
-			result.ImagePullSecrets = cr.Spec.Config.ImagePullSecrets
+		if cr.Spec.Config != nil {
+			// Overrides default verbosity level
+			if logVerbosity := cr.Spec.Config.LogVerbosity; logVerbosity != nil {
+				result.Verbosity = strconv.Itoa(int(*logVerbosity))
+			}
+			if len(cr.Spec.Config.ImagePullSecrets) > 0 {
+				result.ImagePullSecrets = cr.Spec.Config.ImagePullSecrets
+			}
 		}
 		if cr.Spec.PriorityClass != nil && string(*cr.Spec.PriorityClass) != "" {
 			result.PriorityClassName = string(*cr.Spec.PriorityClass)

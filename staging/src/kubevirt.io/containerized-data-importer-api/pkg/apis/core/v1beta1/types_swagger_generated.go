@@ -476,6 +476,7 @@ func (CDIConfigSpec) SwaggerDoc() map[string]string {
 		"dataVolumeTTLSeconds":     "DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected. Disabled by default.\n+optional",
 		"tlsSecurityProfile":       "TLSSecurityProfile is used by operators to apply cluster-wide TLS security settings to operands.",
 		"imagePullSecrets":         "The imagePullSecrets used to pull the container images",
+		"logVerbosity":             "LogVerbosity overrides the default verbosity level used to initialize loggers\n+optional",
 	}
 }
 

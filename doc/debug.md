@@ -28,3 +28,21 @@ spec:
       requests:
         storage: 1Gi
 ```
+
+## Log verbosity
+
+Different levels of verbosity are used in CDI to control the amount of information that is logged. The verbosity level of logs in CDI can be adjusted using a dedicated field in CDIConfig. This feature enables users to control the amount of detail displayed in logs, ranging from minimal to detailed debugging information.
+
+For example:
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: CDI
+# ...
+spec:
+  config:
+    # Overrides the default verbosity level with 4
+    logVerbosity: 4
+```
+
+Changing the verbosity level will automatically restart the CDI components to re-initialize the loggers with the new value.

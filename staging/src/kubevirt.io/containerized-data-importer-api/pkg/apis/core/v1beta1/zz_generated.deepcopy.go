@@ -201,6 +201,11 @@ func (in *CDIConfigSpec) DeepCopyInto(out *CDIConfigSpec) {
 		*out = make([]v1.LocalObjectReference, len(*in))
 		copy(*out, *in)
 	}
+	if in.LogVerbosity != nil {
+		in, out := &in.LogVerbosity, &out.LogVerbosity
+		*out = new(int32)
+		**out = **in
+	}
 	return
 }
 
