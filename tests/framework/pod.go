@@ -46,12 +46,12 @@ func (f *Framework) FindPodBySuffix(suffix string) (*k8sv1.Pod, error) {
 	return utils.FindPodBySuffix(f.K8sClient, f.Namespace.Name, suffix, common.CDILabelSelector)
 }
 
-//PrintControllerLog ...
+// PrintControllerLog ...
 func (f *Framework) PrintControllerLog() {
 	f.PrintPodLog(f.ControllerPod.Name, f.CdiInstallNs)
 }
 
-//PrintPodLog ...
+// PrintPodLog ...
 func (f *Framework) PrintPodLog(podName, namespace string) {
 	log, err := f.RunKubectlCommand("logs", podName, "-n", namespace)
 	if err == nil {

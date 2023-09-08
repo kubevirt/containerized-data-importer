@@ -481,8 +481,9 @@ const MaxPreadLengthESX = (23 << 20)
 // connecting to vCenter. With vCenter endpoints, multiple simultaneous importer
 // pods with larger read sizes cause allocation failures on the server, and the
 // imports start to fail:
-//         "NfcFssrvrProcessErrorMsg: received NFC error 5 from server:
-//          Failed to allocate the requested 24117272 bytes"
+//
+//	"NfcFssrvrProcessErrorMsg: received NFC error 5 from server:
+//	 Failed to allocate the requested 24117272 bytes"
 const MaxPreadLengthVC = (2 << 20)
 
 // MaxPreadLength is the maxmimum read size to request from VMware. Default to

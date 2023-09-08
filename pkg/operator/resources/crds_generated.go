@@ -1,12 +1,12 @@
 package resources
 
-//CDICRDs is a map containing yaml strings of all CRDs
+// CDICRDs is a map containing yaml strings of all CRDs
 var CDICRDs map[string]string = map[string]string{
 	"cdi": `apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
+    controller-gen.kubebuilder.io/version: v0.11.3
   creationTimestamp: null
   name: cdis.cdi.kubevirt.io
 spec:
@@ -4464,7 +4464,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
+    controller-gen.kubebuilder.io/version: v0.11.3
   creationTimestamp: null
   name: cdiconfigs.cdi.kubevirt.io
 spec:
@@ -4805,7 +4805,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
+    controller-gen.kubebuilder.io/version: v0.11.3
   creationTimestamp: null
   name: dataimportcrons.cdi.kubevirt.io
 spec:
@@ -5598,7 +5598,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
+    controller-gen.kubebuilder.io/version: v0.11.3
   creationTimestamp: null
   name: datasources.cdi.kubevirt.io
 spec:
@@ -5749,7 +5749,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
+    controller-gen.kubebuilder.io/version: v0.11.3
   creationTimestamp: null
   name: datavolumes.cdi.kubevirt.io
 spec:
@@ -6418,7 +6418,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
+    controller-gen.kubebuilder.io/version: v0.11.3
   creationTimestamp: null
   name: objecttransfers.cdi.kubevirt.io
 spec:
@@ -6550,7 +6550,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.2
+    controller-gen.kubebuilder.io/version: v0.11.3
   creationTimestamp: null
   name: storageprofiles.cdi.kubevirt.io
 spec:

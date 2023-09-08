@@ -11,7 +11,8 @@ import (
 
 // MaxExpectedHdrSize defines the Size of buffer used to read file headers.
 // Note: this is the size of tar's header. If a larger number is used the tar unarchive operation
-//   creates the destination file too large, by the difference between this const and 512.
+//
+//	creates the destination file too large, by the difference between this const and 512.
 const MaxExpectedHdrSize = 512
 
 // Headers provides a map for header info, key is file format, eg. "gz" or "tar", value is metadata describing the layout for this hdr

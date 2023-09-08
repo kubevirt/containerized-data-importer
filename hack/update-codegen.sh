@@ -85,3 +85,4 @@ echo "************* running controller-gen to generate schema yaml *************
 (cd "${SCRIPT_ROOT}/tools/crd-generator/" && go build -o "${SCRIPT_ROOT}/bin/crd-generator" ./...)
 
 ${SCRIPT_ROOT}/bin/crd-generator --crdDir=${SCRIPT_ROOT}/_out/manifests/schema/ --outputDir=${SCRIPT_ROOT}/pkg/operator/resources/
+gofmt -w ${SCRIPT_ROOT}/pkg/operator/resources/crds_generated.go

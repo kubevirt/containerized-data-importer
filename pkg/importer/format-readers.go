@@ -196,9 +196,11 @@ func (fr *FormatReaders) fileFormatSelector(hdr *image.Header) {
 
 // Return the gz reader and the size of the endpoint "through the eye" of the previous reader.
 // Assumes a single file was gzipped.
-//NOTE: size in gz is stored in the last 4 bytes of the file. This probably requires the file
-//  to be decompressed in order to get its original size. For now 0 is returned.
-//TODO: support gz size.
+// NOTE: size in gz is stored in the last 4 bytes of the file. This probably requires the file
+//
+//	to be decompressed in order to get its original size. For now 0 is returned.
+//
+// TODO: support gz size.
 func (fr *FormatReaders) gzReader() (io.ReadCloser, error) {
 	gz, err := gzip.NewReader(fr.TopReader())
 	if err != nil {
@@ -223,9 +225,11 @@ func (fr *FormatReaders) qcow2NopReader(h *image.Header) (io.Reader, error) {
 // Return the xz reader and size of the endpoint "through the eye" of the previous reader.
 // Assumes a single file was compressed. Note: the xz reader is not a closer so we wrap a
 // nop Closer around it.
-//NOTE: size is not stored in the xz header. This may require the file to be decompressed in
-//  order to get its original size. For now 0 is returned.
-//TODO: support gz size.
+// NOTE: size is not stored in the xz header. This may require the file to be decompressed in
+//
+//	order to get its original size. For now 0 is returned.
+//
+// TODO: support gz size.
 func (fr *FormatReaders) xzReader() (io.Reader, error) {
 	xz, err := xz.NewReader(fr.TopReader())
 	if err != nil {
