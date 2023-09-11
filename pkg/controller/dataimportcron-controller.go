@@ -801,7 +801,7 @@ func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context,
 		maxImports = int(*cron.Spec.ImportsToKeep)
 	}
 
-	if err := r.garbageCollectPVCs(ctx, cron.Namespace, selector, maxImports); err != nil {
+	if err := r.garbageCollectPVCs(ctx, cron.Namespace, cron.Name, selector, maxImports); err != nil {
 		return err
 	}
 	if err := r.garbageCollectSnapshots(ctx, cron.Namespace, selector, maxImports); err != nil {
@@ -811,7 +811,7 @@ func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context,
 	return nil
 }
 
-func (r *DataImportCronReconciler) garbageCollectPVCs(ctx context.Context, namespace string, selector labels.Selector, maxImports int) error {
+func (r *DataImportCronReconciler) garbageCollectPVCs(ctx context.Context, namespace, cronName string, selector labels.Selector, maxImports int) error {
 	pvcList := &corev1.PersistentVolumeClaimList{}
 
 	if err := r.client.List(ctx, pvcList, &client.ListOptions{Namespace: namespace, LabelSelector: selector}); err != nil {
@@ -825,6 +825,27 @@ func (r *DataImportCronReconciler) garbageCollectPVCs(ctx context.Context, names
 			r.log.Info("Deleting dv/pvc", "name", pvc.Name, "pvc.uid", pvc.UID)
 			if err := r.deleteDvPvc(ctx, pvc.Name, pvc.Namespace); err != nil {
 				return err
+			}
+		}
+	}
+
+	dvList := &cdiv1.DataVolumeList{}
+	if err := r.client.List(ctx, dvList, &client.ListOptions{Namespace: namespace, LabelSelector: selector}); err != nil {
+		return err
+	}
+
+	if len(dvList.Items) > maxImports {
+		for _, dv := range dvList.Items {
+			pvc := &corev1.PersistentVolumeClaim{}
+			if err := r.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: dv.Name}, pvc); err != nil {
+				return err
+			}
+
+			if pvc.Labels[common.DataImportCronLabel] != cronName {
+				r.log.Info("Deleting old version dv/pvc", "name", pvc.Name, "pvc.uid", pvc.UID)
+				if err := r.deleteDvPvc(ctx, dv.Name, dv.Namespace); err != nil {
+					return err
+				}
 			}
 		}
 	}
