@@ -706,6 +706,63 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Entry("has no tag", imageStreamName, 1),
 		)
 
+		It("Should succeed garbage collecting old version DVs", func() {
+			cron = newDataImportCron(cronName)
+			importsToKeep := int32(1)
+			cron.Spec.ImportsToKeep = &importsToKeep
+			reconciler = createDataImportCronReconciler(cron)
+
+			// Labeled DV and unlabeled PVC
+			dv1 := cc.NewImportDataVolume("test-dv1")
+			dv1.Labels = map[string]string{common.DataImportCronLabel: cronName}
+			err := reconciler.client.Create(context.TODO(), dv1)
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc1 := cc.CreatePvc(dv1.Name, dv1.Namespace, nil, nil)
+			err = reconciler.client.Create(context.TODO(), pvc1)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Labeled DV and PVC
+			dv2 := cc.NewImportDataVolume("test-dv2")
+			dv2.Labels = map[string]string{common.DataImportCronLabel: cronName}
+			err = reconciler.client.Create(context.TODO(), dv2)
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc2 := cc.CreatePvc(dv2.Name, dv2.Namespace, nil, nil)
+			pvc2.Labels = map[string]string{common.DataImportCronLabel: cronName}
+			err = reconciler.client.Create(context.TODO(), pvc2)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Unlabeled DV and PVC
+			dv3 := cc.NewImportDataVolume("test-dv3")
+			err = reconciler.client.Create(context.TODO(), dv3)
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc3 := cc.CreatePvc(dv3.Name, dv3.Namespace, nil, nil)
+			err = reconciler.client.Create(context.TODO(), pvc3)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.garbageCollectOldImports(context.TODO(), cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Ensure the old version DV is deleted (labeled DV and unlabeled PVC).
+			// The labeled PVC will not be deleted here, as there is no relevant controller.
+			err = reconciler.client.Get(context.TODO(), dvKey(dv1.Name), dv1)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+			// Ensure the new version DV is not deleted (labeled DV and labeled PVC).
+			err = reconciler.client.Get(context.TODO(), dvKey(dv2.Name), dv2)
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), dvKey(pvc2.Name), pvc2)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Ensure unrelated DVs and PVCs are not deleted (unlabeled DV and PVC)
+			err = reconciler.client.Get(context.TODO(), dvKey(dv3.Name), dv3)
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), dvKey(pvc3.Name), pvc3)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
 		It("should pass through metadata to DataVolume and DataSource", func() {
 			cron = newDataImportCron(cronName)
 			cron.Annotations[AnnSourceDesiredDigest] = testDigest
