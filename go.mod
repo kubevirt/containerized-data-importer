@@ -42,9 +42,9 @@ require (
 	google.golang.org/api v0.110.0
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/square/go-jose.v2 v2.6.0
-	k8s.io/api v0.26.7
-	k8s.io/apiextensions-apiserver v0.26.1
-	k8s.io/apimachinery v0.26.7
+	k8s.io/api v0.26.10
+	k8s.io/apiextensions-apiserver v0.26.10
+	k8s.io/apimachinery v0.26.10
 	k8s.io/apiserver v0.26.7
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cluster-bootstrap v0.26.1
@@ -147,7 +147,7 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/component-base v0.26.7 // indirect
+	k8s.io/component-base v0.26.10 // indirect
 	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/kube-storage-version-migrator v0.0.4 // indirect
@@ -194,4 +194,5 @@ replace (
 
 	kubevirt.io/containerized-data-importer-api => ./staging/src/kubevirt.io/containerized-data-importer-api
 	kubevirt.io/controller-lifecycle-operator-sdk/api => kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90
+	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.14.7
 )

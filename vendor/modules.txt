@@ -872,7 +872,7 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# k8s.io/api v0.26.7 => k8s.io/api v0.26.7
+# k8s.io/api v0.26.10 => k8s.io/api v0.26.7
 ## explicit; go 1.19
 k8s.io/api/admission/v1
 k8s.io/api/admission/v1beta1
@@ -928,7 +928,7 @@ k8s.io/api/scheduling/v1beta1
 k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
-# k8s.io/apiextensions-apiserver v0.26.1 => k8s.io/apiextensions-apiserver v0.26.7
+# k8s.io/apiextensions-apiserver v0.26.10 => k8s.io/apiextensions-apiserver v0.26.7
 ## explicit; go 1.19
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
@@ -937,7 +937,7 @@ k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1
-# k8s.io/apimachinery v0.26.7 => k8s.io/apimachinery v0.26.7
+# k8s.io/apimachinery v0.26.10 => k8s.io/apimachinery v0.26.7
 ## explicit; go 1.19
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/errors
@@ -1336,7 +1336,7 @@ k8s.io/code-generator/cmd/set-gen
 k8s.io/code-generator/pkg/namer
 k8s.io/code-generator/pkg/util
 k8s.io/code-generator/third_party/forked/golang/reflect
-# k8s.io/component-base v0.26.7 => k8s.io/component-base v0.26.7
+# k8s.io/component-base v0.26.10 => k8s.io/component-base v0.26.7
 ## explicit; go 1.19
 k8s.io/component-base/config
 k8s.io/component-base/config/v1alpha1
@@ -1437,7 +1437,7 @@ kubevirt.io/qe-tools/pkg/polarion-xml
 # libguestfs.org/libnbd v1.11.5
 ## explicit; go 1.13
 libguestfs.org/libnbd
-# sigs.k8s.io/controller-runtime v0.14.6
+# sigs.k8s.io/controller-runtime v0.14.6 => sigs.k8s.io/controller-runtime v0.14.7
 ## explicit; go 1.19
 sigs.k8s.io/controller-runtime/pkg/cache
 sigs.k8s.io/controller-runtime/pkg/cache/internal
@@ -1534,3 +1534,4 @@ sigs.k8s.io/yaml
 # k8s.io/sample-controller => k8s.io/sample-controller v0.26.7
 # kubevirt.io/containerized-data-importer-api => ./staging/src/kubevirt.io/containerized-data-importer-api
 # kubevirt.io/controller-lifecycle-operator-sdk/api => kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90
+# sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.14.7
