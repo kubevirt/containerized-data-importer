@@ -213,11 +213,11 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 			})
 
 			DescribeTable("should deny/allow user when creating PVC clone datavolume", func(role *rbacv1.Role, saName, groupName string) {
-				srcPVCDef := utils.NewPVCDefinition("source-pvc", "1G", nil, nil)
+				srcPVCDef := utils.NewPVCDefinition("source-pvc", "1Gi", nil, nil)
 				srcPVCDef.Namespace = f.Namespace.Name
 				f.CreateAndPopulateSourcePVC(srcPVCDef, "fill-source", fmt.Sprintf("echo \"hello world\" > %s/data.txt", utils.DefaultPvcMountPath))
 
-				targetDV := utils.NewCloningDataVolume("target-dv", "1G", srcPVCDef)
+				targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", srcPVCDef)
 
 				client, err := f.GetCdiClientForServiceAccount(targetNamespace.Name, serviceAccountName)
 				Expect(err).ToNot(HaveOccurred())
@@ -281,7 +281,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
 				}
 
-				srcPVCDef := utils.NewPVCDefinition("source-pvc", "1G", nil, nil)
+				srcPVCDef := utils.NewPVCDefinition("source-pvc", "1Gi", nil, nil)
 				srcPVCDef.Namespace = f.Namespace.Name
 				pvc := f.CreateAndPopulateSourcePVC(srcPVCDef, "fill-source", fmt.Sprintf("echo \"hello world\" > %s/data.txt", utils.DefaultPvcMountPath))
 
@@ -301,7 +301,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				err = f.CrClient.Create(context.TODO(), snapshot)
 				Expect(err).ToNot(HaveOccurred())
 				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
-				targetDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("target-dv", "1G", snapshot.Namespace, snapshot.Name, nil, &volumeMode)
+				targetDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("target-dv", "1Gi", snapshot.Namespace, snapshot.Name, nil, &volumeMode)
 
 				client, err := f.GetCdiClientForServiceAccount(targetNamespace.Name, serviceAccountName)
 				Expect(err).ToNot(HaveOccurred())
