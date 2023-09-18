@@ -670,11 +670,12 @@ var _ = Describe("DataImportCron", func() {
 			if !f.IsSnapshotStorageClassAvailable() {
 				Skip("Volumesnapshot support needed to test DataImportCron with Volumesnapshot sources")
 			}
+			size := "1Gi"
 
 			configureStorageProfileResultingFormat(cdiv1.DataImportCronSourceFormatPvc)
 
 			By(fmt.Sprintf("Create new DataImportCron %s, url %s", cronName, *reg.URL))
-			cron = utils.NewDataImportCronWithStorageSpec(cronName, "1Gi", scheduleOnceAYear, dataSourceName, importsToKeep, *reg)
+			cron = utils.NewDataImportCronWithStorageSpec(cronName, size, scheduleOnceAYear, dataSourceName, importsToKeep, *reg)
 			retentionPolicy := cdiv1.DataImportCronRetainNone
 			cron.Spec.RetentionPolicy = &retentionPolicy
 
@@ -691,6 +692,12 @@ var _ = Describe("DataImportCron", func() {
 			err = f.CrClient.List(context.TODO(), snapshots, &client.ListOptions{Namespace: ns})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(snapshots.Items).To(BeEmpty())
+			// Ensure existing PVC clones from this source don't mess up future ones
+			cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec("target-dv-from-pvc", size, ns, currentImportDv, nil, nil)
+			cloneDV, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(cloneDV)
+			err = utils.WaitForDataVolumePhase(f, cloneDV.Namespace, cdiv1.Succeeded, cloneDV.Name)
 
 			// Now simulate an upgrade, where a new CDI version has identified
 			// more storage types that scale better with snapshots
@@ -713,8 +720,7 @@ var _ = Describe("DataImportCron", func() {
 			}
 			Expect(dataSource.Spec.Source).To(Equal(expectedSource))
 			// Verify content
-			size := "1Gi"
-			targetDV := utils.NewDataVolumeWithSourceRefAndStorageAPI("target-dv", &size, dataSource.Namespace, dataSource.Name)
+			targetDV := utils.NewDataVolumeWithSourceRefAndStorageAPI("target-dv-from-snap", &size, dataSource.Namespace, dataSource.Name)
 			By(fmt.Sprintf("Create new target datavolume %s", targetDV.Name))
 			targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, targetDV)
 			Expect(err).ToNot(HaveOccurred())

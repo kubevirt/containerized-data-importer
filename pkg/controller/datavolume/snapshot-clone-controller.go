@@ -126,7 +126,7 @@ func (r *SnapshotCloneReconciler) addDataVolumeSnapshotCloneControllerWatches(mg
 		}
 	}
 
-	if err := addCloneWithoutSourceWatch(mgr, datavolumeController, &snapshotv1.VolumeSnapshot{}, "spec.source.snapshot"); err != nil {
+	if err := addCloneWithoutSourceWatch(mgr, datavolumeController, &snapshotv1.VolumeSnapshot{}, "spec.source.snapshot", dataVolumeSnapshotClone); err != nil {
 		return err
 	}
 
