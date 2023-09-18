@@ -117,7 +117,7 @@ func (r *PvcCloneReconciler) addDataVolumeCloneControllerWatches(mgr manager.Man
 	}
 
 	// Watch to reconcile clones created without source
-	if err := addCloneWithoutSourceWatch(mgr, datavolumeController, &corev1.PersistentVolumeClaim{}, "spec.source.pvc"); err != nil {
+	if err := addCloneWithoutSourceWatch(mgr, datavolumeController, &corev1.PersistentVolumeClaim{}, "spec.source.pvc", dataVolumePvcClone); err != nil {
 		return err
 	}
 

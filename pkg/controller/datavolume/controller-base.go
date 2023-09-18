@@ -153,6 +153,7 @@ func shouldSetDataVolumePending(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.Dat
 	return dvIsPrePopulated(dv) || (dv.Status.Phase == cdiv1.PhaseUnset)
 }
 
+// dataVolumeOp is the datavolume's requested operation
 type dataVolumeOp int
 
 const (
