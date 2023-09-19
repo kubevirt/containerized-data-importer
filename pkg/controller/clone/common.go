@@ -247,7 +247,7 @@ func getCommonSnapshotClass(ctx context.Context, c client.Client, pvcs ...*corev
 }
 
 // GetCompatibleVolumeSnapshotClass returns a VolumeSnapshotClass name that works for all PVCs
-func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, pvcs ...*corev1.PersistentVolumeClaim) (*string, error) {
+func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, log logr.Logger, pvcs ...*corev1.PersistentVolumeClaim) (*string, error) {
 	driver, err := GetCommonDriver(ctx, c, pvcs...)
 	if err != nil {
 		return nil, err
@@ -261,7 +261,7 @@ func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, pvcs
 		return nil, err
 	}
 
-	return cc.GetVolumeSnapshotClass(context.TODO(), c, *driver, snapshotClassName)
+	return cc.GetVolumeSnapshotClass(context.TODO(), c, *driver, snapshotClassName, log)
 }
 
 // SameVolumeMode returns true if all pvcs have the same volume mode
