@@ -1889,7 +1889,7 @@ func GetSnapshotClassForSmartClone(dvName string, targetPvcStorageClassName, sna
 		return "", nil
 	}
 
-	vscName, err := GetVolumeSnapshotClass(context.TODO(), client, targetStorageClass.Provisioner, snapshotClassName)
+	vscName, err := GetVolumeSnapshotClass(context.TODO(), client, targetStorageClass.Provisioner, snapshotClassName, logger)
 	if err != nil {
 		return "", err
 	}
@@ -1904,13 +1904,15 @@ func GetSnapshotClassForSmartClone(dvName string, targetPvcStorageClassName, sna
 }
 
 // GetVolumeSnapshotClass looks up the snapshot class based on the driver and an optional specific name
-func GetVolumeSnapshotClass(ctx context.Context, c client.Client, driver string, snapshotClassName *string) (*string, error) {
+func GetVolumeSnapshotClass(ctx context.Context, c client.Client, driver string, snapshotClassName *string, log logr.Logger) (*string, error) {
+	logger := log.WithName("GetVolumeSnapshotClass").V(3)
 	if snapshotClassName != nil {
 		vsc := &snapshotv1.VolumeSnapshotClass{}
 		if err := c.Get(context.TODO(), types.NamespacedName{Name: *snapshotClassName}, vsc); err != nil {
 			return nil, err
 		}
 		if vsc.Driver == driver {
+			logger.Info("VolumeSnapshotClass selected according to StorageProfile", "name", vsc.Name)
 			return &vsc.Name, nil
 		}
 		return nil, nil
@@ -1928,6 +1930,7 @@ func GetVolumeSnapshotClass(ctx context.Context, c client.Client, driver string,
 	for _, vsc := range vscList.Items {
 		if vsc.Driver == driver {
 			if vsc.Annotations[AnnDefaultSnapshotClass] == "true" {
+				logger.Info("Default VolumeSnapshotClass selected", "name", vsc.Name)
 				return &vsc.Name, nil
 			}
 			candidates = append(candidates, vsc.Name)
@@ -1936,6 +1939,7 @@ func GetVolumeSnapshotClass(ctx context.Context, c client.Client, driver string,
 
 	if len(candidates) > 0 {
 		sort.Strings(candidates)
+		logger.Info("First VolumeSnapshotClass selected", "name", candidates[0], "candidates", len(candidates))
 		return &candidates[0], nil
 	}
 
