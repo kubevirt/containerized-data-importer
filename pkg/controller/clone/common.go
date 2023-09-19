@@ -145,6 +145,23 @@ func GetStorageClassForClaim(ctx context.Context, c client.Client, pvc *corev1.P
 	return nil, nil
 }
 
+func getSnapshotClassForClaim(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (*string, error) {
+	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName == "" {
+		return nil, nil
+	}
+
+	sp := &cdiv1.StorageProfile{}
+	exists, err := getResource(ctx, c, "", *pvc.Spec.StorageClassName, sp)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return sp.Status.SnapshotClass, nil
+	}
+
+	return nil, nil
+}
+
 // GetDriverFromVolume returns the CSI driver name for a PVC
 func GetDriverFromVolume(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (*string, error) {
 	if pvc.Spec.VolumeName == "" {
@@ -208,19 +225,43 @@ func GetCommonDriver(ctx context.Context, c client.Client, pvcs ...*corev1.Persi
 	return result, nil
 }
 
+func getCommonSnapshotClass(ctx context.Context, c client.Client, pvcs ...*corev1.PersistentVolumeClaim) (*string, error) {
+	var result *string
+
+	for _, pvc := range pvcs {
+		sc, err := getSnapshotClassForClaim(ctx, c, pvc)
+		if err != nil {
+			return nil, err
+		}
+		if sc == nil {
+			return nil, nil
+		}
+		if result == nil {
+			result = sc
+		} else if *result != *sc {
+			return nil, nil
+		}
+	}
+
+	return result, nil
+}
+
 // GetCompatibleVolumeSnapshotClass returns a VolumeSnapshotClass name that works for all PVCs
 func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, pvcs ...*corev1.PersistentVolumeClaim) (*string, error) {
 	driver, err := GetCommonDriver(ctx, c, pvcs...)
 	if err != nil {
 		return nil, err
 	}
-
 	if driver == nil {
 		return nil, nil
 	}
 
-	//FIXME: may pass snapshotClassName if common to all pvcs?
-	return cc.GetVolumeSnapshotClass(context.TODO(), c, *driver, nil)
+	snapshotClassName, err := getCommonSnapshotClass(ctx, c, pvcs...)
+	if err != nil {
+		return nil, err
+	}
+
+	return cc.GetVolumeSnapshotClass(context.TODO(), c, *driver, snapshotClassName)
 }
 
 // SameVolumeMode returns true if all pvcs have the same volume mode
