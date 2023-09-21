@@ -148,6 +148,8 @@ const (
 	ImporterGoogleCredentialDir = "/google"
 	// ImporterGoogleCredentialFile provides a constant to capture our credentials.json file
 	ImporterGoogleCredentialFile = "/google/credentials.json"
+	// ImportReportingServiceLabel is the label selector for import progress reporting services
+	ImportReportingServiceLabel = "service"
 
 	// CloningLabelValue provides a constant to use as a label value for pod affinity (controller pkg only)
 	CloningLabelValue = "host-assisted-cloning"

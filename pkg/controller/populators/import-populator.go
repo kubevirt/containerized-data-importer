@@ -32,6 +32,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -245,14 +246,22 @@ func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, p
 		return nil
 	}
 	importPod, err := r.getImportPod(pvcPrime)
-	if err != nil {
+	if err != nil || importPod == nil {
 		return err
 	}
 	// This will only work when the import pod is running
-	if importPod != nil && importPod.Status.Phase != corev1.PodRunning {
+	if importPod.Status.Phase != corev1.PodRunning {
 		return nil
 	}
-	url, err := cc.GetMetricsURL(importPod)
+	// We first attempt to get the metrics from the progress-reporting service
+	serviceKey := types.NamespacedName{Namespace: importPod.Namespace, Name: importPod.Labels[common.ImportReportingServiceLabel]}
+	service := &corev1.Service{}
+	if err := r.client.Get(context.TODO(), serviceKey, service); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+	}
+	url, err := cc.GetMetricsURL(importPod, service)
 	if err != nil {
 		return err
 	}

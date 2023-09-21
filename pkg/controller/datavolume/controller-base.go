@@ -732,7 +732,8 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 			// Avoid long timeouts and error traces from HTTP get when pod is already gone
 			return nil
 		}
-		if err := updateProgressUsingPod(datavolume, pod); err != nil {
+
+		if err := r.updateDVProgress(datavolume, pod); err != nil {
 			return err
 		}
 	}
@@ -991,15 +992,25 @@ func (r *ReconcilerBase) addOwnerRef(pvc *corev1.PersistentVolumeClaim, dv *cdiv
 	return r.updatePVC(pvc)
 }
 
-func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) error {
-	httpClient = cc.BuildHTTPClient(httpClient)
-	url, err := cc.GetMetricsURL(pod)
+func (r *ReconcilerBase) updateDVProgress(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) error {
+	// We first attempt to get the metrics from the progress-reporting service
+	serviceKey := types.NamespacedName{Namespace: pod.Namespace, Name: pod.Labels[common.ImportReportingServiceLabel]}
+	service := &corev1.Service{}
+	if err := r.client.Get(context.TODO(), serviceKey, service); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+	}
+
+	url, err := cc.GetMetricsURL(pod, service)
 	if err != nil {
 		return err
 	}
 	if url == "" {
 		return nil
 	}
+
+	httpClient = cc.BuildHTTPClient(httpClient)
 
 	// Example value: import_progress{ownerUID="b856691e-1038-11e9-a5ab-525500d15501"} 13.45
 	var importRegExp = regexp.MustCompile("progress\\{ownerUID\\=\"" + string(dataVolumeCopy.UID) + "\"\\} (\\d{1,3}\\.?\\d*)")

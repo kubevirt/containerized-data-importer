@@ -18,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
@@ -306,6 +307,11 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 		}
 	}
 
+	// Handle progress-reporting service exists and ensure it's created/deleted when necessary
+	if err := r.handleImportProgressService(pvc); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	if !cc.IsPVCComplete(pvc) {
 		// We are not done yet, force a re-reconcile in 2 seconds to get an update.
 		log.V(1).Info("Force Reconcile pvc import not finished", "pvc.Name", pvc.Name)
@@ -546,6 +552,91 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 	}
 
 	return nil
+}
+
+// handleImportProgressService ensures import service exists to get progress-reporting and deletes it when necessary
+func (r *ImportReconciler) handleImportProgressService(pvc *v1.PersistentVolumeClaim) error {
+	name := getImportProgressServiceName(pvc)
+	service := &corev1.Service{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: pvc.Namespace}, service); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return errors.Wrap(err, "error getting upload service")
+		}
+		// Service doesn't exist yet and PVC is not completed, we need to create it
+		if !cc.IsPVCComplete(pvc) {
+			return r.createImportProgressService(name, pvc)
+		}
+		return nil
+	}
+
+	if !metav1.IsControlledBy(service, pvc) {
+		return errors.Errorf("%s service not controlled by pvc %s", name, pvc.Name)
+	}
+
+	// Lastly, delete service if it exists and PVC is complete
+	if cc.IsPVCComplete(pvc) {
+		return r.client.Delete(context.TODO(), service)
+	}
+
+	return nil
+}
+
+func (r *ImportReconciler) createImportProgressService(serviceName string, pvc *v1.PersistentVolumeClaim) error {
+	service := r.makeImportProgressServiceSpec(serviceName, pvc)
+	util.SetRecommendedLabels(service, r.installerLabels, "cdi-controller")
+
+	if err := r.client.Create(context.TODO(), service); err != nil {
+		if !k8serrors.IsAlreadyExists(err) {
+			return errors.Wrap(err, "import service API create errored")
+		}
+	}
+	r.log.V(1).Info("import service created\n", "Namespace", service.Namespace, "Name", service.Name)
+	return nil
+}
+
+// makeImportProgressServiceSpec creates progress-reporting service manifest
+func (r *ImportReconciler) makeImportProgressServiceSpec(name string, pvc *v1.PersistentVolumeClaim) *v1.Service {
+	service := &v1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: pvc.Namespace,
+			Labels: map[string]string{
+				common.CDILabelKey: common.CDILabelValue,
+			},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "v1",
+				Kind:       "PersistentVolumeClaim",
+				Name:       pvc.Name,
+				UID:        pvc.GetUID(),
+				Controller: pointer.Bool(true),
+			},
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Protocol: "TCP",
+					Port:     443,
+					TargetPort: intstr.IntOrString{
+						Type:   intstr.Int,
+						IntVal: 8443,
+					},
+				},
+			},
+			Selector: map[string]string{
+				common.ImportReportingServiceLabel: name,
+			},
+		},
+	}
+	return service
+}
+
+func getImportProgressServiceName(pvc *corev1.PersistentVolumeClaim) string {
+	return naming.GetResourceName("import-progress-service", pvc.Name)
 }
 
 func createScratchNameFromPvc(pvc *v1.PersistentVolumeClaim) string {
@@ -909,9 +1000,10 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 				cc.AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				common.CDILabelKey:        common.CDILabelValue,
-				common.CDIComponentLabel:  common.ImporterPodName,
-				common.PrometheusLabelKey: common.PrometheusLabelValue,
+				common.CDILabelKey:                 common.CDILabelValue,
+				common.CDIComponentLabel:           common.ImporterPodName,
+				common.PrometheusLabelKey:          common.PrometheusLabelValue,
+				common.ImportReportingServiceLabel: getImportProgressServiceName(args.pvc),
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -1044,9 +1136,10 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 				cc.AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				common.CDILabelKey:        common.CDILabelValue,
-				common.CDIComponentLabel:  common.ImporterPodName,
-				common.PrometheusLabelKey: common.PrometheusLabelValue,
+				common.CDILabelKey:                 common.CDILabelValue,
+				common.CDIComponentLabel:           common.ImporterPodName,
+				common.PrometheusLabelKey:          common.PrometheusLabelValue,
+				common.ImportReportingServiceLabel: getImportProgressServiceName(args.pvc),
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{

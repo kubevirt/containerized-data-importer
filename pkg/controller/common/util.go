@@ -1508,7 +1508,13 @@ func GetPodMetricsPort(pod *corev1.Pod) (int, error) {
 }
 
 // GetMetricsURL builds the metrics URL according to the specified pod
-func GetMetricsURL(pod *corev1.Pod) (string, error) {
+func GetMetricsURL(pod *corev1.Pod, service *corev1.Service) (string, error) {
+	// We prioritize getting the metrics from service.
+	if service != nil && service.Spec.Ports != nil {
+		url := fmt.Sprintf("https://%s:%d/metrics", service.Spec.ClusterIP, service.Spec.Ports[0].Port)
+		return url, nil
+	}
+
 	if pod == nil {
 		return "", nil
 	}
@@ -1739,7 +1745,7 @@ func ProgressFromClaim(ctx context.Context, args *ProgressFromClaimArgs) (string
 	if pod.Status.Phase != corev1.PodRunning {
 		return "", nil
 	}
-	url, err := GetMetricsURL(pod)
+	url, err := GetMetricsURL(pod, nil)
 	if err != nil {
 		return "", err
 	}
