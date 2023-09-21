@@ -31,14 +31,15 @@ var (
 
 	operatorVersion = flag.String("operator-version", "", "")
 
-	operatorImage     = flag.String("operator-image", "", "")
-	controllerImage   = flag.String("controller-image", "", "")
-	importerImage     = flag.String("importer-image", "", "")
-	clonerImage       = flag.String("cloner-image", "", "")
-	apiServerImage    = flag.String("apiserver-image", "", "")
-	uploadProxyImage  = flag.String("uploadproxy-image", "", "")
-	uploadServerImage = flag.String("uploadserver-image", "", "")
-	dumpCRDs          = flag.Bool("dump-crds", false, "optional - dumps cdi-operator related crd manifests to stdout")
+	operatorImage       = flag.String("operator-image", "", "")
+	controllerImage     = flag.String("controller-image", "", "")
+	importerImage       = flag.String("importer-image", "", "")
+	clonerImage         = flag.String("cloner-image", "", "")
+	apiServerImage      = flag.String("apiserver-image", "", "")
+	uploadProxyImage    = flag.String("uploadproxy-image", "", "")
+	uploadServerImage   = flag.String("uploadserver-image", "", "")
+	ovirtPopulatorImage = flag.String("ovirt-populator-image", "", "")
+	dumpCRDs            = flag.Bool("dump-crds", false, "optional - dumps cdi-operator related crd manifests to stdout")
 )
 
 func main() {
@@ -54,13 +55,14 @@ func main() {
 
 		OperatorVersion: *operatorVersion,
 
-		ControllerImage:   *controllerImage,
-		ImporterImage:     *importerImage,
-		ClonerImage:       *clonerImage,
-		APIServerImage:    *apiServerImage,
-		UplodaProxyImage:  *uploadProxyImage,
-		UplodaServerImage: *uploadServerImage,
-		OperatorImage:     *operatorImage,
+		ControllerImage:     *controllerImage,
+		ImporterImage:       *importerImage,
+		ClonerImage:         *clonerImage,
+		OvirtPopulatorImage: *ovirtPopulatorImage,
+		APIServerImage:      *apiServerImage,
+		UplodaProxyImage:    *uploadProxyImage,
+		UplodaServerImage:   *uploadServerImage,
+		OperatorImage:       *operatorImage,
 	}
 
 	csv, err := cdioperator.NewClusterServiceVersion(&data)
