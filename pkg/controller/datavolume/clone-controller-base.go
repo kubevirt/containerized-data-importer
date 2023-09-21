@@ -524,7 +524,7 @@ func isCrossNamespaceClone(dv *cdiv1.DataVolume) bool {
 }
 
 // addCloneWithoutSourceWatch reconciles clones created without source once the matching PVC is created
-func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController controller.Controller, typeToWatch client.Object, indexingKey string) error {
+func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController controller.Controller, typeToWatch client.Object, indexingKey string, op dataVolumeOp) error {
 	getKey := func(namespace, name string) string {
 		return namespace + "/" + name
 	}
@@ -533,7 +533,7 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 		dv := obj.(*cdiv1.DataVolume)
 		if source := dv.Spec.Source; source != nil {
 			_, sourceName, sourceNamespace := cc.GetCloneSourceInfo(dv)
-			if sourceName != "" {
+			if getDataVolumeOp(mgr.GetLogger(), dv, mgr.GetClient()) == op && sourceName != "" {
 				ns := cc.GetNamespace(sourceNamespace, obj.GetNamespace())
 				return []string{getKey(ns, sourceName)}
 			}
@@ -552,10 +552,7 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 			return
 		}
 		for _, dv := range dvList.Items {
-			op := getDataVolumeOp(mgr.GetLogger(), &dv, mgr.GetClient())
-			if op == dataVolumePvcClone || op == dataVolumeSnapshotClone {
-				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
-			}
+			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
 		}
 		return
 	}
