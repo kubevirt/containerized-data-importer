@@ -1165,9 +1165,8 @@ func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncState *dvSyncSta
 // shouldUseCDIPopulator returns if the population of the PVC should be done using
 // CDI populators.
 // Currently it will use populators only if:
-// * no podRetainAfterCompletion annotation
-// * storageClass bindingMode is not wffc while honorWaitForFirstConsumer feature gate is disabled
 // * storageClass used is CSI storageClass
+// * annotation cdi.kubevirt.io/storage.usePopulator is not set by user to "false"
 func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, error) {
 	dv := syncState.dvMutated
 	if usePopulator, ok := dv.Annotations[cc.AnnUsePopulator]; ok {

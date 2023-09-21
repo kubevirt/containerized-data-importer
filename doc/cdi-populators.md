@@ -127,3 +127,9 @@ The behavior will be the same as always with the following key differences:
 > NOTE: Datavolumes and the PVCs they create will be marked with "usePopulator" Annotation to indicate the population is done via CDI populators
 
 For more information of using datavolumes for population check the [datavolume doc](datavolumes.md)
+
+### Fallback to legacy population
+
+In some cases, CDI will fall back to legacy population methods, and thus skip using volume populators when:
+* Storage provisioner is non-CSI
+* Annotation `cdi.kubevirt.io/storage.usePopulator` set to `"false"`
