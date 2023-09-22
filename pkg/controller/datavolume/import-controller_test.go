@@ -1442,11 +1442,12 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc = CreatePvc("test", metav1.NamespaceDefault, nil, nil)
 			pod = CreateImporterTestPod(pvc, "test", nil)
 			dv = NewImportDataVolume("test")
+			reconciler = createImportReconciler(dv)
 		})
 
 		It("Should return error, if no metrics port in pod", func() {
 			pod.Spec.Containers[0].Ports = nil
-			err := updateProgressUsingPod(dv, pod)
+			err := reconciler.updateDVProgress(dv, pod)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("Metrics port not found in pod"))
 		})
@@ -1454,7 +1455,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		It("Should not error, if no endpoint exists", func() {
 			pod.Spec.Containers[0].Ports[0].ContainerPort = 12345
 			pod.Status.PodIP = "127.0.0.1"
-			err := updateProgressUsingPod(dv, pod)
+			err := reconciler.updateDVProgress(dv, pod)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -1471,7 +1472,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			pod.Spec.Containers[0].Ports[0].ContainerPort = int32(port)
 			pod.Status.PodIP = ep.Hostname()
-			err = updateProgressUsingPod(dv, pod)
+			err = reconciler.updateDVProgress(dv, pod)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dv.Status.Progress).To(BeEquivalentTo("13.45%"))
 		})
@@ -1490,9 +1491,66 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			pod.Spec.Containers[0].Ports[0].ContainerPort = int32(port)
 			pod.Status.PodIP = ep.Hostname()
-			err = updateProgressUsingPod(dv, pod)
+			err = reconciler.updateDVProgress(dv, pod)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dv.Status.Progress).To(BeEquivalentTo("2.3%"))
+		})
+	})
+
+	var _ = Describe("Update Progress from service", func() {
+		var (
+			pvc     *corev1.PersistentVolumeClaim
+			pod     *corev1.Pod
+			service *corev1.Service
+			dv      *cdiv1.DataVolume
+		)
+
+		BeforeEach(func() {
+			pvc = CreatePvc("test", metav1.NamespaceDefault, nil, nil)
+			service = CreateImporterTestService("test-service", pvc)
+			pod = CreateImporterTestPod(pvc, "test", nil)
+			pod.Labels[common.ImportReportingServiceLabel] = service.Name
+			dv = NewImportDataVolume("test")
+		})
+
+		It("Should ulse pod if no service is found", func() {
+			reconciler = createImportReconciler(dv)
+			dv.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = fmt.Fprintf(w, "import_progress{ownerUID=\"%v\"} 13.45", dv.GetUID()) // ignore error here
+				w.WriteHeader(200)
+			}))
+			defer ts.Close()
+			ep, err := url.Parse(ts.URL)
+			Expect(err).ToNot(HaveOccurred())
+			port, err := strconv.Atoi(ep.Port())
+			Expect(err).ToNot(HaveOccurred())
+			pod.Spec.Containers[0].Ports[0].ContainerPort = int32(port)
+			pod.Status.PodIP = ep.Hostname()
+			err = reconciler.updateDVProgress(dv, pod)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Progress).To(BeEquivalentTo("13.45%"))
+		})
+
+		It("Should use service by default", func() {
+			reconciler = createImportReconciler(dv, service)
+			dv.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = fmt.Fprintf(w, "import_progress{ownerUID=\"%v\"} 13.45", dv.GetUID()) // ignore error here
+				w.WriteHeader(200)
+			}))
+			defer ts.Close()
+			ep, err := url.Parse(ts.URL)
+			Expect(err).ToNot(HaveOccurred())
+			port, err := strconv.Atoi(ep.Port())
+			Expect(err).ToNot(HaveOccurred())
+			service.Spec.Ports[0].TargetPort.IntVal = int32(port)
+			pod.Spec.Containers[0].Ports[0].ContainerPort = int32(port)
+			pod.Status.PodIP = ep.Hostname()
+			err = reconciler.updateDVProgress(dv, pod)
+			Expect(err).ToNot(HaveOccurred())
+			// TODO: Replicate service/pod connection
+			Expect(dv.Status.Progress).To(BeEquivalentTo(""))
 		})
 	})
 

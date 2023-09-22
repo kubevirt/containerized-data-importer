@@ -46,6 +46,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
@@ -1260,6 +1261,54 @@ func CreateImporterTestPod(pvc *corev1.PersistentVolumeClaim, dvname string, scr
 	}
 
 	return pod
+}
+
+// CreateImporterTestService creates importer test pod CR
+func CreateImporterTestService(name string, pvc *corev1.PersistentVolumeClaim) *corev1.Service {
+	blockOwnerDeletion := true
+	isController := true
+	service := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: pvc.Namespace,
+			Labels: map[string]string{
+				common.CDILabelKey: common.CDILabelValue,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "v1",
+					Kind:               "PersistentVolumeClaim",
+					Name:               pvc.Name,
+					UID:                pvc.GetUID(),
+					BlockOwnerDeletion: &blockOwnerDeletion,
+					Controller:         &isController,
+				},
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{
+					Protocol: "TCP",
+					Port:     443,
+					TargetPort: intstr.IntOrString{
+						Type:   intstr.Int,
+						IntVal: 8443,
+					},
+				},
+			},
+			Selector: map[string]string{
+				common.ImportReportingServiceLabel: name,
+			},
+		},
+	}
+
+	service.Spec.ClusterIP = "127.0.0.1"
+
+	return service
 }
 
 // CreateStorageClassWithProvisioner creates CR of storage class with provisioner

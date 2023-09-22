@@ -523,6 +523,38 @@ var _ = Describe("Import populator tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(targetPvc.Annotations[AnnPopulatorProgress]).To(BeEquivalentTo("13.45%"))
 		})
+
+		It("should report progress using service", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			targetPvc.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
+			pvcPrime := getPVCPrime(targetPvc, nil)
+			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, pvcPrime.Name)
+			pvcPrime.Annotations = map[string]string{AnnImportPod: importPodName}
+
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", targetPvc.GetUID())))
+				w.WriteHeader(200)
+			}))
+			defer ts.Close()
+			ep, err := url.Parse(ts.URL)
+			Expect(err).ToNot(HaveOccurred())
+			port, err := strconv.Atoi(ep.Port())
+			Expect(err).ToNot(HaveOccurred())
+
+			service := CreateImporterTestService("test-service", pvcPrime)
+			service.Spec.Ports[0].TargetPort.IntVal = int32(port)
+			pod := CreateImporterTestPod(pvcPrime, pvcPrime.Name, nil)
+			pod.Spec.Containers[0].Ports[0].ContainerPort = int32(port)
+			pod.Status.PodIP = ep.Hostname()
+			pod.Status.Phase = corev1.PodRunning
+			pod.Labels[common.ImportReportingServiceLabel] = "test-service"
+
+			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, pod, service)
+			err = reconciler.updateImportProgress(string(corev1.PodRunning), targetPvc, pvcPrime)
+			Expect(err).ToNot(HaveOccurred())
+			// TODO: Replicate service/pod connection
+			Expect(targetPvc.Annotations[AnnPopulatorProgress]).To(BeEquivalentTo(""))
+		})
 	})
 })
 

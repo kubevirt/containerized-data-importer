@@ -556,7 +556,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 
 // handleImportProgressService ensures import service exists to get progress-reporting and deletes it when necessary
 func (r *ImportReconciler) handleImportProgressService(pvc *v1.PersistentVolumeClaim) error {
-	name := getImportProgressServiceName(pvc)
+	name := getImportProgressServiceName(getImportPodNameFromPvc(pvc))
 	service := &corev1.Service{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: pvc.Namespace}, service); err != nil {
 		if !k8serrors.IsNotFound(err) {
@@ -635,8 +635,8 @@ func (r *ImportReconciler) makeImportProgressServiceSpec(name string, pvc *v1.Pe
 	return service
 }
 
-func getImportProgressServiceName(pvc *corev1.PersistentVolumeClaim) string {
-	return naming.GetResourceName("import-progress-service", pvc.Name)
+func getImportProgressServiceName(podName string) string {
+	return naming.GetServiceNameFromResourceName(podName)
 }
 
 func createScratchNameFromPvc(pvc *v1.PersistentVolumeClaim) string {
@@ -1003,7 +1003,7 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 				common.CDILabelKey:                 common.CDILabelValue,
 				common.CDIComponentLabel:           common.ImporterPodName,
 				common.PrometheusLabelKey:          common.PrometheusLabelValue,
-				common.ImportReportingServiceLabel: getImportProgressServiceName(args.pvc),
+				common.ImportReportingServiceLabel: getImportProgressServiceName(podName),
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -1139,7 +1139,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 				common.CDILabelKey:                 common.CDILabelValue,
 				common.CDIComponentLabel:           common.ImporterPodName,
 				common.PrometheusLabelKey:          common.PrometheusLabelValue,
-				common.ImportReportingServiceLabel: getImportProgressServiceName(args.pvc),
+				common.ImportReportingServiceLabel: getImportProgressServiceName(podName),
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
