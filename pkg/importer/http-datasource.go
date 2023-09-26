@@ -44,10 +44,12 @@ import (
 )
 
 const (
-	tempFile         = "tmpimage"
-	nbdkitPid        = "/tmp/nbdkit.pid"
-	nbdkitSocket     = "/tmp/nbdkit.sock"
-	defaultUserAgent = "cdi-golang-importer"
+	tempFile          = "tmpimage"
+	nbdkitPid         = "/tmp/nbdkit.pid"
+	nbdkitSocket      = "/tmp/nbdkit.sock"
+	defaultUserAgent  = "cdi-golang-importer"
+	httpContentType   = "Content-Type"
+	httpContentLength = "Content-Length"
 )
 
 // HTTPDataSource is the data provider for http(s) endpoints.
@@ -96,7 +98,7 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		return nil, errors.Wrap(err, "Error getting extra headers for HTTP client")
 	}
 
-	httpReader, contentLength, brokenForQemuImg, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir, extraHeaders, secretExtraHeaders)
+	httpReader, contentLength, brokenForQemuImg, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir, extraHeaders, secretExtraHeaders, contentType)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -294,7 +296,7 @@ func addExtraheaders(req *http.Request, extraHeaders []string) {
 	req.Header.Add("User-Agent", defaultUserAgent)
 }
 
-func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string, extraHeaders, secretExtraHeaders []string) (io.ReadCloser, uint64, bool, error) {
+func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string, extraHeaders, secretExtraHeaders []string, contentType cdiv1.DataVolumeContentType) (io.ReadCloser, uint64, bool, error) {
 	var brokenForQemuImg bool
 	client, err := createHTTPClient(certDir)
 	if err != nil {
@@ -332,6 +334,16 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 	if resp.StatusCode != 200 {
 		klog.Errorf("http: expected status code 200, got %d", resp.StatusCode)
 		return nil, uint64(0), true, errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
+	}
+
+	if contentType == cdiv1.DataVolumeKubeVirt {
+		// Check the content-type if we are expecting a KubeVirt img.
+		if val, ok := resp.Header[httpContentType]; ok {
+			if strings.HasPrefix(val[0], "text/") {
+				// We will continue with the import nonetheless, but content might be unexpected.
+				klog.Warningf("Unexpected content type '%s'. Content might not be a KubeVirt image.", val[0])
+			}
+		}
 	}
 
 	acceptRanges, ok := resp.Header["Accept-Ranges"]
@@ -416,7 +428,7 @@ func getContentLength(client *http.Client, ep *url.URL, accessKey, secKey string
 func parseHTTPHeader(resp *http.Response) uint64 {
 	var err error
 	total := uint64(0)
-	if val, ok := resp.Header["Content-Length"]; ok {
+	if val, ok := resp.Header[httpContentLength]; ok {
 		total, err = strconv.ParseUint(val[0], 10, 64)
 		if err != nil {
 			klog.Errorf("could not convert content length, got %v", err)
