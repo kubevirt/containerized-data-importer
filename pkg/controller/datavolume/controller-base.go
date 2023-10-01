@@ -683,7 +683,7 @@ func (r *ReconcilerBase) createPvcForDatavolume(datavolume *cdiv1.DataVolume, pv
 
 func (r *ReconcilerBase) getStorageClassBindingMode(storageClassName *string) (*storagev1.VolumeBindingMode, error) {
 	// Handle unspecified storage class name, fallback to default storage class
-	storageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, storageClassName)
+	storageClass, err := cc.GetStorageClassByNameWithK8sFallback(context.TODO(), r.client, storageClassName)
 	if err != nil {
 		return nil, err
 	}

@@ -342,7 +342,7 @@ var _ = Describe("Clone Populator tests", func() {
 				}
 				sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), utils.DefaultStorageClass.GetName(), metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
-				noExpansionStorageClass, err = f.CreateVariationOfStorageClass(sc, disableVolumeExpansion)
+				noExpansionStorageClass, err = f.CreateNonDefaultVariationOfStorageClass(sc, disableVolumeExpansion)
 				Expect(err).ToNot(HaveOccurred())
 			})
 

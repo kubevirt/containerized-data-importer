@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"reflect"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -211,6 +212,8 @@ const (
 
 	//AnnDefaultStorageClass is the annotation indicating that a storage class is the default one.
 	AnnDefaultStorageClass = "storageclass.kubernetes.io/is-default-class"
+	// AnnDefaultVirtStorageClass is the annotation indicating that a storage class is the default one for virtualization purposes
+	AnnDefaultVirtStorageClass = "storageclass.kubevirt.io/is-default-virt-class"
 
 	// AnnOpenShiftImageLookup is the annotation for OpenShift image stream lookup
 	AnnOpenShiftImageLookup = "alpha.image.policy.openshift.io/resolve-names"
@@ -434,38 +437,90 @@ func GetVolumeMode(pvc *corev1.PersistentVolumeClaim) corev1.PersistentVolumeMod
 	return util.ResolveVolumeMode(pvc.Spec.VolumeMode)
 }
 
-// GetStorageClassByName looks up the storage class based on the name. If no storage class is found returns nil
-func GetStorageClassByName(ctx context.Context, client client.Client, name *string) (*storagev1.StorageClass, error) {
-	// look up storage class by name
-	if name != nil {
-		storageClass := &storagev1.StorageClass{}
-		if err := client.Get(ctx, types.NamespacedName{Name: *name}, storageClass); err != nil {
-			if k8serrors.IsNotFound(err) {
-				return nil, nil
-			}
-			klog.V(3).Info("Unable to retrieve storage class", "storage class name", *name)
-			return nil, errors.Errorf("unable to retrieve storage class %s", *name)
-		}
-		return storageClass, nil
+// getStorageClassByName looks up the storage class based on the name.
+// If name is nil, it performs fallback to default according to the provided content type
+// If no storage class is found, returns nil
+func getStorageClassByName(ctx context.Context, client client.Client, name *string, contentType cdiv1.DataVolumeContentType) (*storagev1.StorageClass, error) {
+	if name == nil {
+		return getFallbackStorageClass(ctx, client, contentType)
 	}
-	// No storage class found, just return nil for storage class and let caller deal with it.
-	return GetDefaultStorageClass(ctx, client)
+
+	// look up storage class by name
+	storageClass := &storagev1.StorageClass{}
+	if err := client.Get(ctx, types.NamespacedName{Name: *name}, storageClass); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		klog.V(3).Info("Unable to retrieve storage class", "storage class name", *name)
+		return nil, errors.Errorf("unable to retrieve storage class %s", *name)
+	}
+
+	return storageClass, nil
 }
 
-// GetDefaultStorageClass returns the default storage class or nil if none found
-func GetDefaultStorageClass(ctx context.Context, client client.Client) (*storagev1.StorageClass, error) {
+// GetStorageClassByNameWithK8sFallback looks up the storage class based on the name
+// If name is nil, it looks for the default k8s storage class storageclass.kubernetes.io/is-default-class
+// If no storage class is found, returns nil
+func GetStorageClassByNameWithK8sFallback(ctx context.Context, client client.Client, name *string) (*storagev1.StorageClass, error) {
+	return getStorageClassByName(ctx, client, name, cdiv1.DataVolumeArchive)
+}
+
+// GetStorageClassByNameWithVirtFallback looks up the storage class based on the name
+// If name is nil, it looks for the following, in this order:
+// default kubevirt storage class (if the caller is interested) storageclass.kubevirt.io/is-default-class
+// default k8s storage class storageclass.kubernetes.io/is-default-class
+// If no storage class is found, returns nil
+func GetStorageClassByNameWithVirtFallback(ctx context.Context, client client.Client, name *string, contentType cdiv1.DataVolumeContentType) (*storagev1.StorageClass, error) {
+	return getStorageClassByName(ctx, client, name, contentType)
+}
+
+// getFallbackStorageClass looks for a default virt/k8s storage class according to the boolean
+// If no storage class is found, returns nil
+func getFallbackStorageClass(ctx context.Context, client client.Client, contentType cdiv1.DataVolumeContentType) (*storagev1.StorageClass, error) {
 	storageClasses := &storagev1.StorageClassList{}
 	if err := client.List(ctx, storageClasses); err != nil {
 		klog.V(3).Info("Unable to retrieve available storage classes")
 		return nil, errors.New("unable to retrieve storage classes")
 	}
+
+	if GetContentType(string(contentType)) == string(cdiv1.DataVolumeKubeVirt) {
+		virtSc := GetPlatformDefaultStorageClass(ctx, storageClasses, AnnDefaultVirtStorageClass)
+		if virtSc != nil {
+			return virtSc, nil
+		}
+	}
+	return GetPlatformDefaultStorageClass(ctx, storageClasses, AnnDefaultStorageClass), nil
+}
+
+// GetPlatformDefaultStorageClass returns the default storage class according to the provided annotation or nil if none found
+func GetPlatformDefaultStorageClass(ctx context.Context, storageClasses *storagev1.StorageClassList, defaultAnnotationKey string) *storagev1.StorageClass {
+	defaultClasses := []storagev1.StorageClass{}
+
 	for _, storageClass := range storageClasses.Items {
-		if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" {
-			return &storageClass, nil
+		if storageClass.Annotations[defaultAnnotationKey] == "true" {
+			defaultClasses = append(defaultClasses, storageClass)
 		}
 	}
 
-	return nil, nil
+	if len(defaultClasses) == 0 {
+		return nil
+	}
+
+	// Primary sort by creation timestamp, newest first
+	// Secondary sort by class name, ascending order
+	// Follows k8s behavior
+	// https://github.com/kubernetes/kubernetes/blob/731068288e112c8b5af70f676296cc44661e84f4/pkg/volume/util/storageclass.go#L58-L59
+	sort.Slice(defaultClasses, func(i, j int) bool {
+		if defaultClasses[i].CreationTimestamp.UnixNano() == defaultClasses[j].CreationTimestamp.UnixNano() {
+			return defaultClasses[i].Name < defaultClasses[j].Name
+		}
+		return defaultClasses[i].CreationTimestamp.UnixNano() > defaultClasses[j].CreationTimestamp.UnixNano()
+	})
+	if len(defaultClasses) > 1 {
+		klog.V(3).Infof("%d default StorageClasses were found, choosing: %s", len(defaultClasses), defaultClasses[0].Name)
+	}
+
+	return &defaultClasses[0]
 }
 
 // GetFilesystemOverheadForStorageClass determines the filesystem overhead defined in CDIConfig for the storageClass.
@@ -480,10 +535,10 @@ func GetFilesystemOverheadForStorageClass(ctx context.Context, client client.Cli
 		return "0", err
 	}
 
-	targetStorageClass, err := GetStorageClassByName(ctx, client, storageClassName)
+	targetStorageClass, err := GetStorageClassByNameWithK8sFallback(ctx, client, storageClassName)
 	if err != nil || targetStorageClass == nil {
 		klog.V(3).Info("Storage class", storageClassName, "not found, trying default storage class")
-		targetStorageClass, err = GetStorageClassByName(ctx, client, nil)
+		targetStorageClass, err = GetStorageClassByNameWithK8sFallback(ctx, client, nil)
 		if err != nil {
 			klog.V(3).Info("No default storage class found, continuing with global overhead")
 			return cdiConfig.Status.FilesystemOverhead.Global, nil
@@ -1811,7 +1866,7 @@ func GetSnapshotClassForSmartClone(dvName string, targetPvcStorageClassName *str
 		return "", nil
 	}
 
-	targetStorageClass, err := GetStorageClassByName(context.TODO(), client, targetPvcStorageClassName)
+	targetStorageClass, err := GetStorageClassByNameWithK8sFallback(context.TODO(), client, targetPvcStorageClassName)
 	if err != nil {
 		return "", err
 	}

@@ -969,8 +969,33 @@ func NewDataVolumeWithArchiveContent(dataVolumeName string, size string, httpURL
 					URL: httpURL,
 				},
 			},
-			ContentType: "archive",
+			ContentType: cdiv1.DataVolumeArchive,
 			PVC: &k8sv1.PersistentVolumeClaimSpec{
+				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+}
+
+// NewDataVolumeWithArchiveContentStorage initializes a DataVolume struct with 'archive' ContentType
+func NewDataVolumeWithArchiveContentStorage(dataVolumeName string, size string, httpURL string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dataVolumeName,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: &cdiv1.DataVolumeSource{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{
+					URL: httpURL,
+				},
+			},
+			ContentType: cdiv1.DataVolumeArchive,
+			Storage: &cdiv1.StorageSpec{
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{

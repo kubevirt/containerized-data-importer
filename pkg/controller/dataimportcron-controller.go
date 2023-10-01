@@ -319,7 +319,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 
 	dataVolume := dataImportCron.Spec.Template
 	explicitScName := getStorageClassFromTemplate(&dataVolume)
-	desiredStorageClass, err := cc.GetStorageClassByName(ctx, r.client, explicitScName)
+	desiredStorageClass, err := cc.GetStorageClassByNameWithVirtFallback(ctx, r.client, explicitScName, dataVolume.Spec.ContentType)
 	if err != nil {
 		return res, err
 	}
@@ -1007,7 +1007,7 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		for _, cron := range crons.Items {
 			dataVolume := cron.Spec.Template
 			explicitScName := getStorageClassFromTemplate(&dataVolume)
-			templateSc, err := cc.GetStorageClassByName(context.TODO(), mgr.GetClient(), explicitScName)
+			templateSc, err := cc.GetStorageClassByNameWithVirtFallback(context.TODO(), mgr.GetClient(), explicitScName, dataVolume.Spec.ContentType)
 			if err != nil || templateSc == nil {
 				c.GetLogger().Error(err, "Unable to get storage class", "templateSc", templateSc)
 				return

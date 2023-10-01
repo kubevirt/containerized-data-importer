@@ -94,7 +94,7 @@ func renderPvcSpecVolumeModeAndAccessModes(client client.Client, recorder record
 		pvcSpec.VolumeMode = &volumeMode
 	}
 
-	storageClass, err := cc.GetStorageClassByName(context.TODO(), client, dv.Spec.Storage.StorageClassName)
+	storageClass, err := cc.GetStorageClassByNameWithVirtFallback(context.TODO(), client, dv.Spec.Storage.StorageClassName, dv.Spec.ContentType)
 	if err != nil {
 		return err
 	}
@@ -317,7 +317,7 @@ func resolveVolumeSize(c client.Client, dvSpec cdiv1.DataVolumeSpec, pvcSpec *v1
 func storageClassCSIDriverExists(client client.Client, log logr.Logger, storageClassName *string) (bool, error) {
 	log = log.WithName("storageClassCSIDriverExists").V(3)
 
-	storageClass, err := cc.GetStorageClassByName(context.TODO(), client, storageClassName)
+	storageClass, err := cc.GetStorageClassByNameWithK8sFallback(context.TODO(), client, storageClassName)
 	if err != nil {
 		return false, err
 	}

@@ -110,7 +110,7 @@ func claimReadyForPopulation(ctx context.Context, c client.Client, pvc *corev1.P
 	}
 
 	nodeName := ""
-	storageClass, err := cc.GetStorageClassByName(ctx, c, pvc.Spec.StorageClassName)
+	storageClass, err := cc.GetStorageClassByNameWithK8sFallback(ctx, c, pvc.Spec.StorageClassName)
 	if err != nil {
 		return false, nodeName, err
 	}
