@@ -41,6 +41,12 @@ var (
 			Name: monitoring.MetricOptsList[monitoring.IncompleteProfile].Name,
 			Help: monitoring.MetricOptsList[monitoring.IncompleteProfile].Help,
 		})
+	// DefaultVirtStorageClassesGauge is the metric we use to alert about multiple default virt storage classes
+	DefaultVirtStorageClassesGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: monitoring.MetricOptsList[monitoring.DefaultVirtClasses].Name,
+			Help: monitoring.MetricOptsList[monitoring.DefaultVirtClasses].Help,
+		})
 )
 
 // StorageProfileReconciler members
@@ -72,7 +78,7 @@ func (r *StorageProfileReconciler) Reconcile(_ context.Context, req reconcile.Re
 		return reconcile.Result{}, err
 	}
 
-	return reconcile.Result{}, r.checkIncompleteProfiles()
+	return reconcile.Result{}, r.computeMetrics()
 }
 
 func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.StorageClass) (reconcile.Result, error) {
@@ -255,7 +261,7 @@ func (r *StorageProfileReconciler) deleteStorageProfile(name string, log logr.Lo
 		return err
 	}
 
-	return r.checkIncompleteProfiles()
+	return r.computeMetrics()
 }
 
 func isNoProvisioner(name string, cl client.Client) bool {
@@ -264,6 +270,33 @@ func isNoProvisioner(name string, cl client.Client) bool {
 		return false
 	}
 	return storageClass.Provisioner == "kubernetes.io/no-provisioner"
+}
+
+func (r *StorageProfileReconciler) computeMetrics() error {
+	if err := r.checkIncompleteProfiles(); err != nil {
+		return err
+	}
+	if err := r.checkDefaultVirtStorageClasses(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *StorageProfileReconciler) checkDefaultVirtStorageClasses() error {
+	defaultVirtStorageClassCount := 0
+	storageClassList := &storagev1.StorageClassList{}
+	if err := r.client.List(context.TODO(), storageClassList); err != nil {
+		return err
+	}
+	for _, sc := range storageClassList.Items {
+		if sc.Annotations[cc.AnnDefaultVirtStorageClass] == "true" {
+			defaultVirtStorageClassCount++
+		}
+	}
+	DefaultVirtStorageClassesGauge.Set(float64(defaultVirtStorageClassCount))
+
+	return nil
 }
 
 func (r *StorageProfileReconciler) checkIncompleteProfiles() error {

@@ -24,6 +24,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -33,6 +34,11 @@ const (
 	metricPollingInterval = 5 * time.Second
 	metricPollingTimeout  = 5 * time.Minute
 )
+
+var excludedFromRunbookURLValidation = map[string]struct{}{
+	// https://github.com/kubevirt/monitoring/pull/201
+	"CDIMultipleDefaultVirtStorageClasses": {},
+}
 
 var _ = Describe("[Destructive] Monitoring Tests", func() {
 	f := framework.NewFramework("monitoring-test")
@@ -170,6 +176,19 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 					return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles")
 				}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", expectedIncomplete))
 			}
+		})
+
+		It("[test_id:XXXX] CDIMultipleDefaultVirtStorageClasses fired when more than one default virt storage class exists", func() {
+			numAddedStorageClasses = 2
+			for i := 0; i < numAddedStorageClasses; i++ {
+				sc := createUnknownStorageClass(fmt.Sprintf("unknown-sc-%d", i), "kubernetes.io/non-existent-provisioner")
+				cc.AddAnnotation(sc, cc.AnnDefaultVirtStorageClass, "true")
+				_, err := f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+			}
+
+			By("Check that the CDIMultipleDefaultVirtStorageClasses alert is triggered")
+			waitForPrometheusAlert(f, "CDIMultipleDefaultVirtStorageClasses")
 		})
 
 		It("[test_id:9659] StorageProfile incomplete metric expected value remains unchanged for provisioner known to not work", func() {
@@ -417,6 +436,9 @@ func checkRequiredAnnotations(rule promv1.Rule) {
 	ExpectWithOffset(1, rule.Annotations).To(HaveKeyWithValue("runbook_url", HaveSuffix(rule.Alert)),
 		"%s runbook is not equal to alert name", rule.Alert)
 
+	if _, excluded := excludedFromRunbookURLValidation[rule.Alert]; excluded {
+		return
+	}
 	resp, err := http.Head(rule.Annotations["runbook_url"])
 	ExpectWithOffset(1, err).ToNot(HaveOccurred(), fmt.Sprintf("%s runbook is not available", rule.Alert))
 	ExpectWithOffset(1, resp.StatusCode).Should(Equal(http.StatusOK), fmt.Sprintf("%s runbook is not available", rule.Alert))

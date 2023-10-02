@@ -369,6 +369,7 @@ func getTokenPrivateKey() *rsa.PrivateKey {
 func registerMetrics() {
 	metrics.Registry.MustRegister(controller.IncompleteProfileGauge)
 	controller.IncompleteProfileGauge.Set(-1)
+	metrics.Registry.MustRegister(controller.DefaultVirtStorageClassesGauge)
 	metrics.Registry.MustRegister(controller.DataImportCronOutdatedGauge)
 }
 

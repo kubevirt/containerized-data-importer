@@ -11,6 +11,8 @@ CDI install ready. Type: Gauge.
 DataImportCron has an outdated import. Type: Gauge.
 ### kubevirt_cdi_dataimportcron_outdated_aggregated
 Total count of outdated DataImportCron imports. Type: Gauge.
+### kubevirt_cdi_default_virt_storageclasses
+Number of default virt storage classes currently configured. Type: Gauge.
 ### kubevirt_cdi_import_pods_high_restart
 The number of CDI import pods with high restart count. Type: Gauge.
 ### kubevirt_cdi_incomplete_storageprofiles
