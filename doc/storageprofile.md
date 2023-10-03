@@ -36,19 +36,30 @@ status:
     cloneStrategy: snapshot
 ```
 
-Current version supports the following parameters:
+### Parameters
 - `cloneStrategy` - defines the preferred method for performing a CDI clone
 - `claimPropertySets` contains a list of `claimPropertySet`
   - `accessMode` - contains the desired access modes the volume should have
-  - `volumeMode` - defines what type of volume is required by the claim
+  - `volumeMode` - defines what type of volume is required by the claim  
+  These are ordered by preference, and are considered against existing partial info in the storage stanza of the datavolume.  
+  Some preference considerations to note are:  
+      - Block is preferred over Filesystem for performance reasons (fewer layers)  
+      - ReadWriteMany over ReadWriteOnce (live migration support)
+- `dataImportCronSourceFormat` DataImportCron (recurring polling of golden registry sources) was originally designed to only maintain PVC sources, However, for certain storage types, we know that snapshots sources scale better. Some details and examples can be found in [clone-from-volumesnapshot-source](./clone-from-volumesnapshot-source.md).
 
-Values for accessModes and volumeMode are exactly the same as for PVC: `accessModes` is a list of `[ReadWriteMany|ReadWriteOnce|ReadOnlyMany]`
-and `volumeMode` is a single value `Filesystem` or `Block`.
+Values for accessModes and volumeMode are exactly the same as for PVC: `accessModes` is a list of `[ReadWriteMany|ReadWriteOnce|ReadOnlyMany]`.  
+We are aware of `ReadWriteOncePod` but [currently](https://github.com/kubevirt/containerized-data-importer/issues/2365) are not testing it.  
+`volumeMode` is a single value `Filesystem` or `Block`.
 Multiple claim property sets can be specified (`claimPropertySets` is a list).
 
-The value for `cloneStrategy` can be one of: `copy`,`snapshot`,`csi-clone`. 
+The value for `cloneStrategy` can be one of:
+- `copy` - copy blocks of data over the network
+- `snapshot` - clones the volume by creating a temporary VolumeSnapshot and restoring it to a new PVC
+- `csi-clone` - clones the volume using a CSI clone
+
 When the value is not specified the CDI will try to use the `snapshot` if possible otherwise it falls back to `copy`. 
-If the storage class (and its provider) is capable of doing CSI Volume Clone then the user may choose `csi-clone` as a preferred clone method.
+If the storage class (and its provider) is capable of doing CSI Volume Clone then the user may choose `csi-clone` as a preferred clone method.  
+`csi-clone` is preferred in general, since it offloads the optimization responsibility to the storage provider.
 
 StorageClass can be annotated with `cdi.kubevirt.io/clone-strategy`. The annotation value can be one of: `copy`,`snapshot`,`csi-clone`.
 CDI is using this annotation value when configuring the clone strategy on storage profile. 
