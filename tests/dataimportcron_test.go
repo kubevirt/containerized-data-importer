@@ -444,6 +444,7 @@ var _ = Describe("DataImportCron", func() {
 		if format == cdiv1.DataImportCronSourceFormatSnapshot && !f.IsSnapshotStorageClassAvailable() {
 			Skip("Volumesnapshot support needed to test DataImportCron with Volumesnapshot sources")
 		}
+		const oldDvName = "old-version-dv"
 
 		configureStorageProfileResultingFormat(format)
 
@@ -479,9 +480,33 @@ var _ = Describe("DataImportCron", func() {
 
 		switch format {
 		case cdiv1.DataImportCronSourceFormatPvc:
+			By(fmt.Sprintf("Create labeled DataVolume %s for old DVs garbage collection test", oldDvName))
+			dv := utils.NewDataVolumeWithRegistryImport(oldDvName, "5Gi", "")
+			dv.Spec.Source.Registry = reg
+			dv.Labels = map[string]string{common.DataImportCronLabel: cronName}
+			cc.AddAnnotation(dv, cc.AnnDeleteAfterCompletion, "false")
+			dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, dv)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Wait for import completion")
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
+			err = utils.WaitForDataVolumePhase(f, ns, cdiv1.Succeeded, dv.Name)
+			Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+
+			By(fmt.Sprintf("Verify PVC was created %s", dv.Name))
+			pvc, err := utils.WaitForPVC(f.K8sClient, ns, dv.Name)
+			Expect(err).ToNot(HaveOccurred())
+			By(fmt.Sprintf("Verify DataImportCronLabel is passed to the PVC: %s", pvc.Labels[common.DataImportCronLabel]))
+			Expect(pvc.Labels[common.DataImportCronLabel]).To(Equal(cronName))
+
+			pvc.Labels[common.DataImportCronLabel] = ""
+			By("Update DataImportCron label to be empty in the PVC")
+			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
 			pvcList, err := f.K8sClient.CoreV1().PersistentVolumeClaims(ns).List(context.TODO(), metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(pvcList.Items).To(HaveLen(garbageSources))
+			Expect(pvcList.Items).To(HaveLen(garbageSources + 1))
 		case cdiv1.DataImportCronSourceFormatSnapshot:
 			snapshots := &snapshotv1.VolumeSnapshotList{}
 			err := f.CrClient.List(context.TODO(), snapshots, &client.ListOptions{Namespace: ns})
@@ -507,6 +532,12 @@ var _ = Describe("DataImportCron", func() {
 		By("Check garbage collection")
 		switch format {
 		case cdiv1.DataImportCronSourceFormatPvc:
+			By("Check old DV garbage collection")
+			Eventually(func() error {
+				_, err := f.CdiClient.CdiV1beta1().DataVolumes(ns).Get(context.TODO(), oldDvName, metav1.GetOptions{})
+				return err
+			}, dataImportCronTimeout, pollingInterval).Should(Satisfy(errors.IsNotFound), "Garbage collection failed cleaning old DV")
+
 			pvcList := &corev1.PersistentVolumeClaimList{}
 			Eventually(func() int {
 				pvcList, err = f.K8sClient.CoreV1().PersistentVolumeClaims(ns).List(context.TODO(), metav1.ListOptions{})
