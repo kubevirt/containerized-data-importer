@@ -152,6 +152,10 @@ func handleEmptyImage(contentType string, imageSize string, availableDestSpace i
 	var preallocationApplied bool
 
 	if contentType == string(cdiv1.DataVolumeKubeVirt) {
+		if volumeMode == v1.PersistentVolumeBlock && !preallocation {
+			klog.V(1).Infoln("Blank block without preallocation is exactly an empty PVC, done populating")
+			return nil
+		}
 		createBlankImage(imageSize, availableDestSpace, preallocation, volumeMode, filesystemOverhead)
 		preallocationApplied = preallocation
 	} else {

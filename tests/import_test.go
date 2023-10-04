@@ -588,31 +588,34 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 
 	})
 
-	It("[test_id:4972]Should create blank raw image for block PV", func() {
+	DescribeTable("Should create blank raw image for block PV", func(consumer bool) {
 		if !f.IsBlockVolumeStorageClassAvailable() {
 			Skip("Storage Class for block volume is not available")
 		}
 		dv := utils.NewDataVolumeForBlankRawImageBlock("create-blank-image-to-block-pvc", "500Mi", f.BlockSCName)
+		if !consumer {
+			controller.AddAnnotation(dv, controller.AnnImmediateBinding, "true")
+		}
 		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("verifying pvc was created")
 		pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		if consumer {
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+		}
 
 		By("Waiting for import to be completed")
 		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
 		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 
-		By("Verifying a message was printed to indicate a request for a blank disk on a block device")
-		Eventually(func() bool {
-			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-			Expect(err).NotTo(HaveOccurred())
-			return strings.Contains(log, "attempting to create blank disk for block mode")
-		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
+		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
 		Expect(err).ToNot(HaveOccurred())
-	})
+	},
+		Entry("[test_id:4972] with first consumer", true),
+		Entry("with bind immediate annotation", false),
+	)
 
 	It("Should perform fsync syscall after qemu-img convert to raw", func() {
 		if !f.IsBlockVolumeStorageClassAvailable() {
