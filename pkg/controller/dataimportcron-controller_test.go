@@ -1109,7 +1109,7 @@ func createDataImportCronReconcilerWithoutConfig(objects ...runtime.Object) *Dat
 	_ = snapshotv1.AddToScheme(s)
 
 	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
-	rec := record.NewFakeRecorder(1)
+	rec := record.NewFakeRecorder(10)
 	r := &DataImportCronReconciler{
 		client:         cl,
 		uncachedClient: cl,

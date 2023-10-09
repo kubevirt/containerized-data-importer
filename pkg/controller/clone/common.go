@@ -146,12 +146,13 @@ func GetStorageClassForClaim(ctx context.Context, c client.Client, pvc *corev1.P
 }
 
 func getSnapshotClassForClaim(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (*string, error) {
-	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName == "" {
-		return nil, nil
+	sc, err := cc.GetStorageClassByNameWithK8sFallback(ctx, c, pvc.Spec.StorageClassName)
+	if err != nil || sc == nil {
+		return nil, err
 	}
 
 	sp := &cdiv1.StorageProfile{}
-	exists, err := getResource(ctx, c, "", *pvc.Spec.StorageClassName, sp)
+	exists, err := getResource(ctx, c, "", sc.Name, sp)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +248,9 @@ func getCommonSnapshotClass(ctx context.Context, c client.Client, pvcs ...*corev
 }
 
 // GetCompatibleVolumeSnapshotClass returns a VolumeSnapshotClass name that works for all PVCs
-func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, log logr.Logger, pvcs ...*corev1.PersistentVolumeClaim) (*string, error) {
+// Note the last PVC passed is considered the target PVC for logs and events
+func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, log logr.Logger, recorder record.EventRecorder, pvcs ...*corev1.PersistentVolumeClaim) (*string, error) {
+	targetClaim := pvcs[len(pvcs)-1]
 	driver, err := GetCommonDriver(ctx, c, pvcs...)
 	if err != nil {
 		return nil, err
@@ -261,7 +264,7 @@ func GetCompatibleVolumeSnapshotClass(ctx context.Context, c client.Client, log 
 		return nil, err
 	}
 
-	return cc.GetVolumeSnapshotClass(context.TODO(), c, *driver, snapshotClassName, log)
+	return cc.GetVolumeSnapshotClass(context.TODO(), c, targetClaim, *driver, snapshotClassName, log, recorder)
 }
 
 // SameVolumeMode returns true if all pvcs have the same volume mode

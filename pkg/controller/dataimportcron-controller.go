@@ -692,7 +692,7 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 	if err := r.client.Get(ctx, types.NamespacedName{Name: desiredStorageClass.Name}, storageProfile); err != nil {
 		return err
 	}
-	className, err := cc.GetSnapshotClassForSmartClone(pvc.Name, &desiredStorageClass.Name, storageProfile.Status.SnapshotClass, r.log, r.client)
+	className, err := cc.GetSnapshotClassForSmartClone(pvc, &desiredStorageClass.Name, storageProfile.Status.SnapshotClass, r.log, r.client, r.recorder)
 	if err != nil {
 		return err
 	}
