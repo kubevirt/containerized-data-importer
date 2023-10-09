@@ -37,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -60,9 +61,17 @@ var (
 )
 
 var _ = Describe("Storage profile controller reconcile loop", func() {
+	var reconciler *StorageProfileReconciler
+
+	AfterEach(func() {
+		if reconciler != nil {
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			reconciler = nil
+		}
+	})
 
 	It("Should not requeue if storage class can not be found", func() {
-		reconciler := createStorageProfileReconciler()
+		reconciler = createStorageProfileReconciler()
 		res, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(res.Requeue).ToNot(BeTrue())
 		Expect(err).ToNot(HaveOccurred())
@@ -119,7 +128,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 
 	It("Should delete storage profile when corresponding storage class gets deleted", func() {
 		storageClass := CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"})
-		reconciler := createStorageProfileReconciler(storageClass)
+		reconciler = createStorageProfileReconciler(storageClass)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
@@ -136,7 +145,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	})
 
 	It("Should create storage profile without claim property set for storage class not in capabilitiesByProvisionerKey map", func() {
-		reconciler := createStorageProfileReconciler(CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
+		reconciler = createStorageProfileReconciler(CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
@@ -150,7 +159,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 
 	It("Should create storage profile with default claim property set for storage class", func() {
 		scProvisioner := "rook-ceph.rbd.csi.ceph.com"
-		reconciler := createStorageProfileReconciler(CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, scProvisioner))
+		reconciler = createStorageProfileReconciler(CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, scProvisioner))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
@@ -176,7 +185,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, lsoLabels, "kubernetes.io/no-provisioner")
 		pv := CreatePv("my-pv", storageClassName)
 
-		reconciler := createStorageProfileReconciler(storageClass, pv)
+		reconciler = createStorageProfileReconciler(storageClass, pv)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -192,7 +201,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	It("Should not have storage capabilities for no-provisioner LSO storage class if there are no PVs for it", func() {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, lsoLabels, "kubernetes.io/no-provisioner")
 
-		reconciler := createStorageProfileReconciler(storageClass)
+		reconciler = createStorageProfileReconciler(storageClass)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -206,7 +215,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	})
 
 	It("Should update storage profile with editted claim property sets", func() {
-		reconciler := createStorageProfileReconciler(CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
+		reconciler = createStorageProfileReconciler(CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
@@ -237,7 +246,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	})
 
 	It("Should update storage profile with labels when the value changes", func() {
-		reconciler := createStorageProfileReconciler(CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
+		reconciler = createStorageProfileReconciler(CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
@@ -266,7 +275,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	})
 
 	It("Should error when updating storage profile with missing access modes", func() {
-		reconciler := createStorageProfileReconciler(CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
+		reconciler = createStorageProfileReconciler(CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
@@ -300,7 +309,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		storageClass := CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"})
 
 		storageClass.Annotations["cdi.kubevirt.io/clone-strategy"] = string(cloneStrategy)
-		reconciler := createStorageProfileReconciler(storageClass)
+		reconciler = createStorageProfileReconciler(storageClass)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -321,7 +330,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 
 	It("Should succeed when updating storage profile with specific SnapshotClass", func() {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, nil, nil, cephProvisioner)
-		reconciler := createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		reconciler = createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 
 		for i := 0; i < 3; i++ {
 			snapClass := createSnapshotClass(fmt.Sprintf("snapclass-%d", i), nil, cephProvisioner)
@@ -352,7 +361,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 
 	It("Should error when updating storage profile with non-existing SnapshotClass", func() {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, nil, nil, cephProvisioner)
-		reconciler := createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		reconciler = createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 
 		snapClass := createSnapshotClass(snapshotClassName, nil, cephProvisioner)
 		err := reconciler.client.Create(context.TODO(), snapClass)
@@ -377,7 +386,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 
 	It("Should error when updating storage profile with existing SnapshotClass with mismatching driver", func() {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, nil, nil, cephProvisioner)
-		reconciler := createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		reconciler = createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 
 		snapClass := createSnapshotClass(snapshotClassName, nil, "no-such-provisoner")
 		err := reconciler.client.Create(context.TODO(), snapClass)
@@ -401,7 +410,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 
 	DescribeTable("should set advised source format for dataimportcrons", func(provisioner string, expectedFormat cdiv1.DataImportCronSourceFormat, deploySnapClass bool) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
-		reconciler := createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		reconciler = createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 		if deploySnapClass {
 			snapClass := createSnapshotClass(snapshotClassName, nil, provisioner)
 			err := reconciler.client.Create(context.TODO(), snapClass)
@@ -427,7 +436,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 
 	DescribeTable("should set cloneStrategy", func(provisioner string, expectedCloneStrategy cdiv1.CDICloneStrategy, deploySnapClass bool) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
-		reconciler := createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		reconciler = createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 		if deploySnapClass {
 			snapClass := createSnapshotClass(snapshotClassName, nil, provisioner)
 			err := reconciler.client.Create(context.TODO(), snapClass)
@@ -453,7 +462,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 
 	DescribeTable("Should set the IncompleteProfileGauge correctly", func(provisioner string, count int) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
-		reconciler := createStorageProfileReconciler(storageClass)
+		reconciler = createStorageProfileReconciler(storageClass)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
 		storageProfileList := &cdiv1.StorageProfileList{}
@@ -490,12 +499,14 @@ func createStorageProfileReconciler(objects ...runtime.Object) *StorageProfileRe
 	// Create a fake client to mock API calls.
 	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
 
+	rec := record.NewFakeRecorder(10)
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	r := &StorageProfileReconciler{
 		client:         cl,
 		uncachedClient: cl,
 		scheme:         s,
 		log:            storageProfileLog,
+		recorder:       rec,
 		installerLabels: map[string]string{
 			common.AppKubernetesPartOfLabel:  "testing",
 			common.AppKubernetesVersionLabel: "v0.0.0-tests",

@@ -283,6 +283,15 @@ const (
 	// SourceVDDK is the source type of VDDK
 	SourceVDDK = "vddk"
 
+	// VolumeSnapshotClassSelected reports that a VolumeSnapshotClass was selected
+	VolumeSnapshotClassSelected = "VolumeSnapshotClassSelected"
+	// MessageStorageProfileVolumeSnapshotClassSelected reports that a VolumeSnapshotClass was selected according to StorageProfile
+	MessageStorageProfileVolumeSnapshotClassSelected = "VolumeSnapshotClass selected according to StorageProfile"
+	// MessageDefaultVolumeSnapshotClassSelected reports that the default VolumeSnapshotClass was selected
+	MessageDefaultVolumeSnapshotClassSelected = "Default VolumeSnapshotClass selected"
+	// MessageFirstVolumeSnapshotClassSelected reports that the first VolumeSnapshotClass was selected
+	MessageFirstVolumeSnapshotClassSelected = "First VolumeSnapshotClass selected"
+
 	// ClaimLost reason const
 	ClaimLost = "ClaimLost"
 	// NotFound reason const
@@ -1872,7 +1881,7 @@ func ValidateSnapshotCloneProvisioners(ctx context.Context, c client.Client, sna
 }
 
 // GetSnapshotClassForSmartClone looks up the snapshot class based on the storage class
-func GetSnapshotClassForSmartClone(dvName string, targetPvcStorageClassName, snapshotClassName *string, log logr.Logger, client client.Client) (string, error) {
+func GetSnapshotClassForSmartClone(pvc *corev1.PersistentVolumeClaim, targetPvcStorageClassName, snapshotClassName *string, log logr.Logger, client client.Client, recorder record.EventRecorder) (string, error) {
 	logger := log.WithName("GetSnapshotClassForSmartClone").V(3)
 	// Check if relevant CRDs are available
 	if !isCsiCrdsDeployed(client, log) {
@@ -1889,13 +1898,15 @@ func GetSnapshotClassForSmartClone(dvName string, targetPvcStorageClassName, sna
 		return "", nil
 	}
 
-	vscName, err := GetVolumeSnapshotClass(context.TODO(), client, targetStorageClass.Provisioner, snapshotClassName, logger)
+	vscName, err := GetVolumeSnapshotClass(context.TODO(), client, pvc, targetStorageClass.Provisioner, snapshotClassName, logger, recorder)
 	if err != nil {
 		return "", err
 	}
 	if vscName != nil {
-		logger.Info("smart-clone is applicable for datavolume", "datavolume",
-			dvName, "snapshot class", *vscName)
+		if pvc != nil {
+			logger.Info("smart-clone is applicable for datavolume", "datavolume",
+				pvc.Name, "snapshot class", *vscName)
+		}
 		return *vscName, nil
 	}
 
@@ -1904,15 +1915,24 @@ func GetSnapshotClassForSmartClone(dvName string, targetPvcStorageClassName, sna
 }
 
 // GetVolumeSnapshotClass looks up the snapshot class based on the driver and an optional specific name
-func GetVolumeSnapshotClass(ctx context.Context, c client.Client, driver string, snapshotClassName *string, log logr.Logger) (*string, error) {
+func GetVolumeSnapshotClass(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim, driver string, snapshotClassName *string, log logr.Logger, recorder record.EventRecorder) (*string, error) {
 	logger := log.WithName("GetVolumeSnapshotClass").V(3)
+
+	logEvent := func(message, vscName string) {
+		logger.Info(message, "name", vscName)
+		if pvc != nil {
+			msg := fmt.Sprintf("%s %s", message, vscName)
+			recorder.Event(pvc, corev1.EventTypeNormal, VolumeSnapshotClassSelected, msg)
+		}
+	}
+
 	if snapshotClassName != nil {
 		vsc := &snapshotv1.VolumeSnapshotClass{}
 		if err := c.Get(context.TODO(), types.NamespacedName{Name: *snapshotClassName}, vsc); err != nil {
 			return nil, err
 		}
 		if vsc.Driver == driver {
-			logger.Info("VolumeSnapshotClass selected according to StorageProfile", "name", vsc.Name)
+			logEvent(MessageStorageProfileVolumeSnapshotClassSelected, vsc.Name)
 			return &vsc.Name, nil
 		}
 		return nil, nil
@@ -1930,7 +1950,7 @@ func GetVolumeSnapshotClass(ctx context.Context, c client.Client, driver string,
 	for _, vsc := range vscList.Items {
 		if vsc.Driver == driver {
 			if vsc.Annotations[AnnDefaultSnapshotClass] == "true" {
-				logger.Info("Default VolumeSnapshotClass selected", "name", vsc.Name)
+				logEvent(MessageDefaultVolumeSnapshotClassSelected, vsc.Name)
 				return &vsc.Name, nil
 			}
 			candidates = append(candidates, vsc.Name)
@@ -1939,7 +1959,7 @@ func GetVolumeSnapshotClass(ctx context.Context, c client.Client, driver string,
 
 	if len(candidates) > 0 {
 		sort.Strings(candidates)
-		logger.Info("First VolumeSnapshotClass selected", "name", candidates[0], "candidates", len(candidates))
+		logEvent(MessageFirstVolumeSnapshotClassSelected, candidates[0])
 		return &candidates[0], nil
 	}
 
