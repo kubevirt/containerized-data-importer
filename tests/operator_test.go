@@ -839,6 +839,7 @@ var _ = Describe("ALL Operator tests", func() {
 			}
 
 			validateCertConfig := func(obj metav1.Object, lifetime, refresh string) {
+				fmt.Fprintf(GinkgoWriter, "validateCertConfig")
 				cca, ok := obj.GetAnnotations()["operator.cdi.kubevirt.io/certConfig"]
 				Expect(ok).To(BeTrue())
 				certConfig := make(map[string]interface{})
@@ -858,7 +859,7 @@ var _ = Describe("ALL Operator tests", func() {
 
 				ts := time.Now()
 				// Time comparison here is in seconds, so make sure there is an interval
-				time.Sleep(time.Second)
+				time.Sleep(2 * time.Second)
 
 				Eventually(func() bool {
 					cr := getCDI(f)
@@ -887,15 +888,18 @@ var _ = Describe("ALL Operator tests", func() {
 					serverSecrets := getSecrets(serverSecretNames)
 
 					for _, s := range append(caSecrets, serverSecrets...) {
+						fmt.Fprintf(GinkgoWriter, "Comparing not-before to time.Now() for all\n")
 						nba := s.Annotations["auth.openshift.io/certificate-not-before"]
 						t, err := time.Parse(time.RFC3339, nba)
 						Expect(err).ToNot(HaveOccurred())
 						if ts.After(t) {
+							fmt.Fprintf(GinkgoWriter, "%s is after\n", s.Name)
 							return false
 						}
 					}
 
 					for _, s := range caSecrets {
+						fmt.Fprintf(GinkgoWriter, "Comparing not-before/not-after for caSecrets\n")
 						nba := s.Annotations["auth.openshift.io/certificate-not-before"]
 						t, err := time.Parse(time.RFC3339, nba)
 						Expect(err).ToNot(HaveOccurred())
@@ -915,6 +919,7 @@ var _ = Describe("ALL Operator tests", func() {
 					}
 
 					for _, s := range serverSecrets {
+						fmt.Fprintf(GinkgoWriter, "Comparing not-before/not-after for serverSecrets\n")
 						nba := s.Annotations["auth.openshift.io/certificate-not-before"]
 						t, err := time.Parse(time.RFC3339, nba)
 						Expect(err).ToNot(HaveOccurred())
