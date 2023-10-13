@@ -196,19 +196,37 @@ func isPVCUploadPopulation(pvc *corev1.PersistentVolumeClaim) bool {
 	return populators.IsPVCDataSourceRefKind(pvc, cdiv1.VolumeUploadSourceRef)
 }
 
+func (r *UploadReconciler) shouldUpdateStatusPhase(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (bool, error) {
+	pvcCopy := pvc.DeepCopy()
+	if isPVCUploadPopulation(pvcCopy) {
+		// Better to play it safe and check the PVC Prime too
+		// before updating DV phase.
+		nn := types.NamespacedName{Namespace: pvcCopy.Namespace, Name: populators.PVCPrimeName(pvcCopy)}
+		err := r.client.Get(context.TODO(), nn, pvcCopy)
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+	}
+	_, ok := pvcCopy.Annotations[cc.AnnUploadRequest]
+	return ok && pvcCopy.Status.Phase == corev1.ClaimBound && !pvcIsPopulated(pvcCopy, dv), nil
+}
+
 func (r *UploadReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
 	phase, ok := pvc.Annotations[cc.AnnPodPhase]
-	uploadPopulation := isPVCUploadPopulation(pvc)
-	if phase != string(corev1.PodSucceeded) && !uploadPopulation {
-		_, ok = pvc.Annotations[cc.AnnUploadRequest]
-		if !ok || pvc.Status.Phase != corev1.ClaimBound || pvcIsPopulated(pvc, dataVolumeCopy) {
-			return nil
+	if phase != string(corev1.PodSucceeded) {
+		update, err := r.shouldUpdateStatusPhase(pvc, dataVolumeCopy)
+		if !update || err != nil {
+			return err
 		}
 	}
 	dataVolumeCopy.Status.Phase = cdiv1.UploadScheduled
 	if !ok {
 		return nil
 	}
+
 	switch phase {
 	case string(corev1.PodPending):
 		// TODO: Use a more generic Scheduled, like maybe TransferScheduled.
