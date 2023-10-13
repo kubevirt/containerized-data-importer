@@ -240,13 +240,30 @@ func isPVCImportPopulation(pvc *corev1.PersistentVolumeClaim) bool {
 	return populators.IsPVCDataSourceRefKind(pvc, cdiv1.VolumeImportSourceRef)
 }
 
+func (r *ImportReconciler) shouldUpdateStatusPhase(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (bool, error) {
+	pvcCopy := pvc.DeepCopy()
+	if isPVCImportPopulation(pvcCopy) {
+		// Better to play it safe and check the PVC Prime too
+		// before updating DV phase.
+		nn := types.NamespacedName{Namespace: pvcCopy.Namespace, Name: populators.PVCPrimeName(pvcCopy)}
+		err := r.client.Get(context.TODO(), nn, pvcCopy)
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+	}
+	_, ok := pvcCopy.Annotations[cc.AnnImportPod]
+	return ok && pvcCopy.Status.Phase == corev1.ClaimBound && !pvcIsPopulated(pvcCopy, dv), nil
+}
+
 func (r *ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
 	phase, ok := pvc.Annotations[cc.AnnPodPhase]
-	importPopulation := isPVCImportPopulation(pvc)
-	if phase != string(corev1.PodSucceeded) && !importPopulation {
-		_, ok := pvc.Annotations[cc.AnnImportPod]
-		if !ok || pvc.Status.Phase != corev1.ClaimBound || pvcIsPopulated(pvc, dataVolumeCopy) {
-			return nil
+	if phase != string(corev1.PodSucceeded) {
+		update, err := r.shouldUpdateStatusPhase(pvc, dataVolumeCopy)
+		if !update || err != nil {
+			return err
 		}
 	}
 	dataVolumeCopy.Status.Phase = cdiv1.ImportScheduled
@@ -274,7 +291,7 @@ func (r *ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, 
 	case string(corev1.PodSucceeded):
 		if cc.IsMultiStageImportInProgress(pvc) {
 			// Multi-stage annotations will be updated by import-populator if populators are in use
-			if !importPopulation {
+			if !isPVCImportPopulation(pvc) {
 				if err := cc.UpdatesMultistageImportSucceeded(pvc, r.getCheckpointArgs(dataVolumeCopy)); err != nil {
 					return err
 				}
