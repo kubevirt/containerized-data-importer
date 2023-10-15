@@ -1034,7 +1034,7 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		annotations[k] = v
 	}
 	annotations[cc.AnnPodRestarts] = "0"
-	annotations[cc.AnnContentType] = cc.GetContentType(string(dataVolume.Spec.ContentType))
+	annotations[cc.AnnContentType] = string(cc.GetContentType(dataVolume.Spec.ContentType))
 	if dataVolume.Spec.PriorityClassName != "" {
 		annotations[cc.AnnPriorityClassName] = dataVolume.Spec.PriorityClassName
 	}

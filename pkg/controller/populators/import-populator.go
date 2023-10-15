@@ -178,7 +178,7 @@ func (r *ImportPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	volumeImportSource := source.(*cdiv1.VolumeImportSource)
 	annotations := pvc.Annotations
 	annotations[cc.AnnPopulatorKind] = cdiv1.VolumeImportSourceRef
-	annotations[cc.AnnContentType] = cc.GetContentType(string(volumeImportSource.Spec.ContentType))
+	annotations[cc.AnnContentType] = string(cc.GetContentType(volumeImportSource.Spec.ContentType))
 	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, volumeImportSource.Spec.Preallocation))
 
 	if checkpoint := cc.GetNextCheckpoint(pvc, r.getCheckpointArgs(source)); checkpoint != nil {

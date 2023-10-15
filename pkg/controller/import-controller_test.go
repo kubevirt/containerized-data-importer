@@ -935,7 +935,7 @@ var _ = Describe("GetContentType", func() {
 
 	DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult cdiv1.DataVolumeContentType) {
 		result := cc.GetPVCContentType(pvc)
-		Expect(result).To(BeEquivalentTo(expectedResult))
+		Expect(result).To(Equal(expectedResult))
 	},
 		Entry("return kubevirt contenttype if no annotation provided", pvcNoAnno, cdiv1.DataVolumeKubeVirt),
 		Entry("return archive contenttype if archive annotation present", pvcArchiveAnno, cdiv1.DataVolumeArchive),

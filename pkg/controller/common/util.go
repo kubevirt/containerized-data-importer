@@ -483,7 +483,7 @@ func getFallbackStorageClass(ctx context.Context, client client.Client, contentT
 		return nil, errors.New("unable to retrieve storage classes")
 	}
 
-	if GetContentType(string(contentType)) == string(cdiv1.DataVolumeKubeVirt) {
+	if GetContentType(contentType) == cdiv1.DataVolumeKubeVirt {
 		virtSc := GetPlatformDefaultStorageClass(ctx, storageClasses, AnnDefaultVirtStorageClass)
 		if virtSc != nil {
 			return virtSc, nil
@@ -1285,7 +1285,7 @@ func CreateImporterTestPod(pvc *corev1.PersistentVolumeClaim, dvname string, scr
 		},
 		{
 			Name:  common.ImporterContentType,
-			Value: contentType,
+			Value: string(contentType),
 		},
 		{
 			Name:  common.ImporterImageSize,
@@ -1346,27 +1346,27 @@ func ErrQuotaExceeded(err error) bool {
 }
 
 // GetContentType returns the content type. If invalid or not set, default to kubevirt
-func GetContentType(contentType string) string {
+func GetContentType(contentType cdiv1.DataVolumeContentType) cdiv1.DataVolumeContentType {
 	switch contentType {
 	case
-		string(cdiv1.DataVolumeKubeVirt),
-		string(cdiv1.DataVolumeArchive):
+		cdiv1.DataVolumeKubeVirt,
+		cdiv1.DataVolumeArchive:
 	default:
 		// TODO - shouldn't archive be the default?
-		contentType = string(cdiv1.DataVolumeKubeVirt)
+		contentType = cdiv1.DataVolumeKubeVirt
 	}
 	return contentType
 }
 
 // GetPVCContentType returns the content type of the source image. If invalid or not set, default to kubevirt
-func GetPVCContentType(pvc *corev1.PersistentVolumeClaim) string {
+func GetPVCContentType(pvc *corev1.PersistentVolumeClaim) cdiv1.DataVolumeContentType {
 	contentType, found := pvc.Annotations[AnnContentType]
 	if !found {
 		// TODO - shouldn't archive be the default?
-		return string(cdiv1.DataVolumeKubeVirt)
+		return cdiv1.DataVolumeKubeVirt
 	}
 
-	return GetContentType(contentType)
+	return GetContentType(cdiv1.DataVolumeContentType(contentType))
 }
 
 // GetNamespace returns the given namespace if not empty, otherwise the default namespace

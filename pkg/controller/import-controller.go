@@ -541,7 +541,7 @@ func createScratchNameFromPvc(pvc *v1.PersistentVolumeClaim) string {
 func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim) (*importPodEnvVar, error) {
 	podEnvVar := &importPodEnvVar{}
 	podEnvVar.source = cc.GetSource(pvc)
-	podEnvVar.contentType = cc.GetPVCContentType(pvc)
+	podEnvVar.contentType = string(cc.GetPVCContentType(pvc))
 
 	var err error
 	if podEnvVar.source != cc.SourceNone {
@@ -691,7 +691,7 @@ func (r *ImportReconciler) requiresScratchSpace(pvc *corev1.PersistentVolumeClai
 	scratchRequired := false
 	contentType := cc.GetPVCContentType(pvc)
 	// All archive requires scratch space.
-	if contentType == "archive" {
+	if contentType == cdiv1.DataVolumeArchive {
 		scratchRequired = true
 	} else {
 		switch cc.GetSource(pvc) {
