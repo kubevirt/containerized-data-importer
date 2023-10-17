@@ -8,6 +8,9 @@ function detect_cri() {
 
 export CRI_BIN=${CRI_BIN:-$(detect_cri)}
 CONFIG_WORKER_CPU_MANAGER=${CONFIG_WORKER_CPU_MANAGER:-false}
+# only setup ipFamily when the environmental variable is not empty
+# avaliable value: ipv4, ipv6, dual
+IPFAMILY=${IPFAMILY}
 
 # check CPU arch
 PLATFORM=$(uname -m)
@@ -286,10 +289,20 @@ EOF
     fi
 }
 
+function _setup_ipfamily() {
+    if [ $IPFAMILY != "" ]; then
+        cat <<EOF >> ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml
+networking:
+  ipFamily: $IPFAMILY
+EOF
+        echo "KIND cluster ip family has been set to $IPFAMILY"
+    fi
+}
+
 function _prepare_kind_config() {
     _add_workers
     _add_kubeadm_config_patches
-
+    _setup_ipfamily
     echo "Final KIND config:"
     cat ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml
 }
@@ -309,6 +322,15 @@ function down() {
     if [ -z "$($KIND get clusters | grep ${CLUSTER_NAME})" ]; then
         return
     fi
+
+    worker_nodes=$(_get_nodes | grep -i $WORKER_NODES_PATTERN | awk '{print $1}')
+    for worker_node in $worker_nodes; do
+        if ip netns exec $worker_node ip -details address | grep "vf 0" -B 2 > /dev/null; then
+            iface=$(ip netns exec $worker_node ip -details address | grep "vf 0" -B 2 | grep -E 'UP|DOWN' | awk -F": " '{print $2}')
+            ip netns exec $worker_node ip link set $iface netns 1 && echo "gracefully detached $iface from $worker_node"
+        fi
+    done
+
     # On CI, avoid failing an entire test run just because of a deletion error
     $KIND delete cluster --name=${CLUSTER_NAME} || [ "$CI" = "true" ]
     ${CRI_BIN} rm -f $REGISTRY_NAME >> /dev/null

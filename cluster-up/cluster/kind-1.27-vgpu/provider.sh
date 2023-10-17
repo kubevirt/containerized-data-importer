@@ -14,8 +14,8 @@ else
 fi
 
 function set_kind_params() {
-    export KIND_VERSION="${KIND_VERSION:-0.17.0}"
-    export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-quay.io/kubevirtci/kindest-node:v1.25.2@sha256:9be91e9e9cdf116809841fc77ebdb8845443c4c72fe5218f3ae9eb57fdb4bace}"
+    export KIND_VERSION="${KIND_VERSION:-0.18.0}"
+    export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-kindest/node:v1.27.1@sha256:9915f5629ef4d29f35b478e819249e89cfaffcbfeebda4324e5c01d53d937b09}"
     export KUBECTL_PATH="${KUBECTL_PATH:-/bin/kubectl}"
 }
 

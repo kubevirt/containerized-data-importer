@@ -18,7 +18,7 @@
 #
 
 set -ex
-export TARGET=k8s-1.26-centos9
+export TARGET=k8s-1.28
 export KUBEVIRT_STORAGE=hpp
 export CDI_E2E_SKIP=Destructive
 export KUBEVIRT_DEPLOY_ISTIO=true
