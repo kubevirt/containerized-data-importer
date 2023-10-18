@@ -33,11 +33,6 @@ const (
 
 // MetricOptsList list all CDI metrics
 var MetricOptsList = map[MetricsKey]MetricOpts{
-	CloneProgress: {
-		Name: "clone_progress",
-		Help: "The clone progress in percentage",
-		Type: "Counter",
-	},
 	DataImportCronOutdated: {
 		Name: "kubevirt_cdi_dataimportcron_outdated",
 		Help: "DataImportCron has an outdated import",
@@ -52,6 +47,15 @@ var MetricOptsList = map[MetricsKey]MetricOpts{
 		Name: "kubevirt_cdi_cr_ready",
 		Help: "CDI install ready",
 		Type: "Gauge",
+	},
+}
+
+// InternalMetricOptsList list all CDI metrics used for internal purposes only
+var InternalMetricOptsList = map[MetricsKey]MetricOpts{
+	CloneProgress: {
+		Name: "clone_progress",
+		Help: "The clone progress in percentage",
+		Type: "Counter",
 	},
 }
 
