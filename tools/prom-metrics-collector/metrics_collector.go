@@ -28,10 +28,8 @@ import (
 
 // This should be used only for very rare cases where the naming conventions that are explained in the best practices:
 // https://sdk.operatorframework.io/docs/best-practices/observability-best-practices/#metrics-guidelines
-// should be ignored, open issue: https://github.com/kubevirt/containerized-data-importer/issues/2515.
-var excludedMetrics = map[string]struct{}{
-	"clone_progress": {},
-}
+// should be ignored.
+var excludedMetrics = map[string]struct{}{}
 
 func recordRulesDescToMetricList(mdl []monitoring.RecordRulesDesc) []monitoring.MetricOpts {
 	res := make([]monitoring.MetricOpts, len(mdl))

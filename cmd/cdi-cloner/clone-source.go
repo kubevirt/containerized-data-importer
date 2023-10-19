@@ -96,8 +96,8 @@ func startPrometheus() {
 func createProgressReader(readCloser io.ReadCloser, ownerUID string, totalBytes uint64) io.ReadCloser {
 	progress := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: monitoring.MetricOptsList[monitoring.CloneProgress].Name,
-			Help: monitoring.MetricOptsList[monitoring.CloneProgress].Help,
+			Name: monitoring.InternalMetricOptsList[monitoring.CloneProgress].Name,
+			Help: monitoring.InternalMetricOptsList[monitoring.CloneProgress].Help,
 		},
 		[]string{"ownerUID"},
 	)
