@@ -12,6 +12,5 @@ go_library(
     deps = [
         "//vendor/golang.org/x/mod/internal/lazyregexp:go_default_library",
         "//vendor/golang.org/x/mod/semver:go_default_library",
-        "//vendor/golang.org/x/xerrors:go_default_library",
     ],
 )
