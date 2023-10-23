@@ -22,6 +22,5 @@ go_library(
         "//vendor/golang.org/x/tools/internal/packagesinternal:go_default_library",
         "//vendor/golang.org/x/tools/internal/typeparams:go_default_library",
         "//vendor/golang.org/x/tools/internal/typesinternal:go_default_library",
-        "//vendor/golang.org/x/xerrors:go_default_library",
     ],
 )
