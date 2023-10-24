@@ -638,19 +638,13 @@ rpm(
 rpm(
     name = "crun-0__1.8.5-1.el9.aarch64",
     sha256 = "e47b4d5f434bdc11d6ff7efdc62633bc6cb348dcf59c23469103f9500be6c0a8",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/crun-1.8.5-1.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/e47b4d5f434bdc11d6ff7efdc62633bc6cb348dcf59c23469103f9500be6c0a8",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/e47b4d5f434bdc11d6ff7efdc62633bc6cb348dcf59c23469103f9500be6c0a8"],
 )
 
 rpm(
     name = "crun-0__1.8.5-1.el9.x86_64",
     sha256 = "98b371a5ae65f397e98be0f8e00c39c8876365cd11016079b689185c2d81ebea",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/crun-1.8.5-1.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/98b371a5ae65f397e98be0f8e00c39c8876365cd11016079b689185c2d81ebea",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/98b371a5ae65f397e98be0f8e00c39c8876365cd11016079b689185c2d81ebea"],
 )
 
 rpm(
