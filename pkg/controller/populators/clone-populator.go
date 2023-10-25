@@ -301,9 +301,15 @@ func (r *ClonePopulatorReconciler) validateCrossNamespace(pvc *corev1.Persistent
 }
 
 func (r *ClonePopulatorReconciler) reconcileDone(ctx context.Context, log logr.Logger, pvc *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
-	log.V(3).Info("executing cleanup")
-	if err := r.planner.Cleanup(ctx, log, pvc); err != nil {
-		return reconcile.Result{}, err
+	if shouldSkipCleanup(pvc) {
+		log.V(3).Info("skipping cleanup")
+		// Avoiding cleanup so we can keep clone objects for debugging purposes.
+		r.recorder.Eventf(pvc, corev1.EventTypeWarning, retainedPVCPrime, messageRetainedPVCPrime)
+	} else {
+		log.V(3).Info("executing cleanup")
+		if err := r.planner.Cleanup(ctx, log, pvc); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	log.V(1).Info("removing finalizer")
@@ -471,4 +477,27 @@ func getSavedCloneStrategy(obj client.Object) *cdiv1.CDICloneStrategy {
 
 func setSavedCloneStrategy(obj client.Object, strategy cdiv1.CDICloneStrategy) {
 	cc.AddAnnotation(obj, cc.AnnCloneType, string(strategy))
+}
+
+func shouldSkipCleanup(pvc *corev1.PersistentVolumeClaim) bool {
+	// We can skip cleanup to keep objects for debugging purposes if:
+	//   - AnnPodRetainAfterCompletion annotation is set to true. This means that the user explicitly wants
+	//     to keep the pods.
+	//   - Clone is host-assisted, which is the only clone type with transfer pods worth debugging.
+	//   - Clone occurs in a single namespace, so we avoid retaining pods in a namespace we don't have right to access.
+	if pvc.Annotations[cc.AnnCloneType] == string(cdiv1.CloneStrategyHostAssisted) &&
+		pvc.Annotations[cc.AnnPodRetainAfterCompletion] == "true" && !isCrossNamespaceClone(pvc) {
+		return true
+	}
+	return false
+}
+
+func isCrossNamespaceClone(pvc *corev1.PersistentVolumeClaim) bool {
+	dataSourceNamespace := pvc.Namespace
+	if ns, ok := pvc.Annotations[AnnDataSourceNamespace]; ok {
+		dataSourceNamespace = ns
+	} else if pvc.Spec.DataSourceRef.Namespace != nil {
+		dataSourceNamespace = *pvc.Spec.DataSourceRef.Namespace
+	}
+	return dataSourceNamespace != pvc.Namespace
 }

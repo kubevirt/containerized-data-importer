@@ -1197,7 +1197,6 @@ func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncState *dvSyncSta
 // shouldUseCDIPopulator returns if the population of the PVC should be done using
 // CDI populators.
 // Currently it will use populators only if:
-// * no podRetainAfterCompletion or immediateBinding annotations
 // * source is not VDDK, Imageio, PVC, Snapshot
 // * storageClass bindingMode is not wffc while honorWaitForFirstConsumer feature gate is disabled
 // * storageClass used is CSI storageClass
@@ -1211,11 +1210,7 @@ func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, er
 		return boolUsePopulator, nil
 	}
 	log := r.log.WithValues("DataVolume", dv.Name, "Namespace", dv.Namespace)
-	// currently populators don't support retain pod annotation so don't use populators in that case
-	if retain := dv.Annotations[cc.AnnPodRetainAfterCompletion]; retain == "true" {
-		log.Info("Not using CDI populators, currently we don't support populators with retainAfterCompletion annotation")
-		return false, nil
-	}
+
 	// currently we don't support populator with import source of VDDK or Imageio
 	// or clone either from PVC nor snapshot
 	if dv.Spec.Source.Imageio != nil ||

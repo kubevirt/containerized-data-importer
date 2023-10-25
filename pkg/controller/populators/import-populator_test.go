@@ -279,6 +279,33 @@ var _ = Describe("Import populator tests", func() {
 			table.Entry("multus default network is passed", AnnPodMultusDefaultNetwork, "test", "test"),
 		)
 
+		It("should trigger appropriate event when using AnnPodRetainAfterCompletion", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name,
+				map[string]string{AnnPodPhase: string(corev1.PodSucceeded)}, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			targetPvc.Spec.VolumeName = "pv"
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
+			pvcPrime := getPVCPrime(targetPvc, nil)
+			pvcPrime.Annotations = map[string]string{AnnPodRetainAfterCompletion: "true"}
+
+			By("Reconcile")
+			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, volumeImportSource, sc)
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Checking events recorded")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, retainedPVCPrime) {
+					found = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(found).To(BeTrue())
+		})
+
 		It("shouldn't error when reconciling PVC with non-import DataSourceRef", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
 			targetPvc.Spec.DataSourceRef = &corev1.TypedObjectReference{

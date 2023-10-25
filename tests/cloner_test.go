@@ -15,6 +15,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -99,13 +100,11 @@ var _ = Describe("all clone tests", func() {
 		})
 
 		It("[test_id:6693]Should clone imported data and retain transfer pods after completion", func() {
-			scName := f.GetNoSnapshotStorageClass()
-			if scName == nil {
-				Skip("Cannot test host-assisted cloning when all storage classes are smart clone capable")
+			if utils.DefaultStorageClassCsiDriver != nil {
+				Skip("Cannot test host-assisted cloning")
 			}
 
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-			dataVolume.Spec.PVC.StorageClassName = scName
 			By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
@@ -115,7 +114,6 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvc)
 			targetDV.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
-			targetDV.Spec.PVC.StorageClassName = scName
 			By(fmt.Sprintf("Create new target datavolume %s", targetDV.Name))
 			targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
@@ -955,6 +953,16 @@ var _ = Describe("all clone tests", func() {
 					targetDvs = nil
 				})
 
+				getClonerPodName := func(pvc *corev1.PersistentVolumeClaim) string {
+					usedPvc := pvc
+					if usesPopulator, _ := dvc.CheckPVCUsingPopulators(pvc); usesPopulator {
+						pvcPrime, err := utils.WaitForPVC(f.K8sClient, pvc.Namespace, fmt.Sprintf("tmp-pvc-%s", string(pvc.UID)))
+						Expect(err).ToNot(HaveOccurred())
+						usedPvc = pvcPrime
+					}
+					return controller.CreateCloneSourcePodName(usedPvc)
+				}
+
 				It("[rfe_id:1277][test_id:1899][crit:High][vendor:cnv-qe@redhat.com][level:component] Should allow multiple cloning operations in parallel", func() {
 					const NumOfClones int = 3
 
@@ -1003,7 +1011,7 @@ var _ = Describe("all clone tests", func() {
 						for _, dv := range targetDvs {
 							pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
 							Expect(err).ToNot(HaveOccurred())
-							clonerPodName := controller.CreateCloneSourcePodName(pvc)
+							clonerPodName := getClonerPodName(pvc)
 							cloner, err := f.K8sClient.CoreV1().Pods(dv.Namespace).Get(context.TODO(), clonerPodName, metav1.GetOptions{})
 							Expect(err).ToNot(HaveOccurred())
 							restartCount := cloner.Status.ContainerStatuses[0].RestartCount

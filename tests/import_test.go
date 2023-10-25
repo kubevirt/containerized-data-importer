@@ -32,6 +32,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -174,7 +175,12 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		By("Find importer pods after completion")
 		for _, checkpoint := range dataVolume.Spec.Checkpoints {
-			name := fmt.Sprintf("%s-%s-checkpoint-%s", common.ImporterPodName, dataVolume.Name, checkpoint.Current)
+			pvcName := dataVolume.Name
+			// When using populators, the PVC Prime name is used to build the importer pod
+			if usePopulator, _ := dvc.CheckPVCUsingPopulators(pvc); usePopulator {
+				pvcName = populators.PVCPrimeName(pvc)
+			}
+			name := fmt.Sprintf("%s-%s-checkpoint-%s", common.ImporterPodName, pvcName, checkpoint.Current)
 			By("Find importer pod " + name)
 			importer, err := utils.FindPodByPrefixOnce(f.K8sClient, dataVolume.Namespace, name, common.CDILabelSelector)
 			Expect(err).ToNot(HaveOccurred())
@@ -1884,6 +1890,54 @@ var _ = Describe("Import populator", func() {
 			_, err := f.FindPVC(pvcPrime.Name)
 			return err != nil && k8serrors.IsNotFound(err)
 		}, timeout, pollingInterval).Should(BeTrue())
+	})
+
+	It("should retain PVC Prime and importer pod with AnnPodRetainAfterCompletion", func() {
+		dataVolume := utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+		dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err = utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		By("Verify PVC prime was created")
+		pvcPrime, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, populators.PVCPrimeName(pvc))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify target PVC is bound")
+		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify content")
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(utils.TinyCoreMD5))
+
+		By("Verify 100.0% annotation")
+		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPopulatorProgress)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeTrue())
+		Expect(progress).Should(BeEquivalentTo("100.0%"))
+
+		By("Verify PVC Prime is Lost")
+		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvcPrime.Namespace, v1.ClaimLost, pvcPrime.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Find importer pod after completion")
+		importer, err := utils.FindPodByPrefixOnce(f.K8sClient, pvcPrime.Namespace, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(importer.DeletionTimestamp).To(BeNil())
+
+		By("Cleanup importer Pod, DataVolume and PVC Prime")
+		zero := int64(0)
+		err = utils.DeletePodByName(f.K8sClient, fmt.Sprintf("%s-%s", common.ImporterPodName, pvcPrime.Name), f.Namespace.Name, &zero)
+		Expect(err).ToNot(HaveOccurred())
+		err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		err = f.DeletePVC(pvcPrime)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("should continue normally with the population even if the volueImportSource is deleted", func() {
