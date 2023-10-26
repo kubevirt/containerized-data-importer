@@ -679,6 +679,12 @@ func GetPodsUsingPVCs(c client.Client, namespace string, names sets.String, allo
 									onlyReadOnly = false
 								}
 							}
+							for _, vm := range c.VolumeDevices {
+								if vm.Name == volume.Name {
+									// Node level rw mount and container can't mount block device ro
+									onlyReadOnly = false
+								}
+							}
 						}
 						if onlyReadOnly {
 							// no rw mounts
@@ -686,6 +692,12 @@ func GetPodsUsingPVCs(c client.Client, namespace string, names sets.String, allo
 						}
 					} else {
 						// all mounts must be ro
+						addPod = false
+					}
+					if strings.HasSuffix(pod.Name, common.ClonerSourcePodNameSuffix) && pod.Labels != nil &&
+						pod.Labels[common.CDIComponentLabel] == common.ClonerSourcePodName {
+						// Host assisted clone source pod only reads from source
+						// But some drivers disallow mounting a block PVC ReadOnly
 						addPod = false
 					}
 				}
