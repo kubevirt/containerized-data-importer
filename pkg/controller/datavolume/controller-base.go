@@ -958,8 +958,11 @@ func (r *ReconcilerBase) emitFailureConditionEvent(dataVolume *cdiv1.DataVolume,
 	}
 	if curReady.Status == corev1.ConditionFalse && curRunning.Status == corev1.ConditionFalse &&
 		dvBoundOrPopulationInProgress(dataVolume, curBound) {
-		//Bound or in progress, not ready, and not running
-		if curRunning.Message != "" && (orgRunning == nil || orgRunning.Message != curRunning.Message) {
+		// Bound or in progress, not ready, and not running.
+		// Avoiding triggering an event for scratch space required since it will be addressed
+		// by CDI and sounds more drastic than it actually is.
+		if curRunning.Message != "" && curRunning.Message != common.ScratchSpaceRequired &&
+			(orgRunning == nil || orgRunning.Message != curRunning.Message) {
 			r.recorder.Event(dataVolume, corev1.EventTypeWarning, curRunning.Reason, curRunning.Message)
 		}
 	}

@@ -58,6 +58,9 @@ const (
 	// PodRunningReason is const that defines the pod was started as a reason
 	PodRunningReason = "Pod is running"
 
+	// ScratchSpaceRequiredReason is a const that defines the pod exited due to a lack of scratch space
+	ScratchSpaceRequiredReason = "Scratch space required"
+
 	// ProxyCertVolName is the name of the volumecontaining certs
 	ProxyCertVolName = "cdi-proxy-cert-vol"
 	// ClusterWideProxyAPIGroup is the APIGroup for OpenShift Cluster Wide Proxy
@@ -296,12 +299,25 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, prefix
 			anno[prefix+".reason"] = containerState.Waiting.Reason
 		} else if containerState.Terminated != nil {
 			anno[prefix+".message"] = simplifyKnownMessage(containerState.Terminated.Message)
-			anno[prefix+".reason"] = containerState.Terminated.Reason
+			reason := containerState.Terminated.Reason
+			if reason == common.GenericError {
+				reason = handleGenericErrorReason(containerState.Terminated.Message)
+			}
+			anno[prefix+".reason"] = reason
 			if strings.Contains(containerState.Terminated.Message, common.PreallocationApplied) {
 				anno[cc.AnnPreallocationApplied] = "true"
 			}
 		}
 	}
+}
+
+func handleGenericErrorReason(message string) string {
+	if strings.Contains(message, common.ScratchSpaceRequired) {
+		// Sometimes the pod will need scratch space to complete some operations.
+		// Better to add a custom reason instead of a generic container state.
+		return ScratchSpaceRequiredReason
+	}
+	return common.GenericError
 }
 
 func simplifyKnownMessage(msg string) string {
