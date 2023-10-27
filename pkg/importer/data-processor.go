@@ -70,7 +70,7 @@ type ValidationSizeError struct {
 func (e ValidationSizeError) Error() string { return e.err.Error() }
 
 // ErrRequiresScratchSpace indicates that we require scratch space.
-var ErrRequiresScratchSpace = fmt.Errorf("scratch space required and none found")
+var ErrRequiresScratchSpace = fmt.Errorf(common.ScratchSpaceRequired)
 
 // ErrInvalidPath indicates that the path is invalid.
 var ErrInvalidPath = fmt.Errorf("invalid transfer path")
