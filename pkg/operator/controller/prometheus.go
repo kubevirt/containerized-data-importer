@@ -221,6 +221,21 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 				componentAlertLabelKey:    componentAlertLabelValue,
 			},
 		),
+		generateAlertRule(
+			"CDIMultipleDefaultVirtStorageClasses",
+			"kubevirt_cdi_default_virt_storageclasses > 1",
+			promv1.Duration("5m"),
+			map[string]string{
+				"summary":     "More than one default virtualization StorageClass detected",
+				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIMultipleDefaultVirtStorageClasses"),
+			},
+			map[string]string{
+				severityAlertLabelKey:     "warning",
+				healthImpactAlertLabelKey: "warning",
+				partOfAlertLabelKey:       partOfAlertLabelValue,
+				componentAlertLabelKey:    componentAlertLabelValue,
+			},
+		),
 	}
 }
 

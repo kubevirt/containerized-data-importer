@@ -803,8 +803,9 @@ var _ = Describe("All DataImportCron Tests", func() {
 		})
 
 		Context("Snapshot source format", func() {
+			snapFormat := cdiv1.DataImportCronSourceFormatSnapshot
+
 			BeforeEach(func() {
-				snapFormat := cdiv1.DataImportCronSourceFormatSnapshot
 				sc := cc.CreateStorageClass(storageClassName, map[string]string{cc.AnnDefaultStorageClass: "true"})
 				sp := &cdiv1.StorageProfile{
 					ObjectMeta: metav1.ObjectMeta{
@@ -814,7 +815,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 						DataImportCronSourceFormat: &snapFormat,
 					},
 				}
-				reconciler = createDataImportCronReconciler(sc, sp)
+				reconciler = createDataImportCronReconciler(sc, sp, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 				storageProfile := &cdiv1.StorageProfile{ObjectMeta: metav1.ObjectMeta{Name: storageClassName}}
 				err := reconciler.client.Get(context.TODO(), client.ObjectKeyFromObject(storageProfile), storageProfile)
 				Expect(err).ToNot(HaveOccurred())
@@ -956,6 +957,80 @@ var _ = Describe("All DataImportCron Tests", func() {
 				err = reconciler.client.List(context.TODO(), snapList, &client.ListOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(snapList.Items).To(BeEmpty())
+			})
+
+			It("Should respect default virt storage class by creating a snapshot using it's corresponding volumesnapclass", func() {
+				virtSc := cc.CreateStorageClass(storageClassName+"-virt", map[string]string{cc.AnnDefaultVirtStorageClass: "true"})
+				virtSp := &cdiv1.StorageProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: virtSc.Name,
+					},
+					Status: cdiv1.StorageProfileStatus{
+						DataImportCronSourceFormat: &snapFormat,
+					},
+				}
+				snapClass := &snapshotv1.VolumeSnapshotClass{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "VolumeSnapshotClass",
+						APIVersion: snapshotv1.SchemeGroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: virtSc.Name + "-snapclass",
+					},
+					Driver: virtSc.Provisioner,
+				}
+				err := reconciler.client.Create(context.TODO(), virtSc)
+				Expect(err).ToNot(HaveOccurred())
+				err = reconciler.client.Create(context.TODO(), virtSp)
+				Expect(err).ToNot(HaveOccurred())
+				err = reconciler.client.Create(context.TODO(), snapClass)
+				Expect(err).ToNot(HaveOccurred())
+
+				cron = newDataImportCron(cronName)
+				dataSource = nil
+				retentionPolicy := cdiv1.DataImportCronRetainNone
+				cron.Spec.RetentionPolicy = &retentionPolicy
+				cron.Spec.Template.Spec.PVC = nil
+				cron.Spec.Template.Spec.Storage = &cdiv1.StorageSpec{}
+				err = reconciler.client.Create(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				verifyConditions("Before DesiredDigest is set", false, false, false, noImport, noDigest, "", &snapshotv1.VolumeSnapshot{})
+
+				cc.AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
+				err = reconciler.client.Update(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				dataSource = &cdiv1.DataSource{}
+				verifyConditions("After DesiredDigest is set", false, false, false, noImport, outdated, noSource, &snapshotv1.VolumeSnapshot{})
+
+				imports := cron.Status.CurrentImports
+				Expect(imports).ToNot(BeNil())
+				Expect(imports).ToNot(BeEmpty())
+				dvName := imports[0].DataVolumeName
+				Expect(dvName).ToNot(BeEmpty())
+				digest := imports[0].Digest
+				Expect(digest).To(Equal(testDigest))
+
+				dv := &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(*dv.Spec.Source.Registry.URL).To(Equal(testRegistryURL + "@" + testDigest))
+				Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
+
+				pvc := cc.CreatePvc(dv.Name, dv.Namespace, nil, nil)
+				err = reconciler.client.Create(context.TODO(), pvc)
+				Expect(err).ToNot(HaveOccurred())
+				// DV GCed after hitting succeeded
+				err = reconciler.client.Delete(context.TODO(), dv)
+				Expect(err).ToNot(HaveOccurred())
+				// Reconcile that gets snapshot created
+				verifyConditions("Snap creation reconcile", false, false, false, noImport, outdated, "SnapshotNotReady", &snapshotv1.VolumeSnapshot{})
+				// Reconcile so created snapshot can be fetched
+				verifyConditions("Snap creation triggered reconcile", false, false, false, noImport, inProgress, "SnapshotNotReady", &snapshotv1.VolumeSnapshot{})
+				// Make snap ready so we reach UpToDate
+				snap := &snapshotv1.VolumeSnapshot{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), snap)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(snap.Spec.VolumeSnapshotClassName).To(HaveValue(Equal(snapClass.Name)))
 			})
 
 			It("Should not create snapshot from old storage class PVCs", func() {
@@ -1102,9 +1177,7 @@ func newDataImportCron(name string) *cdiv1.DataImportCron {
 							PullMethod: &registryPullNodesource,
 						},
 					},
-					PVC: &corev1.PersistentVolumeClaimSpec{
-						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-					},
+					Storage: &cdiv1.StorageSpec{},
 				},
 			},
 			Schedule:          defaultSchedule,

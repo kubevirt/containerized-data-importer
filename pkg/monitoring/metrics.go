@@ -25,10 +25,11 @@ type MetricsKey string
 
 // All metrics names for reference
 const (
-	ReadyGauge             MetricsKey = "readyGauge"
-	IncompleteProfile      MetricsKey = "incompleteProfile"
-	DataImportCronOutdated MetricsKey = "dataImportCronOutdated"
 	CloneProgress          MetricsKey = "cloneProgress"
+	DataImportCronOutdated MetricsKey = "dataImportCronOutdated"
+	IncompleteProfile      MetricsKey = "incompleteProfile"
+	ReadyGauge             MetricsKey = "readyGauge"
+	DefaultVirtClasses     MetricsKey = "defaultVirtClasses"
 )
 
 // MetricOptsList list all CDI metrics
@@ -46,6 +47,11 @@ var MetricOptsList = map[MetricsKey]MetricOpts{
 	ReadyGauge: {
 		Name: "kubevirt_cdi_cr_ready",
 		Help: "CDI install ready",
+		Type: "Gauge",
+	},
+	DefaultVirtClasses: {
+		Name: "kubevirt_cdi_default_virt_storageclasses",
+		Help: "Number of default virt storage classes currently configured",
 		Type: "Gauge",
 	},
 }

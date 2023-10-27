@@ -683,7 +683,7 @@ func (r *ReconcilerBase) createPvcForDatavolume(datavolume *cdiv1.DataVolume, pv
 
 func (r *ReconcilerBase) getStorageClassBindingMode(storageClassName *string) (*storagev1.VolumeBindingMode, error) {
 	// Handle unspecified storage class name, fallback to default storage class
-	storageClass, err := cc.GetStorageClassByName(context.TODO(), r.client, storageClassName)
+	storageClass, err := cc.GetStorageClassByNameWithK8sFallback(context.TODO(), r.client, storageClassName)
 	if err != nil {
 		return nil, err
 	}
@@ -1034,7 +1034,7 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		annotations[k] = v
 	}
 	annotations[cc.AnnPodRestarts] = "0"
-	annotations[cc.AnnContentType] = cc.GetContentType(string(dataVolume.Spec.ContentType))
+	annotations[cc.AnnContentType] = string(cc.GetContentType(dataVolume.Spec.ContentType))
 	if dataVolume.Spec.PriorityClassName != "" {
 		annotations[cc.AnnPriorityClassName] = dataVolume.Spec.PriorityClassName
 	}

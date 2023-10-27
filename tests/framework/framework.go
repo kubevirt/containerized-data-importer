@@ -577,24 +577,28 @@ func (f *Framework) CreateWFFCVariationOfStorageClass(sc *storagev1.StorageClass
 		sc.VolumeBindingMode = &wffc
 	}
 
-	return f.CreateVariationOfStorageClass(sc, setWaitForFirstConsumer)
+	return f.CreateNonDefaultVariationOfStorageClass(sc, setWaitForFirstConsumer)
 }
 
-// CreateVariationOfStorageClass creates a variation of a storage class following mutationFunc's changes
-func (f *Framework) CreateVariationOfStorageClass(sc *storagev1.StorageClass, mutationFunc func(*storagev1.StorageClass)) (*storagev1.StorageClass, error) {
+// CreateNonDefaultVariationOfStorageClass creates a variation of a storage class following mutationFunc's changes
+func (f *Framework) CreateNonDefaultVariationOfStorageClass(sc *storagev1.StorageClass, mutationFunc func(*storagev1.StorageClass)) (*storagev1.StorageClass, error) {
 	scCopy := sc.DeepCopy()
-	mutationFunc(sc)
+	mutationFunc(scCopy)
 	if reflect.DeepEqual(sc, scCopy) {
 		return sc, nil
 	}
-	sc.ObjectMeta = metav1.ObjectMeta{
-		GenerateName: fmt.Sprintf("%s-temp-variation", sc.Name),
+	if val, ok := scCopy.Annotations[cc.AnnDefaultStorageClass]; ok && val == "true" {
+		scCopy.Annotations[cc.AnnDefaultStorageClass] = "false"
+	}
+	scCopy.ObjectMeta = metav1.ObjectMeta{
+		GenerateName: fmt.Sprintf("%s-temp-variation", scCopy.Name),
 		Labels: map[string]string{
 			"cdi.kubevirt.io/testing": "",
 		},
+		Annotations: scCopy.Annotations,
 	}
 
-	return f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
+	return f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), scCopy, metav1.CreateOptions{})
 }
 
 // UpdateCdiConfigResourceLimits sets the limits in the CDIConfig object

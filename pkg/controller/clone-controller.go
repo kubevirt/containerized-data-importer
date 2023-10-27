@@ -753,7 +753,7 @@ func ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc *corev1.Per
 	if sourceContentType != targetContentType {
 		return "", fmt.Errorf("source contentType (%s) and target contentType (%s) do not match", sourceContentType, targetContentType)
 	}
-	return cdiv1.DataVolumeContentType(sourceContentType), nil
+	return sourceContentType, nil
 }
 
 // ValidateCanCloneSourceAndTargetSpec validates the specs passed in are compatible for cloning.

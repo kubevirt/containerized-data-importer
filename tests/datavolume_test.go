@@ -1276,7 +1276,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			// verify PVC was created
-			By("verifying pvc was created and is Bound")
+			By("verifying pvc was created")
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -1290,6 +1290,112 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Entry("for upload DataVolume", createUploadDataVolume, tinyCoreIsoURL()),
 			Entry("for clone DataVolume", createCloneDataVolume, fillCommand),
 		)
+
+		Context("default virt storage class", func() {
+			var defaultVirtStorageClass *storagev1.StorageClass
+			var dummyStorageClass *storagev1.StorageClass
+			var defaultStorageClass *storagev1.StorageClass
+
+			getDefaultStorageClassName := func() string {
+				return utils.DefaultStorageClass.GetName()
+			}
+			getDefaultVirtStorageClassName := func() string {
+				return defaultVirtStorageClass.GetName()
+			}
+			getDummyStorageClassName := func() string {
+				return dummyStorageClass.GetName()
+			}
+			importFunc := func() *cdiv1.DataVolume {
+				return utils.NewDataVolumeWithHTTPImportAndStorageSpec("dv-virt-sc-test-import", "1Gi", tinyCoreIsoURL())
+			}
+			importFuncPVCAPI := func() *cdiv1.DataVolume {
+				return utils.NewDataVolumeWithHTTPImport("dv-virt-sc-test-import", "1Gi", tinyCoreIsoURL())
+			}
+			importExplicitScFunc := func() *cdiv1.DataVolume {
+				dv := utils.NewDataVolumeWithHTTPImportAndStorageSpec("dv-virt-sc-test-import", "1Gi", tinyCoreIsoURL())
+				sc := getDummyStorageClassName()
+				dv.Spec.Storage.StorageClassName = &sc
+				return dv
+			}
+			uploadFunc := func() *cdiv1.DataVolume {
+				return utils.NewDataVolumeForUploadWithStorageAPI("dv-virt-sc-test-upload", "1Gi")
+			}
+			cloneFunc := func() *cdiv1.DataVolume {
+				sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
+				pvcDef := utils.NewPVCDefinition(pvcName, "1Gi", nil, nil)
+				sourcePvc := f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand)
+
+				By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
+				return utils.NewDataVolumeForImageCloningAndStorageSpec("dv-virt-sc-test-clone", "1Gi", f.Namespace.Name, sourcePvc.Name, nil, nil)
+			}
+			archiveFunc := func() *cdiv1.DataVolume {
+				return utils.NewDataVolumeWithArchiveContentStorage("dv-virt-sc-test-archive", "1Gi", tarArchiveURL())
+			}
+
+			BeforeEach(func() {
+				addVirtParam := func(sc *storagev1.StorageClass) {
+					if len(sc.Parameters) == 0 {
+						sc.Parameters = map[string]string{}
+					}
+					sc.Parameters["better.for.kubevirt.io"] = "true"
+					controller.AddAnnotation(sc, controller.AnnDefaultVirtStorageClass, "true")
+				}
+				addDummyAnn := func(sc *storagev1.StorageClass) {
+					controller.AddAnnotation(sc, "dummy", "true")
+				}
+				sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), getDefaultStorageClassName(), metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				defaultStorageClass = sc
+				defaultVirtStorageClass, err = f.CreateNonDefaultVariationOfStorageClass(sc, addVirtParam)
+				Expect(err).ToNot(HaveOccurred())
+				dummyStorageClass, err = f.CreateNonDefaultVariationOfStorageClass(sc, addDummyAnn)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				err := f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), defaultVirtStorageClass.Name, metav1.DeleteOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				err = f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), dummyStorageClass.Name, metav1.DeleteOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				if defaultStorageClass.Annotations[controller.AnnDefaultStorageClass] != "true" {
+					controller.AddAnnotation(defaultStorageClass, controller.AnnDefaultStorageClass, "true")
+					_, err = f.K8sClient.StorageV1().StorageClasses().Update(context.TODO(), defaultStorageClass, metav1.UpdateOptions{})
+					Expect(err).ToNot(HaveOccurred())
+				}
+			})
+
+			DescribeTable("Should", func(dvFunc func() *cdiv1.DataVolume, getExpectedStorageClassName func() string, removeDefault bool) {
+				var err error
+				// Default storage class exists check
+				_ = utils.GetDefaultStorageClass(f.K8sClient)
+				if removeDefault {
+					controller.AddAnnotation(defaultStorageClass, controller.AnnDefaultStorageClass, "false")
+					defaultStorageClass, err = f.K8sClient.StorageV1().StorageClasses().Update(context.TODO(), defaultStorageClass, metav1.UpdateOptions{})
+					Expect(err).ToNot(HaveOccurred())
+				}
+
+				dataVolume := dvFunc()
+				By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
+
+				// verify PVC was created
+				By("verifying pvc was created")
+				pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(pvc.Spec.StorageClassName).To(HaveValue(Equal(getExpectedStorageClassName())))
+			},
+				Entry("respect default virt storage class for import DataVolume", importFunc, getDefaultVirtStorageClassName, false),
+				Entry("respect default virt storage class for upload DataVolume", uploadFunc, getDefaultVirtStorageClassName, false),
+				Entry("respect default virt storage class for clone DataVolume", cloneFunc, getDefaultVirtStorageClassName, false),
+				Entry("respect default virt storage class even if no k8s default exists", importFunc, getDefaultVirtStorageClassName, true),
+				Entry("not respect default virt storage class for contenType other than kubevirt", archiveFunc, getDefaultStorageClassName, false),
+				Entry("not respect default virt storage class for PVC api", importFuncPVCAPI, getDefaultStorageClassName, false),
+				Entry("not respect default virt storage class if explicit storage class provided", importExplicitScFunc, getDummyStorageClassName, false),
+			)
+		})
 
 		It("Should handle a pre populated DV", func() {
 			By(fmt.Sprintf("initializing dataVolume marked as prePopulated %s", dataVolumeName))

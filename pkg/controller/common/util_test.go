@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -56,7 +57,7 @@ var _ = Describe("validateContentTypes", func() {
 	)
 })
 
-var _ = Describe("GetDefaultStorageClass", func() {
+var _ = Describe("GetStorageClassByName", func() {
 	It("Should return the default storage class name", func() {
 		client := CreateClient(
 			CreateStorageClass("test-storage-class-1", nil),
@@ -64,7 +65,7 @@ var _ = Describe("GetDefaultStorageClass", func() {
 				AnnDefaultStorageClass: "true",
 			}),
 		)
-		sc, _ := GetDefaultStorageClass(context.Background(), client)
+		sc, _ := GetStorageClassByNameWithK8sFallback(context.Background(), client, nil)
 		Expect(sc.Name).To(Equal("test-storage-class-2"))
 	})
 
@@ -73,9 +74,54 @@ var _ = Describe("GetDefaultStorageClass", func() {
 			CreateStorageClass("test-storage-class-1", nil),
 			CreateStorageClass("test-storage-class-2", nil),
 		)
-		sc, _ := GetDefaultStorageClass(context.Background(), client)
+		sc, _ := GetStorageClassByNameWithK8sFallback(context.Background(), client, nil)
 		Expect(sc).To(BeNil())
 	})
+
+	It("Should return default virt class even if there's not default k8s storage class", func() {
+		client := CreateClient(
+			CreateStorageClass("test-storage-class-1", nil),
+			CreateStorageClass("test-storage-class-2", map[string]string{
+				AnnDefaultVirtStorageClass: "true",
+			}),
+		)
+		sc, _ := GetStorageClassByNameWithVirtFallback(context.Background(), client, nil, cdiv1.DataVolumeKubeVirt)
+		Expect(sc.Name).To(Equal("test-storage-class-2"))
+	})
+
+	DescribeTable("Should return newer default", func(annotation string) {
+		olderSc := CreateStorageClass("test-storage-class-new", map[string]string{
+			annotation: "true",
+		})
+		olderSc.SetCreationTimestamp(metav1.NewTime(time.Now().Add(-1 * time.Second)))
+		newerSc := CreateStorageClass("test-storage-class-old", map[string]string{
+			annotation: "true",
+		})
+		newerSc.SetCreationTimestamp(metav1.NewTime(time.Now()))
+		client := CreateClient(newerSc, olderSc)
+		sc, _ := GetStorageClassByNameWithVirtFallback(context.Background(), client, nil, cdiv1.DataVolumeKubeVirt)
+		Expect(sc.Name).To(Equal(newerSc.Name))
+	},
+		Entry("virt storage class", AnnDefaultVirtStorageClass),
+		Entry("k8s storage class", AnnDefaultStorageClass),
+	)
+
+	DescribeTable("Should fall back to lexicographic order when same timestamp", func(annotation string) {
+		firstSc := CreateStorageClass("test-storage-class-1", map[string]string{
+			annotation: "true",
+		})
+		firstSc.SetCreationTimestamp(metav1.NewTime(time.Now()))
+		secondSc := CreateStorageClass("test-storage-class-2", map[string]string{
+			annotation: "true",
+		})
+		secondSc.SetCreationTimestamp(metav1.NewTime(time.Now()))
+		client := CreateClient(firstSc, secondSc)
+		sc, _ := GetStorageClassByNameWithVirtFallback(context.Background(), client, nil, cdiv1.DataVolumeKubeVirt)
+		Expect(sc.Name).To(Equal(firstSc.Name))
+	},
+		Entry("virt storage class", AnnDefaultVirtStorageClass),
+		Entry("k8s storage class", AnnDefaultStorageClass),
+	)
 })
 
 var _ = Describe("Rebind", func() {
