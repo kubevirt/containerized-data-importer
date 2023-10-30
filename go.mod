@@ -14,6 +14,8 @@ require (
 	github.com/go-logr/logr v1.2.4
 	github.com/golang/snappy v0.0.4
 	github.com/google/uuid v1.3.1
+	github.com/gophercloud/gophercloud v1.7.0
+	github.com/gophercloud/utils v0.0.0-20231010081019-80377eca5d56
 	github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/klauspost/compress v1.16.7
@@ -102,6 +104,7 @@ require (
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -109,6 +112,7 @@ require (
 	github.com/klauspost/pgzip v1.2.6-0.20220930104621-17e8dac29df8 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
+	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/moby/sys/mountinfo v0.6.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect

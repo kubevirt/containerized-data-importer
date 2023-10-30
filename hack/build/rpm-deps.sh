@@ -47,11 +47,15 @@ nbdkit-curl-plugin
 nbdkit-xz-filter
 nbdkit-gzip-filter
 qemu-img
+python3-pycurl
+python3-six
 "
 
 cdi_importer_extra_x86_64="
 nbdkit-vddk-plugin
 sqlite-libs
+ovirt-imageio-client
+python3-ovirt-engine-sdk4
 "
 
 cdi_uploadserver="
