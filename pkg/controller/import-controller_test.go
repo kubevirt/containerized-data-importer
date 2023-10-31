@@ -316,7 +316,8 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(foundEndPoint).To(BeTrue())
 		By("Verifying the pod is annotated correctly")
 		Expect(pod.GetAnnotations()[cc.AnnPodNetwork]).To(Equal("net1"))
-		Expect(pod.GetAnnotations()[cc.AnnPodSidecarInjection]).To(Equal(cc.AnnPodSidecarInjectionDefault))
+		Expect(pod.GetAnnotations()[cc.AnnPodSidecarInjectionIstio]).To(Equal(cc.AnnPodSidecarInjectionIstioDefault))
+		Expect(pod.GetAnnotations()[cc.AnnPodSidecarInjectionLinkerd]).To(Equal(cc.AnnPodSidecarInjectionLinkerdDefault))
 	})
 
 	It("Should not pass non-approved PVC annotation to created POD", func() {

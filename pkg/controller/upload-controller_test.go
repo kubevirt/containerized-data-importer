@@ -334,7 +334,8 @@ var _ = Describe("reconcilePVC loop", func() {
 			Expect(uploadPod.Name).To(Equal(uploadResourceName))
 			Expect(uploadPod.Labels[common.UploadTargetLabel]).To(Equal(string(testPvc.UID)))
 			Expect(uploadPod.GetAnnotations()[cc.AnnPodNetwork]).To(Equal("net1"))
-			Expect(uploadPod.GetAnnotations()[cc.AnnPodSidecarInjection]).To(Equal(cc.AnnPodSidecarInjectionDefault))
+			Expect(uploadPod.GetAnnotations()[cc.AnnPodSidecarInjectionIstio]).To(Equal(cc.AnnPodSidecarInjectionIstioDefault))
+			Expect(uploadPod.GetAnnotations()[cc.AnnPodSidecarInjectionLinkerd]).To(Equal(cc.AnnPodSidecarInjectionLinkerdDefault))
 
 			uploadService = &corev1.Service{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(uploadResourceName), Namespace: "default"}, uploadService)

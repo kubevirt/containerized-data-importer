@@ -228,9 +228,13 @@ const (
 	// AnnPodMultusDefaultNetwork is used for specifying default Pod Network
 	AnnPodMultusDefaultNetwork = "v1.multus-cni.io/default-network"
 	// AnnPodSidecarInjection is used for enabling/disabling Pod istio/AspenMesh sidecar injection
-	AnnPodSidecarInjection = "sidecar.istio.io/inject"
+	AnnPodSidecarInjectionIstio = "sidecar.istio.io/inject"
 	// AnnPodSidecarInjectionDefault is the default value passed for AnnPodSidecarInjection
-	AnnPodSidecarInjectionDefault = "false"
+	AnnPodSidecarInjectionIstioDefault = "false"
+	// AnnPodSidecarInjectionLinkerd is used to enable/disable linkerd sidecar injection
+	AnnPodSidecarInjectionLinkerd = "linkerd.io/inject"
+	// AnnPodSideCarInjectionLinkerdDefault
+	AnnPodSidecarInjectionLinkerdDefault = "false"
 
 	// AnnImmediateBinding provides a const to indicate whether immediate binding should be performed on the PV (overrides global config)
 	AnnImmediateBinding = AnnAPIGroup + "/storage.bind.immediate.requested"
@@ -1994,10 +1998,11 @@ func OwnedByDataVolume(obj metav1.Object) bool {
 // SetPvcAllowedAnnotations applies PVC annotations on the given obj
 func SetPvcAllowedAnnotations(obj metav1.Object, pvc *corev1.PersistentVolumeClaim) {
 	allowedAnnotations := map[string]string{
-		AnnPodNetwork:              "",
-		AnnPodSidecarInjection:     AnnPodSidecarInjectionDefault,
-		AnnPriorityClassName:       "",
-		AnnPodMultusDefaultNetwork: ""}
+		AnnPodNetwork:                 "",
+		AnnPodSidecarInjectionIstio:   AnnPodSidecarInjectionIstioDefault,
+		AnnPodSidecarInjectionLinkerd: AnnPodSidecarInjectionLinkerdDefault,
+		AnnPriorityClassName:          "",
+		AnnPodMultusDefaultNetwork:    ""}
 	for ann, def := range allowedAnnotations {
 		val, ok := pvc.Annotations[ann]
 		if !ok && def != "" {

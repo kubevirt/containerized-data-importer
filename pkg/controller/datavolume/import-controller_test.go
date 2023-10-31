@@ -636,7 +636,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.GetAnnotations()["test-ann-2"] = "test-value-2"
 			dv.GetAnnotations()[AnnSource] = "invalid phase should not copy"
 			dv.GetAnnotations()[AnnPodNetwork] = "data-network"
-			dv.GetAnnotations()[AnnPodSidecarInjection] = "false"
+			dv.GetAnnotations()[AnnPodSidecarInjectionIstio] = "false"
+			dv.GetAnnotations()[AnnPodSidecarInjectionLinkerd] = "false"
 			dv.SetLabels(make(map[string]string))
 			dv.GetLabels()["test"] = "test-label"
 			reconciler = createImportReconciler(dv)
@@ -651,7 +652,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.GetAnnotations()["test-ann-2"]).To(Equal("test-value-2"))
 			Expect(pvc.GetAnnotations()[AnnSource]).To(Equal(SourceHTTP))
 			Expect(pvc.GetAnnotations()[AnnPodNetwork]).To(Equal("data-network"))
-			Expect(pvc.GetAnnotations()[AnnPodSidecarInjection]).To(Equal("false"))
+			Expect(pvc.GetAnnotations()[AnnPodSidecarInjectionIstio]).To(Equal("false"))
+			Expect(pvc.GetAnnotations()[AnnPodSidecarInjectionLinkerd]).To(Equal("false"))
 			Expect(pvc.GetAnnotations()[AnnPriorityClassName]).To(Equal("p0"))
 			Expect(pvc.Labels["test"]).To(Equal("test-label"))
 		})
