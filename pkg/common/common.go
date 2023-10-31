@@ -264,6 +264,9 @@ const (
 	// PreallocationApplied is a string inserted into importer's/uploader's exit message
 	PreallocationApplied = "Preallocation applied"
 
+	// ScratchSpaceRequired is a string inserted into a pod exist message when scratch space is needed
+	ScratchSpaceRequired = "scratch space required and none found"
+
 	// SecretHeader is the key in a secret containing a sensitive extra header for HTTP data sources
 	SecretHeader = "secretHeader"
 
