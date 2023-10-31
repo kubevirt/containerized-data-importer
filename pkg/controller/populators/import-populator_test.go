@@ -454,6 +454,19 @@ var _ = Describe("Import populator tests", func() {
 			Expect(targetPvc.Annotations[AnnPopulatorProgress]).To(Equal("100.0%"))
 		})
 
+		It("should set N/A once PVC Prime is bound", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
+			pvcPrime := getPVCPrime(targetPvc, nil)
+			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, pvcPrime.Name)
+			pvcPrime.Annotations = map[string]string{AnnImportPod: importPodName}
+			pvcPrime.Status.Phase = corev1.ClaimBound
+
+			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, sc)
+			err := reconciler.updateImportProgress("", targetPvc, pvcPrime)
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(targetPvc.Annotations[AnnPopulatorProgress]).To(Equal("N/A"))
+		})
+
 		It("should return error if no metrics in pod", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
 			pvcPrime := getPVCPrime(targetPvc, nil)
