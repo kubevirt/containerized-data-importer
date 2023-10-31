@@ -233,7 +233,7 @@ const (
 	AnnPodSidecarInjectionIstioDefault = "false"
 	// AnnPodSidecarInjectionLinkerd is used to enable/disable linkerd sidecar injection
 	AnnPodSidecarInjectionLinkerd = "linkerd.io/inject"
-	// AnnPodSidecarInjectionLinkerdDefault
+	// AnnPodSidecarInjectionLinkerdDefault is the default value passed for AnnPodSidecarInjectionLinkerd
 	AnnPodSidecarInjectionLinkerdDefault = "disabled"
 
 	// AnnImmediateBinding provides a const to indicate whether immediate binding should be performed on the PV (overrides global config)
