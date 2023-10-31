@@ -63,3 +63,28 @@ To enable sidecar injection in namespace:
 kubectl label namespace default istio-injection=enabled
 kubectl get namespace default -L istio-injection
 ```
+
+## Linkerd Mesh
+
+ * linkerd.io/inject: "false" - disables sidecar injection to the pod
+
+For example:
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: dv-am
+  annotations:
+      linkerd.io/inject: "false"
+spec:
+  source:
+      http:
+         url: "http://mirrors.nav.ro/fedora/linux/releases/33/Cloud/x86_64/images/Fedora-Cloud-Base-33-1.2.x86_64.qcow2"
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1Gi
+```
