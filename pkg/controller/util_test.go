@@ -213,6 +213,27 @@ var _ = Describe("setAnnotationsFromPod", func() {
 		setAnnotationsFromPodWithPrefix(result, testPod, AnnRunningCondition)
 		Expect(result[AnnPreallocationApplied]).To(Equal("true"))
 	})
+
+	It("Should handle generic error when msg is scratch space required", func() {
+		result := make(map[string]string)
+		testPod := CreateImporterTestPod(CreatePvc("test", metav1.NamespaceDefault, nil, nil), "test", nil)
+		testPod.Status = v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{
+							Message: common.ScratchSpaceRequired,
+							Reason:  common.GenericError,
+						},
+					},
+				},
+			},
+		}
+		setAnnotationsFromPodWithPrefix(result, testPod, AnnRunningCondition)
+		Expect(result[AnnRunningCondition]).To(Equal("false"))
+		Expect(result[AnnRunningConditionMessage]).To(Equal(common.ScratchSpaceRequired))
+		Expect(result[AnnRunningConditionReason]).To(Equal(ScratchSpaceRequiredReason))
+	})
 })
 
 var _ = Describe("GetPreallocation", func() {
