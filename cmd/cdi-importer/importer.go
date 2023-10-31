@@ -180,6 +180,9 @@ func handleImport(
 	if err != nil {
 		klog.Errorf("%+v", err)
 		if err == importer.ErrRequiresScratchSpace {
+			if err := util.WriteTerminationMessage(common.ScratchSpaceRequired); err != nil {
+				klog.Errorf("%+v", err)
+			}
 			return common.ScratchSpaceNeededExitCode
 		}
 		err = util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %v", err.Error()))
