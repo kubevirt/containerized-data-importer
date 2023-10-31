@@ -227,13 +227,13 @@ const (
 	AnnPodNetwork = "k8s.v1.cni.cncf.io/networks"
 	// AnnPodMultusDefaultNetwork is used for specifying default Pod Network
 	AnnPodMultusDefaultNetwork = "v1.multus-cni.io/default-network"
-	// AnnPodSidecarInjection is used for enabling/disabling Pod istio/AspenMesh sidecar injection
+	// AnnPodSidecarInjectionIstio is used for enabling/disabling Pod istio/AspenMesh sidecar injection
 	AnnPodSidecarInjectionIstio = "sidecar.istio.io/inject"
-	// AnnPodSidecarInjectionDefault is the default value passed for AnnPodSidecarInjection
+	// AnnPodSidecarInjectionIstioDefault is the default value passed for AnnPodSidecarInjection
 	AnnPodSidecarInjectionIstioDefault = "false"
 	// AnnPodSidecarInjectionLinkerd is used to enable/disable linkerd sidecar injection
 	AnnPodSidecarInjectionLinkerd = "linkerd.io/inject"
-	// AnnPodSideCarInjectionLinkerdDefault
+	// AnnPodSidecarInjectionLinkerdDefault
 	AnnPodSidecarInjectionLinkerdDefault = "disabled"
 
 	// AnnImmediateBinding provides a const to indicate whether immediate binding should be performed on the PV (overrides global config)
