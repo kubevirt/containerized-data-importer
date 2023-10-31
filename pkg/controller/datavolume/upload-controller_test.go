@@ -37,6 +37,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -206,11 +207,31 @@ var _ = Describe("All DataVolume Tests", func() {
 
 	var _ = Describe("Reconcile Datavolume status", func() {
 		DescribeTable("DV phase", func(testDv runtime.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann, expectedEvent string, extraAnnotations ...string) {
+			// We first test the non-populator flow
 			scName := "testpvc"
 			sc := CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
 			storageProfile := createStorageProfile(scName, nil, BlockMode)
-
 			r := createUploadReconciler(testDv, sc, storageProfile)
+			dvPhaseTest(r.ReconcilerBase, r, testDv, current, expected, pvcPhase, podPhase, ann, expectedEvent, extraAnnotations...)
+
+			// Test the populator flow, it should match
+			csiDriver := &storagev1.CSIDriver{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "csi-plugin",
+				},
+			}
+			// Creating a valid PVC Prime
+			pvcPrime := &corev1.PersistentVolumeClaim{}
+			pvcPrime.Name = "prime-"
+			pvcPrime.Namespace = metav1.NamespaceDefault
+			pvcPrime.Status.Phase = corev1.ClaimBound
+			pvcPrime.SetAnnotations(make(map[string]string))
+			pvcPrime.GetAnnotations()[ann] = "something"
+			pvcPrime.GetAnnotations()[AnnPodPhase] = string(podPhase)
+			for i := 0; i < len(extraAnnotations); i += 2 {
+				pvcPrime.GetAnnotations()[extraAnnotations[i]] = extraAnnotations[i+1]
+			}
+			r = createUploadReconciler(testDv, sc, storageProfile, pvcPrime, csiDriver)
 			dvPhaseTest(r.ReconcilerBase, r, testDv, current, expected, pvcPhase, podPhase, ann, expectedEvent, extraAnnotations...)
 		},
 			Entry("should switch to scheduled for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.UploadScheduled, corev1.ClaimBound, corev1.PodPending, AnnUploadRequest, "Upload into test-dv scheduled", AnnPriorityClassName, "p0-upload"),
@@ -245,6 +266,17 @@ var _ = Describe("All DataVolume Tests", func() {
 			AddAnnotation(pvc, AnnSelectedNode, "node01")
 			err = reconciler.client.Update(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
+
+			// Create PVC Prime
+			pvcPrime := &corev1.PersistentVolumeClaim{}
+			pvcPrime.Name = populators.PVCPrimeName(pvc)
+			pvcPrime.Namespace = metav1.NamespaceDefault
+			pvcPrime.Status.Phase = corev1.ClaimBound
+			pvcPrime.SetAnnotations(make(map[string]string))
+			pvcPrime.GetAnnotations()[AnnUploadRequest] = "something"
+			err = reconciler.client.Create(context.TODO(), pvcPrime)
+			Expect(err).ToNot(HaveOccurred())
+
 			_, err = reconciler.updateStatus(getReconcileRequest(uploadDataVolume), nil, reconciler)
 			Expect(err).ToNot(HaveOccurred())
 			dv := &cdiv1.DataVolume{}
@@ -265,6 +297,44 @@ var _ = Describe("All DataVolume Tests", func() {
 				}
 			}
 			Expect(found).To(BeTrue())
+		})
+
+		It("Should not update DV phase when PVC Prime is unbound", func() {
+			scName := "testSC"
+			sc := CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
+			csiDriver := &storagev1.CSIDriver{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "csi-plugin",
+				},
+			}
+			uploadDataVolume := newUploadDataVolume("test-dv")
+			uploadDataVolume.Spec.PVC.StorageClassName = &scName
+
+			reconciler = createUploadReconciler(sc, csiDriver, uploadDataVolume)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			dv := &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			// Get original DV phase
+			dvPhase := dv.Status.Phase
+
+			// Create PVC Prime
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			pvcPrime := &corev1.PersistentVolumeClaim{}
+			pvcPrime.Name = populators.PVCPrimeName(pvc)
+			pvcPrime.Status.Phase = corev1.ClaimPending
+			err = reconciler.client.Create(context.TODO(), pvcPrime)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = reconciler.updateStatus(getReconcileRequest(uploadDataVolume), nil, reconciler)
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(dvPhase))
 		})
 	})
 })
