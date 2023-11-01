@@ -244,21 +244,36 @@ func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, p
 		cc.AddAnnotation(pvc, cc.AnnPopulatorProgress, "100.0%")
 		return nil
 	}
-	importPod, err := r.getImportPod(pvcPrime)
+
+	importPodName, ok := pvcPrime.Annotations[cc.AnnImportPod]
+	if !ok {
+		return nil
+	}
+
+	importPod, err := r.getImportPod(pvcPrime, importPodName)
 	if err != nil {
 		return err
 	}
+
+	if importPod == nil {
+		_, ok := pvc.Annotations[cc.AnnPopulatorProgress]
+		// Initialize the progress once PVC Prime is bound
+		if !ok && pvcPrime.Status.Phase == corev1.ClaimBound {
+			cc.AddAnnotation(pvc, cc.AnnPopulatorProgress, "N/A")
+		}
+		return nil
+	}
+
 	// This will only work when the import pod is running
-	if importPod != nil && importPod.Status.Phase != corev1.PodRunning {
+	if importPod.Status.Phase != corev1.PodRunning {
 		return nil
 	}
+
 	url, err := cc.GetMetricsURL(importPod)
-	if err != nil {
+	if url == "" || err != nil {
 		return err
 	}
-	if url == "" {
-		return nil
-	}
+
 	// We fetch the import progress from the import pod metrics
 	importRegExp := regexp.MustCompile("progress\\{ownerUID\\=\"" + string(pvc.UID) + "\"\\} (\\d{1,3}\\.?\\d*)")
 	httpClient = cc.BuildHTTPClient(httpClient)
@@ -275,12 +290,7 @@ func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, p
 	return nil
 }
 
-func (r *ImportPopulatorReconciler) getImportPod(pvc *corev1.PersistentVolumeClaim) (*corev1.Pod, error) {
-	importPodName, ok := pvc.Annotations[cc.AnnImportPod]
-	if !ok {
-		return nil, nil
-	}
-
+func (r *ImportPopulatorReconciler) getImportPod(pvc *corev1.PersistentVolumeClaim, importPodName string) (*corev1.Pod, error) {
 	pod := &corev1.Pod{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: importPodName, Namespace: pvc.GetNamespace()}, pod); err != nil {
 		if !k8serrors.IsNotFound(err) {
