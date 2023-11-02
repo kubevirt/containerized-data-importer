@@ -27,6 +27,26 @@ _The required prerequisites in order to trigger efficient cloning methods_
 
 *Note: Data Volume Cloning can work together with namespace transfer and size expansion*  
 
+### Fallback to Host-Assisted Cloning
+Whenever the above cloning prerequisites are not met, we fallback to host-assisted cloning (`cloneType: copy`), which is the least efficient method of cloning. It uses a source pod and a target pod to copy data from the source volume to the target volume. In that case, the target PVC is annotated with the fallback reason and an event is emitted.
+
+E.g. in the PVC:
+```yaml
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    annotations:
+      cdi.kubevirt.io/cloneFallbackReason: The volume modes of source and target are incompatible
+      cdi.kubevirt.io/clonePhase: Succeeded
+      cdi.kubevirt.io/cloneType: copy
+```
+
+And in the events:
+```
+NAMESPACE   LAST SEEN   TYPE        REASON                      OBJECT                              MESSAGE
+test-ns     0s          Warning     IncompatibleVolumeModes     persistentvolumeclaim/test-target   The volume modes of source and target are incompatible
+```
+
 ### Additional Documentation
 * DataVolumes: [datavolumes](./datavolumes.md)
 * DataVolume Cloning: [clone-datavolumes](./clone-datavolume.md)
