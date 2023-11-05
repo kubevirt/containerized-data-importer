@@ -179,6 +179,41 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		}),
 	)
 
+	It("Should create new source pod if source PVC is in use by other host assisted source pod", func() {
+		testPvc := cc.CreatePvc("testPvc1", "default", map[string]string{
+			cc.AnnCloneRequest:   "default/source",
+			cc.AnnPodReady:       "true",
+			cc.AnnCloneToken:     "foobaz",
+			AnnUploadClientName:  "uploadclient",
+			cc.AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
+		sourcePvc := cc.CreatePvc("source", "default", map[string]string{}, nil)
+		pod := podUsingBlockPVC(sourcePvc, false)
+		pod.Name = "other-target-pvc-uid" + common.ClonerSourcePodNameSuffix
+		pod.Labels = map[string]string{
+			common.CDIComponentLabel: common.ClonerSourcePodName,
+		}
+		reconciler = createCloneReconciler(testPvc, sourcePvc, pod)
+		By("Setting up the match token")
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Name = "source"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Namespace = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetNamespace"] = "default"
+		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Params["targetName"] = "testPvc1"
+		By("Verifying no source pod exists")
+		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sourcePod).To(BeNil())
+		result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result.RequeueAfter).To(BeZero())
+		By("Verifying source pod gets created")
+		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sourcePod).ToNot(BeNil())
+		Expect(sourcePod.Name).ToNot(Equal(pod.Name))
+		reconciler = nil
+	})
+
 	DescribeTable("Should create new source pod if none exists, and target pod is marked ready and", func(sourceVolumeMode corev1.PersistentVolumeMode, podFunc func(*corev1.PersistentVolumeClaim) *corev1.Pod) {
 		testPvc := cc.CreatePvc("testPvc1", "default", map[string]string{
 			cc.AnnCloneRequest:   "default/source",
@@ -213,7 +248,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).ToNot(BeNil())
 		if sourceVolumeMode == corev1.PersistentVolumeBlock {
-			Expect(sourcePod.Spec.Volumes[0].PersistentVolumeClaim.ReadOnly).To(BeTrue())
+			Expect(sourcePod.Spec.Volumes[0].PersistentVolumeClaim.ReadOnly).To(BeFalse())
 		} else {
 			Expect(sourcePod.Spec.Containers[0].VolumeMounts[0].ReadOnly).To(BeTrue())
 			Expect(sourcePod.Spec.Volumes[0].PersistentVolumeClaim.ReadOnly).To(BeFalse())
@@ -865,4 +900,36 @@ func createSourcePod(pvc *corev1.PersistentVolumeClaim, pvcUID string) *corev1.P
 	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, addVars...)
 
 	return pod
+}
+
+func podUsingBlockPVC(pvc *corev1.PersistentVolumeClaim, readOnly bool) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: pvc.Namespace,
+			Name:      pvc.Name + "-pod",
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					VolumeDevices: []corev1.VolumeDevice{
+						{
+							Name:       "v1",
+							DevicePath: common.WriteBlockPath,
+						},
+					},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name: "v1",
+					VolumeSource: corev1.VolumeSource{
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvc.Name,
+							ReadOnly:  readOnly,
+						},
+					},
+				},
+			},
+		},
+	}
 }
