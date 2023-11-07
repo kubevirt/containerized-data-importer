@@ -178,7 +178,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 			}
 		})
 
-		It("[test_id:XXXX] CDIMultipleDefaultVirtStorageClasses fired when more than one default virt storage class exists", func() {
+		It("[test_id:10512]CDIMultipleDefaultVirtStorageClasses fired when more than one default virt storage class exists", func() {
 			numAddedStorageClasses = 2
 			for i := 0; i < numAddedStorageClasses; i++ {
 				sc := createUnknownStorageClass(fmt.Sprintf("unknown-sc-%d", i), "kubernetes.io/non-existent-provisioner")
