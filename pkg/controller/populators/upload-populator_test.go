@@ -187,6 +187,24 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(errors.IsNotFound(err)).To(BeTrue())
 	})
 
+	It("should always remove the PVCPrimeName annotation once the pod succeeds", func() {
+		pvc := newUploadPopulatorPVC("test-pvc")
+		pvc.Spec.VolumeName = "test-pv"
+		pvcPrime := newUploadPopulatorPVC(PVCPrimeName(pvc))
+		cc.AddAnnotation(pvcPrime, cc.AnnPodPhase, string(corev1.PodSucceeded))
+		cc.AddAnnotation(pvcPrime, AnnPVCPrimeName, pvcPrime.Name)
+
+		r := createUploadPopulatorReconciler(pvc, pvcPrime)
+		err := r.updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime, r.updateUploadAnnotations)
+		Expect(err).ToNot(HaveOccurred())
+
+		//should always remove the pvc prime annotation
+		updatedPVC := &corev1.PersistentVolumeClaim{}
+		err = r.client.Get(context.TODO(), types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, updatedPVC)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(updatedPVC.GetAnnotations()[AnnPVCPrimeName]).To(BeEmpty())
+	})
+
 	It("should wait for selected node annotation in case of wffc", func() {
 		pvc := newUploadPopulatorPVC("test-pvc")
 		volumeUploadSourceCR := newUploadPopulatorCR("", false)
