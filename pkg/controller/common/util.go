@@ -1915,6 +1915,7 @@ func GetSnapshotClassForSmartClone(pvc *corev1.PersistentVolumeClaim, targetPvcS
 }
 
 // GetVolumeSnapshotClass looks up the snapshot class based on the driver and an optional specific name
+// In case of multiple candidates, it returns the default-annotated one, or the sorted list first one if no such default
 func GetVolumeSnapshotClass(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim, driver string, snapshotClassName *string, log logr.Logger, recorder record.EventRecorder) (*string, error) {
 	logger := log.WithName("GetVolumeSnapshotClass").V(3)
 
@@ -1933,7 +1934,7 @@ func GetVolumeSnapshotClass(ctx context.Context, c client.Client, pvc *corev1.Pe
 		}
 		if vsc.Driver == driver {
 			logEvent(MessageStorageProfileVolumeSnapshotClassSelected, vsc.Name)
-			return &vsc.Name, nil
+			return snapshotClassName, nil
 		}
 		return nil, nil
 	}
@@ -1951,7 +1952,8 @@ func GetVolumeSnapshotClass(ctx context.Context, c client.Client, pvc *corev1.Pe
 		if vsc.Driver == driver {
 			if vsc.Annotations[AnnDefaultSnapshotClass] == "true" {
 				logEvent(MessageDefaultVolumeSnapshotClassSelected, vsc.Name)
-				return &vsc.Name, nil
+				vscName := vsc.Name
+				return &vscName, nil
 			}
 			candidates = append(candidates, vsc.Name)
 		}

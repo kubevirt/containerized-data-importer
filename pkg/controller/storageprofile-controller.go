@@ -364,7 +364,7 @@ func NewStorageProfileController(mgr manager.Manager, log logr.Logger, installer
 	}
 
 	storageProfileController, err := controller.New(
-		dataImportControllerName,
+		storageProfileControllerName,
 		mgr,
 		controller.Options{Reconciler: reconciler, MaxConcurrentReconciles: 3})
 	if err != nil {
