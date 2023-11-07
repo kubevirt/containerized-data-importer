@@ -7,8 +7,8 @@ go_library(
         "enterprise_cert.go",
         "secureconnect_cert.go",
     ],
-    importmap = "kubevirt.io/containerized-data-importer/vendor/google.golang.org/api/transport/cert",
-    importpath = "google.golang.org/api/transport/cert",
-    visibility = ["//visibility:public"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/google.golang.org/api/internal/cert",
+    importpath = "google.golang.org/api/internal/cert",
+    visibility = ["//vendor/google.golang.org/api:__subpackages__"],
     deps = ["//vendor/github.com/googleapis/enterprise-certificate-proxy/client:go_default_library"],
 )
