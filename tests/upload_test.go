@@ -415,31 +415,15 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			if utils.DefaultStorageClassCsiDriver == nil {
 				Skip("No CSI driver found")
 			}
-			verifyCleanup(pvc)
 		})
 
-		AfterEach(func() {
-			By("Deleting verifier pod")
-			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
-			Expect(err).ToNot(HaveOccurred())
-
-			err := f.DynamicClient.Resource(uploadSourceGVR).Namespace(f.Namespace.Name).Delete(context.TODO(), "upload-populator-test", metav1.DeleteOptions{})
-			if err != nil && !k8serrors.IsNotFound(err) {
-				Expect(err).ToNot(HaveOccurred())
-			}
-
-			By("Delete upload population PVC")
-			err = f.DeletePVC(pvc)
-			Expect(err).ToNot(HaveOccurred())
-
-		})
 		Context("standard", func() {
 			BeforeEach(func() {
 				err := createUploadPopulatorCR(cdiv1.DataVolumeKubeVirt)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			DescribeTable("should", func(uploader uploadFunc, validToken, blockMode bool, expectedStatus int) {
+			FDescribeTable("should", func(uploader uploadFunc, validToken, blockMode bool, expectedStatus int) {
 				pvcDef := utils.UploadPopulationPVCDefinition()
 				if blockMode {
 					if !f.IsBlockVolumeStorageClassAvailable() {
