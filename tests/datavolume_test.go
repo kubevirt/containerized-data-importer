@@ -1387,13 +1387,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 				Expect(pvc.Spec.StorageClassName).To(HaveValue(Equal(getExpectedStorageClassName())))
 			},
-				Entry("respect default virt storage class for import DataVolume", importFunc, getDefaultVirtStorageClassName, false),
-				Entry("respect default virt storage class for upload DataVolume", uploadFunc, getDefaultVirtStorageClassName, false),
-				Entry("respect default virt storage class for clone DataVolume", cloneFunc, getDefaultVirtStorageClassName, false),
-				Entry("respect default virt storage class even if no k8s default exists", importFunc, getDefaultVirtStorageClassName, true),
-				Entry("not respect default virt storage class for contenType other than kubevirt", archiveFunc, getDefaultStorageClassName, false),
-				Entry("not respect default virt storage class for PVC api", importFuncPVCAPI, getDefaultStorageClassName, false),
-				Entry("not respect default virt storage class if explicit storage class provided", importExplicitScFunc, getDummyStorageClassName, false),
+				Entry("[test_id:10505]respect default virt storage class for import DataVolume", importFunc, getDefaultVirtStorageClassName, false),
+				Entry("[test_id:10506]respect default virt storage class for upload DataVolume", uploadFunc, getDefaultVirtStorageClassName, false),
+				Entry("[test_id:10507]respect default virt storage class for clone DataVolume", cloneFunc, getDefaultVirtStorageClassName, false),
+				Entry("[test_id:10508]respect default virt storage class even if no k8s default exists", importFunc, getDefaultVirtStorageClassName, true),
+				Entry("[test_id:10509]not respect default virt storage class for contenType other than kubevirt", archiveFunc, getDefaultStorageClassName, false),
+				Entry("[test_id:10510]not respect default virt storage class for PVC api", importFuncPVCAPI, getDefaultStorageClassName, false),
+				Entry("[test_id:10511]not respect default virt storage class if explicit storage class provided", importExplicitScFunc, getDummyStorageClassName, false),
 			)
 		})
 
