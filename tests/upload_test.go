@@ -431,6 +431,13 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 					}
 					pvcDef = utils.UploadPopulationBlockPVCDefinition(f.BlockSCName)
 				}
+				// Let's see if the PVC exist before creating it
+				pvc, err = utils.FindPVC(f.K8sClient, f.Namespace.Name, pvcDef.Name)
+				if pvc != nil {
+					By("PVC already exists. This isn't good")
+					fmt.Println(pvc)
+					fmt.Println(err.Error())
+				}
 				pvc = f.CreateScheduledPVCFromDefinition(pvcDef)
 
 				By("Verify PVC prime was created")
@@ -501,6 +508,20 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				} else {
 					checkFailureNoValidToken(pvcPrime)
 				}
+
+				By("Deleting verifier pod")
+				err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = f.DynamicClient.Resource(uploadSourceGVR).Namespace(f.Namespace.Name).Delete(context.TODO(), "upload-populator-test", metav1.DeleteOptions{})
+				if err != nil && !k8serrors.IsNotFound(err) {
+					Expect(err).ToNot(HaveOccurred())
+				}
+
+				By("Delete upload population PVC")
+				err = f.DeletePVC(pvc)
+				fmt.Println("Namespaces:", pvc.Namespace, f.Namespace.Name)
+				Expect(err).ToNot(HaveOccurred())
 			},
 				Entry("succeed given a valid token", uploadImage, true, false, http.StatusOK),
 				Entry("succeed given a valid token (async)", uploadImageAsync, true, false, http.StatusOK),

@@ -1714,6 +1714,7 @@ func Rebind(ctx context.Context, c client.Client, source, target *corev1.Persist
 	}
 
 	if err := c.Get(ctx, client.ObjectKeyFromObject(pv), pv); err != nil {
+		klog.Errorf("No PV %s", pv.Name)
 		return err
 	}
 
@@ -1729,6 +1730,7 @@ func Rebind(ctx context.Context, c client.Client, source, target *corev1.Persist
 			return fmt.Errorf("PV %s bound to unexpected claim %s", pv.Name, pv.Spec.ClaimRef.Name)
 		}
 		// our work is done
+		klog.V(1).Info("our work is done")
 		return nil
 	}
 
@@ -1739,7 +1741,7 @@ func Rebind(ctx context.Context, c client.Client, source, target *corev1.Persist
 		UID:             target.UID,
 		ResourceVersion: target.ResourceVersion,
 	}
-	klog.V(3).Info("Rebinding PV to target PVC", "PVC", target.Name)
+	klog.V(1).Info("Rebinding PV to target PVC", "PVC", target.Name)
 	if err := c.Update(context.TODO(), pv); err != nil {
 		return err
 	}
