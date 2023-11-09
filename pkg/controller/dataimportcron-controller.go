@@ -326,7 +326,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	if desiredStorageClass != nil {
 		cc.AddAnnotation(dataImportCron, AnnStorageClass, desiredStorageClass.Name)
 	}
-	format, err := r.getSourceFormat(ctx, dataImportCron, desiredStorageClass)
+	format, err := r.getSourceFormat(ctx, desiredStorageClass)
 	if err != nil {
 		return res, err
 	}
@@ -688,8 +688,11 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 		r.log.Info("Attempt to change storage class, will not try making a snapshot of the old PVC")
 		return nil
 	}
-
-	className, err := cc.GetSnapshotClassForSmartClone(pvc.Name, &desiredStorageClass.Name, r.log, r.client)
+	storageProfile := &cdiv1.StorageProfile{}
+	if err := r.client.Get(ctx, types.NamespacedName{Name: desiredStorageClass.Name}, storageProfile); err != nil {
+		return err
+	}
+	className, err := cc.GetSnapshotClassForSmartClone(pvc, &desiredStorageClass.Name, storageProfile.Status.SnapshotClass, r.log, r.client, r.recorder)
 	if err != nil {
 		return err
 	}
@@ -713,7 +716,7 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 	r.setDataImportCronResourceLabels(dataImportCron, desiredSnapshot)
 
 	currentSnapshot := &snapshotv1.VolumeSnapshot{}
-	if err := r.client.Get(context.TODO(), client.ObjectKeyFromObject(desiredSnapshot), currentSnapshot); err != nil {
+	if err := r.client.Get(ctx, client.ObjectKeyFromObject(desiredSnapshot), currentSnapshot); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			return err
 		}
@@ -757,14 +760,14 @@ func (r *DataImportCronReconciler) updateDataImportCronSuccessCondition(ctx cont
 	return nil
 }
 
-func (r *DataImportCronReconciler) getSourceFormat(ctx context.Context, dataImportCron *cdiv1.DataImportCron, desiredStorageClass *storagev1.StorageClass) (cdiv1.DataImportCronSourceFormat, error) {
+func (r *DataImportCronReconciler) getSourceFormat(ctx context.Context, desiredStorageClass *storagev1.StorageClass) (cdiv1.DataImportCronSourceFormat, error) {
 	format := cdiv1.DataImportCronSourceFormatPvc
 	if desiredStorageClass == nil {
 		return format, nil
 	}
 
 	storageProfile := &cdiv1.StorageProfile{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: desiredStorageClass.Name}, storageProfile); err != nil {
+	if err := r.client.Get(ctx, types.NamespacedName{Name: desiredStorageClass.Name}, storageProfile); err != nil {
 		return format, err
 	}
 	if storageProfile.Status.DataImportCronSourceFormat != nil {

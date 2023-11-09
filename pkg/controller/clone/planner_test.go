@@ -55,6 +55,8 @@ var _ = Describe("Planner test", func() {
 	)
 
 	var (
+		planner *Planner
+
 		storageClassName = "sc"
 
 		small  = resource.MustParse("5Gi")
@@ -242,6 +244,13 @@ var _ = Describe("Planner test", func() {
 		Expect(found).To(BeTrue())
 	}
 
+	AfterEach(func() {
+		if planner != nil && planner.Recorder != nil {
+			close(planner.Recorder.(*record.FakeRecorder).Events)
+			planner = nil
+		}
+	})
+
 	Context("ChooseStrategy tests", func() {
 
 		It("should error if unsupported kind", func() {
@@ -251,7 +260,7 @@ var _ = Describe("Planner test", func() {
 				DataSource: source,
 				Log:        log,
 			}
-			planner := createPlanner()
+			planner = createPlanner()
 			_, err := planner.ChooseStrategy(context.Background(), args)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("unsupported datasource"))
@@ -266,7 +275,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createPVCDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner()
+				planner = createPlanner()
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).To(BeNil())
@@ -280,7 +289,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createPVCDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner()
+				planner = createPlanner()
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("claim has emptystring storageclass, will not work"))
@@ -293,7 +302,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createPVCDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner()
+				planner = createPlanner()
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("target storage class not found"))
@@ -306,7 +315,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createPVCDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(createStorageClass())
+				planner = createPlanner(createStorageClass())
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).To(BeNil())
@@ -322,7 +331,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createPVCDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(createStorageClass(), source)
+				planner = createPlanner(createStorageClass(), source)
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(HavePrefix("target resources requests storage size is smaller than the source"))
@@ -336,7 +345,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createPVCDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(createStorageClass(), createSourceClaim())
+				planner = createPlanner(createStorageClass(), createSourceClaim())
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).ToNot(BeNil())
@@ -352,7 +361,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createPVCDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass(), createSourceVolume())
+				planner = createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass(), createSourceVolume())
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).ToNot(BeNil())
@@ -365,7 +374,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createPVCDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass())
+				planner = createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass())
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).ToNot(BeNil())
@@ -382,7 +391,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createPVCDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(createStorageClass(), createVolumeSnapshotClass(), sourceClaim, sourceVolume)
+				planner = createPlanner(createStorageClass(), createVolumeSnapshotClass(), sourceClaim, sourceVolume)
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).ToNot(BeNil())
@@ -397,7 +406,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createPVCDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass())
+				planner = createPlanner(createStorageClass(), createSourceClaim(), createVolumeSnapshotClass())
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).ToNot(BeNil())
@@ -414,7 +423,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createPVCDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(storageClass, createSourceClaim(), createVolumeSnapshotClass())
+				planner = createPlanner(storageClass, createSourceClaim(), createVolumeSnapshotClass())
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).ToNot(BeNil())
@@ -433,7 +442,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createPVCDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(createStorageClass(), createVolumeSnapshotClass(), source)
+				planner = createPlanner(createStorageClass(), createVolumeSnapshotClass(), source)
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).ToNot(BeNil())
@@ -450,7 +459,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createPVCDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(createStorageClass(), createSourceClaim())
+				planner = createPlanner(createStorageClass(), createSourceClaim())
 				cdi := &cdiv1.CDI{}
 				err := planner.Client.Get(context.Background(), client.ObjectKeyFromObject(cc.MakeEmptyCDICR()), cdi)
 				Expect(err).ToNot(HaveOccurred())
@@ -478,7 +487,7 @@ var _ = Describe("Planner test", func() {
 						CloneStrategy: &cs,
 					},
 				}
-				planner := createPlanner(sp, createStorageClass(), createSourceClaim())
+				planner = createPlanner(sp, createStorageClass(), createSourceClaim())
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).ToNot(BeNil())
@@ -505,7 +514,7 @@ var _ = Describe("Planner test", func() {
 				sourceVolume := createSourceVolume()
 				sourceVolume.Spec.StorageClassName = "foo"
 				sourceVolume.Spec.PersistentVolumeSource.CSI.Driver = "baz"
-				planner := createPlanner(sp, createStorageClass(), sourceClaim, sourceVolume)
+				planner = createPlanner(sp, createStorageClass(), sourceClaim, sourceVolume)
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).ToNot(BeNil())
@@ -533,7 +542,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createSnapshotDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(createStorageClass())
+				planner = createPlanner(createStorageClass())
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).To(BeNil())
@@ -546,7 +555,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createSnapshotDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner()
+				planner = createPlanner()
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("target storage class not found"))
@@ -562,7 +571,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createSnapshotDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(createStorageClass(), source)
+				planner = createPlanner(createStorageClass(), source)
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("volumeSnapshotContent name not found"))
@@ -577,7 +586,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createSnapshotDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(createStorageClass(), source, createDefaultVolumeSnapshotContent("test"))
+				planner = createPlanner(createStorageClass(), source, createDefaultVolumeSnapshotContent("test"))
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).ToNot(BeNil())
@@ -596,7 +605,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createSnapshotDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(createStorageClass(), source, createDefaultVolumeSnapshotContent("driver"))
+				planner = createPlanner(createStorageClass(), source, createDefaultVolumeSnapshotContent("driver"))
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("snapshot has no RestoreSize"))
@@ -613,7 +622,7 @@ var _ = Describe("Planner test", func() {
 				}
 				sc := createStorageClass()
 				sc.AllowVolumeExpansion = nil
-				planner := createPlanner(sc, source, createDefaultVolumeSnapshotContent("driver"))
+				planner = createPlanner(sc, source, createDefaultVolumeSnapshotContent("driver"))
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).ToNot(BeNil())
@@ -631,7 +640,7 @@ var _ = Describe("Planner test", func() {
 					DataSource:  createSnapshotDataSource(),
 					Log:         log,
 				}
-				planner := createPlanner(createStorageClass(), source, createDefaultVolumeSnapshotContent("driver"))
+				planner = createPlanner(createStorageClass(), source, createDefaultVolumeSnapshotContent("driver"))
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).ToNot(BeNil())
@@ -750,7 +759,7 @@ var _ = Describe("Planner test", func() {
 				DataSource:  createPVCDataSource(),
 				Log:         log,
 			}
-			planner := createPlanner(cdiConfig, createStorageClass(), source)
+			planner = createPlanner(cdiConfig, createStorageClass(), source)
 			plan, err := planner.Plan(context.Background(), args)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(plan).ToNot(BeNil())
@@ -768,7 +777,7 @@ var _ = Describe("Planner test", func() {
 				DataSource:  createPVCDataSource(),
 				Log:         log,
 			}
-			planner := createPlanner(cdiConfig, createStorageClass(), createVolumeSnapshotClass(), source)
+			planner = createPlanner(cdiConfig, createStorageClass(), createVolumeSnapshotClass(), source)
 			plan, err := planner.Plan(context.Background(), args)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(plan).ToNot(BeNil())
@@ -788,7 +797,7 @@ var _ = Describe("Planner test", func() {
 				DataSource:  createPVCDataSource(),
 				Log:         log,
 			}
-			planner := createPlanner(cdiConfig, createStorageClass(), source)
+			planner = createPlanner(cdiConfig, createStorageClass(), source)
 			plan, err := planner.Plan(context.Background(), args)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(plan).ToNot(BeNil())
@@ -807,7 +816,7 @@ var _ = Describe("Planner test", func() {
 				DataSource:  createSnapshotDataSource(),
 				Log:         log,
 			}
-			planner := createPlanner(cdiConfig, createStorageClass(), source, createVolumeSnapshotClass(), createDefaultVolumeSnapshotContent())
+			planner = createPlanner(cdiConfig, createStorageClass(), source, createVolumeSnapshotClass(), createDefaultVolumeSnapshotContent())
 			plan, err := planner.Plan(context.Background(), args)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(plan).ToNot(BeNil())
@@ -826,7 +835,7 @@ var _ = Describe("Planner test", func() {
 				DataSource:  createSnapshotDataSource(),
 				Log:         log,
 			}
-			planner := createPlanner(cdiConfig, createStorageClass(), source, createVolumeSnapshotClass(), createDefaultVolumeSnapshotContent())
+			planner = createPlanner(cdiConfig, createStorageClass(), source, createVolumeSnapshotClass(), createDefaultVolumeSnapshotContent())
 			plan, err := planner.Plan(context.Background(), args)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(plan).ToNot(BeNil())
@@ -848,7 +857,7 @@ var _ = Describe("Planner test", func() {
 			}
 			sc := createStorageClass()
 			sc.Provisioner = "test-error"
-			planner := createPlanner(cdiConfig, sc, source, createVolumeSnapshotClass(), createDefaultVolumeSnapshotContent())
+			planner = createPlanner(cdiConfig, sc, source, createVolumeSnapshotClass(), createDefaultVolumeSnapshotContent())
 			plan, err := planner.Plan(context.Background(), args)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("unable to find a valid storage class for the temporal source claim"))
@@ -893,7 +902,7 @@ var _ = Describe("Planner test", func() {
 		It("should cleanup tmp resources", func() {
 			tempObjs := tempResources()
 			target := createTargetClaim()
-			planner := createPlanner(tempObjs...)
+			planner = createPlanner(tempObjs...)
 			err := planner.Cleanup(context.Background(), log, target)
 			Expect(err).ToNot(HaveOccurred())
 			for _, r := range tempResources() {
