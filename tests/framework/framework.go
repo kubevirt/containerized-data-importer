@@ -58,7 +58,7 @@ const (
 // run-time flags
 var (
 	ClientsInstance = &Clients{}
-	reporter        = NewKubernetesReporter()
+	reporter        *KubernetesReporter
 )
 
 // Config provides some basic test config options
@@ -141,6 +141,12 @@ func NewFramework(prefix string, config ...Config) *Framework {
 	if len(config) > 0 {
 		cfg = config[0]
 	}
+	artifactsPath := os.Getenv("ARTIFACTS")
+	suiteConfig, _ := ginkgo.GinkgoConfiguration()
+	if suiteConfig.ParallelTotal > 1 {
+		artifactsPath = filepath.Join(artifactsPath, strconv.Itoa(ginkgo.GinkgoParallelProcess()))
+	}
+	reporter = NewKubernetesReporter(artifactsPath)
 	f := &Framework{
 		Config:   cfg,
 		NsPrefix: prefix,
@@ -834,10 +840,10 @@ type KubernetesReporter struct {
 }
 
 // NewKubernetesReporter creates a new instance of the reporter.
-func NewKubernetesReporter() *KubernetesReporter {
+func NewKubernetesReporter(artifactsDir string) *KubernetesReporter {
 	return &KubernetesReporter{
 		FailureCount: 0,
-		artifactsDir: os.Getenv("ARTIFACTS"),
+		artifactsDir: artifactsDir,
 		maxFails:     getMaxFailsFromEnv(),
 	}
 }
