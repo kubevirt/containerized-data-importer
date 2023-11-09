@@ -340,7 +340,7 @@ func (p *Planner) computeStrategyForSourcePVC(ctx context.Context, args *ChooseS
 	}
 
 	if strategy == cdiv1.CloneStrategySnapshot {
-		n, err := GetCompatibleVolumeSnapshotClass(ctx, p.Client, sourceClaim, args.TargetClaim)
+		n, err := GetCompatibleVolumeSnapshotClass(ctx, p.Client, args.Log, p.Recorder, sourceClaim, args.TargetClaim)
 		if err != nil {
 			return nil, err
 		}
@@ -660,7 +660,7 @@ func (p *Planner) planSnapshotFromPVC(ctx context.Context, args *PlanArgs) ([]Ph
 		return nil, fmt.Errorf("source claim does not exist")
 	}
 
-	vsc, err := GetCompatibleVolumeSnapshotClass(ctx, p.Client, sourceClaim, args.TargetClaim)
+	vsc, err := GetCompatibleVolumeSnapshotClass(ctx, p.Client, args.Log, p.Recorder, args.TargetClaim)
 	if err != nil {
 		return nil, err
 	}

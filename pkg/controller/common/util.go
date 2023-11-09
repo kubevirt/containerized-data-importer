@@ -207,13 +207,15 @@ const (
 	// AnnPopulatorKind annotation is added to a PVC' to specify the population kind, so it's later
 	// checked by the common populator watches.
 	AnnPopulatorKind = AnnAPIGroup + "/storage.populator.kind"
-	//AnnUsePopulator annotation indicates if the datavolume population will use populators
+	// AnnUsePopulator annotation indicates if the datavolume population will use populators
 	AnnUsePopulator = AnnAPIGroup + "/storage.usePopulator"
 
-	//AnnDefaultStorageClass is the annotation indicating that a storage class is the default one.
+	// AnnDefaultStorageClass is the annotation indicating that a storage class is the default one
 	AnnDefaultStorageClass = "storageclass.kubernetes.io/is-default-class"
 	// AnnDefaultVirtStorageClass is the annotation indicating that a storage class is the default one for virtualization purposes
 	AnnDefaultVirtStorageClass = "storageclass.kubevirt.io/is-default-virt-class"
+	// AnnDefaultSnapshotClass is the annotation indicating that a snapshot class is the default one
+	AnnDefaultSnapshotClass = "snapshot.storage.kubernetes.io/is-default-class"
 
 	// AnnOpenShiftImageLookup is the annotation for OpenShift image stream lookup
 	AnnOpenShiftImageLookup = "alpha.image.policy.openshift.io/resolve-names"
@@ -280,6 +282,15 @@ const (
 	SourceImageio = "imageio"
 	// SourceVDDK is the source type of VDDK
 	SourceVDDK = "vddk"
+
+	// VolumeSnapshotClassSelected reports that a VolumeSnapshotClass was selected
+	VolumeSnapshotClassSelected = "VolumeSnapshotClassSelected"
+	// MessageStorageProfileVolumeSnapshotClassSelected reports that a VolumeSnapshotClass was selected according to StorageProfile
+	MessageStorageProfileVolumeSnapshotClassSelected = "VolumeSnapshotClass selected according to StorageProfile"
+	// MessageDefaultVolumeSnapshotClassSelected reports that the default VolumeSnapshotClass was selected
+	MessageDefaultVolumeSnapshotClassSelected = "Default VolumeSnapshotClass selected"
+	// MessageFirstVolumeSnapshotClassSelected reports that the first VolumeSnapshotClass was selected
+	MessageFirstVolumeSnapshotClassSelected = "First VolumeSnapshotClass selected"
 
 	// ClaimLost reason const
 	ClaimLost = "ClaimLost"
@@ -1870,7 +1881,7 @@ func ValidateSnapshotCloneProvisioners(ctx context.Context, c client.Client, sna
 }
 
 // GetSnapshotClassForSmartClone looks up the snapshot class based on the storage class
-func GetSnapshotClassForSmartClone(dvName string, targetPvcStorageClassName *string, log logr.Logger, client client.Client) (string, error) {
+func GetSnapshotClassForSmartClone(pvc *corev1.PersistentVolumeClaim, targetPvcStorageClassName, snapshotClassName *string, log logr.Logger, client client.Client, recorder record.EventRecorder) (string, error) {
 	logger := log.WithName("GetSnapshotClassForSmartClone").V(3)
 	// Check if relevant CRDs are available
 	if !isCsiCrdsDeployed(client, log) {
@@ -1887,23 +1898,74 @@ func GetSnapshotClassForSmartClone(dvName string, targetPvcStorageClassName *str
 		return "", nil
 	}
 
-	// List the snapshot classes
-	scs := &snapshotv1.VolumeSnapshotClassList{}
-	if err := client.List(context.TODO(), scs); err != nil {
-		logger.Info("Cannot list snapshot classes, falling back to host assisted clone")
+	vscName, err := GetVolumeSnapshotClass(context.TODO(), client, pvc, targetStorageClass.Provisioner, snapshotClassName, logger, recorder)
+	if err != nil {
 		return "", err
 	}
-	for _, snapshotClass := range scs.Items {
-		// Validate association between snapshot class and storage class
-		if snapshotClass.Driver == targetStorageClass.Provisioner {
+	if vscName != nil {
+		if pvc != nil {
 			logger.Info("smart-clone is applicable for datavolume", "datavolume",
-				dvName, "snapshot class", snapshotClass.Name)
-			return snapshotClass.Name, nil
+				pvc.Name, "snapshot class", *vscName)
 		}
+		return *vscName, nil
 	}
 
 	logger.Info("Could not match snapshotter with storage class, falling back to host assisted clone")
 	return "", nil
+}
+
+// GetVolumeSnapshotClass looks up the snapshot class based on the driver and an optional specific name
+// In case of multiple candidates, it returns the default-annotated one, or the sorted list first one if no such default
+func GetVolumeSnapshotClass(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim, driver string, snapshotClassName *string, log logr.Logger, recorder record.EventRecorder) (*string, error) {
+	logger := log.WithName("GetVolumeSnapshotClass").V(3)
+
+	logEvent := func(message, vscName string) {
+		logger.Info(message, "name", vscName)
+		if pvc != nil {
+			msg := fmt.Sprintf("%s %s", message, vscName)
+			recorder.Event(pvc, corev1.EventTypeNormal, VolumeSnapshotClassSelected, msg)
+		}
+	}
+
+	if snapshotClassName != nil {
+		vsc := &snapshotv1.VolumeSnapshotClass{}
+		if err := c.Get(context.TODO(), types.NamespacedName{Name: *snapshotClassName}, vsc); err != nil {
+			return nil, err
+		}
+		if vsc.Driver == driver {
+			logEvent(MessageStorageProfileVolumeSnapshotClassSelected, vsc.Name)
+			return snapshotClassName, nil
+		}
+		return nil, nil
+	}
+
+	vscList := &snapshotv1.VolumeSnapshotClassList{}
+	if err := c.List(ctx, vscList); err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var candidates []string
+	for _, vsc := range vscList.Items {
+		if vsc.Driver == driver {
+			if vsc.Annotations[AnnDefaultSnapshotClass] == "true" {
+				logEvent(MessageDefaultVolumeSnapshotClassSelected, vsc.Name)
+				vscName := vsc.Name
+				return &vscName, nil
+			}
+			candidates = append(candidates, vsc.Name)
+		}
+	}
+
+	if len(candidates) > 0 {
+		sort.Strings(candidates)
+		logEvent(MessageFirstVolumeSnapshotClassSelected, candidates[0])
+		return &candidates[0], nil
+	}
+
+	return nil, nil
 }
 
 // isCsiCrdsDeployed checks whether the CSI snapshotter CRD are deployed

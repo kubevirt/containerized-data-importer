@@ -6907,6 +6907,11 @@ spec:
                 description: DataImportCronSourceFormat defines the format of the
                   DataImportCron-created disk image sources
                 type: string
+              snapshotClass:
+                description: SnapshotClass is optional specific VolumeSnapshotClass
+                  for CloneStrategySnapshot. If not set, a VolumeSnapshotClass is
+                  chosen according to the provisioner.
+                type: string
             type: object
           status:
             description: StorageProfileStatus provides the most recently observed
@@ -6942,6 +6947,11 @@ spec:
                 type: string
               provisioner:
                 description: The Storage class provisioner plugin name
+                type: string
+              snapshotClass:
+                description: SnapshotClass is optional specific VolumeSnapshotClass
+                  for CloneStrategySnapshot. If not set, a VolumeSnapshotClass is
+                  chosen according to the provisioner.
                 type: string
               storageClass:
                 description: The StorageClass name for which capabilities are defined

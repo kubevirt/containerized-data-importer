@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -33,6 +34,8 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
+
+const storageProfileControllerName = "storageprofile-controller"
 
 var (
 	// IncompleteProfileGauge is the metric we use to alert about incomplete storage profiles
@@ -54,6 +57,7 @@ type StorageProfileReconciler struct {
 	client client.Client
 	// use this for getting any resources not in the install namespace or cluster scope
 	uncachedClient  client.Client
+	recorder        record.EventRecorder
 	scheme          *runtime.Scheme
 	log             logr.Logger
 	installerLabels map[string]string
@@ -92,9 +96,12 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 
 	storageProfile.Status.StorageClass = &sc.Name
 	storageProfile.Status.Provisioner = &sc.Provisioner
-	snapClass, err := cc.GetSnapshotClassForSmartClone("", &sc.Name, r.log, r.client)
+	snapClass, err := cc.GetSnapshotClassForSmartClone(nil, &sc.Name, storageProfile.Spec.SnapshotClass, r.log, r.client, r.recorder)
 	if err != nil {
 		return reconcile.Result{}, err
+	}
+	if snapClass != "" {
+		storageProfile.Status.SnapshotClass = &snapClass
 	}
 	storageProfile.Status.CloneStrategy = r.reconcileCloneStrategy(sc, storageProfile.Spec.CloneStrategy, snapClass)
 	storageProfile.Status.DataImportCronSourceFormat = r.reconcileDataImportCronSourceFormat(sc, storageProfile.Spec.DataImportCronSourceFormat, snapClass)
@@ -346,16 +353,18 @@ func NewStorageProfileController(mgr manager.Manager, log logr.Logger, installer
 	if err != nil {
 		return nil, err
 	}
+
 	reconciler := &StorageProfileReconciler{
 		client:          mgr.GetClient(),
 		uncachedClient:  uncachedClient,
+		recorder:        mgr.GetEventRecorderFor(storageProfileControllerName),
 		scheme:          mgr.GetScheme(),
-		log:             log.WithName("storageprofile-controller"),
+		log:             log.WithName(storageProfileControllerName),
 		installerLabels: installerLabels,
 	}
 
 	storageProfileController, err := controller.New(
-		"storageprofile-controller",
+		storageProfileControllerName,
 		mgr,
 		controller.Options{Reconciler: reconciler, MaxConcurrentReconciles: 3})
 	if err != nil {
