@@ -134,7 +134,16 @@ var _ = Describe("DataImportCron", func() {
 				},
 			}
 			snapshot = utils.WaitSnapshotReady(f.CrClient, snapshot)
-			deleted, err := utils.WaitPVCDeleted(f.K8sClient, name, ns, 2*time.Minute)
+			deleted, err := utils.WaitPVCDeleted(f.K8sClient, name, ns, 30*time.Second)
+			if err != nil {
+				// work around https://github.com/kubernetes-csi/external-snapshotter/issues/957
+				// it does converge after the resync period of snapshot controller (15mins)
+				cc.AddAnnotation(snapshot, "workaround", "triggersync")
+				err = f.CrClient.Update(context.TODO(), snapshot)
+				Expect(err).ToNot(HaveOccurred())
+				// try again
+				deleted, err = utils.WaitPVCDeleted(f.K8sClient, name, ns, 30*time.Second)
+			}
 			Expect(err).ToNot(HaveOccurred())
 			Expect(deleted).To(BeTrue())
 			// check pvc is not recreated
