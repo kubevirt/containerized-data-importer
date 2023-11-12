@@ -530,7 +530,7 @@ var _ = Describe("CDI route config tests", Serial, func() {
 var _ = Describe("CDIConfig instance management", Serial, func() {
 	f := framework.NewFramework("cdiconfig-test")
 
-	Context("[Destructive]", func() {
+	Context("[Destructive]", Serial, func() {
 		It("[test_id:4952]Should re-create the object if deleted", func() {
 			By("Verifying the object exists")
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
