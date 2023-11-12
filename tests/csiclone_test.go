@@ -16,7 +16,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:4219] CSI Volume cloning tests", func() {
+var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:4219] CSI Volume cloning tests", Serial, func() {
 	var originalProfileSpec *cdiv1.StorageProfileSpec
 	var cloneStorageClassName string
 
