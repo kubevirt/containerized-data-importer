@@ -34,7 +34,7 @@ var (
 	defaultUrl = ""
 )
 
-var _ = Describe("CDI storage class config tests", func() {
+var _ = Describe("CDI storage class config tests", Serial, func() {
 	var (
 		f                   = framework.NewFramework("cdiconfig-test")
 		defaultSc, secondSc *storagev1.StorageClass
@@ -217,7 +217,7 @@ var _ = Describe("CDI storage class config tests", func() {
 	})
 })
 
-var _ = Describe("CDI ingress config tests, using manifests", func() {
+var _ = Describe("CDI ingress config tests, using manifests", Serial, func() {
 	var (
 		f                       = framework.NewFramework("cdiconfig-test")
 		routeStart              = func() string { return fmt.Sprintf("%s-%s.", routeName, f.CdiInstallNs) }
@@ -332,7 +332,7 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 	})
 })
 
-var _ = Describe("CDI ingress config tests", func() {
+var _ = Describe("CDI ingress config tests", Serial, func() {
 	var (
 		f                       = framework.NewFramework("cdiconfig-test")
 		routeStart              = func() string { return fmt.Sprintf("%s-%s.", routeName, f.CdiInstallNs) }
@@ -462,7 +462,7 @@ var _ = Describe("CDI ingress config tests", func() {
 	})
 })
 
-var _ = Describe("CDI route config tests", func() {
+var _ = Describe("CDI route config tests", Serial, func() {
 	var (
 		f                       = framework.NewFramework("cdiconfig-test")
 		routeStart              = func() string { return fmt.Sprintf("%s-%s.", routeName, f.CdiInstallNs) }
@@ -527,7 +527,7 @@ var _ = Describe("CDI route config tests", func() {
 	})
 })
 
-var _ = Describe("CDIConfig instance management", func() {
+var _ = Describe("CDIConfig instance management", Serial, func() {
 	f := framework.NewFramework("cdiconfig-test")
 
 	Context("[Destructive]", func() {
@@ -554,7 +554,7 @@ var _ = Describe("CDIConfig instance management", func() {
 	})
 })
 
-var _ = Describe("Modifying CDIConfig spec tests", func() {
+var _ = Describe("Modifying CDIConfig spec tests", Serial, func() {
 	var origSpec *cdiv1.CDIConfigSpec
 	f := framework.NewFramework("cdiconfig-test")
 	BeforeEach(func() {
