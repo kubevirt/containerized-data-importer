@@ -30,6 +30,22 @@ func flaky(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusServiceUnavailable)
 }
 
+func badContentType(w http.ResponseWriter, r *http.Request) {
+	actualFileURL := getEquivalentFileHostURL(r.URL.String())
+
+	resp, err := http.Get(actualFileURL)
+	if err != nil {
+		panic("Couldn't fetch URL")
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+
+	_, err = io.Copy(w, resp.Body)
+	if err != nil {
+		panic(fmt.Errorf("badContentType: failed to write the response; %w", err))
+	}
+}
+
 func noAcceptRanges(w http.ResponseWriter, r *http.Request) {
 	actualFileURL := getEquivalentFileHostURL(r.URL.String())
 
@@ -79,6 +95,7 @@ func main() {
 	http.HandleFunc("/forbidden-HEAD/", failHEAD)
 	http.HandleFunc("/flaky/", flaky)
 	http.HandleFunc("/no-accept-ranges/", noAcceptRanges)
+	http.HandleFunc("/bad-content-type/", badContentType)
 	err := http.ListenAndServe(":9090", nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
