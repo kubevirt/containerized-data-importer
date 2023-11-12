@@ -94,7 +94,7 @@ if [ $retry_counter -eq $MAX_CDI_WAIT_RETRY ]; then
 fi
 
 (
-    cd ${CDI_DIR}/tests
+    export TESTS_WORKDIR=${CDI_DIR}/tests
     ginkgo_args="--trace --timeout=8h"
     if [[ -n "$CDI_E2E_FOCUS" || -n "$CDI_E2E_SKIP" ]]; then
         ginkgo_args="${ginkgo_args} --nodes=3"
