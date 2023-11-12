@@ -21,7 +21,7 @@ const (
 	annNotBefore = "auth.openshift.io/certificate-not-before"
 )
 
-var _ = Describe("Cert rotation tests", func() {
+var _ = Describe("Cert rotation tests", Serial, func() {
 	f := framework.NewFramework("certrotation-test")
 
 	Context("with port forward", func() {
