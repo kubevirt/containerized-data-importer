@@ -247,7 +247,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 		})
 
-		DescribeTable("Verify validation error message on async upload if virtual size > pvc size", func(filename string) {
+		DescribeTable("Verify validation error message on async upload if virtual size > pvc size", Serial, func(filename string) {
 			By("Verify PVC annotation says ready")
 			found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 			Expect(err).ToNot(HaveOccurred())
@@ -268,7 +268,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Entry("fail given a large physical size QCOW2 file", utils.UploadFileLargePhysicalDiskQcow),
 		)
 
-		DescribeTable("[posneg:negative][test_id:2330]Verify failure on sync upload if virtual size > pvc size", func(filename string) {
+		DescribeTable("[posneg:negative][test_id:2330]Verify failure on sync upload if virtual size > pvc size", Serial, func(filename string) {
 			By("Verify PVC annotation says ready")
 			found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 			Expect(err).ToNot(HaveOccurred())
@@ -338,7 +338,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			tinyCoreFileMd5, err := util.Md5sum(utils.UploadFile)
 			Expect(err).ToNot(HaveOccurred())
 			filesToUpload := map[string]string{utils.TinyCoreFile: tinyCoreFileMd5, utils.CirrosQCow2File: cirrosFileMd5}
-			archiveFilePath, err := utils.ArchiveFiles("archive", os.TempDir(), utils.UploadFile, utils.UploadCirrosFile)
+			archiveFilePath, err := utils.ArchiveFiles(fmt.Sprintf("archive-%s", f.Namespace.Name), os.TempDir(), utils.UploadFile, utils.UploadCirrosFile)
 			Expect(err).ToNot(HaveOccurred())
 			if format != "" {
 				archiveFilePath, err = utils.FormatTestData(archiveFilePath, os.TempDir(), format)
@@ -653,7 +653,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				tinyCoreFileMd5, err := util.Md5sum(utils.UploadFile)
 				Expect(err).ToNot(HaveOccurred())
 				filesToUpload := map[string]string{utils.TinyCoreFile: tinyCoreFileMd5, utils.CirrosQCow2File: cirrosFileMd5}
-				archiveFilePath, err := utils.ArchiveFiles("archive", os.TempDir(), utils.UploadFile, utils.UploadCirrosFile)
+				archiveFilePath, err := utils.ArchiveFiles(fmt.Sprintf("archive-%s", f.Namespace.Name), os.TempDir(), utils.UploadFile, utils.UploadCirrosFile)
 				Expect(err).ToNot(HaveOccurred())
 				if format != "" {
 					archiveFilePath, err = utils.FormatTestData(archiveFilePath, os.TempDir(), format)
@@ -946,7 +946,7 @@ func HasEnvironmentVariableFromSecret(pod *v1.Pod, name string, secret *v1.Secre
 	return false
 }
 
-var _ = Describe("Block PV upload Test", func() {
+var _ = Describe("Block PV upload Test", Serial, func() {
 	var (
 		pvc *v1.PersistentVolumeClaim
 		err error
@@ -1035,7 +1035,7 @@ var _ = Describe("Block PV upload Test", func() {
 	)
 })
 
-var _ = Describe("CDIConfig manipulation upload tests", func() {
+var _ = Describe("CDIConfig manipulation upload tests", Serial, func() {
 	f := framework.NewFramework(namespacePrefix)
 	var (
 		origSpec       *cdiv1.CDIConfigSpec
@@ -1271,7 +1271,7 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 
 })
 
-var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component] Upload tests", func() {
+var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component] Upload tests", Serial, func() {
 	f := framework.NewFramework("upload-func-test")
 
 	var (
@@ -1700,7 +1700,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	})
 })
 
-var _ = Describe("Preallocation", func() {
+var _ = Describe("Preallocation", Serial, func() {
 	f := framework.NewFramework(namespacePrefix)
 	dvName := "upload-dv"
 	md5PrefixSize := int64(100000)
