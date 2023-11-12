@@ -40,7 +40,7 @@ const (
 	shortTimeout        = 30 * time.Second
 )
 
-var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", func() {
+var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", Serial, func() {
 
 	var sourcePvc *v1.PersistentVolumeClaim
 	var targetPvc *v1.PersistentVolumeClaim
