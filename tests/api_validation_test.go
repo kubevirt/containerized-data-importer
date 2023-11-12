@@ -31,7 +31,7 @@ const (
 	uploadPopulatorTestFile  = "manifests/volumeuploadsource.yaml"
 )
 
-var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redhat.com][level:component]Validation tests", func() {
+var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redhat.com][level:component]Validation tests", Serial, func() {
 	f := framework.NewFramework("api-validation-func-test")
 
 	setSourceType := func(object map[string]interface{}, sourceType string, args []string) {

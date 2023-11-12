@@ -30,7 +30,7 @@ const (
 	timeout         = 360 * time.Second
 )
 
-var _ = Describe("cdi-apiserver tests", func() {
+var _ = Describe("cdi-apiserver tests", Serial, func() {
 	var origSpec *cdiv1.CDIConfigSpec
 	f := framework.NewFramework("cdi-apiserver-test")
 
