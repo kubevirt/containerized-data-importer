@@ -72,7 +72,7 @@ func TestTests(t *testing.T) {
 // flag parsing happens AFTER ginkgo has constructed the entire testing tree. So anything that uses information from flags
 // cannot work when called during test tree construction.
 func BuildTestSuite() {
-	BeforeSuite(func() {
+	SynchronizedBeforeSuite(func() {}, func() {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "Reading parameters\n")
 		// Read flags, and configure client instances
 		framework.ClientsInstance.KubectlPath = *kubectlPath
@@ -146,7 +146,7 @@ func BuildTestSuite() {
 		}
 	})
 
-	AfterSuite(func() {
+	SynchronizedAfterSuite(func() {}, func() {
 		client := framework.ClientsInstance.K8sClient
 
 		Eventually(func() []corev1.Namespace {
