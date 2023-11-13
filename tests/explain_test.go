@@ -4,12 +4,14 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 )
 
 var _ = Describe("Explain tests", func() {
 	f := framework.NewFramework("explain-test", framework.Config{
 		SkipNamespaceCreation: true,
+		FeatureGates:          []string{featuregates.HonorWaitForFirstConsumer},
 	})
 
 	It("[test_id:4964]explain should have descriptions for CDI", func() {

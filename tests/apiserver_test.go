@@ -32,7 +32,7 @@ const (
 
 var _ = Describe("cdi-apiserver tests", func() {
 	var origSpec *cdiv1.CDIConfigSpec
-	f := framework.NewFramework("cdi-apiserver-test", framework.Config{})
+	f := framework.NewFramework("cdi-apiserver-test")
 
 	Context("with apiserver", func() {
 		var cmd *exec.Cmd
