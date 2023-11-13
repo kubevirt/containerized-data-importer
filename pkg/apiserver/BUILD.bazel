@@ -19,6 +19,7 @@ go_library(
         "//pkg/util:go_default_library",
         "//pkg/util/openapi:go_default_library",
         "//pkg/util/tls-crypto-watch:go_default_library",
+        "//pkg/version:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1:go_default_library",
         "//vendor/github.com/emicklei/go-restful/v3:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned:go_default_library",

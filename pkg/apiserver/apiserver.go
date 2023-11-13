@@ -53,6 +53,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/openapi"
 	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
+	cdiversion "kubevirt.io/containerized-data-importer/pkg/version"
 )
 
 const (
@@ -494,6 +495,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 				if err != nil {
 					panic(fmt.Errorf("failed to build swagger: %s", err))
 				}
+				openapispec.Info.Version = cdiversion.Get().String()
 			})
 			writeJSONResponse(response, openapispec)
 		}))
