@@ -213,7 +213,7 @@ func NewBlockPVCDefinition(pvcName string, size string, annotations, labels map[
 func WaitForPersistentVolumeClaimPhase(clientSet *kubernetes.Clientset, namespace string, phase k8sv1.PersistentVolumeClaimPhase, pvcName string) error {
 	err := wait.PollImmediate(pvcPollInterval, pvcPhaseTime, func() (bool, error) {
 		pvc, err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{})
-		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Checking PVC phase: %s\n", string(pvc.Status.Phase))
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Checking PVC phase: %s, resource version %s\n", string(pvc.Status.Phase), pvc.ResourceVersion)
 		if err != nil || pvc.Status.Phase != phase {
 			return false, err
 		}
