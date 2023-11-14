@@ -143,15 +143,17 @@ func (r *UploadPopulatorReconciler) updateUploadAnnotations(pvc *corev1.Persiste
 
 func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
 	pvcCopy := pvc.DeepCopy()
+	phase := pvcPrime.Annotations[cc.AnnPodPhase]
 
-	updated, err := r.updatePVCPrimeNameAnnotation(pvcCopy, pvcPrime.Name)
-	if updated || err != nil {
-		// wait for the annotation to be updated
-		return reconcile.Result{}, err
+	if phase != string(corev1.PodSucceeded) {
+		updated, err := r.updatePVCPrimeNameAnnotation(pvcCopy, pvcPrime.Name)
+		if updated || err != nil {
+			// wait for the annotation to be updated
+			return reconcile.Result{}, err
+		}
 	}
 
 	// Wait upload completes
-	phase := pvcPrime.Annotations[cc.AnnPodPhase]
 	switch phase {
 	case string(corev1.PodFailed):
 		// We'll get called later once it succeeds
@@ -163,7 +165,7 @@ func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		}
 	}
 
-	err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateUploadAnnotations)
+	err := r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateUploadAnnotations)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
