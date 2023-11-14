@@ -29,6 +29,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -50,6 +51,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -76,7 +78,17 @@ const (
 	claimStorageClassNameField = "spec.storageClassName"
 )
 
-var httpClient *http.Client
+var (
+	httpClient *http.Client
+
+	// DataVolumePendingGauge is the metric we use to count the DataVolumes pending for default storage class to be configured
+	DataVolumePendingGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: monitoring.MetricOptsList[monitoring.DataVolumePending].Name,
+			Help: monitoring.MetricOptsList[monitoring.DataVolumePending].Help,
+		},
+	)
+)
 
 // Event represents DV controller event
 type Event struct {
@@ -241,6 +253,7 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 			if getDataVolumeOp(mgr.GetLogger(), dv, mgr.GetClient()) != op {
 				return nil
 			}
+			updatePendingDataVolumesGauge(mgr.GetClient(), dv)
 			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}}}
 		}),
 	); err != nil {
@@ -291,6 +304,7 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 		}
 	}
 
+	// FIXME: Consider removing this Watch. Not sure it's needed anymore as PVCs are Pending in this case.
 	// Watch for SC updates and reconcile the DVs waiting for default SC
 	if err := dataVolumeController.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, handler.EnqueueRequestsFromMapFunc(
 		func(obj client.Object) (reqs []reconcile.Request) {
@@ -386,6 +400,25 @@ func getSourceRefOp(log logr.Logger, dv *cdiv1.DataVolume, client client.Client)
 	default:
 		return dataVolumeNop
 	}
+}
+
+func updatePendingDataVolumesGauge(c client.Client, dv *cdiv1.DataVolume) {
+	if cc.GetStorageClass(dv) != nil {
+		return
+	}
+
+	dvList := &cdiv1.DataVolumeList{}
+	if c.List(context.TODO(), dvList, client.MatchingFields{dvPhaseField: string(cdiv1.Pending)}) != nil {
+		return
+	}
+
+	dvCount := 0
+	for _, dv := range dvList.Items {
+		if cc.GetStorageClass(&dv) == nil {
+			dvCount++
+		}
+	}
+	DataVolumePendingGauge.Set(float64(dvCount))
 }
 
 type dvController interface {

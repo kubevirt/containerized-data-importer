@@ -27,9 +27,9 @@ type MetricsKey string
 const (
 	CloneProgress          MetricsKey = "cloneProgress"
 	DataImportCronOutdated MetricsKey = "dataImportCronOutdated"
-	IncompleteProfile      MetricsKey = "incompleteProfile"
+	StorageProfileStatus   MetricsKey = "storageProfileStatus"
 	ReadyGauge             MetricsKey = "readyGauge"
-	DefaultVirtClasses     MetricsKey = "defaultVirtClasses"
+	DataVolumePending      MetricsKey = "dataVolumePending"
 )
 
 // MetricOptsList list all CDI metrics
@@ -37,21 +37,21 @@ var MetricOptsList = map[MetricsKey]MetricOpts{
 	DataImportCronOutdated: {
 		Name: "kubevirt_cdi_dataimportcron_outdated",
 		Help: "DataImportCron has an outdated import",
-		Type: "Gauge",
+		Type: "GaugeVec",
 	},
-	IncompleteProfile: {
-		Name: "kubevirt_cdi_incomplete_storageprofiles",
-		Help: "Total number of incomplete and hence unusable StorageProfile",
-		Type: "Gauge",
+	StorageProfileStatus: {
+		Name: "kubevirt_cdi_storageprofile_status",
+		Help: "Vector of StorageProfiles status",
+		Type: "GaugeVec",
 	},
 	ReadyGauge: {
 		Name: "kubevirt_cdi_cr_ready",
 		Help: "CDI install ready",
 		Type: "Gauge",
 	},
-	DefaultVirtClasses: {
-		Name: "kubevirt_cdi_default_virt_storageclasses",
-		Help: "Number of default virt storage classes currently configured",
+	DataVolumePending: {
+		Name: "kubevirt_cdi_datavolume_pending",
+		Help: "Number of DataVolumes pending for default storage class to be configured",
 		Type: "Gauge",
 	},
 }
@@ -99,14 +99,6 @@ func GetRecordRulesDesc(namespace string) []RecordRulesDesc {
 				"Gauge",
 			},
 			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
-		},
-		{
-			MetricOpts{
-				"kubevirt_cdi_dataimportcron_outdated_aggregated",
-				"Total count of outdated DataImportCron imports",
-				"Gauge",
-			},
-			"sum(kubevirt_cdi_dataimportcron_outdated or vector(0))",
 		},
 	}
 }

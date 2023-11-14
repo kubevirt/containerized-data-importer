@@ -162,20 +162,7 @@ func GetAdvisedCloneStrategy(sc *storagev1.StorageClass) (cdiv1.CDICloneStrategy
 	return strategy, found
 }
 
-func isLocalStorageOperator(sc *storagev1.StorageClass) bool {
-	_, found := sc.Labels["local.storage.openshift.io/owner-name"]
-	return found
-}
-
-func knownNoProvisioner(sc *storagev1.StorageClass) bool {
-	return isLocalStorageOperator(sc)
-}
-
 func capabilitiesForNoProvisioner(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
-	// There's so many no-provisioner storage classes, let's start slow with the known ones.
-	if !knownNoProvisioner(sc) {
-		return []StorageCapabilities{}, false
-	}
 	pvs := &v1.PersistentVolumeList{}
 	err := cl.List(context.TODO(), pvs)
 	if err != nil {

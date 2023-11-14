@@ -31,40 +31,63 @@ import (
 )
 
 const (
-	metricPollingInterval = 5 * time.Second
-	metricPollingTimeout  = 5 * time.Minute
+	metricPollingInterval          = 5 * time.Second
+	metricPollingTimeout           = 5 * time.Minute
+	metricConsistentPollingTimeout = 2 * time.Minute
 )
 
 var _ = Describe("[Destructive] Monitoring Tests", func() {
 	f := framework.NewFramework("monitoring-test")
 
 	var (
-		cr                     *cdiv1.CDI
-		crModified             bool
-		cdiPods                *corev1.PodList
-		numAddedStorageClasses int
-		originalMetricVal      int
+		cr                      *cdiv1.CDI
+		crModified              bool
+		cdiPods                 *corev1.PodList
+		defaultStorageClass     *storagev1.StorageClass
+		defaultVirtStorageClass *storagev1.StorageClass
+		numAddedStorageClasses  int
 	)
 
-	waitForIncompleteMetricInitialization := func() {
-		Eventually(func() int {
-			return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles")
-		}, 2*time.Minute, 1*time.Second).ShouldNot(Equal(-1))
+	waitForStorageProfileMetricInitialization := func() {
+		Eventually(func() bool {
+			scs, err := f.K8sClient.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return len(scs.Items) == countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "complete", "true")
+		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 	}
 
-	BeforeEach(func() {
-		if !f.IsPrometheusAvailable() {
-			Skip("This test depends on prometheus infra being available")
+	updateDefaultStorageClasses := func(boolStr string) {
+		By(fmt.Sprintf("Update default storage class annotation to %q", boolStr))
+		if defaultStorageClass != nil {
+			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), defaultStorageClass.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			sc.Annotations[cc.AnnDefaultStorageClass] = boolStr
+			_, err = f.K8sClient.StorageV1().StorageClasses().Update(context.TODO(), sc, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred())
 		}
+		if defaultVirtStorageClass != nil {
+			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), defaultVirtStorageClass.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			sc.Annotations[cc.AnnDefaultVirtStorageClass] = boolStr
+			_, err = f.K8sClient.StorageV1().StorageClasses().Update(context.TODO(), sc, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+		}
+	}
 
-		cr = getCDI(f)
-		cdiPods = getCDIPods(f)
+	updateDefaultStorageClassProfileClaimPropertySets := func(cps []cdiv1.ClaimPropertySet) {
+		profile := &cdiv1.StorageProfile{}
+		err := f.CrClient.Get(context.TODO(), types.NamespacedName{Name: defaultStorageClass.Name}, profile)
+		if err != nil && errors.IsNotFound(err) && len(cps) == 0 {
+			return
+		}
+		Expect(err).ToNot(HaveOccurred())
 
-		waitForIncompleteMetricInitialization()
-		originalMetricVal = getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles")
-	})
+		profile.Spec.ClaimPropertySets = cps
+		err = f.CrClient.Update(context.TODO(), profile)
+		Expect(err).ToNot(HaveOccurred())
+	}
 
-	AfterEach(func() {
+	deleteUnknownStorageClasses := func() {
 		By("Delete unknown storage classes")
 		for i := 0; i < numAddedStorageClasses; i++ {
 			name := fmt.Sprintf("unknown-sc-%d", i)
@@ -75,6 +98,26 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 			err = f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), name, metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
 		}
+	}
+
+	BeforeEach(func() {
+		if !f.IsPrometheusAvailable() {
+			Skip("This test depends on prometheus infra being available")
+		}
+
+		cr = getCDI(f)
+		cdiPods = getCDIPods(f)
+
+		waitForStorageProfileMetricInitialization()
+
+		defaultStorageClass = utils.GetDefaultStorageClass(f.K8sClient)
+		defaultVirtStorageClass = utils.GetDefaultVirtStorageClass(f.K8sClient)
+	})
+
+	AfterEach(func() {
+		deleteUnknownStorageClasses()
+		updateDefaultStorageClasses("true")
+		updateDefaultStorageClassProfileClaimPropertySets(nil)
 
 		if crModified {
 			removeCDI(f, cr)
@@ -83,8 +126,8 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		}
 
 		Eventually(func() int {
-			return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles")
-		}, 5*time.Minute, 5*time.Second).Should(BeNumerically("==", originalMetricVal))
+			return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "complete", "false")
+		}, 5*time.Minute, 5*time.Second).Should(BeZero())
 	})
 
 	Context("[rfe_id:7101][crit:medium][vendor:cnv-qe@redhat.com][level:component] Metrics and Alert tests", func() {
@@ -113,7 +156,6 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				return getMetricValue(f, "kubevirt_cdi_cr_ready")
 			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", 0))
 
-			By("Check that the CDINotReady alert is triggered")
 			waitForPrometheusAlert(f, "CDINotReady")
 
 			By("Revert CDI CR changes")
@@ -149,12 +191,11 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 			}
 
-			expectedIncomplete := originalMetricVal + numAddedStorageClasses
+			expectedIncomplete := numAddedStorageClasses
 			Eventually(func() int {
-				return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles")
+				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "complete", "false")
 			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", expectedIncomplete))
 
-			By("Check that the CDIStorageProfilesIncomplete alert is triggered")
 			waitForPrometheusAlert(f, "CDIStorageProfilesIncomplete")
 
 			By("Fix profiles to be complete and test metric value equals original")
@@ -168,12 +209,14 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				expectedIncomplete--
 				Eventually(func() int {
-					return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles")
+					return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "complete", "false")
 				}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", expectedIncomplete))
 			}
 		})
 
 		It("[test_id:10512]CDIMultipleDefaultVirtStorageClasses fired when more than one default virt storage class exists", func() {
+			waitForNoPrometheusAlert(f, "CDIMultipleDefaultVirtStorageClasses")
+
 			numAddedStorageClasses = 2
 			for i := 0; i < numAddedStorageClasses; i++ {
 				sc := createUnknownStorageClass(fmt.Sprintf("unknown-sc-%d", i), "kubernetes.io/non-existent-provisioner")
@@ -182,8 +225,96 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 			}
 
-			By("Check that the CDIMultipleDefaultVirtStorageClasses alert is triggered")
 			waitForPrometheusAlert(f, "CDIMultipleDefaultVirtStorageClasses")
+
+			deleteUnknownStorageClasses()
+
+			waitForNoPrometheusAlert(f, "CDIMultipleDefaultVirtStorageClasses")
+		})
+
+		It("[test_id:XXXX]CDINoDefaultStorageClass fired when no default storage class exists, and a DataVolume is waiting for one", func() {
+			By("Ensure initial metric values")
+			defaultSCs := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "default", "true")
+			Expect(defaultSCs).To(Equal(1))
+			defaultVSCs := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "virtdefault", "true")
+			Expect(defaultVSCs).To(BeNumerically("<=", 1))
+			waitingDVs := getMetricValue(f, "kubevirt_cdi_datavolume_pending")
+			Expect(waitingDVs).To(BeZero())
+
+			updateDefaultStorageClasses("false")
+
+			dv := utils.NewDataVolumeWithHTTPImportAndStorageSpec("test-dv", "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
+			_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Ensure metric values after removing default storage class annotation")
+			Eventually(func() int {
+				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "default", "true")
+			}, metricPollingTimeout, metricPollingInterval).Should(BeZero())
+			Eventually(func() int {
+				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "virtdefault", "true")
+			}, metricPollingTimeout, metricPollingInterval).Should(BeZero())
+			Eventually(func() int {
+				return getMetricValue(f, "kubevirt_cdi_datavolume_pending")
+			}, metricPollingTimeout, metricPollingInterval).Should(Equal(1))
+
+			waitForPrometheusAlert(f, "CDINoDefaultStorageClass")
+
+			updateDefaultStorageClasses("true")
+
+			By("Ensure metric values after restoring default storage class annotation")
+			Eventually(func() int {
+				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "default", "true")
+			}, metricPollingTimeout, metricPollingInterval).Should(Equal(defaultSCs))
+			Eventually(func() int {
+				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "virtdefault", "true")
+			}, metricPollingTimeout, metricPollingInterval).Should(Equal(defaultVSCs))
+			Eventually(func() int {
+				return getMetricValue(f, "kubevirt_cdi_datavolume_pending")
+			}, metricPollingTimeout, metricPollingInterval).Should(BeZero())
+
+			waitForNoPrometheusAlert(f, "CDINoDefaultStorageClass")
+		})
+
+		It("[test_id:XXXX]CDIDefaultStorageClassDegraded fired when default storage class has no smart clone or ReadWriteMany", func() {
+			if f.SnapshotSCName != defaultStorageClass.Name && f.CsiCloneSCName != defaultStorageClass.Name {
+				Skip("Default storage class does not support snapshot or CSI clone")
+			}
+			if !f.IsSnapshotStorageClassAvailable() && !f.IsCSIVolumeCloneStorageClassAvailable() {
+				Skip("Smart Clone is not applicable")
+			}
+
+			profile := &cdiv1.StorageProfile{}
+			err := f.CrClient.Get(context.TODO(), types.NamespacedName{Name: defaultStorageClass.Name}, profile)
+			Expect(err).ToNot(HaveOccurred())
+
+			hasRWX := false
+			for _, cps := range profile.Status.ClaimPropertySets {
+				for _, am := range cps.AccessModes {
+					if am == corev1.ReadWriteMany {
+						hasRWX = true
+						break
+					}
+				}
+			}
+			if !hasRWX {
+				Skip("Default storage class profile has no ReadWriteMany access mode")
+			}
+
+			waitForNoPrometheusAlert(f, "CDIDefaultStorageClassDegraded")
+
+			By("Remove storage profile ReadWriteMany access mode")
+			updateDefaultStorageClassProfileClaimPropertySets([]cdiv1.ClaimPropertySet{{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+				VolumeMode:  &cc.BlockMode,
+			}})
+
+			waitForPrometheusAlert(f, "CDIDefaultStorageClassDegraded")
+
+			By("Restore storage profile")
+			updateDefaultStorageClassProfileClaimPropertySets(nil)
+
+			waitForNoPrometheusAlert(f, "CDIDefaultStorageClassDegraded")
 		})
 
 		It("[test_id:9659] StorageProfile incomplete metric expected value remains unchanged for provisioner known to not work", func() {
@@ -199,14 +330,16 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 			By("Metric stays the same because we don't support this provisioner")
 			Consistently(func() int {
-				return getMetricValue(f, "kubevirt_cdi_incomplete_storageprofiles")
-			}, metricPollingTimeout, metricPollingInterval).Should(Equal(originalMetricVal))
+				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "complete", "false")
+			}, metricConsistentPollingTimeout, metricPollingInterval).Should(BeZero())
 		})
 
 		It("[test_id:7964] DataImportCron failing metric expected value when patching DesiredDigest annotation with junk sha256 value", func() {
 			numCrons := 2
-			originalCronMetricVal := getMetricValue(f, "kubevirt_cdi_dataimportcron_outdated_aggregated")
-			expectedFailingCrons := originalCronMetricVal + numCrons
+			originalCronMetricVal := getMetricValueWithDefault(f, "kubevirt_cdi_dataimportcron_outdated", true)
+			Expect(originalCronMetricVal).To(BeZero())
+
+			waitForNoPrometheusAlert(f, "CDIDataImportCronOutdated")
 
 			reg, err := getDataVolumeSourceRegistry(f)
 			Expect(err).ToNot(HaveOccurred())
@@ -221,6 +354,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				By(fmt.Sprintf("Create new DataImportCron %s", *reg.URL))
 				cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
+
 				By("Wait for condition UpToDate=true on DataImportCron")
 				Eventually(func() bool {
 					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
@@ -228,6 +362,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 					upToDateCondition := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
 					return upToDateCondition != nil && upToDateCondition.ConditionState.Status == corev1.ConditionTrue
 				}, dataImportCronTimeout, pollingInterval).Should(BeTrue())
+
 				Eventually(func() error {
 					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Get(context.TODO(), cron.Name, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
@@ -239,19 +374,25 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Update(context.TODO(), cron, metav1.UpdateOptions{})
 					return err
 				}, dataImportCronTimeout, pollingInterval).Should(BeNil())
-				By(fmt.Sprintf("Ensuring metric value incremented to %d", originalCronMetricVal+i))
+				By(fmt.Sprintf("Ensuring metric value incremented to %d", i))
 				Eventually(func() int {
-					return getMetricValue(f, "kubevirt_cdi_dataimportcron_outdated_aggregated")
-				}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", originalCronMetricVal+i))
+					return getMetricValue(f, "kubevirt_cdi_dataimportcron_outdated")
+				}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", i))
 			}
+
+			waitForPrometheusAlert(f, "CDIDataImportCronOutdated")
+
 			By("Ensure metric value decrements when crons are cleaned up")
 			for i := 1; i < numCrons+1; i++ {
 				err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Delete(context.TODO(), fmt.Sprintf("cron-test-%d", i), metav1.DeleteOptions{})
 				Expect(err).ToNot(HaveOccurred())
+
 				Eventually(func() int {
-					return getMetricValue(f, "kubevirt_cdi_dataimportcron_outdated_aggregated")
-				}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", expectedFailingCrons-i))
+					return getMetricValueWithDefault(f, "kubevirt_cdi_dataimportcron_outdated", true)
+				}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", numCrons-i))
 			}
+
+			waitForNoPrometheusAlert(f, "CDIDataImportCronOutdated")
 		})
 
 		It("[test_id:7962] CDIOperatorDown alert firing when operator scaled down", func() {
@@ -269,7 +410,6 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				return getMetricValue(f, "kubevirt_cdi_operator_up")
 			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", 0))
 
-			By("Waiting for CDIOperatorDown alert to be triggered")
 			waitForPrometheusAlert(f, "CDIOperatorDown")
 
 			By("Ensuring original value of replicas restored")
@@ -279,6 +419,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		})
 	})
 
+	//FIXME: fails on no runbook
 	Context("Prometheus Rule configuration", func() {
 		It("[test_id:8259] Alerts should have all the required annotations", func() {
 			promRule := getPrometheusRule(f)
@@ -316,43 +457,108 @@ func dataVolumeUnusualRestartTest(f *framework.Framework) {
 		return getMetricValue(f, "kubevirt_cdi_import_pods_high_restart") == 1
 	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 
-	By("checking that the CDIDataVolumeUnusualRestartCount alert is triggered")
 	waitForPrometheusAlert(f, "CDIDataVolumeUnusualRestartCount")
 }
 
 // Helper functions
 
+// getMetricValue returns the metric value, or the sum in case of multiple values (GaugeVec)
 func getMetricValue(f *framework.Framework, endpoint string) int {
-	var returnVal string
+	return getMetricValueWithDefault(f, endpoint, false)
+}
+
+// getMetricValueWithDefault returns the metric value, or the sum in case of multiple values (GaugeVec)
+// if the metric does not exist and useDefault is true, it immediately returns 0
+func getMetricValueWithDefault(f *framework.Framework, endpoint string, useDefault bool) int {
+	returnVal := 0
 
 	Eventually(func() bool {
-		var result map[string]interface{}
-		resp := f.MakePrometheusHTTPRequest("query?query=" + endpoint)
-		defer resp.Body.Close()
-		bodyBytes, err := io.ReadAll(resp.Body)
+		dataResult, err := getMetricDataResult(f, endpoint)
 		if err != nil {
 			return false
 		}
-		err = json.Unmarshal(bodyBytes, &result)
-		if err != nil {
-			return false
+		if dataResult == nil {
+			return useDefault
 		}
-		if len(result["data"].(map[string]interface{})["result"].([]interface{})) == 0 {
-			return false
-		}
-		values := result["data"].(map[string]interface{})["result"].([]interface{})[0].(map[string]interface{})["value"].([]interface{})
-		for _, v := range values {
-			if s, ok := v.(string); ok {
-				returnVal = s
-				return true
+
+		found := false
+		returnVal = 0
+		for _, res := range dataResult {
+			values := res.(map[string]interface{})["value"].([]interface{})
+			for _, v := range values {
+				if s, ok := v.(string); ok {
+					i, err := strconv.Atoi(s)
+					Expect(err).ToNot(HaveOccurred())
+					returnVal += i
+					found = true
+				}
 			}
+
 		}
-		return false
+		return found
 	}, 1*time.Minute, 1*time.Second).Should(BeTrue())
 
-	i, err := strconv.Atoi(returnVal)
-	Expect(err).ToNot(HaveOccurred())
-	return i
+	return returnVal
+
+}
+
+func countMetricLabelValue(f *framework.Framework, endpoint, label, value string) int {
+	var count int
+
+	Eventually(func() bool {
+		dataResult, err := getMetricDataResult(f, endpoint)
+		if err != nil || dataResult == nil {
+			return false
+		}
+
+		found := false
+		count = 0
+		for _, res := range dataResult {
+			metric := res.(map[string]interface{})["metric"].(map[string]interface{})
+			val, ok := metric[label]
+			if !ok {
+				continue
+			}
+
+			values := res.(map[string]interface{})["value"].([]interface{})
+			for _, v := range values {
+				s, ok := v.(string)
+				if !ok {
+					continue
+				}
+				i, err := strconv.Atoi(s)
+				Expect(err).ToNot(HaveOccurred())
+				if i == 1 && val == value {
+					count++
+				}
+				found = true
+				break
+			}
+		}
+		return found
+	}, 1*time.Minute, 1*time.Second).Should(BeTrue())
+
+	return count
+}
+
+func getMetricDataResult(f *framework.Framework, endpoint string) ([]interface{}, error) {
+	var result map[string]interface{}
+
+	By(fmt.Sprintf("Querying metric %s", endpoint))
+	resp := f.MakePrometheusHTTPRequest("query?query=" + endpoint)
+	defer resp.Body.Close()
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if err = json.Unmarshal(bodyBytes, &result); err != nil {
+		return nil, err
+	}
+	dataResult := result["data"].(map[string]interface{})["result"].([]interface{})
+	if len(dataResult) == 0 {
+		return nil, nil
+	}
+	return dataResult, nil
 }
 
 func createUnknownStorageClass(name, provisioner string) *storagev1.StorageClass {
@@ -385,7 +591,7 @@ func getPrometheusRule(f *framework.Framework) *promv1.PrometheusRule {
 }
 
 func waitForPrometheusAlert(f *framework.Framework, alertName string) {
-	By("Wait for alert to be triggered")
+	By(fmt.Sprintf("Wait for alert %s to be triggered", alertName))
 	Eventually(func() bool {
 		result, err := getPrometheusAlerts(f)
 		if err != nil {
@@ -404,6 +610,26 @@ func waitForPrometheusAlert(f *framework.Framework, alertName string) {
 
 		return false
 	}, 10*time.Minute, 1*time.Second).Should(BeTrue())
+}
+
+func waitForNoPrometheusAlert(f *framework.Framework, alertName string) {
+	By(fmt.Sprintf("Verify no %s alert", alertName))
+	Eventually(func() bool {
+		result, err := getPrometheusAlerts(f)
+		if err != nil {
+			return false
+		}
+
+		alerts := result["data"].(map[string]interface{})["alerts"].([]interface{})
+		for _, alert := range alerts {
+			name := alert.(map[string]interface{})["labels"].(map[string]interface{})["alertname"].(string)
+			if name == alertName {
+				return false
+			}
+		}
+
+		return true
+	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 }
 
 func getPrometheusAlerts(f *framework.Framework) (alerts map[string]interface{}, err error) {

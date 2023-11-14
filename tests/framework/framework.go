@@ -364,7 +364,6 @@ func (f *Framework) GetTokenForServiceAccount(namespace, name string) (string, e
 	if err != nil {
 		return "", err
 	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Token created for SA: %+v\n", token.Status)
 
 	return token.Status.Token, nil
 }
