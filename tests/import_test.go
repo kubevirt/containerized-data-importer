@@ -325,7 +325,9 @@ var _ = Describe("[Istio] Namespace sidecar injection", func() {
 		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
 		// We set the Immediate Binding annotation to true, to eliminate creation of the consumer pod, which will also fail due to the Istio sidecar.
 		dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
-		dataVolume.Annotations[controller.AnnPodSidecarInjection] = "true"
+		// A single service mesh provider is deployed so either Istio or Linkerd, not both.
+		dataVolume.Annotations[controller.AnnPodSidecarInjectionIstio] = "true"
+		dataVolume.Annotations[controller.AnnPodSidecarInjectionLinkerd] = "true"
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
 

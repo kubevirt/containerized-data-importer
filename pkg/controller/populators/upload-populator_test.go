@@ -330,7 +330,8 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Entry("Invalid extra annotation is not passed", "invalid", "test", ""),
 		Entry("Priority class is passed", cc.AnnPriorityClassName, "test", "test"),
 		Entry("pod network is passed", cc.AnnPodNetwork, "test", "test"),
-		Entry("side car injection is passed", cc.AnnPodSidecarInjection, cc.AnnPodSidecarInjectionDefault, cc.AnnPodSidecarInjectionDefault),
+		Entry("istio side car injection is passed", cc.AnnPodSidecarInjectionIstio, cc.AnnPodSidecarInjectionIstioDefault, cc.AnnPodSidecarInjectionIstioDefault),
+		Entry("linkerd side car injection is passed", cc.AnnPodSidecarInjectionLinkerd, cc.AnnPodSidecarInjectionLinkerdDefault, cc.AnnPodSidecarInjectionLinkerdDefault),
 		Entry("multus default network is passed", cc.AnnPodMultusDefaultNetwork, "test", "test"),
 	)
 })

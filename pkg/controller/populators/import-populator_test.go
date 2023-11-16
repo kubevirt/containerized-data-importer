@@ -275,7 +275,8 @@ var _ = Describe("Import populator tests", func() {
 			Entry("Invalid extra annotation is not passed", "invalid", "test", ""),
 			Entry("Priority class is passed", AnnPriorityClassName, "test", "test"),
 			Entry("pod network is passed", AnnPodNetwork, "test", "test"),
-			Entry("side car injection is passed", AnnPodSidecarInjection, AnnPodSidecarInjectionDefault, AnnPodSidecarInjectionDefault),
+			Entry("istio side car injection is passed", AnnPodSidecarInjectionIstio, AnnPodSidecarInjectionIstioDefault, AnnPodSidecarInjectionIstioDefault),
+			Entry("linkerd side car injection is passed", AnnPodSidecarInjectionLinkerd, AnnPodSidecarInjectionLinkerdDefault, AnnPodSidecarInjectionLinkerdDefault),
 			Entry("multus default network is passed", AnnPodMultusDefaultNetwork, "test", "test"),
 			Entry("retain pod annotation is passed", AnnPodRetainAfterCompletion, "true", "true"),
 		)
