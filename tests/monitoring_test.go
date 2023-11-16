@@ -35,11 +35,6 @@ const (
 	metricPollingTimeout  = 5 * time.Minute
 )
 
-var excludedFromRunbookURLValidation = map[string]struct{}{
-	// https://github.com/kubevirt/monitoring/pull/201
-	"CDIMultipleDefaultVirtStorageClasses": {},
-}
-
 var _ = Describe("[Destructive] Monitoring Tests", func() {
 	f := framework.NewFramework("monitoring-test")
 
@@ -436,9 +431,6 @@ func checkRequiredAnnotations(rule promv1.Rule) {
 	ExpectWithOffset(1, rule.Annotations).To(HaveKeyWithValue("runbook_url", HaveSuffix(rule.Alert)),
 		"%s runbook is not equal to alert name", rule.Alert)
 
-	if _, excluded := excludedFromRunbookURLValidation[rule.Alert]; excluded {
-		return
-	}
 	resp, err := http.Head(rule.Annotations["runbook_url"])
 	ExpectWithOffset(1, err).ToNot(HaveOccurred(), fmt.Sprintf("%s runbook is not available", rule.Alert))
 	ExpectWithOffset(1, resp.StatusCode).Should(Equal(http.StatusOK), fmt.Sprintf("%s runbook is not available", rule.Alert))
