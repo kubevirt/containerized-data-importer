@@ -8,7 +8,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/framework"
 )
 
-var _ = Describe("Explain tests", func() {
+var _ = Describe("Explain tests", Serial, func() {
 	f := framework.NewFramework("explain-test", framework.Config{
 		SkipNamespaceCreation: true,
 		FeatureGates:          []string{featuregates.HonorWaitForFirstConsumer},
