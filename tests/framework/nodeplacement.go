@@ -11,9 +11,12 @@ import (
 )
 
 var (
+	//NodeSelectorTestValue is nodeSelector value for test
 	NodeSelectorTestValue = map[string]string{"kubernetes.io/arch": runtime.GOARCH}
-	TolerationsTestValue  = []v1.Toleration{{Key: "test", Value: "123"}}
-	AffinityTestValue     = &v1.Affinity{}
+	//TolerationsTestValue is tolerations value for test
+	TolerationsTestValue = []v1.Toleration{{Key: "test", Value: "123"}}
+	//AffinityTestValue is affinity value for test
+	AffinityTestValue = &v1.Affinity{}
 )
 
 // TestNodePlacementValues returns a pre-defined set of node placement values for testing purposes.
