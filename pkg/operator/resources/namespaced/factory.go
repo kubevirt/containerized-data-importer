@@ -45,6 +45,9 @@ type FactoryArgs struct {
 	PriorityClassName      string
 	Namespace              string
 	InfraNodePlacement     *sdkapi.NodePlacement
+	ControllerReplicas     int32
+	APIServerReplicas      int32
+	UploadProxyReplicas    int32
 }
 
 type factoryFunc func(*FactoryArgs) []client.Object

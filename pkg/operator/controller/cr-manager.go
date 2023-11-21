@@ -104,7 +104,17 @@ func (r *ReconcileCDI) getNamespacedArgs(cr *cdiv1.CDI) *cdinamespaced.FactoryAr
 			// Any error we cannot determine if priority class exists.
 			result.PriorityClassName = ""
 		}
-		result.InfraNodePlacement = &cr.Spec.Infra
+		result.InfraNodePlacement = &cr.Spec.Infra.NodePlacement
+
+		if cr.Spec.Infra.DeploymentReplicas != nil {
+			result.ControllerReplicas = *cr.Spec.Infra.DeploymentReplicas
+		}
+		if cr.Spec.Infra.APIServerReplicas != nil {
+			result.APIServerReplicas = *cr.Spec.Infra.APIServerReplicas
+		}
+		if cr.Spec.Infra.UploadProxyReplicas != nil {
+			result.UploadProxyReplicas = *cr.Spec.Infra.UploadProxyReplicas
+		}
 	}
 
 	return &result

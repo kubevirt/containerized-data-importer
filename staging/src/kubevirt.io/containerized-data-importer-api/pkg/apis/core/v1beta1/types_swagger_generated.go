@@ -428,12 +428,21 @@ func (CDISpec) SwaggerDoc() map[string]string {
 		"":                      "CDISpec defines our specification for the CDI installation",
 		"imagePullPolicy":       "+kubebuilder:validation:Enum=Always;IfNotPresent;Never\nPullPolicy describes a policy for if/when to pull a container image",
 		"uninstallStrategy":     "+kubebuilder:validation:Enum=RemoveWorkloads;BlockUninstallIfWorkloadsExist\nCDIUninstallStrategy defines the state to leave CDI on uninstall",
-		"infra":                 "Rules on which nodes CDI infrastructure pods will be scheduled",
+		"infra":                 "Selectors and tolerations that should apply to cdi infrastructure components",
 		"workload":              "Restrict on which nodes CDI workload pods will be scheduled",
 		"cloneStrategyOverride": "Clone strategy override: should we use a host-assisted copy even if snapshots are available?\n+kubebuilder:validation:Enum=\"copy\";\"snapshot\";\"csi-clone\"",
 		"config":                "CDIConfig at CDI level",
 		"certConfig":            "certificate configuration",
 		"priorityClass":         "PriorityClass of the CDI control plane",
+	}
+}
+
+func (ComponentConfig) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                    "ComponentConfig defines the scheduling and replicas configuration for CDI components",
+		"deploymentReplicas":  "DeploymentReplicas set Replicas for cdi-deployment",
+		"apiServerReplicas":   "ApiserverReplicas set Replicas for cdi-apiserver",
+		"uploadProxyReplicas": "UploadproxyReplicas set Replicas for cdi-uploadproxy",
 	}
 }
 

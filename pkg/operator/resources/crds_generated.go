@@ -345,8 +345,8 @@ spec:
                 - Never
                 type: string
               infra:
-                description: Rules on which nodes CDI infrastructure pods will be
-                  scheduled
+                description: Selectors and tolerations that should apply to cdi infrastructure
+                  components
                 properties:
                   affinity:
                     description: affinity enables pod affinity/anti-affinity placement
@@ -1219,6 +1219,14 @@ spec:
                             type: array
                         type: object
                     type: object
+                  apiServerReplicas:
+                    description: ApiserverReplicas set Replicas for cdi-apiserver
+                    format: int32
+                    type: integer
+                  deploymentReplicas:
+                    description: DeploymentReplicas set Replicas for cdi-deployment
+                    format: int32
+                    type: integer
                   nodeSelector:
                     additionalProperties:
                       type: string
@@ -1272,6 +1280,10 @@ spec:
                           type: string
                       type: object
                     type: array
+                  uploadProxyReplicas:
+                    description: UploadproxyReplicas set Replicas for cdi-uploadproxy
+                    format: int32
+                    type: integer
                 type: object
               priorityClass:
                 description: PriorityClass of the CDI control plane
@@ -2585,8 +2597,8 @@ spec:
                 - Never
                 type: string
               infra:
-                description: Rules on which nodes CDI infrastructure pods will be
-                  scheduled
+                description: Selectors and tolerations that should apply to cdi infrastructure
+                  components
                 properties:
                   affinity:
                     description: affinity enables pod affinity/anti-affinity placement
@@ -3459,6 +3471,14 @@ spec:
                             type: array
                         type: object
                     type: object
+                  apiServerReplicas:
+                    description: ApiserverReplicas set Replicas for cdi-apiserver
+                    format: int32
+                    type: integer
+                  deploymentReplicas:
+                    description: DeploymentReplicas set Replicas for cdi-deployment
+                    format: int32
+                    type: integer
                   nodeSelector:
                     additionalProperties:
                       type: string
@@ -3512,6 +3532,10 @@ spec:
                           type: string
                       type: object
                     type: array
+                  uploadProxyReplicas:
+                    description: UploadproxyReplicas set Replicas for cdi-uploadproxy
+                    format: int32
+                    type: integer
                 type: object
               priorityClass:
                 description: PriorityClass of the CDI control plane

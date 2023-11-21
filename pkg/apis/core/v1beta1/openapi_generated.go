@@ -534,6 +534,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIStatus":                schema_pkg_apis_core_v1beta1_CDIStatus(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CertConfig":               schema_pkg_apis_core_v1beta1_CertConfig(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ClaimPropertySet":         schema_pkg_apis_core_v1beta1_ClaimPropertySet(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ComponentConfig":          schema_pkg_apis_core_v1beta1_ComponentConfig(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ConditionState":           schema_pkg_apis_core_v1beta1_ConditionState(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCron":           schema_pkg_apis_core_v1beta1_DataImportCron(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronCondition":  schema_pkg_apis_core_v1beta1_DataImportCronCondition(ref),
@@ -25243,9 +25244,9 @@ func schema_pkg_apis_core_v1beta1_CDISpec(ref common.ReferenceCallback) common.O
 					},
 					"infra": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Rules on which nodes CDI infrastructure pods will be scheduled",
+							Description: "Selectors and tolerations that should apply to cdi infrastructure components",
 							Default:     map[string]interface{}{},
-							Ref:         ref("kubevirt.io/controller-lifecycle-operator-sdk/api.NodePlacement"),
+							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ComponentConfig"),
 						},
 					},
 					"workload": {
@@ -25285,7 +25286,7 @@ func schema_pkg_apis_core_v1beta1_CDISpec(ref common.ReferenceCallback) common.O
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDICertConfig", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfigSpec", "kubevirt.io/controller-lifecycle-operator-sdk/api.NodePlacement"},
+			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDICertConfig", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfigSpec", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ComponentConfig", "kubevirt.io/controller-lifecycle-operator-sdk/api.NodePlacement"},
 	}
 }
 
@@ -25405,6 +25406,78 @@ func schema_pkg_apis_core_v1beta1_ClaimPropertySet(ref common.ReferenceCallback)
 				},
 			},
 		},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_ComponentConfig(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ComponentConfig defines the scheduling and replicas configuration for CDI components",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeSelector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeSelector is the node selector applied to the relevant kind of pods It specifies a map of key-value pairs: for the pod to be eligible to run on a node, the node must have each of the indicated key-value pairs as labels (it can have additional labels as well). See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"affinity": {
+						SchemaProps: spec.SchemaProps{
+							Description: "affinity enables pod affinity/anti-affinity placement expanding the types of constraints that can be expressed with nodeSelector. affinity is going to be applied to the relevant kind of pods in parallel with nodeSelector See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity",
+							Ref:         ref("k8s.io/api/core/v1.Affinity"),
+						},
+					},
+					"tolerations": {
+						SchemaProps: spec.SchemaProps{
+							Description: "tolerations is a list of tolerations applied to the relevant kind of pods See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info. These are additional tolerations other than default ones.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/core/v1.Toleration"),
+									},
+								},
+							},
+						},
+					},
+					"deploymentReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DeploymentReplicas set Replicas for cdi-deployment",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"apiServerReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ApiserverReplicas set Replicas for cdi-apiserver",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"uploadProxyReplicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "UploadproxyReplicas set Replicas for cdi-uploadproxy",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/core/v1.Affinity", "k8s.io/api/core/v1.Toleration"},
 	}
 }
 
