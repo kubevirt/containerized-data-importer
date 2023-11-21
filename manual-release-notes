@@ -1,0 +1,23 @@
+v1.58.0-rc1
+release candidate 1
+
+v1.58.0
+BugFix: Avoid crash of cdi-operator when CDI CR is deleted (#2856)
+BugFix: panic in /go/pkg/mod/k8s.io/client-go@v0.26.2/discovery/aggregated_discovery.go:88 (#2855)
+Enhancement: Increase deployment cpu requests to 100m.  Configure controllers to handle concurrent requests (#2862)
+BugFix: Remove DataVolume reconcile error when storage class is not found yet (#2860)
+BugFix: Fix not passing priority class to populator pod (#2864)
+BugFix: Bump github.com/containers/image/v5 for resuming layer pulls after "unexpected EOF" and "connection reset by peer" errors (#2874)
+BugFix: Avoid creating snapshot of old storage class DataImportCron PVCs (#2837)
+BugFix: Global permissions [*] seen across CDI components (#2866)
+Enhancement: Allow modifying log verbosity in CDI (#2882)
+BugFix: Trident ontap-san supports RWX not just RWO (#2868)
+BugFix: Delete old version DV's with DIC garbage collector (#2749)
+BugFix: Add preferred ReadWriteMany, Filesystem capability to the pxd.portworx.com provisioner (#2789)
+BugFix: nil ptr in snapshot clone controller (#2900)
+BugFix: Allow the usage of AnnPodRetainAfterCompletion with populators (#2873)
+BugFix: wffc override not respected for blank block disks (#2917)
+Cleanup: "clone_progress" metric has been removed from the project documentation. exclude this metric from the documentation as it is intended for internal use only. (#2929)
+Enhancement: Default virtualization storage class that takes precedence over k8s default storage class (#2913)
+Cleanup: Updated to bazel 5.4.0 and golang 1.20.10 (#2934)
+Cleanup: Build with golang 1.20.10 (#2942)
