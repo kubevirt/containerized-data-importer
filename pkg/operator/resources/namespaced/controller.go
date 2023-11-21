@@ -191,6 +191,8 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 		},
 	}
 	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{common.PrometheusLabelKey: common.PrometheusLabelValue})
+	//Add label for pod affinity
+	labels = util.AppendLabels(labels, map[string]string{cdiLabel: controllerResourceName})
 	deployment.SetLabels(labels)
 	deployment.Spec.Template.SetLabels(labels)
 	container.Env = []corev1.EnvVar{

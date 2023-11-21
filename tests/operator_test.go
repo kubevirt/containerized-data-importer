@@ -328,7 +328,7 @@ var _ = Describe("ALL Operator tests", func() {
 					Operator: corev1.TolerationOpExists,
 				}
 
-				if !tolerationExists(cr.Spec.Infra.Tolerations, criticalAddonsToleration) {
+				if !tolerationExists(cr.Spec.Infra.NodePlacement.Tolerations, criticalAddonsToleration) {
 					Skip("Unexpected CDI CR (not from cdi-cr.yaml), doesn't tolerate CriticalAddonsOnly")
 				}
 
@@ -626,7 +626,9 @@ var _ = Describe("ALL Operator tests", func() {
 			It("[test_id:4782] Should install CDI infrastructure pods with node placement", func() {
 				By("Creating modified CDI CR, with infra nodePlacement")
 				localSpec := restoreCdiCr.Spec.DeepCopy()
-				localSpec.Infra = f.TestNodePlacementValues()
+				nodePlacement := f.TestNodePlacementValues()
+
+				localSpec.Infra.NodePlacement = nodePlacement
 
 				tempCdiCr := &cdiv1.CDI{
 					ObjectMeta: metav1.ObjectMeta{
@@ -641,9 +643,14 @@ var _ = Describe("ALL Operator tests", func() {
 				for _, deploymentName := range []string{"cdi-apiserver", "cdi-deployment", "cdi-uploadproxy"} {
 					deployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
+					By("Verify the deployment has nodeSelector")
+					Expect(deployment.Spec.Template.Spec.NodeSelector).To(Equal(framework.NodeSelectorTestValue))
 
-					match := f.PodSpecHasTestNodePlacementValues(deployment.Spec.Template.Spec)
-					Expect(match).To(BeTrue(), fmt.Sprintf("node placement in pod spec\n%v\n differs from node placement values in CDI CR\n%v\n", deployment.Spec.Template.Spec, localSpec.Infra))
+					By("Verify the deployment has affinity")
+					checkAntiAffinity(deploymentName, deployment.Spec.Template.Spec.Affinity)
+
+					By("Verify the deployment has tolerations")
+					Expect(deployment.Spec.Template.Spec.Tolerations).To(ContainElement(framework.TolerationsTestValue[0]))
 				}
 			})
 		})
@@ -1258,6 +1265,32 @@ func scaleDeployment(f *framework.Framework, deploymentName string, replicas int
 func checkLogForRegEx(regEx *regexp.Regexp, log string) bool {
 	matches := regEx.FindAllStringIndex(log, -1)
 	return len(matches) >= 1
+}
+
+func checkAntiAffinity(name string, deploymentAffinity *corev1.Affinity) {
+
+	affinityTampleValue := &corev1.PodAntiAffinity{
+		PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
+			{
+				Weight: int32(1),
+				PodAffinityTerm: corev1.PodAffinityTerm{
+					LabelSelector: &metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "cdi.kubevirt.io",
+								Operator: metav1.LabelSelectorOpIn,
+								Values:   []string{name}},
+						},
+					},
+					TopologyKey: "kubernetes.io/hostname",
+				},
+			},
+		},
+	}
+	affCopy := framework.AffinityTestValue.DeepCopy()
+	affCopy.PodAntiAffinity = affinityTampleValue
+	Expect(reflect.DeepEqual(deploymentAffinity, affCopy)).To(BeTrue())
+
 }
 
 func getLog(f *framework.Framework, name string) string {
