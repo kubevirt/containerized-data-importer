@@ -662,37 +662,25 @@ rpm(
 rpm(
     name = "crypto-policies-0__20230505-1.gitf69bbc2.el9.aarch64",
     sha256 = "77d08dabe399325acc128e847ad687001a4c0f62849479f15488454ca60389a5",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/crypto-policies-20230505-1.gitf69bbc2.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/77d08dabe399325acc128e847ad687001a4c0f62849479f15488454ca60389a5",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/77d08dabe399325acc128e847ad687001a4c0f62849479f15488454ca60389a5"],
 )
 
 rpm(
     name = "crypto-policies-0__20230505-1.gitf69bbc2.el9.x86_64",
     sha256 = "77d08dabe399325acc128e847ad687001a4c0f62849479f15488454ca60389a5",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/crypto-policies-20230505-1.gitf69bbc2.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/77d08dabe399325acc128e847ad687001a4c0f62849479f15488454ca60389a5",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/77d08dabe399325acc128e847ad687001a4c0f62849479f15488454ca60389a5"],
 )
 
 rpm(
     name = "crypto-policies-scripts-0__20230505-1.gitf69bbc2.el9.aarch64",
     sha256 = "1370f759126b0e8acaf5a865be16414e2bde3468290bec3dc3227d1738a84ba0",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/crypto-policies-scripts-20230505-1.gitf69bbc2.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/1370f759126b0e8acaf5a865be16414e2bde3468290bec3dc3227d1738a84ba0",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/1370f759126b0e8acaf5a865be16414e2bde3468290bec3dc3227d1738a84ba0"],
 )
 
 rpm(
     name = "crypto-policies-scripts-0__20230505-1.gitf69bbc2.el9.x86_64",
     sha256 = "1370f759126b0e8acaf5a865be16414e2bde3468290bec3dc3227d1738a84ba0",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/crypto-policies-scripts-20230505-1.gitf69bbc2.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/1370f759126b0e8acaf5a865be16414e2bde3468290bec3dc3227d1738a84ba0",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/1370f759126b0e8acaf5a865be16414e2bde3468290bec3dc3227d1738a84ba0"],
 )
 
 rpm(
