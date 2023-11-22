@@ -41,12 +41,14 @@ if ! git diff-index --quiet HEAD~1 hack/build/docker; then
     if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
         (cd ${BUILDER_SPEC} && buildah build ${BUILDAH_PLATFORM_FLAG} --manifest ${BUILDER_MANIFEST} .)
         buildah manifest push --all ${BUILDER_MANIFEST} docker://${BUILDER_MANIFEST}
+        DIGEST=$(podman inspect $(podman images | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $3 }') |  jq '.[]["Digest"]')
     else
         (cd ${BUILDER_SPEC} && docker build --tag ${BUILDER_MANIFEST} .)
         docker push ${BUILDER_MANIFEST}
+        DIGEST=$(docker images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
     fi
 
-    DIGEST=$(docker images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
+    
     echo "Image: ${BUILDER_MANIFEST}"
     echo "Digest: ${DIGEST}"
 fi
