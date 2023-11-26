@@ -27,3 +27,6 @@ repositories:
   baseurl: https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/
   name: ovirt-imageio-preview
   gpgkey: https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/pubkey.gpg
+- arch: aarch64
+  baseurl: https://download.copr.fedorainfracloud.org/results/ovirt/ovirt-master-snapshot/centos-stream-9-aarch64/
+  name: ovirt-master-snapshot-aarch64
