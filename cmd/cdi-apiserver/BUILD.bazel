@@ -23,10 +23,13 @@ go_library(
     ],
 )
 
+load("//pkg/version:def.bzl", "version_x_defs")
+
 go_binary(
     name = "cdi-apiserver",
     embed = [":go_default_library"],
     visibility = ["//visibility:public"],
+    x_defs = version_x_defs(),
 )
 
 load(
