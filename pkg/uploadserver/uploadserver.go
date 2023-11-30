@@ -440,7 +440,7 @@ func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string,
 	}
 
 	uds := importer.NewAsyncUploadDataSource(newContentReader(stream, sourceContentType))
-	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
+	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation, "")
 	return processor, processor.ProcessDataWithPause()
 }
 
@@ -451,7 +451,7 @@ func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, file
 
 	// Clone block device to block device or file system
 	uds := importer.NewUploadDataSource(newContentReader(stream, sourceContentType), dvContentType)
-	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
+	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation, "")
 	err := processor.ProcessData()
 	return processor.PreallocationApplied(), err
 }
