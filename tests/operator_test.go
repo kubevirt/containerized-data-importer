@@ -811,6 +811,74 @@ var _ = Describe("ALL Operator tests", func() {
 					return scc.Priority
 				}, 2*time.Minute, 1*time.Second).Should(BeNil())
 			})
+			It("[test_id:4785] Should update infra pod number when modify the replica in CDI CR", func() {
+				By("Modify the replica separately")
+				cdi := getCDI(f)
+				apiserverTmpReplica := int32(2)
+				deploymentTmpReplica := int32(3)
+				uploadproxyTmpReplica := int32(4)
+
+				cdi.Spec.Infra.APIServerReplicas = &apiserverTmpReplica
+				cdi.Spec.Infra.DeploymentReplicas = &deploymentTmpReplica
+				cdi.Spec.Infra.UploadProxyReplicas = &uploadproxyTmpReplica
+
+				_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(func() bool {
+					for _, deploymentName := range []string{"cdi-apiserver", "cdi-deployment", "cdi-uploadproxy"} {
+						depl, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						if err != nil || *depl.Spec.Replicas == 1 {
+							return false
+						}
+					}
+					By("Replicas in deployments update complete")
+					return true
+				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+
+				By("Verify the replica of cdi-apiserver")
+
+				Eventually(func() bool {
+					return getPodNumByPrefix(f, "cdi-apiserver") == 2
+				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+
+				By("Verify the replica of cdi-deployment")
+				Eventually(func() bool {
+					return getPodNumByPrefix(f, "cdi-deployment") == 3
+				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+
+				By("Verify the replica of cdi-uploadproxy")
+				Eventually(func() bool {
+					return getPodNumByPrefix(f, "cdi-uploadproxy") == 4
+				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+
+				By("Reset replica for CDI CR")
+				cdi = getCDI(f)
+				cdi.Spec.Infra.APIServerReplicas = nil
+				cdi.Spec.Infra.DeploymentReplicas = nil
+				cdi.Spec.Infra.UploadProxyReplicas = nil
+
+				_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Replica should be 1 when replica dosen't set in CDI CR")
+
+				Eventually(func() bool {
+					for _, deploymentName := range []string{"cdi-apiserver", "cdi-deployment", "cdi-uploadproxy"} {
+						depl, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						_, err = utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, deploymentName, common.CDIComponentLabel+"="+deploymentName)
+						if err != nil || *depl.Spec.Replicas != 1 {
+							return false
+						}
+
+					}
+					return true
+
+				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+
+			})
 		})
 
 		var _ = Describe("Operator cert config tests", func() {
@@ -1297,4 +1365,14 @@ func getLog(f *framework.Framework, name string) string {
 	log, err := f.RunKubectlCommand("logs", "--since=0", name, "-n", f.CdiInstallNs)
 	Expect(err).ToNot(HaveOccurred())
 	return log
+}
+func getPodNumByPrefix(f *framework.Framework, deploymentName string) int {
+	labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{common.CDIComponentLabel: deploymentName}}
+
+	podList, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
+	})
+	Expect(err).ToNot(HaveOccurred(), "failed listing deployment pods")
+
+	return len(podList.Items)
 }
