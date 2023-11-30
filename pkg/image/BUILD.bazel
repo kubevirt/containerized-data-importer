@@ -3,6 +3,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "go_default_library",
     srcs = [
+        "directio.go",
         "filefmt.go",
         "nbdkit.go",
         "qemu.go",
@@ -33,6 +34,7 @@ go_test(
     ],
     embed = [":go_default_library"],
     deps = [
+        "//pkg/common:go_default_library",
         "//pkg/system:go_default_library",
         "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
