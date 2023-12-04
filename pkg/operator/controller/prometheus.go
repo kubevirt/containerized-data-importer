@@ -231,7 +231,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 			},
 			map[string]string{
 				severityAlertLabelKey:     "warning",
-				healthImpactAlertLabelKey: "warning",
+				healthImpactAlertLabelKey: "none",
 				partOfAlertLabelKey:       partOfAlertLabelValue,
 				componentAlertLabelKey:    componentAlertLabelValue,
 			},
