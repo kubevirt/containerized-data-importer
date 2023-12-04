@@ -36,30 +36,31 @@ The standard workflow is performed inside a helper container to normalize the bu
 
 - `all`: cleans up previous build artifacts, compiles all CDI packages and builds containers
 - `apidocs`: generate client-go code (same as 'make generate') and swagger docs.
-- `build`: compile all CDI binary artifacts and generate controller and operator manifests
+- `build-functest`: build the functional tests (content of tests/ subdirectory).
+- `bazel-build`: build all the Go binaries used.
+- `bazel-build-images`: build all the container images used (for both CDI and functional tests).
+- `bazel-generate`: generate BUILD files for Bazel.
+- `bazel-push-images`: push the built container images to the registry defined in DOCKER_PREFIX
+- `builder-push`: Build and push the builder container image, declared in docker/builder/Dockerfile.
 - `clean`: cleans up previous build artifacts
-- `cluster-up`: start a default Kubernetes or Open Shift cluster. set KUBEVIRT_PROVIDER environment variable to either 'k8s-1.18' or 'os-3.11.0-crio' to select the type of cluster. set KUBEVIRT_NUM_NODES to something higher than 1 to have more than one node.
+- `cluster-up`: start a default Kubernetes or Open Shift cluster. set KUBEVIRT_PROVIDER environment variable to either 'k8s-1.18' or 'os-3.11.0' to select the type of cluster. set KUBEVIRT_NUM_NODES to something higher than 1 to have more than one node.
 - `cluster-down`: stop the cluster, doing a make cluster-down && make cluster-up will basically restart the cluster into an empty fresh state.
 - `cluster-down-purge`: cluster-down and cleanup all cached images from docker registry. Accepts [make variables](#make-variables) DOCKER_PREFIX. Removes all images of the specified repository. If not specified removes localhost repository of current cluster instance.
-- `cluster-sync`: 'make cluster-sync-cdi' followed by 'make cluster-sync-test-infra'
-- `cluster-sync-cdi`: builds the controller/importer/cloner, and pushes it into a running cluster. The cluster must be up before running a cluster sync. Also generates a manifest and applies it to the running cluster after pushing the images to it.
-- `cluster-sync-test-infra`: pushes the test-infra pods into a running cluster.
-- `cluster-clean-cdi`: cleans all cdi resources, but not test-infra (cdi.kubevirt.io/testing labeled), cdi namespace and operator manifest.
-- `cluster-clean-test-infra`: cleans all test-infra resources (cdi.kubevirt.io/testing labeled).
+- `cluster-sync`: builds the controller/importer/cloner, and pushes it into a running cluster. The cluster must be up before running a cluster sync. Also generates a manifest and applies it to the running cluster after pushing the images to it.
 - `deps-update`: runs 'go mod tidy' and 'go mod vendor'
-- `format`: execute `shfmt`, `goimports`, and `go vet` on all CDI packages.  Writes back to the source files.
+- `format`: execute 'shfmt', 'goimports', and 'go vet' on all CDI packages.  Writes back to the source files.
 - `generate`: generate client-go deepcopy functions, clientset, listers and informers.
 - `generate-verify`: generate client-go deepcopy functions, clientset, listers and informers and validate codegen.
+- `gomod-update`: Update vendored Go code in vendor/ subdirectory.
 - `goveralls`: run code coverage tracking system.
-- `manifests`: generate a cdi-controller and operator manifests in `_out/manifests/`.  Accepts [make variables](#make-variables) DOCKER_TAG, DOCKER_PREFIX, VERBOSITY, PULL_POLICY, CSV_VERSION, QUAY_REPOSITORY, QUAY_NAMESPACE
-- `publish`: CI ONLY - this recipe is not intended for use by developers
-- `push`: compiles, builds, and pushes to the repo passed in `DOCKER_PREFIX=<my repo>`
-- `release-description`: generate a release announcement detailing changes between 2 commits (typically tags).  Expects `RELREF` and `PREREF` to be set
-    -  e.g. `$ make release-description RELREF=v1.1.1 PREREF=v1.1.1-alpha.1`
-- `test`: execute all tests (_NOTE:_ `WHAT` is expected to match the go cli pattern for paths e.g. `./pkg/...`.  This differs slightly from rest of the `make` targets)
-    - `test-unit`: execute all tests under `./pkg/...`
-    - `test-functional`: execute functional tests under `./tests/...`. Additional test flags can be passed to the test binary via the TEST_ARGS variable, see below for an example and restrictions.
-    - `test-lint` runs `gofmt` and `golint` tests against src files
+- `manifests`: generate a cdi-controller and operator manifests in '_out/manifests/'.  Accepts [make variables]\(#make-variables\) DOCKER_TAG, DOCKER_PREFIX, VERBOSITY, PULL_POLICY, CSV_VERSION, QUAY_REPOSITORY, QUAY_NAMESPACE
+- `openshift-ci-image-push`: Build and push the OpenShift CI build+test container image, declared in hack/ci/Dockerfile.ci
+- `push`: compiles, builds, and pushes to the repo passed in 'DOCKER_PREFIX=<my repo>'
+- `release-description`: generate a release announcement detailing changes between 2 commits (typically tags).  Expects 'RELREF' and 'PREREF' to be set
+- `test`: execute all tests (_NOTE:_ 'WHAT' is expected to match the go cli pattern for paths e.g. './pkg/...'.  This differs slightly from rest of the 'make' targets)
+    - `test-unit`: Run unit tests.
+    - `test-lint`: Run gofmt and golint against src files
+    - `test-functional`: Run functional tests (in tests/ subdirectory).
 - `vet`: lint all CDI packages
 
 
