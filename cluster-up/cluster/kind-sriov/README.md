@@ -55,13 +55,12 @@ This destroys the whole cluster, and moves the SR-IOV nics to the root network n
 
 ## Setting a custom kind version
 
-In order to use a custom kind image / kind version, export `KIND_NODE_IMAGE`, `KIND_VERSION`, `KUBECTL_PATH` before
+In order to use a custom kind image / kind version, export `KIND_NODE_IMAGE`, `KIND_VERSION` before
 running cluster-up. For example in order to use kind 0.9.0 (which is based on k8s-1.19.1) use:
 
 ```bash
 export KIND_NODE_IMAGE="kindest/node:v1.19.1@sha256:98cf5288864662e37115e362b23e4369c8c4a408f99cbc06e58ac30ddc721600"
 export KIND_VERSION="0.9.0"
-export KUBECTL_PATH="/usr/bin/kubectl"
 ```
 
 This allows users to test or use custom images / different kind versions before making them official.
