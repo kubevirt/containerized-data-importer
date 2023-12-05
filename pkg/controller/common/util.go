@@ -316,6 +316,9 @@ const (
 	AnnEventSourceKind = "cdi.kubevirt.io/events.source.kind"
 	// AnnEventSource is the source that should be related to events (namespace/name)
 	AnnEventSource = "cdi.kubevirt.io/events.source"
+
+	// AnnAllowClaimAdoption is the annotation that allows a claim to be adopted by a DataVolume
+	AnnAllowClaimAdoption = "cdi.kubevirt.io/allowClaimAdoption"
 )
 
 // Size-detection pod error codes
@@ -2094,4 +2097,23 @@ func SetPvcAllowedAnnotations(obj metav1.Object, pvc *corev1.PersistentVolumeCla
 			AddAnnotation(obj, ann, val)
 		}
 	}
+}
+
+// ClaimMayExistBeforeDataVolume returns true if the PVC may exist before the DataVolume
+func ClaimMayExistBeforeDataVolume(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
+	if IsUnbound(pvc) {
+		return false
+	}
+	return ClaimIsPopulatedForDataVolume(pvc, dv) || ClaimAllowsAdoption(pvc)
+}
+
+// ClaimIsPopulatedForDataVolume returns true if the PVC is populated for the given DataVolume
+func ClaimIsPopulatedForDataVolume(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
+	return pvc.Annotations[AnnPopulatedFor] == dv.Name
+}
+
+// ClaimAllowsAdoption returns true if the PVC may be adopted
+func ClaimAllowsAdoption(pvc *corev1.PersistentVolumeClaim) bool {
+	result, _ := strconv.ParseBool(pvc.Annotations[AnnAllowClaimAdoption])
+	return result
 }
