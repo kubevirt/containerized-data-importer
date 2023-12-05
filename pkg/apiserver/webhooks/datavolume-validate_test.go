@@ -195,8 +195,59 @@ var _ = Describe("Validating Webhook", func() {
 				},
 				Spec: *dataVolume.Spec.PVC,
 			}
+			pvc.Spec.VolumeName = "pv"
 			resp := validateDataVolumeCreate(dataVolume, pvc)
 			Expect(resp.Allowed).To(BeTrue())
+		})
+
+		It("should accept DataVolume with PVC adoption annotation", func() {
+			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Name,
+					Namespace: dataVolume.Namespace,
+					Annotations: map[string]string{
+						"cdi.kubevirt.io/allowClaimAdoption": "true",
+					},
+				},
+				Spec: *dataVolume.Spec.PVC,
+			}
+			pvc.Spec.VolumeName = "pv"
+			resp := validateDataVolumeCreate(dataVolume, pvc)
+			Expect(resp.Allowed).To(BeTrue())
+		})
+
+		It("should reject DataVolume with PVC adoption annotation false", func() {
+			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Name,
+					Namespace: dataVolume.Namespace,
+					Annotations: map[string]string{
+						"cdi.kubevirt.io/allowClaimAdoption": "false",
+					},
+				},
+				Spec: *dataVolume.Spec.PVC,
+			}
+			pvc.Spec.VolumeName = "pv"
+			resp := validateDataVolumeCreate(dataVolume, pvc)
+			Expect(resp.Allowed).To(BeFalse())
+		})
+
+		It("should reject DataVolume with unbound PVC and adoption annotation", func() {
+			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Name,
+					Namespace: dataVolume.Namespace,
+					Annotations: map[string]string{
+						"cdi.kubevirt.io/allowClaimAdoption": "true",
+					},
+				},
+				Spec: *dataVolume.Spec.PVC,
+			}
+			resp := validateDataVolumeCreate(dataVolume, pvc)
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should accept DataVolume with PVC source on create if PVC does not exist", func() {
