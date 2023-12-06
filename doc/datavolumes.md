@@ -435,6 +435,10 @@ spec:
 takes into account the file system overhead and requests PVC big enough to fit an image and file system metadata. 
 This logic is only applied for the DataVolume.spec.storage. 
 
+The Storage API is also aware of a default virtualization storage class.  
+A default virtualization storage class is defined as preferrable for VM workloads (certain combination of storage class parameters that benefit VMs) and is annotated with `storageclass.kubevirt.io/is-default-virt-class` set to `"true"`.  
+For a DataVolume request that does not explicitly specify a storage class name, such a storage class takes precedence over the k8s default storage class.
+
 Lastly, it is worth mentioning that the detection and automation of  storage parameters can vary depending on the used `source`,
 for example, using [pvc](#pvc-source) allows to ommit the storage size, while for others is still mandatory. We encourage to check the docs for each individual source for more information.
 
