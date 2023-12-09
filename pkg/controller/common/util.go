@@ -1209,6 +1209,9 @@ func CreatePvcInStorageClass(name, ns string, storageClassName *string, annotati
 		},
 	}
 	pvc.Status.Capacity = pvc.Spec.Resources.Requests.DeepCopy()
+	if pvc.Status.Phase == corev1.ClaimBound {
+		pvc.Spec.VolumeName = "pv-" + string(pvc.UID)
+	}
 	return pvc
 }
 

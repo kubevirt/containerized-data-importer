@@ -204,6 +204,39 @@ var _ = Describe("All DataVolume Tests", func() {
 		Expect(string(dv.Status.Progress)).To(Equal("N/A"))
 	})
 
+	It("Should adopt a PVC", func() {
+		annotations := map[string]string{"cdi.kubevirt.io/allowClaimAdoption": "true"}
+		pvc := CreatePvc("test-dv", metav1.NamespaceDefault, annotations, nil)
+		pvc.Status.Phase = corev1.ClaimBound
+		dv := newUploadDataVolume("test-dv")
+		reconciler = createUploadReconciler(pvc, dv)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.OwnerReferences).To(HaveLen(1))
+		or := pvc.OwnerReferences[0]
+		Expect(or.UID).To(Equal(dv.UID))
+
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
+		Expect(string(dv.Status.Progress)).To(Equal("N/A"))
+	})
+
+	It("Should NOT adopt a unbound PVC", func() {
+		annotations := map[string]string{"cdi.kubevirt.io/allowClaimAdoption": "true"}
+		pvc := CreatePvc("test-dv", metav1.NamespaceDefault, annotations, nil)
+		pvc.Spec.VolumeName = ""
+		pvc.Status.Phase = corev1.ClaimPending
+		dv := newUploadDataVolume("test-dv")
+		reconciler = createUploadReconciler(pvc, dv)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("unbound populated/adoptable PVC"))
+	})
+
 	var _ = Describe("Reconcile Datavolume status", func() {
 		DescribeTable("DV phase", func(testDv runtime.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann, expectedEvent string, extraAnnotations ...string) {
 			// We first test the non-populator flow

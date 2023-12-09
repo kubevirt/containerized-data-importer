@@ -185,11 +185,11 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 	pvcSpec := syncRes.pvcSpec
 	datavolume := syncRes.dvMutated
 
-	pvcPopulated := pvcIsPopulated(pvc, datavolume)
+	requiresNoWork := pvcRequiresNoWork(pvc, datavolume)
 	staticProvisionPending := checkStaticProvisionPending(pvc, datavolume)
 	_, prePopulated := datavolume.Annotations[cc.AnnPrePopulated]
 
-	if pvcPopulated || prePopulated || staticProvisionPending {
+	if requiresNoWork || prePopulated || staticProvisionPending {
 		return syncRes, nil
 	}
 
