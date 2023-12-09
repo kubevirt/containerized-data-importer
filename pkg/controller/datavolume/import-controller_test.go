@@ -192,6 +192,32 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.Labels[common.KubePersistentVolumeFillingUpSuppressLabelKey]).To(Equal(common.KubePersistentVolumeFillingUpSuppressLabelValue))
 		})
 
+		It("Should create a PVC on a valid import DV without delayed annotation then add on success", func() {
+			dv := NewImportDataVolume("test-dv")
+			AddAnnotation(dv, "foo", "bar")
+			AddAnnotation(dv, AnnAllowClaimAdoption, "true")
+			reconciler = createImportReconciler(dv)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Annotations["foo"]).To(Equal("bar"))
+			Expect(pvc.Annotations).ToNot(HaveKey(AnnAllowClaimAdoption))
+
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			dv.Status.Phase = cdiv1.Succeeded
+			err = reconciler.client.Update(context.Background(), dv)
+			Expect(err).ToNot(HaveOccurred())
+			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Annotations["foo"]).To(Equal("bar"))
+			Expect(pvc.Annotations[AnnAllowClaimAdoption]).To(Equal("true"))
+		})
+
 		It("Should fail if dv source not import when use populators", func() {
 			scName := "testSC"
 			sc := CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")

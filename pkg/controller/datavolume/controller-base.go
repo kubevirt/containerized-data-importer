@@ -88,6 +88,11 @@ var (
 			Help: monitoring.MetricOptsList[monitoring.DataVolumePending].Help,
 		},
 	)
+
+	delayedAnnotations = []string{
+		cc.AnnPopulatedFor,
+		cc.AnnAllowClaimAdoption,
+	}
 )
 
 // Event represents DV controller event
@@ -513,6 +518,10 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 		return syncState, err
 	}
 
+	if err := r.handleDelayedAnnotations(&syncState, log); err != nil || syncState.result != nil {
+		return syncState, err
+	}
+
 	if err = updateDataVolumeDefaultInstancetypeLabels(r.client, &syncState); err != nil {
 		return syncState, err
 	}
@@ -628,6 +637,37 @@ func (r *ReconcilerBase) handleStaticVolume(syncState *dvSyncState, log logr.Log
 	syncState.pvc = pvcCpy
 
 	return fmt.Errorf("DataVolume bound to unexpected PV %s", syncState.pvc.Spec.VolumeName)
+}
+
+func (r *ReconcilerBase) handleDelayedAnnotations(syncState *dvSyncState, log logr.Logger) error {
+	dataVolume := syncState.dv
+	if dataVolume.Status.Phase != cdiv1.Succeeded {
+		return nil
+	}
+
+	if syncState.pvc == nil {
+		return nil
+	}
+
+	pvcCpy := syncState.pvc.DeepCopy()
+	for _, anno := range delayedAnnotations {
+		if val, ok := dataVolume.Annotations[anno]; ok {
+			// only add if not already present
+			if _, ok := pvcCpy.Annotations[anno]; !ok {
+				cc.AddAnnotation(pvcCpy, anno, val)
+			}
+		}
+	}
+
+	if !reflect.DeepEqual(syncState.pvc, pvcCpy) {
+		if err := r.updatePVC(pvcCpy); err != nil {
+			return err
+		}
+		syncState.pvc = pvcCpy
+		syncState.result = &reconcile.Result{}
+	}
+
+	return nil
 }
 
 func (r *ReconcilerBase) getAvailableVolumesForDV(syncState *dvSyncState, log logr.Logger) ([]string, error) {
@@ -1115,6 +1155,10 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 			return nil, err
 		}
 		pvc.Annotations[cc.AnnOwnerUID] = string(dataVolume.UID)
+	}
+
+	for _, anno := range delayedAnnotations {
+		delete(pvc.Annotations, anno)
 	}
 
 	return pvc, nil
