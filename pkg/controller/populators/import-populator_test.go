@@ -234,7 +234,7 @@ var _ = Describe("Import populator tests", func() {
 		})
 
 		DescribeTable("Should create PVC Prime with proper import annotations", func(key, value, expectedValue string) {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, map[string]string{}, nil, corev1.ClaimBound)
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, map[string]string{}, nil, corev1.ClaimPending)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
 			targetPvc.Annotations[key] = value
 			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
@@ -395,7 +395,7 @@ var _ = Describe("Import populator tests", func() {
 		)
 
 		It("Should set multistage migration annotations on PVC prime", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
 			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
 			volumeImportSource.Spec.Source = &cdiv1.ImportSourceType{

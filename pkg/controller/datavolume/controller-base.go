@@ -128,7 +128,14 @@ type ReconcilerBase struct {
 	shouldUpdateProgress bool
 }
 
-func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
+func pvcRequiresNoWork(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
+	if pvc == nil || dv == nil {
+		return false
+	}
+	return pvcIsPopulatedForDataVolume(pvc, dv) || cc.ClaimAllowsAdoption(pvc)
+}
+
+func pvcIsPopulatedForDataVolume(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
 	if pvc == nil || dv == nil {
 		return false
 	}
@@ -649,7 +656,7 @@ func (r *ReconcilerBase) getAvailableVolumesForDV(syncState *dvSyncState, log lo
 }
 
 func (r *ReconcilerBase) handlePrePopulation(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) {
-	if pvc.Status.Phase == corev1.ClaimBound && pvcIsPopulated(pvc, dv) {
+	if pvc.Status.Phase == corev1.ClaimBound && pvcIsPopulatedForDataVolume(pvc, dv) {
 		cc.AddAnnotation(dv, cc.AnnPrePopulated, pvc.Name)
 	}
 }
@@ -665,7 +672,10 @@ func (r *ReconcilerBase) validatePVC(dv *cdiv1.DataVolume, pvc *corev1.Persisten
 	// If the PVC is not controlled by this DataVolume resource, we should log
 	// a warning to the event recorder and return
 	if !metav1.IsControlledBy(pvc, dv) {
-		if pvcIsPopulated(pvc, dv) {
+		if pvcRequiresNoWork(pvc, dv) {
+			if cc.IsUnbound(pvc) {
+				return fmt.Errorf("unbound populated/adoptable PVC %s/%s", pvc.Namespace, pvc.Name)
+			}
 			if err := r.addOwnerRef(pvc, dv); err != nil {
 				return err
 			}
@@ -856,7 +866,7 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 		dataVolumeCopy.Status.ClaimName = pvc.Name
 
 		phase := pvc.Annotations[cc.AnnPodPhase]
-		if phase == string(cdiv1.Succeeded) {
+		if phase == string(cdiv1.Succeeded) && !pvcRequiresNoWork(pvc, dataVolumeCopy) {
 			if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
 				return reconcile.Result{}, err
 			}
@@ -876,7 +886,7 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 					dataVolumeCopy.Status.Phase = cdiv1.PVCBound
 				}
 
-				if pvcIsPopulated(pvc, dataVolumeCopy) {
+				if pvcRequiresNoWork(pvc, dataVolumeCopy) {
 					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
 				} else {
 					if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
