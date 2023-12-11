@@ -459,7 +459,11 @@ func (r *CloneReconcilerBase) updateStatusPhase(pvc *corev1.PersistentVolumeClai
 	phase, ok := pvc.Annotations[cc.AnnPodPhase]
 	if phase != string(corev1.PodSucceeded) {
 		_, ok = pvc.Annotations[cc.AnnCloneRequest]
-		if !ok || pvc.Status.Phase != corev1.ClaimBound || pvcRequiresNoWork(pvc, dataVolumeCopy) {
+		requiresNoWork, err := r.pvcRequiresNoWork(pvc, dataVolumeCopy)
+		if err != nil {
+			return err
+		}
+		if !ok || pvc.Status.Phase != corev1.ClaimBound || requiresNoWork {
 			return nil
 		}
 		dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled

@@ -40,6 +40,7 @@ go_library(
         "//vendor/k8s.io/klog/v2:go_default_library",
         "//vendor/k8s.io/utils/ptr:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/api:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/client:go_default_library",
     ],
 )
 
@@ -75,5 +76,6 @@ go_test(
         "//vendor/k8s.io/client-go/testing:go_default_library",
         "//vendor/k8s.io/utils/ptr:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/api:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/client/fake:go_default_library",
     ],
 )

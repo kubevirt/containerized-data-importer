@@ -39,7 +39,7 @@ var _ = Describe("Feature Gates", func() {
 		Expect(featureGates.HonorWaitForFirstConsumerEnabled()).To(BeFalse())
 	})
 
-	It("Should reflect config changes", func() {
+	It("Should reflect HonorWaitForFirstConsumer config changes", func() {
 		featureGates, client := createFeatureGatesAndClient()
 		cdiConfig := &cdiv1.CDIConfig{}
 		err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
@@ -55,6 +55,24 @@ var _ = Describe("Feature Gates", func() {
 		err = client.Update(context.TODO(), cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(featureGates.HonorWaitForFirstConsumerEnabled()).To(BeFalse())
+	})
+
+	It("Should reflect DataVolumeClaimAdoption config changes", func() {
+		featureGates, client := createFeatureGatesAndClient()
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		// update the config on the status not the spec
+		cdiConfig.Spec.FeatureGates = []string{DataVolumeClaimAdoption}
+		err = client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(featureGates.ClaimAdoptionEnabled()).To(BeTrue())
+
+		cdiConfig.Spec.FeatureGates = nil
+		err = client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(featureGates.ClaimAdoptionEnabled()).To(BeFalse())
 	})
 })
 

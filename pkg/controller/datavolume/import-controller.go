@@ -255,7 +255,11 @@ func (r *ImportReconciler) shouldUpdateStatusPhase(pvc *corev1.PersistentVolumeC
 		}
 	}
 	_, ok := pvcCopy.Annotations[cc.AnnImportPod]
-	return ok && pvcCopy.Status.Phase == corev1.ClaimBound && !pvcRequiresNoWork(pvcCopy, dv), nil
+	requiresNoWork, err := r.pvcRequiresNoWork(pvcCopy, dv)
+	if err != nil {
+		return false, err
+	}
+	return ok && pvcCopy.Status.Phase == corev1.ClaimBound && !requiresNoWork, nil
 }
 
 func (r *ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {

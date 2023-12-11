@@ -124,13 +124,6 @@ type ReconcilerBase struct {
 	shouldUpdateProgress bool
 }
 
-func pvcRequiresNoWork(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
-	if pvc == nil || dv == nil {
-		return false
-	}
-	return pvcIsPopulatedForDataVolume(pvc, dv) || cc.ClaimAllowsAdoption(pvc)
-}
-
 func pvcIsPopulatedForDataVolume(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
 	if pvc == nil || dv == nil {
 		return false
@@ -703,7 +696,11 @@ func (r *ReconcilerBase) validatePVC(dv *cdiv1.DataVolume, pvc *corev1.Persisten
 	// If the PVC is not controlled by this DataVolume resource, we should log
 	// a warning to the event recorder and return
 	if !metav1.IsControlledBy(pvc, dv) {
-		if pvcRequiresNoWork(pvc, dv) {
+		requiresNoWork, err := r.pvcRequiresNoWork(pvc, dv)
+		if err != nil {
+			return err
+		}
+		if requiresNoWork {
 			if cc.IsUnbound(pvc) {
 				return fmt.Errorf("unbound populated/adoptable PVC %s/%s", pvc.Namespace, pvc.Name)
 			}
@@ -897,7 +894,11 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 		dataVolumeCopy.Status.ClaimName = pvc.Name
 
 		phase := pvc.Annotations[cc.AnnPodPhase]
-		if phase == string(cdiv1.Succeeded) && !pvcRequiresNoWork(pvc, dataVolumeCopy) {
+		requiresNoWork, err := r.pvcRequiresNoWork(pvc, dataVolumeCopy)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		if phase == string(cdiv1.Succeeded) && !requiresNoWork {
 			if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
 				return reconcile.Result{}, err
 			}
@@ -917,7 +918,7 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 					dataVolumeCopy.Status.Phase = cdiv1.PVCBound
 				}
 
-				if pvcRequiresNoWork(pvc, dataVolumeCopy) {
+				if requiresNoWork {
 					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
 				} else {
 					if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
@@ -1270,4 +1271,14 @@ func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, er
 	}
 
 	return usePopulator, nil
+}
+
+func (r *ReconcilerBase) pvcRequiresNoWork(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (bool, error) {
+	if pvc == nil || dv == nil {
+		return false, nil
+	}
+	if pvcIsPopulatedForDataVolume(pvc, dv) {
+		return true, nil
+	}
+	return cc.ClaimAllowsAdoption(r.client, pvc)
 }

@@ -204,12 +204,33 @@ var _ = Describe("All DataVolume Tests", func() {
 		Expect(string(dv.Status.Progress)).To(Equal("N/A"))
 	})
 
-	It("Should adopt a PVC", func() {
+	It("Should adopt a PVC (with annotation)", func() {
 		annotations := map[string]string{"cdi.kubevirt.io/allowClaimAdoption": "true"}
 		pvc := CreatePvc("test-dv", metav1.NamespaceDefault, annotations, nil)
 		pvc.Status.Phase = corev1.ClaimBound
 		dv := newUploadDataVolume("test-dv")
 		reconciler = createUploadReconciler(pvc, dv)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.OwnerReferences).To(HaveLen(1))
+		or := pvc.OwnerReferences[0]
+		Expect(or.UID).To(Equal(dv.UID))
+
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
+		Expect(string(dv.Status.Progress)).To(Equal("N/A"))
+	})
+
+	It("Should adopt a PVC (with featuregate)", func() {
+		pvc := CreatePvc("test-dv", metav1.NamespaceDefault, nil, nil)
+		pvc.Status.Phase = corev1.ClaimBound
+		dv := newUploadDataVolume("test-dv")
+		featureGates := []string{featuregates.DataVolumeClaimAdoption, featuregates.HonorWaitForFirstConsumer}
+		reconciler = createUploadReconcilerWithFeatureGates(featureGates, pvc, dv)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -372,11 +393,15 @@ var _ = Describe("All DataVolume Tests", func() {
 })
 
 func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
+	return createUploadReconcilerWithFeatureGates([]string{featuregates.HonorWaitForFirstConsumer}, objects...)
+}
+
+func createUploadReconcilerWithFeatureGates(featureGates []string, objects ...runtime.Object) *UploadReconciler {
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		ScratchSpaceStorageClass: testStorageClass,
 	}
-	cdiConfig.Spec.FeatureGates = []string{featuregates.HonorWaitForFirstConsumer}
+	cdiConfig.Spec.FeatureGates = featureGates
 
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)

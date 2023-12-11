@@ -32,8 +32,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -119,6 +121,15 @@ func main() {
 
 	snapClient := snapclient.NewForConfigOrDie(cfg)
 
+	cluster, err := cluster.New(cfg)
+	if err != nil {
+		klog.Fatalf("Unable to create controller runtime cluster: %v\n", errors.WithStack(err))
+	}
+
+	if err := cdiv1.AddToScheme(cluster.GetScheme()); err != nil {
+		klog.Fatalf("Unable to add to scheme: %v\n", errors.WithStack(err))
+	}
+
 	ctx := signals.SetupSignalHandler()
 
 	authConfigWatcher, err := apiserver.NewAuthConfigWatcher(ctx, client)
@@ -147,6 +158,7 @@ func main() {
 		aggregatorClient,
 		cdiClient,
 		snapClient,
+		cluster.GetClient(),
 		authorizor,
 		authConfigWatcher,
 		cdiConfigTLSWatcher,
@@ -155,6 +167,12 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Upload api failed to initialize: %v\n", errors.WithStack(err))
 	}
+
+	go func() {
+		if err := cluster.Start(ctx); err != nil {
+			klog.Errorf("cluster failed: %v\n", errors.WithStack(err))
+		}
+	}()
 
 	go func() {
 		if err := certWatcher.Start(ctx.Done()); err != nil {
