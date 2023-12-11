@@ -484,13 +484,39 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.OwnerReferences[0].Kind).To(Equal("DataVolume"))
 		})
 
-		It("Validate clone will adopt PVC", func() {
+		It("Validate clone will adopt PVC (with annotation)", func() {
 			dv := newCloneDataVolume("test-dv")
 			storageProfile := createStorageProfile(scName, nil, FilesystemMode)
 			pvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			pvc.SetAnnotations(make(map[string]string))
 			pvc.GetAnnotations()[AnnAllowClaimAdoption] = "true"
 			reconciler = createCloneReconciler(dv, pvc, storageProfile, sc)
+
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result.Requeue).To(BeFalse())
+			Expect(result.RequeueAfter).To(BeZero())
+
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.ClaimName).To(Equal("test-dv"))
+			Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
+			Expect(dv.Annotations[AnnCloneType]).To(BeEmpty())
+
+			pvc = &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.OwnerReferences).To(HaveLen(1))
+			Expect(pvc.OwnerReferences[0].Name).To(Equal("test-dv"))
+			Expect(pvc.OwnerReferences[0].Kind).To(Equal("DataVolume"))
+		})
+
+		It("Validate clone will adopt PVC (with featuregate)", func() {
+			dv := newCloneDataVolume("test-dv")
+			storageProfile := createStorageProfile(scName, nil, FilesystemMode)
+			pvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			featureGates := []string{featuregates.DataVolumeClaimAdoption, featuregates.HonorWaitForFirstConsumer}
+			reconciler = createCloneReconcilerWithFeatureGates(featureGates, dv, pvc, storageProfile, sc)
 
 			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
@@ -780,25 +806,19 @@ var _ = Describe("All DataVolume Tests", func() {
 })
 
 func createCloneReconcilerWFFCDisabled(objects ...runtime.Object) *PvcCloneReconciler {
-	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
-	cdiConfig.Status = cdiv1.CDIConfigStatus{
-		ScratchSpaceStorageClass: testStorageClass,
-	}
-	cdiConfig.Spec.FeatureGates = []string{}
-
-	objs := []runtime.Object{}
-	objs = append(objs, objects...)
-	objs = append(objs, cdiConfig)
-
-	return createCloneReconcilerWithoutConfig(objs...)
+	return createCloneReconcilerWithFeatureGates(nil, objects...)
 }
 
 func createCloneReconciler(objects ...runtime.Object) *PvcCloneReconciler {
+	return createCloneReconcilerWithFeatureGates([]string{featuregates.HonorWaitForFirstConsumer}, objects...)
+}
+
+func createCloneReconcilerWithFeatureGates(featireGates []string, objects ...runtime.Object) *PvcCloneReconciler {
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		ScratchSpaceStorageClass: testStorageClass,
 	}
-	cdiConfig.Spec.FeatureGates = []string{featuregates.HonorWaitForFirstConsumer}
+	cdiConfig.Spec.FeatureGates = featireGates
 
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)

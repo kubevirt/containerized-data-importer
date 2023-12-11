@@ -2103,11 +2103,14 @@ func SetPvcAllowedAnnotations(obj metav1.Object, pvc *corev1.PersistentVolumeCla
 }
 
 // ClaimMayExistBeforeDataVolume returns true if the PVC may exist before the DataVolume
-func ClaimMayExistBeforeDataVolume(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
+func ClaimMayExistBeforeDataVolume(c client.Client, pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (bool, error) {
 	if IsUnbound(pvc) {
-		return false
+		return false, nil
 	}
-	return ClaimIsPopulatedForDataVolume(pvc, dv) || ClaimAllowsAdoption(pvc)
+	if ClaimIsPopulatedForDataVolume(pvc, dv) {
+		return true, nil
+	}
+	return ClaimAllowsAdoption(c, pvc)
 }
 
 // ClaimIsPopulatedForDataVolume returns true if the PVC is populated for the given DataVolume
@@ -2116,7 +2119,12 @@ func ClaimIsPopulatedForDataVolume(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.
 }
 
 // ClaimAllowsAdoption returns true if the PVC may be adopted
-func ClaimAllowsAdoption(pvc *corev1.PersistentVolumeClaim) bool {
-	result, _ := strconv.ParseBool(pvc.Annotations[AnnAllowClaimAdoption])
-	return result
+func ClaimAllowsAdoption(c client.Client, pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	anno, ok := pvc.Annotations[AnnAllowClaimAdoption]
+	// if annotation exists, go with that regardless of featuregate
+	if ok {
+		val, _ := strconv.ParseBool(anno)
+		return val, nil
+	}
+	return featuregates.NewFeatureGates(c).ClaimAdoptionEnabled()
 }

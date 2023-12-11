@@ -1140,10 +1140,15 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 
 type FakeFeatureGates struct {
 	honorWaitForFirstConsumerEnabled bool
+	claimAdoptionEnabled             bool
 }
 
 func (f *FakeFeatureGates) HonorWaitForFirstConsumerEnabled() (bool, error) {
 	return f.honorWaitForFirstConsumerEnabled, nil
+}
+
+func (f *FakeFeatureGates) ClaimAdoptionEnabled() (bool, error) {
+	return f.claimAdoptionEnabled, nil
 }
 
 func createPendingPvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
