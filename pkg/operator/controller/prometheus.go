@@ -223,7 +223,6 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 				componentAlertLabelKey:    componentAlertLabelValue,
 			},
 		),
-		//FIXME: add runbook
 		generateAlertRule(
 			"CDINoDefaultStorageClass",
 			`sum(kubevirt_cdi_storageprofile_status{default="true"} or on() vector(0)) +
@@ -236,7 +235,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 			},
 			map[string]string{
 				severityAlertLabelKey:     "warning",
-				healthImpactAlertLabelKey: "warning",
+				healthImpactAlertLabelKey: "none",
 				partOfAlertLabelKey:       partOfAlertLabelValue,
 				componentAlertLabelKey:    componentAlertLabelValue,
 			},
@@ -256,7 +255,6 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 				componentAlertLabelKey:    componentAlertLabelValue,
 			},
 		),
-		//FIXME: add runbook
 		generateAlertRule(
 			"CDIDefaultStorageClassDegraded",
 			`sum(kubevirt_cdi_storageprofile_status{default="true",rwx="true",smartclone="true"} or on() vector(0)) +
@@ -268,7 +266,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 			},
 			map[string]string{
 				severityAlertLabelKey:     "warning",
-				healthImpactAlertLabelKey: "warning",
+				healthImpactAlertLabelKey: "none",
 				partOfAlertLabelKey:       partOfAlertLabelValue,
 				componentAlertLabelKey:    componentAlertLabelValue,
 			},
