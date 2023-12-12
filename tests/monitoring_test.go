@@ -14,11 +14,13 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -45,10 +47,11 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		cdiPods                 *corev1.PodList
 		defaultStorageClass     *storagev1.StorageClass
 		defaultVirtStorageClass *storagev1.StorageClass
+		defaultCloneStrategy    *cdiv1.CDICloneStrategy
 		numAddedStorageClasses  int
 	)
 
-	waitForStorageProfileMetricInitialization := func() {
+	waitForStorageProfileMetricInit := func() {
 		Eventually(func() bool {
 			scs, err := f.K8sClient.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
@@ -74,16 +77,21 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		}
 	}
 
-	updateDefaultStorageClassProfileClaimPropertySets := func(cps []cdiv1.ClaimPropertySet) {
-		profile := &cdiv1.StorageProfile{}
-		err := f.CrClient.Get(context.TODO(), types.NamespacedName{Name: defaultStorageClass.Name}, profile)
-		if err != nil && errors.IsNotFound(err) && len(cps) == 0 {
+	updateDefaultStorageClassProfileClaimPropertySets := func(accessMode *corev1.PersistentVolumeAccessMode) {
+		profile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), defaultStorageClass.Name, metav1.GetOptions{})
+		if err != nil && errors.IsNotFound(err) && accessMode == nil {
 			return
 		}
 		Expect(err).ToNot(HaveOccurred())
 
-		profile.Spec.ClaimPropertySets = cps
-		err = f.CrClient.Update(context.TODO(), profile)
+		profile.Spec.ClaimPropertySets = nil
+		if accessMode != nil {
+			profile.Spec.ClaimPropertySets = []cdiv1.ClaimPropertySet{{
+				AccessModes: []corev1.PersistentVolumeAccessMode{*accessMode},
+				VolumeMode:  &cc.BlockMode,
+			}}
+		}
+		_, err = f.CdiClient.CdiV1beta1().StorageProfiles().Update(context.TODO(), profile, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 	}
 
@@ -100,6 +108,77 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		}
 	}
 
+	createStubSnapshotClass := func(driver string) {
+		crds := []*extv1.CustomResourceDefinition{
+			createStubSnapshotCrd("volumesnapshotclasses", "VolumeSnapshotClass"),
+			createStubSnapshotCrd("volumesnapshots", "VolumeSnapshot"),
+			createStubSnapshotCrd("volumesnapshotcontents", "VolumeSnapshotContent"),
+		}
+
+		for _, crd := range crds {
+			crd, err := f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				crd, err = f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crd.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				for _, cond := range crd.Status.Conditions {
+					if cond.Type == extv1.Established && cond.Status == extv1.ConditionTrue {
+						return true
+					}
+				}
+				return false
+			}, 10*time.Second, time.Second).Should(BeTrue())
+		}
+
+		vsc := &snapshotv1.VolumeSnapshotClass{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-vsc",
+			},
+			Driver: driver,
+		}
+		err := f.CrClient.Create(context.TODO(), vsc)
+		Expect(err).ToNot(HaveOccurred())
+
+		f.SnapshotSCName = defaultStorageClass.Name
+	}
+
+	deleteStubSnapshotCrds := func() {
+		for _, plural := range []string{"volumesnapshotclasses", "volumesnapshots", "volumesnapshotcontents"} {
+			crdName := plural + ".snapshot.storage.k8s.io"
+			err := f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crdName, metav1.DeleteOptions{})
+			Expect(cc.IgnoreNotFound(err)).ToNot(HaveOccurred())
+		}
+		f.SnapshotSCName = ""
+	}
+
+	waitForCloneStrategyInit := func() {
+		Eventually(func() *cdiv1.CDICloneStrategy {
+			profile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), defaultStorageClass.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			defaultCloneStrategy = profile.Status.CloneStrategy
+			return defaultCloneStrategy
+		}, 2*time.Minute, 5*time.Second).ShouldNot(BeNil())
+	}
+
+	waitForCloneStrategy := func(storageProfileName string, strategy cdiv1.CDICloneStrategy) {
+		reconciles := 0
+		Eventually(func() cdiv1.CDICloneStrategy {
+			profile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), storageProfileName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			profile.Annotations = map[string]string{"reconcile": fmt.Sprintf("%d", reconciles)}
+			_, err = f.CdiClient.CdiV1beta1().StorageProfiles().Update(context.TODO(), profile, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			reconciles++
+
+			if cs := profile.Status.CloneStrategy; cs != nil {
+				return *cs
+			}
+			return cdiv1.CloneStrategyHostAssisted
+		}, time.Minute, 5*time.Second).Should(Equal(strategy))
+	}
+
 	BeforeEach(func() {
 		if !f.IsPrometheusAvailable() {
 			Skip("This test depends on prometheus infra being available")
@@ -107,17 +186,19 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 		cr = getCDI(f)
 		cdiPods = getCDIPods(f)
-
-		waitForStorageProfileMetricInitialization()
-
 		defaultStorageClass = utils.GetDefaultStorageClass(f.K8sClient)
 		defaultVirtStorageClass = utils.GetDefaultVirtStorageClass(f.K8sClient)
+
+		waitForStorageProfileMetricInit()
+		waitForCloneStrategyInit()
 	})
 
 	AfterEach(func() {
 		deleteUnknownStorageClasses()
 		updateDefaultStorageClasses("true")
 		updateDefaultStorageClassProfileClaimPropertySets(nil)
+		deleteStubSnapshotCrds()
+		waitForCloneStrategy(defaultStorageClass.Name, *defaultCloneStrategy)
 
 		if crModified {
 			removeCDI(f, cr)
@@ -277,42 +358,46 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		})
 
 		It("[test_id:XXXX]CDIDefaultStorageClassDegraded fired when default storage class has no smart clone or ReadWriteMany", func() {
+			rwx := corev1.ReadWriteMany
+			rwo := corev1.ReadWriteOnce
+
+			profile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), defaultStorageClass.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
 			if f.SnapshotSCName != defaultStorageClass.Name && f.CsiCloneSCName != defaultStorageClass.Name {
-				Skip("Default storage class does not support snapshot or CSI clone")
+				waitForPrometheusAlert(f, "CDIDefaultStorageClassDegraded")
+
+				By("Default storage class does not support snapshot or CSI clone - adding stub VolumeSnapshot crds and VolumeSnapshotClass")
+				createStubSnapshotClass(*profile.Status.Provisioner)
+
+				By("Force StorageProfile reconciles so it gets the VolumeSnapshotClass without watching it")
+				waitForCloneStrategy(defaultStorageClass.Name, cdiv1.CloneStrategySnapshot)
 			}
+
 			if !f.IsSnapshotStorageClassAvailable() && !f.IsCSIVolumeCloneStorageClassAvailable() {
 				Skip("Smart Clone is not applicable")
 			}
 
-			profile := &cdiv1.StorageProfile{}
-			err := f.CrClient.Get(context.TODO(), types.NamespacedName{Name: defaultStorageClass.Name}, profile)
-			Expect(err).ToNot(HaveOccurred())
-
-			hasRWX := false
-			for _, cps := range profile.Status.ClaimPropertySets {
-				for _, am := range cps.AccessModes {
-					if am == corev1.ReadWriteMany {
-						hasRWX = true
-						break
-					}
-				}
-			}
+			hasRWX := hasRWX(profile)
 			if !hasRWX {
-				Skip("Default storage class profile has no ReadWriteMany access mode")
+				waitForPrometheusAlert(f, "CDIDefaultStorageClassDegraded")
+				By("Default storage class profile has no ReadWriteMany access mode - adding stub ReadWriteMany")
+				updateDefaultStorageClassProfileClaimPropertySets(&rwx)
 			}
 
 			waitForNoPrometheusAlert(f, "CDIDefaultStorageClassDegraded")
 
 			By("Remove storage profile ReadWriteMany access mode")
-			updateDefaultStorageClassProfileClaimPropertySets([]cdiv1.ClaimPropertySet{{
-				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-				VolumeMode:  &cc.BlockMode,
-			}})
+			updateDefaultStorageClassProfileClaimPropertySets(&rwo)
 
 			waitForPrometheusAlert(f, "CDIDefaultStorageClassDegraded")
 
 			By("Restore storage profile")
-			updateDefaultStorageClassProfileClaimPropertySets(nil)
+			if hasRWX {
+				updateDefaultStorageClassProfileClaimPropertySets(nil)
+			} else {
+				updateDefaultStorageClassProfileClaimPropertySets(&rwx)
+			}
 
 			waitForNoPrometheusAlert(f, "CDIDefaultStorageClassDegraded")
 		})
@@ -419,7 +504,6 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		})
 	})
 
-	//FIXME: fails on no runbook
 	Context("Prometheus Rule configuration", func() {
 		It("[test_id:8259] Alerts should have all the required annotations", func() {
 			promRule := getPrometheusRule(f)
@@ -671,4 +755,51 @@ func checkRequiredLabels(rule promv1.Rule) {
 		"%s kubernetes_operator_part_of label is missing or not valid", rule.Alert)
 	ExpectWithOffset(1, rule.Labels).To(HaveKeyWithValue("kubernetes_operator_component", "containerized-data-importer"),
 		"%s kubernetes_operator_component label is missing or not valid", rule.Alert)
+}
+
+func createStubSnapshotCrd(plural, kind string) *extv1.CustomResourceDefinition {
+	return &extv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: plural + ".snapshot.storage.k8s.io",
+			Annotations: map[string]string{
+				"api-approved.kubernetes.io": "unapproved",
+			},
+		},
+		Spec: extv1.CustomResourceDefinitionSpec{
+			Group: "snapshot.storage.k8s.io",
+			Scope: extv1.ClusterScoped,
+			Names: extv1.CustomResourceDefinitionNames{
+				Plural: plural,
+				Kind:   kind,
+			},
+			Versions: []extv1.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1",
+					Served:  true,
+					Storage: true,
+					Schema: &extv1.CustomResourceValidation{
+						OpenAPIV3Schema: &extv1.JSONSchemaProps{
+							Type: "object",
+							Properties: map[string]extv1.JSONSchemaProps{
+								"driver": {
+									Type: "string",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func hasRWX(profile *cdiv1.StorageProfile) bool {
+	for _, cps := range profile.Status.ClaimPropertySets {
+		for _, am := range cps.AccessModes {
+			if am == corev1.ReadWriteMany {
+				return true
+			}
+		}
+	}
+	return false
 }
