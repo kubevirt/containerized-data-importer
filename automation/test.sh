@@ -106,6 +106,10 @@ fi
 echo "Nodes are ready:"
 kubectl get nodes
 
+if [ "$KUBEVIRT_STORAGE" == "hpp" ] && [ "$CDI_E2E_FOCUS" == "Destructive" ]; then
+  kubectl apply -f tests/manifests/snapshot
+fi
+
 make cluster-sync
 
 kubectl version

@@ -14,7 +14,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -109,45 +108,15 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 	}
 
 	createStubSnapshotClass := func(driver string) {
-		crds := []*extv1.CustomResourceDefinition{
-			createStubSnapshotCrd("volumesnapshotclasses", "VolumeSnapshotClass"),
-			createStubSnapshotCrd("volumesnapshots", "VolumeSnapshot"),
-			createStubSnapshotCrd("volumesnapshotcontents", "VolumeSnapshotContent"),
-		}
-
-		for _, crd := range crds {
-			crd, err := f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
-			Expect(err).ToNot(HaveOccurred())
-
-			Eventually(func() bool {
-				crd, err = f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crd.Name, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				for _, cond := range crd.Status.Conditions {
-					if cond.Type == extv1.Established && cond.Status == extv1.ConditionTrue {
-						return true
-					}
-				}
-				return false
-			}, 10*time.Second, time.Second).Should(BeTrue())
-		}
-
-		vsc := &snapshotv1.VolumeSnapshotClass{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "test-vsc",
-			},
-			Driver: driver,
-		}
-		err := f.CrClient.Create(context.TODO(), vsc)
+		err := f.CrClient.Create(context.TODO(), newStubSnapshotClass(driver))
 		Expect(err).ToNot(HaveOccurred())
-
 		f.SnapshotSCName = defaultStorageClass.Name
 	}
 
-	deleteStubSnapshotCrds := func() {
-		for _, plural := range []string{"volumesnapshotclasses", "volumesnapshots", "volumesnapshotcontents"} {
-			crdName := plural + ".snapshot.storage.k8s.io"
-			err := f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crdName, metav1.DeleteOptions{})
-			Expect(cc.IgnoreNotFound(err)).ToNot(HaveOccurred())
+	deleteStubSnapshotClass := func() {
+		err := f.CrClient.Delete(context.TODO(), newStubSnapshotClass(""))
+		if err != nil && !errors.IsNotFound(err) {
+			Expect(err).ToNot(HaveOccurred())
 		}
 		f.SnapshotSCName = ""
 	}
@@ -162,16 +131,9 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 	}
 
 	waitForCloneStrategy := func(storageProfileName string, strategy cdiv1.CDICloneStrategy) {
-		reconciles := 0
 		Eventually(func() cdiv1.CDICloneStrategy {
 			profile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), storageProfileName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-
-			profile.Annotations = map[string]string{"reconcile": fmt.Sprintf("%d", reconciles)}
-			_, err = f.CdiClient.CdiV1beta1().StorageProfiles().Update(context.TODO(), profile, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			reconciles++
-
 			if cs := profile.Status.CloneStrategy; cs != nil {
 				return *cs
 			}
@@ -197,7 +159,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		deleteUnknownStorageClasses()
 		updateDefaultStorageClasses("true")
 		updateDefaultStorageClassProfileClaimPropertySets(nil)
-		deleteStubSnapshotCrds()
+		deleteStubSnapshotClass()
 		waitForCloneStrategy(defaultStorageClass.Name, *defaultCloneStrategy)
 
 		if crModified {
@@ -369,8 +331,6 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 				By("Default storage class does not support snapshot or CSI clone - adding stub VolumeSnapshot crds and VolumeSnapshotClass")
 				createStubSnapshotClass(*profile.Status.Provisioner)
-
-				By("Force StorageProfile reconciles so it gets the VolumeSnapshotClass without watching it")
 				waitForCloneStrategy(defaultStorageClass.Name, cdiv1.CloneStrategySnapshot)
 			}
 
@@ -757,39 +717,13 @@ func checkRequiredLabels(rule promv1.Rule) {
 		"%s kubernetes_operator_component label is missing or not valid", rule.Alert)
 }
 
-func createStubSnapshotCrd(plural, kind string) *extv1.CustomResourceDefinition {
-	return &extv1.CustomResourceDefinition{
+func newStubSnapshotClass(driver string) *snapshotv1.VolumeSnapshotClass {
+	return &snapshotv1.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: plural + ".snapshot.storage.k8s.io",
-			Annotations: map[string]string{
-				"api-approved.kubernetes.io": "unapproved",
-			},
+			Name: "test-vsc",
 		},
-		Spec: extv1.CustomResourceDefinitionSpec{
-			Group: "snapshot.storage.k8s.io",
-			Scope: extv1.ClusterScoped,
-			Names: extv1.CustomResourceDefinitionNames{
-				Plural: plural,
-				Kind:   kind,
-			},
-			Versions: []extv1.CustomResourceDefinitionVersion{
-				{
-					Name:    "v1",
-					Served:  true,
-					Storage: true,
-					Schema: &extv1.CustomResourceValidation{
-						OpenAPIV3Schema: &extv1.JSONSchemaProps{
-							Type: "object",
-							Properties: map[string]extv1.JSONSchemaProps{
-								"driver": {
-									Type: "string",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
+		Driver:         driver,
+		DeletionPolicy: snapshotv1.VolumeSnapshotContentDelete,
 	}
 }
 
