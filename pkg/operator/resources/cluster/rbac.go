@@ -42,6 +42,11 @@ func getAdminPolicyRules() []rbacv1.PolicyRule {
 			},
 			Resources: []string{
 				"datavolumes",
+				"dataimportcrons",
+				"datasources",
+				"volumeimportsources",
+				"volumeuploadsources",
+				"volumeclonesources",
 			},
 			Verbs: []string{
 				"*",
