@@ -195,7 +195,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		),
 		generateAlertRule(
 			"CDIStorageProfilesIncomplete",
-			`sum by(storageclass,provisioner) ((kubevirt_cdi_storageprofile_status{complete="false"}>0))`,
+			`sum by(storageclass,provisioner) ((kubevirt_cdi_storageprofile_info{complete="false"}>0))`,
 			promv1.Duration("5m"),
 			map[string]string{
 				"summary":     "Incomplete StorageProfile {{ $labels.storageclass }}, accessMode/volumeMode cannot be inferred by CDI for PVC population request",
@@ -225,8 +225,8 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		),
 		generateAlertRule(
 			"CDINoDefaultStorageClass",
-			`sum(kubevirt_cdi_storageprofile_status{default="true"} or on() vector(0)) +
-			sum(kubevirt_cdi_storageprofile_status{virtdefault="true"} or on() vector(0)) +
+			`sum(kubevirt_cdi_storageprofile_info{default="true"} or on() vector(0)) +
+			sum(kubevirt_cdi_storageprofile_info{virtdefault="true"} or on() vector(0)) +
 			(count(kubevirt_cdi_datavolume_pending == 0) or on() vector(0)) == 0`,
 			promv1.Duration("5m"),
 			map[string]string{
@@ -242,7 +242,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		),
 		generateAlertRule(
 			"CDIMultipleDefaultVirtStorageClasses",
-			`sum(kubevirt_cdi_storageprofile_status{virtdefault="true"} or on() vector(0)) > 1`,
+			`sum(kubevirt_cdi_storageprofile_info{virtdefault="true"} or on() vector(0)) > 1`,
 			promv1.Duration("5m"),
 			map[string]string{
 				"summary":     "More than one default virtualization StorageClass detected",
@@ -257,8 +257,8 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		),
 		generateAlertRule(
 			"CDIDefaultStorageClassDegraded",
-			`sum(kubevirt_cdi_storageprofile_status{default="true",rwx="true",smartclone="true"} or on() vector(0)) +
-			sum(kubevirt_cdi_storageprofile_status{virtdefault="true",rwx="true",smartclone="true"} or on() vector(0)) == 0`,
+			`sum(kubevirt_cdi_storageprofile_info{default="true",rwx="true",smartclone="true"} or on() vector(0)) +
+			sum(kubevirt_cdi_storageprofile_info{virtdefault="true",rwx="true",smartclone="true"} or on() vector(0)) == 0`,
 			promv1.Duration("5m"),
 			map[string]string{
 				"summary":     "Default storage class has no smart clone or ReadWriteMany",

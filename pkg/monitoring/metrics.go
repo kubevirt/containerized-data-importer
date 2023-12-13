@@ -37,12 +37,18 @@ var MetricOptsList = map[MetricsKey]MetricOpts{
 	DataImportCronOutdated: {
 		Name: "kubevirt_cdi_dataimportcron_outdated",
 		Help: "DataImportCron has an outdated import",
-		Type: "GaugeVec",
+		Type: "Gauge",
 	},
 	StorageProfileStatus: {
-		Name: "kubevirt_cdi_storageprofile_status",
-		Help: "Vector of StorageProfiles status",
-		Type: "GaugeVec",
+		Name: "kubevirt_cdi_storageprofile_info",
+		Help: "`StorageProfiles` info labels: " +
+			"`storageclass`, `provisioner`, " +
+			"`complete` indicates if all storage profiles recommended PVC settings are complete, " +
+			"`default` indicates if it's the Kubernetes default storage class, " +
+			"`virtdefault` indicates if it's the default virtualization storage class, " +
+			"`rwx` indicates if the storage class supports `ReadWriteMany`, " +
+			"`smartclone` indicates if it supports snapshot or CSI based clone",
+		Type: "Gauge",
 	},
 	ReadyGauge: {
 		Name: "kubevirt_cdi_cr_ready",

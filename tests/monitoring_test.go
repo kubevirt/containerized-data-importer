@@ -54,7 +54,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		Eventually(func() bool {
 			scs, err := f.K8sClient.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			return len(scs.Items) == countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "complete", "true")
+			return len(scs.Items) == countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "true")
 		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 	}
 
@@ -130,15 +130,16 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		}, 2*time.Minute, 5*time.Second).ShouldNot(BeNil())
 	}
 
-	waitForCloneStrategy := func(storageProfileName string, strategy cdiv1.CDICloneStrategy) {
-		Eventually(func() cdiv1.CDICloneStrategy {
-			profile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), storageProfileName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			if cs := profile.Status.CloneStrategy; cs != nil {
-				return *cs
+	waitForCloneStrategy := func(strategy cdiv1.CDICloneStrategy) {
+		Eventually(func() bool {
+			profile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), defaultStorageClass.Name, metav1.GetOptions{})
+			if err != nil && errors.IsNotFound(err) {
+				return false
 			}
-			return cdiv1.CloneStrategyHostAssisted
-		}, time.Minute, 5*time.Second).Should(Equal(strategy))
+			Expect(err).ToNot(HaveOccurred())
+			cs := profile.Status.CloneStrategy
+			return cs != nil && *cs == strategy
+		}, 2*time.Minute, 5*time.Second).Should(BeTrue())
 	}
 
 	BeforeEach(func() {
@@ -160,7 +161,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		updateDefaultStorageClasses("true")
 		updateDefaultStorageClassProfileClaimPropertySets(nil)
 		deleteStubSnapshotClass()
-		waitForCloneStrategy(defaultStorageClass.Name, *defaultCloneStrategy)
+		waitForCloneStrategy(*defaultCloneStrategy)
 
 		if crModified {
 			removeCDI(f, cr)
@@ -169,7 +170,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		}
 
 		Eventually(func() int {
-			return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "complete", "false")
+			return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "false")
 		}, 5*time.Minute, 5*time.Second).Should(BeZero())
 	})
 
@@ -236,7 +237,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 			expectedIncomplete := numAddedStorageClasses
 			Eventually(func() int {
-				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "complete", "false")
+				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "false")
 			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", expectedIncomplete))
 
 			waitForPrometheusAlert(f, "CDIStorageProfilesIncomplete")
@@ -252,7 +253,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				expectedIncomplete--
 				Eventually(func() int {
-					return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "complete", "false")
+					return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "false")
 				}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", expectedIncomplete))
 			}
 		})
@@ -277,9 +278,9 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 		It("[test_id:XXXX]CDINoDefaultStorageClass fired when no default storage class exists, and a DataVolume is waiting for one", func() {
 			By("Ensure initial metric values")
-			defaultSCs := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "default", "true")
+			defaultSCs := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "default", "true")
 			Expect(defaultSCs).To(Equal(1))
-			defaultVSCs := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "virtdefault", "true")
+			defaultVSCs := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "virtdefault", "true")
 			Expect(defaultVSCs).To(BeNumerically("<=", 1))
 			waitingDVs := getMetricValue(f, "kubevirt_cdi_datavolume_pending")
 			Expect(waitingDVs).To(BeZero())
@@ -292,10 +293,10 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 			By("Ensure metric values after removing default storage class annotation")
 			Eventually(func() int {
-				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "default", "true")
+				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "default", "true")
 			}, metricPollingTimeout, metricPollingInterval).Should(BeZero())
 			Eventually(func() int {
-				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "virtdefault", "true")
+				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "virtdefault", "true")
 			}, metricPollingTimeout, metricPollingInterval).Should(BeZero())
 			Eventually(func() int {
 				return getMetricValue(f, "kubevirt_cdi_datavolume_pending")
@@ -307,10 +308,10 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 			By("Ensure metric values after restoring default storage class annotation")
 			Eventually(func() int {
-				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "default", "true")
+				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "default", "true")
 			}, metricPollingTimeout, metricPollingInterval).Should(Equal(defaultSCs))
 			Eventually(func() int {
-				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "virtdefault", "true")
+				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "virtdefault", "true")
 			}, metricPollingTimeout, metricPollingInterval).Should(Equal(defaultVSCs))
 			Eventually(func() int {
 				return getMetricValue(f, "kubevirt_cdi_datavolume_pending")
@@ -331,7 +332,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 				By("Default storage class does not support snapshot or CSI clone - adding stub VolumeSnapshot crds and VolumeSnapshotClass")
 				createStubSnapshotClass(*profile.Status.Provisioner)
-				waitForCloneStrategy(defaultStorageClass.Name, cdiv1.CloneStrategySnapshot)
+				waitForCloneStrategy(cdiv1.CloneStrategySnapshot)
 			}
 
 			if !f.IsSnapshotStorageClassAvailable() && !f.IsCSIVolumeCloneStorageClassAvailable() {
@@ -375,7 +376,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 			By("Metric stays the same because we don't support this provisioner")
 			Consistently(func() int {
-				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_status", "complete", "false")
+				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "false")
 			}, metricConsistentPollingTimeout, metricPollingInterval).Should(BeZero())
 		})
 
