@@ -55,7 +55,7 @@ const (
 )
 
 var _ = Describe("all clone tests", func() {
-	var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:component]Cloner Test Suite", func() {
+	var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:component]Cloner Test Suite", Serial, func() {
 		f := framework.NewFramework(namespacePrefix)
 		tinyCoreIsoURL := func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
 
@@ -1464,7 +1464,7 @@ var _ = Describe("all clone tests", func() {
 			})
 		})
 
-		Context("CloneStrategy on storageclass annotation", func() {
+		Context("CloneStrategy on storageclass annotation", Serial, func() {
 			cloneType := cdiv1.CloneStrategyCsiClone
 			var originalStrategy *cdiv1.CDICloneStrategy
 
@@ -2009,7 +2009,7 @@ var _ = Describe("all clone tests", func() {
 		)
 	})
 
-	var _ = Describe("Namespace with quota", func() {
+	var _ = Describe("Namespace with quota", Serial, func() {
 		f := framework.NewFramework(namespacePrefix)
 		var (
 			orgConfig *v1.ResourceRequirements
@@ -2282,7 +2282,7 @@ var _ = Describe("all clone tests", func() {
 			}
 		})
 
-		It("[test_id:3999] Create a data volume and then clone it and verify retry count", func() {
+		It("[test_id:3999] Create a data volume and then clone it and verify retry count", Serial, func() {
 			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
@@ -2384,7 +2384,7 @@ var _ = Describe("all clone tests", func() {
 
 		})
 
-		It("[test_id:4276] Clone datavolume with short name", func() {
+		It("[test_id:4276] Clone datavolume with short name", Serial, func() {
 			shortDvName := "import-long-name-dv"
 
 			By(fmt.Sprintf("Create PVC %s", shortDvName))
@@ -2420,7 +2420,7 @@ var _ = Describe("all clone tests", func() {
 			}
 		})
 
-		It("[test_id:4277] Clone datavolume with long name", func() {
+		It("[test_id:4277] Clone datavolume with long name", Serial, func() {
 			// 20 chars + 100ch + 40chars
 			dvName160Characters := "import-long-name-dv-" +
 				"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-" +
@@ -2459,7 +2459,7 @@ var _ = Describe("all clone tests", func() {
 			}
 		})
 
-		It("[test_id:4278] Clone datavolume with long name including special character '.'", func() {
+		It("[test_id:4278] Clone datavolume with long name including special character '.'", Serial, func() {
 			// 20 chars + 100ch + 40chars
 			dvName160Characters := "import-long-name-dv." +
 				"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-" +
@@ -2499,7 +2499,7 @@ var _ = Describe("all clone tests", func() {
 		})
 	})
 
-	var _ = Describe("Preallocation", func() {
+	var _ = Describe("Preallocation", Serial, func() {
 		f := framework.NewFramework(namespacePrefix)
 
 		var sourcePvc *v1.PersistentVolumeClaim

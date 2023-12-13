@@ -11,14 +11,11 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 )
 
 var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:component]Basic Sanity", func() {
-	f := framework.NewFramework("sanity", framework.Config{
-		FeatureGates: []string{featuregates.HonorWaitForFirstConsumer},
-	})
+	f := framework.NewFramework("sanity")
 
 	Context("[test_id:1348]CDI service account should exist", func() {
 		It("Should succeed", func() {

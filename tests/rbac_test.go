@@ -23,7 +23,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-var _ = Describe("Aggregated role in-action tests", func() {
+var _ = Describe("Aggregated role in-action tests", Serial, func() {
 	var createServiceAccount = func(client kubernetes.Interface, namespace, name string) {
 		sa := &corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
@@ -209,7 +209,7 @@ var _ = Describe("Aggregated role in-action tests", func() {
 	})
 })
 
-var _ = Describe("Aggregated role definition tests", func() {
+var _ = Describe("Aggregated role definition tests", Serial, func() {
 	var adminRules = []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{

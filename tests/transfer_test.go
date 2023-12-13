@@ -23,7 +23,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
+var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", Serial, func() {
 	f := framework.NewFramework("transfer-test")
 
 	deleteTransfer := func(name string) {

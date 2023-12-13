@@ -20,7 +20,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
 
-var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests that modify CDI CR", func() {
+var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests that modify CDI CR", Serial, func() {
 	var cdiCr cdiv1.CDI
 	var cdiCrSpec *cdiv1.CDISpec
 
@@ -76,7 +76,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests th
 	})
 })
 
-var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", func() {
+var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", Serial, func() {
 	var originalProfileSpec *cdiv1.StorageProfileSpec
 	var cloneStorageClassName string
 

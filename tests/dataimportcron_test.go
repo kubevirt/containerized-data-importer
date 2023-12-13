@@ -35,7 +35,7 @@ const (
 	errorDigest           = "sha256:12345678900987654321"
 )
 
-var _ = Describe("DataImportCron", func() {
+var _ = Describe("DataImportCron", Serial, func() {
 	var (
 		f                   = framework.NewFramework("dataimportcron-func-test")
 		log                 = logf.Log.WithName("dataimportcron_test")

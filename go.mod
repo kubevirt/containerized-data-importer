@@ -18,7 +18,7 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/klauspost/compress v1.16.7
 	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1
-	github.com/kubernetes-csi/lib-volume-populator v1.2.0
+	github.com/kubernetes-csi/lib-volume-populator v1.2.1-0.20230316163120-b62a0eee2c56
 	github.com/kubevirt/monitoring/pkg/metrics/parser v0.0.0-20230627123556-81a891d4462a
 	github.com/onsi/ginkgo/v2 v2.12.0
 	github.com/onsi/gomega v1.27.10

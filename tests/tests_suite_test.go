@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -71,7 +72,7 @@ func TestTests(t *testing.T) {
 // flag parsing happens AFTER ginkgo has constructed the entire testing tree. So anything that uses information from flags
 // cannot work when called during test tree construction.
 func BuildTestSuite() {
-	BeforeSuite(func() {
+	SynchronizedBeforeSuite(func() {}, func() {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "Reading parameters\n")
 		// Read flags, and configure client instances
 		framework.ClientsInstance.KubectlPath = *kubectlPath
@@ -137,9 +138,15 @@ func BuildTestSuite() {
 		framework.ClientsInstance.DynamicClient = dyn
 
 		utils.CacheTestsData(framework.ClientsInstance.K8sClient, framework.ClientsInstance.CdiInstallNs)
+
+		if path := os.Getenv("TESTS_WORKDIR"); path != "" {
+			if err := os.Chdir(path); err != nil {
+				ginkgo.Fail(fmt.Sprintf("ERROR, unable to chdir to test dir for manifest/image files: %v", err))
+			}
+		}
 	})
 
-	AfterSuite(func() {
+	SynchronizedAfterSuite(func() {}, func() {
 		client := framework.ClientsInstance.K8sClient
 
 		Eventually(func() []corev1.Namespace {

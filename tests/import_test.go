@@ -47,7 +47,7 @@ const (
 	BlockDeviceMD5                   = "7c55761d39e6428fa27c21d8710a3d19"
 )
 
-var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite", func() {
+var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite", Serial, func() {
 	var (
 		ns string
 		f  = framework.NewFramework(namespacePrefix)
@@ -189,7 +189,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	})
 })
 
-var _ = Describe("DataVolume Garbage Collection", func() {
+var _ = Describe("DataVolume Garbage Collection", Serial, func() {
 	var (
 		f        = framework.NewFramework(namespacePrefix)
 		ns       string
@@ -278,7 +278,7 @@ var _ = Describe("DataVolume Garbage Collection", func() {
 	)
 })
 
-var _ = Describe("[Istio] Namespace sidecar injection", func() {
+var _ = Describe("[Istio] Namespace sidecar injection", Serial, func() {
 	var (
 		f = framework.NewFramework(namespacePrefix)
 
@@ -374,7 +374,7 @@ var _ = Describe("[Istio] Namespace sidecar injection", func() {
 	})
 })
 
-var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", func() {
+var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", Serial, func() {
 	var cr *cdiv1.CDI
 	var oldSpec *cdiv1.CDISpec
 	f := framework.NewFramework(namespacePrefix)
@@ -442,7 +442,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", fu
 	})
 })
 
-var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite-prometheus", func() {
+var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite-prometheus", Serial, func() {
 	var prometheusURL string
 	var portForwardCmd *exec.Cmd
 	client := &http.Client{
@@ -670,7 +670,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 	})
 })
 
-var _ = Describe("[rfe_id:1947][crit:high][test_id:2145][vendor:cnv-qe@redhat.com][level:component]Importer Archive ContentType", func() {
+var _ = Describe("[rfe_id:1947][crit:high][test_id:2145][vendor:cnv-qe@redhat.com][level:component]Importer Archive ContentType", Serial, func() {
 	f := framework.NewFramework(namespacePrefix)
 
 	It("Should import archive content type tar file", func() {
@@ -696,7 +696,7 @@ var _ = Describe("[rfe_id:1947][crit:high][test_id:2145][vendor:cnv-qe@redhat.co
 	})
 })
 
-var _ = Describe("PVC import phase matches pod phase", func() {
+var _ = Describe("PVC import phase matches pod phase", Serial, func() {
 	f := framework.NewFramework(namespacePrefix)
 
 	It("[test_id:4980]Should never go to failed even if import fails", func() {
@@ -727,7 +727,7 @@ var _ = Describe("PVC import phase matches pod phase", func() {
 	})
 })
 
-var _ = Describe("Namespace with quota", func() {
+var _ = Describe("Namespace with quota", Serial, func() {
 	f := framework.NewFramework(namespacePrefix)
 	var (
 		orgConfig *v1.ResourceRequirements
@@ -1304,7 +1304,7 @@ var _ = Describe("Preallocation", func() {
 
 			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreQcow2URL(), f.BlockSCName)
 		}),
-		Entry("ImageIO import", true, utils.ImageioMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
+		Entry("ImageIO import", Serial, true, utils.ImageioMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
 			cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 			Expect(err).ToNot(HaveOccurred())
 			stringData := map[string]string{
@@ -1386,7 +1386,7 @@ var _ = Describe("Preallocation", func() {
 		}),
 	)
 
-	It("Filesystem overhead is honored with blank volume", func() {
+	It("Filesystem overhead is honored with blank volume", Serial, func() {
 		tests.SetFilesystemOverhead(f, "0.055", "0.055")
 
 		dv := utils.NewDataVolumeForBlankRawImage("import-dv", "100Mi")
@@ -1669,8 +1669,8 @@ var _ = Describe("Import populator", func() {
 		Entry("with HTTP image without preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, false),
 		Entry("with Registry image and preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, true),
 		Entry("with Registry image without preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, false),
-		Entry("with ImageIO image with preallocation", utils.ImageioMD5, createImageIOImportPopulatorCR, true),
-		Entry("with ImageIO image without preallocation", utils.ImageioMD5, createImageIOImportPopulatorCR, false),
+		Entry("with ImageIO image with preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, true),
+		Entry("with ImageIO image without preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, false),
 		Entry("with VDDK image with preallocation", utils.VcenterMD5, createVDDKImportPopulatorCR, true),
 		Entry("with VDDK image without preallocation", utils.VcenterMD5, createVDDKImportPopulatorCR, false),
 		Entry("with Blank image with preallocation", utils.BlankMD5, createBlankImportPopulatorCR, true),
@@ -1719,7 +1719,7 @@ var _ = Describe("Import populator", func() {
 	},
 		Entry("with HTTP image", utils.TinyCoreMD5, createHTTPImportPopulatorCR),
 		Entry("with Registry image", utils.TinyCoreMD5, createRegistryImportPopulatorCR),
-		Entry("with ImageIO image", utils.ImageioMD5, createImageIOImportPopulatorCR),
+		Entry("with ImageIO image", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR),
 		Entry("with VDDK image", utils.VcenterMD5, createVDDKImportPopulatorCR),
 		Entry("with Blank image", utils.BlankMD5, createBlankImportPopulatorCR),
 	)

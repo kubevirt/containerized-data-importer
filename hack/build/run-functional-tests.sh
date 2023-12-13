@@ -14,7 +14,7 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-set -eo pipefail
+set -exo pipefail
 
 readonly MAX_CDI_WAIT_RETRY=30
 readonly CDI_WAIT_TIME=10
@@ -72,7 +72,7 @@ arg_sc_csi="${CSICLONE_SC:+-csiclone-sc=$CSICLONE_SC}"
 arg_docker_prefix="${DOCKER_PREFIX:+-docker-prefix=$DOCKER_PREFIX}"
 arg_docker_tag="${DOCKER_TAG:+-docker-tag=$DOCKER_TAG}"
 
-test_args="${test_args} -ginkgo.v ${arg_kubeurl} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc} ${arg_gocli} ${arg_sc_snap} ${arg_sc_block} ${arg_sc_csi} ${arg_docker_prefix} ${arg_docker_tag}"
+test_args="${test_args} ${arg_kubeurl} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc} ${arg_gocli} ${arg_sc_snap} ${arg_sc_block} ${arg_sc_csi} ${arg_docker_prefix} ${arg_docker_tag}"
 
 echo 'Wait until all CDI Pods are ready'
 retry_counter=0
@@ -93,9 +93,13 @@ if [ $retry_counter -eq $MAX_CDI_WAIT_RETRY ]; then
     exit 1
 fi
 
-test_command="${TESTS_OUT_DIR}/tests.test -test.timeout 420m ${test_args}"
-echo "$test_command"
 (
-    cd ${CDI_DIR}/tests
-    ${test_command}
+    export TESTS_WORKDIR=${CDI_DIR}/tests
+    ginkgo_args="--trace --timeout=8h"
+    if [[ -n "$CDI_E2E_FOCUS" || -n "$CDI_E2E_SKIP" ]]; then
+        ginkgo_args="${ginkgo_args} --nodes=3"
+    else
+        ginkgo_args="${ginkgo_args} --v"
+    fi
+    ${TESTS_OUT_DIR}/ginkgo ${ginkgo_args} ${TESTS_OUT_DIR}/tests.test -- ${test_args}
 )
