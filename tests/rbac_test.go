@@ -2,8 +2,6 @@ package tests
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -217,6 +215,11 @@ var _ = Describe("Aggregated role definition tests", Serial, func() {
 			},
 			Resources: []string{
 				"datavolumes",
+				"dataimportcrons",
+				"datasources",
+				"volumeimportsources",
+				"volumeuploadsources",
+				"volumeclonesources",
 			},
 			Verbs: []string{
 				"*",
@@ -289,16 +292,7 @@ var _ = Describe("Aggregated role definition tests", Serial, func() {
 		clusterRole, err := f.K8sClient.RbacV1().ClusterRoles().Get(context.TODO(), role, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		for _, expectedRule := range rules {
-			found := false
-			for _, r := range clusterRole.Rules {
-				if reflect.DeepEqual(expectedRule, r) {
-					found = true
-					break
-				}
-			}
-			Expect(found).To(BeTrue(), fmt.Sprintf("Rule for resources %v should exist", expectedRule.Resources))
-		}
+		Expect(clusterRole.Rules).To(ContainElements(rules))
 	},
 		Entry("[test_id:3945]for admin", "admin", adminRules),
 		Entry("[test_id:3946]for edit", "edit", editRules),
