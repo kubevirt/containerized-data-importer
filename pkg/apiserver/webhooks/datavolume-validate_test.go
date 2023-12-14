@@ -265,7 +265,7 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(BeTrue())
 		})
 
-		It("should accept DataVolume with unbound PVC and adoption featurgate set", func() {
+		It("should reject DataVolume with unbound PVC and adoption featurgate set", func() {
 			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
 			pvc := &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
