@@ -39,6 +39,10 @@ func (f *Framework) CreateBoundPVCFromDefinition(def *k8sv1.PersistentVolumeClai
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	f.ForceBindIfWaitForFirstConsumer(pvc)
+	err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, k8sv1.ClaimBound, pvc.Name)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	pvc, err = utils.FindPVC(f.K8sClient, pvc.Namespace, pvc.Name)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	return pvc
 }
 
