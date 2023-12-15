@@ -235,7 +235,7 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(BeFalse())
 		})
 
-		It("should reject DataVolume with unbound PVC and adoption annotation", func() {
+		It("should accept DataVolume with unbound PVC and adoption annotation", func() {
 			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
 			pvc := &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
@@ -248,7 +248,7 @@ var _ = Describe("Validating Webhook", func() {
 				Spec: *dataVolume.Spec.PVC,
 			}
 			resp := validateDataVolumeCreate(dataVolume, pvc)
-			Expect(resp.Allowed).To(BeFalse())
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should accept DataVolume with PVC and adoption featurgate set", func() {
@@ -265,7 +265,7 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(BeTrue())
 		})
 
-		It("should reject DataVolume with unbound PVC and adoption featurgate set", func() {
+		It("should accept DataVolume with unbound PVC and adoption featurgate set", func() {
 			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
 			pvc := &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
@@ -275,7 +275,7 @@ var _ = Describe("Validating Webhook", func() {
 				Spec: *dataVolume.Spec.PVC,
 			}
 			resp := validateDataVolumeCreateEx(dataVolume, []runtime.Object{pvc}, nil, nil, []string{"DataVolumeClaimAdoption"})
-			Expect(resp.Allowed).To(BeFalse())
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should reject DataVolume with PVC adoption annotation false and featuregate set", func() {

@@ -2104,9 +2104,6 @@ func SetPvcAllowedAnnotations(obj metav1.Object, pvc *corev1.PersistentVolumeCla
 
 // ClaimMayExistBeforeDataVolume returns true if the PVC may exist before the DataVolume
 func ClaimMayExistBeforeDataVolume(c client.Client, pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (bool, error) {
-	if IsUnbound(pvc) {
-		return false, nil
-	}
 	if ClaimIsPopulatedForDataVolume(pvc, dv) {
 		return true, nil
 	}

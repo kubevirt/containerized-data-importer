@@ -710,9 +710,6 @@ func (r *ReconcilerBase) validatePVC(dv *cdiv1.DataVolume, pvc *corev1.Persisten
 			return err
 		}
 		if !requiresWork {
-			if cc.IsUnbound(pvc) {
-				return fmt.Errorf("unbound populated/adoptable PVC %s/%s", pvc.Namespace, pvc.Name)
-			}
 			if err := r.addOwnerRef(pvc, dv); err != nil {
 				return err
 			}
@@ -914,8 +911,12 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 		} else {
 			switch pvc.Status.Phase {
 			case corev1.ClaimPending:
-				if err := r.updateStatusPVCPending(pvc, dvc, dataVolumeCopy, &event); err != nil {
-					return reconcile.Result{}, err
+				if requiresWork {
+					if err := r.updateStatusPVCPending(pvc, dvc, dataVolumeCopy, &event); err != nil {
+						return reconcile.Result{}, err
+					}
+				} else {
+					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
 				}
 			case corev1.ClaimBound:
 				switch dataVolumeCopy.Status.Phase {
@@ -927,12 +928,12 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 					dataVolumeCopy.Status.Phase = cdiv1.PVCBound
 				}
 
-				if !requiresWork {
-					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
-				} else {
+				if requiresWork {
 					if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
 						return reconcile.Result{}, err
 					}
+				} else {
+					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
 				}
 
 			case corev1.ClaimLost:
