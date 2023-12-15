@@ -211,11 +211,11 @@ func (r *UploadReconciler) shouldUpdateStatusPhase(pvc *corev1.PersistentVolumeC
 		}
 	}
 	_, ok := pvcCopy.Annotations[cc.AnnUploadRequest]
-	requiresNoWork, err := r.pvcRequiresNoWork(pvcCopy, dv)
+	requiresWork, err := r.pvcRequiresWork(pvcCopy, dv)
 	if err != nil {
 		return false, err
 	}
-	return ok && pvcCopy.Status.Phase == corev1.ClaimBound && !requiresNoWork, nil
+	return ok && pvcCopy.Status.Phase == corev1.ClaimBound && requiresWork, nil
 }
 
 func (r *UploadReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
