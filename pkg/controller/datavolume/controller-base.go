@@ -705,11 +705,11 @@ func (r *ReconcilerBase) validatePVC(dv *cdiv1.DataVolume, pvc *corev1.Persisten
 	// If the PVC is not controlled by this DataVolume resource, we should log
 	// a warning to the event recorder and return
 	if !metav1.IsControlledBy(pvc, dv) {
-		requiresNoWork, err := r.pvcRequiresNoWork(pvc, dv)
+		requiresWork, err := r.pvcRequiresWork(pvc, dv)
 		if err != nil {
 			return err
 		}
-		if requiresNoWork {
+		if !requiresWork {
 			if cc.IsUnbound(pvc) {
 				return fmt.Errorf("unbound populated/adoptable PVC %s/%s", pvc.Namespace, pvc.Name)
 			}
@@ -903,11 +903,11 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 		dataVolumeCopy.Status.ClaimName = pvc.Name
 
 		phase := pvc.Annotations[cc.AnnPodPhase]
-		requiresNoWork, err := r.pvcRequiresNoWork(pvc, dataVolumeCopy)
+		requiresWork, err := r.pvcRequiresWork(pvc, dataVolumeCopy)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-		if phase == string(cdiv1.Succeeded) && !requiresNoWork {
+		if phase == string(cdiv1.Succeeded) && requiresWork {
 			if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
 				return reconcile.Result{}, err
 			}
@@ -927,7 +927,7 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 					dataVolumeCopy.Status.Phase = cdiv1.PVCBound
 				}
 
-				if requiresNoWork {
+				if !requiresWork {
 					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
 				} else {
 					if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
@@ -1290,12 +1290,19 @@ func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, er
 	return usePopulator, nil
 }
 
-func (r *ReconcilerBase) pvcRequiresNoWork(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (bool, error) {
+func (r *ReconcilerBase) pvcRequiresWork(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (bool, error) {
 	if pvc == nil || dv == nil {
-		return false, nil
-	}
-	if pvcIsPopulatedForDataVolume(pvc, dv) {
 		return true, nil
 	}
-	return cc.ClaimAllowsAdoption(r.client, pvc)
+	if pvcIsPopulatedForDataVolume(pvc, dv) {
+		return false, nil
+	}
+	canAdopt, err := cc.ClaimAllowsAdoption(r.client, pvc)
+	if err != nil {
+		return true, err
+	}
+	if canAdopt {
+		return false, nil
+	}
+	return true, nil
 }
