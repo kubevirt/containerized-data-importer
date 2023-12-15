@@ -511,6 +511,34 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.OwnerReferences[0].Kind).To(Equal("DataVolume"))
 		})
 
+		It("Validate clone will adopt unbound PVC (with annotation)", func() {
+			dv := newCloneDataVolume("test-dv")
+			storageProfile := createStorageProfile(scName, nil, FilesystemMode)
+			pvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimPending)
+			pvc.Spec.VolumeName = ""
+			pvc.SetAnnotations(make(map[string]string))
+			pvc.GetAnnotations()[AnnAllowClaimAdoption] = "true"
+			reconciler = createCloneReconciler(dv, pvc, storageProfile, sc)
+
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result.Requeue).To(BeFalse())
+			Expect(result.RequeueAfter).To(BeZero())
+
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.ClaimName).To(Equal("test-dv"))
+			Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
+			Expect(dv.Annotations[AnnCloneType]).To(BeEmpty())
+
+			pvc = &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.OwnerReferences).To(HaveLen(1))
+			Expect(pvc.OwnerReferences[0].Name).To(Equal("test-dv"))
+			Expect(pvc.OwnerReferences[0].Kind).To(Equal("DataVolume"))
+		})
+
 		It("Validate clone will adopt PVC (with featuregate)", func() {
 			dv := newCloneDataVolume("test-dv")
 			storageProfile := createStorageProfile(scName, nil, FilesystemMode)

@@ -790,9 +790,31 @@ var _ = Describe("All DataVolume Tests", func() {
 		})
 
 		It("Should adopt a PVC (with annotation)", func() {
-			annotations := map[string]string{"cdi.kubevirt.io/allowClaimAdoption": "true"}
+			annotations := map[string]string{AnnAllowClaimAdoption: "true"}
 			pvc := CreatePvc("test-dv", metav1.NamespaceDefault, annotations, nil)
 			pvc.Status.Phase = corev1.ClaimBound
+			dv := NewImportDataVolume("test-dv")
+			reconciler = createImportReconciler(pvc, dv)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.OwnerReferences).To(HaveLen(1))
+			or := pvc.OwnerReferences[0]
+			Expect(or.UID).To(Equal(dv.UID))
+
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
+			Expect(string(dv.Status.Progress)).To(Equal("N/A"))
+		})
+
+		It("Should adopt a unbound PVC (with annotation)", func() {
+			annotations := map[string]string{AnnAllowClaimAdoption: "true"}
+			pvc := CreatePvc("test-dv", metav1.NamespaceDefault, annotations, nil)
+			pvc.Spec.VolumeName = ""
+			pvc.Status.Phase = corev1.ClaimPending
 			dv := NewImportDataVolume("test-dv")
 			reconciler = createImportReconciler(pvc, dv)
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -955,7 +977,7 @@ var _ = Describe("All DataVolume Tests", func() {
 					Kind:       "DataVolume",
 					Name:       dv.Name,
 					UID:        dv.UID,
-					Controller: pointer.Bool(true),
+					Controller: ptr.To(true),
 				},
 			}
 

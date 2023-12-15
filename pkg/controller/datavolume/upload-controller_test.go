@@ -33,14 +33,15 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 var (
@@ -205,7 +206,7 @@ var _ = Describe("All DataVolume Tests", func() {
 	})
 
 	It("Should adopt a PVC (with annotation)", func() {
-		annotations := map[string]string{"cdi.kubevirt.io/allowClaimAdoption": "true"}
+		annotations := map[string]string{AnnAllowClaimAdoption: "true"}
 		pvc := CreatePvc("test-dv", metav1.NamespaceDefault, annotations, nil)
 		pvc.Status.Phase = corev1.ClaimBound
 		dv := newUploadDataVolume("test-dv")
@@ -246,16 +247,26 @@ var _ = Describe("All DataVolume Tests", func() {
 		Expect(string(dv.Status.Progress)).To(Equal("N/A"))
 	})
 
-	It("Should NOT adopt a unbound PVC", func() {
-		annotations := map[string]string{"cdi.kubevirt.io/allowClaimAdoption": "true"}
+	It("Should adopt a unbound PVC", func() {
+		annotations := map[string]string{AnnAllowClaimAdoption: "true"}
 		pvc := CreatePvc("test-dv", metav1.NamespaceDefault, annotations, nil)
 		pvc.Spec.VolumeName = ""
 		pvc.Status.Phase = corev1.ClaimPending
 		dv := newUploadDataVolume("test-dv")
 		reconciler = createUploadReconciler(pvc, dv)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("unbound populated/adoptable PVC"))
+		Expect(err).ToNot(HaveOccurred())
+
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.OwnerReferences).To(HaveLen(1))
+		or := pvc.OwnerReferences[0]
+		Expect(or.UID).To(Equal(dv.UID))
+
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
+		Expect(string(dv.Status.Progress)).To(Equal("N/A"))
 	})
 
 	var _ = Describe("Reconcile Datavolume status", func() {
