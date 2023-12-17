@@ -452,8 +452,8 @@ func GetVolumeMode(pvc *corev1.PersistentVolumeClaim) corev1.PersistentVolumeMod
 	return util.ResolveVolumeMode(pvc.Spec.VolumeMode)
 }
 
-// GetStorageClass returns the StorageClassName from DataVolume PVC or Storage spec
-func GetStorageClass(dv *cdiv1.DataVolume) *string {
+// GetStorageClassFromDVSpec returns the StorageClassName from DataVolume PVC or Storage spec
+func GetStorageClassFromDVSpec(dv *cdiv1.DataVolume) *string {
 	if dv.Spec.PVC != nil {
 		return dv.Spec.PVC.StorageClassName
 	}
@@ -511,18 +511,12 @@ func getFallbackStorageClass(ctx context.Context, client client.Client, contentT
 		return nil, errors.New("unable to retrieve storage classes")
 	}
 
-	return GetFallbackStorageClass(storageClasses, contentType), nil
-}
-
-// GetFallbackStorageClass looks for a default virt/k8s storage class according to the content type
-// If no storage class is found, returns nil
-func GetFallbackStorageClass(storageClasses *storagev1.StorageClassList, contentType cdiv1.DataVolumeContentType) *storagev1.StorageClass {
 	if GetContentType(contentType) == cdiv1.DataVolumeKubeVirt {
 		if virtSc := GetPlatformDefaultStorageClass(storageClasses, AnnDefaultVirtStorageClass); virtSc != nil {
-			return virtSc
+			return virtSc, nil
 		}
 	}
-	return GetPlatformDefaultStorageClass(storageClasses, AnnDefaultStorageClass)
+	return GetPlatformDefaultStorageClass(storageClasses, AnnDefaultStorageClass), nil
 }
 
 // GetPlatformDefaultStorageClass returns the default storage class according to the provided annotation or nil if none found

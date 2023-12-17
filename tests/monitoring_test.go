@@ -48,13 +48,23 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		defaultVirtStorageClass *storagev1.StorageClass
 		defaultCloneStrategy    *cdiv1.CDICloneStrategy
 		numAddedStorageClasses  int
+		originalCompleteVal     int
+		originalIncompleteVal   int
 	)
 
 	waitForStorageProfileMetricInit := func() {
 		Eventually(func() bool {
 			scs, err := f.K8sClient.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			return len(scs.Items) == countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "true")
+			sc_count := len(scs.Items)
+			sps, err := f.CdiClient.CdiV1beta1().StorageProfiles().List(context.TODO(), metav1.ListOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			sp_count := len(sps.Items)
+
+			complete := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "true")
+			incomplete := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "false")
+
+			return sc_count == sp_count && sc_count == complete+incomplete
 		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 	}
 
@@ -78,9 +88,6 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 
 	updateDefaultStorageClassProfileClaimPropertySets := func(accessMode *corev1.PersistentVolumeAccessMode) {
 		profile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), defaultStorageClass.Name, metav1.GetOptions{})
-		if err != nil && errors.IsNotFound(err) && accessMode == nil {
-			return
-		}
 		Expect(err).ToNot(HaveOccurred())
 
 		profile.Spec.ClaimPropertySets = nil
@@ -110,7 +117,6 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 	createStubSnapshotClass := func(driver string) {
 		err := f.CrClient.Create(context.TODO(), newStubSnapshotClass(driver))
 		Expect(err).ToNot(HaveOccurred())
-		f.SnapshotSCName = defaultStorageClass.Name
 	}
 
 	deleteStubSnapshotClass := func() {
@@ -118,7 +124,6 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		if err != nil && !errors.IsNotFound(err) {
 			Expect(err).ToNot(HaveOccurred())
 		}
-		f.SnapshotSCName = ""
 	}
 
 	waitForCloneStrategyInit := func() {
@@ -133,9 +138,6 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 	waitForCloneStrategy := func(strategy cdiv1.CDICloneStrategy) {
 		Eventually(func() bool {
 			profile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), defaultStorageClass.Name, metav1.GetOptions{})
-			if err != nil && errors.IsNotFound(err) {
-				return false
-			}
 			Expect(err).ToNot(HaveOccurred())
 			cs := profile.Status.CloneStrategy
 			return cs != nil && *cs == strategy
@@ -153,25 +155,31 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		defaultVirtStorageClass = utils.GetDefaultVirtStorageClass(f.K8sClient)
 
 		waitForStorageProfileMetricInit()
+		originalCompleteVal = countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "true")
+		originalIncompleteVal = countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "false")
+		By(fmt.Sprintf("Original complete:%d incomplete:%d", originalCompleteVal, originalIncompleteVal))
 		waitForCloneStrategyInit()
 	})
 
 	AfterEach(func() {
-		deleteUnknownStorageClasses()
-		updateDefaultStorageClasses("true")
-		updateDefaultStorageClassProfileClaimPropertySets(nil)
-		deleteStubSnapshotClass()
-		waitForCloneStrategy(*defaultCloneStrategy)
-
 		if crModified {
 			removeCDI(f, cr)
 			ensureCDI(f, cr, cdiPods)
 			crModified = false
 		}
 
-		Eventually(func() int {
-			return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "false")
-		}, 5*time.Minute, 5*time.Second).Should(BeZero())
+		deleteUnknownStorageClasses()
+		updateDefaultStorageClasses("true")
+		waitForStorageProfileMetricInit()
+		updateDefaultStorageClassProfileClaimPropertySets(nil)
+		deleteStubSnapshotClass()
+		waitForCloneStrategy(*defaultCloneStrategy)
+
+		Eventually(func() bool {
+			complete := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "true")
+			incomplete := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "false")
+			return complete == originalCompleteVal && incomplete == originalIncompleteVal
+		}, 5*time.Minute, 5*time.Second).Should(BeTrue())
 	})
 
 	Context("[rfe_id:7101][crit:medium][vendor:cnv-qe@redhat.com][level:component] Metrics and Alert tests", func() {
@@ -235,7 +243,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 			}
 
-			expectedIncomplete := numAddedStorageClasses
+			expectedIncomplete := originalIncompleteVal + numAddedStorageClasses
 			Eventually(func() int {
 				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "false")
 			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", expectedIncomplete))
@@ -323,6 +331,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		It("[test_id:XXXX]CDIDefaultStorageClassDegraded fired when default storage class has no smart clone or ReadWriteMany", func() {
 			rwx := corev1.ReadWriteMany
 			rwo := corev1.ReadWriteOnce
+			isStubSnapshotClass := false
 
 			profile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), defaultStorageClass.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
@@ -333,9 +342,11 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 				By("Default storage class does not support snapshot or CSI clone - adding stub VolumeSnapshot crds and VolumeSnapshotClass")
 				createStubSnapshotClass(*profile.Status.Provisioner)
 				waitForCloneStrategy(cdiv1.CloneStrategySnapshot)
+
+				isStubSnapshotClass = true
 			}
 
-			if !f.IsSnapshotStorageClassAvailable() && !f.IsCSIVolumeCloneStorageClassAvailable() {
+			if !isStubSnapshotClass && !f.IsSnapshotStorageClassAvailable() && !f.IsCSIVolumeCloneStorageClassAvailable() {
 				Skip("Smart Clone is not applicable")
 			}
 
@@ -364,8 +375,9 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 		})
 
 		It("[test_id:9659] StorageProfile incomplete metric expected value remains unchanged for provisioner known to not work", func() {
-			sc, err := f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), createUnknownStorageClass("unsupported-provisioner", storagecapabilities.ProvisionerNoobaa), metav1.CreateOptions{})
+			sc, err := f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), createUnknownStorageClass("unknown-sc-0", storagecapabilities.ProvisionerNoobaa), metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
+			numAddedStorageClasses = 1
 
 			By("Profile created and is incomplete")
 			profile := &cdiv1.StorageProfile{}
@@ -377,7 +389,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 			By("Metric stays the same because we don't support this provisioner")
 			Consistently(func() int {
 				return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "false")
-			}, metricConsistentPollingTimeout, metricPollingInterval).Should(BeZero())
+			}, metricConsistentPollingTimeout, metricPollingInterval).Should(BeNumerically("==", originalIncompleteVal))
 		})
 
 		It("[test_id:7964] DataImportCron failing metric expected value when patching DesiredDigest annotation with junk sha256 value", func() {
@@ -589,7 +601,6 @@ func countMetricLabelValue(f *framework.Framework, endpoint, label, value string
 func getMetricDataResult(f *framework.Framework, endpoint string) ([]interface{}, error) {
 	var result map[string]interface{}
 
-	By(fmt.Sprintf("Querying metric %s", endpoint))
 	resp := f.MakePrometheusHTTPRequest("query?query=" + endpoint)
 	defer resp.Body.Close()
 	bodyBytes, err := io.ReadAll(resp.Body)
@@ -637,28 +648,15 @@ func getPrometheusRule(f *framework.Framework) *promv1.PrometheusRule {
 
 func waitForPrometheusAlert(f *framework.Framework, alertName string) {
 	By(fmt.Sprintf("Wait for alert %s to be triggered", alertName))
-	Eventually(func() bool {
-		result, err := getPrometheusAlerts(f)
-		if err != nil {
-			return false
-		}
-
-		alerts := result["data"].(map[string]interface{})["alerts"].([]interface{})
-		for _, alert := range alerts {
-			name := alert.(map[string]interface{})["labels"].(map[string]interface{})["alertname"].(string)
-			if name == alertName {
-				state := alert.(map[string]interface{})["state"].(string)
-				By(fmt.Sprintf("Alert %s state %s", name, state))
-				return state == "pending" || state == "firing"
-			}
-		}
-
-		return false
-	}, 10*time.Minute, 1*time.Second).Should(BeTrue())
+	waitForPrometheusAlertExists(f, alertName, true)
 }
 
 func waitForNoPrometheusAlert(f *framework.Framework, alertName string) {
 	By(fmt.Sprintf("Verify no %s alert", alertName))
+	waitForPrometheusAlertExists(f, alertName, false)
+}
+
+func waitForPrometheusAlertExists(f *framework.Framework, alertName string, shouldExist bool) {
 	Eventually(func() bool {
 		result, err := getPrometheusAlerts(f)
 		if err != nil {
@@ -669,11 +667,16 @@ func waitForNoPrometheusAlert(f *framework.Framework, alertName string) {
 		for _, alert := range alerts {
 			name := alert.(map[string]interface{})["labels"].(map[string]interface{})["alertname"].(string)
 			if name == alertName {
+				if shouldExist {
+					state := alert.(map[string]interface{})["state"].(string)
+					By(fmt.Sprintf("Alert %s state %s", name, state))
+					return state == "pending" || state == "firing"
+				}
 				return false
 			}
 		}
 
-		return true
+		return !shouldExist
 	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 }
 

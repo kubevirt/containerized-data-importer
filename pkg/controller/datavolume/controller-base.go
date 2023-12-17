@@ -403,7 +403,7 @@ func getSourceRefOp(log logr.Logger, dv *cdiv1.DataVolume, client client.Client)
 }
 
 func updatePendingDataVolumesGauge(log logr.Logger, dv *cdiv1.DataVolume, c client.Client) {
-	if cc.GetStorageClass(dv) != nil {
+	if cc.GetStorageClassFromDVSpec(dv) != nil {
 		return
 	}
 
@@ -415,7 +415,7 @@ func updatePendingDataVolumesGauge(log logr.Logger, dv *cdiv1.DataVolume, c clie
 
 	dvCount := 0
 	for _, dv := range dvList.Items {
-		if cc.GetStorageClass(&dv) == nil {
+		if cc.GetStorageClassFromDVSpec(&dv) == nil {
 			dvCount++
 		}
 	}
