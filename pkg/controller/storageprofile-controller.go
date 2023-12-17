@@ -312,22 +312,13 @@ func (r *StorageProfileReconciler) computeMetrics(profile *cdiv1.StorageProfile,
 		return err
 	}
 
-	// Setting the labeled Gauge to 1 will not set the older Gauges to 0, so we need to explicitly set them
-	scLabels := createLabels(storageClass, provisioner, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone)
-
-	// FIXME: do it smarter
-	for i := 0; i < 1<<5; i++ {
-		bit := func(n, bitIndex int) bool {
-			return n&(1<<bitIndex) != 0
-		}
-		labels := createLabels(storageClass, provisioner, bit(i, 0), bit(i, 1), bit(i, 2), bit(i, 3), bit(i, 4))
-
-		if reflect.DeepEqual(labels, scLabels) {
-			StorageProfileStatusGaugeVec.With(labels).Set(float64(1))
-		} else {
-			StorageProfileStatusGaugeVec.DeletePartialMatch(labels)
-		}
-	}
+	// Setting the labeled Gauge to 1 will not delete older metric, so we need to explicitly delete them
+	scLabels := prometheus.Labels{counterLabelStorageClass: storageClass, counterLabelProvisioner: provisioner}
+	metricsDeleted := StorageProfileStatusGaugeVec.DeletePartialMatch(scLabels)
+	scLabels = createLabels(storageClass, provisioner, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone)
+	StorageProfileStatusGaugeVec.With(scLabels).Set(float64(1))
+	r.log.Info(fmt.Sprintf("Set metric:%s complete:%t default:%t vdefault:%t rwx:%t smartclone:%t (deleted %d)",
+		storageClass, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone, metricsDeleted))
 
 	return nil
 }
