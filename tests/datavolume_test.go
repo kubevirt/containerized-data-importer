@@ -40,7 +40,7 @@ const (
 	shortTimeout        = 30 * time.Second
 )
 
-var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", Serial, func() {
+var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", func() {
 
 	var sourcePvc *v1.PersistentVolumeClaim
 	var targetPvc *v1.PersistentVolumeClaim
@@ -837,7 +837,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Unable to process data",
 					Reason:  "Error",
 				}}),
-			Entry("[test_id:3932]succeed creating dv from imageio source", dataVolumeTestArguments{
+			Entry("[test_id:3932]succeed creating dv from imageio source", Serial, dataVolumeTestArguments{
 				name:             "dv-imageio-test",
 				size:             "1Gi",
 				url:              imageioURL,
@@ -861,7 +861,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			PEntry("[quarantine][test_id:3937]succeed creating warm import dv from imageio source", dataVolumeTestArguments{
+			PEntry("[quarantine][test_id:3937]succeed creating warm import dv from imageio source", Serial, dataVolumeTestArguments{
 				// The final snapshot importer pod will give an error due to the static response from the fake imageio
 				// it returns the previous snapshot data, which will fail the commit to the target image.
 				// the importer pod will restart and then succeed because the fake imageio now sends the
@@ -889,7 +889,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			Entry("[test_id:3945]succeed creating dv from imageio source that does not support extents query", dataVolumeTestArguments{
+			Entry("[test_id:3945]succeed creating dv from imageio source that does not support extents query", Serial, dataVolumeTestArguments{
 				name:             "dv-imageio-test",
 				size:             "1Gi",
 				url:              imageioURL,
@@ -1096,7 +1096,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		// Similar to previous table, but with additional cleanup steps to save and restore VDDK image config map
-		DescribeTable("should", func(args dataVolumeTestArguments) {
+		DescribeTable("should", Serial, func(args dataVolumeTestArguments) {
 			_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, common.VddkConfigMap, f.CdiInstallNs, savedVddkConfigMap, "")
 			Expect(err).ToNot(HaveOccurred())
 
@@ -1291,7 +1291,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Entry("for clone DataVolume", createCloneDataVolume, fillCommand),
 		)
 
-		Context("default virt storage class", func() {
+		Context("default virt storage class", Serial, func() {
 			var defaultVirtStorageClass *storagev1.StorageClass
 			var dummyStorageClass *storagev1.StorageClass
 			var defaultStorageClass *storagev1.StorageClass
@@ -1496,7 +1496,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 	})
 
-	Describe("[rfe_id:1111][test_id:2001][crit:low][vendor:cnv-qe@redhat.com][level:component]Verify multiple blank disk creations in parallel", func() {
+	Describe("[rfe_id:1111][test_id:2001][crit:low][vendor:cnv-qe@redhat.com][level:component]Verify multiple blank disk creations in parallel", Serial, func() {
 		var (
 			dataVolume1, dataVolume2, dataVolume3, dataVolume4 *cdiv1.DataVolume
 		)
@@ -1601,8 +1601,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Entry("[test_id:3933]succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", dvc.ImportSucceeded, cdiv1.Succeeded),
 			Entry("[test_id:3935]succeed import from VDDK to block volume", "import-vddk", "", nil, "dv-vddk-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
 			Entry("[test_id:3936]succeed warm import from VDDK to block volume", "warm-import-vddk", "", nil, "dv-vddk-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
-			Entry("[test_id:3938]succeed import from ImageIO to block volume", "import-imageio", "", nil, "dv-imageio-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
-			Entry("[test_id:3944]succeed warm import from ImageIO to block volume", "warm-import-imageio", "", nil, "dv-imageio-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
+			Entry("[test_id:3938]succeed import from ImageIO to block volume", Serial, "import-imageio", "", nil, "dv-imageio-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
+			Entry("[test_id:3944]succeed warm import from ImageIO to block volume", Serial, "warm-import-imageio", "", nil, "dv-imageio-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 
@@ -1638,7 +1638,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		Entry("when importing in the VHDX format", httpsTinyCoreVhdxURL, false),
 	)
 
-	Describe("[rfe_id:1115][crit:high][posneg:negative]Delete resources of DataVolume with an invalid URL (POD in retry loop)", func() {
+	Describe("[rfe_id:1115][crit:high][posneg:negative]Delete resources of DataVolume with an invalid URL (POD in retry loop)", Serial, func() {
 		Context("using invalid import URL for DataVolume", func() {
 			dataVolumeName := "invalid-url-dv"
 			url := "http://nothing.2.c/here.iso"
@@ -1686,7 +1686,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 	})
 
-	Describe("Create/Delete same datavolume in a loop", func() {
+	Describe("Create/Delete same datavolume in a loop", Serial, func() {
 		Context("retry loop", func() {
 			numTries := 5
 			It(fmt.Sprintf("[test_id:3939][test_id:3940][test_id:3941][test_id:3942][test_id:3943] should succeed on %d loops", numTries), func() {
@@ -1852,7 +1852,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 	})
 
-	Describe("Create a PVC using data from StorageProfile", func() {
+	Describe("Create a PVC using data from StorageProfile", Serial, func() {
 		var (
 			config              *cdiv1.CDIConfig
 			origSpec            *cdiv1.CDIConfigSpec
@@ -2472,7 +2472,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 	})
 
-	Describe("Verify that when the required storage class is missing", func() {
+	Describe("Verify that when the required storage class is missing", Serial, func() {
 		var (
 			testSc *storagev1.StorageClass
 			pvName string
@@ -2699,7 +2699,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		)
 	})
 
-	Describe("[rfe_id:4223][crit:high] DataVolume - WaitForFirstConsumer", func() {
+	Describe("[rfe_id:4223][crit:high] DataVolume - WaitForFirstConsumer", Serial, func() {
 		createBlankRawDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 			return utils.NewDataVolumeForBlankRawImage(dataVolumeName, size)
 		}
@@ -2914,7 +2914,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		)
 	})
 
-	Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component][test] CDI Import from HTTP/S3", func() {
+	Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component][test] CDI Import from HTTP/S3", Serial, func() {
 		const (
 			originalImageName = "cirros-qcow2.img"
 			testImageName     = "cirros-qcow2-1990.img"
