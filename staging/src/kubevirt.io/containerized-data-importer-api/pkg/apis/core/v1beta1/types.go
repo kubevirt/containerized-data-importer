@@ -824,8 +824,8 @@ type CDISpec struct {
 	// +kubebuilder:validation:Enum=RemoveWorkloads;BlockUninstallIfWorkloadsExist
 	// CDIUninstallStrategy defines the state to leave CDI on uninstall
 	UninstallStrategy *CDIUninstallStrategy `json:"uninstallStrategy,omitempty"`
-	// Rules on which nodes CDI infrastructure pods will be scheduled
-	Infra sdkapi.NodePlacement `json:"infra,omitempty"`
+	// Selectors and tolerations that should apply to cdi infrastructure components
+	Infra ComponentConfig `json:"infra,omitempty"`
 	// Restrict on which nodes CDI workload pods will be scheduled
 	Workloads sdkapi.NodePlacement `json:"workload,omitempty"`
 	// Clone strategy override: should we use a host-assisted copy even if snapshots are available?
@@ -837,6 +837,18 @@ type CDISpec struct {
 	CertConfig *CDICertConfig `json:"certConfig,omitempty"`
 	// PriorityClass of the CDI control plane
 	PriorityClass *CDIPriorityClass `json:"priorityClass,omitempty"`
+}
+
+// ComponentConfig defines the scheduling and replicas configuration for CDI components
+type ComponentConfig struct {
+	// NodePlacement describes scheduling configuration for specific CDI components
+	sdkapi.NodePlacement `json:",inline"`
+	// DeploymentReplicas set Replicas for cdi-deployment
+	DeploymentReplicas *int32 `json:"deploymentReplicas,omitempty"`
+	// ApiserverReplicas set Replicas for cdi-apiserver
+	APIServerReplicas *int32 `json:"apiServerReplicas,omitempty"`
+	// UploadproxyReplicas set Replicas for cdi-uploadproxy
+	UploadProxyReplicas *int32 `json:"uploadProxyReplicas,omitempty"`
 }
 
 // CDIPriorityClass defines the priority class of the CDI control plane.

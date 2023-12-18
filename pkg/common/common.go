@@ -21,6 +21,8 @@ const (
 	CDIComponentLabel = "cdi.kubevirt.io"
 	// CDIControllerName is the CDI controller name
 	CDIControllerName = "cdi-controller"
+	// CDIOperatorName is the CDI operator name
+	CDIOperatorName = "cdi-operator"
 
 	// AppKubernetesPartOfLabel is the Kubernetes recommended part-of label
 	AppKubernetesPartOfLabel = "app.kubernetes.io/part-of"

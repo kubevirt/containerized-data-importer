@@ -437,8 +437,11 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", Se
 		Expect(err).NotTo(HaveOccurred(), "Unable to get importer pod")
 
 		By("Verify the import pod has nodeSelector")
-		match := f.PodSpecHasTestNodePlacementValues(importer.Spec)
-		Expect(match).To(BeTrue(), fmt.Sprintf("node placement in pod spec\n%v\n differs from node placement values in CDI CR\n%v\n", importer.Spec, cr.Spec.Workloads))
+		Expect(importer.Spec.NodeSelector).To(Equal(framework.NodeSelectorTestValue))
+		By("Verify the import pod has affinity")
+		Expect(importer.Spec.Affinity).To(Equal(framework.AffinityTestValue))
+		By("Verify the import pod has tolerations")
+		Expect(importer.Spec.Tolerations).To(ContainElement(framework.TolerationsTestValue[0]))
 	})
 })
 

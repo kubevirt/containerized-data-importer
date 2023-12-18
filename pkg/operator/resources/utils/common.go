@@ -19,6 +19,7 @@ package utils
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -94,7 +95,12 @@ func CreateDeployment(name, matchKey, matchValue, serviceAccountName string, ima
 		},
 		ImagePullSecrets: imagePullSecrets,
 	}
-	deployment := ResourceBuilder.CreateDeployment(name, "", matchKey, matchValue, serviceAccountName, replicas, podSpec, infraNodePlacement)
+	inpCopy := infraNodePlacement.DeepCopy()
+	if inpCopy == nil {
+		inpCopy = &sdkapi.NodePlacement{}
+	}
+	inpCopy.Affinity = AddPodPreferredDuringSchedulingIgnoredDuringExecution(name, inpCopy.Affinity)
+	deployment := ResourceBuilder.CreateDeployment(name, "", matchKey, matchValue, serviceAccountName, replicas, podSpec, inpCopy)
 	return deployment
 }
 
@@ -113,10 +119,66 @@ func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAcco
 				Operator: corev1.TolerationOpExists,
 			},
 		},
+		Affinity: &corev1.Affinity{
+			PodAffinity: &corev1.PodAffinity{
+				PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
+					{
+						Weight: int32(1),
+						PodAffinityTerm: corev1.PodAffinityTerm{
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "cdi.kubevirt.io",
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{name}},
+								},
+							},
+							TopologyKey: "kubernetes.io/hostname",
+						},
+					},
+				},
+			},
+		},
 	}
 	deployment := ResourceBuilder.CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAccount, numReplicas, podSpec)
-	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{common.PrometheusLabelKey: common.PrometheusLabelValue})
+	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{common.PrometheusLabelKey: common.PrometheusLabelValue, common.CDIComponentLabel: common.CDIOperatorName})
 	deployment.SetLabels(labels)
 	deployment.Spec.Template.SetLabels(labels)
 	return deployment
+}
+
+// AddPodPreferredDuringSchedulingIgnoredDuringExecution to affinity
+func AddPodPreferredDuringSchedulingIgnoredDuringExecution(name string, affinity *corev1.Affinity) *corev1.Affinity {
+	var affinityCopy *corev1.Affinity
+	preferredDuringSchedulingIgnoredDuringExecution := corev1.WeightedPodAffinityTerm{
+		Weight: int32(1),
+		PodAffinityTerm: corev1.PodAffinityTerm{
+			LabelSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "cdi.kubevirt.io",
+						Operator: metav1.LabelSelectorOpIn,
+						Values:   []string{name}},
+				},
+			},
+			TopologyKey: "kubernetes.io/hostname",
+		},
+	}
+
+	if affinity != nil && affinity.PodAntiAffinity != nil {
+		affinityCopy = affinity.DeepCopy()
+		affinityCopy.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(affinityCopy.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution, preferredDuringSchedulingIgnoredDuringExecution)
+	} else if affinity != nil {
+		affinityCopy = affinity.DeepCopy()
+		affinityCopy.PodAntiAffinity = &corev1.PodAntiAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{preferredDuringSchedulingIgnoredDuringExecution},
+		}
+	} else {
+		affinityCopy = &corev1.Affinity{
+			PodAntiAffinity: &corev1.PodAntiAffinity{
+				PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{preferredDuringSchedulingIgnoredDuringExecution},
+			},
+		}
+	}
+	return affinityCopy
 }

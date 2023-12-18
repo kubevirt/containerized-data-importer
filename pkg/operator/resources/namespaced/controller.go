@@ -51,7 +51,8 @@ func createControllerResources(args *FactoryArgs) []client.Object {
 			args.PullPolicy,
 			args.ImagePullSecrets,
 			args.PriorityClassName,
-			args.InfraNodePlacement),
+			args.InfraNodePlacement,
+			args.ControllerReplicas),
 		createPrometheusService(),
 	}
 }
@@ -172,11 +173,14 @@ func createControllerServiceAccount() *corev1.ServiceAccount {
 	return utils.ResourceBuilder.CreateServiceAccount(common.ControllerServiceAccountName)
 }
 
-func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
+func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement, replicas int32) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
 	deployment := utils.CreateDeployment(controllerResourceName, "app", "containerized-data-importer", common.ControllerServiceAccountName, imagePullSecrets, int32(1), infraNodePlacement)
 	if priorityClassName != "" {
 		deployment.Spec.Template.Spec.PriorityClassName = priorityClassName
+	}
+	if replicas > 1 {
+		deployment.Spec.Replicas = &replicas
 	}
 	container := utils.CreateContainer("cdi-controller", controllerImage, verbosity, pullPolicy)
 	container.Ports = []corev1.ContainerPort{
@@ -187,6 +191,8 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 		},
 	}
 	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{common.PrometheusLabelKey: common.PrometheusLabelValue})
+	//Add label for pod affinity
+	labels = util.AppendLabels(labels, map[string]string{cdiLabel: controllerResourceName})
 	deployment.SetLabels(labels)
 	deployment.Spec.Template.SetLabels(labels)
 	container.Env = []corev1.EnvVar{

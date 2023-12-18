@@ -5056,9 +5056,9 @@
       ]
      },
      "infra": {
-      "description": "Rules on which nodes CDI infrastructure pods will be scheduled",
+      "description": "Selectors and tolerations that should apply to cdi infrastructure components",
       "default": {},
-      "$ref": "#/definitions/api.NodePlacement"
+      "$ref": "#/definitions/v1beta1.ComponentConfig"
      },
      "priorityClass": {
       "description": "PriorityClass of the CDI control plane",
@@ -5115,6 +5115,47 @@
      "renewBefore": {
       "description": "The amount of time before the currently issued certificate's `notAfter` time that we will begin to attempt to renew the certificate.",
       "$ref": "#/definitions/v1.Duration"
+     }
+    }
+   },
+   "v1beta1.ComponentConfig": {
+    "description": "ComponentConfig defines the scheduling and replicas configuration for CDI components",
+    "type": "object",
+    "properties": {
+     "affinity": {
+      "description": "affinity enables pod affinity/anti-affinity placement expanding the types of constraints that can be expressed with nodeSelector. affinity is going to be applied to the relevant kind of pods in parallel with nodeSelector See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity",
+      "$ref": "#/definitions/v1.Affinity"
+     },
+     "apiServerReplicas": {
+      "description": "ApiserverReplicas set Replicas for cdi-apiserver",
+      "type": "integer",
+      "format": "int32"
+     },
+     "deploymentReplicas": {
+      "description": "DeploymentReplicas set Replicas for cdi-deployment",
+      "type": "integer",
+      "format": "int32"
+     },
+     "nodeSelector": {
+      "description": "nodeSelector is the node selector applied to the relevant kind of pods It specifies a map of key-value pairs: for the pod to be eligible to run on a node, the node must have each of the indicated key-value pairs as labels (it can have additional labels as well). See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector",
+      "type": "object",
+      "additionalProperties": {
+       "type": "string",
+       "default": ""
+      }
+     },
+     "tolerations": {
+      "description": "tolerations is a list of tolerations applied to the relevant kind of pods See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info. These are additional tolerations other than default ones.",
+      "type": "array",
+      "items": {
+       "default": {},
+       "$ref": "#/definitions/v1.Toleration"
+      }
+     },
+     "uploadProxyReplicas": {
+      "description": "UploadproxyReplicas set Replicas for cdi-uploadproxy",
+      "type": "integer",
+      "format": "int32"
      }
     }
    },

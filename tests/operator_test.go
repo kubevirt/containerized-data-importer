@@ -328,7 +328,7 @@ var _ = Describe("ALL Operator tests", func() {
 					Operator: corev1.TolerationOpExists,
 				}
 
-				if !tolerationExists(cr.Spec.Infra.Tolerations, criticalAddonsToleration) {
+				if !tolerationExists(cr.Spec.Infra.NodePlacement.Tolerations, criticalAddonsToleration) {
 					Skip("Unexpected CDI CR (not from cdi-cr.yaml), doesn't tolerate CriticalAddonsOnly")
 				}
 
@@ -626,7 +626,9 @@ var _ = Describe("ALL Operator tests", func() {
 			It("[test_id:4782] Should install CDI infrastructure pods with node placement", func() {
 				By("Creating modified CDI CR, with infra nodePlacement")
 				localSpec := restoreCdiCr.Spec.DeepCopy()
-				localSpec.Infra = f.TestNodePlacementValues()
+				nodePlacement := f.TestNodePlacementValues()
+
+				localSpec.Infra.NodePlacement = nodePlacement
 
 				tempCdiCr := &cdiv1.CDI{
 					ObjectMeta: metav1.ObjectMeta{
@@ -641,9 +643,14 @@ var _ = Describe("ALL Operator tests", func() {
 				for _, deploymentName := range []string{"cdi-apiserver", "cdi-deployment", "cdi-uploadproxy"} {
 					deployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
+					By("Verify the deployment has nodeSelector")
+					Expect(deployment.Spec.Template.Spec.NodeSelector).To(Equal(framework.NodeSelectorTestValue))
 
-					match := f.PodSpecHasTestNodePlacementValues(deployment.Spec.Template.Spec)
-					Expect(match).To(BeTrue(), fmt.Sprintf("node placement in pod spec\n%v\n differs from node placement values in CDI CR\n%v\n", deployment.Spec.Template.Spec, localSpec.Infra))
+					By("Verify the deployment has affinity")
+					checkAntiAffinity(deploymentName, deployment.Spec.Template.Spec.Affinity)
+
+					By("Verify the deployment has tolerations")
+					Expect(deployment.Spec.Template.Spec.Tolerations).To(ContainElement(framework.TolerationsTestValue[0]))
 				}
 			})
 		})
@@ -803,6 +810,74 @@ var _ = Describe("ALL Operator tests", func() {
 					Expect(err).ToNot(HaveOccurred())
 					return scc.Priority
 				}, 2*time.Minute, 1*time.Second).Should(BeNil())
+			})
+			It("[test_id:4785] Should update infra pod number when modify the replica in CDI CR", func() {
+				By("Modify the replica separately")
+				cdi := getCDI(f)
+				apiserverTmpReplica := int32(2)
+				deploymentTmpReplica := int32(3)
+				uploadproxyTmpReplica := int32(4)
+
+				cdi.Spec.Infra.APIServerReplicas = &apiserverTmpReplica
+				cdi.Spec.Infra.DeploymentReplicas = &deploymentTmpReplica
+				cdi.Spec.Infra.UploadProxyReplicas = &uploadproxyTmpReplica
+
+				_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(func() bool {
+					for _, deploymentName := range []string{"cdi-apiserver", "cdi-deployment", "cdi-uploadproxy"} {
+						depl, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						if err != nil || *depl.Spec.Replicas == 1 {
+							return false
+						}
+					}
+					By("Replicas in deployments update complete")
+					return true
+				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+
+				By("Verify the replica of cdi-apiserver")
+
+				Eventually(func() bool {
+					return getPodNumByPrefix(f, "cdi-apiserver") == 2
+				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+
+				By("Verify the replica of cdi-deployment")
+				Eventually(func() bool {
+					return getPodNumByPrefix(f, "cdi-deployment") == 3
+				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+
+				By("Verify the replica of cdi-uploadproxy")
+				Eventually(func() bool {
+					return getPodNumByPrefix(f, "cdi-uploadproxy") == 4
+				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+
+				By("Reset replica for CDI CR")
+				cdi = getCDI(f)
+				cdi.Spec.Infra.APIServerReplicas = nil
+				cdi.Spec.Infra.DeploymentReplicas = nil
+				cdi.Spec.Infra.UploadProxyReplicas = nil
+
+				_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Replica should be 1 when replica dosen't set in CDI CR")
+
+				Eventually(func() bool {
+					for _, deploymentName := range []string{"cdi-apiserver", "cdi-deployment", "cdi-uploadproxy"} {
+						depl, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						_, err = utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, deploymentName, common.CDIComponentLabel+"="+deploymentName)
+						if err != nil || *depl.Spec.Replicas != 1 {
+							return false
+						}
+
+					}
+					return true
+
+				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+
 			})
 		})
 
@@ -1260,8 +1335,44 @@ func checkLogForRegEx(regEx *regexp.Regexp, log string) bool {
 	return len(matches) >= 1
 }
 
+func checkAntiAffinity(name string, deploymentAffinity *corev1.Affinity) {
+
+	affinityTampleValue := &corev1.PodAntiAffinity{
+		PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
+			{
+				Weight: int32(1),
+				PodAffinityTerm: corev1.PodAffinityTerm{
+					LabelSelector: &metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "cdi.kubevirt.io",
+								Operator: metav1.LabelSelectorOpIn,
+								Values:   []string{name}},
+						},
+					},
+					TopologyKey: "kubernetes.io/hostname",
+				},
+			},
+		},
+	}
+	affCopy := framework.AffinityTestValue.DeepCopy()
+	affCopy.PodAntiAffinity = affinityTampleValue
+	Expect(reflect.DeepEqual(deploymentAffinity, affCopy)).To(BeTrue())
+
+}
+
 func getLog(f *framework.Framework, name string) string {
 	log, err := f.RunKubectlCommand("logs", "--since=0", name, "-n", f.CdiInstallNs)
 	Expect(err).ToNot(HaveOccurred())
 	return log
+}
+func getPodNumByPrefix(f *framework.Framework, deploymentName string) int {
+	labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{common.CDIComponentLabel: deploymentName}}
+
+	podList, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
+	})
+	Expect(err).ToNot(HaveOccurred(), "failed listing deployment pods")
+
+	return len(podList.Items)
 }

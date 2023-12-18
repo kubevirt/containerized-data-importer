@@ -104,7 +104,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 				},
 				Spec: cr.Spec,
 			}
-			cdi.Spec.Infra.NodeSelector = map[string]string{"wrong": "wrong"}
+			cdi.Spec.Infra.NodePlacement.NodeSelector = map[string]string{"wrong": "wrong"}
 			_, err := f.CdiClient.CdiV1beta1().CDIs().Create(context.TODO(), cdi, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 

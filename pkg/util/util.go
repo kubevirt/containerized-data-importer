@@ -337,6 +337,19 @@ func MergeLabels(src, dest map[string]string) map[string]string {
 	return dest
 }
 
+// AppendLabels append dest labels to source (update if key has existed)
+func AppendLabels(src, dest map[string]string) map[string]string {
+	if src == nil {
+		src = map[string]string{}
+	}
+
+	for k, v := range dest {
+		src[k] = v
+	}
+
+	return src
+}
+
 // GetRecommendedInstallerLabelsFromCr returns the recommended labels to set on CDI resources
 func GetRecommendedInstallerLabelsFromCr(cr *cdiv1.CDI) map[string]string {
 	labels := map[string]string{}
