@@ -27,9 +27,9 @@ type MetricsKey string
 const (
 	CloneProgress          MetricsKey = "cloneProgress"
 	DataImportCronOutdated MetricsKey = "dataImportCronOutdated"
-	IncompleteProfile      MetricsKey = "incompleteProfile"
+	StorageProfileStatus   MetricsKey = "storageProfileStatus"
 	ReadyGauge             MetricsKey = "readyGauge"
-	DefaultVirtClasses     MetricsKey = "defaultVirtClasses"
+	DataVolumePending      MetricsKey = "dataVolumePending"
 )
 
 // MetricOptsList list all CDI metrics
@@ -39,9 +39,15 @@ var MetricOptsList = map[MetricsKey]MetricOpts{
 		Help: "DataImportCron has an outdated import",
 		Type: "Gauge",
 	},
-	IncompleteProfile: {
-		Name: "kubevirt_cdi_incomplete_storageprofiles",
-		Help: "Total number of incomplete and hence unusable StorageProfile",
+	StorageProfileStatus: {
+		Name: "kubevirt_cdi_storageprofile_info",
+		Help: "`StorageProfiles` info labels: " +
+			"`storageclass`, `provisioner`, " +
+			"`complete` indicates if all storage profiles recommended PVC settings are complete, " +
+			"`default` indicates if it's the Kubernetes default storage class, " +
+			"`virtdefault` indicates if it's the default virtualization storage class, " +
+			"`rwx` indicates if the storage class supports `ReadWriteMany`, " +
+			"`smartclone` indicates if it supports snapshot or CSI based clone",
 		Type: "Gauge",
 	},
 	ReadyGauge: {
@@ -49,9 +55,9 @@ var MetricOptsList = map[MetricsKey]MetricOpts{
 		Help: "CDI install ready",
 		Type: "Gauge",
 	},
-	DefaultVirtClasses: {
-		Name: "kubevirt_cdi_default_virt_storageclasses",
-		Help: "Number of default virt storage classes currently configured",
+	DataVolumePending: {
+		Name: "kubevirt_cdi_datavolume_pending",
+		Help: "Number of DataVolumes pending for default storage class to be configured",
 		Type: "Gauge",
 	},
 }
@@ -82,7 +88,7 @@ func GetRecordRulesDesc(namespace string) []RecordRulesDesc {
 				"The number of CDI import pods with high restart count",
 				"Gauge",
 			},
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s) or on() vector(0)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
 		},
 		{
 			MetricOpts{
@@ -90,7 +96,7 @@ func GetRecordRulesDesc(namespace string) []RecordRulesDesc {
 				"The number of CDI upload server pods with high restart count",
 				"Gauge",
 			},
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s) or on() vector(0)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
 		},
 		{
 			MetricOpts{
@@ -98,15 +104,7 @@ func GetRecordRulesDesc(namespace string) []RecordRulesDesc {
 				"The number of CDI clone pods with high restart count",
 				"Gauge",
 			},
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
-		},
-		{
-			MetricOpts{
-				"kubevirt_cdi_dataimportcron_outdated_aggregated",
-				"Total count of outdated DataImportCron imports",
-				"Gauge",
-			},
-			"sum(kubevirt_cdi_dataimportcron_outdated or vector(0))",
+			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s) or on() vector(0)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
 		},
 	}
 }

@@ -448,6 +448,19 @@ func GetVolumeMode(pvc *corev1.PersistentVolumeClaim) corev1.PersistentVolumeMod
 	return util.ResolveVolumeMode(pvc.Spec.VolumeMode)
 }
 
+// GetStorageClassFromDVSpec returns the StorageClassName from DataVolume PVC or Storage spec
+func GetStorageClassFromDVSpec(dv *cdiv1.DataVolume) *string {
+	if dv.Spec.PVC != nil {
+		return dv.Spec.PVC.StorageClassName
+	}
+
+	if dv.Spec.Storage != nil {
+		return dv.Spec.Storage.StorageClassName
+	}
+
+	return nil
+}
+
 // getStorageClassByName looks up the storage class based on the name.
 // If name is nil, it performs fallback to default according to the provided content type
 // If no storage class is found, returns nil
@@ -485,7 +498,7 @@ func GetStorageClassByNameWithVirtFallback(ctx context.Context, client client.Cl
 	return getStorageClassByName(ctx, client, name, contentType)
 }
 
-// getFallbackStorageClass looks for a default virt/k8s storage class according to the boolean
+// getFallbackStorageClass looks for a default virt/k8s storage class according to the content type
 // If no storage class is found, returns nil
 func getFallbackStorageClass(ctx context.Context, client client.Client, contentType cdiv1.DataVolumeContentType) (*storagev1.StorageClass, error) {
 	storageClasses := &storagev1.StorageClassList{}
@@ -495,16 +508,15 @@ func getFallbackStorageClass(ctx context.Context, client client.Client, contentT
 	}
 
 	if GetContentType(contentType) == cdiv1.DataVolumeKubeVirt {
-		virtSc := GetPlatformDefaultStorageClass(ctx, storageClasses, AnnDefaultVirtStorageClass)
-		if virtSc != nil {
+		if virtSc := GetPlatformDefaultStorageClass(storageClasses, AnnDefaultVirtStorageClass); virtSc != nil {
 			return virtSc, nil
 		}
 	}
-	return GetPlatformDefaultStorageClass(ctx, storageClasses, AnnDefaultStorageClass), nil
+	return GetPlatformDefaultStorageClass(storageClasses, AnnDefaultStorageClass), nil
 }
 
 // GetPlatformDefaultStorageClass returns the default storage class according to the provided annotation or nil if none found
-func GetPlatformDefaultStorageClass(ctx context.Context, storageClasses *storagev1.StorageClassList, defaultAnnotationKey string) *storagev1.StorageClass {
+func GetPlatformDefaultStorageClass(storageClasses *storagev1.StorageClassList, defaultAnnotationKey string) *storagev1.StorageClass {
 	defaultClasses := []storagev1.StorageClass{}
 
 	for _, storageClass := range storageClasses.Items {
