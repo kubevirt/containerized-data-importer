@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -ex
 
 cdi=$1
 cdi="${cdi##*/}"
