@@ -5,10 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/ginkgo/v2"
 	ginkgo_reporters "github.com/onsi/ginkgo/v2/reporters"
 	. "github.com/onsi/gomega"
@@ -19,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	"kubevirt.io/containerized-data-importer/tests/framework"
+	"kubevirt.io/containerized-data-importer/tests/reporter"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
@@ -39,18 +41,19 @@ var (
 	csiCloneSCName = flag.String("csiclone-sc", "", "The Storage Class supporting CSI Volume Cloning")
 	dockerPrefix   = flag.String("docker-prefix", "", "The docker host:port")
 	dockerTag      = flag.String("docker-tag", "", "The docker tag")
+	k8sReporter    *reporter.KubernetesReporter
 )
 
-// cdiFailHandler call ginkgo.Fail with printing the additional information
+// cdiFailHandler call Fail with printing the additional information
 func cdiFailHandler(message string, callerSkip ...int) {
 	if len(callerSkip) > 0 {
 		callerSkip[0]++
 	}
-	ginkgo.Fail(message, callerSkip...)
+	Fail(message, callerSkip...)
 }
 
 //nolint:staticcheck // Ignore SA1019. Need to keep deprecated function for compatibility.
-var afterSuiteReporters []ginkgo.Reporter
+var afterSuiteReporters []Reporter
 var _ = ReportAfterSuite("TestTests", func(report Report) {
 	for _, reporter := range afterSuiteReporters {
 		//nolint:staticcheck // Ignore SA1019. Need to keep deprecated function for compatibility.
@@ -59,9 +62,15 @@ var _ = ReportAfterSuite("TestTests", func(report Report) {
 })
 
 func TestTests(t *testing.T) {
+	artifactsPath := os.Getenv("ARTIFACTS")
+	suiteConfig, _ := GinkgoConfiguration()
+	if suiteConfig.ParallelTotal > 1 {
+		artifactsPath = filepath.Join(artifactsPath, strconv.Itoa(GinkgoParallelProcess()))
+	}
 	if qe_reporters.Polarion.Run {
 		afterSuiteReporters = append(afterSuiteReporters, &qe_reporters.Polarion)
 	}
+	k8sReporter = reporter.NewKubernetesReporter(artifactsPath)
 	defer GinkgoRecover()
 	RegisterFailHandler(cdiFailHandler)
 	BuildTestSuite()
@@ -73,7 +82,7 @@ func TestTests(t *testing.T) {
 // cannot work when called during test tree construction.
 func BuildTestSuite() {
 	SynchronizedBeforeSuite(func() {}, func() {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Reading parameters\n")
+		fmt.Fprintf(GinkgoWriter, "Reading parameters\n")
 		// Read flags, and configure client instances
 		framework.ClientsInstance.KubectlPath = *kubectlPath
 		framework.ClientsInstance.OcPath = *ocPath
@@ -87,53 +96,53 @@ func BuildTestSuite() {
 		framework.ClientsInstance.DockerPrefix = *dockerPrefix
 		framework.ClientsInstance.DockerTag = *dockerTag
 
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Kubectl path: %s\n", framework.ClientsInstance.KubectlPath)
-		fmt.Fprintf(ginkgo.GinkgoWriter, "OC path: %s\n", framework.ClientsInstance.OcPath)
-		fmt.Fprintf(ginkgo.GinkgoWriter, "CDI install NS: %s\n", framework.ClientsInstance.CdiInstallNs)
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Kubeconfig: %s\n", framework.ClientsInstance.KubeConfig)
-		fmt.Fprintf(ginkgo.GinkgoWriter, "KubeURL: %s\n", framework.ClientsInstance.KubeURL)
-		fmt.Fprintf(ginkgo.GinkgoWriter, "GO CLI path: %s\n", framework.ClientsInstance.GoCLIPath)
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Snapshot SC: %s\n", framework.ClientsInstance.SnapshotSCName)
-		fmt.Fprintf(ginkgo.GinkgoWriter, "Block SC: %s\n", framework.ClientsInstance.BlockSCName)
-		fmt.Fprintf(ginkgo.GinkgoWriter, "CSI Volume Cloning SC: %s\n", framework.ClientsInstance.CsiCloneSCName)
-		fmt.Fprintf(ginkgo.GinkgoWriter, "DockerPrefix: %s\n", framework.ClientsInstance.DockerPrefix)
-		fmt.Fprintf(ginkgo.GinkgoWriter, "DockerTag: %s\n", framework.ClientsInstance.DockerTag)
+		fmt.Fprintf(GinkgoWriter, "Kubectl path: %s\n", framework.ClientsInstance.KubectlPath)
+		fmt.Fprintf(GinkgoWriter, "OC path: %s\n", framework.ClientsInstance.OcPath)
+		fmt.Fprintf(GinkgoWriter, "CDI install NS: %s\n", framework.ClientsInstance.CdiInstallNs)
+		fmt.Fprintf(GinkgoWriter, "Kubeconfig: %s\n", framework.ClientsInstance.KubeConfig)
+		fmt.Fprintf(GinkgoWriter, "KubeURL: %s\n", framework.ClientsInstance.KubeURL)
+		fmt.Fprintf(GinkgoWriter, "GO CLI path: %s\n", framework.ClientsInstance.GoCLIPath)
+		fmt.Fprintf(GinkgoWriter, "Snapshot SC: %s\n", framework.ClientsInstance.SnapshotSCName)
+		fmt.Fprintf(GinkgoWriter, "Block SC: %s\n", framework.ClientsInstance.BlockSCName)
+		fmt.Fprintf(GinkgoWriter, "CSI Volume Cloning SC: %s\n", framework.ClientsInstance.CsiCloneSCName)
+		fmt.Fprintf(GinkgoWriter, "DockerPrefix: %s\n", framework.ClientsInstance.DockerPrefix)
+		fmt.Fprintf(GinkgoWriter, "DockerTag: %s\n", framework.ClientsInstance.DockerTag)
 
 		restConfig, err := framework.ClientsInstance.LoadConfig()
 		if err != nil {
 			// Can't use Expect here due this being called outside of an It block, and Expect
 			// requires any calls to it to be inside an It block.
-			ginkgo.Fail("ERROR, unable to load RestConfig")
+			Fail("ERROR, unable to load RestConfig")
 		}
 		framework.ClientsInstance.RestConfig = restConfig
 		// clients
 		kcs, err := framework.ClientsInstance.GetKubeClient()
 		if err != nil {
-			ginkgo.Fail(fmt.Sprintf("ERROR, unable to create K8SClient: %v", err))
+			Fail(fmt.Sprintf("ERROR, unable to create K8SClient: %v", err))
 		}
 		framework.ClientsInstance.K8sClient = kcs
 
 		cs, err := framework.ClientsInstance.GetCdiClient()
 		if err != nil {
-			ginkgo.Fail(fmt.Sprintf("ERROR, unable to create CdiClient: %v", err))
+			Fail(fmt.Sprintf("ERROR, unable to create CdiClient: %v", err))
 		}
 		framework.ClientsInstance.CdiClient = cs
 
 		extcs, err := framework.ClientsInstance.GetExtClient()
 		if err != nil {
-			ginkgo.Fail(fmt.Sprintf("ERROR, unable to create CsiClient: %v", err))
+			Fail(fmt.Sprintf("ERROR, unable to create CsiClient: %v", err))
 		}
 		framework.ClientsInstance.ExtClient = extcs
 
 		crClient, err := framework.ClientsInstance.GetCrClient()
 		if err != nil {
-			ginkgo.Fail(fmt.Sprintf("ERROR, unable to create CrClient: %v", err))
+			Fail(fmt.Sprintf("ERROR, unable to create CrClient: %v", err))
 		}
 		framework.ClientsInstance.CrClient = crClient
 
 		dyn, err := framework.ClientsInstance.GetDynamicClient()
 		if err != nil {
-			ginkgo.Fail(fmt.Sprintf("ERROR, unable to create DynamicClient: %v", err))
+			Fail(fmt.Sprintf("ERROR, unable to create DynamicClient: %v", err))
 		}
 		framework.ClientsInstance.DynamicClient = dyn
 
@@ -141,7 +150,7 @@ func BuildTestSuite() {
 
 		if path := os.Getenv("TESTS_WORKDIR"); path != "" {
 			if err := os.Chdir(path); err != nil {
-				ginkgo.Fail(fmt.Sprintf("ERROR, unable to chdir to test dir for manifest/image files: %v", err))
+				Fail(fmt.Sprintf("ERROR, unable to chdir to test dir for manifest/image files: %v", err))
 			}
 		}
 	})
@@ -151,7 +160,7 @@ func BuildTestSuite() {
 
 		Eventually(func() []corev1.Namespace {
 			nsList, _ := utils.GetTestNamespaceList(client, framework.NsPrefixLabel)
-			fmt.Fprintf(ginkgo.GinkgoWriter, "DEBUG: AfterSuite nsList: %v\n", nsList.Items)
+			fmt.Fprintf(GinkgoWriter, "DEBUG: AfterSuite nsList: %v\n", nsList.Items)
 			return nsList.Items
 		}, nsDeletedTimeout, pollInterval).Should(BeEmpty())
 
@@ -165,5 +174,14 @@ func BuildTestSuite() {
 			err = client.StorageV1().StorageClasses().Delete(context.TODO(), sc.Name, metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
 		}
+	})
+
+	JustAfterEach(func() {
+		if !CurrentSpecReport().Failed() {
+			return
+		}
+		k8sReporter.FailureCount++
+		fmt.Fprintf(GinkgoWriter, "On failure, artifacts will be collected in %s/%d_*\n", k8sReporter.ArtifactsDir, k8sReporter.FailureCount)
+		k8sReporter.Dump(framework.ClientsInstance.K8sClient, framework.ClientsInstance.CdiClient, CurrentSpecReport().RunTime)
 	})
 }

@@ -3,13 +3,10 @@ package framework
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -58,7 +55,6 @@ const (
 // run-time flags
 var (
 	ClientsInstance = &Clients{}
-	reporter        *KubernetesReporter
 )
 
 // Config provides some basic test config options
@@ -126,7 +122,6 @@ type Framework struct {
 	ControllerPod *v1.Pod
 
 	*Clients
-	reporter *KubernetesReporter
 }
 
 // NewFramework calls NewFramework and handles errors by calling Fail. Config is optional, but
@@ -141,17 +136,10 @@ func NewFramework(prefix string, config ...Config) *Framework {
 	if len(config) > 0 {
 		cfg = config[0]
 	}
-	artifactsPath := os.Getenv("ARTIFACTS")
-	suiteConfig, _ := ginkgo.GinkgoConfiguration()
-	if suiteConfig.ParallelTotal > 1 {
-		artifactsPath = filepath.Join(artifactsPath, strconv.Itoa(ginkgo.GinkgoParallelProcess()))
-	}
-	reporter = NewKubernetesReporter(artifactsPath)
 	f := &Framework{
 		Config:   cfg,
 		NsPrefix: prefix,
 		Clients:  ClientsInstance,
-		reporter: reporter,
 	}
 
 	ginkgo.BeforeEach(f.BeforeEach)
@@ -216,12 +204,6 @@ func (f *Framework) AfterEach() {
 			}
 		}
 	}()
-
-	if ginkgo.CurrentSpecReport().Failed() {
-		f.reporter.FailureCount++
-		fmt.Fprintf(ginkgo.GinkgoWriter, "On failure, artifacts will be collected in %s/%d_*\n", f.reporter.artifactsDir, f.reporter.FailureCount)
-		f.reporter.Dump(f.K8sClient, f.CdiClient, ginkgo.CurrentSpecReport().RunTime)
-	}
 }
 
 // CreateNamespace instantiates a new namespace object with a unique name and the passed-in label(s).
@@ -812,332 +794,4 @@ func (f *Framework) updateCDIConfig() {
 			config.FeatureGates = f.FeatureGates
 		})
 	}, timeout, pollingInterval).Should(gomega.BeNil())
-}
-
-func getMaxFailsFromEnv() int {
-	maxFailsEnv := os.Getenv("REPORTER_MAX_FAILS")
-	if maxFailsEnv == "" {
-		fmt.Fprintf(os.Stderr, "defaulting to 10 reported failures\n")
-		return 10
-	}
-
-	maxFails, err := strconv.Atoi(maxFailsEnv)
-	if err != nil { // if the variable is set with a non int value
-		fmt.Println("Invalid REPORTER_MAX_FAILS variable, defaulting to 10")
-		return 10
-	}
-
-	fmt.Fprintf(os.Stderr, "Number of reported failures[%d]\n", maxFails)
-	return maxFails
-}
-
-// KubernetesReporter is the struct that holds the report info.
-type KubernetesReporter struct {
-	FailureCount int
-	artifactsDir string
-	maxFails     int
-}
-
-// NewKubernetesReporter creates a new instance of the reporter.
-func NewKubernetesReporter(artifactsDir string) *KubernetesReporter {
-	return &KubernetesReporter{
-		FailureCount: 0,
-		artifactsDir: artifactsDir,
-		maxFails:     getMaxFailsFromEnv(),
-	}
-}
-
-// Dump dumps the current state of the cluster. The relevant logs are collected starting
-// from the since parameter.
-func (r *KubernetesReporter) Dump(kubeCli *kubernetes.Clientset, cdiClient *cdiClientset.Clientset, since time.Duration) {
-	// If we got not directory, print to stderr
-	if r.artifactsDir == "" {
-		return
-	}
-	fmt.Fprintf(os.Stderr, "Current failure count[%d]\n", r.FailureCount)
-	if r.FailureCount > r.maxFails {
-		return
-	}
-
-	// Can call this as many times as needed, if the directory exists, nothing happens.
-	if err := os.MkdirAll(r.artifactsDir, 0777); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create directory: %v\n", err)
-		return
-	}
-
-	r.logCSIDrivers(kubeCli)
-	r.logDVs(cdiClient)
-	r.logEvents(kubeCli, since)
-	r.logNodes(kubeCli)
-	r.logPVCs(kubeCli)
-	r.logPVs(kubeCli)
-	r.logPods(kubeCli)
-	r.logServices(kubeCli)
-	r.logEndpoints(kubeCli)
-	r.logLogs(kubeCli, since)
-}
-
-// Cleanup cleans up the current content of the artifactsDir
-func (r *KubernetesReporter) Cleanup() {
-	// clean up artifacts from previous run
-	if r.artifactsDir != "" {
-		os.RemoveAll(r.artifactsDir)
-	}
-}
-
-func (r *KubernetesReporter) logPods(kubeCli *kubernetes.Clientset) {
-	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_pods.log", r.FailureCount)),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open the file: %v", err)
-		return
-	}
-	defer f.Close()
-
-	pods, err := kubeCli.CoreV1().Pods(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to fetch pods: %v\n", err)
-		return
-	}
-
-	j, err := json.MarshalIndent(pods, "", "    ")
-	if err != nil {
-		return
-	}
-	fmt.Fprintln(f, string(j))
-}
-
-func (r *KubernetesReporter) logServices(kubeCli *kubernetes.Clientset) {
-	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_services.log", r.FailureCount)),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open the file: %v", err)
-		return
-	}
-	defer f.Close()
-
-	services, err := kubeCli.CoreV1().Services(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to fetch services: %v\n", err)
-		return
-	}
-
-	j, err := json.MarshalIndent(services, "", "    ")
-	if err != nil {
-		return
-	}
-	fmt.Fprintln(f, string(j))
-}
-
-func (r *KubernetesReporter) logEndpoints(kubeCli *kubernetes.Clientset) {
-	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_endpoints.log", r.FailureCount)),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open the file: %v", err)
-		return
-	}
-	defer f.Close()
-
-	endpoints, err := kubeCli.CoreV1().Endpoints(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to fetch endpointss: %v\n", err)
-		return
-	}
-
-	j, err := json.MarshalIndent(endpoints, "", "    ")
-	if err != nil {
-		return
-	}
-	fmt.Fprintln(f, string(j))
-}
-
-func (r *KubernetesReporter) logNodes(kubeCli *kubernetes.Clientset) {
-	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_nodes.log", r.FailureCount)),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open the file: %v\n", err)
-		return
-	}
-	defer f.Close()
-
-	nodes, err := kubeCli.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to fetch nodes: %v\n", err)
-		return
-	}
-
-	j, err := json.MarshalIndent(nodes, "", "    ")
-	if err != nil {
-		return
-	}
-	fmt.Fprintln(f, string(j))
-}
-
-func (r *KubernetesReporter) logPVs(kubeCli *kubernetes.Clientset) {
-	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_pvs.log", r.FailureCount)),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open the file: %v\n", err)
-		return
-	}
-	defer f.Close()
-
-	pvs, err := kubeCli.CoreV1().PersistentVolumes().List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to fetch pvs: %v\n", err)
-		return
-	}
-
-	j, err := json.MarshalIndent(pvs, "", "    ")
-	if err != nil {
-		return
-	}
-	fmt.Fprintln(f, string(j))
-}
-
-func (r *KubernetesReporter) logPVCs(kubeCli *kubernetes.Clientset) {
-	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_pvcs.log", r.FailureCount)),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open the file: %v\n", err)
-		return
-	}
-	defer f.Close()
-
-	pvcs, err := kubeCli.CoreV1().PersistentVolumeClaims(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to fetch pvcs: %v\n", err)
-		return
-	}
-
-	j, err := json.MarshalIndent(pvcs, "", "    ")
-	if err != nil {
-		return
-	}
-	fmt.Fprintln(f, string(j))
-}
-
-func (r *KubernetesReporter) logDVs(cdiClientset *cdiClientset.Clientset) {
-	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_dvs.log", r.FailureCount)),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open the file: %v\n", err)
-		return
-	}
-	defer f.Close()
-
-	dvs, err := cdiClientset.CdiV1beta1().DataVolumes(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to fetch datavolumes: %v\n", err)
-		return
-	}
-
-	j, err := json.MarshalIndent(dvs, "", "    ")
-	if err != nil {
-		return
-	}
-	fmt.Fprintln(f, string(j))
-}
-
-func (r *KubernetesReporter) logCSIDrivers(kubeCli *kubernetes.Clientset) {
-	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_csidrivers.log", r.FailureCount)),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open the file: %v\n", err)
-		return
-	}
-	defer f.Close()
-
-	csiDrivers, err := kubeCli.StorageV1().CSIDrivers().List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to fetch csidrivers: %v\n", err)
-		return
-	}
-
-	j, err := json.MarshalIndent(csiDrivers, "", "    ")
-	if err != nil {
-		return
-	}
-	fmt.Fprintln(f, string(j))
-}
-
-func (r *KubernetesReporter) logLogs(kubeCli *kubernetes.Clientset, since time.Duration) {
-	logsdir := filepath.Join(r.artifactsDir, "pods")
-
-	if err := os.MkdirAll(logsdir, 0777); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create directory: %v\n", err)
-		return
-	}
-
-	startTime := time.Now().Add(-since).Add(-5 * time.Second)
-
-	pods, err := kubeCli.CoreV1().Pods(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to fetch pods: %v\n", err)
-		return
-	}
-
-	for _, pod := range pods.Items {
-		for _, container := range pod.Spec.Containers {
-			current, err := os.OpenFile(filepath.Join(logsdir, fmt.Sprintf("%d_%s_%s-%s.log", r.FailureCount, pod.Namespace, pod.Name, container.Name)), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "failed to open the file: %v\n", err)
-				return
-			}
-			defer current.Close()
-
-			previous, err := os.OpenFile(filepath.Join(logsdir, fmt.Sprintf("%d_%s_%s-%s_previous.log", r.FailureCount, pod.Namespace, pod.Name, container.Name)), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "failed to open the file: %v\n", err)
-				return
-			}
-			defer previous.Close()
-
-			logStart := metav1.NewTime(startTime)
-			logs, err := kubeCli.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{SinceTime: &logStart, Container: container.Name}).DoRaw(context.TODO())
-			if err == nil {
-				fmt.Fprintln(current, string(logs))
-			}
-
-			logs, err = kubeCli.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{SinceTime: &logStart, Container: container.Name, Previous: true}).DoRaw(context.TODO())
-			if err == nil {
-				fmt.Fprintln(previous, string(logs))
-			}
-		}
-	}
-}
-
-func (r *KubernetesReporter) logEvents(kubeCli *kubernetes.Clientset, since time.Duration) {
-	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_events.log", r.FailureCount)),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open the file: %v\n", err)
-		return
-	}
-	defer f.Close()
-
-	startTime := time.Now().Add(-since).Add(-5 * time.Second)
-
-	events, err := kubeCli.CoreV1().Events(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return
-	}
-
-	e := events.Items
-	sort.Slice(e, func(i, j int) bool {
-		return e[i].LastTimestamp.After(e[j].LastTimestamp.Time)
-	})
-
-	eventsToPrint := v1.EventList{}
-	for _, event := range e {
-		if event.LastTimestamp.Time.After(startTime) {
-			eventsToPrint.Items = append(eventsToPrint.Items, event)
-		}
-	}
-
-	j, err := json.MarshalIndent(eventsToPrint, "", "    ")
-	if err != nil {
-		return
-	}
-	fmt.Fprintln(f, string(j))
 }
