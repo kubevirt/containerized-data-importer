@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -24,6 +25,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
@@ -53,6 +55,8 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 	)
 
 	waitForStorageProfileMetricInit := func() {
+		waitForMetricInit(f, "kubevirt_cdi_storageprofile_info", framework.CdiPodPrefix)
+
 		Eventually(func() bool {
 			scs, err := f.K8sClient.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
@@ -175,11 +179,12 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 		deleteStubSnapshotClass()
 		waitForCloneStrategy(*defaultCloneStrategy)
 
-		Eventually(func() bool {
-			complete := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "true")
-			incomplete := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "false")
-			return complete == originalCompleteVal && incomplete == originalIncompleteVal
-		}, 5*time.Minute, 5*time.Second).Should(BeTrue())
+		Eventually(func() int {
+			return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "true")
+		}, 5*time.Minute, 5*time.Second).Should(BeNumerically("==", originalCompleteVal))
+		Eventually(func() int {
+			return countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "false")
+		}, 5*time.Minute, 5*time.Second).Should(BeNumerically("==", originalIncompleteVal))
 	})
 
 	Context("[rfe_id:7101][crit:medium][vendor:cnv-qe@redhat.com][level:component] Metrics and Alert tests", func() {
@@ -284,7 +289,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 			waitForNoPrometheusAlert(f, "CDIMultipleDefaultVirtStorageClasses")
 		})
 
-		It("[test_id:XXXX]CDINoDefaultStorageClass fired when no default storage class exists, and a DataVolume is waiting for one", func() {
+		It("[test_id:10719]CDINoDefaultStorageClass fired when no default storage class exists, and a DataVolume is waiting for one", func() {
 			By("Ensure initial metric values")
 			defaultSCs := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "default", "true")
 			Expect(defaultSCs).To(Equal(1))
@@ -328,7 +333,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 			waitForNoPrometheusAlert(f, "CDINoDefaultStorageClass")
 		})
 
-		It("[test_id:XXXX]CDIDefaultStorageClassDegraded fired when default storage class has no smart clone or ReadWriteMany", func() {
+		It("[test_id:10720]CDIDefaultStorageClassDegraded fired when default storage class has no smart clone or ReadWriteMany", func() {
 			rwx := corev1.ReadWriteMany
 			rwo := corev1.ReadWriteOnce
 			isStubSnapshotClass := false
@@ -556,7 +561,6 @@ func getMetricValueWithDefault(f *framework.Framework, endpoint string, useDefau
 	}, 1*time.Minute, 1*time.Second).Should(BeTrue())
 
 	return returnVal
-
 }
 
 func countMetricLabelValue(f *framework.Framework, endpoint, label, value string) int {
@@ -596,6 +600,27 @@ func countMetricLabelValue(f *framework.Framework, endpoint, label, value string
 	}, 1*time.Minute, 1*time.Second).Should(BeTrue())
 
 	return count
+}
+
+func waitForMetricInit(f *framework.Framework, endpoint, podPrefix string) {
+	pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, podPrefix, common.CDILabelSelector)
+	Expect(err).NotTo(HaveOccurred())
+	podIP := pod.Status.PodIP
+
+	Eventually(func() bool {
+		dataResult, err := getMetricDataResult(f, endpoint)
+		if err != nil || dataResult == nil {
+			return false
+		}
+		for _, res := range dataResult {
+			metric := res.(map[string]interface{})["metric"].(map[string]interface{})
+			instance, ok := metric["instance"].(string)
+			if !ok || !strings.Contains(instance, podIP) {
+				return false
+			}
+		}
+		return true
+	}, 5*time.Minute, 5*time.Second).Should(BeTrue())
 }
 
 func getMetricDataResult(f *framework.Framework, endpoint string) ([]interface{}, error) {
