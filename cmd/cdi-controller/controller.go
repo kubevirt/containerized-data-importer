@@ -367,9 +367,9 @@ func getTokenPrivateKey() *rsa.PrivateKey {
 }
 
 func registerMetrics() {
-	metrics.Registry.MustRegister(controller.IncompleteProfileGauge)
-	controller.IncompleteProfileGauge.Set(-1)
+	metrics.Registry.MustRegister(controller.StorageProfileStatusGaugeVec)
 	metrics.Registry.MustRegister(controller.DataImportCronOutdatedGauge)
+	metrics.Registry.MustRegister(dvc.DataVolumePendingGauge)
 }
 
 // Restricts some types in the cache's ListWatch to specific fields/labels per GVK at the specified object,

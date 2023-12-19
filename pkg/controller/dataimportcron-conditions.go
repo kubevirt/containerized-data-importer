@@ -18,9 +18,11 @@ package controller
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
@@ -40,7 +42,7 @@ func updateDataImportCronCondition(cron *cdiv1.DataImportCron, conditionType cdi
 		if status != corev1.ConditionTrue {
 			gaugeVal = 1
 		}
-		DataImportCronOutdatedGauge.With(getPrometheusCronLabels(types.NamespacedName{Namespace: cron.Namespace, Name: cron.Name})).Set(gaugeVal)
+		DataImportCronOutdatedGauge.With(getPrometheusCronLabels(client.ObjectKeyFromObject(cron))).Set(gaugeVal)
 	}
 	if condition := FindDataImportCronConditionByType(cron, conditionType); condition != nil {
 		updateConditionState(&condition.ConditionState, status, message, reason)

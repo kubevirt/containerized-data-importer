@@ -318,7 +318,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	importSucceeded := false
 
 	dataVolume := dataImportCron.Spec.Template
-	explicitScName := getStorageClassFromTemplate(&dataVolume)
+	explicitScName := cc.GetStorageClassFromDVSpec(&dataVolume)
 	desiredStorageClass, err := cc.GetStorageClassByName(ctx, r.client, explicitScName)
 	if err != nil {
 		return res, err
@@ -774,18 +774,6 @@ func (r *DataImportCronReconciler) getSourceFormat(ctx context.Context, dataImpo
 	return format, nil
 }
 
-func getStorageClassFromTemplate(dataVolume *cdiv1.DataVolume) *string {
-	if dataVolume.Spec.PVC != nil {
-		return dataVolume.Spec.PVC.StorageClassName
-	}
-
-	if dataVolume.Spec.Storage != nil {
-		return dataVolume.Spec.Storage.StorageClassName
-	}
-
-	return nil
-}
-
 func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context, cron *cdiv1.DataImportCron) error {
 	if cron.Spec.GarbageCollect != nil && *cron.Spec.GarbageCollect != cdiv1.DataImportCronGarbageCollectOutdated {
 		return nil
@@ -893,7 +881,7 @@ func (r *DataImportCronReconciler) garbageCollectSnapshots(ctx context.Context, 
 
 func (r *DataImportCronReconciler) cleanup(ctx context.Context, cron types.NamespacedName) error {
 	// Don't keep alerting over a cron thats being deleted, will get set back to 1 again by reconcile loop if needed.
-	DataImportCronOutdatedGauge.With(getPrometheusCronLabels(cron)).Set(0)
+	DataImportCronOutdatedGauge.DeletePartialMatch(getPrometheusCronLabels(cron))
 	if err := r.deleteJobs(ctx, cron); err != nil {
 		return err
 	}
@@ -1006,7 +994,7 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		scName := obj.GetName()
 		for _, cron := range crons.Items {
 			dataVolume := cron.Spec.Template
-			explicitScName := getStorageClassFromTemplate(&dataVolume)
+			explicitScName := cc.GetStorageClassFromDVSpec(&dataVolume)
 			templateSc, err := cc.GetStorageClassByName(context.TODO(), mgr.GetClient(), explicitScName)
 			if err != nil || templateSc == nil {
 				c.GetLogger().Error(err, "Unable to get storage class", "templateSc", templateSc)

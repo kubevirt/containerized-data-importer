@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
@@ -34,13 +35,34 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
+const (
+	storageProfileControllerName = "storageprofile-controller"
+	counterLabelStorageClass     = "storageclass"
+	counterLabelProvisioner      = "provisioner"
+	counterLabelComplete         = "complete"
+	counterLabelDefault          = "default"
+	counterLabelVirtDefault      = "virtdefault"
+	counterLabelRWX              = "rwx"
+	counterLabelSmartClone       = "smartclone"
+)
+
 var (
-	// IncompleteProfileGauge is the metric we use to alert about incomplete storage profiles
-	IncompleteProfileGauge = prometheus.NewGauge(
+	// StorageProfileStatusGaugeVec is the metric we use to alert about storage profile status
+	StorageProfileStatusGaugeVec = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: monitoring.MetricOptsList[monitoring.IncompleteProfile].Name,
-			Help: monitoring.MetricOptsList[monitoring.IncompleteProfile].Help,
-		})
+			Name: monitoring.MetricOptsList[monitoring.StorageProfileStatus].Name,
+			Help: monitoring.MetricOptsList[monitoring.StorageProfileStatus].Help,
+		},
+		[]string{
+			counterLabelStorageClass,
+			counterLabelProvisioner,
+			counterLabelComplete,
+			counterLabelDefault,
+			counterLabelVirtDefault,
+			counterLabelRWX,
+			counterLabelSmartClone,
+		},
+	)
 )
 
 // StorageProfileReconciler members
@@ -68,11 +90,7 @@ func (r *StorageProfileReconciler) Reconcile(_ context.Context, req reconcile.Re
 		return reconcile.Result{}, r.deleteStorageProfile(req.NamespacedName.Name, log)
 	}
 
-	if _, err := r.reconcileStorageProfile(storageClass); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	return reconcile.Result{}, r.checkIncompleteProfiles()
+	return r.reconcileStorageProfile(storageClass)
 }
 
 func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.StorageClass) (reconcile.Result, error) {
@@ -115,7 +133,7 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 		return reconcile.Result{}, err
 	}
 
-	return reconcile.Result{}, nil
+	return reconcile.Result{}, r.computeMetrics(storageProfile, sc)
 }
 
 func (r *StorageProfileReconciler) updateStorageProfile(prevStorageProfile runtime.Object, storageProfile *cdiv1.StorageProfile, log logr.Logger) error {
@@ -245,17 +263,21 @@ func (r *StorageProfileReconciler) createEmptyStorageProfile(sc *storagev1.Stora
 
 func (r *StorageProfileReconciler) deleteStorageProfile(name string, log logr.Logger) error {
 	log.Info("Cleaning up StorageProfile that corresponds to deleted StorageClass", "StorageClass.Name", name)
-	storageProfileObj := &cdiv1.StorageProfile{
+	profile := &cdiv1.StorageProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 	}
 
-	if err := r.client.Delete(context.TODO(), storageProfileObj); cc.IgnoreNotFound(err) != nil {
+	if err := r.client.Delete(context.TODO(), profile); cc.IgnoreNotFound(err) != nil {
 		return err
 	}
 
-	return r.checkIncompleteProfiles()
+	labels := prometheus.Labels{
+		counterLabelStorageClass: name,
+	}
+	StorageProfileStatusGaugeVec.DeletePartialMatch(labels)
+	return nil
 }
 
 func isNoProvisioner(name string, cl client.Client) bool {
@@ -266,25 +288,74 @@ func isNoProvisioner(name string, cl client.Client) bool {
 	return storageClass.Provisioner == "kubernetes.io/no-provisioner"
 }
 
-func (r *StorageProfileReconciler) checkIncompleteProfiles() error {
-	numIncomplete := 0
-	storageProfileList := &cdiv1.StorageProfileList{}
-	if err := r.client.List(context.TODO(), storageProfileList); err != nil {
+func (r *StorageProfileReconciler) computeMetrics(profile *cdiv1.StorageProfile, sc *storagev1.StorageClass) error {
+	if profile.Status.StorageClass == nil || profile.Status.Provisioner == nil {
+		return nil
+	}
+
+	storageClass := *profile.Status.StorageClass
+	provisioner := *profile.Status.Provisioner
+
+	// We don't count explicitly unsupported provisioners as incomplete
+	_, found := storagecapabilities.UnsupportedProvisioners[*profile.Status.Provisioner]
+	isComplete := found || !isIncomplete(profile.Status.ClaimPropertySets)
+	isDefault := sc.Annotations[cc.AnnDefaultStorageClass] == "true"
+	isVirtDefault := false
+	isRWX := hasRWX(profile.Status.ClaimPropertySets)
+	isSmartClone, err := r.hasSmartClone(profile)
+	if err != nil {
 		return err
 	}
-	for _, profile := range storageProfileList.Items {
-		if profile.Status.Provisioner == nil {
-			continue
-		}
-		// We don't count explicitly unsupported provisioners as incomplete
-		_, found := storagecapabilities.UnsupportedProvisioners[*profile.Status.Provisioner]
-		if !found && isIncomplete(profile.Status.ClaimPropertySets) {
-			numIncomplete++
-		}
-	}
-	IncompleteProfileGauge.Set(float64(numIncomplete))
+
+	// Setting the labeled Gauge to 1 will not delete older metric, so we need to explicitly delete them
+	scLabels := prometheus.Labels{counterLabelStorageClass: storageClass, counterLabelProvisioner: provisioner}
+	metricsDeleted := StorageProfileStatusGaugeVec.DeletePartialMatch(scLabels)
+	scLabels = createLabels(storageClass, provisioner, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone)
+	StorageProfileStatusGaugeVec.With(scLabels).Set(float64(1))
+	r.log.Info(fmt.Sprintf("Set metric:%s complete:%t default:%t vdefault:%t rwx:%t smartclone:%t (deleted %d)",
+		storageClass, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone, metricsDeleted))
 
 	return nil
+}
+
+func (r *StorageProfileReconciler) hasSmartClone(sp *cdiv1.StorageProfile) (bool, error) {
+	strategy := sp.Status.CloneStrategy
+	provisioner := sp.Status.Provisioner
+
+	if strategy != nil {
+		if *strategy == cdiv1.CloneStrategyHostAssisted {
+			return false, nil
+		}
+		if *strategy == cdiv1.CloneStrategyCsiClone && provisioner != nil {
+			driver := &storagev1.CSIDriver{}
+			if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *provisioner}, driver); err != nil {
+				return false, cc.IgnoreNotFound(err)
+			}
+			return true, nil
+		}
+	}
+
+	if (strategy == nil || *strategy == cdiv1.CloneStrategySnapshot) && provisioner != nil {
+		vscs := &snapshotv1.VolumeSnapshotClassList{}
+		if err := r.client.List(context.TODO(), vscs); err != nil {
+			return false, err
+		}
+		return hasDriver(vscs, *provisioner), nil
+	}
+
+	return false, nil
+}
+
+func createLabels(storageClass, provisioner string, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone bool) prometheus.Labels {
+	return prometheus.Labels{
+		counterLabelStorageClass: storageClass,
+		counterLabelProvisioner:  provisioner,
+		counterLabelComplete:     strconv.FormatBool(isComplete),
+		counterLabelDefault:      strconv.FormatBool(isDefault),
+		counterLabelVirtDefault:  strconv.FormatBool(isVirtDefault),
+		counterLabelRWX:          strconv.FormatBool(isRWX),
+		counterLabelSmartClone:   strconv.FormatBool(isSmartClone),
+	}
 }
 
 // MakeEmptyStorageProfileSpec creates StorageProfile manifest
@@ -407,5 +478,26 @@ func isIncomplete(sets []cdiv1.ClaimPropertySet) bool {
 		return true
 	}
 
+	return false
+}
+
+func hasRWX(cpSets []cdiv1.ClaimPropertySet) bool {
+	for _, cpSet := range cpSets {
+		for _, am := range cpSet.AccessModes {
+			if am == v1.ReadWriteMany {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasDriver(vscs *snapshotv1.VolumeSnapshotClassList, driver string) bool {
+	for i := range vscs.Items {
+		vsc := vscs.Items[i]
+		if vsc.Driver == driver {
+			return true
+		}
+	}
 	return false
 }

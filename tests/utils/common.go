@@ -75,17 +75,24 @@ type ClientsIface interface {
 
 // GetDefaultStorageClass return the storage class which is marked as default in the cluster
 func GetDefaultStorageClass(client *kubernetes.Clientset) *storagev1.StorageClass {
+	defaultSC := getDefaultStorageClass(client, cc.AnnDefaultStorageClass)
+	if defaultSC == nil {
+		ginkgo.Fail("Unable to find default storage class")
+	}
+	return defaultSC
+}
+
+func getDefaultStorageClass(client *kubernetes.Clientset, defaultAnnotation string) *storagev1.StorageClass {
 	storageclasses, err := client.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		ginkgo.Fail("Unable to list storage classes")
 		return nil
 	}
 	for _, storageClass := range storageclasses.Items {
-		if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" {
+		if storageClass.Annotations[defaultAnnotation] == "true" {
 			return &storageClass
 		}
 	}
-	ginkgo.Fail("Unable to find default storage classes")
 	return nil
 }
 

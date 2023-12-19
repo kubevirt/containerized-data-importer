@@ -25,7 +25,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	prometheus "github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -378,7 +379,9 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		sp := storageProfileList.Items[0]
 		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
 		Expect(sp.Status.ClaimPropertySets).To(BeEmpty())
-		Expect(int(prometheus.ToFloat64(IncompleteProfileGauge))).To(Equal(count))
+
+		labels := createLabels(storageClassName, provisioner, false, true, false, false, false)
+		Expect(int(testutil.ToFloat64(StorageProfileStatusGaugeVec.With(labels)))).To(Equal(count))
 	},
 		table.Entry("Noobaa (not supported)", storagecapabilities.ProvisionerNoobaa, 0),
 		table.Entry("Unknown provisioner", "unknown-provisioner", 1),
