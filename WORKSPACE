@@ -368,19 +368,13 @@ rpm(
 rpm(
     name = "buildah-1__1.29.1-2.el9.aarch64",
     sha256 = "1ea33260f72609ac3e7145cd6d4ab06f036b0d301404de56bb389718bb3b29b0",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/buildah-1.29.1-2.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/1ea33260f72609ac3e7145cd6d4ab06f036b0d301404de56bb389718bb3b29b0",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/1ea33260f72609ac3e7145cd6d4ab06f036b0d301404de56bb389718bb3b29b0"],
 )
 
 rpm(
     name = "buildah-1__1.29.1-2.el9.x86_64",
     sha256 = "ae4ac42519c50157c26ef07570a9d28b59a8db78c0fb947a2a3d1547e98a9abd",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/buildah-1.29.1-2.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/ae4ac42519c50157c26ef07570a9d28b59a8db78c0fb947a2a3d1547e98a9abd",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/ae4ac42519c50157c26ef07570a9d28b59a8db78c0fb947a2a3d1547e98a9abd"],
 )
 
 rpm(
