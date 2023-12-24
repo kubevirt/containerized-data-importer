@@ -522,6 +522,15 @@ func dataVolumeUnusualRestartTest(f *framework.Framework) {
 	waitForPrometheusAlert(f, "CDIDataVolumeUnusualRestartCount")
 }
 
+func dataVolumeNoUnusualRestartTest(f *framework.Framework) {
+	By("Test metric for no unusual restart count")
+	Eventually(func() bool {
+		return getMetricValue(f, "kubevirt_cdi_import_pods_high_restart") == 0
+	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+
+	waitForNoPrometheusAlert(f, "CDIDataVolumeUnusualRestartCount")
+}
+
 // Helper functions
 
 // getMetricValue returns the metric value, or the sum in case of multiple values (GaugeVec)

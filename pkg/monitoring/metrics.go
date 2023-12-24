@@ -88,7 +88,7 @@ func GetRecordRulesDesc(namespace string) []RecordRulesDesc {
 				"The number of CDI import pods with high restart count",
 				"Gauge",
 			},
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s) or on() vector(0)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
 		},
 		{
 			MetricOpts{
@@ -96,7 +96,7 @@ func GetRecordRulesDesc(namespace string) []RecordRulesDesc {
 				"The number of CDI upload server pods with high restart count",
 				"Gauge",
 			},
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s) or on() vector(0)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
 		},
 		{
 			MetricOpts{
@@ -104,7 +104,7 @@ func GetRecordRulesDesc(namespace string) []RecordRulesDesc {
 				"The number of CDI clone pods with high restart count",
 				"Gauge",
 			},
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s) or on() vector(0)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
 		},
 	}
 }
