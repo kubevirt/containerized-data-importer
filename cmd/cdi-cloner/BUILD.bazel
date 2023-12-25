@@ -9,7 +9,6 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/common:go_default_library",
-        "//pkg/monitoring:go_default_library",
         "//pkg/util:go_default_library",
         "//pkg/util/prometheus:go_default_library",
         "//vendor/github.com/golang/snappy:go_default_library",

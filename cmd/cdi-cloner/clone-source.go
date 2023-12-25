@@ -16,7 +16,6 @@ import (
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
@@ -96,8 +95,8 @@ func startPrometheus() {
 func createProgressReader(readCloser io.ReadCloser, ownerUID string, totalBytes uint64) io.ReadCloser {
 	progress := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: monitoring.InternalMetricOptsList[monitoring.CloneProgress].Name,
-			Help: monitoring.InternalMetricOptsList[monitoring.CloneProgress].Help,
+			Name: "clone_progress",
+			Help: "The clone progress in percentage",
 		},
 		[]string{"ownerUID"},
 	)

@@ -24,7 +24,6 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -44,6 +43,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
 )
 
@@ -461,7 +461,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Entry("provisioner that is known to prefer csi clone", "csi-powermax.dellemc.com", cdiv1.CloneStrategyCsiClone, false),
 	)
 
-	DescribeTable("Should set the IncompleteProfileGauge correctly", func(provisioner string, count int) {
+	DescribeTable("Should set the StorageProfileStatus metric correctly", func(provisioner string, count int) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
 		reconciler = createStorageProfileReconciler(storageClass)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
@@ -475,7 +475,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(sp.Status.ClaimPropertySets).To(BeEmpty())
 
 		labels := createLabels(storageClassName, provisioner, false, true, false, false, false)
-		Expect(int(testutil.ToFloat64(StorageProfileStatusGaugeVec.With(labels)))).To(Equal(count))
+		Expect(int(metrics.GetStorageProfileStatus(labels))).To(Equal(count))
 	},
 		Entry("Noobaa (not supported)", storagecapabilities.ProvisionerNoobaa, 0),
 		Entry("Unknown provisioner", "unknown-provisioner", 1),

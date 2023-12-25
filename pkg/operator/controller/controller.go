@@ -25,7 +25,6 @@ import (
 
 	"github.com/kelseyhightower/envconfig"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
-	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,11 +35,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/operator-controller"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	cdicerts "kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
@@ -71,19 +69,15 @@ const (
 
 var (
 	log = logf.Log.WithName("cdi-operator")
-
-	readyGauge = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: monitoring.MetricOptsList[monitoring.ReadyGauge].Name,
-			Help: monitoring.MetricOptsList[monitoring.ReadyGauge].Help,
-		})
 )
 
 func init() {
-	metrics.Registry = prometheus.NewRegistry()
-	metrics.Registry.MustRegister(readyGauge)
-	// 0 is our 'something bad is going on' value for alert to start firing, so can't default to that
-	readyGauge.Set(-1)
+	// Setup metrics for our various controllers
+	err := metrics.SetupMetrics()
+	if err != nil {
+		log.Info("Error setting up metrics: %v", err)
+	}
+	metrics.SetNotReady()
 }
 
 // Add creates a new CDI Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -226,10 +220,10 @@ func (r *ReconcileCDI) Reconcile(_ context.Context, request reconcile.Request) (
 
 	// Ready metric so we can alert whenever we are not ready for a while
 	if conditionsv1.IsStatusConditionTrue(cr.Status.Conditions, conditionsv1.ConditionAvailable) {
-		readyGauge.Set(1)
+		metrics.SetReady()
 	} else if !conditionsv1.IsStatusConditionTrue(cr.Status.Conditions, conditionsv1.ConditionProgressing) {
 		// Not an issue if progress is still ongoing
-		readyGauge.Set(0)
+		metrics.SetNotReady()
 	}
 	return r.reconciler.Reconcile(request, operatorVersion, reqLogger)
 }

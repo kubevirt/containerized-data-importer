@@ -11,6 +11,7 @@ go_library(
         "//pkg/controller/datavolume:go_default_library",
         "//pkg/controller/populators:go_default_library",
         "//pkg/controller/transfer:go_default_library",
+        "//pkg/monitoring/metrics/cdi-controller:go_default_library",
         "//pkg/util:go_default_library",
         "//pkg/util/cert:go_default_library",
         "//pkg/util/cert/fetcher:go_default_library",
@@ -22,7 +23,6 @@ go_library(
         "//vendor/github.com/openshift/api/image/v1:go_default_library",
         "//vendor/github.com/openshift/api/route/v1:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
-        "//vendor/github.com/prometheus/client_golang/prometheus:go_default_library",
         "//vendor/go.uber.org/zap/zapcore:go_default_library",
         "//vendor/k8s.io/api/batch/v1:go_default_library",
         "//vendor/k8s.io/api/networking/v1:go_default_library",
@@ -39,7 +39,6 @@ go_library(
         "//vendor/sigs.k8s.io/controller-runtime/pkg/log/zap:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/manager:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/manager/signals:go_default_library",
-        "//vendor/sigs.k8s.io/controller-runtime/pkg/metrics:go_default_library",
     ],
 )
 

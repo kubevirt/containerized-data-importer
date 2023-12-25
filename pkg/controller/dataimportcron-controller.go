@@ -30,7 +30,6 @@ import (
 	"github.com/gorhill/cronexpr"
 	imagev1 "github.com/openshift/api/image/v1"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -58,7 +57,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	cdv "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
@@ -72,17 +71,6 @@ const (
 
 	prometheusNsLabel       = "ns"
 	prometheusCronNameLabel = "cron_name"
-)
-
-var (
-	// DataImportCronOutdatedGauge is the metric we use to alert about DataImportCrons failing
-	DataImportCronOutdatedGauge = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: monitoring.MetricOptsList[monitoring.DataImportCronOutdated].Name,
-			Help: monitoring.MetricOptsList[monitoring.DataImportCronOutdated].Help,
-		},
-		[]string{prometheusNsLabel, prometheusCronNameLabel},
-	)
 )
 
 // DataImportCronReconciler members
@@ -884,7 +872,7 @@ func (r *DataImportCronReconciler) garbageCollectSnapshots(ctx context.Context, 
 
 func (r *DataImportCronReconciler) cleanup(ctx context.Context, cron types.NamespacedName) error {
 	// Don't keep alerting over a cron thats being deleted, will get set back to 1 again by reconcile loop if needed.
-	DataImportCronOutdatedGauge.DeletePartialMatch(getPrometheusCronLabels(cron))
+	metrics.DeleteDataImportCronOutdated(getPrometheusCronLabels(cron))
 	if err := r.deleteJobs(ctx, cron); err != nil {
 		return err
 	}
