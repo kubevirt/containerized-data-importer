@@ -97,7 +97,7 @@ fi
     export TESTS_WORKDIR=${CDI_DIR}/tests
     ginkgo_args="--trace --timeout=8h"
     if [[ -n "$CDI_E2E_FOCUS" || -n "$CDI_E2E_SKIP" ]]; then
-        ginkgo_args="${ginkgo_args} --nodes=3"
+        ginkgo_args="${ginkgo_args} --nodes=3 --v"
     else
         ginkgo_args="${ginkgo_args} --v"
     fi
