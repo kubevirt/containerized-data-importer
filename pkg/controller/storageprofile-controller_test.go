@@ -38,7 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -400,7 +400,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, sp, &client.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		sp.Spec.SnapshotClass = pointer.String(snapshotClassName)
+		sp.Spec.SnapshotClass = ptr.To[string](snapshotClassName)
 		err = reconciler.client.Update(context.TODO(), sp, &client.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 

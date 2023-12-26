@@ -21,7 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -3302,7 +3302,7 @@ func EnableGcAndAnnotateLegacyDv(f *framework.Framework, dvName, dvNamespace str
 func SetConfigTTL(f *framework.Framework, ttl int) {
 	By(fmt.Sprintf("Set DataVolumeTTLSeconds to %d", ttl))
 	err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-		config.DataVolumeTTLSeconds = pointer.Int32(int32(ttl))
+		config.DataVolumeTTLSeconds = ptr.To(int32(ttl))
 	})
 	Expect(err).ToNot(HaveOccurred())
 }

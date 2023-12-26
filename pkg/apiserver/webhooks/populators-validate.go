@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
@@ -213,9 +213,9 @@ func (wh *populatorValidatingWebhook) validateVolumeImportSourceUpdate(ar admiss
 
 	// Always admit checkpoint updates for multi-stage migrations.
 	if isMultiStageImport(newSpec) {
-		oldSpec.FinalCheckpoint = pointer.Bool(false)
+		oldSpec.FinalCheckpoint = ptr.To[bool](false)
 		oldSpec.Checkpoints = nil
-		newSpec.FinalCheckpoint = pointer.Bool(false)
+		newSpec.FinalCheckpoint = ptr.To[bool](false)
 		newSpec.Checkpoints = nil
 	}
 

@@ -27,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -120,14 +120,14 @@ var _ = Describe("All DataSource Tests", func() {
 				},
 				Spec: snapshotv1.VolumeSnapshotSpec{},
 				Status: &snapshotv1.VolumeSnapshotStatus{
-					ReadyToUse: pointer.Bool(false),
+					ReadyToUse: ptr.To[bool](false),
 				},
 			}
 			err := reconciler.client.Create(context.TODO(), snap)
 			Expect(err).ToNot(HaveOccurred())
 			verifyConditions("Source snapshot not ready", false, "SnapshotNotReady")
 
-			snap.Status.ReadyToUse = pointer.Bool(true)
+			snap.Status.ReadyToUse = ptr.To[bool](true)
 			err = reconciler.client.Update(context.TODO(), snap)
 			Expect(err).ToNot(HaveOccurred())
 			verifyConditions("Source snapshot ready", true, ready)

@@ -51,7 +51,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiv1utils "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1/utils"
@@ -1151,9 +1151,9 @@ func SetRestrictedSecurityContext(podSpec *corev1.PodSpec) {
 			container.SecurityContext.SeccompProfile = &corev1.SeccompProfile{
 				Type: corev1.SeccompProfileTypeRuntimeDefault,
 			}
-			container.SecurityContext.AllowPrivilegeEscalation = pointer.Bool(false)
-			container.SecurityContext.RunAsNonRoot = pointer.Bool(true)
-			container.SecurityContext.RunAsUser = pointer.Int64(common.QemuSubGid)
+			container.SecurityContext.AllowPrivilegeEscalation = ptr.To[bool](false)
+			container.SecurityContext.RunAsNonRoot = ptr.To[bool](true)
+			container.SecurityContext.RunAsUser = ptr.To[int64](common.QemuSubGid)
 			if len(container.VolumeMounts) > 0 {
 				hasVolumeMounts = true
 			}
@@ -1164,7 +1164,7 @@ func SetRestrictedSecurityContext(podSpec *corev1.PodSpec) {
 		if podSpec.SecurityContext == nil {
 			podSpec.SecurityContext = &corev1.PodSecurityContext{}
 		}
-		podSpec.SecurityContext.FSGroup = pointer.Int64(common.QemuSubGid)
+		podSpec.SecurityContext.FSGroup = ptr.To[int64](common.QemuSubGid)
 	}
 }
 

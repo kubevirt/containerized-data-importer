@@ -20,7 +20,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -63,8 +63,8 @@ func CreateContainer(name, image, verbosity, pullPolicy string) corev1.Container
 		SeccompProfile: &corev1.SeccompProfile{
 			Type: corev1.SeccompProfileTypeRuntimeDefault,
 		},
-		AllowPrivilegeEscalation: pointer.Bool(false),
-		RunAsNonRoot:             pointer.Bool(true),
+		AllowPrivilegeEscalation: ptr.To[bool](false),
+		RunAsNonRoot:             ptr.To[bool](true),
 	}
 	return *container
 }
@@ -81,8 +81,8 @@ func CreatePortsContainer(name, image, pullPolicy string, ports []corev1.Contain
 		SeccompProfile: &corev1.SeccompProfile{
 			Type: corev1.SeccompProfileTypeRuntimeDefault,
 		},
-		AllowPrivilegeEscalation: pointer.Bool(false),
-		RunAsNonRoot:             pointer.Bool(true),
+		AllowPrivilegeEscalation: ptr.To[bool](false),
+		RunAsNonRoot:             ptr.To[bool](true),
 	}
 	return *container
 }

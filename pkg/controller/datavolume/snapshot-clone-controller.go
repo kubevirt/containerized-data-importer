@@ -32,7 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -86,7 +86,7 @@ func NewSnapshotCloneController(
 			clonerImage:         clonerImage,
 			importerImage:       importerImage,
 			pullPolicy:          pullPolicy,
-			cloneSourceAPIGroup: pointer.String(snapshotv1.GroupName),
+			cloneSourceAPIGroup: ptr.To[string](snapshotv1.GroupName),
 			cloneSourceKind:     "VolumeSnapshot",
 			shortTokenValidator: cc.NewCloneTokenValidator(common.CloneTokenIssuer, tokenPublicKey),
 			longTokenValidator:  cc.NewCloneTokenValidator(common.ExtendedCloneTokenIssuer, tokenPublicKey),

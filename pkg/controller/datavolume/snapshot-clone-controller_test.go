@@ -36,7 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -342,7 +342,7 @@ var _ = Describe("All DataVolume Tests", func() {
 					}
 					pvc.OwnerReferences = append(pvc.OwnerReferences, metav1.OwnerReference{
 						Kind:       "DataVolume",
-						Controller: pointer.Bool(true),
+						Controller: ptr.To[bool](true),
 						Name:       "test-dv",
 						UID:        dv.UID,
 					})
@@ -353,7 +353,7 @@ var _ = Describe("All DataVolume Tests", func() {
 						},
 						Spec: cdiv1.VolumeCloneSourceSpec{
 							Source: corev1.TypedLocalObjectReference{
-								APIGroup: pointer.String("snapshot.storage.k8s.io"),
+								APIGroup: ptr.To[string]("snapshot.storage.k8s.io"),
 								Kind:     "VolumeSnapshot",
 								Name:     dv.Spec.Source.Snapshot.Name,
 							},
@@ -381,7 +381,7 @@ var _ = Describe("All DataVolume Tests", func() {
 					pvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, anno, nil, corev1.ClaimPending)
 					pvc.OwnerReferences = append(pvc.OwnerReferences, metav1.OwnerReference{
 						Kind:       "DataVolume",
-						Controller: pointer.Bool(true),
+						Controller: ptr.To[bool](true),
 						Name:       "test-dv",
 						UID:        dv.UID,
 					})
@@ -423,7 +423,7 @@ var _ = Describe("All DataVolume Tests", func() {
 					}
 					pvc.OwnerReferences = append(pvc.OwnerReferences, metav1.OwnerReference{
 						Kind:       "DataVolume",
-						Controller: pointer.Bool(true),
+						Controller: ptr.To[bool](true),
 						Name:       "test-dv",
 						UID:        dv.UID,
 					})
@@ -434,7 +434,7 @@ var _ = Describe("All DataVolume Tests", func() {
 						},
 						Spec: cdiv1.VolumeCloneSourceSpec{
 							Source: corev1.TypedLocalObjectReference{
-								APIGroup: pointer.String("snapshot.storage.k8s.io"),
+								APIGroup: ptr.To[string]("snapshot.storage.k8s.io"),
 								Kind:     "VolumeSnapshot",
 								Name:     dv.Spec.Source.Snapshot.Name,
 							},
@@ -483,7 +483,7 @@ var _ = Describe("All DataVolume Tests", func() {
 					}
 					pvc.OwnerReferences = append(pvc.OwnerReferences, metav1.OwnerReference{
 						Kind:       "DataVolume",
-						Controller: pointer.Bool(true),
+						Controller: ptr.To[bool](true),
 						Name:       "test-dv",
 						UID:        dv.UID,
 					})
@@ -494,7 +494,7 @@ var _ = Describe("All DataVolume Tests", func() {
 						},
 						Spec: cdiv1.VolumeCloneSourceSpec{
 							Source: corev1.TypedLocalObjectReference{
-								APIGroup: pointer.String("snapshot.storage.k8s.io"),
+								APIGroup: ptr.To[string]("snapshot.storage.k8s.io"),
 								Kind:     "VolumeSnapshot",
 								Name:     dv.Spec.Source.Snapshot.Name,
 							},
@@ -584,7 +584,7 @@ func createSnapshotCloneReconcilerWithoutConfig(objects ...runtime.Object) *Snap
 			shortTokenValidator: &FakeValidator{Match: "foobar"},
 			longTokenValidator:  &FakeValidator{Match: "foobar", Params: map[string]string{"uid": "uid"}},
 			tokenGenerator:      &FakeGenerator{token: "foobar"},
-			cloneSourceAPIGroup: pointer.String("snapshot.storage.k8s.io"),
+			cloneSourceAPIGroup: ptr.To[string]("snapshot.storage.k8s.io"),
 			cloneSourceKind:     "VolumeSnapshot",
 		},
 	}

@@ -39,7 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -102,7 +102,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(event).To(ContainSubstring(MessageErrStorageClassNotFound))
 		},
 			Entry("no StorageClassName, and no default storage class set", nil),
-			Entry("non-existing StorageClassName", pointer.String("nosuch")),
+			Entry("non-existing StorageClassName", ptr.To[string]("nosuch")),
 		)
 
 		It("Should create volumeImportSource if should use cdi populator", func() {

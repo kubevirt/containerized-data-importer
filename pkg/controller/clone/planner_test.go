@@ -33,7 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -219,7 +219,7 @@ var _ = Describe("Planner test", func() {
 				Name: storageClassName,
 			},
 			Provisioner:          driverName,
-			AllowVolumeExpansion: pointer.Bool(true),
+			AllowVolumeExpansion: ptr.To[bool](true),
 		}
 	}
 
@@ -283,7 +283,7 @@ var _ = Describe("Planner test", func() {
 
 			It("should error if emptystring storageclass name", func() {
 				tc := createTargetClaim()
-				tc.Spec.StorageClassName = pointer.String("")
+				tc.Spec.StorageClassName = ptr.To[string]("")
 				args := &ChooseStrategyArgs{
 					TargetClaim: tc,
 					DataSource:  createPVCDataSource(),
@@ -385,7 +385,7 @@ var _ = Describe("Planner test", func() {
 				sourceClaim := createSourceClaim()
 				sourceVolume := createSourceVolume()
 				sourceVolume.Spec.StorageClassName = "baz"
-				sourceClaim.Spec.StorageClassName = pointer.String(sourceVolume.Spec.StorageClassName)
+				sourceClaim.Spec.StorageClassName = ptr.To[string](sourceVolume.Spec.StorageClassName)
 				args := &ChooseStrategyArgs{
 					TargetClaim: createTargetClaim(),
 					DataSource:  createPVCDataSource(),
@@ -510,7 +510,7 @@ var _ = Describe("Planner test", func() {
 					},
 				}
 				sourceClaim := createSourceClaim()
-				sourceClaim.Spec.StorageClassName = pointer.String("foo")
+				sourceClaim.Spec.StorageClassName = ptr.To[string]("foo")
 				sourceVolume := createSourceVolume()
 				sourceVolume.Spec.StorageClassName = "foo"
 				sourceVolume.Spec.PersistentVolumeSource.CSI.Driver = "baz"

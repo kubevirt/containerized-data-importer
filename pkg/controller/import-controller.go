@@ -20,7 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -323,8 +323,8 @@ func (r *ImportReconciler) copyImportProxyConfigMap(pvc *corev1.PersistentVolume
 				Kind:               pod.Kind,
 				Name:               pod.Name,
 				UID:                pod.UID,
-				BlockOwnerDeletion: pointer.Bool(true),
-				Controller:         pointer.Bool(true),
+				BlockOwnerDeletion: ptr.To[bool](true),
+				Controller:         ptr.To[bool](true),
 			}},
 		},
 		Data: cdiConfigMap.Data,

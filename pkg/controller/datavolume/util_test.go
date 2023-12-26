@@ -16,7 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -145,7 +145,7 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 				SourceRef: &cdiv1.DataVolumeSourceRef{
 					Kind:      cdiv1.DataVolumeDataSource,
 					Name:      sourceDataSourceName,
-					Namespace: pointer.String(namespace),
+					Namespace: ptr.To[string](namespace),
 				},
 			},
 		}
@@ -236,7 +236,7 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 				SourceRef: &cdiv1.DataVolumeSourceRef{
 					Kind:      cdiv1.DataVolumeDataSource,
 					Name:      "unknown",
-					Namespace: pointer.String(namespace),
+					Namespace: ptr.To[string](namespace),
 				},
 			},
 		}),

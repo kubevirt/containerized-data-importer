@@ -40,7 +40,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -273,11 +273,11 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(cronjob.Spec.SuccessfulJobsHistoryLimit).To(Equal(pointer.Int32(1)))
-			Expect(cronjob.Spec.FailedJobsHistoryLimit).To(Equal(pointer.Int32(1)))
+			Expect(cronjob.Spec.SuccessfulJobsHistoryLimit).To(Equal(ptr.To[int32](1)))
+			Expect(cronjob.Spec.FailedJobsHistoryLimit).To(Equal(ptr.To[int32](1)))
 
 			jobTemplateSpec := cronjob.Spec.JobTemplate.Spec
-			Expect(jobTemplateSpec.TTLSecondsAfterFinished).To(Equal(pointer.Int32(10)))
+			Expect(jobTemplateSpec.TTLSecondsAfterFinished).To(Equal(ptr.To[int32](10)))
 
 			jobPodTemplateSpec := jobTemplateSpec.Template.Spec
 			containers := jobPodTemplateSpec.Containers
@@ -903,7 +903,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 				err = reconciler.client.Get(context.TODO(), dvKey(dvName), snap)
 				Expect(err).ToNot(HaveOccurred())
 				snap.Status = &snapshotv1.VolumeSnapshotStatus{
-					ReadyToUse: pointer.Bool(true),
+					ReadyToUse: ptr.To[bool](true),
 				}
 				err = reconciler.client.Update(context.TODO(), snap)
 				Expect(err).ToNot(HaveOccurred())
