@@ -178,7 +178,9 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		),
 		generateAlertRule(
 			"CDIDataVolumeUnusualRestartCount",
-			"kubevirt_cdi_import_pods_high_restart > 0 or kubevirt_cdi_upload_pods_high_restart > 0 or kubevirt_cdi_clone_pods_high_restart > 0",
+			`kubevirt_cdi_import_pods_high_restart > 0 or
+			kubevirt_cdi_upload_pods_high_restart > 0 or
+			kubevirt_cdi_clone_pods_high_restart > 0`,
 			promv1.Duration("5m"),
 			map[string]string{
 				"summary":     "Some CDI population workloads have an unusual restart count, meaning they are probably failing and need to be investigated",
@@ -193,10 +195,10 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		),
 		generateAlertRule(
 			"CDIStorageProfilesIncomplete",
-			"kubevirt_cdi_incomplete_storageprofiles > 0",
+			`sum by(storageclass,provisioner) ((kubevirt_cdi_storageprofile_info{complete="false"}>0))`,
 			promv1.Duration("5m"),
 			map[string]string{
-				"summary":     "Incomplete StorageProfiles exist, accessMode/volumeMode cannot be inferred by CDI for PVC population request",
+				"summary":     "Incomplete StorageProfile {{ $labels.storageclass }}, accessMode/volumeMode cannot be inferred by CDI for PVC population request",
 				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIStorageProfilesIncomplete"),
 			},
 			map[string]string{
@@ -208,7 +210,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		),
 		generateAlertRule(
 			"CDIDataImportCronOutdated",
-			"kubevirt_cdi_dataimportcron_outdated_aggregated > 0",
+			`sum by(ns,cron_name) (kubevirt_cdi_dataimportcron_outdated) > 0`,
 			promv1.Duration("15m"),
 			map[string]string{
 				"summary":     "DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule",
@@ -222,12 +224,45 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 			},
 		),
 		generateAlertRule(
+			"CDINoDefaultStorageClass",
+			`sum(kubevirt_cdi_storageprofile_info{default="true"} or on() vector(0)) +
+			sum(kubevirt_cdi_storageprofile_info{virtdefault="true"} or on() vector(0)) +
+			(count(kubevirt_cdi_datavolume_pending == 0) or on() vector(0)) == 0`,
+			promv1.Duration("5m"),
+			map[string]string{
+				"summary":     "No default StorageClass or virtualization StorageClass, and a DataVolume is pending for one",
+				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDINoDefaultStorageClass"),
+			},
+			map[string]string{
+				severityAlertLabelKey:     "warning",
+				healthImpactAlertLabelKey: "none",
+				partOfAlertLabelKey:       partOfAlertLabelValue,
+				componentAlertLabelKey:    componentAlertLabelValue,
+			},
+		),
+		generateAlertRule(
 			"CDIMultipleDefaultVirtStorageClasses",
-			"kubevirt_cdi_default_virt_storageclasses > 1",
+			`sum(kubevirt_cdi_storageprofile_info{virtdefault="true"} or on() vector(0)) > 1`,
 			promv1.Duration("5m"),
 			map[string]string{
 				"summary":     "More than one default virtualization StorageClass detected",
 				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIMultipleDefaultVirtStorageClasses"),
+			},
+			map[string]string{
+				severityAlertLabelKey:     "warning",
+				healthImpactAlertLabelKey: "none",
+				partOfAlertLabelKey:       partOfAlertLabelValue,
+				componentAlertLabelKey:    componentAlertLabelValue,
+			},
+		),
+		generateAlertRule(
+			"CDIDefaultStorageClassDegraded",
+			`sum(kubevirt_cdi_storageprofile_info{default="true",rwx="true",smartclone="true"} or on() vector(0)) +
+			sum(kubevirt_cdi_storageprofile_info{virtdefault="true",rwx="true",smartclone="true"} or on() vector(0)) == 0`,
+			promv1.Duration("5m"),
+			map[string]string{
+				"summary":     "Default storage class has no smart clone or ReadWriteMany",
+				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIDefaultStorageClassDegraded"),
 			},
 			map[string]string{
 				severityAlertLabelKey:     "warning",

@@ -9,16 +9,14 @@ The number of CDI clone pods with high restart count. Type: Gauge.
 CDI install ready. Type: Gauge.
 ### kubevirt_cdi_dataimportcron_outdated
 DataImportCron has an outdated import. Type: Gauge.
-### kubevirt_cdi_dataimportcron_outdated_aggregated
-Total count of outdated DataImportCron imports. Type: Gauge.
-### kubevirt_cdi_default_virt_storageclasses
-Number of default virt storage classes currently configured. Type: Gauge.
+### kubevirt_cdi_datavolume_pending
+Number of DataVolumes pending for default storage class to be configured. Type: Gauge.
 ### kubevirt_cdi_import_pods_high_restart
 The number of CDI import pods with high restart count. Type: Gauge.
-### kubevirt_cdi_incomplete_storageprofiles
-Total number of incomplete and hence unusable StorageProfile. Type: Gauge.
 ### kubevirt_cdi_operator_up
 CDI operator status. Type: Gauge.
+### kubevirt_cdi_storageprofile_info
+`StorageProfiles` info labels: `storageclass`, `provisioner`, `complete` indicates if all storage profiles recommended PVC settings are complete, `default` indicates if it's the Kubernetes default storage class, `virtdefault` indicates if it's the default virtualization storage class, `rwx` indicates if the storage class supports `ReadWriteMany`, `smartclone` indicates if it supports snapshot or CSI based clone. Type: Gauge.
 ### kubevirt_cdi_upload_pods_high_restart
 The number of CDI upload server pods with high restart count. Type: Gauge.
 ## Developing new metrics

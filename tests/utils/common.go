@@ -75,17 +75,30 @@ type ClientsIface interface {
 
 // GetDefaultStorageClass return the storage class which is marked as default in the cluster
 func GetDefaultStorageClass(client *kubernetes.Clientset) *storagev1.StorageClass {
+	defaultSC := getDefaultStorageClass(client, cc.AnnDefaultStorageClass)
+	if defaultSC == nil {
+		ginkgo.Fail("Unable to find default storage class")
+	}
+	return defaultSC
+}
+
+// GetDefaultVirtStorageClass return the storage class which is marked as virt default in the cluster
+// We don't fail if virt default storage class is not defined
+func GetDefaultVirtStorageClass(client *kubernetes.Clientset) *storagev1.StorageClass {
+	return getDefaultStorageClass(client, cc.AnnDefaultVirtStorageClass)
+}
+
+func getDefaultStorageClass(client *kubernetes.Clientset, defaultAnnotation string) *storagev1.StorageClass {
 	storageclasses, err := client.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		ginkgo.Fail("Unable to list storage classes")
 		return nil
 	}
 	for _, storageClass := range storageclasses.Items {
-		if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" {
+		if storageClass.Annotations[defaultAnnotation] == "true" {
 			return &storageClass
 		}
 	}
-	ginkgo.Fail("Unable to find default storage classes")
 	return nil
 }
 
