@@ -26,3 +26,8 @@ func SetReady() {
 func SetNotReady() {
 	readyGauge.Set(0.0)
 }
+
+// SetInit sets the readyGauge to -1, 0 is our value for alert to start firing, so can't default to that.
+func SetInit() {
+	readyGauge.Set(-1.0)
+}

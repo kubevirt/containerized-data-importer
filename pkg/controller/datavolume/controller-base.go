@@ -77,6 +77,10 @@ const (
 	claimStorageClassNameField = "spec.storageClassName"
 )
 
+var (
+	httpClient *http.Client
+)
+
 // Event represents DV controller event
 type Event struct {
 	eventType string
@@ -1017,11 +1021,7 @@ func (r *ReconcilerBase) addOwnerRef(pvc *corev1.PersistentVolumeClaim, dv *cdiv
 }
 
 func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) error {
-	// Create a new http.Client
-	defaultClient := &http.Client{}
-
-	// Pass the http.Client to BuildHTTPClient function
-	httpClient := cc.BuildHTTPClient(defaultClient)
+	httpClient = cc.BuildHTTPClient(httpClient)
 	url, err := cc.GetMetricsURL(pod)
 	if err != nil {
 		return err

@@ -77,7 +77,7 @@ func init() {
 	if err != nil {
 		log.Info("Error setting up metrics: %v", err)
 	}
-	metrics.SetNotReady()
+	metrics.SetInit()
 }
 
 // Add creates a new CDI Controller and adds it to the Manager. The Manager will set fields on the Controller
