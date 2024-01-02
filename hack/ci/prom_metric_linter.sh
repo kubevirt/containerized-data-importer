@@ -23,7 +23,7 @@ set -e
 linter_image_tag="v0.0.1"
 
 PROJECT_ROOT="$(readlink -e "$(dirname "${BASH_SOURCE[0]}")"/../../)"
-export METRICS_COLLECTOR_PATH="${METRICS_COLLECTOR_PATH:-${PROJECT_ROOT}/tools/prom-metrics-collector}"
+export METRICS_COLLECTOR_PATH="${METRICS_COLLECTOR_PATH:-${PROJECT_ROOT}/pkg/monitoring/tools/prom-metrics-collector}"
 
 if [[ ! -d "$METRICS_COLLECTOR_PATH" ]]; then
     echo "Invalid METRICS_COLLECTOR_PATH: $METRICS_COLLECTOR_PATH is not a valid directory path"

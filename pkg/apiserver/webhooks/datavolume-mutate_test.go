@@ -37,7 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -434,7 +434,7 @@ func mutateDVsEx(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthori
 	})
 
 	cdiConfig := cc.MakeEmptyCDIConfigSpec(common.ConfigName)
-	cdiConfig.Spec.DataVolumeTTLSeconds = pointer.Int32(ttl)
+	cdiConfig.Spec.DataVolumeTTLSeconds = ptr.To[int32](ttl)
 	objs := []runtime.Object{cdiConfig}
 	objs = append(objs, cdiObjects...)
 	cdiClient := cdiclientfake.NewSimpleClientset(objs...)

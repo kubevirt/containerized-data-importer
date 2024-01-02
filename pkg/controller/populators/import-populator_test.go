@@ -39,7 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -414,7 +414,7 @@ var _ = Describe("Import populator tests", func() {
 					Current:  "current",
 				},
 			}
-			volumeImportSource.Spec.FinalCheckpoint = pointer.Bool(true)
+			volumeImportSource.Spec.FinalCheckpoint = ptr.To[bool](true)
 
 			By("Reconcile")
 			reconciler = createImportPopulatorReconciler(targetPvc, volumeImportSource, sc)

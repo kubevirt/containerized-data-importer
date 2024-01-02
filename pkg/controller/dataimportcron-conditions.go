@@ -22,9 +22,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 )
 
 const (
@@ -38,11 +38,7 @@ const (
 
 func updateDataImportCronCondition(cron *cdiv1.DataImportCron, conditionType cdiv1.DataImportCronConditionType, status corev1.ConditionStatus, message, reason string) {
 	if conditionType == cdiv1.DataImportCronUpToDate {
-		gaugeVal := float64(0)
-		if status != corev1.ConditionTrue {
-			gaugeVal = 1
-		}
-		DataImportCronOutdatedGauge.With(getPrometheusCronLabels(client.ObjectKeyFromObject(cron))).Set(gaugeVal)
+		metrics.SetDataImportCronOutdated(getPrometheusCronLabels(types.NamespacedName{Namespace: cron.Namespace, Name: cron.Name}), status != corev1.ConditionTrue)
 	}
 	if condition := FindDataImportCronConditionByType(cron, conditionType); condition != nil {
 		updateConditionState(&condition.ConditionState, status, message, reason)

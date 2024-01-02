@@ -8,7 +8,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -83,7 +83,7 @@ func (p *SnapshotClonePhase) createClaim(ctx context.Context, snapshot *snapshot
 	claim := p.DesiredClaim.DeepCopy()
 	claim.Namespace = p.Namespace
 	claim.Spec.DataSourceRef = &corev1.TypedObjectReference{
-		APIGroup: pointer.String("snapshot.storage.k8s.io"),
+		APIGroup: ptr.To[string]("snapshot.storage.k8s.io"),
 		Kind:     "VolumeSnapshot",
 		Name:     p.SourceName,
 	}

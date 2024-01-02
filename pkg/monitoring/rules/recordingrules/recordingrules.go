@@ -1,4 +1,4 @@
-package monitoring
+package recordingrules
 
 import (
 	"fmt"
@@ -18,57 +18,6 @@ type MetricOpts struct {
 type RecordRulesDesc struct {
 	Opts MetricOpts
 	Expr string
-}
-
-// MetricsKey creates variables for metric reference
-type MetricsKey string
-
-// All metrics names for reference
-const (
-	CloneProgress          MetricsKey = "cloneProgress"
-	DataImportCronOutdated MetricsKey = "dataImportCronOutdated"
-	StorageProfileStatus   MetricsKey = "storageProfileStatus"
-	ReadyGauge             MetricsKey = "readyGauge"
-	DataVolumePending      MetricsKey = "dataVolumePending"
-)
-
-// MetricOptsList list all CDI metrics
-var MetricOptsList = map[MetricsKey]MetricOpts{
-	DataImportCronOutdated: {
-		Name: "kubevirt_cdi_dataimportcron_outdated",
-		Help: "DataImportCron has an outdated import",
-		Type: "Gauge",
-	},
-	StorageProfileStatus: {
-		Name: "kubevirt_cdi_storageprofile_info",
-		Help: "`StorageProfiles` info labels: " +
-			"`storageclass`, `provisioner`, " +
-			"`complete` indicates if all storage profiles recommended PVC settings are complete, " +
-			"`default` indicates if it's the Kubernetes default storage class, " +
-			"`virtdefault` indicates if it's the default virtualization storage class, " +
-			"`rwx` indicates if the storage class supports `ReadWriteMany`, " +
-			"`smartclone` indicates if it supports snapshot or CSI based clone",
-		Type: "Gauge",
-	},
-	ReadyGauge: {
-		Name: "kubevirt_cdi_cr_ready",
-		Help: "CDI install ready",
-		Type: "Gauge",
-	},
-	DataVolumePending: {
-		Name: "kubevirt_cdi_datavolume_pending",
-		Help: "Number of DataVolumes pending for default storage class to be configured",
-		Type: "Gauge",
-	},
-}
-
-// InternalMetricOptsList list all CDI metrics used for internal purposes only
-var InternalMetricOptsList = map[MetricsKey]MetricOpts{
-	CloneProgress: {
-		Name: "clone_progress",
-		Help: "The clone progress in percentage",
-		Type: "Counter",
-	},
 }
 
 // GetRecordRulesDesc returns CDI Prometheus Record Rules

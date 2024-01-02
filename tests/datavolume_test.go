@@ -19,7 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -2551,7 +2551,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("creating new datavolume %s with StorageClassName %s", dataVolumeName, scName))
 			dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
 				dataVolumeName, "100Mi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
-			dataVolume.Spec.Storage.StorageClassName = pointer.String(scName)
+			dataVolume.Spec.Storage.StorageClassName = ptr.To[string](scName)
 			dataVolume.Spec.Storage.AccessModes = nil
 
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -2599,13 +2599,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		newDataVolumeWithStorageSpec := func(scName string) *cdiv1.DataVolume {
 			dv := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
 				dataVolumeName, "100Mi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
-			dv.Spec.Storage.StorageClassName = pointer.String(scName)
+			dv.Spec.Storage.StorageClassName = ptr.To[string](scName)
 			return dv
 		}
 
 		newDataVolumeWithPvcSpec := func(scName string) *cdiv1.DataVolume {
 			dv := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "100Mi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
-			dv.Spec.PVC.StorageClassName = pointer.String(scName)
+			dv.Spec.PVC.StorageClassName = ptr.To[string](scName)
 			return dv
 		}
 

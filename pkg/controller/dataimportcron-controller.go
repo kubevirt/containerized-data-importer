@@ -30,7 +30,6 @@ import (
 	"github.com/gorhill/cronexpr"
 	imagev1 "github.com/openshift/api/image/v1"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -44,7 +43,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -58,7 +57,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	cdv "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
@@ -72,17 +71,6 @@ const (
 
 	prometheusNsLabel       = "ns"
 	prometheusCronNameLabel = "cron_name"
-)
-
-var (
-	// DataImportCronOutdatedGauge is the metric we use to alert about DataImportCrons failing
-	DataImportCronOutdatedGauge = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: monitoring.MetricOptsList[monitoring.DataImportCronOutdated].Name,
-			Help: monitoring.MetricOptsList[monitoring.DataImportCronOutdated].Help,
-		},
-		[]string{prometheusNsLabel, prometheusCronNameLabel},
-	)
 )
 
 // DataImportCronReconciler members
@@ -884,7 +872,7 @@ func (r *DataImportCronReconciler) garbageCollectSnapshots(ctx context.Context, 
 
 func (r *DataImportCronReconciler) cleanup(ctx context.Context, cron types.NamespacedName) error {
 	// Don't keep alerting over a cron thats being deleted, will get set back to 1 again by reconcile loop if needed.
-	DataImportCronOutdatedGauge.DeletePartialMatch(getPrometheusCronLabels(cron))
+	metrics.DeleteDataImportCronOutdated(getPrometheusCronLabels(cron))
 	if err := r.deleteJobs(ctx, cron); err != nil {
 		return err
 	}
@@ -1191,7 +1179,7 @@ func InitPollerPodSpec(c client.Client, cron *cdiv1.DataImportCron, podSpec *cor
 	}
 
 	podSpec.RestartPolicy = corev1.RestartPolicyNever
-	podSpec.TerminationGracePeriodSeconds = pointer.Int64(0)
+	podSpec.TerminationGracePeriodSeconds = ptr.To[int64](0)
 	podSpec.Containers = []corev1.Container{container}
 	podSpec.ServiceAccountName = common.CronJobServiceAccountName
 	podSpec.Volumes = volumes
@@ -1209,12 +1197,12 @@ func (r *DataImportCronReconciler) initCronJob(cron *cdiv1.DataImportCron, cronJ
 	cronJobSpec := &cronJob.Spec
 	cronJobSpec.Schedule = cron.Spec.Schedule
 	cronJobSpec.ConcurrencyPolicy = batchv1.ForbidConcurrent
-	cronJobSpec.SuccessfulJobsHistoryLimit = pointer.Int32(1)
-	cronJobSpec.FailedJobsHistoryLimit = pointer.Int32(1)
+	cronJobSpec.SuccessfulJobsHistoryLimit = ptr.To[int32](1)
+	cronJobSpec.FailedJobsHistoryLimit = ptr.To[int32](1)
 
 	jobSpec := &cronJobSpec.JobTemplate.Spec
-	jobSpec.BackoffLimit = pointer.Int32(2)
-	jobSpec.TTLSecondsAfterFinished = pointer.Int32(10)
+	jobSpec.BackoffLimit = ptr.To[int32](2)
+	jobSpec.TTLSecondsAfterFinished = ptr.To[int32](10)
 
 	podSpec := &jobSpec.Template.Spec
 	if err := InitPollerPodSpec(r.client, cron, podSpec, r.image, corev1.PullPolicy(r.pullPolicy), r.log); err != nil {

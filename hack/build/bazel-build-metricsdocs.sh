@@ -29,10 +29,10 @@ mkdir -p ${CMD_OUT_DIR}/dump
 bazel build \
     --verbose_failures \
     --config=${ARCHITECTURE} \
-    //tools/metricsdocs/...
+    //pkg/monitoring/tools/metricsdocs/...
 
-rm -rf _out/tools/metricsdocs
-mkdir -p _out/tools/metricsdocs
-cp ./bazel-bin/tools/metricsdocs/metricsdocs_/metricsdocs _out/tools/metricsdocs/
+rm -rf _out/pkg/monitoring/tools/metricsdocs
+mkdir -p _out/pkg/monitoring/tools/metricsdocs
+cp ./bazel-bin/pkg/monitoring/tools/metricsdocs/metricsdocs_/metricsdocs _out/pkg/monitoring/tools/metricsdocs/
 
 bazel clean

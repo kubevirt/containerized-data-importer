@@ -31,7 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -146,7 +146,7 @@ var _ = Describe("SnapshotClonePhase test", func() {
 
 		It("should do nothing if snapshot not ready", func() {
 			snapshot := getSnapshot()
-			snapshot.Status.ReadyToUse = pointer.Bool(false)
+			snapshot.Status.ReadyToUse = ptr.To[bool](false)
 
 			p := createSnapshotClonePhase(snapshot)
 			result, err := p.Reconcile(context.Background())
@@ -160,7 +160,7 @@ var _ = Describe("SnapshotClonePhase test", func() {
 
 		It("should should create the claim when ready", func() {
 			snapshot := getSnapshot()
-			snapshot.Status.ReadyToUse = pointer.Bool(true)
+			snapshot.Status.ReadyToUse = ptr.To[bool](true)
 
 			p := createSnapshotClonePhase(snapshot, getStorageClass())
 			result, err := p.Reconcile(context.Background())

@@ -38,7 +38,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules/recordingrules"
 	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 
@@ -137,7 +137,7 @@ func isPrometheusDeployed(logger logr.Logger, c client.Client, namespace string)
 func getRecordRules(namespace string) []promv1.Rule {
 	var recordRules []promv1.Rule
 
-	for _, rrd := range monitoring.GetRecordRulesDesc(namespace) {
+	for _, rrd := range recordingrules.GetRecordRulesDesc(namespace) {
 		recordRules = append(recordRules, generateRecordRule(rrd.Opts.Name, rrd.Expr))
 	}
 

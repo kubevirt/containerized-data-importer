@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["metricsdocs.go"],
+    importpath = "kubevirt.io/containerized-data-importer/pkg/monitoring/tools/metricsdocs",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/monitoring/metrics/cdi-controller:go_default_library",
+        "//pkg/monitoring/metrics/operator-controller:go_default_library",
+        "//pkg/monitoring/rules/recordingrules:go_default_library",
+        "//vendor/github.com/machadovilaca/operator-observability/pkg/docs:go_default_library",
+        "//vendor/github.com/machadovilaca/operator-observability/pkg/operatormetrics:go_default_library",
+        "//vendor/github.com/machadovilaca/operator-observability/pkg/operatorrules:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "metricsdocs",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)

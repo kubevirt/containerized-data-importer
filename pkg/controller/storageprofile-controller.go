@@ -30,7 +30,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -45,25 +45,6 @@ const (
 	counterLabelVirtDefault      = "virtdefault"
 	counterLabelRWX              = "rwx"
 	counterLabelSmartClone       = "smartclone"
-)
-
-var (
-	// StorageProfileStatusGaugeVec is the metric we use to alert about storage profile status
-	StorageProfileStatusGaugeVec = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: monitoring.MetricOptsList[monitoring.StorageProfileStatus].Name,
-			Help: monitoring.MetricOptsList[monitoring.StorageProfileStatus].Help,
-		},
-		[]string{
-			counterLabelStorageClass,
-			counterLabelProvisioner,
-			counterLabelComplete,
-			counterLabelDefault,
-			counterLabelVirtDefault,
-			counterLabelRWX,
-			counterLabelSmartClone,
-		},
-	)
 )
 
 // StorageProfileReconciler members
@@ -281,7 +262,7 @@ func (r *StorageProfileReconciler) deleteStorageProfile(name string, log logr.Lo
 	labels := prometheus.Labels{
 		counterLabelStorageClass: name,
 	}
-	StorageProfileStatusGaugeVec.DeletePartialMatch(labels)
+	metrics.DeleteStorageProfileStatus(labels)
 	return nil
 }
 
@@ -314,9 +295,9 @@ func (r *StorageProfileReconciler) computeMetrics(profile *cdiv1.StorageProfile,
 
 	// Setting the labeled Gauge to 1 will not delete older metric, so we need to explicitly delete them
 	scLabels := prometheus.Labels{counterLabelStorageClass: storageClass, counterLabelProvisioner: provisioner}
-	metricsDeleted := StorageProfileStatusGaugeVec.DeletePartialMatch(scLabels)
+	metricsDeleted := metrics.DeleteStorageProfileStatus(scLabels)
 	scLabels = createLabels(storageClass, provisioner, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone)
-	StorageProfileStatusGaugeVec.With(scLabels).Set(float64(1))
+	metrics.SetStorageProfileStatus(scLabels, 1)
 	r.log.Info(fmt.Sprintf("Set metric:%s complete:%t default:%t vdefault:%t rwx:%t smartclone:%t (deleted %d)",
 		storageClass, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone, metricsDeleted))
 

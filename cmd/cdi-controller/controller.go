@@ -13,7 +13,6 @@ import (
 	imagev1 "github.com/openshift/api/image/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap/zapcore"
 	batchv1 "k8s.io/api/batch/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -30,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
-	"sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -38,6 +36,7 @@ import (
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/pkg/controller/transfer"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
@@ -130,9 +129,11 @@ func init() {
 		klog.V(1).Infof("Note: increase the -v level in the controller deployment for more detailed logging, eg. -v=%d or -v=%d\n", 2, 3)
 	}
 
-	// Register metrics for our various controllers
-	metrics.Registry = prometheus.NewRegistry()
-	registerMetrics()
+	// Setup metrics for our various controllers
+	if err := metrics.SetupMetrics(); err != nil {
+		klog.Errorf("failed to setup metrics: %v", err)
+		os.Exit(1)
+	}
 
 	klog.V(3).Infof("init: complete: cdi controller will create importer using image %q\n", importerImage)
 }
@@ -364,12 +365,6 @@ func getTokenPrivateKey() *rsa.PrivateKey {
 	}
 
 	return key
-}
-
-func registerMetrics() {
-	metrics.Registry.MustRegister(controller.StorageProfileStatusGaugeVec)
-	metrics.Registry.MustRegister(controller.DataImportCronOutdatedGauge)
-	metrics.Registry.MustRegister(dvc.DataVolumePendingGauge)
 }
 
 // Restricts some types in the cache's ListWatch to specific fields/labels per GVK at the specified object,

@@ -38,7 +38,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	snapclientfake "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake"
 	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
@@ -239,8 +239,8 @@ var _ = Describe("Validating Webhook", func() {
 			resp := validateDataVolumeCreate(dv)
 			Expect(resp.Allowed).To(Equal(expected))
 		},
-			Entry("should accept DataVolume with Storage spec blank StorageClassName", pointer.String(""), true),
-			Entry("should reject DataVolume with Storage spec too long StorageClassName", pointer.String(longName), false),
+			Entry("should accept DataVolume with Storage spec blank StorageClassName", ptr.To[string](""), true),
+			Entry("should reject DataVolume with Storage spec too long StorageClassName", ptr.To[string](longName), false),
 			Entry("should accept DataVolume with Storage spec empty StorageClassName", nil, true),
 		)
 
@@ -250,8 +250,8 @@ var _ = Describe("Validating Webhook", func() {
 			resp := validateDataVolumeCreate(dv)
 			Expect(resp.Allowed).To(Equal(expected))
 		},
-			Entry("should accept DataVolume with PVC spec blank StorageClassName", pointer.String(""), true),
-			Entry("should reject DataVolume with PVC spec too long StorageClassName", pointer.String(longName), false),
+			Entry("should accept DataVolume with PVC spec blank StorageClassName", ptr.To[string](""), true),
+			Entry("should reject DataVolume with PVC spec too long StorageClassName", ptr.To[string](longName), false),
 			Entry("should accept DataVolume with PVC spec empty StorageClassName", nil, true),
 		)
 

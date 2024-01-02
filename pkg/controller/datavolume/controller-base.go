@@ -29,7 +29,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -51,7 +50,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -80,14 +79,6 @@ const (
 
 var (
 	httpClient *http.Client
-
-	// DataVolumePendingGauge is the metric we use to count the DataVolumes pending for default storage class to be configured
-	DataVolumePendingGauge = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: monitoring.MetricOptsList[monitoring.DataVolumePending].Name,
-			Help: monitoring.MetricOptsList[monitoring.DataVolumePending].Help,
-		},
-	)
 )
 
 // Event represents DV controller event
@@ -419,7 +410,7 @@ func updatePendingDataVolumesGauge(log logr.Logger, dv *cdiv1.DataVolume, c clie
 			dvCount++
 		}
 	}
-	DataVolumePendingGauge.Set(float64(dvCount))
+	metrics.SetDataVolumePending(dvCount)
 }
 
 type dvController interface {

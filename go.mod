@@ -20,6 +20,7 @@ require (
 	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1
 	github.com/kubernetes-csi/lib-volume-populator v1.2.1-0.20230316163120-b62a0eee2c56
 	github.com/kubevirt/monitoring/pkg/metrics/parser v0.0.0-20230627123556-81a891d4462a
+	github.com/machadovilaca/operator-observability v0.0.9
 	github.com/onsi/ginkgo/v2 v2.12.0
 	github.com/onsi/gomega v1.27.10
 	github.com/openshift/api v0.0.0-20230406152840-ce21e3fe5da2
@@ -31,7 +32,7 @@ require (
 	github.com/ovirt/go-ovirt-client v0.9.0
 	github.com/ovirt/go-ovirt-client-log-klog v1.0.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.67.1
+	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.68.0
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
 	github.com/rs/cors v1.7.0
@@ -42,9 +43,9 @@ require (
 	google.golang.org/api v0.132.0
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/square/go-jose.v2 v2.6.0
-	k8s.io/api v0.27.2
-	k8s.io/apiextensions-apiserver v0.27.2
-	k8s.io/apimachinery v0.27.2
+	k8s.io/api v0.28.1
+	k8s.io/apiextensions-apiserver v0.28.1
+	k8s.io/apimachinery v0.28.1
 	k8s.io/apiserver v0.26.10
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cluster-bootstrap v0.26.10
@@ -53,13 +54,13 @@ require (
 	k8s.io/klog/v2 v2.100.1
 	k8s.io/kube-aggregator v0.26.10
 	k8s.io/kube-openapi v0.0.0-20230525220651-2546d827e515
-	k8s.io/utils v0.0.0-20230711102312-30195339c3c7
+	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
 	kubevirt.io/containerized-data-importer-api v0.0.0
 	kubevirt.io/controller-lifecycle-operator-sdk v0.2.4
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90
 	kubevirt.io/qe-tools v0.1.8
 	libguestfs.org/libnbd v1.11.5
-	sigs.k8s.io/controller-runtime v0.15.0
+	sigs.k8s.io/controller-runtime v0.16.1
 )
 
 require (
