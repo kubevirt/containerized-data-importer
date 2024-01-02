@@ -431,7 +431,7 @@ var _ = Describe("all clone tests", func() {
 				completeClone(f, f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum, "")
 			})
 
-			It("[test_id:cnv-5569]Should clone data from filesystem to block", func() {
+			DescribeTable("Should clone data from filesystem to block", func(preallocate bool) {
 				if !f.IsBlockVolumeStorageClassAvailable() {
 					Skip("Storage Class for block volume is not available")
 				}
@@ -446,6 +446,9 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				targetDV := utils.NewDataVolumeCloneToBlockPV("target-dv", "1Gi", sourcePvc.Namespace, sourcePvc.Name, f.BlockSCName)
+				if preallocate {
+					targetDV.Spec.Preallocation = pointer.Bool(true)
+				}
 				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
 				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
@@ -475,9 +478,12 @@ var _ = Describe("all clone tests", func() {
 				By("Deleting verifier pod")
 				err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 				Expect(err).ToNot(HaveOccurred())
-			})
+			},
+				Entry("[test_id:5569]regular target", false),
+				Entry("[test_id:XXXX]preallocated target", true),
+			)
 
-			It("[test_id:cnv-5570]Should clone data from block to filesystem", func() {
+			It("[test_id:5570]Should clone data from block to filesystem", func() {
 				if !f.IsBlockVolumeStorageClassAvailable() {
 					Skip("Storage Class for block volume is not available")
 				}
