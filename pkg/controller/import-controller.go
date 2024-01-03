@@ -1150,6 +1150,9 @@ func setImporterPodCommons(pod *corev1.Pod, podEnvVar *importPodEnvVar, pvc *cor
 		for i := range pod.Spec.Containers {
 			pod.Spec.Containers[i].Resources = *podResourceRequirements
 		}
+		for i := range pod.Spec.InitContainers {
+			pod.Spec.InitContainers[i].Resources = *podResourceRequirements
+		}
 	}
 	pod.Spec.ImagePullSecrets = imagePullSecrets
 
