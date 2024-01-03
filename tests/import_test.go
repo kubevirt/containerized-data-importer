@@ -946,6 +946,10 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	})
 
 	It("[test_id:3996] Import datavolume with bad url will increase dv retry count", func() {
+		if f.IsPrometheusAvailable() {
+			dataVolumeNoUnusualRestartTest(f)
+		}
+
 		dvName := "import-dv-bad-url"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
 		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", invalidQcowImagesURL())

@@ -433,6 +433,19 @@ func GetVolumeMode(pvc *corev1.PersistentVolumeClaim) corev1.PersistentVolumeMod
 	return util.ResolveVolumeMode(pvc.Spec.VolumeMode)
 }
 
+// GetStorageClassFromDVSpec returns the StorageClassName from DataVolume PVC or Storage spec
+func GetStorageClassFromDVSpec(dv *cdiv1.DataVolume) *string {
+	if dv.Spec.PVC != nil {
+		return dv.Spec.PVC.StorageClassName
+	}
+
+	if dv.Spec.Storage != nil {
+		return dv.Spec.Storage.StorageClassName
+	}
+
+	return nil
+}
+
 // GetStorageClassByName looks up the storage class based on the name. If no storage class is found returns nil
 func GetStorageClassByName(ctx context.Context, client client.Client, name *string) (*storagev1.StorageClass, error) {
 	// look up storage class by name
