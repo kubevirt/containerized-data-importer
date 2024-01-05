@@ -477,7 +477,11 @@ func untarToBlockdev(stream io.Reader, dest string) error {
 		case header == nil:
 			continue
 		}
-		if header.Typeflag == tar.TypeGNUSparse && strings.Contains(header.Name, common.DiskImageName) {
+		if !strings.Contains(header.Name, common.DiskImageName) {
+			continue
+		}
+		switch header.Typeflag {
+		case tar.TypeReg, tar.TypeGNUSparse:
 			klog.Infof("Untaring %d bytes to %s", header.Size, dest)
 			f, err := os.OpenFile(dest, os.O_APPEND|os.O_WRONLY, os.ModeDevice|os.ModePerm)
 			if err != nil {
