@@ -452,9 +452,16 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 }
 
 func (r *ImportReconciler) cleanup(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, log logr.Logger) error {
-	if err := r.client.Delete(context.TODO(), pod); cc.IgnoreNotFound(err) != nil {
+	deleteOptions := &client.DeleteOptions{}
+	// Setting grace period to 0 if pod already has a deletion timestamp.
+	// This allows avoiding race conditions during pod termination.
+	if pod.DeletionTimestamp != nil {
+		deleteOptions.GracePeriodSeconds = ptr.To[int64](0)
+	}
+	if err := r.client.Delete(context.TODO(), pod, deleteOptions); cc.IgnoreNotFound(err) != nil {
 		return err
 	}
+
 	if cc.HasFinalizer(pvc, importPodImageStreamFinalizer) {
 		cc.RemoveFinalizer(pvc, importPodImageStreamFinalizer)
 		if err := r.updatePVC(pvc, log); err != nil {
