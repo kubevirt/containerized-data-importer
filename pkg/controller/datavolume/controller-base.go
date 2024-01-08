@@ -1195,6 +1195,14 @@ func (r *ReconcilerBase) shouldBeMarkedWaitForFirstConsumer(pvc *corev1.Persiste
 	return res, nil
 }
 
+func (r *ReconcilerBase) shouldReconcileVolumeSourceCR(syncState *dvSyncState) bool {
+	if syncState.pvc == nil {
+		return true
+	}
+	phase := syncState.pvc.Annotations[cc.AnnPodPhase]
+	return phase != string(corev1.PodSucceeded) || syncState.dvMutated.Status.Phase != cdiv1.Succeeded
+}
+
 // shouldBeMarkedPendingPopulation decides whether we should mark DV as PendingPopulation
 func (r *ReconcilerBase) shouldBeMarkedPendingPopulation(pvc *corev1.PersistentVolumeClaim) (bool, error) {
 	wffc, err := r.storageClassWaitForFirstConsumer(pvc.Spec.StorageClassName)
