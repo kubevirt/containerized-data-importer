@@ -215,6 +215,9 @@ func WaitForPersistentVolumeClaimPhase(clientSet *kubernetes.Clientset, namespac
 		pvc, err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{})
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Checking PVC phase: %s, resource version %s\n", string(pvc.Status.Phase), pvc.ResourceVersion)
 		if err != nil || pvc.Status.Phase != phase {
+			if err != nil {
+				fmt.Fprintf(ginkgo.GinkgoWriter, "ERROR: checking pvc %s phase failed: %s\n", pvcName, err)
+			}
 			return false, err
 		}
 		return true, nil

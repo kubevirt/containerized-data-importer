@@ -1981,6 +1981,40 @@ var _ = Describe("Import populator", func() {
 			return err != nil && k8serrors.IsNotFound(err)
 		}, timeout, pollingInterval).Should(BeTrue())
 	})
+
+	It("should recreate and reimport pvc if it was deleted", func() {
+		dataVolume := utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err = utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f, dv.Namespace, cdiv1.Succeeded, dv.Name)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+
+		By("Delete PVC and wait for it to be deleted")
+		err = f.DeletePVC(pvc)
+		Expect(err).ToNot(HaveOccurred())
+		deleted, err := f.WaitPVCDeletedByUID(pvc, time.Minute)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(deleted).To(BeTrue())
+
+		pvc, err = utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		By("Verify target PVC is bound again")
+		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify content")
+		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(utils.TinyCoreMD5))
+	})
 })
 
 func generateRegistryOnlySidecar() *unstructured.Unstructured {
