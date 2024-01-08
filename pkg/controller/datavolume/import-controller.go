@@ -200,7 +200,7 @@ func (r *ImportReconciler) syncImport(log logr.Logger, req reconcile.Request) (d
 
 	pvcModifier := r.updateAnnotations
 	if syncState.usePopulator {
-		if syncState.dvMutated.Status.Phase != cdiv1.Succeeded {
+		if r.shouldReconcileVolumeSourceCR(&syncState) {
 			err := r.reconcileVolumeImportSourceCR(&syncState)
 			if err != nil {
 				return syncState, err
@@ -221,7 +221,6 @@ func (r *ImportReconciler) syncImport(log logr.Logger, req reconcile.Request) (d
 }
 
 func (r *ImportReconciler) cleanup(syncState *dvSyncState) error {
-	dv := syncState.dvMutated
 	// The cleanup is to delete the volumeImportSourceCR which is used only with populators,
 	// it is owner by the DV so will be deleted when dv is deleted
 	// also we can already delete once dv is succeeded
@@ -229,7 +228,7 @@ func (r *ImportReconciler) cleanup(syncState *dvSyncState) error {
 	if err != nil {
 		return err
 	}
-	if usePopulator && dv.Status.Phase == cdiv1.Succeeded {
+	if usePopulator && !r.shouldReconcileVolumeSourceCR(syncState) {
 		return r.deleteVolumeImportSourceCR(syncState)
 	}
 
