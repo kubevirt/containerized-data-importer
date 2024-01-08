@@ -4,6 +4,15 @@ This directory provides a wrapper around gocli. It can be vendored into other
 git repos and integrated to provide in the kubevirt well-known cluster commands
 like `make cluster-up` and `make cluster-down`.
 
+In order to use `make cluster-up` with `podman` you need to enable podman sockets by running 
+```
+systemctl start podman.socket
+```
+as root. If you need this configuration to persist beyond a system reboot, also:
+```
+systemctl enable podman.socket
+```
+
 In order to properly use it, one has to vendor this folder from a git tag,
 which can be found on the github release page.
 
