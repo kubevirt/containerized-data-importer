@@ -138,6 +138,33 @@ var _ = Describe("all clone tests", func() {
 			Expect(uploader.DeletionTimestamp).To(BeNil())
 		})
 
+		It("should recreate and reclone target pvc if it was deleted", func() {
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
+			pvcDef.Namespace = f.Namespace.Name
+			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
+			dvName := "target-dv"
+			doFileBasedCloneTest(f, pvcDef, f.Namespace, dvName, "1Gi")
+
+			targetPVC, err := f.FindPVC(dvName)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Delete target PVC")
+			err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, dvName)
+			Expect(err).ToNot(HaveOccurred())
+
+			deleted, err := f.WaitPVCDeletedByUID(targetPVC, time.Minute)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(deleted).To(BeTrue())
+
+			targetPVC, err = utils.WaitForPVC(f.K8sClient, f.Namespace.Name, dvName)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(targetPVC)
+
+			By("Verify target PVC is bound again")
+			err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, dvName)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
 		Context("DataVolume Garbage Collection", func() {
 			var (
 				ns       string
