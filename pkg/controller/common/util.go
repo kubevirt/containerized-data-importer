@@ -241,6 +241,9 @@ const (
 	// be dynamically provisioned. Its value is the name of the selected node.
 	AnnSelectedNode = "volume.kubernetes.io/selected-node"
 
+	// AnnGarbageCollected is a PVC annotation indicating that the PVC was garbage collected
+	AnnGarbageCollected = AnnAPIGroup + "/garbageCollected"
+
 	// CloneUniqueID is used as a special label to be used when we search for the pod
 	CloneUniqueID = "cdi.kubevirt.io/storage.clone.cloneUniqeId"
 
