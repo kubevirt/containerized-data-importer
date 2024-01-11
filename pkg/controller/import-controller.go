@@ -371,16 +371,18 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	setAnnotationsFromPodWithPrefix(anno, pod, cc.AnnRunningCondition)
 
 	scratchExitCode := false
+	failedPod := false
 	if pod.Status.ContainerStatuses != nil &&
-		pod.Status.ContainerStatuses[0].LastTerminationState.Terminated != nil &&
-		pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode > 0 {
-		log.Info("Pod termination code", "pod.Name", pod.Name, "ExitCode", pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode)
-		if pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode == common.ScratchSpaceNeededExitCode {
+		pod.Status.ContainerStatuses[0].State.Terminated != nil &&
+		pod.Status.ContainerStatuses[0].State.Terminated.ExitCode > 0 {
+		log.Info("Pod termination code", "pod.Name", pod.Name, "ExitCode", pod.Status.ContainerStatuses[0].State.Terminated.ExitCode)
+		failedPod = true
+		if pod.Status.ContainerStatuses[0].State.Terminated.ExitCode == common.ScratchSpaceNeededExitCode {
 			log.V(1).Info("Pod requires scratch space, terminating pod, and restarting with scratch space", "pod.Name", pod.Name)
 			scratchExitCode = true
 			anno[cc.AnnRequiresScratch] = "true"
 		} else {
-			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message)
+			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].State.Terminated.Message)
 		}
 	}
 
@@ -423,12 +425,12 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		log.V(1).Info("Updated PVC", "pvc.anno.Phase", anno[cc.AnnPodPhase], "pvc.anno.Restarts", anno[cc.AnnPodRestarts])
 	}
 
-	if cc.IsPVCComplete(pvc) || scratchExitCode {
-		if !scratchExitCode {
+	if cc.IsPVCComplete(pvc) || failedPod {
+		if cc.IsPVCComplete(pvc) {
 			r.recorder.Event(pvc, corev1.EventTypeNormal, ImportSucceededPVC, "Import Successful")
 			log.V(1).Info("Import completed successfully")
 		}
-		if cc.ShouldDeletePod(pvc) {
+		if cc.ShouldDeletePod(pvc) || failedPod {
 			log.V(1).Info("Deleting pod", "pod.Name", pod.Name)
 			if err := r.cleanup(pvc, pod, log); err != nil {
 				return err
@@ -930,7 +932,7 @@ func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 					},
 				},
 			},
-			RestartPolicy:     corev1.RestartPolicyOnFailure,
+			RestartPolicy:     corev1.RestartPolicyNever,
 			Volumes:           volumes,
 			NodeSelector:      args.workloadNodePlacement.NodeSelector,
 			Tolerations:       args.workloadNodePlacement.Tolerations,
@@ -1049,7 +1051,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			Containers: []corev1.Container{
 				*importerContainer,
 			},
-			RestartPolicy:     corev1.RestartPolicyOnFailure,
+			RestartPolicy:     corev1.RestartPolicyNever,
 			Volumes:           volumes,
 			NodeSelector:      args.workloadNodePlacement.NodeSelector,
 			Tolerations:       args.workloadNodePlacement.Tolerations,

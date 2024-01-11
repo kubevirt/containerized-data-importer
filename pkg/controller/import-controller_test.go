@@ -540,17 +540,10 @@ var _ = Describe("Update PVC from POD", func() {
 			Phase: corev1.PodPending,
 			ContainerStatuses: []corev1.ContainerStatus{
 				{
-					LastTerminationState: corev1.ContainerState{
+					State: v1.ContainerState{
 						Terminated: &corev1.ContainerStateTerminated{
 							ExitCode: common.ScratchSpaceNeededExitCode,
 							Message:  "scratch space needed",
-						},
-					},
-					State: v1.ContainerState{
-						Terminated: &corev1.ContainerStateTerminated{
-							ExitCode: 1,
-							Message:  "I went poof",
-							Reason:   "Explosion",
 						},
 					},
 				},
@@ -571,9 +564,6 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()[cc.AnnBoundCondition]).To(Equal("false"))
 		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionMessage]).To(Equal("Creating scratch space"))
 		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionReason]).To(Equal(creatingScratch))
-		Expect(resPvc.GetAnnotations()[cc.AnnRunningCondition]).To(Equal("false"))
-		Expect(resPvc.GetAnnotations()[cc.AnnRunningConditionMessage]).To(Equal("I went poof"))
-		Expect(resPvc.GetAnnotations()[cc.AnnRunningConditionReason]).To(Equal("Explosion"))
 	})
 
 	It("Should mark PVC as waiting for VDDK configmap, if not already present", func() {
