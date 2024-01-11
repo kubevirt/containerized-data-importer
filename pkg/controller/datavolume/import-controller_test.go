@@ -1624,6 +1624,34 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.OwnerReferences).To(HaveLen(4))
 			Expect(pvc.OwnerReferences).To(Equal([]metav1.OwnerReference{ref("1"), ref("2"), ref("3"), vmOwnerRef}))
 		})
+
+		It("should update PVC when garbage collecting", func() {
+			dv := NewImportDataVolume("test-dv")
+			AddAnnotation(dv, AnnDeleteAfterCompletion, "true")
+			dv.Status.Phase = cdiv1.Succeeded
+			vmOwnerRef := metav1.OwnerReference{Kind: "VirtualMachine", Name: "test-vm", UID: "test-vm-uid", Controller: ptr.To(true)}
+			dv.OwnerReferences = append(dv.OwnerReferences, vmOwnerRef)
+
+			pvc := CreatePvc("test-dv", metav1.NamespaceDefault, nil, nil)
+			dvOwnerRef := metav1.OwnerReference{Kind: "DataVolume", Name: "test-dv", UID: dv.UID, Controller: ptr.To(true)}
+			pvc.OwnerReferences = append(pvc.OwnerReferences, dvOwnerRef)
+
+			cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
+			cdiConfig.Status = cdiv1.CDIConfigStatus{
+				ScratchSpaceStorageClass: testStorageClass,
+			}
+			cdiConfig.Spec.FeatureGates = []string{featuregates.HonorWaitForFirstConsumer}
+			cdiConfig.Spec.DataVolumeTTLSeconds = ptr.To(int32(0))
+
+			reconciler = createImportReconcilerWithoutConfig(dv, pvc, cdiConfig)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			pvc = &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.OwnerReferences).To(Equal([]metav1.OwnerReference{vmOwnerRef}))
+			Expect(pvc.Annotations[AnnGarbageCollected]).To(Equal("true"))
+		})
 	})
 
 	var _ = Describe("shouldUseCDIPopulator", func() {
