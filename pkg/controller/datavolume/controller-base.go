@@ -50,7 +50,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -295,8 +295,8 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 		}
 	}
 
-	// FIXME: Consider removing this Watch. Not sure it's needed anymore as PVCs are Pending in this case.
 	// Watch for SC updates and reconcile the DVs waiting for default SC
+	// Relevant only when the DV StorageSpec has no AccessModes set and no matching StorageClass yet, so PVC cannot be created (test_id:9922)
 	if err := dataVolumeController.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, handler.EnqueueRequestsFromMapFunc(
 		func(obj client.Object) (reqs []reconcile.Request) {
 			dvList := &cdiv1.DataVolumeList{}
@@ -316,6 +316,7 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 	}
 
 	// Watch for PV updates to reconcile the DVs waiting for available PV
+	// Relevant only when the DV StorageSpec has no AccessModes set and no matching StorageClass yet, so PVC cannot be created (test_id:9924,9925)
 	if err := dataVolumeController.Watch(&source.Kind{Type: &corev1.PersistentVolume{}}, handler.EnqueueRequestsFromMapFunc(
 		func(obj client.Object) (reqs []reconcile.Request) {
 			pv := obj.(*corev1.PersistentVolume)
