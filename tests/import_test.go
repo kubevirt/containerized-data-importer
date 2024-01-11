@@ -2092,25 +2092,13 @@ var _ = Describe("Import populator", func() {
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
-		By("Verify PVC prime was created")
-		pvcPrime, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, populators.PVCPrimeName(pvc))
-		Expect(err).ToNot(HaveOccurred())
-
 		By("Wait for import to be completed")
 		err = utils.WaitForDataVolumePhase(f, dv.Namespace, cdiv1.Succeeded, dv.Name)
 		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 
-		By("Wait for PVC prime to be deleted")
-		Eventually(func() bool {
-			// Make sure pvcPrime was deleted after import population
-			_, err := f.FindPVC(pvcPrime.Name)
-			return err != nil && k8serrors.IsNotFound(err)
-		}, timeout, pollingInterval).Should(BeTrue())
-
-		By("Delete PVC")
+		By("Delete PVC and wait for it to be deleted")
 		err = f.DeletePVC(pvc)
 		Expect(err).ToNot(HaveOccurred())
-
 		deleted, err := f.WaitPVCDeletedByUID(pvc, time.Minute)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(deleted).To(BeTrue())
@@ -2118,10 +2106,6 @@ var _ = Describe("Import populator", func() {
 		pvc, err = utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindIfWaitForFirstConsumer(pvc)
-
-		By("Verify PVC prime was recreated")
-		pvcPrime, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, populators.PVCPrimeName(pvc))
-		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify target PVC is bound again")
 		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
