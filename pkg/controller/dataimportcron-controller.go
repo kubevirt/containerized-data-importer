@@ -57,7 +57,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	cdv "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
@@ -1254,6 +1254,7 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	dv.Namespace = cron.Namespace
 	r.setDataImportCronResourceLabels(cron, dv)
 	cc.AddAnnotation(dv, cc.AnnImmediateBinding, "true")
+	cc.AddAnnotation(dv, AnnLastUseTime, time.Now().UTC().Format(time.RFC3339Nano))
 	passCronAnnotationToDv(cron, dv, cc.AnnPodRetainAfterCompletion)
 
 	for _, defaultInstanceTypeLabel := range cc.DefaultInstanceTypeLabels {
