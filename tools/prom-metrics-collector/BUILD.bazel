@@ -3,12 +3,12 @@ load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 go_library(
     name = "go_default_library",
     srcs = ["metrics_json_generator.go"],
-    importpath = "kubevirt.io/containerized-data-importer/pkg/monitoring/tools/prom-metrics-collector",
+    importpath = "kubevirt.io/containerized-data-importer/tools/prom-metrics-collector",
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/monitoring/metrics/cdi-controller:go_default_library",
         "//pkg/monitoring/metrics/operator-controller:go_default_library",
-        "//pkg/monitoring/rules/recordingrules:go_default_library",
+        "//pkg/monitoring/rules:go_default_library",
         "//vendor/github.com/kubevirt/monitoring/pkg/metrics/parser:go_default_library",
     ],
 )

@@ -40,6 +40,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/operator-controller"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	cdicerts "kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
@@ -125,6 +126,11 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 		Scheme: scheme,
 		Mapper: mgr.GetRESTMapper(),
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	err = rules.SetupRules(namespace)
 	if err != nil {
 		return nil, err
 	}
