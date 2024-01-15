@@ -47,20 +47,11 @@ nbdkit-curl-plugin
 nbdkit-xz-filter
 nbdkit-gzip-filter
 qemu-img
-python3-pycurl
-python3-six
 "
 
 cdi_importer_extra_x86_64="
 nbdkit-vddk-plugin
 sqlite-libs
-ovirt-imageio-client
-python3-ovirt-engine-sdk4
-"
-
-cdi_importer_extra_aarch64="
-ovirt-imageio-client
-python3-ovirt-engine-sdk4
 "
 
 cdi_uploadserver="
@@ -161,8 +152,7 @@ bazel run \
     ${bazeldnf_repos} \
     $centos_base \
     $centos_extra \
-    $cdi_importer \
-    $cdi_importer_extra_aarch64
+    $cdi_importer
 
 bazel run \
     --config=aarch64 \
