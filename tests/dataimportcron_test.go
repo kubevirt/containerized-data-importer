@@ -513,9 +513,11 @@ var _ = Describe("DataImportCron", func() {
 			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
-			pvcList, err := f.K8sClient.CoreV1().PersistentVolumeClaims(ns).List(context.TODO(), metav1.ListOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			Expect(pvcList.Items).To(HaveLen(garbageSources + 1))
+			Eventually(func() []corev1.PersistentVolumeClaim {
+				pvcList, err := f.K8sClient.CoreV1().PersistentVolumeClaims(ns).List(context.TODO(), metav1.ListOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				return pvcList.Items
+			}, dataImportCronTimeout, pollingInterval).Should(HaveLen(garbageSources + 1))
 		case cdiv1.DataImportCronSourceFormatSnapshot:
 			snapshots := &snapshotv1.VolumeSnapshotList{}
 			err := f.CrClient.List(context.TODO(), snapshots, &client.ListOptions{Namespace: ns})
