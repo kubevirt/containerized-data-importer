@@ -3,10 +3,16 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "go_default_library",
     srcs = [
+        "localobjectreference.go",
         "route.go",
+        "routehttpheader.go",
+        "routehttpheaderactions.go",
+        "routehttpheaderactionunion.go",
+        "routehttpheaders.go",
         "routeingress.go",
         "routeingresscondition.go",
         "routeport.go",
+        "routesethttpheader.go",
         "routespec.go",
         "routestatus.go",
         "routetargetreference.go",

@@ -4,10 +4,14 @@ go_library(
     name = "go_default_library",
     srcs = [
         "base.go",
+        "dynamic.go",
         "version.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/k8s.io/component-base/version",
     importpath = "k8s.io/component-base/version",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/k8s.io/apimachinery/pkg/version:go_default_library"],
+    deps = [
+        "//vendor/k8s.io/apimachinery/pkg/util/version:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/version:go_default_library",
+    ],
 )

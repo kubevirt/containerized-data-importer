@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "config.go",
+        "controller.go",
         "doc.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/sigs.k8s.io/controller-runtime/pkg/config",

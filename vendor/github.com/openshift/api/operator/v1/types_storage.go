@@ -39,7 +39,6 @@ const (
 )
 
 // StorageSpec is the specification of the desired behavior of the cluster storage operator.
-// +kubebuilder:validation:XValidation:rule="!has(oldSelf.vsphereStorageDriver) || has(self.vsphereStorageDriver)", message="VSphereStorageDriver is required once set"
 type StorageSpec struct {
 	OperatorSpec `json:",inline"`
 
@@ -47,8 +46,9 @@ type StorageSpec struct {
 	// Once this field is set to CSIWithMigrationDriver, it can not be changed.
 	// If this is empty, the platform will choose a good default,
 	// which may change over time without notice.
+	// The current default is CSIWithMigrationDriver and may not be changed.
 	// DEPRECATED: This field will be removed in a future release.
-	// +kubebuilder:validation:XValidation:rule="oldSelf != \"CSIWithMigrationDriver\" || self == \"CSIWithMigrationDriver\"",message="VSphereStorageDriver can not be changed once it is set to CSIWithMigrationDriver"
+	// +kubebuilder:validation:XValidation:rule="self != \"LegacyDeprecatedInTreeDriver\"",message="VSphereStorageDriver can not be set to LegacyDeprecatedInTreeDriver"
 	// +optional
 	VSphereStorageDriver StorageDriverType `json:"vsphereStorageDriver"`
 }

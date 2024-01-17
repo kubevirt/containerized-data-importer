@@ -18,6 +18,5 @@ go_library(
         "//vendor/go.uber.org/zap/zapcore:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/api/meta:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
-        "//vendor/k8s.io/apimachinery/pkg/types:go_default_library",
     ],
 )

@@ -4,10 +4,10 @@ go_library(
     name = "go_default_library",
     srcs = [
         "error.go",
-        "go113.go",
+        "error_post_go120.go",
+        "error_pre_go120.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/go.uber.org/multierr",
     importpath = "go.uber.org/multierr",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/go.uber.org/atomic:go_default_library"],
 )

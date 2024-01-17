@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "doc.go",
         "register.go",
+        "types_backup.go",
         "types_insights.go",
         "zz_generated.deepcopy.go",
         "zz_generated.swagger_doc_generated.go",

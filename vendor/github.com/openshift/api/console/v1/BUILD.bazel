@@ -12,6 +12,7 @@ go_library(
         "types_console_notification.go",
         "types_console_plugin.go",
         "types_console_quick_start.go",
+        "types_console_sample.go",
         "types_console_yaml_sample.go",
         "zz_generated.deepcopy.go",
         "zz_generated.swagger_doc_generated.go",
