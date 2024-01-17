@@ -958,6 +958,10 @@ var _ = Describe("Block PV upload Test", Serial, func() {
 	f := framework.NewFramework(namespacePrefix)
 
 	BeforeEach(func() {
+		if !f.IsBlockVolumeStorageClassAvailable() {
+			Skip("Storage Class for block volume is not available")
+		}
+
 		if pvc != nil {
 			Eventually(func() bool {
 				// Make sure the pvc doesn't still exist. The after each should have called delete.
@@ -995,10 +999,6 @@ var _ = Describe("Block PV upload Test", Serial, func() {
 	})
 
 	DescribeTable("should", func(validToken bool, expectedStatus int) {
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
-
 		By("Verify PVC annotation says ready")
 		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 		Expect(err).ToNot(HaveOccurred())

@@ -29,6 +29,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -195,8 +196,102 @@ var _ = Describe("Validating Webhook", func() {
 				},
 				Spec: *dataVolume.Spec.PVC,
 			}
+			pvc.Spec.VolumeName = "pv"
 			resp := validateDataVolumeCreate(dataVolume, pvc)
 			Expect(resp.Allowed).To(BeTrue())
+		})
+
+		It("should accept DataVolume with PVC adoption annotation", func() {
+			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Name,
+					Namespace: dataVolume.Namespace,
+					Annotations: map[string]string{
+						"cdi.kubevirt.io/allowClaimAdoption": "true",
+					},
+				},
+				Spec: *dataVolume.Spec.PVC,
+			}
+			pvc.Spec.VolumeName = "pv"
+			resp := validateDataVolumeCreate(dataVolume, pvc)
+			Expect(resp.Allowed).To(BeTrue())
+		})
+
+		It("should reject DataVolume with PVC adoption annotation false", func() {
+			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Name,
+					Namespace: dataVolume.Namespace,
+					Annotations: map[string]string{
+						"cdi.kubevirt.io/allowClaimAdoption": "false",
+					},
+				},
+				Spec: *dataVolume.Spec.PVC,
+			}
+			pvc.Spec.VolumeName = "pv"
+			resp := validateDataVolumeCreate(dataVolume, pvc)
+			Expect(resp.Allowed).To(BeFalse())
+		})
+
+		It("should accept DataVolume with unbound PVC and adoption annotation", func() {
+			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Name,
+					Namespace: dataVolume.Namespace,
+					Annotations: map[string]string{
+						"cdi.kubevirt.io/allowClaimAdoption": "true",
+					},
+				},
+				Spec: *dataVolume.Spec.PVC,
+			}
+			resp := validateDataVolumeCreate(dataVolume, pvc)
+			Expect(resp.Allowed).To(BeTrue())
+		})
+
+		It("should accept DataVolume with PVC and adoption featurgate set", func() {
+			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Name,
+					Namespace: dataVolume.Namespace,
+				},
+				Spec: *dataVolume.Spec.PVC,
+			}
+			pvc.Spec.VolumeName = "pv"
+			resp := validateDataVolumeCreateEx(dataVolume, []runtime.Object{pvc}, nil, nil, []string{"DataVolumeClaimAdoption"})
+			Expect(resp.Allowed).To(BeTrue())
+		})
+
+		It("should accept DataVolume with unbound PVC and adoption featurgate set", func() {
+			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Name,
+					Namespace: dataVolume.Namespace,
+				},
+				Spec: *dataVolume.Spec.PVC,
+			}
+			resp := validateDataVolumeCreateEx(dataVolume, []runtime.Object{pvc}, nil, nil, []string{"DataVolumeClaimAdoption"})
+			Expect(resp.Allowed).To(BeTrue())
+		})
+
+		It("should reject DataVolume with PVC adoption annotation false and featuregate set", func() {
+			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Name,
+					Namespace: dataVolume.Namespace,
+					Annotations: map[string]string{
+						"cdi.kubevirt.io/allowClaimAdoption": "false",
+					},
+				},
+				Spec: *dataVolume.Spec.PVC,
+			}
+			resp := validateDataVolumeCreateEx(dataVolume, []runtime.Object{pvc}, nil, nil, []string{"DataVolumeClaimAdoption"})
+			Expect(resp.Allowed).To(BeFalse())
 		})
 
 		It("should accept DataVolume with PVC source on create if PVC does not exist", func() {
@@ -512,7 +607,7 @@ var _ = Describe("Validating Webhook", func() {
 				Name:      dataSource.Name,
 			}
 			dv := newDataVolumeWithStorageSpec("testDV", nil, sourceRef, storage)
-			resp := validateDataVolumeCreateEx(dv, []runtime.Object{pvc}, []runtime.Object{dataSource}, nil)
+			resp := validateDataVolumeCreateEx(dv, []runtime.Object{pvc}, []runtime.Object{dataSource}, nil, nil)
 			Expect(resp.Allowed).To(BeTrue())
 		})
 
@@ -541,7 +636,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 			dv := newDataVolumeWithStorageSpec("testDV", snapSource, nil, storage)
-			resp := validateDataVolumeCreateEx(dv, nil, nil, []runtime.Object{snapshot})
+			resp := validateDataVolumeCreateEx(dv, nil, nil, []runtime.Object{snapshot}, nil)
 			Expect(resp.Allowed).To(BeFalse())
 		})
 
@@ -561,7 +656,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 			dv := newDataVolumeWithStorageSpec("testDV", snapSource, nil, storage)
-			resp := validateDataVolumeCreateEx(dv, nil, nil, []runtime.Object{snapshot})
+			resp := validateDataVolumeCreateEx(dv, nil, nil, []runtime.Object{snapshot}, nil)
 			Expect(resp.Allowed).To(BeFalse())
 		})
 
@@ -732,7 +827,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 				Spec: *newPVCSpec(pvcSizeDefault),
 			}
-			resp := validateDataVolumeCreateEx(dataVolume, []runtime.Object{pvc}, []runtime.Object{dataSource}, nil)
+			resp := validateDataVolumeCreateEx(dataVolume, []runtime.Object{pvc}, []runtime.Object{dataSource}, nil, nil)
 			Expect(resp.Allowed).To(BeTrue())
 		},
 			Entry("accept DataVolume with PVC and sourceRef on create", &testNamespace),
@@ -760,7 +855,7 @@ var _ = Describe("Validating Webhook", func() {
 					},
 				},
 			}
-			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource}, nil)
+			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource}, nil, nil)
 			Expect(resp.Allowed).To(BeFalse())
 		})
 
@@ -780,7 +875,7 @@ var _ = Describe("Validating Webhook", func() {
 					},
 				},
 			}
-			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource}, nil)
+			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource}, nil, nil)
 			Expect(resp.Allowed).To(BeTrue())
 		})
 
@@ -800,7 +895,7 @@ var _ = Describe("Validating Webhook", func() {
 					},
 				},
 			}
-			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource}, nil)
+			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource}, nil, nil)
 			Expect(resp.Allowed).To(BeTrue())
 		})
 
@@ -1108,14 +1203,25 @@ func newPVCSpec(sizeValue int64) *corev1.PersistentVolumeClaimSpec {
 }
 
 func validateDataVolumeCreate(dv *cdiv1.DataVolume, objects ...runtime.Object) *admissionv1.AdmissionResponse {
-	return validateDataVolumeCreateEx(dv, objects, nil, nil)
+	return validateDataVolumeCreateEx(dv, objects, nil, nil, nil)
 }
 
-func validateDataVolumeCreateEx(dv *cdiv1.DataVolume, k8sObjects, cdiObjects, snapObjects []runtime.Object) *admissionv1.AdmissionResponse {
+func validateDataVolumeCreateEx(dv *cdiv1.DataVolume, k8sObjects, cdiObjects, snapObjects []runtime.Object, featureGates []string) *admissionv1.AdmissionResponse {
 	client := fakeclient.NewSimpleClientset(k8sObjects...)
 	cdiClient := cdiclientfake.NewSimpleClientset(cdiObjects...)
 	snapClient := snapclientfake.NewSimpleClientset(snapObjects...)
-	wh := NewDataVolumeValidatingWebhook(client, cdiClient, snapClient)
+	s := runtime.NewScheme()
+	_ = cdiv1.AddToScheme(s)
+	config := &cdiv1.CDIConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "config",
+		},
+		Spec: cdiv1.CDIConfigSpec{
+			FeatureGates: featureGates,
+		},
+	}
+	crClient := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(config).Build()
+	wh := NewDataVolumeValidatingWebhook(client, cdiClient, snapClient, crClient)
 
 	dvBytes, _ := json.Marshal(dv)
 	ar := &admissionv1.AdmissionReview{
@@ -1139,7 +1245,7 @@ func validateAdmissionReview(ar *admissionv1.AdmissionReview, objects ...runtime
 	client := fakeclient.NewSimpleClientset(objects...)
 	cdiClient := cdiclientfake.NewSimpleClientset()
 	snapClient := snapclientfake.NewSimpleClientset()
-	wh := NewDataVolumeValidatingWebhook(client, cdiClient, snapClient)
+	wh := NewDataVolumeValidatingWebhook(client, cdiClient, snapClient, nil)
 	return serve(ar, wh)
 }
 

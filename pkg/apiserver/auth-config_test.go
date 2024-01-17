@@ -134,7 +134,7 @@ var _ = Describe("Auth config tests", func() {
 			common.AppKubernetesPartOfLabel:  "testing",
 			common.AppKubernetesVersionLabel: "v0.0.0-tests",
 		}
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, authorizer, authConfigWatcher, cdiConfigTLSWatcher, nil, installerLabels)
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, nil, authorizer, authConfigWatcher, cdiConfigTLSWatcher, nil, installerLabels)
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)
@@ -168,7 +168,7 @@ var _ = Describe("Auth config tests", func() {
 		acw, err := NewAuthConfigWatcher(ctx, client)
 		Expect(err).ToNot(HaveOccurred())
 
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, authorizer, acw, nil, nil, map[string]string{})
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, nil, authorizer, acw, nil, nil, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)
@@ -217,7 +217,7 @@ var _ = Describe("Auth config tests", func() {
 		ctw, err := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
 		Expect(err).ToNot(HaveOccurred())
 
-		_, err = NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, authorizer, acw, ctw, nil, map[string]string{})
+		_, err = NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, nil, authorizer, acw, ctw, nil, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		// 'Old' has TLS 1.0 as min version
@@ -256,7 +256,7 @@ var _ = Describe("Auth config tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		certWatcher := NewFakeCertWatcher()
 
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, authorizer, acw, ctw, certWatcher, map[string]string{})
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, nil, authorizer, acw, ctw, certWatcher, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)

@@ -323,6 +323,9 @@ const (
 	AnnEventSourceKind = "cdi.kubevirt.io/events.source.kind"
 	// AnnEventSource is the source that should be related to events (namespace/name)
 	AnnEventSource = "cdi.kubevirt.io/events.source"
+
+	// AnnAllowClaimAdoption is the annotation that allows a claim to be adopted by a DataVolume
+	AnnAllowClaimAdoption = "cdi.kubevirt.io/allowClaimAdoption"
 )
 
 // Size-detection pod error codes
@@ -1209,6 +1212,9 @@ func CreatePvcInStorageClass(name, ns string, storageClassName *string, annotati
 		},
 	}
 	pvc.Status.Capacity = pvc.Spec.Resources.Requests.DeepCopy()
+	if pvc.Status.Phase == corev1.ClaimBound {
+		pvc.Spec.VolumeName = "pv-" + string(pvc.UID)
+	}
 	return pvc
 }
 
@@ -2102,4 +2108,28 @@ func SetPvcAllowedAnnotations(obj metav1.Object, pvc *corev1.PersistentVolumeCla
 			AddAnnotation(obj, ann, val)
 		}
 	}
+}
+
+// ClaimMayExistBeforeDataVolume returns true if the PVC may exist before the DataVolume
+func ClaimMayExistBeforeDataVolume(c client.Client, pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (bool, error) {
+	if ClaimIsPopulatedForDataVolume(pvc, dv) {
+		return true, nil
+	}
+	return ClaimAllowsAdoption(c, pvc)
+}
+
+// ClaimIsPopulatedForDataVolume returns true if the PVC is populated for the given DataVolume
+func ClaimIsPopulatedForDataVolume(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
+	return pvc.Annotations[AnnPopulatedFor] == dv.Name
+}
+
+// ClaimAllowsAdoption returns true if the PVC may be adopted
+func ClaimAllowsAdoption(c client.Client, pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	anno, ok := pvc.Annotations[AnnAllowClaimAdoption]
+	// if annotation exists, go with that regardless of featuregate
+	if ok {
+		val, _ := strconv.ParseBool(anno)
+		return val, nil
+	}
+	return featuregates.NewFeatureGates(c).ClaimAdoptionEnabled()
 }
