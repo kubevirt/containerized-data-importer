@@ -29,11 +29,11 @@ import (
 
 func enqueueCDI(c client.Client) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(
-		func(_ client.Object) []reconcile.Request {
+		func(ctx context.Context, _ client.Object) []reconcile.Request {
 			var rrs []reconcile.Request
 			cdiList := &cdiv1.CDIList{}
 
-			if err := c.List(context.TODO(), cdiList, &client.ListOptions{}); err != nil {
+			if err := c.List(ctx, cdiList, &client.ListOptions{}); err != nil {
 				log.Error(err, "Error listing all CDI objects")
 				return nil
 			}

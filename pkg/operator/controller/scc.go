@@ -136,7 +136,7 @@ func (r *ReconcileCDI) watchSecurityContextConstraints() error {
 		Limit: 1,
 	})
 	if err == nil {
-		return r.controller.Watch(&source.Kind{Type: &secv1.SecurityContextConstraints{}}, enqueueCDI(r.client))
+		return r.controller.Watch(source.Kind(r.getCache(), &secv1.SecurityContextConstraints{}), enqueueCDI(r.client))
 	}
 	if meta.IsNoMatchError(err) {
 		log.Info("Not watching SecurityContextConstraints")

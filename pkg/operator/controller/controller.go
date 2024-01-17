@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -38,7 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/operator-controller"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/operator-controller"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	cdicerts "kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
@@ -134,6 +135,7 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 		client:              restClient,
 		uncachedClient:      uncachedClient,
 		scheme:              scheme,
+		getCache:            mgr.GetCache,
 		recorder:            recorder,
 		namespace:           namespace,
 		clusterArgs:         clusterArgs,
@@ -141,7 +143,7 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 		dumpInstallStrategy: dumpInstallStrategy,
 	}
 	callbackDispatcher := callbacks.NewCallbackDispatcher(log, restClient, uncachedClient, scheme, namespace)
-	r.reconciler = sdkr.NewReconciler(r, log, restClient, callbackDispatcher, scheme, createVersionLabel, updateVersionLabel, LastAppliedConfigAnnotation, certPollInterval, finalizerName, false, recorder)
+	r.reconciler = sdkr.NewReconciler(r, log, restClient, callbackDispatcher, scheme, mgr.GetCache, createVersionLabel, updateVersionLabel, LastAppliedConfigAnnotation, certPollInterval, finalizerName, false, recorder)
 
 	r.registerHooks()
 	addReconcileCallbacks(r)
@@ -160,6 +162,7 @@ type ReconcileCDI struct {
 	// use this for getting any resources not in the install namespace or cluster scope
 	uncachedClient client.Client
 	scheme         *runtime.Scheme
+	getCache       func() cache.Cache
 	recorder       record.EventRecorder
 	controller     controller.Controller
 

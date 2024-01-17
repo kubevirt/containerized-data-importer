@@ -272,13 +272,13 @@ func reconcileRemainingRelationshipLabels(args *callbacks.ReconcileCallbackArgs)
 // Delete after we no longer want to include CDI CRD v1alpha1 version in release YAMLs
 // Special code needed because we're not the owner of this object.
 func (r *ReconcileCDI) watchCDICRD() error {
-	if err := r.controller.Watch(&source.Kind{Type: &extv1.CustomResourceDefinition{}}, handler.EnqueueRequestsFromMapFunc(
-		func(obj client.Object) []reconcile.Request {
+	if err := r.controller.Watch(source.Kind(r.getCache(), &extv1.CustomResourceDefinition{}), handler.EnqueueRequestsFromMapFunc(
+		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			name := obj.GetName()
 			if name != "cdis.cdi.kubevirt.io" {
 				return nil
 			}
-			cr, err := cc.GetActiveCDI(context.TODO(), r.client)
+			cr, err := cc.GetActiveCDI(ctx, r.client)
 			if err != nil || cr == nil {
 				return nil
 			}

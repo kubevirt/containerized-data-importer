@@ -50,6 +50,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -1736,7 +1737,10 @@ func createReconciler(client client.Client) *ReconcileCDI {
 		certManager:    newFakeCertManager(client, namespace),
 	}
 	callbackDispatcher := callbacks.NewCallbackDispatcher(log, client, client, scheme.Scheme, namespace)
-	r.reconciler = sdkr.NewReconciler(r, log, client, callbackDispatcher, scheme.Scheme, createVersionLabel, updateVersionLabel, LastAppliedConfigAnnotation, certPollInterval, finalizerName, false, recorder).
+	getCache := func() cache.Cache {
+		return nil
+	}
+	r.reconciler = sdkr.NewReconciler(r, log, client, callbackDispatcher, scheme.Scheme, getCache, createVersionLabel, updateVersionLabel, LastAppliedConfigAnnotation, certPollInterval, finalizerName, false, recorder).
 		WithWatching(true)
 
 	r.registerHooks()
