@@ -154,13 +154,11 @@ func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pu
 
 func addImportControllerWatches(mgr manager.Manager, importController controller.Controller) error {
 	// Setup watches
-	if err := importController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err := importController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
-	if err := importController.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
-		OwnerType:    &corev1.PersistentVolumeClaim{},
-		IsController: true,
-	}); err != nil {
+	if err := importController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}), handler.EnqueueRequestForOwner(
+		mgr.GetScheme(), mgr.GetClient().RESTMapper(), &corev1.PersistentVolumeClaim{}, handler.OnlyControllerOwner())); err != nil {
 		return err
 	}
 

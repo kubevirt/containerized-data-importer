@@ -145,9 +145,9 @@ type CloneReconcilerBase struct {
 	tokenGenerator      token.Generator
 }
 
-func (r *CloneReconcilerBase) addVolumeCloneSourceWatch(datavolumeController controller.Controller) error {
-	return datavolumeController.Watch(&source.Kind{Type: &cdiv1.VolumeCloneSource{}}, handler.EnqueueRequestsFromMapFunc(
-		func(obj client.Object) []reconcile.Request {
+func (r *CloneReconcilerBase) addVolumeCloneSourceWatch(mgr manager.Manager, datavolumeController controller.Controller) error {
+	return datavolumeController.Watch(source.Kind(mgr.GetCache(), &cdiv1.VolumeCloneSource{}), handler.EnqueueRequestsFromMapFunc(
+		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			var err error
 			var hasDataVolumeOwner bool
 			var ownerNamespace, ownerName string
@@ -172,7 +172,7 @@ func (r *CloneReconcilerBase) addVolumeCloneSourceWatch(datavolumeController con
 					Name:      ownerName,
 				},
 			}
-			if err = r.client.Get(context.TODO(), client.ObjectKeyFromObject(dv), dv); err != nil {
+			if err = r.client.Get(ctx, client.ObjectKeyFromObject(dv), dv); err != nil {
 				r.log.Info("Failed to get DataVolume", "error", err)
 				return nil
 			}
@@ -537,7 +537,7 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 		dv := obj.(*cdiv1.DataVolume)
 		if source := dv.Spec.Source; source != nil {
 			_, sourceName, sourceNamespace := cc.GetCloneSourceInfo(dv)
-			if getDataVolumeOp(mgr.GetLogger(), dv, mgr.GetClient()) == op && sourceName != "" {
+			if getDataVolumeOp(context.TODO(), mgr.GetLogger(), dv, mgr.GetClient()) == op && sourceName != "" {
 				ns := cc.GetNamespace(sourceNamespace, obj.GetNamespace())
 				return []string{getKey(ns, sourceName)}
 			}
@@ -548,11 +548,11 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 	}
 
 	// Function to reconcile DVs that match the selected fields
-	dataVolumeMapper := func(obj client.Object) (reqs []reconcile.Request) {
+	dataVolumeMapper := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
 		dvList := &cdiv1.DataVolumeList{}
 		namespacedName := types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}
 		matchingFields := client.MatchingFields{indexingKey: namespacedName.String()}
-		if err := mgr.GetClient().List(context.TODO(), dvList, matchingFields); err != nil {
+		if err := mgr.GetClient().List(ctx, dvList, matchingFields); err != nil {
 			return
 		}
 		for _, dv := range dvList.Items {
@@ -561,7 +561,7 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 		return
 	}
 
-	if err := datavolumeController.Watch(&source.Kind{Type: typeToWatch},
+	if err := datavolumeController.Watch(source.Kind(mgr.GetCache(), typeToWatch),
 		handler.EnqueueRequestsFromMapFunc(dataVolumeMapper),
 		predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool { return true },

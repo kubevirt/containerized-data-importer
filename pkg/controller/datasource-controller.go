@@ -190,7 +190,7 @@ func NewDataSourceController(mgr manager.Manager, log logr.Logger, installerLabe
 }
 
 func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
-	if err := c.Watch(&source.Kind{Type: &cdiv1.DataSource{}}, &handler.EnqueueRequestForObject{},
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{}), &handler.EnqueueRequestForObject{},
 		predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool { return true },
 			DeleteFunc: func(e event.DeleteEvent) bool { return true },
@@ -207,10 +207,10 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 		return namespace + "/" + name
 	}
 
-	appendMatchingDataSourceRequests := func(indexingKey string, obj client.Object, reqs []reconcile.Request) []reconcile.Request {
+	appendMatchingDataSourceRequests := func(ctx context.Context, indexingKey string, obj client.Object, reqs []reconcile.Request) []reconcile.Request {
 		var dataSources cdiv1.DataSourceList
 		matchingFields := client.MatchingFields{indexingKey: getKey(obj.GetNamespace(), obj.GetName())}
-		if err := mgr.GetClient().List(context.TODO(), &dataSources, matchingFields); err != nil {
+		if err := mgr.GetClient().List(ctx, &dataSources, matchingFields); err != nil {
 			log.Error(err, "Unable to list DataSources", "matchingFields", matchingFields)
 			return reqs
 		}
@@ -239,13 +239,13 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 		return err
 	}
 
-	mapToDataSource := func(obj client.Object) (reqs []reconcile.Request) {
-		reqs = appendMatchingDataSourceRequests(dataSourcePvcField, obj, reqs)
-		reqs = appendMatchingDataSourceRequests(dataSourceSnapshotField, obj, reqs)
+	mapToDataSource := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+		reqs = appendMatchingDataSourceRequests(ctx, dataSourcePvcField, obj, reqs)
+		reqs = appendMatchingDataSourceRequests(ctx, dataSourceSnapshotField, obj, reqs)
 		return
 	}
 
-	if err := c.Watch(&source.Kind{Type: &cdiv1.DataVolume{}},
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{}),
 		handler.EnqueueRequestsFromMapFunc(mapToDataSource),
 		predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool { return true },
@@ -261,7 +261,7 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 		return err
 	}
 
-	if err := c.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}},
+	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}),
 		handler.EnqueueRequestsFromMapFunc(mapToDataSource),
 		predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool { return true },
@@ -285,7 +285,7 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 			return err
 		}
 	}
-	if err := c.Watch(&source.Kind{Type: &snapshotv1.VolumeSnapshot{}},
+	if err := c.Watch(source.Kind(mgr.GetCache(), &snapshotv1.VolumeSnapshot{}),
 		handler.EnqueueRequestsFromMapFunc(mapToDataSource),
 		predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool { return true },

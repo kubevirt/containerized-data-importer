@@ -227,44 +227,44 @@ func CreateCommonIndexes(mgr manager.Manager) error {
 }
 
 func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeController controller.Controller, op dataVolumeOp) error {
-	appendMatchingDataVolumeRequest := func(reqs []reconcile.Request, mgr manager.Manager, namespace, name string) []reconcile.Request {
+	appendMatchingDataVolumeRequest := func(ctx context.Context, reqs []reconcile.Request, mgr manager.Manager, namespace, name string) []reconcile.Request {
 		dvKey := types.NamespacedName{Namespace: namespace, Name: name}
 		dv := &cdiv1.DataVolume{}
-		if err := mgr.GetClient().Get(context.TODO(), dvKey, dv); err != nil {
+		if err := mgr.GetClient().Get(ctx, dvKey, dv); err != nil {
 			if !k8serrors.IsNotFound(err) {
 				mgr.GetLogger().Error(err, "Failed to get DV", "dvKey", dvKey)
 			}
 			return reqs
 		}
-		if getDataVolumeOp(mgr.GetLogger(), dv, mgr.GetClient()) == op {
+		if getDataVolumeOp(ctx, mgr.GetLogger(), dv, mgr.GetClient()) == op {
 			reqs = append(reqs, reconcile.Request{NamespacedName: dvKey})
 		}
 		return reqs
 	}
 
 	// Setup watches
-	if err := dataVolumeController.Watch(&source.Kind{Type: &cdiv1.DataVolume{}}, handler.EnqueueRequestsFromMapFunc(
-		func(obj client.Object) []reconcile.Request {
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{}), handler.EnqueueRequestsFromMapFunc(
+		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			dv := obj.(*cdiv1.DataVolume)
-			if getDataVolumeOp(mgr.GetLogger(), dv, mgr.GetClient()) != op {
+			if getDataVolumeOp(ctx, mgr.GetLogger(), dv, mgr.GetClient()) != op {
 				return nil
 			}
-			updatePendingDataVolumesGauge(mgr.GetLogger(), dv, mgr.GetClient())
+			updatePendingDataVolumesGauge(ctx, mgr.GetLogger(), dv, mgr.GetClient())
 			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}}}
 		}),
 	); err != nil {
 		return err
 	}
-	if err := dataVolumeController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, handler.EnqueueRequestsFromMapFunc(
-		func(obj client.Object) []reconcile.Request {
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}), handler.EnqueueRequestsFromMapFunc(
+		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			var result []reconcile.Request
 			owner := metav1.GetControllerOf(obj)
 			if owner != nil && owner.Kind == "DataVolume" {
-				result = appendMatchingDataVolumeRequest(result, mgr, obj.GetNamespace(), owner.Name)
+				result = appendMatchingDataVolumeRequest(ctx, result, mgr, obj.GetNamespace(), owner.Name)
 			}
 			populatedFor := obj.GetAnnotations()[cc.AnnPopulatedFor]
 			if populatedFor != "" {
-				result = appendMatchingDataVolumeRequest(result, mgr, obj.GetNamespace(), populatedFor)
+				result = appendMatchingDataVolumeRequest(ctx, result, mgr, obj.GetNamespace(), populatedFor)
 			}
 			// it is okay if result contains the same entry twice, will be deduplicated by caller
 			return result
@@ -272,20 +272,20 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 	); err != nil {
 		return err
 	}
-	if err := dataVolumeController.Watch(&source.Kind{Type: &corev1.Pod{}}, handler.EnqueueRequestsFromMapFunc(
-		func(obj client.Object) []reconcile.Request {
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}), handler.EnqueueRequestsFromMapFunc(
+		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			owner := metav1.GetControllerOf(obj)
 			if owner == nil || owner.Kind != "DataVolume" {
 				return nil
 			}
-			return appendMatchingDataVolumeRequest(nil, mgr, obj.GetNamespace(), owner.Name)
+			return appendMatchingDataVolumeRequest(ctx, nil, mgr, obj.GetNamespace(), owner.Name)
 		}),
 	); err != nil {
 		return err
 	}
 	for _, k := range []client.Object{&corev1.PersistentVolumeClaim{}, &corev1.Pod{}, &cdiv1.ObjectTransfer{}} {
-		if err := dataVolumeController.Watch(&source.Kind{Type: k}, handler.EnqueueRequestsFromMapFunc(
-			func(obj client.Object) []reconcile.Request {
+		if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), k), handler.EnqueueRequestsFromMapFunc(
+			func(ctx context.Context, obj client.Object) []reconcile.Request {
 				if !hasAnnOwnedByDataVolume(obj) {
 					return nil
 				}
@@ -293,7 +293,7 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 				if err != nil {
 					return nil
 				}
-				return appendMatchingDataVolumeRequest(nil, mgr, namespace, name)
+				return appendMatchingDataVolumeRequest(ctx, nil, mgr, namespace, name)
 			}),
 		); err != nil {
 			return err
@@ -302,14 +302,14 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 
 	// Watch for SC updates and reconcile the DVs waiting for default SC
 	// Relevant only when the DV StorageSpec has no AccessModes set and no matching StorageClass yet, so PVC cannot be created (test_id:9922)
-	if err := dataVolumeController.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, handler.EnqueueRequestsFromMapFunc(
-		func(obj client.Object) (reqs []reconcile.Request) {
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}), handler.EnqueueRequestsFromMapFunc(
+		func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
 			dvList := &cdiv1.DataVolumeList{}
-			if err := mgr.GetClient().List(context.TODO(), dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
+			if err := mgr.GetClient().List(ctx, dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
 				return
 			}
 			for _, dv := range dvList.Items {
-				if getDataVolumeOp(mgr.GetLogger(), &dv, mgr.GetClient()) == op {
+				if getDataVolumeOp(ctx, mgr.GetLogger(), &dv, mgr.GetClient()) == op {
 					reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
 				}
 			}
@@ -322,11 +322,11 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 
 	// Watch for PV updates to reconcile the DVs waiting for available PV
 	// Relevant only when the DV StorageSpec has no AccessModes set and no matching StorageClass yet, so PVC cannot be created (test_id:9924,9925)
-	if err := dataVolumeController.Watch(&source.Kind{Type: &corev1.PersistentVolume{}}, handler.EnqueueRequestsFromMapFunc(
-		func(obj client.Object) (reqs []reconcile.Request) {
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolume{}), handler.EnqueueRequestsFromMapFunc(
+		func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
 			pv := obj.(*corev1.PersistentVolume)
 			dvList := &cdiv1.DataVolumeList{}
-			if err := mgr.GetClient().List(context.TODO(), dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
+			if err := mgr.GetClient().List(ctx, dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
 				return
 			}
 			for _, dv := range dvList.Items {
@@ -335,7 +335,7 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 					storage.StorageClassName != nil &&
 					*storage.StorageClassName == pv.Spec.StorageClassName &&
 					pv.Status.Phase == corev1.VolumeAvailable &&
-					getDataVolumeOp(mgr.GetLogger(), &dv, mgr.GetClient()) == op {
+					getDataVolumeOp(ctx, mgr.GetLogger(), &dv, mgr.GetClient()) == op {
 					reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
 				}
 			}
@@ -349,11 +349,11 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 	return nil
 }
 
-func getDataVolumeOp(log logr.Logger, dv *cdiv1.DataVolume, client client.Client) dataVolumeOp {
+func getDataVolumeOp(ctx context.Context, log logr.Logger, dv *cdiv1.DataVolume, client client.Client) dataVolumeOp {
 	src := dv.Spec.Source
 
 	if dv.Spec.SourceRef != nil {
-		return getSourceRefOp(log, dv, client)
+		return getSourceRefOp(ctx, log, dv, client)
 	}
 	if src != nil && src.PVC != nil {
 		return dataVolumePvcClone
@@ -377,14 +377,14 @@ func getDataVolumeOp(log logr.Logger, dv *cdiv1.DataVolume, client client.Client
 	return dataVolumeNop
 }
 
-func getSourceRefOp(log logr.Logger, dv *cdiv1.DataVolume, client client.Client) dataVolumeOp {
+func getSourceRefOp(ctx context.Context, log logr.Logger, dv *cdiv1.DataVolume, client client.Client) dataVolumeOp {
 	dataSource := &cdiv1.DataSource{}
 	ns := dv.Namespace
 	if dv.Spec.SourceRef.Namespace != nil && *dv.Spec.SourceRef.Namespace != "" {
 		ns = *dv.Spec.SourceRef.Namespace
 	}
 	nn := types.NamespacedName{Namespace: ns, Name: dv.Spec.SourceRef.Name}
-	if err := client.Get(context.TODO(), nn, dataSource); err != nil {
+	if err := client.Get(ctx, nn, dataSource); err != nil {
 		log.Error(err, "Unable to get DataSource", "namespacedName", nn)
 		return dataVolumeNop
 	}
@@ -399,13 +399,13 @@ func getSourceRefOp(log logr.Logger, dv *cdiv1.DataVolume, client client.Client)
 	}
 }
 
-func updatePendingDataVolumesGauge(log logr.Logger, dv *cdiv1.DataVolume, c client.Client) {
+func updatePendingDataVolumesGauge(ctx context.Context, log logr.Logger, dv *cdiv1.DataVolume, c client.Client) {
 	if cc.GetStorageClassFromDVSpec(dv) != nil {
 		return
 	}
 
 	dvList := &cdiv1.DataVolumeList{}
-	if err := c.List(context.TODO(), dvList, client.MatchingFields{dvPhaseField: string(cdiv1.Pending)}); err != nil {
+	if err := c.List(ctx, dvList, client.MatchingFields{dvPhaseField: string(cdiv1.Pending)}); err != nil {
 		log.V(3).Error(err, "Failed listing the pending DataVolumes")
 		return
 	}

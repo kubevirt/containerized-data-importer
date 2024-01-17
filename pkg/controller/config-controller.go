@@ -499,13 +499,13 @@ func NewConfigController(mgr manager.Manager, log logr.Logger, uploadProxyServic
 // addConfigControllerWatches sets up the watches used by the config controller.
 func addConfigControllerWatches(mgr manager.Manager, configController controller.Controller, cdiNamespace, configName, uploadProxyServiceName string, log logr.Logger) error {
 	// Setup watches
-	if err := watchCDIConfig(configController, configName); err != nil {
+	if err := watchCDIConfig(mgr, configController, configName); err != nil {
 		return err
 	}
-	if err := watchStorageClass(configController, configName); err != nil {
+	if err := watchStorageClass(mgr, configController, configName); err != nil {
 		return err
 	}
-	if err := watchIngress(configController, cdiNamespace, configName, uploadProxyServiceName); err != nil {
+	if err := watchIngress(mgr, configController, cdiNamespace, configName, uploadProxyServiceName); err != nil {
 		return err
 	}
 	if err := watchRoutes(mgr, configController, cdiNamespace, configName, uploadProxyServiceName); err != nil {
@@ -518,12 +518,12 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 	return nil
 }
 
-func watchCDIConfig(configController controller.Controller, configName string) error {
-	if err := configController.Watch(&source.Kind{Type: &cdiv1.CDIConfig{}}, &handler.EnqueueRequestForObject{}); err != nil {
+func watchCDIConfig(mgr manager.Manager, configController controller.Controller, configName string) error {
+	if err := configController.Watch(source.Kind(mgr.GetCache(), &cdiv1.CDIConfig{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
-	return configController.Watch(&source.Kind{Type: &cdiv1.CDI{}}, handler.EnqueueRequestsFromMapFunc(
-		func(client.Object) []reconcile.Request {
+	return configController.Watch(source.Kind(mgr.GetCache(), &cdiv1.CDI{}), handler.EnqueueRequestsFromMapFunc(
+		func(_ context.Context, _ client.Object) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: configName},
 			}}
@@ -531,9 +531,9 @@ func watchCDIConfig(configController controller.Controller, configName string) e
 	))
 }
 
-func watchStorageClass(configController controller.Controller, configName string) error {
-	return configController.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, handler.EnqueueRequestsFromMapFunc(
-		func(client.Object) []reconcile.Request {
+func watchStorageClass(mgr manager.Manager, configController controller.Controller, configName string) error {
+	return configController.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}), handler.EnqueueRequestsFromMapFunc(
+		func(_ context.Context, _ client.Object) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: configName},
 			}}
@@ -541,9 +541,9 @@ func watchStorageClass(configController controller.Controller, configName string
 	))
 }
 
-func watchIngress(configController controller.Controller, cdiNamespace, configName, uploadProxyServiceName string) error {
-	err := configController.Watch(&source.Kind{Type: &networkingv1.Ingress{}}, handler.EnqueueRequestsFromMapFunc(
-		func(client.Object) []reconcile.Request {
+func watchIngress(mgr manager.Manager, configController controller.Controller, cdiNamespace, configName, uploadProxyServiceName string) error {
+	err := configController.Watch(source.Kind(mgr.GetCache(), &networkingv1.Ingress{}), handler.EnqueueRequestsFromMapFunc(
+		func(_ context.Context, _ client.Object) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: configName},
 			}}
@@ -570,8 +570,8 @@ func watchRoutes(mgr manager.Manager, configController controller.Controller, cd
 	err := mgr.GetClient().List(context.TODO(), &routev1.RouteList{}, &client.ListOptions{Namespace: cdiNamespace})
 	if !meta.IsNoMatchError(err) {
 		if err == nil || cc.IsErrCacheNotStarted(err) {
-			err := configController.Watch(&source.Kind{Type: &routev1.Route{}}, handler.EnqueueRequestsFromMapFunc(
-				func(client.Object) []reconcile.Request {
+			err := configController.Watch(source.Kind(mgr.GetCache(), &routev1.Route{}), handler.EnqueueRequestsFromMapFunc(
+				func(_ context.Context, _ client.Object) []reconcile.Request {
 					return []reconcile.Request{{
 						NamespacedName: types.NamespacedName{Name: configName},
 					}}
@@ -602,8 +602,8 @@ func watchClusterProxy(mgr manager.Manager, configController controller.Controll
 	err := mgr.GetClient().List(context.TODO(), &ocpconfigv1.ProxyList{})
 	if !meta.IsNoMatchError(err) {
 		if err == nil || cc.IsErrCacheNotStarted(err) {
-			return configController.Watch(&source.Kind{Type: &ocpconfigv1.Proxy{}}, handler.EnqueueRequestsFromMapFunc(
-				func(client.Object) []reconcile.Request {
+			return configController.Watch(source.Kind(mgr.GetCache(), &ocpconfigv1.Proxy{}), handler.EnqueueRequestsFromMapFunc(
+				func(_ context.Context, _ client.Object) []reconcile.Request {
 					return []reconcile.Request{{
 						NamespacedName: types.NamespacedName{Name: configName},
 					}}

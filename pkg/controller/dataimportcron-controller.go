@@ -960,25 +960,25 @@ func NewDataImportCronController(mgr manager.Manager, log logr.Logger, importerI
 }
 
 func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
-	if err := c.Watch(&source.Kind{Type: &cdiv1.DataImportCron{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataImportCron{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
 	getCronName := func(obj client.Object) string {
 		return obj.GetLabels()[common.DataImportCronLabel]
 	}
-	mapSourceObjectToCron := func(obj client.Object) []reconcile.Request {
+	mapSourceObjectToCron := func(_ context.Context, obj client.Object) []reconcile.Request {
 		if cronName := getCronName(obj); cronName != "" {
 			return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: cronName, Namespace: obj.GetNamespace()}}}
 		}
 		return nil
 	}
 
-	mapStorageProfileToCron := func(obj client.Object) (reqs []reconcile.Request) {
+	mapStorageProfileToCron := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
 		// TODO: Get rid of this after at least one version; use indexer on storage class annotation instead
 		// Otherwise we risk losing the storage profile event
 		var crons cdiv1.DataImportCronList
-		if err := mgr.GetClient().List(context.TODO(), &crons); err != nil {
+		if err := mgr.GetClient().List(ctx, &crons); err != nil {
 			c.GetLogger().Error(err, "Unable to list DataImportCrons")
 			return
 		}
@@ -987,7 +987,7 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		for _, cron := range crons.Items {
 			dataVolume := cron.Spec.Template
 			explicitScName := cc.GetStorageClassFromDVSpec(&dataVolume)
-			templateSc, err := cc.GetStorageClassByNameWithVirtFallback(context.TODO(), mgr.GetClient(), explicitScName, dataVolume.Spec.ContentType)
+			templateSc, err := cc.GetStorageClassByNameWithVirtFallback(ctx, mgr.GetClient(), explicitScName, dataVolume.Spec.ContentType)
 			if err != nil || templateSc == nil {
 				c.GetLogger().Error(err, "Unable to get storage class", "templateSc", templateSc)
 				return
@@ -999,7 +999,7 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return
 	}
 
-	if err := c.Watch(&source.Kind{Type: &cdiv1.DataVolume{}},
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{}),
 		handler.EnqueueRequestsFromMapFunc(mapSourceObjectToCron),
 		predicate.Funcs{
 			CreateFunc: func(event.CreateEvent) bool { return false },
@@ -1010,7 +1010,7 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 
-	if err := c.Watch(&source.Kind{Type: &cdiv1.DataSource{}},
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{}),
 		handler.EnqueueRequestsFromMapFunc(mapSourceObjectToCron),
 		predicate.Funcs{
 			CreateFunc: func(event.CreateEvent) bool { return false },
@@ -1021,7 +1021,7 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 
-	if err := c.Watch(&source.Kind{Type: &cdiv1.StorageProfile{}},
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.StorageProfile{}),
 		handler.EnqueueRequestsFromMapFunc(mapStorageProfileToCron),
 		predicate.Funcs{
 			CreateFunc: func(event.CreateEvent) bool { return true },
