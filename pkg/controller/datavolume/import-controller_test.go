@@ -159,6 +159,14 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dv.GetAnnotations()[AnnUsePopulator]).To(Equal("true"))
 
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc.Annotations[AnnPodPhase] = string(corev1.PodSucceeded)
+			err = reconciler.client.Update(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+
 			dv.Status.Phase = cdiv1.Succeeded
 			err = reconciler.client.Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
