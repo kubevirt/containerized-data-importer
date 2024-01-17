@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	controllerResourceName = "cdi-deployment"
+	controllerResourceName = common.CDIControllerResourceName
 )
 
 func createControllerResources(args *FactoryArgs) []client.Object {
@@ -175,14 +175,14 @@ func createControllerServiceAccount() *corev1.ServiceAccount {
 
 func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement, replicas int32) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
-	deployment := utils.CreateDeployment(controllerResourceName, "app", "containerized-data-importer", common.ControllerServiceAccountName, imagePullSecrets, int32(1), infraNodePlacement)
+	deployment := utils.CreateDeployment(controllerResourceName, cdiLabel, common.CDIControllerName, common.ControllerServiceAccountName, imagePullSecrets, int32(1), infraNodePlacement)
 	if priorityClassName != "" {
 		deployment.Spec.Template.Spec.PriorityClassName = priorityClassName
 	}
 	if replicas > 1 {
 		deployment.Spec.Replicas = &replicas
 	}
-	container := utils.CreateContainer("cdi-controller", controllerImage, verbosity, pullPolicy)
+	container := utils.CreateContainer(common.CDIControllerName, controllerImage, verbosity, pullPolicy)
 	container.Ports = []corev1.ContainerPort{
 		{
 			Name:          "metrics",

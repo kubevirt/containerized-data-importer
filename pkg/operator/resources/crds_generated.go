@@ -338,6 +338,47 @@ spec:
                     description: Override the URL used when uploading to a DataVolume
                     type: string
                 type: object
+              customizeComponents:
+                properties:
+                  flags:
+                    description: Configure the value used for deployment and daemonset
+                      resources
+                    properties:
+                      api:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      controller:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      uploadProxy:
+                        additionalProperties:
+                          type: string
+                        type: object
+                    type: object
+                  patches:
+                    items:
+                      properties:
+                        patch:
+                          type: string
+                        resourceName:
+                          minLength: 1
+                          type: string
+                        resourceType:
+                          minLength: 1
+                          type: string
+                        type:
+                          type: string
+                      required:
+                      - patch
+                      - resourceName
+                      - resourceType
+                      - type
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
+                type: object
               imagePullPolicy:
                 description: PullPolicy describes a policy for if/when to pull a container
                   image
@@ -2591,6 +2632,47 @@ spec:
                   uploadProxyURLOverride:
                     description: Override the URL used when uploading to a DataVolume
                     type: string
+                type: object
+              customizeComponents:
+                properties:
+                  flags:
+                    description: Configure the value used for deployment and daemonset
+                      resources
+                    properties:
+                      api:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      controller:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      uploadProxy:
+                        additionalProperties:
+                          type: string
+                        type: object
+                    type: object
+                  patches:
+                    items:
+                      properties:
+                        patch:
+                          type: string
+                        resourceName:
+                          minLength: 1
+                          type: string
+                        resourceType:
+                          minLength: 1
+                          type: string
+                        type:
+                          type: string
+                      required:
+                      - patch
+                      - resourceName
+                      - resourceType
+                      - type
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
                 type: object
               imagePullPolicy:
                 description: PullPolicy describes a policy for if/when to pull a container

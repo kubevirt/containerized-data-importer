@@ -19,6 +19,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 
 	"github.com/go-logr/logr"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -34,7 +35,7 @@ import (
 )
 
 const (
-	apiServerResourceName = "cdi-apiserver"
+	apiServerResourceName = common.CDIApiServerResourceName
 	apiServerServiceName  = "cdi-api"
 )
 

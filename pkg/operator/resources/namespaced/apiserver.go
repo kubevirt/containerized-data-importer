@@ -34,11 +34,8 @@ import (
 )
 
 const (
-	apiServerRessouceName = "cdi-apiserver"
-)
-
-const (
-	cdiLabel = common.CDIComponentLabel
+	cdiLabel              = common.CDIComponentLabel
+	apiServerRessouceName = common.CDIApiServerResourceName
 )
 
 func createAPIServerResources(args *FactoryArgs) []client.Object {

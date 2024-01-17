@@ -565,6 +565,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ClaimPropertySet":         schema_pkg_apis_core_v1beta1_ClaimPropertySet(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ComponentConfig":          schema_pkg_apis_core_v1beta1_ComponentConfig(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ConditionState":           schema_pkg_apis_core_v1beta1_ConditionState(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CustomizeComponents":      schema_pkg_apis_core_v1beta1_CustomizeComponents(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CustomizeComponentsPatch": schema_pkg_apis_core_v1beta1_CustomizeComponentsPatch(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCron":           schema_pkg_apis_core_v1beta1_DataImportCron(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronCondition":  schema_pkg_apis_core_v1beta1_DataImportCronCondition(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataImportCronList":       schema_pkg_apis_core_v1beta1_DataImportCronList(ref),
@@ -595,6 +597,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeSpec":           schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.DataVolumeStatus":         schema_pkg_apis_core_v1beta1_DataVolumeStatus(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.FilesystemOverhead":       schema_pkg_apis_core_v1beta1_FilesystemOverhead(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.Flags":                    schema_pkg_apis_core_v1beta1_Flags(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportProxy":              schema_pkg_apis_core_v1beta1_ImportProxy(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportSourceType":         schema_pkg_apis_core_v1beta1_ImportSourceType(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportStatus":             schema_pkg_apis_core_v1beta1_ImportStatus(ref),
@@ -27014,6 +27017,12 @@ func schema_pkg_apis_core_v1beta1_CDISpec(ref common.ReferenceCallback) common.O
 							Ref:         ref("kubevirt.io/controller-lifecycle-operator-sdk/api.NodePlacement"),
 						},
 					},
+					"customizeComponents": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CustomizeComponents"),
+						},
+					},
 					"cloneStrategyOverride": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Clone strategy override: should we use a host-assisted copy even if snapshots are available?",
@@ -27044,7 +27053,7 @@ func schema_pkg_apis_core_v1beta1_CDISpec(ref common.ReferenceCallback) common.O
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDICertConfig", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfigSpec", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ComponentConfig", "kubevirt.io/controller-lifecycle-operator-sdk/api.NodePlacement"},
+			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDICertConfig", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CDIConfigSpec", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ComponentConfig", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CustomizeComponents", "kubevirt.io/controller-lifecycle-operator-sdk/api.NodePlacement"},
 	}
 }
 
@@ -27283,6 +27292,85 @@ func schema_pkg_apis_core_v1beta1_ConditionState(ref common.ReferenceCallback) c
 		},
 		Dependencies: []string{
 			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_CustomizeComponents(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"patches": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CustomizeComponentsPatch"),
+									},
+								},
+							},
+						},
+					},
+					"flags": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Configure the value used for deployment and daemonset resources",
+							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.Flags"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CustomizeComponentsPatch", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.Flags"},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_CustomizeComponentsPatch(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"resourceName": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"resourceType": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"patch": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+				},
+				Required: []string{"resourceName", "resourceType", "patch", "type"},
+			},
+		},
 	}
 }
 
@@ -28598,6 +28686,64 @@ func schema_pkg_apis_core_v1beta1_FilesystemOverhead(ref common.ReferenceCallbac
 						SchemaProps: spec.SchemaProps{
 							Description: "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
 							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_Flags(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "Flags will create a patch that will replace all flags for the container's command field. The only flags that will be used are those define. There are no guarantees around forward/backward compatibility.  If set incorrectly this will cause the resource when rolled out to error until flags are updated.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"api": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"controller": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"uploadProxy": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
 							AdditionalProperties: &spec.SchemaOrBool{
 								Allows: true,
 								Schema: &spec.Schema{

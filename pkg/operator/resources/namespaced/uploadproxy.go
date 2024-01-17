@@ -22,6 +22,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
@@ -30,7 +31,7 @@ import (
 )
 
 const (
-	uploadProxyResourceName = "cdi-uploadproxy"
+	uploadProxyResourceName = common.CDIUploadProxyResourceName
 )
 
 func createUploadProxyResources(args *FactoryArgs) []client.Object {

@@ -827,7 +827,8 @@ type CDISpec struct {
 	// Selectors and tolerations that should apply to cdi infrastructure components
 	Infra ComponentConfig `json:"infra,omitempty"`
 	// Restrict on which nodes CDI workload pods will be scheduled
-	Workloads sdkapi.NodePlacement `json:"workload,omitempty"`
+	Workloads           sdkapi.NodePlacement `json:"workload,omitempty"`
+	CustomizeComponents CustomizeComponents  `json:"customizeComponents,omitempty"`
 	// Clone strategy override: should we use a host-assisted copy even if snapshots are available?
 	// +kubebuilder:validation:Enum="copy";"snapshot";"csi-clone"
 	CloneStrategyOverride *CDICloneStrategy `json:"cloneStrategyOverride,omitempty"`
@@ -866,6 +867,41 @@ const (
 
 	// CloneStrategyCsiClone specifies csi volume clone based cloning
 	CloneStrategyCsiClone CDICloneStrategy = "csi-clone"
+)
+
+type CustomizeComponents struct {
+	// +listType=atomic
+	Patches []CustomizeComponentsPatch `json:"patches,omitempty"`
+
+	// Configure the value used for deployment and daemonset resources
+	Flags *Flags `json:"flags,omitempty"`
+}
+
+// Flags will create a patch that will replace all flags for the container's
+// command field. The only flags that will be used are those define. There are no
+// guarantees around forward/backward compatibility.  If set incorrectly this will
+// cause the resource when rolled out to error until flags are updated.
+type Flags struct {
+	API         map[string]string `json:"api,omitempty"`
+	Controller  map[string]string `json:"controller,omitempty"`
+	UploadProxy map[string]string `json:"uploadProxy,omitempty"`
+}
+
+type CustomizeComponentsPatch struct {
+	// +kubebuilder:validation:MinLength=1
+	ResourceName string `json:"resourceName"`
+	// +kubebuilder:validation:MinLength=1
+	ResourceType string    `json:"resourceType"`
+	Patch        string    `json:"patch"`
+	Type         PatchType `json:"type"`
+}
+
+type PatchType string
+
+const (
+	JSONPatchType           PatchType = "json"
+	MergePatchType          PatchType = "merge"
+	StrategicMergePatchType PatchType = "strategic"
 )
 
 // DataImportCronSourceFormat defines the format of the DataImportCron-created disk image sources
