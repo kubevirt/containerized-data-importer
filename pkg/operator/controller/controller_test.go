@@ -24,7 +24,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
 
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
 
@@ -692,8 +691,7 @@ var _ = Describe("Controller", func() {
 				err := args.client.Create(context.TODO(), pod)
 				Expect(err).ToNot(HaveOccurred())
 
-				args.cdi.DeletionTimestamp = &metav1.Time{Time: time.Now()}
-				err = args.client.Update(context.TODO(), args.cdi)
+				err = args.client.Delete(context.TODO(), args.cdi)
 				Expect(err).ToNot(HaveOccurred())
 
 				doReconcileExpectDelete(args)
@@ -853,10 +851,10 @@ var _ = Describe("Controller", func() {
 
 					//Modify CRD to be of previousVersion
 					Expect(crSetVersion(args.reconciler.reconciler, args.cdi, prevVersion)).To(Succeed())
-					//marc CDI CR for deltetion
-					args.cdi.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
+					//mark CDI CR for deletion
 					args.cdi.Finalizers = append(args.cdi.Finalizers, "keepmearound")
 					Expect(args.client.Update(context.TODO(), args.cdi)).To(Succeed())
+					Expect(args.client.Delete(context.TODO(), args.cdi)).To(Succeed())
 
 					doReconcile(args)
 
@@ -886,9 +884,8 @@ var _ = Describe("Controller", func() {
 					//begin upgrade
 					doReconcile(args)
 
-					//mark CDI CR for deltetion
-					args.cdi.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
-					Expect(args.client.Update(context.TODO(), args.cdi)).To(Succeed())
+					//mark CDI CR for deletion
+					Expect(args.client.Delete(context.TODO(), args.cdi)).To(Succeed())
 
 					doReconcileExpectDelete(args)
 
