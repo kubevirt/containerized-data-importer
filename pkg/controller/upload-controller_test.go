@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"strings"
-	"time"
 
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
@@ -180,15 +179,16 @@ var _ = Describe("Upload controller reconcile loop", func() {
 
 	It("Should return nil and remove any service and pod if pvc marked for deletion", func() {
 		testPvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnUploadRequest: "", cc.AnnPodPhase: string(corev1.PodPending)}, nil)
-		now := metav1.NewTime(time.Now())
-		testPvc.DeletionTimestamp = &now
+		testPvc.Finalizers = append(testPvc.Finalizers, "keepmearound")
 		reconciler := createUploadReconciler(testPvc,
 			createUploadPod(testPvc),
 			createUploadService(testPvc),
 		)
+		err := reconciler.client.Delete(context.TODO(), testPvc)
+		Expect(err).ToNot(HaveOccurred())
 		By("Verifying the pod and service exists")
 		uploadPod := &corev1.Pod{}
-		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uploadPod.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 
