@@ -561,13 +561,17 @@ func GetPlatformDefaultStorageClass(storageClasses *storagev1.StorageClassList, 
 
 // GetFilesystemOverheadForStorageClass determines the filesystem overhead defined in CDIConfig for the storageClass.
 func GetFilesystemOverheadForStorageClass(ctx context.Context, client client.Client, storageClassName *string) (cdiv1.Percent, error) {
+	if storageClassName != nil && *storageClassName == "" {
+		klog.V(3).Info("No storage class name passed")
+		return "0", nil
+	}
+
 	cdiConfig := &cdiv1.CDIConfig{}
 	if err := client.Get(ctx, types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
 		if k8serrors.IsNotFound(err) {
 			klog.V(1).Info("CDIConfig does not exist, pod will not start until it does")
 			return "0", nil
 		}
-
 		return "0", err
 	}
 

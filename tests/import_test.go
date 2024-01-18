@@ -1619,10 +1619,20 @@ var _ = Describe("Import populator", func() {
 		By("Delete import population PVC")
 		err = f.DeletePVC(pvc)
 		Expect(err).ToNot(HaveOccurred())
+
+		tests.DisableWebhookPvcRendering(f.CrClient)
 	})
 
-	DescribeTable("should import fileSystem PVC", func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error, preallocation bool) {
+	DescribeTable("should import fileSystem PVC", func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error, preallocation, webhookRendering bool) {
 		pvc = importPopulationPVCDefinition()
+
+		if webhookRendering {
+			tests.EnableWebhookPvcRendering(f.CrClient)
+			controller.AddLabel(pvc, common.PvcUseStorageProfileLabel, "true")
+			// Unset AccessModes which will be set by the webhook rendering
+			pvc.Spec.AccessModes = nil
+		}
+
 		pvc = f.CreateScheduledPVCFromDefinition(pvc)
 		err = volumeImportSourceFunc(cdiv1.DataVolumeKubeVirt, preallocation)
 		Expect(err).ToNot(HaveOccurred())
@@ -1672,16 +1682,17 @@ var _ = Describe("Import populator", func() {
 			return err != nil && k8serrors.IsNotFound(err)
 		}, timeout, pollingInterval).Should(BeTrue())
 	},
-		Entry("with HTTP image and preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, true),
-		Entry("with HTTP image without preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, false),
-		Entry("with Registry image and preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, true),
-		Entry("with Registry image without preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, false),
-		Entry("with ImageIO image with preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, true),
-		Entry("with ImageIO image without preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, false),
-		Entry("with VDDK image with preallocation", utils.VcenterMD5, createVDDKImportPopulatorCR, true),
-		Entry("with VDDK image without preallocation", utils.VcenterMD5, createVDDKImportPopulatorCR, false),
-		Entry("with Blank image with preallocation", utils.BlankMD5, createBlankImportPopulatorCR, true),
-		Entry("with Blank image without preallocation", utils.BlankMD5, createBlankImportPopulatorCR, false),
+		Entry("with HTTP image and preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, false),
+		Entry("with HTTP image without preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, false, false),
+		Entry("with HTTP image and preallocation, with incomplete PVC webhook rendering", Serial, utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, true),
+		Entry("with Registry image and preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, true, false),
+		Entry("with Registry image without preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, false, false),
+		Entry("with ImageIO image with preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, true, false),
+		Entry("with ImageIO image without preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, false, false),
+		Entry("with VDDK image with preallocation", utils.VcenterMD5, createVDDKImportPopulatorCR, true, false),
+		Entry("with VDDK image without preallocation", utils.VcenterMD5, createVDDKImportPopulatorCR, false, false),
+		Entry("with Blank image with preallocation", utils.BlankMD5, createBlankImportPopulatorCR, true, false),
+		Entry("with Blank image without preallocation", utils.BlankMD5, createBlankImportPopulatorCR, false, false),
 	)
 
 	DescribeTable("should import Block PVC", func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error) {

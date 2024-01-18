@@ -30,6 +30,7 @@ import (
 
 	"github.com/appscode/jsonpatch"
 	admissionv1 "k8s.io/api/admission/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
@@ -66,6 +67,11 @@ func NewDataVolumeValidatingWebhook(k8sClient kubernetes.Interface, cdiClient cd
 func NewDataVolumeMutatingWebhook(k8sClient kubernetes.Interface, cdiClient cdiclient.Interface, key *rsa.PrivateKey) http.Handler {
 	generator := newCloneTokenGenerator(key)
 	return newAdmissionHandler(&dataVolumeMutatingWebhook{k8sClient: k8sClient, cdiClient: cdiClient, tokenGenerator: generator})
+}
+
+// NewPvcMutatingWebhook creates a new PvcMutation webhook
+func NewPvcMutatingWebhook(cachedClient client.Client, k8sClient kubernetes.Interface, cdiClient cdiclient.Interface) http.Handler {
+	return newAdmissionHandler(&pvcMutatingWebhook{cachedClient: cachedClient, k8sClient: k8sClient, cdiClient: cdiClient})
 }
 
 // NewCDIValidatingWebhook creates a new CDI validating webhook
@@ -191,21 +197,31 @@ func allowedAdmissionResponse() *admissionv1.AdmissionResponse {
 }
 
 func validateDataVolumeResource(ar admissionv1.AdmissionReview) error {
-	resources := []metav1.GroupVersionResource{
-		{
-			Group:    cdiv1.SchemeGroupVersion.Group,
-			Version:  cdiv1.SchemeGroupVersion.Version,
-			Resource: "datavolumes",
-		},
+	dvResource := metav1.GroupVersionResource{
+		Group:    cdiv1.SchemeGroupVersion.Group,
+		Version:  cdiv1.SchemeGroupVersion.Version,
+		Resource: "datavolumes",
 	}
-	for _, resource := range resources {
-		if ar.Request.Resource == resource {
-			return nil
-		}
+	if ar.Request.Resource == dvResource {
+		return nil
 	}
 
-	klog.Errorf("resource is %s but request is: %s", resources[0], ar.Request.Resource)
-	return fmt.Errorf("expect resource to be '%s'", resources[0].Resource)
+	klog.Errorf("resource is %s but request is: %s", dvResource, ar.Request.Resource)
+	return fmt.Errorf("expect resource to be '%s'", dvResource.Resource)
+}
+
+func validatePvcResource(ar admissionv1.AdmissionReview) error {
+	pvcResource := metav1.GroupVersionResource{
+		Group:    corev1.SchemeGroupVersion.Group,
+		Version:  corev1.SchemeGroupVersion.Version,
+		Resource: "persistentvolumeclaims",
+	}
+	if ar.Request.Resource == pvcResource {
+		return nil
+	}
+
+	klog.Errorf("resource is %s but request is: %s", pvcResource, ar.Request.Resource)
+	return fmt.Errorf("expect resource to be '%s'", pvcResource.Resource)
 }
 
 func toPatchResponse(original, current interface{}) *admissionv1.AdmissionResponse {

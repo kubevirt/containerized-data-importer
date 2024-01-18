@@ -23,78 +23,74 @@ import (
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 )
 
-var _ = Describe("resolveVolumeSize", func() {
+var _ = Describe("renderPvcSpecVolumeSize", func() {
 	client := createClient()
+	volumeSize := resource.MustParse("1G")
 	scName := "test"
-	pvcSpec := &corev1.PersistentVolumeClaimSpec{
-		AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany, corev1.ReadWriteOnce},
-		Resources: corev1.ResourceRequirements{
-			Requests: corev1.ResourceList{
-				corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("1G"),
-			},
-		},
-		StorageClassName: &scName,
-	}
 
-	It("Should return empty volume size", func() {
-		pvcSource := &cdiv1.DataVolumeSource{
-			PVC: &cdiv1.DataVolumeSourcePVC{},
-		}
-		storageSpec := &cdiv1.StorageSpec{}
-		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", pvcSource, storageSpec)
-		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, pvcSpec)
+	It("Should return empty volume size on clone PVC with empty storage size", func() {
+		pvcSpec := &corev1.PersistentVolumeClaimSpec{}
+		err := renderPvcSpecVolumeSize(client, pvcSpec, true)
 		Expect(err).ToNot(HaveOccurred())
+		requestedVolumeSize, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
+		Expect(found).To(BeTrue())
 		Expect(requestedVolumeSize.IsZero()).To(BeTrue())
 	})
 
-	It("Should return error after trying to create a DataVolume with empty storage size and http source", func() {
-		httpSource := &cdiv1.DataVolumeSource{
-			HTTP: &cdiv1.DataVolumeSourceHTTP{},
-		}
-		storageSpec := &cdiv1.StorageSpec{}
-		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", httpSource, storageSpec)
-		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, pvcSpec)
+	It("Should return error on non-clone PVC with empty storage size", func() {
+		pvcSpec := &corev1.PersistentVolumeClaimSpec{}
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("Datavolume Spec is not valid - missing storage size"))
-		Expect(requestedVolumeSize).To(BeNil())
+		Expect(err.Error()).To(ContainSubstring("PVC Spec is not valid - missing storage size"))
+		_, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
+		Expect(found).To(BeFalse())
 	})
 
-	It("Should return the expected volume size (block volume mode)", func() {
-		storageSpec := &cdiv1.StorageSpec{
-			Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse("1G"),
-				},
-			},
-		}
+	It("Should return the same volume size (block volume mode)", func() {
 		volumeMode := corev1.PersistentVolumeBlock
-		pvcSpec.VolumeMode = &volumeMode
-		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", nil, storageSpec)
-		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, pvcSpec)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(storageSpec.Resources.Requests.Storage().Value()).To(Equal(requestedVolumeSize.Value()))
-	})
-
-	It("Should return the expected volume size (filesystem volume mode)", func() {
-		storageSpec := &cdiv1.StorageSpec{
+		pvcSpec := &corev1.PersistentVolumeClaimSpec{
+			StorageClassName: &scName,
+			VolumeMode:       &volumeMode,
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse("1Gi"),
+					corev1.ResourceStorage: volumeSize,
 				},
 			},
 		}
-		volumeMode := corev1.PersistentVolumeFilesystem
-		pvcSpec.VolumeMode = &volumeMode
-		dv := createDataVolumeWithStorageAPI("testDV", "testNamespace", nil, storageSpec)
-		requestedVolumeSize, err := resolveVolumeSize(client, dv.Spec, pvcSpec)
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false)
 		Expect(err).ToNot(HaveOccurred())
+
+		requestedVolumeSize, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
+		Expect(found).To(BeTrue())
+		Expect(requestedVolumeSize.Value()).To(Equal(volumeSize.Value()))
+	})
+
+	It("Should return the inflated volume size (filesystem volume mode)", func() {
+		volumeMode := corev1.PersistentVolumeFilesystem
+		pvcSpec := &corev1.PersistentVolumeClaimSpec{
+			StorageClassName: &scName,
+			VolumeMode:       &volumeMode,
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: volumeSize,
+				},
+			},
+		}
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false)
+		Expect(err).ToNot(HaveOccurred())
+		requestedVolumeSize, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
+		Expect(found).To(BeTrue())
+
 		// Inflate expected size with overhead
-		fsOverhead, err2 := GetFilesystemOverheadForStorageClass(context.TODO(), client, dv.Spec.Storage.StorageClassName)
-		Expect(err2).ToNot(HaveOccurred())
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(context.TODO(), client, pvcSpec.StorageClassName)
+		Expect(err).ToNot(HaveOccurred())
+
 		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
-		requiredSpace := GetRequiredSpace(fsOverheadFloat, requestedVolumeSize.Value())
+		requiredSpace := GetRequiredSpace(fsOverheadFloat, volumeSize.Value())
 		expectedResult := resource.NewScaledQuantity(requiredSpace, 0)
-		Expect(expectedResult.Value()).To(Equal(requestedVolumeSize.Value()))
+
+		Expect(requestedVolumeSize.Value()).To(BeNumerically(">", volumeSize.Value()))
+		Expect(requestedVolumeSize.Value()).To(Equal(expectedResult.Value()))
 	})
 })
 

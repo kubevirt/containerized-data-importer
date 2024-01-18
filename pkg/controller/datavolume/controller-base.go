@@ -38,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -670,7 +671,7 @@ func (r *ReconcilerBase) getAvailableVolumesForDV(syncState *dvSyncState, log lo
 			pvc := &corev1.PersistentVolumeClaim{
 				Spec: *syncState.pvcSpec,
 			}
-			if err := checkVolumeSatisfyClaim(&pv, pvc); err != nil {
+			if err := CheckVolumeSatisfyClaim(&pv, pvc); err != nil {
 				continue
 			}
 			log.Info("Found matching volume for DV", "pv", pv.Name)
@@ -1120,6 +1121,20 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		annotations[cc.AnnPriorityClassName] = dataVolume.Spec.PriorityClassName
 	}
 	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, dataVolume.Spec.Preallocation))
+
+	if dataVolume.Spec.Storage != nil && labels[common.PvcUseStorageProfileLabel] == "true" {
+		isWebhookPvcRenderingEnabled, err := featuregates.IsWebhookPvcRenderingEnabled(r.client)
+		if err != nil {
+			return nil, err
+		}
+		if isWebhookPvcRenderingEnabled {
+			labels[common.PvcUseStorageProfileLabel] = "true"
+			if targetPvcSpec.VolumeMode == nil {
+				targetPvcSpec.VolumeMode = ptr.To[corev1.PersistentVolumeMode](cdiv1.PersistentVolumeFromStorageProfile)
+			}
+		}
+	}
+
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:   namespace,

@@ -106,6 +106,9 @@ type StorageSpec struct {
 	DataSourceRef *corev1.TypedObjectReference `json:"dataSourceRef,omitempty"`
 }
 
+// PersistentVolumeFromStorageProfile means the volume mode will be auto selected by CDI according to a matching StorageProfile
+const PersistentVolumeFromStorageProfile corev1.PersistentVolumeMode = "FromStorageProfile"
+
 // DataVolumeCheckpoint defines a stage in a warm migration.
 type DataVolumeCheckpoint struct {
 	// Previous is the identifier of the snapshot from the previous checkpoint.

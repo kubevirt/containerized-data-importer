@@ -29,6 +29,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -41,6 +43,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
+	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
@@ -120,6 +123,7 @@ var _ = Describe("Auth config tests", func() {
 		kubeobjects := []runtime.Object{}
 		kubeobjects = append(kubeobjects, getAPIServerConfigMap())
 
+		cl := newFakeRuntimeClient()
 		client := k8sfake.NewSimpleClientset(kubeobjects...)
 		aggregatorClient := aggregatorapifake.NewSimpleClientset()
 		cdiClient := cdiclientfake.NewSimpleClientset()
@@ -134,7 +138,7 @@ var _ = Describe("Auth config tests", func() {
 			common.AppKubernetesPartOfLabel:  "testing",
 			common.AppKubernetesVersionLabel: "v0.0.0-tests",
 		}
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, nil, authorizer, authConfigWatcher, cdiConfigTLSWatcher, nil, installerLabels)
+		server, err := NewCdiAPIServer("0.0.0.0", 0, cl, client, aggregatorClient, cdiClient, nil, nil, authorizer, authConfigWatcher, cdiConfigTLSWatcher, nil, installerLabels)
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)
@@ -161,6 +165,7 @@ var _ = Describe("Auth config tests", func() {
 		kubeobjects := []runtime.Object{}
 		kubeobjects = append(kubeobjects, cm)
 
+		cl := newFakeRuntimeClient()
 		client := k8sfake.NewSimpleClientset(kubeobjects...)
 		aggregatorClient := aggregatorapifake.NewSimpleClientset()
 		cdiClient := cdiclientfake.NewSimpleClientset()
@@ -168,7 +173,7 @@ var _ = Describe("Auth config tests", func() {
 		acw, err := NewAuthConfigWatcher(ctx, client)
 		Expect(err).ToNot(HaveOccurred())
 
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, nil, authorizer, acw, nil, nil, map[string]string{})
+		server, err := NewCdiAPIServer("0.0.0.0", 0, cl, client, aggregatorClient, cdiClient, nil, nil, authorizer, acw, nil, nil, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)
@@ -208,6 +213,7 @@ var _ = Describe("Auth config tests", func() {
 			},
 		}
 
+		cl := newFakeRuntimeClient()
 		client := k8sfake.NewSimpleClientset()
 		aggregatorClient := aggregatorapifake.NewSimpleClientset()
 		cdiClient := cdiclientfake.NewSimpleClientset(cdiConfig)
@@ -217,7 +223,7 @@ var _ = Describe("Auth config tests", func() {
 		ctw, err := cryptowatch.NewCdiConfigTLSWatcher(ctx, cdiClient)
 		Expect(err).ToNot(HaveOccurred())
 
-		_, err = NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, nil, authorizer, acw, ctw, nil, map[string]string{})
+		_, err = NewCdiAPIServer("0.0.0.0", 0, cl, client, aggregatorClient, cdiClient, nil, nil, authorizer, acw, ctw, nil, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		// 'Old' has TLS 1.0 as min version
@@ -245,6 +251,7 @@ var _ = Describe("Auth config tests", func() {
 		kubeobjects := []runtime.Object{}
 		kubeobjects = append(kubeobjects, cm)
 
+		cl := newFakeRuntimeClient()
 		client := k8sfake.NewSimpleClientset(kubeobjects...)
 		aggregatorClient := aggregatorapifake.NewSimpleClientset()
 		cdiClient := cdiclientfake.NewSimpleClientset()
@@ -256,7 +263,7 @@ var _ = Describe("Auth config tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		certWatcher := NewFakeCertWatcher()
 
-		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, nil, nil, authorizer, acw, ctw, certWatcher, map[string]string{})
+		server, err := NewCdiAPIServer("0.0.0.0", 0, cl, client, aggregatorClient, cdiClient, nil, nil, authorizer, acw, ctw, certWatcher, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		app := server.(*cdiAPIApp)
@@ -294,3 +301,12 @@ var _ = Describe("Auth config tests", func() {
 		Entry("with allowed names", getAPIServerConfigMap, "foobar", false),
 	)
 })
+
+func newFakeRuntimeClient() client.Client {
+	s := scheme.Scheme
+	_ = cdiv1.AddToScheme(s)
+	cfg := &cdiv1.CDIConfig{}
+	cfg.Name = common.ConfigName
+	builder := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(cfg)
+	return builder.Build()
+}
