@@ -173,7 +173,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferRunning))
-			Expect(xfer.Status.Data).To(Equal(pvcTransferRunning().Status.Data))
+			Expect(xfer.Status.Data).To(Equal(pvcTransferRunningWithBoundPVC().Status.Data))
 			checkCompleteFalse(xfer, "Running", "")
 		})
 
@@ -499,6 +499,24 @@ func pvcTransferRunning() *cdiv1.ObjectTransfer {
 		"cdi.kubevirt.io/objectTransferName": "pvcTransfer",
 	}
 	pvc.Status = corev1.PersistentVolumeClaimStatus{}
+	bs, _ := json.Marshal(pvc)
+	t.Status.Data = map[string]string{
+		"source": string(bs),
+		"pvName": "source-pv",
+	}
+	return t
+}
+
+func pvcTransferRunningWithBoundPVC() *cdiv1.ObjectTransfer {
+	t := pvcTransfer(cdiv1.ObjectTransferRunning)
+	pvc := createBoundPVC()
+	pvc.Kind = "PersistentVolumeClaim"
+	pvc.APIVersion = "v1"
+	pvc.ResourceVersion = "1000"
+	pvc.Annotations = map[string]string{
+		"cdi.kubevirt.io/objectTransferName": "pvcTransfer",
+	}
+	pvc.Status = corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound}
 	bs, _ := json.Marshal(pvc)
 	t.Status.Data = map[string]string{
 		"source": string(bs),

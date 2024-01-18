@@ -32,7 +32,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
@@ -342,7 +341,7 @@ var _ = Describe("All DataVolume Tests", func() {
 	})
 
 	var _ = Describe("Reconcile Datavolume status", func() {
-		DescribeTable("DV phase", func(testDv runtime.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann, expectedEvent string, extraAnnotations ...string) {
+		DescribeTable("DV phase", func(testDv client.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann, expectedEvent string, extraAnnotations ...string) {
 			scName := "testpvc"
 			srcPvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			sc := CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
@@ -833,30 +832,30 @@ var _ = Describe("All DataVolume Tests", func() {
 	})
 })
 
-func createCloneReconcilerWFFCDisabled(objects ...runtime.Object) *PvcCloneReconciler {
+func createCloneReconcilerWFFCDisabled(objects ...client.Object) *PvcCloneReconciler {
 	return createCloneReconcilerWithFeatureGates(nil, objects...)
 }
 
-func createCloneReconciler(objects ...runtime.Object) *PvcCloneReconciler {
+func createCloneReconciler(objects ...client.Object) *PvcCloneReconciler {
 	return createCloneReconcilerWithFeatureGates([]string{featuregates.HonorWaitForFirstConsumer}, objects...)
 }
 
-func createCloneReconcilerWithFeatureGates(featireGates []string, objects ...runtime.Object) *PvcCloneReconciler {
+func createCloneReconcilerWithFeatureGates(featireGates []string, objects ...client.Object) *PvcCloneReconciler {
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		ScratchSpaceStorageClass: testStorageClass,
 	}
 	cdiConfig.Spec.FeatureGates = featireGates
 
-	objs := []runtime.Object{}
+	objs := []client.Object{}
 	objs = append(objs, objects...)
 	objs = append(objs, cdiConfig)
 
 	return createCloneReconcilerWithoutConfig(objs...)
 }
 
-func createCloneReconcilerWithoutConfig(objects ...runtime.Object) *PvcCloneReconciler {
-	objs := []runtime.Object{}
+func createCloneReconcilerWithoutConfig(objects ...client.Object) *PvcCloneReconciler {
+	objs := []client.Object{}
 	objs = append(objs, objects...)
 
 	// Register operator types with the runtime scheme.
@@ -869,7 +868,8 @@ func createCloneReconcilerWithoutConfig(objects ...runtime.Object) *PvcCloneReco
 
 	builder := fake.NewClientBuilder().
 		WithScheme(s).
-		WithRuntimeObjects(objs...)
+		WithObjects(objs...).
+		WithStatusSubresource(objs...)
 
 	for _, ia := range getIndexArgs() {
 		builder = builder.WithIndex(ia.obj, ia.field, ia.extractValue)

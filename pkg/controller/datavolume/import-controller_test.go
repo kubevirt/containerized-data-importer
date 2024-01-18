@@ -40,6 +40,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -168,7 +169,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			dv.Status.Phase = cdiv1.Succeeded
-			err = reconciler.client.Update(context.TODO(), dv)
+			err = reconciler.client.Status().Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
 
 			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -208,7 +209,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 			Expect(err).ToNot(HaveOccurred())
 			dv.Status.Phase = cdiv1.Succeeded
-			err = reconciler.client.Update(context.Background(), dv)
+			err = reconciler.client.Status().Update(context.Background(), dv)
 			Expect(err).ToNot(HaveOccurred())
 			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
@@ -727,7 +728,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(dv.Status.Phase).To(BeEquivalentTo(""))
 
 			pvc.Status.Phase = corev1.ClaimPending
-			err = reconciler.client.Update(context.TODO(), pvc)
+			err = reconciler.client.Status().Update(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 
 			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -1086,7 +1087,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 			Expect(err).ToNot(HaveOccurred())
 			dv.Status.Phase = current
-			err = reconciler.client.Update(context.TODO(), dv)
+			err = reconciler.client.Status().Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
 
 			pvc := &corev1.PersistentVolumeClaim{}
@@ -1135,7 +1136,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
 			pvc.Status.Phase = corev1.ClaimPending
-			err = reconciler.client.Update(context.TODO(), pvc)
+			err = reconciler.client.Status().Update(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 			_, err = reconciler.updateStatus(getReconcileRequest(dv), nil, reconciler)
 			Expect(err).ToNot(HaveOccurred())
@@ -1177,7 +1178,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
 			pvc.Status.Phase = corev1.ClaimPending
-			err = reconciler.client.Update(context.TODO(), pvc)
+			err = reconciler.client.Status().Update(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 			_, err = reconciler.updateStatus(getReconcileRequest(dv), nil, reconciler)
 			Expect(err).ToNot(HaveOccurred())
@@ -1222,7 +1223,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
 			pvc.Status.Phase = corev1.ClaimPending
-			err = reconciler.client.Update(context.TODO(), pvc)
+			err = reconciler.client.Status().Update(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 			_, err = reconciler.updateStatus(getReconcileRequest(dv), nil, reconciler)
 			Expect(err).ToNot(HaveOccurred())
@@ -1270,7 +1271,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
 			pvc.Status.Phase = corev1.ClaimPending
-			err = reconciler.client.Update(context.TODO(), pvc)
+			err = reconciler.client.Status().Update(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 			_, err = reconciler.updateStatus(getReconcileRequest(dv), nil, reconciler)
 			Expect(err).ToNot(HaveOccurred())
@@ -1315,9 +1316,11 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
-			pvc.Status.Phase = corev1.ClaimPending
 			AddAnnotation(pvc, AnnSelectedNode, "node01")
 			err = reconciler.client.Update(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+			pvc.Status.Phase = corev1.ClaimPending
+			err = reconciler.client.Status().Update(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 
 			// Creating a valid PVC Prime
@@ -1402,10 +1405,12 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
-			pvc.Status.Phase = corev1.ClaimPending
 			pvc.SetAnnotations(make(map[string]string))
 			pvc.GetAnnotations()[AnnPodPhase] = string(corev1.PodSucceeded)
 			err = reconciler.client.Update(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+			pvc.Status.Phase = corev1.ClaimPending
+			err = reconciler.client.Status().Update(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 			_, err = reconciler.updateStatus(getReconcileRequest(dv), nil, reconciler)
 			Expect(err).ToNot(HaveOccurred())
@@ -1448,11 +1453,13 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
-			pvc.Status.Phase = corev1.ClaimPending
 			pvc.SetAnnotations(make(map[string]string))
 			pvc.GetAnnotations()[AnnCurrentCheckpoint] = "current"
 			pvc.GetAnnotations()[AnnPodPhase] = string(corev1.PodSucceeded)
 			err = reconciler.client.Update(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+			pvc.Status.Phase = corev1.ClaimPending
+			err = reconciler.client.Status().Update(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 			_, err = reconciler.updateStatus(getReconcileRequest(dv), nil, reconciler)
 			Expect(err).ToNot(HaveOccurred())
@@ -1483,7 +1490,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(readyCondition.Message).To(Equal(""))
 		})
 
-		DescribeTable("DV phase", func(testDv runtime.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann, expectedEvent string, extraAnnotations ...string) {
+		DescribeTable("DV phase", func(testDv client.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann, expectedEvent string, extraAnnotations ...string) {
 			// First we test the non-populator flow
 			scName := "testpvc"
 			sc := CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
@@ -1888,14 +1895,13 @@ func dvPhaseTest(reconciler ReconcilerBase, dvc dvController, testDv runtime.Obj
 	err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 	Expect(err).ToNot(HaveOccurred())
 	dv.Status.Phase = current
-	err = reconciler.client.Update(context.TODO(), dv)
+	err = reconciler.client.Status().Update(context.TODO(), dv)
 	Expect(err).ToNot(HaveOccurred())
 
 	pvc := &corev1.PersistentVolumeClaim{}
 	err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(pvc.Name).To(Equal("test-dv"))
-	pvc.Status.Phase = pvcPhase
 	pvc.SetAnnotations(make(map[string]string))
 	pvc.GetAnnotations()[ann] = "something"
 	pvc.GetAnnotations()[AnnPodPhase] = string(podPhase)
@@ -1903,6 +1909,9 @@ func dvPhaseTest(reconciler ReconcilerBase, dvc dvController, testDv runtime.Obj
 		pvc.GetAnnotations()[extraAnnotations[i]] = extraAnnotations[i+1]
 	}
 	err = reconciler.client.Update(context.TODO(), pvc)
+	Expect(err).ToNot(HaveOccurred())
+	pvc.Status.Phase = pvcPhase
+	err = reconciler.client.Status().Update(context.TODO(), pvc)
 	Expect(err).ToNot(HaveOccurred())
 
 	_, err = reconciler.updateStatus(getReconcileRequest(dv), nil, dvc)
@@ -1978,30 +1987,30 @@ func readyStatusByPhase(phase cdiv1.DataVolumePhase) corev1.ConditionStatus {
 	}
 }
 
-func createImportReconcilerWFFCDisabled(objects ...runtime.Object) *ImportReconciler {
+func createImportReconcilerWFFCDisabled(objects ...client.Object) *ImportReconciler {
 	return createImportReconcilerWithFeatureGates(nil, objects...)
 }
 
-func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
+func createImportReconciler(objects ...client.Object) *ImportReconciler {
 	return createImportReconcilerWithFeatureGates([]string{featuregates.HonorWaitForFirstConsumer}, objects...)
 }
 
-func createImportReconcilerWithFeatureGates(featureGates []string, objects ...runtime.Object) *ImportReconciler {
+func createImportReconcilerWithFeatureGates(featureGates []string, objects ...client.Object) *ImportReconciler {
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		ScratchSpaceStorageClass: testStorageClass,
 	}
 	cdiConfig.Spec.FeatureGates = featureGates
 
-	objs := []runtime.Object{}
+	objs := []client.Object{}
 	objs = append(objs, objects...)
 	objs = append(objs, cdiConfig)
 
 	return createImportReconcilerWithoutConfig(objs...)
 }
 
-func createImportReconcilerWithoutConfig(objects ...runtime.Object) *ImportReconciler {
-	objs := []runtime.Object{}
+func createImportReconcilerWithoutConfig(objects ...client.Object) *ImportReconciler {
+	objs := []client.Object{}
 	objs = append(objs, objects...)
 
 	// Register operator types with the runtime scheme.
@@ -2014,7 +2023,8 @@ func createImportReconcilerWithoutConfig(objects ...runtime.Object) *ImportRecon
 
 	builder := fake.NewClientBuilder().
 		WithScheme(s).
-		WithRuntimeObjects(objs...)
+		WithObjects(objs...).
+		WithStatusSubresource(objs...)
 
 	for _, ia := range getIndexArgs() {
 		builder = builder.WithIndex(ia.obj, ia.field, ia.extractValue)

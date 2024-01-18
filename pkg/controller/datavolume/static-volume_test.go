@@ -26,7 +26,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -40,7 +39,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 
 	type testArgs struct {
 		newDV         func() *cdiv1.DataVolume
-		newReconciler func(...runtime.Object) (reconcile.Reconciler, client.Client)
+		newReconciler func(...client.Object) (reconcile.Reconciler, client.Client)
 	}
 
 	addAnno := func(obj metav1.Object) {
@@ -56,7 +55,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		return dv
 	}
 
-	importReconciler := func(objects ...runtime.Object) (reconcile.Reconciler, client.Client) {
+	importReconciler := func(objects ...client.Object) (reconcile.Reconciler, client.Client) {
 		r := createImportReconciler(objects...)
 		return r, r.client
 	}
@@ -74,7 +73,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		return dv
 	}
 
-	uploadReconciler := func(objects ...runtime.Object) (reconcile.Reconciler, client.Client) {
+	uploadReconciler := func(objects ...client.Object) (reconcile.Reconciler, client.Client) {
 		r := createUploadReconciler(objects...)
 		return r, r.client
 	}
@@ -92,7 +91,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		return dv
 	}
 
-	cloneReconciler := func(objects ...runtime.Object) (reconcile.Reconciler, client.Client) {
+	cloneReconciler := func(objects ...client.Object) (reconcile.Reconciler, client.Client) {
 		r := createCloneReconciler(objects...)
 		return r, r.client
 	}
@@ -110,7 +109,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		return dv
 	}
 
-	snapshotCloneReconciler := func(objects ...runtime.Object) (reconcile.Reconciler, client.Client) {
+	snapshotCloneReconciler := func(objects ...client.Object) (reconcile.Reconciler, client.Client) {
 		r := createSnapshotCloneReconciler(objects...)
 		return r, r.client
 	}
@@ -132,7 +131,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		return dv
 	}
 
-	populatorReconciler := func(objects ...runtime.Object) (reconcile.Reconciler, client.Client) {
+	populatorReconciler := func(objects ...client.Object) (reconcile.Reconciler, client.Client) {
 		r := createPopulatorReconciler(objects...)
 		return r, r.client
 	}

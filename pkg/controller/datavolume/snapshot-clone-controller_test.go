@@ -32,7 +32,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
@@ -133,7 +132,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.Annotations[AnnCloneRequest]).To(Equal(fmt.Sprintf("%s/%s", snapshot.Namespace, tempPvcName)))
 			By("Mark target PVC bound like it would be in a live cluster, so DV status is updated")
 			pvc.Status.Phase = corev1.ClaimBound
-			err = reconciler.client.Update(context.TODO(), pvc)
+			err = reconciler.client.Status().Update(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
@@ -514,36 +513,36 @@ var _ = Describe("All DataVolume Tests", func() {
 	})
 })
 
-func createSnapshotCloneReconcilerWFFCDisabled(objects ...runtime.Object) *SnapshotCloneReconciler {
+func createSnapshotCloneReconcilerWFFCDisabled(objects ...client.Object) *SnapshotCloneReconciler {
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		ScratchSpaceStorageClass: testStorageClass,
 	}
 	cdiConfig.Spec.FeatureGates = []string{}
 
-	objs := []runtime.Object{}
+	objs := []client.Object{}
 	objs = append(objs, objects...)
 	objs = append(objs, cdiConfig)
 
 	return createSnapshotCloneReconcilerWithoutConfig(objs...)
 }
 
-func createSnapshotCloneReconciler(objects ...runtime.Object) *SnapshotCloneReconciler {
+func createSnapshotCloneReconciler(objects ...client.Object) *SnapshotCloneReconciler {
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		ScratchSpaceStorageClass: testStorageClass,
 	}
 	cdiConfig.Spec.FeatureGates = []string{featuregates.HonorWaitForFirstConsumer}
 
-	objs := []runtime.Object{}
+	objs := []client.Object{}
 	objs = append(objs, objects...)
 	objs = append(objs, cdiConfig)
 
 	return createSnapshotCloneReconcilerWithoutConfig(objs...)
 }
 
-func createSnapshotCloneReconcilerWithoutConfig(objects ...runtime.Object) *SnapshotCloneReconciler {
-	objs := []runtime.Object{}
+func createSnapshotCloneReconcilerWithoutConfig(objects ...client.Object) *SnapshotCloneReconciler {
+	objs := []client.Object{}
 	objs = append(objs, objects...)
 
 	// Register operator types with the runtime scheme.
@@ -556,7 +555,8 @@ func createSnapshotCloneReconcilerWithoutConfig(objects ...runtime.Object) *Snap
 
 	builder := fake.NewClientBuilder().
 		WithScheme(s).
-		WithRuntimeObjects(objs...)
+		WithObjects(objs...).
+		WithStatusSubresource(objs...)
 
 	for _, ia := range getIndexArgs() {
 		builder = builder.WithIndex(ia.obj, ia.field, ia.extractValue)

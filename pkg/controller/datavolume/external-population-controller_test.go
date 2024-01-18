@@ -29,10 +29,10 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -328,22 +328,22 @@ var _ = Describe("All external-population tests", func() {
 	})
 })
 
-func createPopulatorReconciler(objects ...runtime.Object) *PopulatorReconciler {
+func createPopulatorReconciler(objects ...client.Object) *PopulatorReconciler {
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		ScratchSpaceStorageClass: testStorageClass,
 	}
 	cdiConfig.Spec.FeatureGates = []string{featuregates.HonorWaitForFirstConsumer}
 
-	objs := []runtime.Object{}
+	objs := []client.Object{}
 	objs = append(objs, objects...)
 	objs = append(objs, cdiConfig)
 
 	return createPopulatorReconcilerWithoutConfig(objs...)
 }
 
-func createPopulatorReconcilerWithoutConfig(objects ...runtime.Object) *PopulatorReconciler {
-	objs := []runtime.Object{}
+func createPopulatorReconcilerWithoutConfig(objects ...client.Object) *PopulatorReconciler {
+	objs := []client.Object{}
 	objs = append(objs, objects...)
 
 	// Register operator types with the runtime scheme.
@@ -356,7 +356,8 @@ func createPopulatorReconcilerWithoutConfig(objects ...runtime.Object) *Populato
 
 	builder := fake.NewClientBuilder().
 		WithScheme(s).
-		WithRuntimeObjects(objs...)
+		WithObjects(objs...).
+		WithStatusSubresource(objs...)
 
 	for _, ia := range getIndexArgs() {
 		builder = builder.WithIndex(ia.obj, ia.field, ia.extractValue)
