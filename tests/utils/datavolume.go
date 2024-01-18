@@ -895,6 +895,9 @@ func WaitForDataVolumePhaseWithTimeout(ci ClientsIface, namespace string, phase 
 	err := wait.PollImmediate(dataVolumePollInterval, timeout, func() (bool, error) {
 		dataVolume, err := ci.Cdi().CdiV1beta1().DataVolumes(namespace).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
 		if err != nil || dataVolume.Status.Phase != phase {
+			if err != nil {
+				fmt.Fprintf(ginkgo.GinkgoWriter, "Error: failed get datavolume: %s, %s\n", dataVolumeName, err.Error())
+			}
 			actualPhase = dataVolume.Status.Phase
 			return false, err
 		}
