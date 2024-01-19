@@ -339,6 +339,8 @@ spec:
                     type: string
                 type: object
               customizeComponents:
+                description: CustomizeComponents defines patches for components deployed
+                  by the CDI operator.
                 properties:
                   flags:
                     description: Configure the value used for deployment and daemonset
@@ -359,6 +361,8 @@ spec:
                     type: object
                   patches:
                     items:
+                      description: CustomizeComponentsPatch defines a patch for some
+                        resource.
                       properties:
                         patch:
                           type: string
@@ -369,6 +373,7 @@ spec:
                           minLength: 1
                           type: string
                         type:
+                          description: PatchType defines the patch type.
                           type: string
                       required:
                       - patch
@@ -2634,6 +2639,8 @@ spec:
                     type: string
                 type: object
               customizeComponents:
+                description: CustomizeComponents defines patches for components deployed
+                  by the CDI operator.
                 properties:
                   flags:
                     description: Configure the value used for deployment and daemonset
@@ -2654,6 +2661,8 @@ spec:
                     type: object
                   patches:
                     items:
+                      description: CustomizeComponentsPatch defines a patch for some
+                        resource.
                       properties:
                         patch:
                           type: string
@@ -2664,6 +2673,7 @@ spec:
                           minLength: 1
                           type: string
                         type:
+                          description: PatchType defines the patch type.
                           type: string
                       required:
                       - patch

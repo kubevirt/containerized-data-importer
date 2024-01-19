@@ -39,6 +39,7 @@ var commonLabels = map[string]string{
 	CDILabel:                           "",
 	common.AppKubernetesManagedByLabel: "cdi-operator",
 	common.AppKubernetesComponentLabel: "storage",
+	common.CDILabelKey:                 common.CDILabelValue,
 }
 
 var operatorLabels = map[string]string{

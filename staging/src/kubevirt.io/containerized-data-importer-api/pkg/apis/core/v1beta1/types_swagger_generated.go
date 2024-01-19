@@ -448,6 +448,7 @@ func (ComponentConfig) SwaggerDoc() map[string]string {
 
 func (CustomizeComponents) SwaggerDoc() map[string]string {
 	return map[string]string{
+		"":        "CustomizeComponents defines patches for components deployed by the CDI operator.",
 		"patches": "+listType=atomic",
 		"flags":   "Configure the value used for deployment and daemonset resources",
 	}
@@ -461,6 +462,7 @@ func (Flags) SwaggerDoc() map[string]string {
 
 func (CustomizeComponentsPatch) SwaggerDoc() map[string]string {
 	return map[string]string{
+		"":             "CustomizeComponentsPatch defines a patch for some resource.",
 		"resourceName": "+kubebuilder:validation:MinLength=1",
 		"resourceType": "+kubebuilder:validation:MinLength=1",
 	}

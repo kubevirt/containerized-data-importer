@@ -27299,7 +27299,8 @@ func schema_pkg_apis_core_v1beta1_CustomizeComponents(ref common.ReferenceCallba
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
+				Description: "CustomizeComponents defines patches for components deployed by the CDI operator.",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"patches": {
 						VendorExtensible: spec.VendorExtensible{
@@ -27337,7 +27338,8 @@ func schema_pkg_apis_core_v1beta1_CustomizeComponentsPatch(ref common.ReferenceC
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
+				Description: "CustomizeComponentsPatch defines a patch for some resource.",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"resourceName": {
 						SchemaProps: spec.SchemaProps{

@@ -24,10 +24,6 @@ import (
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
-const (
-	cronJobResourceName = common.CDICronJobResourceName
-)
-
 func createCronJobResources(args *FactoryArgs) []client.Object {
 	return []client.Object{
 		createCronJobServiceAccount(),
@@ -35,5 +31,5 @@ func createCronJobResources(args *FactoryArgs) []client.Object {
 }
 
 func createCronJobServiceAccount() *corev1.ServiceAccount {
-	return utils.ResourceBuilder.CreateServiceAccount(cronJobResourceName)
+	return utils.ResourceBuilder.CreateServiceAccount(common.CDICronJobResourceName)
 }

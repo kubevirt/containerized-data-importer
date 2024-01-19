@@ -4199,6 +4199,7 @@
     }
    },
    "v1beta1.CustomizeComponents": {
+    "description": "CustomizeComponents defines patches for components deployed by the CDI operator.",
     "type": "object",
     "properties": {
      "flags": {
@@ -4216,6 +4217,7 @@
     }
    },
    "v1beta1.CustomizeComponentsPatch": {
+    "description": "CustomizeComponentsPatch defines a patch for some resource.",
     "type": "object",
     "required": [
      "resourceName",

@@ -24,10 +24,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
-const (
-	uploadProxyResourceName = common.CDIUploadProxyResourceName
-)
-
 func createUploadProxyResources(args *FactoryArgs) []client.Object {
 	return []client.Object{
 		createUploadProxyClusterRole(),
@@ -52,9 +48,9 @@ func getUploadProxyClusterPolicyRules() []rbacv1.PolicyRule {
 }
 
 func createUploadProxyClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return utils.ResourceBuilder.CreateClusterRoleBinding(uploadProxyResourceName, uploadProxyResourceName, uploadProxyResourceName, namespace)
+	return utils.ResourceBuilder.CreateClusterRoleBinding(common.CDIUploadProxyResourceName, common.CDIUploadProxyResourceName, common.CDIUploadProxyResourceName, namespace)
 }
 
 func createUploadProxyClusterRole() *rbacv1.ClusterRole {
-	return utils.ResourceBuilder.CreateClusterRole(uploadProxyResourceName, getUploadProxyClusterPolicyRules())
+	return utils.ResourceBuilder.CreateClusterRole(common.CDIUploadProxyResourceName, getUploadProxyClusterPolicyRules())
 }

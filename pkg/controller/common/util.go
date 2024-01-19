@@ -327,7 +327,7 @@ const (
 	// AnnAllowClaimAdoption is the annotation that allows a claim to be adopted by a DataVolume
 	AnnAllowClaimAdoption = AnnAPIGroup + "/allowClaimAdoption"
 
-	// This annotation is a hash of all customizations that live under spec.CustomizeComponents
+	// AnnCdiCustomizeComponentHash annotation is a hash of all customizations that live under spec.CustomizeComponents
 	AnnCdiCustomizeComponentHash = AnnAPIGroup + "/customizer-identifier"
 )
 

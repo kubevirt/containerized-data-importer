@@ -869,6 +869,7 @@ const (
 	CloneStrategyCsiClone CDICloneStrategy = "csi-clone"
 )
 
+// CustomizeComponents defines patches for components deployed by the CDI operator.
 type CustomizeComponents struct {
 	// +listType=atomic
 	Patches []CustomizeComponentsPatch `json:"patches,omitempty"`
@@ -887,6 +888,7 @@ type Flags struct {
 	UploadProxy map[string]string `json:"uploadProxy,omitempty"`
 }
 
+// CustomizeComponentsPatch defines a patch for some resource.
 type CustomizeComponentsPatch struct {
 	// +kubebuilder:validation:MinLength=1
 	ResourceName string `json:"resourceName"`
@@ -896,11 +898,15 @@ type CustomizeComponentsPatch struct {
 	Type         PatchType `json:"type"`
 }
 
+// PatchType defines the patch type.
 type PatchType string
 
 const (
-	JSONPatchType           PatchType = "json"
-	MergePatchType          PatchType = "merge"
+	// JSONPatchType is a constant that represents the type of JSON patch.
+	JSONPatchType PatchType = "json"
+	// MergePatchType is a constant that represents the type of JSON Merge patch.
+	MergePatchType PatchType = "merge"
+	// StrategicMergePatchType is a constant that represents the type of Strategic Merge patch.
 	StrategicMergePatchType PatchType = "strategic"
 )
 

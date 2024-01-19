@@ -19,14 +19,13 @@ package cluster
 import (
 	"context"
 	"fmt"
-	"kubevirt.io/containerized-data-importer/pkg/common"
-
 	"github.com/go-logr/logr"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdicorev1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -35,8 +34,7 @@ import (
 )
 
 const (
-	apiServerResourceName = common.CDIApiServerResourceName
-	apiServerServiceName  = "cdi-api"
+	apiServerServiceName = "cdi-api"
 )
 
 func createStaticAPIServerResources(args *FactoryArgs) []client.Object {
@@ -640,9 +638,9 @@ func getAPIServerCABundle(namespace string, c client.Client, l logr.Logger) []by
 }
 
 func createAPIServerClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return utils.ResourceBuilder.CreateClusterRoleBinding(apiServerResourceName, apiServerResourceName, apiServerResourceName, namespace)
+	return utils.ResourceBuilder.CreateClusterRoleBinding(common.CDIApiServerResourceName, common.CDIApiServerResourceName, common.CDIApiServerResourceName, namespace)
 }
 
 func createAPIServerClusterRole() *rbacv1.ClusterRole {
-	return utils.ResourceBuilder.CreateClusterRole(apiServerResourceName, getAPIServerClusterPolicyRules())
+	return utils.ResourceBuilder.CreateClusterRole(common.CDIApiServerResourceName, getAPIServerClusterPolicyRules())
 }

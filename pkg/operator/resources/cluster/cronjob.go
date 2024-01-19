@@ -24,10 +24,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
-const (
-	cronJobResourceName = common.CDICronJobResourceName
-)
-
 func createCronJobResources(args *FactoryArgs) []client.Object {
 	return []client.Object{
 		createCronJobClusterRole(),
@@ -54,9 +50,9 @@ func getCronJobClusterPolicyRules() []rbacv1.PolicyRule {
 }
 
 func createCronJobClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return utils.ResourceBuilder.CreateClusterRoleBinding(cronJobResourceName, cronJobResourceName, cronJobResourceName, namespace)
+	return utils.ResourceBuilder.CreateClusterRoleBinding(common.CDICronJobResourceName, common.CDICronJobResourceName, common.CDICronJobResourceName, namespace)
 }
 
 func createCronJobClusterRole() *rbacv1.ClusterRole {
-	return utils.ResourceBuilder.CreateClusterRole(cronJobResourceName, getCronJobClusterPolicyRules())
+	return utils.ResourceBuilder.CreateClusterRole(common.CDICronJobResourceName, getCronJobClusterPolicyRules())
 }

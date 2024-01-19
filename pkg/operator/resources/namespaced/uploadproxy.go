@@ -30,10 +30,6 @@ import (
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
-const (
-	uploadProxyResourceName = common.CDIUploadProxyResourceName
-)
-
 func createUploadProxyResources(args *FactoryArgs) []client.Object {
 	return []client.Object{
 		createUploadProxyServiceAccount(),
@@ -45,7 +41,7 @@ func createUploadProxyResources(args *FactoryArgs) []client.Object {
 }
 
 func createUploadProxyService() *corev1.Service {
-	service := utils.ResourceBuilder.CreateService(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, nil)
+	service := utils.ResourceBuilder.CreateService(common.CDIUploadProxyResourceName, common.CDIComponentLabel, common.CDIUploadProxyResourceName, nil)
 	service.Spec.Ports = []corev1.ServicePort{
 		{
 			Port: 443,
@@ -61,11 +57,11 @@ func createUploadProxyService() *corev1.Service {
 }
 
 func createUploadProxyServiceAccount() *corev1.ServiceAccount {
-	return utils.ResourceBuilder.CreateServiceAccount(uploadProxyResourceName)
+	return utils.ResourceBuilder.CreateServiceAccount(common.CDIUploadProxyResourceName)
 }
 
 func createUploadProxyRoleBinding() *rbacv1.RoleBinding {
-	return utils.ResourceBuilder.CreateRoleBinding(uploadProxyResourceName, uploadProxyResourceName, uploadProxyResourceName, "")
+	return utils.ResourceBuilder.CreateRoleBinding(common.CDIUploadProxyResourceName, common.CDIUploadProxyResourceName, common.CDIUploadProxyResourceName, "")
 }
 
 func getUploadProxyNamespacedRules() []rbacv1.PolicyRule {
@@ -85,19 +81,19 @@ func getUploadProxyNamespacedRules() []rbacv1.PolicyRule {
 }
 
 func createUploadProxyRole() *rbacv1.Role {
-	return utils.ResourceBuilder.CreateRole(uploadProxyResourceName, getUploadProxyNamespacedRules())
+	return utils.ResourceBuilder.CreateRole(common.CDIUploadProxyResourceName, getUploadProxyNamespacedRules())
 }
 
 func createUploadProxyDeployment(image, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement, replicas int32) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
-	deployment := utils.CreateDeployment(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, uploadProxyResourceName, imagePullSecrets, int32(1), infraNodePlacement)
+	deployment := utils.CreateDeployment(common.CDIUploadProxyResourceName, common.CDIComponentLabel, common.CDIUploadProxyResourceName, common.CDIUploadProxyResourceName, imagePullSecrets, int32(1), infraNodePlacement)
 	if priorityClassName != "" {
 		deployment.Spec.Template.Spec.PriorityClassName = priorityClassName
 	}
 	if replicas > 1 {
 		deployment.Spec.Replicas = &replicas
 	}
-	container := utils.CreateContainer(uploadProxyResourceName, image, verbosity, pullPolicy)
+	container := utils.CreateContainer(common.CDIUploadProxyResourceName, image, verbosity, pullPolicy)
 	container.Env = []corev1.EnvVar{
 		{
 			Name: "APISERVER_PUBLIC_KEY",

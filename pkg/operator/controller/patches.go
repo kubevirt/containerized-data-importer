@@ -6,7 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	jsonpatch "github.com/evanphx/json-patch"
+	"reflect"
+	"sort"
+	"strings"
+
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -16,25 +20,28 @@ import (
 	"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sort"
-	"strings"
 )
 
+// The Customizer structure is used for customizing components with a collection of patches.
+// It includes an array of CustomizeComponentsPatch, along with a hash value.
+// The Apply method allows applying these patches to a group of objects.
 type Customizer struct {
 	Patches []v1beta1.CustomizeComponentsPatch
 	hash    string
 }
 
+// Hash provides the hash of the patches.
 func (c *Customizer) Hash() string {
 	return c.hash
 }
 
+// GetPatches provides slice of patches.
 func (c *Customizer) GetPatches() []v1beta1.CustomizeComponentsPatch {
 	return c.Patches
 }
 
+// GetPatchesForResource provides slice of patches for specific resource.
 func (c *Customizer) GetPatchesForResource(resourceType, name string) []v1beta1.CustomizeComponentsPatch {
 	allPatches := c.Patches
 	patches := make([]v1beta1.CustomizeComponentsPatch, 0)
@@ -56,6 +63,7 @@ func valueMatchesKey(value, key string) bool {
 	return strings.EqualFold(key, value)
 }
 
+// Apply applies all patches to the slice of objects.
 func (c *Customizer) Apply(objects []client.Object) error {
 	var deployments []*appsv1.Deployment
 	var services []*corev1.Service
@@ -102,6 +110,7 @@ func (c *Customizer) Apply(objects []client.Object) error {
 	return nil
 }
 
+// GenericApplyPatches applies patches to a slice of resources.
 func (c *Customizer) GenericApplyPatches(objects interface{}) error {
 	switch reflect.TypeOf(objects).Kind() {
 	case reflect.Slice:
@@ -120,14 +129,14 @@ func (c *Customizer) GenericApplyPatches(objects interface{}) error {
 
 			patches := c.GetPatchesForResource(kind, name)
 
-			patches = append(patches, v1beta1.CustomizeComponentsPatch{
-				Patch: fmt.Sprintf(`{"metadata":{"annotations":{"%s":"%s"}}}`, cc.AnnCdiCustomizeComponentHash, c.hash),
-				Type:  v1beta1.StrategicMergePatchType,
-			})
-
-			err := applyPatches(obj, patches)
-			if err != nil {
-				return err
+			if len(patches) > 0 {
+				patches = append(patches, v1beta1.CustomizeComponentsPatch{
+					Patch: fmt.Sprintf(`{"metadata":{"annotations":{"%s":"%s"}}}`, cc.AnnCdiCustomizeComponentHash, c.hash),
+					Type:  v1beta1.StrategicMergePatchType,
+				})
+				if err := applyPatches(obj, patches); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -171,7 +180,10 @@ func applyPatch(obj runtime.Object, patch v1beta1.CustomizeComponentsPatch) erro
 		if err != nil {
 			return err
 		}
-		modified, err := patch.Apply(old)
+		opts := jsonpatch.NewApplyOptions()
+		opts.AllowMissingPathOnRemove = true
+		opts.EnsurePathExistsOnAdd = true
+		modified, err := patch.ApplyWithOptions(old, opts)
 		if err != nil {
 			return err
 		}
@@ -204,6 +216,7 @@ func applyPatch(obj runtime.Object, patch v1beta1.CustomizeComponentsPatch) erro
 	return nil
 }
 
+// NewCustomizer returns a new Customizer.
 func NewCustomizer(customizations v1beta1.CustomizeComponents) (*Customizer, error) {
 	hash, err := getHash(customizations)
 	if err != nil {
@@ -240,7 +253,7 @@ func addFlagsPatch(name, resource string, flags map[string]string, patches []v1b
 	return append(patches, v1beta1.CustomizeComponentsPatch{
 		ResourceName: name,
 		ResourceType: resource,
-		Patch:        fmt.Sprintf(`{"spec":{"template":{"spec":{"containers":[{"name":%q,"command":["%s","%s"]}]}}}}`, name, name, strings.Join(flagsToArray(flags), `","`)),
+		Patch:        fmt.Sprintf(`{"spec":{"template":{"spec":{"containers":[{"name":%q,"args":["%s"]}]}}}}`, name, strings.Join(flagsToArray(flags), `","`)),
 		Type:         v1beta1.StrategicMergePatchType,
 	})
 }
@@ -249,7 +262,7 @@ func flagsToArray(flags map[string]string) []string {
 	farr := make([]string, 0)
 
 	for flag, v := range flags {
-		farr = append(farr, fmt.Sprintf("--%s", strings.ToLower(flag)))
+		farr = append(farr, fmt.Sprintf("-%s", strings.ToLower(flag)))
 		if v != "" {
 			farr = append(farr, v)
 		}
