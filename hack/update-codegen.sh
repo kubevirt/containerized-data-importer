@@ -35,6 +35,11 @@ ${SCRIPT_ROOT}/hack/build/build-go.sh generate
 # --output-base    because this script should also be able to run inside the vendor dir of
 #                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
+
+# Hack the script to make it executable from within generate-groups.sh
+# Because vendored sources do not include permission bits
+chmod u+x "${CODEGEN_PKG}/generate-internal-groups.sh"
+trap 'chmod u-x "${CODEGEN_PKG}/generate-internal-groups.sh"' ERR EXIT
 /bin/bash ${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
     kubevirt.io/containerized-data-importer/pkg/client kubevirt.io/containerized-data-importer-api/pkg/apis \
     "core:v1alpha1 core:v1beta1 upload:v1beta1" \
