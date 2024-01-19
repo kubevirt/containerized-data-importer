@@ -7,6 +7,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
 var _ = Describe("GetRequestedImageSize", func() {
@@ -72,6 +73,69 @@ var _ = Describe("GetDefaultStorageClass", func() {
 		)
 		sc, _ := GetDefaultStorageClass(client)
 		Expect(sc).To(BeNil())
+	})
+
+	Context("GetActiveCDI tests", func() {
+		createCDI := func(name string, phase sdkapi.Phase) *cdiv1.CDI {
+			return &cdiv1.CDI{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Status: cdiv1.CDIStatus{
+					Status: sdkapi.Status{
+						Phase: phase,
+					},
+				},
+			}
+		}
+
+		It("Should return nil if no CDI", func() {
+			client := CreateClient()
+			cdi, err := GetActiveCDI(client)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdi).To(BeNil())
+		})
+
+		It("Should return single active", func() {
+			client := CreateClient(
+				createCDI("cdi1", sdkapi.PhaseDeployed),
+			)
+			cdi, err := GetActiveCDI(client)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdi).ToNot(BeNil())
+		})
+
+		It("Should return success with single active one error", func() {
+			client := CreateClient(
+				createCDI("cdi1", sdkapi.PhaseDeployed),
+				createCDI("cdi2", sdkapi.PhaseError),
+			)
+			cdi, err := GetActiveCDI(client)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdi).ToNot(BeNil())
+			Expect(cdi.Name).To(Equal("cdi1"))
+		})
+
+		It("Should return error if multiple CDIs are active", func() {
+			client := CreateClient(
+				createCDI("cdi1", sdkapi.PhaseDeployed),
+				createCDI("cdi2", sdkapi.PhaseDeployed),
+			)
+			cdi, err := GetActiveCDI(client)
+			Expect(err).To(HaveOccurred())
+			Expect(cdi).To(BeNil())
+		})
+
+		It("Should return error if multiple CDIs are error", func() {
+			client := CreateClient(
+				createCDI("cdi1", sdkapi.PhaseError),
+				createCDI("cdi2", sdkapi.PhaseError),
+			)
+			cdi, err := GetActiveCDI(client)
+			Expect(err).To(HaveOccurred())
+			Expect(cdi).To(BeNil())
+		})
+
 	})
 })
 
