@@ -65,9 +65,7 @@ var _ = Describe("Patches", func() {
 			Expect(deployment.ObjectMeta.Labels["new-key"]).To(Equal("added-this-label"))
 			Expect(deployment.Spec.Template.Spec.ImagePullSecrets[0].Name).To(Equal("image-pull"))
 			// check flags are applied
-			expectedFlags := []string{common.CDIControllerResourceName}
-			expectedFlags = append(expectedFlags, flagsToArray(flags.Controller)...)
-			Expect(deployment.Spec.Template.Spec.Containers[0].Command).To(Equal(expectedFlags))
+			Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(Equal(flagsToArray(flags.Controller)))
 
 			// check objects implement runtime.Object
 			err = customizer.GenericApplyPatches([]string{"string"})
@@ -165,9 +163,9 @@ var _ = Describe("Patches", func() {
 			fa := flagsToArray(flags)
 			Expect(fa).To(HaveLen(5))
 
-			Expect(strings.Join(fa, " ")).To(ContainSubstring("--flag-one 1"))
-			Expect(strings.Join(fa, " ")).To(ContainSubstring("--flag 3"))
-			Expect(strings.Join(fa, " ")).To(ContainSubstring("--bool-flag"))
+			Expect(strings.Join(fa, " ")).To(ContainSubstring("-flag-one 1"))
+			Expect(strings.Join(fa, " ")).To(ContainSubstring("-flag 3"))
+			Expect(strings.Join(fa, " ")).To(ContainSubstring("-bool-flag"))
 		})
 
 		It("should add flag patch", func() {
