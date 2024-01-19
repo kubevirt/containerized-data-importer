@@ -72,7 +72,7 @@ func (r *ReconcileCDI) GetDependantResourcesListObjects() []client.ObjectList {
 func (r *ReconcileCDI) IsCreating(_ client.Object) (bool, error) {
 	configMap, err := r.getConfigMap()
 	if err != nil {
-		return true, nil
+		return false, err
 	}
 	return configMap == nil, nil
 }
