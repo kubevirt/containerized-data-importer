@@ -93,7 +93,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		// deleting the PVC at the end of the test, so if another runs first we will fail.
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition("no-import-ann", "1G", nil, nil))
 		By("Verifying PVC with no annotation remains empty")
-		matchString := "PVC annotation not found, skipping pvc\t{\"PVC\": \"" + ns + "/" + pvc.Name + "\", \"annotation\": \"" + controller.AnnEndpoint + "\"}"
+		matchString := fmt.Sprintf("PVC annotation not found, skipping pvc\t{\"PVC\": {\"name\":\"%s\",\"namespace\":\"%s\"}, \"annotation\": \"%s\"}", pvc.Name, ns, controller.AnnEndpoint)
 		fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
 		Eventually(func() string {
 			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
