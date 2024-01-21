@@ -238,7 +238,7 @@ func (f *Framework) GetMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolu
 	}
 
 	var output, stderr string
-	err = wait.PollImmediate(2*time.Second, 10*time.Second, func() (bool, error) {
+	err = wait.PollUntilContextTimeout(context.TODO(), 2*time.Second, 10*time.Second, true, func(_ context.Context) (bool, error) {
 		output, stderr, err = f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
 		if err != nil {
 			fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: pod command execution failed, retrying: stderr: [%s]\n", stderr)

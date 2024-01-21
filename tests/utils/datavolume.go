@@ -113,9 +113,9 @@ const (
 // CreateDataVolumeFromDefinition is used by tests to create a testable Data Volume
 func CreateDataVolumeFromDefinition(clientSet *cdiclientset.Clientset, namespace string, def *cdiv1.DataVolume) (*cdiv1.DataVolume, error) {
 	var dataVolume *cdiv1.DataVolume
-	err := wait.PollImmediate(dataVolumePollInterval, dataVolumeCreateTime, func() (bool, error) {
+	err := wait.PollUntilContextTimeout(context.TODO(), dataVolumePollInterval, dataVolumeCreateTime, true, func(ctx context.Context) (bool, error) {
 		var err error
-		dataVolume, err = clientSet.CdiV1beta1().DataVolumes(namespace).Create(context.TODO(), def, metav1.CreateOptions{})
+		dataVolume, err = clientSet.CdiV1beta1().DataVolumes(namespace).Create(ctx, def, metav1.CreateOptions{})
 		if err == nil || apierrs.IsAlreadyExists(err) {
 			return true, nil
 		}
@@ -129,8 +129,8 @@ func CreateDataVolumeFromDefinition(clientSet *cdiclientset.Clientset, namespace
 
 // DeleteDataVolume deletes the DataVolume with the given name
 func DeleteDataVolume(clientSet *cdiclientset.Clientset, namespace, name string) error {
-	return wait.PollImmediate(dataVolumePollInterval, dataVolumeDeleteTime, func() (bool, error) {
-		err := clientSet.CdiV1beta1().DataVolumes(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	return wait.PollUntilContextTimeout(context.TODO(), dataVolumePollInterval, dataVolumeDeleteTime, true, func(ctx context.Context) (bool, error) {
+		err := clientSet.CdiV1beta1().DataVolumes(namespace).Delete(ctx, name, metav1.DeleteOptions{})
 		if err == nil || apierrs.IsNotFound(err) {
 			return true, nil
 		}
@@ -892,8 +892,8 @@ func WaitForDataVolumePhaseWithTimeout(ci ClientsIface, namespace string, phase 
 			return WaitForDataVolumeGC(ci, namespace, dataVolumeName, ttl, dataVolumePhaseTime)
 		}
 	}
-	err := wait.PollImmediate(dataVolumePollInterval, timeout, func() (bool, error) {
-		dataVolume, err := ci.Cdi().CdiV1beta1().DataVolumes(namespace).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
+	err := wait.PollUntilContextTimeout(context.TODO(), dataVolumePollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		dataVolume, err := ci.Cdi().CdiV1beta1().DataVolumes(namespace).Get(ctx, dataVolumeName, metav1.GetOptions{})
 		if err != nil || dataVolume.Status.Phase != phase {
 			if err != nil {
 				fmt.Fprintf(ginkgo.GinkgoWriter, "Error: failed get datavolume: %s, %s\n", dataVolumeName, err.Error())
@@ -916,8 +916,8 @@ func WaitForDataVolumeGC(ci ClientsIface, namespace string, pvcName string, ttl 
 		retain      bool
 	)
 
-	err := wait.PollImmediate(dataVolumePollInterval, timeout, func() (bool, error) {
-		dv, err := ci.Cdi().CdiV1beta1().DataVolumes(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{})
+	err := wait.PollUntilContextTimeout(context.TODO(), dataVolumePollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		dv, err := ci.Cdi().CdiV1beta1().DataVolumes(namespace).Get(ctx, pvcName, metav1.GetOptions{})
 		if err == nil {
 			retain = dv.Annotations[cc.AnnDeleteAfterCompletion] == "false"
 			actualPhase = dv.Status.Phase
@@ -930,7 +930,7 @@ func WaitForDataVolumeGC(ci ClientsIface, namespace string, pvcName string, ttl 
 			if ttl > 1 {
 				// Check only once DV is retained for ttl/2 and GC'ed too early
 				time.Sleep(time.Duration(ttl/2) * time.Second)
-				if _, err = ci.Cdi().CdiV1beta1().DataVolumes(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{}); err != nil {
+				if _, err = ci.Cdi().CdiV1beta1().DataVolumes(namespace).Get(ctx, pvcName, metav1.GetOptions{}); err != nil {
 					return false, fmt.Errorf("DataVolume %s was not retained for ttl, err %s", pvcName, err.Error())
 				}
 				ttl = 0

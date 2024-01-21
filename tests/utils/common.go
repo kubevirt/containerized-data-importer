@@ -202,9 +202,9 @@ func UpdateCDIConfigWithOptions(c client.Client, opts metav1.UpdateOptions, upda
 		return err
 	}
 
-	if err = wait.PollImmediate(1*time.Second, 60*time.Second, func() (bool, error) {
+	if err = wait.PollUntilContextTimeout(context.TODO(), 1*time.Second, 60*time.Second, true, func(ctx context.Context) (bool, error) {
 		cfg := &cdiv1.CDIConfig{}
-		err := c.Get(context.TODO(), types.NamespacedName{Name: "config"}, cfg)
+		err := c.Get(ctx, types.NamespacedName{Name: "config"}, cfg)
 		return apiequality.Semantic.DeepEqual(&cfg.Spec, cdi.Spec.Config), err
 	}); err != nil {
 		return err

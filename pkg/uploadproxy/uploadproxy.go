@@ -255,9 +255,9 @@ func (app *uploadProxyApp) resolveUploadPath(pvc *v1.PersistentVolumeClaim, pvcN
 
 func (app *uploadProxyApp) uploadReady(pvcName, pvcNamespace string) (*v1.PersistentVolumeClaim, error) {
 	var pvc *v1.PersistentVolumeClaim
-	err := wait.PollImmediate(waitReadyImterval, waitReadyTime, func() (bool, error) {
+	err := wait.PollUntilContextTimeout(context.TODO(), waitReadyImterval, waitReadyTime, true, func(ctx context.Context) (bool, error) {
 		var err error
-		pvc, err = app.client.CoreV1().PersistentVolumeClaims(pvcNamespace).Get(context.TODO(), pvcName, metav1.GetOptions{})
+		pvc, err = app.client.CoreV1().PersistentVolumeClaims(pvcNamespace).Get(ctx, pvcName, metav1.GetOptions{})
 		if err != nil {
 			if k8serrors.IsNotFound(err) {
 				return false, fmt.Errorf("rejecting Upload Request for PVC %s that doesn't exist", pvcName)
@@ -267,7 +267,7 @@ func (app *uploadProxyApp) uploadReady(pvcName, pvcNamespace string) (*v1.Persis
 		}
 		// If using upload populator then need to check upload possibility to the PVC'
 		if populators.IsPVCDataSourceRefKind(pvc, cdiv1.VolumeUploadSourceRef) {
-			pvc, err = app.getPopulationPVC(pvc, pvcNamespace)
+			pvc, err = app.getPopulationPVC(ctx, pvc, pvcNamespace)
 			if pvc == nil || err != nil {
 				return false, err
 			}
@@ -374,13 +374,13 @@ func (app *uploadProxyApp) startTLS() error {
 	return <-errChan
 }
 
-func (app *uploadProxyApp) getPopulationPVC(pvc *v1.PersistentVolumeClaim, pvcNamespace string) (*v1.PersistentVolumeClaim, error) {
+func (app *uploadProxyApp) getPopulationPVC(ctx context.Context, pvc *v1.PersistentVolumeClaim, pvcNamespace string) (*v1.PersistentVolumeClaim, error) {
 	pvcPrimeName, ok := pvc.Annotations[populators.AnnPVCPrimeName]
 	if !ok {
 		// wait for pvcPrimeName annotation on the pvc
 		return nil, nil
 	}
-	pvcPrime, err := app.client.CoreV1().PersistentVolumeClaims(pvcNamespace).Get(context.TODO(), pvcPrimeName, metav1.GetOptions{})
+	pvcPrime, err := app.client.CoreV1().PersistentVolumeClaims(pvcNamespace).Get(ctx, pvcPrimeName, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, fmt.Errorf("rejecting Upload Request for PVC %s, PVC' wasn't created yet", pvc.Name)

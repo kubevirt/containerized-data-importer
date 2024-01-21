@@ -80,13 +80,13 @@ func WaitTimeoutForPVReady(clientSet *kubernetes.Clientset, pvName string, timeo
 
 // WaitTimeoutForPVStatus waits for the given pv to be created and have a expected status
 func WaitTimeoutForPVStatus(clientSet *kubernetes.Clientset, pvName string, status k8sv1.PersistentVolumePhase, timeout time.Duration) error {
-	return wait.PollImmediate(2*time.Second, timeout, pvPhase(clientSet, pvName, status))
+	return wait.PollUntilContextTimeout(context.TODO(), 2*time.Second, timeout, true, pvPhase(clientSet, pvName, status))
 }
 
 // WaitTimeoutForPVDeleted waits until the given pv no longer exists
 func WaitTimeoutForPVDeleted(clientSet *kubernetes.Clientset, pv *k8sv1.PersistentVolume, timeout time.Duration) error {
-	return wait.PollImmediate(pvPollInterval, timeout, func() (bool, error) {
-		err := clientSet.CoreV1().PersistentVolumes().Delete(context.TODO(), pv.GetName(), metav1.DeleteOptions{})
+	return wait.PollUntilContextTimeout(context.TODO(), pvPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		err := clientSet.CoreV1().PersistentVolumes().Delete(ctx, pv.GetName(), metav1.DeleteOptions{})
 		if apierrs.IsNotFound(err) {
 			return true, nil
 		}
@@ -94,9 +94,9 @@ func WaitTimeoutForPVDeleted(clientSet *kubernetes.Clientset, pv *k8sv1.Persiste
 	})
 }
 
-func pvPhase(clientSet *kubernetes.Clientset, pvName string, status k8sv1.PersistentVolumePhase) wait.ConditionFunc {
-	return func() (bool, error) {
-		pv, err := clientSet.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+func pvPhase(clientSet *kubernetes.Clientset, pvName string, status k8sv1.PersistentVolumePhase) wait.ConditionWithContextFunc {
+	return func(ctx context.Context) (bool, error) {
+		pv, err := clientSet.CoreV1().PersistentVolumes().Get(ctx, pvName, metav1.GetOptions{})
 		if err != nil {
 			if k8serrors.IsNotFound(err) {
 				return false, nil
@@ -115,8 +115,8 @@ func pvPhase(clientSet *kubernetes.Clientset, pvName string, status k8sv1.Persis
 // DeletePV deletes the passed in PV
 func DeletePV(clientSet *kubernetes.Clientset, pv *k8sv1.PersistentVolume) error {
 	zero := int64(0)
-	return wait.PollImmediate(pvPollInterval, pvDeleteTime, func() (bool, error) {
-		err := clientSet.CoreV1().PersistentVolumes().Delete(context.TODO(), pv.GetName(), metav1.DeleteOptions{
+	return wait.PollUntilContextTimeout(context.TODO(), pvPollInterval, pvDeleteTime, true, func(ctx context.Context) (bool, error) {
+		err := clientSet.CoreV1().PersistentVolumes().Delete(ctx, pv.GetName(), metav1.DeleteOptions{
 			GracePeriodSeconds: &zero,
 		})
 		if err == nil || apierrs.IsNotFound(err) {
