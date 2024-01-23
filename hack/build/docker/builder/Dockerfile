@@ -33,7 +33,7 @@ RUN pip3 install --upgrade j2cli operator-courier==2.1.11 && \
 	ln -s /opt/gradle/gradle-6.6/bin/gradle /usr/local/bin/gradle && \
 	rm gradle-6.6-bin.zip
 
-ENV GIMME_GO_VERSION=1.20.10 GOPATH="/go" GO111MODULE="on"
+ENV GIMME_GO_VERSION=1.21.5 GOPATH="/go" GO111MODULE="on"
 
 RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
 
@@ -50,7 +50,7 @@ RUN \
 	go install github.com/securego/gosec/v2/cmd/gosec@latest && \
 	rm -rf "${GOPATH}/pkg"
 
-ENV BAZEL_VERSION 5.4.0
+ENV BAZEL_VERSION 5.4.1
 
 COPY output-bazel-arch.sh /output-bazel-arch.sh
 
