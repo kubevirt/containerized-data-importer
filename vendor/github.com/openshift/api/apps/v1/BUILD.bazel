@@ -12,6 +12,7 @@ go_library(
         "types.go",
         "zz_generated.deepcopy.go",
         "zz_generated.swagger_doc_generated.go",
+        "zz_prerelease_lifecycle_generated.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/openshift/api/apps/v1",
     importpath = "github.com/openshift/api/apps/v1",

@@ -40,10 +40,10 @@ func indexAndWatch(mgr manager.Manager, ctrl controller.Controller, obj client.O
 		return err
 	}
 
-	if err := ctrl.Watch(&source.Kind{Type: obj}, handler.EnqueueRequestsFromMapFunc(
-		func(obj client.Object) []reconcile.Request {
+	if err := ctrl.Watch(source.Kind(mgr.GetCache(), obj), handler.EnqueueRequestsFromMapFunc(
+		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			value := indexKeyFunc(obj.GetNamespace(), obj.GetName())
-			return indexLookup(mgr.GetClient(), field, value)
+			return indexLookup(ctx, mgr.GetClient(), field, value)
 		},
 	)); err != nil {
 		return err
@@ -52,11 +52,11 @@ func indexAndWatch(mgr manager.Manager, ctrl controller.Controller, obj client.O
 	return nil
 }
 
-func indexLookup(c client.Client, field, value string) []reconcile.Request {
+func indexLookup(ctx context.Context, c client.Client, field, value string) []reconcile.Request {
 	var result []reconcile.Request
 	var objs cdiv1.ObjectTransferList
 
-	if err := c.List(context.TODO(), &objs, &client.ListOptions{
+	if err := c.List(ctx, &objs, &client.ListOptions{
 		FieldSelector: fields.OneTermEqualSelector(field, value),
 	}); err != nil {
 		return nil
@@ -73,9 +73,9 @@ func indexLookup(c client.Client, field, value string) []reconcile.Request {
 	return result
 }
 
-func watchObjectTransfers(ctrl controller.Controller) error {
-	return ctrl.Watch(&source.Kind{Type: &cdiv1.ObjectTransfer{}}, handler.EnqueueRequestsFromMapFunc(
-		func(obj client.Object) []reconcile.Request {
+func watchObjectTransfers(mgr manager.Manager, ctrl controller.Controller) error {
+	return ctrl.Watch(source.Kind(mgr.GetCache(), &cdiv1.ObjectTransfer{}), handler.EnqueueRequestsFromMapFunc(
+		func(_ context.Context, obj client.Object) []reconcile.Request {
 			ot := obj.(*cdiv1.ObjectTransfer)
 			result := []reconcile.Request{
 				{
@@ -99,20 +99,20 @@ func watchObjectTransfers(ctrl controller.Controller) error {
 }
 
 func watchPVs(mgr manager.Manager, ctrl controller.Controller) error {
-	return ctrl.Watch(&source.Kind{Type: &corev1.PersistentVolume{}}, handler.EnqueueRequestsFromMapFunc(
-		func(obj client.Object) []reconcile.Request {
+	return ctrl.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolume{}), handler.EnqueueRequestsFromMapFunc(
+		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			pv := obj.(*corev1.PersistentVolume)
 			if pv.Spec.ClaimRef == nil {
 				return nil
 			}
 			value := indexKeyFunc(pv.Spec.ClaimRef.Namespace, pv.Spec.ClaimRef.Name)
-			return indexLookup(mgr.GetClient(), "persistentvolumeclaim", value)
+			return indexLookup(ctx, mgr.GetClient(), "persistentvolumeclaim", value)
 		},
 	))
 }
 
 func addObjectTransferControllerWatches(mgr manager.Manager, ctrl controller.Controller) error {
-	if err := watchObjectTransfers(ctrl); err != nil {
+	if err := watchObjectTransfers(mgr, ctrl); err != nil {
 		return err
 	}
 

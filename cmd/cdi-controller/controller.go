@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rsa"
 	"flag"
 	"fmt"
@@ -17,6 +18,8 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -24,6 +27,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -36,7 +40,7 @@ import (
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/pkg/controller/transfer"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
@@ -156,7 +160,7 @@ func start() {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
 	}
 
-	client, err := kubernetes.NewForConfig(cfg)
+	k8sClient, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
 	}
@@ -171,12 +175,21 @@ func start() {
 		}
 	}
 
+	// client.New() returns a client without cache
+	// since we don't have a cached client before manager init
+	apiClient, err := client.New(cfg, client.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		klog.Fatalf("Unable to get uncached client: %v\n", errors.WithStack(err))
+	}
+
 	opts := manager.Options{
 		LeaderElection:             true,
 		LeaderElectionNamespace:    namespace,
 		LeaderElectionID:           "cdi-controller-leader-election-helper",
 		LeaderElectionResourceLock: "leases",
-		NewCache:                   getNewManagerCache(namespace),
+		Cache:                      getCacheOptions(apiClient, namespace),
 		Scheme:                     scheme,
 	}
 
@@ -189,14 +202,14 @@ func start() {
 	uploadClientCAFetcher := &fetcher.FileCertFetcher{KeyFileName: controllerEnvs.UploadClientKeyFile, CertFileName: controllerEnvs.UploadClientCertFile}
 	uploadClientBundleFetcher := &fetcher.ConfigMapCertBundleFetcher{
 		Name:   controllerEnvs.UploadClientCaBundleConfigMap,
-		Client: client.CoreV1().ConfigMaps(namespace),
+		Client: k8sClient.CoreV1().ConfigMaps(namespace),
 	}
 	uploadClientCertGenerator := &generator.FetchCertGenerator{Fetcher: uploadClientCAFetcher}
 
 	uploadServerCAFetcher := &fetcher.FileCertFetcher{KeyFileName: controllerEnvs.UploadServerKeyFile, CertFileName: controllerEnvs.UploadServerCertFile}
 	uploadServerBundleFetcher := &fetcher.ConfigMapCertBundleFetcher{
 		Name:   controllerEnvs.UploadServerCaBundleConfigMap,
-		Client: client.CoreV1().ConfigMaps(namespace),
+		Client: k8sClient.CoreV1().ConfigMaps(namespace),
 	}
 	uploadServerCertGenerator := &generator.FetchCertGenerator{Fetcher: uploadServerCAFetcher}
 
@@ -372,24 +385,53 @@ func getTokenPrivateKey() *rsa.PrivateKey {
 // Note: objects you read once with the controller runtime client are cached.
 // TODO: Make our watches way more specific using labels, for example,
 // at the point of writing this, we don't care about VolumeSnapshots without the CDI label
-func getNewManagerCache(cdiNamespace string) cache.NewCacheFunc {
+func getCacheOptions(apiClient client.Client, cdiNamespace string) cache.Options {
 	namespaceSelector := fields.Set{"metadata.namespace": cdiNamespace}.AsSelector()
-	return cache.BuilderWithOptions(
-		cache.Options{
-			SelectorsByObject: cache.SelectorsByObject{
-				&networkingv1.Ingress{}: {
-					Field: namespaceSelector,
-				},
-				&routev1.Route{}: {
-					Field: namespaceSelector,
-				},
-				&batchv1.CronJob{}: {
-					Field: namespaceSelector,
-				},
-				&batchv1.Job{}: {
-					Field: namespaceSelector,
-				},
+
+	cacheOptions := cache.Options{
+		ByObject: map[client.Object]cache.ByObject{
+			&networkingv1.Ingress{}: {
+				Field: namespaceSelector,
+			},
+			&batchv1.CronJob{}: {
+				Field: namespaceSelector,
+			},
+			&batchv1.Job{}: {
+				Field: namespaceSelector,
 			},
 		},
-	)
+	}
+
+	cacheOptionsByObjectForOpenshift := map[client.Object]cache.ByObject{
+		&routev1.Route{}: {
+			Field: namespaceSelector,
+		},
+	}
+
+	// Currently controller-runtime will fail if types in here are not installed in the cluster
+	// https://github.com/kubernetes-sigs/controller-runtime/issues/2456
+	if isOpenShift(apiClient) {
+		for k, v := range cacheOptionsByObjectForOpenshift {
+			cacheOptions.ByObject[k] = v
+		}
+	}
+
+	return cacheOptions
+}
+
+func isOpenShift(apiClient client.Client) bool {
+	clusterVersion := &ocpconfigv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "version",
+		},
+	}
+	if err := apiClient.Get(context.TODO(), client.ObjectKeyFromObject(clusterVersion), clusterVersion); err != nil {
+		if !meta.IsNoMatchError(err) {
+			klog.Errorf("Error getting clusterVersion: %v", err)
+			os.Exit(1)
+		}
+		return false
+	}
+
+	return true
 }

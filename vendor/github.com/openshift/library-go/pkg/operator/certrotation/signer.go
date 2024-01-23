@@ -37,6 +37,18 @@ type RotatedSigningCASecret struct {
 	// rotation on expiration only, but not interfere with the ordinary rotation controller.
 	RefreshOnlyWhenExpired bool
 
+	// Owner is an optional reference to add to the secret that this rotator creates. Use this when downstream
+	// consumers of the signer CA need to be aware of changes to the object.
+	// WARNING: be careful when using this option, as deletion of the owning object will cascade into deletion
+	// of the signer. If the lifetime of the owning object is not a superset of the lifetime in which the signer
+	// is used, early deletion will be catastrophic.
+	Owner *metav1.OwnerReference
+
+	// JiraComponent annotates tls artifacts so that owner could be easily found
+	JiraComponent string
+
+	// Description is a human-readable one sentence description of certificate purpose
+	Description string
 	// Plumbing:
 	Informer      corev1informers.SecretInformer
 	Lister        corev1listers.SecretLister
@@ -53,9 +65,28 @@ func (c RotatedSigningCASecret) EnsureSigningCertKeyPair(ctx context.Context) (*
 	signingCertKeyPairSecret := originalSigningCertKeyPairSecret.DeepCopy()
 	if apierrors.IsNotFound(err) {
 		// create an empty one
-		signingCertKeyPairSecret = &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: c.Namespace, Name: c.Name}}
+		signingCertKeyPairSecret = &corev1.Secret{ObjectMeta: NewTLSArtifactObjectMeta(
+			c.Name,
+			c.Namespace,
+			c.JiraComponent,
+			c.Description,
+		)}
 	}
 	signingCertKeyPairSecret.Type = corev1.SecretTypeTLS
+
+	needsMetadataUpdate := false
+	if c.Owner != nil {
+		needsMetadataUpdate = ensureOwnerReference(&signingCertKeyPairSecret.ObjectMeta, c.Owner)
+	}
+	if len(c.JiraComponent) > 0 || len(c.Description) > 0 {
+		needsMetadataUpdate = EnsureTLSMetadataUpdate(&signingCertKeyPairSecret.ObjectMeta, c.JiraComponent, c.Description) || needsMetadataUpdate
+	}
+	if needsMetadataUpdate && len(signingCertKeyPairSecret.ResourceVersion) > 0 {
+		_, _, err := resourceapply.ApplySecret(ctx, c.Client, c.EventRecorder, signingCertKeyPairSecret)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	if needed, reason := needNewSigningCertKeyPair(signingCertKeyPairSecret.Annotations, c.Refresh, c.RefreshOnlyWhenExpired); needed {
 		c.EventRecorder.Eventf("SignerUpdateRequired", "%q in %q requires a new signing cert/key pair: %v", c.Name, c.Namespace, reason)
@@ -78,6 +109,22 @@ func (c RotatedSigningCASecret) EnsureSigningCertKeyPair(ctx context.Context) (*
 	}
 
 	return signingCertKeyPair, nil
+}
+
+// ensureOwnerReference adds the owner to the list of owner references in meta, if necessary
+func ensureOwnerReference(meta *metav1.ObjectMeta, owner *metav1.OwnerReference) bool {
+	var found bool
+	for _, ref := range meta.OwnerReferences {
+		if ref == *owner {
+			found = true
+			break
+		}
+	}
+	if !found {
+		meta.OwnerReferences = append(meta.OwnerReferences, *owner)
+		return true
+	}
+	return false
 }
 
 func needNewSigningCertKeyPair(annotations map[string]string, refresh time.Duration, refreshOnlyWhenExpired bool) (bool, string) {

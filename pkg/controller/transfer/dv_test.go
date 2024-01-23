@@ -90,7 +90,7 @@ var _ = Describe("DataVolume Transfer Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferRunning))
-			Expect(xfer.Status.Data).To(Equal(dvTransferRunning().Status.Data))
+			Expect(xfer.Status.Data).To(Equal(dvTransferRunningWithSucceededDV().Status.Data))
 			checkCompleteFalse(xfer, "Running", "")
 		})
 
@@ -279,6 +279,24 @@ func dvTransferRunning() *cdiv1.ObjectTransfer {
 		"cdi.kubevirt.io/objectTransferName": "dvTransfer",
 	}
 	dv.Status = cdiv1.DataVolumeStatus{}
+	bs, _ := json.Marshal(dv)
+	t.Status.Data = map[string]string{
+		"source":  string(bs),
+		"pvcName": dv.Name,
+	}
+	return t
+}
+
+func dvTransferRunningWithSucceededDV() *cdiv1.ObjectTransfer {
+	t := dvTransfer(cdiv1.ObjectTransferRunning)
+	dv := createPopulatedDV()
+	dv.Kind = "DataVolume"
+	dv.APIVersion = "cdi.kubevirt.io/v1beta1"
+	dv.ResourceVersion = "1000"
+	dv.Annotations = map[string]string{
+		"cdi.kubevirt.io/objectTransferName": "dvTransfer",
+	}
+	dv.Status = cdiv1.DataVolumeStatus{Phase: cdiv1.Succeeded}
 	bs, _ := json.Marshal(dv)
 	t.Status.Data = map[string]string{
 		"source":  string(bs),

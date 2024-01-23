@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeVolumeImportSources struct {
 	ns   string
 }
 
-var volumeimportsourcesResource = schema.GroupVersionResource{Group: "cdi.kubevirt.io", Version: "v1beta1", Resource: "volumeimportsources"}
+var volumeimportsourcesResource = v1beta1.SchemeGroupVersion.WithResource("volumeimportsources")
 
-var volumeimportsourcesKind = schema.GroupVersionKind{Group: "cdi.kubevirt.io", Version: "v1beta1", Kind: "VolumeImportSource"}
+var volumeimportsourcesKind = v1beta1.SchemeGroupVersion.WithKind("VolumeImportSource")
 
 // Get takes name of the volumeImportSource, and returns the corresponding volumeImportSource object, and an error if there is any.
 func (c *FakeVolumeImportSources) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.VolumeImportSource, err error) {

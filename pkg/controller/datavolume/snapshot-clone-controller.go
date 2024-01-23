@@ -130,7 +130,7 @@ func (r *SnapshotCloneReconciler) addDataVolumeSnapshotCloneControllerWatches(mg
 		return err
 	}
 
-	if err := r.addVolumeCloneSourceWatch(datavolumeController); err != nil {
+	if err := r.addVolumeCloneSourceWatch(mgr, datavolumeController); err != nil {
 		return err
 	}
 

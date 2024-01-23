@@ -20,8 +20,8 @@ func WaitForDeploymentReplicasReadyOrDie(c *kubernetes.Clientset, namespace, nam
 
 // WaitForDeploymentReplicasReady will wait for replicase to become ready and return an error if they do not
 func WaitForDeploymentReplicasReady(c *kubernetes.Clientset, namespace, name string) error {
-	return wait.PollImmediate(defaultPollInterval, defaultPollPeriod, func() (done bool, err error) {
-		dep, err := c.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	return wait.PollUntilContextTimeout(context.TODO(), defaultPollInterval, defaultPollPeriod, true, func(ctx context.Context) (done bool, err error) {
+		dep, err := c.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 		// Fail if deployment not found, ignore other (possibly intermittent) API errors
 		if apierrs.IsNotFound(err) {
 			return true, err

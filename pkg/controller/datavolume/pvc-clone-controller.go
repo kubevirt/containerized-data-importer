@@ -125,7 +125,7 @@ func (r *PvcCloneReconciler) addDataVolumeCloneControllerWatches(mgr manager.Man
 		return err
 	}
 
-	if err := r.addVolumeCloneSourceWatch(datavolumeController); err != nil {
+	if err := r.addVolumeCloneSourceWatch(mgr, datavolumeController); err != nil {
 		return err
 	}
 
@@ -152,10 +152,10 @@ func addDataSourceWatch(mgr manager.Manager, c controller.Controller) error {
 		return err
 	}
 
-	mapToDataVolume := func(obj client.Object) (reqs []reconcile.Request) {
+	mapToDataVolume := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
 		var dvs cdiv1.DataVolumeList
 		matchingFields := client.MatchingFields{dvDataSourceField: getKey(obj.GetNamespace(), obj.GetName())}
-		if err := mgr.GetClient().List(context.TODO(), &dvs, matchingFields); err != nil {
+		if err := mgr.GetClient().List(ctx, &dvs, matchingFields); err != nil {
 			c.GetLogger().Error(err, "Unable to list DataVolumes", "matchingFields", matchingFields)
 			return
 		}
@@ -165,7 +165,7 @@ func addDataSourceWatch(mgr manager.Manager, c controller.Controller) error {
 		return
 	}
 
-	if err := c.Watch(&source.Kind{Type: &cdiv1.DataSource{}},
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{}),
 		handler.EnqueueRequestsFromMapFunc(mapToDataVolume),
 	); err != nil {
 		return err

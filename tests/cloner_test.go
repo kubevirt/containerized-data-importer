@@ -3132,8 +3132,9 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string) {
 	// Create targetPvc
 	By(fmt.Sprintf("Creating target pvc: %s/target-pvc", targetNamespaceName))
+	pvcName := "target-pvc"
 	targetPvc, err := utils.CreatePVCFromDefinition(f.K8sClient, targetNamespaceName, utils.NewPVCDefinition(
-		"target-pvc",
+		pvcName,
 		"1Gi",
 		map[string]string{
 			controller.AnnCloneRequest: f.Namespace.Name + "/" + sourcePVCName,
@@ -3146,7 +3147,7 @@ func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string
 
 	By("Checking no cloning pods were created")
 
-	matchString := fmt.Sprintf("{\"PVC\": \"%s/target-pvc\", \"isUpload\": false, \"isCloneTarget\": true, \"isBound\": true, \"podSucceededFromPVC\": true, \"deletionTimeStamp set?\": false}", f.Namespace.Name)
+	matchString := fmt.Sprintf("{\"PVC\": {\"name\":\"%s\",\"namespace\":\"%s\"}, \"isUpload\": false, \"isCloneTarget\": true, \"isBound\": true, \"podSucceededFromPVC\": true, \"deletionTimeStamp set?\": false}", pvcName, f.Namespace.Name)
 	Eventually(func() bool {
 		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 		Expect(err).NotTo(HaveOccurred())
@@ -3158,7 +3159,7 @@ func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string
 	Eventually(func() bool {
 		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 		Expect(err).NotTo(HaveOccurred())
-		return strings.Contains(log, fmt.Sprintf("{\"PVC\": \"%s/%s\", \"checkPVC(AnnCloneRequest)\": true, \"NOT has annotation(AnnCloneOf)\": false, \"isBound\": true, \"has finalizer?\": false}", targetNamespaceName, "target-pvc"))
+		return strings.Contains(log, fmt.Sprintf("{\"PVC\": {\"name\":\"%s\",\"namespace\":\"%s\"}, \"checkPVC(AnnCloneRequest)\": true, \"NOT has annotation(AnnCloneOf)\": false, \"isBound\": true, \"has finalizer?\": false}", pvcName, targetNamespaceName))
 	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
 	Expect(err).ToNot(HaveOccurred())
 }
@@ -3260,7 +3261,7 @@ func VerifyGC(f *framework.Framework, dvName, dvNamespace string, checkOwnerRefs
 // VerifyNoGC verifies DV is not garbage collected
 func VerifyNoGC(f *framework.Framework, dvName, dvNamespace string) {
 	By("Verify DV is not garbage collected")
-	matchString := "DataVolume is not annotated to be garbage collected\t{\"DataVolume\": \"" + dvNamespace + "/" + dvName + "\"}"
+	matchString := fmt.Sprintf("DataVolume is not annotated to be garbage collected\t{\"DataVolume\": {\"name\":\"%s\",\"namespace\":\"%s\"}}", dvName, dvNamespace)
 	fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
 	Eventually(func() string {
 		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
@@ -3275,7 +3276,7 @@ func VerifyNoGC(f *framework.Framework, dvName, dvNamespace string) {
 // VerifyDisabledGC verifies DV is not deleted when garbage collection is disabled
 func VerifyDisabledGC(f *framework.Framework, dvName, dvNamespace string) {
 	By("Verify DV is not deleted when garbage collection is disabled")
-	matchString := "Garbage Collection is disabled\t{\"DataVolume\": \"" + dvNamespace + "/" + dvName + "\"}"
+	matchString := fmt.Sprintf("Garbage Collection is disabled\t{\"DataVolume\": {\"name\":\"%s\",\"namespace\":\"%s\"}}", dvName, dvNamespace)
 	fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
 	Eventually(func() string {
 		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)

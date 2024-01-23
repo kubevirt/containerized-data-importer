@@ -19,6 +19,7 @@ go_library(
         "types_kubeapiserver.go",
         "types_kubecontrollermanager.go",
         "types_kubestorageversionmigrator.go",
+        "types_machineconfiguration.go",
         "types_network.go",
         "types_openshiftapiserver.go",
         "types_openshiftcontrollermanager.go",

@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeUploadTokenRequests struct {
 	ns   string
 }
 
-var uploadtokenrequestsResource = schema.GroupVersionResource{Group: "upload.cdi.kubevirt.io", Version: "v1beta1", Resource: "uploadtokenrequests"}
+var uploadtokenrequestsResource = v1beta1.SchemeGroupVersion.WithResource("uploadtokenrequests")
 
-var uploadtokenrequestsKind = schema.GroupVersionKind{Group: "upload.cdi.kubevirt.io", Version: "v1beta1", Kind: "UploadTokenRequest"}
+var uploadtokenrequestsKind = v1beta1.SchemeGroupVersion.WithKind("UploadTokenRequest")
 
 // Get takes name of the uploadTokenRequest, and returns the corresponding uploadTokenRequest object, and an error if there is any.
 func (c *FakeUploadTokenRequests) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.UploadTokenRequest, err error) {

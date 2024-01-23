@@ -21,6 +21,5 @@ go_library(
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client/apiutil:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/internal/log:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/internal/recorder:go_default_library",
-        "//vendor/sigs.k8s.io/controller-runtime/pkg/runtime/inject:go_default_library",
     ],
 )

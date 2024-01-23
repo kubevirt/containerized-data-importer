@@ -30,7 +30,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -396,16 +396,16 @@ func NewStorageProfileController(mgr manager.Manager, log logr.Logger, installer
 }
 
 func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
-	if err := c.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
-	if err := c.Watch(&source.Kind{Type: &cdiv1.StorageProfile{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.StorageProfile{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
-	if err := c.Watch(&source.Kind{Type: &v1.PersistentVolume{}}, handler.EnqueueRequestsFromMapFunc(
-		func(obj client.Object) []reconcile.Request {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &v1.PersistentVolume{}), handler.EnqueueRequestsFromMapFunc(
+		func(_ context.Context, obj client.Object) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: scName(obj)},
 			}}
@@ -419,9 +419,9 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 
-	mapSnapshotClassToProfile := func(obj client.Object) (reqs []reconcile.Request) {
+	mapSnapshotClassToProfile := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
 		var scList storagev1.StorageClassList
-		if err := mgr.GetClient().List(context.TODO(), &scList); err != nil {
+		if err := mgr.GetClient().List(ctx, &scList); err != nil {
 			c.GetLogger().Error(err, "Unable to list StorageClasses")
 			return
 		}
@@ -442,7 +442,7 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 			return err
 		}
 	}
-	if err := c.Watch(&source.Kind{Type: &snapshotv1.VolumeSnapshotClass{}},
+	if err := c.Watch(source.Kind(mgr.GetCache(), &snapshotv1.VolumeSnapshotClass{}),
 		handler.EnqueueRequestsFromMapFunc(mapSnapshotClassToProfile),
 	); err != nil {
 		return err

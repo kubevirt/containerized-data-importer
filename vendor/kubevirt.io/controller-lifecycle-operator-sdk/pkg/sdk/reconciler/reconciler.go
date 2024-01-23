@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -54,7 +56,7 @@ type SanityChecker func(cr client.Object, logger logr.Logger) (*reconcile.Result
 // WatchRegistrator is expected to register additional resource watchers if required
 type WatchRegistrator func() error
 
-//PreCreateHook is expected to perform custom actions before the creation of the managed resources is initiated
+// PreCreateHook is expected to perform custom actions before the creation of the managed resources is initiated
 type PreCreateHook func(cr client.Object) error
 
 // CrManager defines interface that needs to be provided for the reconciler to operate
@@ -97,6 +99,7 @@ type Reconciler struct {
 	lastAppliedConfigAnnotation string
 	updateVersionLabel          string
 	scheme                      *runtime.Scheme
+	getCache                    func() cache.Cache
 	recorder                    record.EventRecorder
 	perishablesSyncInterval     time.Duration
 	finalizerName               string
@@ -541,7 +544,7 @@ func (r *Reconciler) GetAllDeployments(cr client.Object) ([]*appsv1.Deployment, 
 // WatchCR registers watch for the managed CR
 func (r *Reconciler) WatchCR() error {
 	// Watch for changes to managed CR
-	return r.controller.Watch(&source.Kind{Type: r.crManager.Create()}, &handler.EnqueueRequestForObject{})
+	return r.controller.Watch(source.Kind(r.getCache(), r.crManager.Create()), &handler.EnqueueRequestForObject{})
 }
 
 // InvokeCallbacks executes callbacks registered
@@ -559,15 +562,12 @@ func (r *Reconciler) WatchResourceTypes(resources ...client.Object) error {
 			continue
 		}
 
-		eventHandler := &handler.EnqueueRequestForOwner{
-			IsController: true,
-			OwnerType:    r.crManager.Create(),
-		}
+		eventHandler := handler.EnqueueRequestForOwner(r.scheme, r.client.RESTMapper(), r.crManager.Create(), handler.OnlyControllerOwner())
 
 		predicates := []predicate.Predicate{sdk.NewIgnoreLeaderElectionPredicate()}
 
-		if err := r.controller.Watch(&source.Kind{Type: resource}, eventHandler, predicates...); err != nil {
-			if meta.IsNoMatchError(err) {
+		if err := r.controller.Watch(source.Kind(r.getCache(), resource), eventHandler, predicates...); err != nil {
+			if meta.IsNoMatchError(err) || strings.Contains(err.Error(), "failed to find API group") {
 				r.log.Info("No match for type, NOT WATCHING", "type", t)
 				continue
 			}

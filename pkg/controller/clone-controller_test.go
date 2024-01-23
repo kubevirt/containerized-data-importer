@@ -393,7 +393,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		sourcePod.Status.Phase = corev1.PodSucceeded
-		err = reconciler.client.Update(context.TODO(), sourcePod)
+		err = reconciler.client.Status().Update(context.TODO(), sourcePod)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())

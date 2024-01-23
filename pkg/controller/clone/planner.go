@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -81,6 +82,7 @@ type Planner struct {
 	Client          client.Client
 	Recorder        record.EventRecorder
 	Controller      controller.Controller
+	GetCache        func() cache.Cache
 
 	watchingCore      bool
 	watchingSnapshots bool
@@ -257,8 +259,8 @@ func (p *Planner) watchSnapshots(ctx context.Context, log logr.Logger) error {
 
 func (p *Planner) watchOwned(log logr.Logger, obj client.Object) error {
 	objList := p.RootObjectType.DeepCopyObject().(client.ObjectList)
-	if err := p.Controller.Watch(&source.Kind{Type: obj}, handler.EnqueueRequestsFromMapFunc(
-		func(obj client.Object) (reqs []reconcile.Request) {
+	if err := p.Controller.Watch(source.Kind(p.GetCache(), obj), handler.EnqueueRequestsFromMapFunc(
+		func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
 			uid, ok := obj.GetLabels()[p.OwnershipLabel]
 			if !ok {
 				return
@@ -266,7 +268,7 @@ func (p *Planner) watchOwned(log logr.Logger, obj client.Object) error {
 			matchingFields := client.MatchingFields{
 				p.UIDField: uid,
 			}
-			if err := p.Client.List(context.Background(), objList, matchingFields); err != nil {
+			if err := p.Client.List(ctx, objList, matchingFields); err != nil {
 				log.Error(err, "Unable to list resource", "matchingFields", matchingFields)
 				return
 			}

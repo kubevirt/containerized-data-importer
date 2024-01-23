@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeVolumeCloneSources struct {
 	ns   string
 }
 
-var volumeclonesourcesResource = schema.GroupVersionResource{Group: "cdi.kubevirt.io", Version: "v1beta1", Resource: "volumeclonesources"}
+var volumeclonesourcesResource = v1beta1.SchemeGroupVersion.WithResource("volumeclonesources")
 
-var volumeclonesourcesKind = schema.GroupVersionKind{Group: "cdi.kubevirt.io", Version: "v1beta1", Kind: "VolumeCloneSource"}
+var volumeclonesourcesKind = v1beta1.SchemeGroupVersion.WithKind("VolumeCloneSource")
 
 // Get takes name of the volumeCloneSource, and returns the corresponding volumeCloneSource object, and an error if there is any.
 func (c *FakeVolumeCloneSources) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.VolumeCloneSource, err error) {

@@ -251,9 +251,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.Get(context.TODO(), cronKey, cron)
 			Expect(err).ToNot(HaveOccurred())
 
-			now := metav1.Now()
-			cron.DeletionTimestamp = &now
-			err = reconciler.client.Update(context.TODO(), cron)
+			err = reconciler.client.Delete(context.TODO(), cron)
 			Expect(err).ToNot(HaveOccurred())
 
 			_, err = reconciler.Reconcile(context.TODO(), cronReq)
@@ -445,9 +443,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(*cron.Status.LastImportedPVC).To(Equal(sourcePVC))
 			Expect(cron.Status.LastImportTimestamp).ToNot(BeNil())
 
-			now := metav1.Now()
-			cron.DeletionTimestamp = &now
-			err = reconciler.client.Update(context.TODO(), cron)
+			err = reconciler.client.Delete(context.TODO(), cron)
 			Expect(err).ToNot(HaveOccurred())
 			_, err = reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
@@ -695,9 +691,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready, &corev1.PersistentVolumeClaim{})
 
-			now := metav1.Now()
-			cron.DeletionTimestamp = &now
-			err = reconciler.client.Update(context.TODO(), cron)
+			err = reconciler.client.Delete(context.TODO(), cron)
 			Expect(err).ToNot(HaveOccurred())
 			_, err = reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
@@ -967,9 +961,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 				Expect(*snap.Status.ReadyToUse).To(BeTrue())
 				Expect(*snap.Spec.Source.PersistentVolumeClaimName).To(Equal(dvName))
 
-				now := metav1.Now()
-				cron.DeletionTimestamp = &now
-				err = reconciler.client.Update(context.TODO(), cron)
+				err = reconciler.client.Delete(context.TODO(), cron)
 				Expect(err).ToNot(HaveOccurred())
 				_, err = reconciler.Reconcile(context.TODO(), cronReq)
 				Expect(err).ToNot(HaveOccurred())

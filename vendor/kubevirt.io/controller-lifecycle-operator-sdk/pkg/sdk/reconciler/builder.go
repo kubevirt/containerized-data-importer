@@ -6,19 +6,21 @@ import (
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // NewReconciler creates new Reconciler instance configured with given parameters
-func NewReconciler(crManager CrManager, log logr.Logger, client client.Client, callbackDispatcher CallbackDispatcher, scheme *runtime.Scheme, createVersionLabel string, updateVersionLabel string, lastAppliedConfigAnnotation string, perishablesSyncInterval time.Duration, finalizerName string, subresourceEnabled bool, recorder record.EventRecorder) *Reconciler {
+func NewReconciler(crManager CrManager, log logr.Logger, client client.Client, callbackDispatcher CallbackDispatcher, scheme *runtime.Scheme, getCache func() cache.Cache, createVersionLabel string, updateVersionLabel string, lastAppliedConfigAnnotation string, perishablesSyncInterval time.Duration, finalizerName string, subresourceEnabled bool, recorder record.EventRecorder) *Reconciler {
 	return &Reconciler{
 		crManager:                     crManager,
 		log:                           log,
 		client:                        client,
 		callbackDispatcher:            callbackDispatcher,
 		scheme:                        scheme,
+		getCache:                      getCache,
 		recorder:                      recorder,
 		createVersionLabel:            createVersionLabel,
 		updateVersionLabel:            updateVersionLabel,

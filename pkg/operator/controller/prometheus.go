@@ -416,7 +416,7 @@ func (r *ReconcileCDI) watchPrometheusResources() error {
 			Limit:     1,
 		})
 		if err == nil {
-			if err := r.controller.Watch(&source.Kind{Type: obj}, enqueueCDI(r.client)); err != nil {
+			if err := r.controller.Watch(source.Kind(r.getCache(), obj), enqueueCDI(r.client)); err != nil {
 				return err
 			}
 		} else if meta.IsNoMatchError(err) {
@@ -432,7 +432,7 @@ func (r *ReconcileCDI) watchPrometheusResources() error {
 	}
 
 	for _, obj := range objs {
-		if err := r.controller.Watch(&source.Kind{Type: obj}, enqueueCDI(r.client)); err != nil {
+		if err := r.controller.Watch(source.Kind(r.getCache(), obj), enqueueCDI(r.client)); err != nil {
 			return err
 		}
 	}

@@ -29,10 +29,10 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -120,7 +120,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		dv.Status.Phase = cdiv1.Succeeded
-		err = reconciler.client.Update(context.TODO(), dv)
+		err = reconciler.client.Status().Update(context.TODO(), dv)
 		Expect(err).ToNot(HaveOccurred())
 
 		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -278,7 +278,7 @@ var _ = Describe("All DataVolume Tests", func() {
 	})
 
 	var _ = Describe("Reconcile Datavolume status", func() {
-		DescribeTable("DV phase", func(testDv runtime.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann, expectedEvent string, extraAnnotations ...string) {
+		DescribeTable("DV phase", func(testDv client.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann, expectedEvent string, extraAnnotations ...string) {
 			// We first test the non-populator flow
 			scName := "testpvc"
 			sc := CreateStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, "csi-plugin")
@@ -334,9 +334,11 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
-			pvc.Status.Phase = corev1.ClaimPending
 			AddAnnotation(pvc, AnnSelectedNode, "node01")
 			err = reconciler.client.Update(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+			pvc.Status.Phase = corev1.ClaimPending
+			err = reconciler.client.Status().Update(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 
 			// Create PVC Prime
@@ -411,26 +413,26 @@ var _ = Describe("All DataVolume Tests", func() {
 	})
 })
 
-func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
+func createUploadReconciler(objects ...client.Object) *UploadReconciler {
 	return createUploadReconcilerWithFeatureGates([]string{featuregates.HonorWaitForFirstConsumer}, objects...)
 }
 
-func createUploadReconcilerWithFeatureGates(featureGates []string, objects ...runtime.Object) *UploadReconciler {
+func createUploadReconcilerWithFeatureGates(featureGates []string, objects ...client.Object) *UploadReconciler {
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		ScratchSpaceStorageClass: testStorageClass,
 	}
 	cdiConfig.Spec.FeatureGates = featureGates
 
-	objs := []runtime.Object{}
+	objs := []client.Object{}
 	objs = append(objs, objects...)
 	objs = append(objs, cdiConfig)
 
 	return createUploadReconcilerWithoutConfig(objs...)
 }
 
-func createUploadReconcilerWithoutConfig(objects ...runtime.Object) *UploadReconciler {
-	objs := []runtime.Object{}
+func createUploadReconcilerWithoutConfig(objects ...client.Object) *UploadReconciler {
+	objs := []client.Object{}
 	objs = append(objs, objects...)
 
 	// Register operator types with the runtime scheme.
@@ -443,7 +445,8 @@ func createUploadReconcilerWithoutConfig(objects ...runtime.Object) *UploadRecon
 
 	builder := fake.NewClientBuilder().
 		WithScheme(s).
-		WithRuntimeObjects(objs...)
+		WithObjects(objs...).
+		WithStatusSubresource(objs...)
 
 	for _, ia := range getIndexArgs() {
 		builder = builder.WithIndex(ia.obj, ia.field, ia.extractValue)

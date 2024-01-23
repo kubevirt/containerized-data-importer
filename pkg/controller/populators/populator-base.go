@@ -114,8 +114,8 @@ func CreateCommonPopulatorIndexes(mgr manager.Manager) error {
 
 func addCommonPopulatorsWatches(mgr manager.Manager, c controller.Controller, log logr.Logger, sourceKind string, sourceType client.Object) error {
 	// Setup watches
-	if err := c.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, handler.EnqueueRequestsFromMapFunc(
-		func(obj client.Object) []reconcile.Request {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}), handler.EnqueueRequestsFromMapFunc(
+		func(_ context.Context, obj client.Object) []reconcile.Request {
 			pvc := obj.(*corev1.PersistentVolumeClaim)
 			if IsPVCDataSourceRefKind(pvc, sourceKind) {
 				pvcKey := types.NamespacedName{Namespace: pvc.Namespace, Name: pvc.Name}
@@ -132,12 +132,12 @@ func addCommonPopulatorsWatches(mgr manager.Manager, c controller.Controller, lo
 		return err
 	}
 
-	mapDataSourceRefToPVC := func(obj client.Object) (reqs []reconcile.Request) {
+	mapDataSourceRefToPVC := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
 		var pvcs corev1.PersistentVolumeClaimList
 		matchingFields := client.MatchingFields{
 			dataSourceRefField: getPopulatorIndexKey(cc.AnnAPIGroup, sourceKind, obj.GetNamespace(), obj.GetName()),
 		}
-		if err := mgr.GetClient().List(context.TODO(), &pvcs, matchingFields); err != nil {
+		if err := mgr.GetClient().List(ctx, &pvcs, matchingFields); err != nil {
 			log.Error(err, "Unable to list PVCs", "matchingFields", matchingFields)
 			return reqs
 		}
@@ -147,7 +147,7 @@ func addCommonPopulatorsWatches(mgr manager.Manager, c controller.Controller, lo
 		return reqs
 	}
 
-	if err := c.Watch(&source.Kind{Type: sourceType},
+	if err := c.Watch(source.Kind(mgr.GetCache(), sourceType),
 		handler.EnqueueRequestsFromMapFunc(mapDataSourceRefToPVC),
 	); err != nil {
 		return err

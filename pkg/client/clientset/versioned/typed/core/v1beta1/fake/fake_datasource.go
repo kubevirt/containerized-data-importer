@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeDataSources struct {
 	ns   string
 }
 
-var datasourcesResource = schema.GroupVersionResource{Group: "cdi.kubevirt.io", Version: "v1beta1", Resource: "datasources"}
+var datasourcesResource = v1beta1.SchemeGroupVersion.WithResource("datasources")
 
-var datasourcesKind = schema.GroupVersionKind{Group: "cdi.kubevirt.io", Version: "v1beta1", Kind: "DataSource"}
+var datasourcesKind = v1beta1.SchemeGroupVersion.WithKind("DataSource")
 
 // Get takes name of the dataSource, and returns the corresponding dataSource object, and an error if there is any.
 func (c *FakeDataSources) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.DataSource, err error) {

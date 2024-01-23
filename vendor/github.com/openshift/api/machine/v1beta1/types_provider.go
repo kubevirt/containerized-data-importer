@@ -153,6 +153,8 @@ const (
 	// MachineTerminable is set on a machine to indicate whether or not the machine can be terminated, or, whether some
 	// deletion hook is blocking the termination operation.
 	MachineTerminable ConditionType = "Terminable"
+	// IPAddressClaimedCondition is set to indicate that a machine has a claimed an IP address.
+	IPAddressClaimedCondition ConditionType = "IPAddressClaimed"
 )
 
 const (
@@ -180,6 +182,11 @@ const (
 	// MachineDrainError indicates an error occurred when draining the machine.
 	// This should be used with the `Drained` condition type.
 	MachineDrainError = "DrainError"
+	// WaitingForIPAddressReason is set to indicate that a machine is
+	// currently waiting for an IP address to be provisioned.
+	WaitingForIPAddressReason string = "WaitingForIPAddress"
+	// IPAddressClaimedReason is set to indicate the machine was able to claim an IP address during provisioning.
+	IPAddressClaimedReason string = "IPAddressesClaimed"
 )
 
 // Condition defines an observation of a Machine API resource operational state.

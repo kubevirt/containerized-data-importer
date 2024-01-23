@@ -7,7 +7,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -58,11 +57,7 @@ func createReconciler(objects ...client.Object) *transfer.ObjectTransferReconcil
 	_ = corev1.AddToScheme(s)
 	_ = cdiv1.AddToScheme(s)
 
-	var runtimeObjects []runtime.Object
-	for _, obj := range objects {
-		runtimeObjects = append(runtimeObjects, obj)
-	}
-	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(runtimeObjects...).Build()
+	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(objects...).WithStatusSubresource(objects...).Build()
 
 	return &transfer.ObjectTransferReconciler{
 		Client:   cl,

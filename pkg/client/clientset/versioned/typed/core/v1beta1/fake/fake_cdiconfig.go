@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeCDIConfigs struct {
 	Fake *FakeCdiV1beta1
 }
 
-var cdiconfigsResource = schema.GroupVersionResource{Group: "cdi.kubevirt.io", Version: "v1beta1", Resource: "cdiconfigs"}
+var cdiconfigsResource = v1beta1.SchemeGroupVersion.WithResource("cdiconfigs")
 
-var cdiconfigsKind = schema.GroupVersionKind{Group: "cdi.kubevirt.io", Version: "v1beta1", Kind: "CDIConfig"}
+var cdiconfigsKind = v1beta1.SchemeGroupVersion.WithKind("CDIConfig")
 
 // Get takes name of the cDIConfig, and returns the corresponding cDIConfig object, and an error if there is any.
 func (c *FakeCDIConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.CDIConfig, err error) {

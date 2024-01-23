@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeStorageProfiles struct {
 	Fake *FakeCdiV1beta1
 }
 
-var storageprofilesResource = schema.GroupVersionResource{Group: "cdi.kubevirt.io", Version: "v1beta1", Resource: "storageprofiles"}
+var storageprofilesResource = v1beta1.SchemeGroupVersion.WithResource("storageprofiles")
 
-var storageprofilesKind = schema.GroupVersionKind{Group: "cdi.kubevirt.io", Version: "v1beta1", Kind: "StorageProfile"}
+var storageprofilesKind = v1beta1.SchemeGroupVersion.WithKind("StorageProfile")
 
 // Get takes name of the storageProfile, and returns the corresponding storageProfile object, and an error if there is any.
 func (c *FakeStorageProfiles) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.StorageProfile, err error) {

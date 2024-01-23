@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/ptr"
 
@@ -271,14 +270,14 @@ func createDataVolumeWithStorageAPI(name, ns string, source *cdiv1.DataVolumeSou
 	}
 }
 
-func createClient(objs ...runtime.Object) client.Client {
+func createClient(objs ...client.Object) client.Client {
 	// Register cdi types with the runtime scheme.
 	s := scheme.Scheme
 	_ = cdiv1.AddToScheme(s)
 	// Register other types with the runtime scheme.
 	_ = ocpconfigv1.Install(s)
 	// Create a fake client to mock API calls.
-	return fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
+	return fake.NewClientBuilder().WithScheme(s).WithObjects(objs...).Build()
 }
 
 type fakeClientWithGetServiceUnavailableErr struct {

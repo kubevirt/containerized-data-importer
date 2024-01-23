@@ -121,6 +121,7 @@ func NewClonePopulator(
 		Client:          reconciler.client,
 		Recorder:        reconciler.recorder,
 		Controller:      clonePopulator,
+		GetCache:        mgr.GetCache,
 	}
 	reconciler.planner = planner
 

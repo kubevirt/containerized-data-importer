@@ -3,9 +3,15 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "go_default_library",
     srcs = [
+        "backup.go",
+        "backupspec.go",
+        "etcdbackupspec.go",
         "gatherconfig.go",
         "insightsdatagather.go",
         "insightsdatagatherspec.go",
+        "retentionnumberconfig.go",
+        "retentionpolicy.go",
+        "retentionsizeconfig.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/openshift/client-go/config/applyconfigurations/config/v1alpha1",
     importpath = "github.com/openshift/client-go/config/applyconfigurations/config/v1alpha1",
