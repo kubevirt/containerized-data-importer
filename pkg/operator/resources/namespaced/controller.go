@@ -171,7 +171,9 @@ func createControllerServiceAccount() *corev1.ServiceAccount {
 
 func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement, replicas int32) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
-	deployment := utils.CreateDeployment(common.CDIControllerResourceName, common.CDIComponentLabel, common.CDIControllerResourceName, common.ControllerServiceAccountName, imagePullSecrets, int32(1), infraNodePlacement)
+	// The match selector is immutable. that's why we should always use the same labels.
+	deployment := utils.CreateDeployment(common.CDIControllerResourceName, common.CDILabelKey, common.CDILabelValue, common.ControllerServiceAccountName, imagePullSecrets, int32(1), infraNodePlacement)
+	deployment.ObjectMeta.Labels[common.CDIComponentLabel] = common.CDIControllerResourceName
 	if priorityClassName != "" {
 		deployment.Spec.Template.Spec.PriorityClassName = priorityClassName
 	}
