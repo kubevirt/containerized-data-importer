@@ -45,15 +45,12 @@ import (
 
 func addReconcileCallbacks(r *ReconcileCDI) {
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileDeleteControllerDeployment)
-	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileServiceAccountRead)
-	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileServiceAccounts)
 	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileSCC)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCreateRoute)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCreatePrometheusInfra)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileRemainingRelationshipLabels)
-	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileDeleteSecrets)
+	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileDeleteDeprecatedResources)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCDICRD)
-	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileInitializeCRD)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileSetConfigAuthority)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileHandleOldVersion)
 }

@@ -512,6 +512,21 @@ var _ = Describe("Controller", func() {
 				Expect(cm.Labels[common.AppKubernetesPartOfLabel]).To(Equal("newtesting"))
 			})
 
+			It("should get rid of deprecated insecure registries config map", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: "cdi-insecure-registries"}}
+				err := args.client.Create(context.TODO(), cm)
+				Expect(err).ToNot(HaveOccurred())
+
+				doReconcile(args)
+
+				_, err = getObject(args.client, cm)
+				Expect(errors.IsNotFound(err)).To(BeTrue())
+			})
+
 			It("should set config authority", func() {
 				args := createArgs()
 				doReconcile(args)
