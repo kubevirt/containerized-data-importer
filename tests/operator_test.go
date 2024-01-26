@@ -4,40 +4,38 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	routev1 "github.com/openshift/api/route/v1"
+	routeclient "github.com/openshift/client-go/route/clientset/versioned"
+	appsv1 "k8s.io/api/apps/v1"
+	schedulev1 "k8s.io/api/scheduling/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
+	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 	"reflect"
 	"regexp"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-
-	routev1 "github.com/openshift/api/route/v1"
-	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	secclient "github.com/openshift/client-go/security/clientset/versioned"
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	schedulev1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
-	crclient "sigs.k8s.io/controller-runtime/pkg/client"
-
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 )
 
 var (
@@ -929,44 +927,23 @@ var _ = Describe("ALL Operator tests", func() {
 					return true
 				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
 
-				By("Verify patches of cdi-apiserver")
-				Eventually(func() bool {
-					depl, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), "cdi-apiserver", metav1.GetOptions{})
-					Expect(err).ToNot(HaveOccurred())
-					args := strings.Join(depl.Spec.Template.Spec.Containers[0].Args, " ")
-					if strings.Contains(args, "-v 5") &&
-						strings.Contains(args, "-skip_headers") &&
-						depl.GetAnnotations()[testJsonPatch] == testJsonPatch {
-						return true
-					}
-					return false
-				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
-
-				By("Verify patches of cdi-deployment")
-				Eventually(func() bool {
-					depl, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), "cdi-deployment", metav1.GetOptions{})
-					Expect(err).ToNot(HaveOccurred())
-					args := strings.Join(depl.Spec.Template.Spec.Containers[0].Args, " ")
-					if strings.Contains(args, "-v 6") &&
-						strings.Contains(args, "-skip_headers") &&
-						depl.GetAnnotations()[testStrategicPatch] == testStrategicPatch {
-						return true
-					}
-					return false
-				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
-
-				By("Verify patches of cdi-uploadproxy")
-				Eventually(func() bool {
-					depl, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), "cdi-uploadproxy", metav1.GetOptions{})
-					Expect(err).ToNot(HaveOccurred())
-					args := strings.Join(depl.Spec.Template.Spec.Containers[0].Args, " ")
-					if strings.Contains(args, "-v 7") &&
-						strings.Contains(args, "-skip_headers") &&
-						depl.GetAnnotations()[testMergePatch] == testMergePatch {
-						return true
-					}
-					return false
-				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+				verifyPatches := func(deployment, annoKey, annoValue string, desiredArgs ...string) {
+					By(fmt.Sprintf("Verify patches of %s", deployment))
+					Eventually(func() bool {
+						depl, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deployment, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						args := strings.Join(depl.Spec.Template.Spec.Containers[0].Args, " ")
+						for _, a := range desiredArgs {
+							if !strings.Contains(args, a) {
+								return false
+							}
+						}
+						return depl.GetAnnotations()[annoKey] == annoValue
+					}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+				}
+				verifyPatches("cdi-apiserver", testJsonPatch, testJsonPatch, "-v 5", "-skip_headers")
+				verifyPatches("cdi-deployment", testStrategicPatch, testStrategicPatch, "-v 6", "-skip_headers")
+				verifyPatches("cdi-uploadproxy", testMergePatch, testMergePatch, "-v 7", "-skip_headers")
 
 				By("Reset CustomizeComponents for CDI CR")
 				cdi = getCDI(f)
