@@ -33,14 +33,6 @@ import (
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
-const (
-	apiServerRessouceName = "cdi-apiserver"
-)
-
-const (
-	cdiLabel = common.CDIComponentLabel
-)
-
 func createAPIServerResources(args *FactoryArgs) []client.Object {
 	return []client.Object{
 		createAPIServerServiceAccount(),
@@ -52,11 +44,11 @@ func createAPIServerResources(args *FactoryArgs) []client.Object {
 }
 
 func createAPIServerServiceAccount() *corev1.ServiceAccount {
-	return utils.ResourceBuilder.CreateServiceAccount(apiServerRessouceName)
+	return utils.ResourceBuilder.CreateServiceAccount(common.CDIApiServerResourceName)
 }
 
 func createAPIServerRoleBinding() *rbacv1.RoleBinding {
-	return utils.ResourceBuilder.CreateRoleBinding(apiServerRessouceName, apiServerRessouceName, apiServerRessouceName, "")
+	return utils.ResourceBuilder.CreateRoleBinding(common.CDIApiServerResourceName, common.CDIApiServerResourceName, common.CDIApiServerResourceName, "")
 }
 
 func getAPIServerNamespacedRules() []rbacv1.PolicyRule {
@@ -80,11 +72,11 @@ func getAPIServerNamespacedRules() []rbacv1.PolicyRule {
 }
 
 func createAPIServerRole() *rbacv1.Role {
-	return utils.ResourceBuilder.CreateRole(apiServerRessouceName, getAPIServerNamespacedRules())
+	return utils.ResourceBuilder.CreateRole(common.CDIApiServerResourceName, getAPIServerNamespacedRules())
 }
 
 func createAPIServerService() *corev1.Service {
-	service := utils.ResourceBuilder.CreateService("cdi-api", cdiLabel, apiServerRessouceName, nil)
+	service := utils.ResourceBuilder.CreateService("cdi-api", common.CDIComponentLabel, common.CDIApiServerResourceName, nil)
 	service.Spec.Ports = []corev1.ServicePort{
 		{
 			Port: 443,
@@ -100,14 +92,14 @@ func createAPIServerService() *corev1.Service {
 
 func createAPIServerDeployment(image, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement, replicas int32) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
-	deployment := utils.CreateDeployment(apiServerRessouceName, cdiLabel, apiServerRessouceName, apiServerRessouceName, imagePullSecrets, 1, infraNodePlacement)
+	deployment := utils.CreateDeployment(common.CDIApiServerResourceName, common.CDIComponentLabel, common.CDIApiServerResourceName, common.CDIApiServerResourceName, imagePullSecrets, 1, infraNodePlacement)
 	if priorityClassName != "" {
 		deployment.Spec.Template.Spec.PriorityClassName = priorityClassName
 	}
 	if replicas > 1 {
 		deployment.Spec.Replicas = &replicas
 	}
-	container := utils.CreateContainer(apiServerRessouceName, image, verbosity, pullPolicy)
+	container := utils.CreateContainer(common.CDIApiServerResourceName, image, verbosity, pullPolicy)
 	container.Env = []corev1.EnvVar{
 		{
 			Name: common.InstallerPartOfLabel,

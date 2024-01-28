@@ -192,7 +192,7 @@ const (
 	// AnnCloneType is the comuuted/requested clone type
 	AnnCloneType = AnnAPIGroup + "/cloneType"
 	// AnnCloneSourcePod name of the source clone pod
-	AnnCloneSourcePod = "cdi.kubevirt.io/storage.sourceClonePodName"
+	AnnCloneSourcePod = AnnAPIGroup + "/storage.sourceClonePodName"
 
 	// AnnUploadRequest marks that a PVC should be made available for upload
 	AnnUploadRequest = AnnAPIGroup + "/storage.upload.target"
@@ -249,7 +249,7 @@ const (
 	AnnGarbageCollected = AnnAPIGroup + "/garbageCollected"
 
 	// CloneUniqueID is used as a special label to be used when we search for the pod
-	CloneUniqueID = "cdi.kubevirt.io/storage.clone.cloneUniqeId"
+	CloneUniqueID = AnnAPIGroup + "/storage.clone.cloneUniqeId"
 
 	// CloneSourceInUse is reason for event created when clone source pvc is in use
 	CloneSourceInUse = "CloneSourceInUse"
@@ -320,12 +320,15 @@ const (
 	ProgressDone = "100.0%"
 
 	// AnnEventSourceKind is the source kind that should be related to events
-	AnnEventSourceKind = "cdi.kubevirt.io/events.source.kind"
+	AnnEventSourceKind = AnnAPIGroup + "/events.source.kind"
 	// AnnEventSource is the source that should be related to events (namespace/name)
-	AnnEventSource = "cdi.kubevirt.io/events.source"
+	AnnEventSource = AnnAPIGroup + "/events.source"
 
 	// AnnAllowClaimAdoption is the annotation that allows a claim to be adopted by a DataVolume
-	AnnAllowClaimAdoption = "cdi.kubevirt.io/allowClaimAdoption"
+	AnnAllowClaimAdoption = AnnAPIGroup + "/allowClaimAdoption"
+
+	// AnnCdiCustomizeComponentHash annotation is a hash of all customizations that live under spec.CustomizeComponents
+	AnnCdiCustomizeComponentHash = AnnAPIGroup + "/customizer-identifier"
 )
 
 // Size-detection pod error codes

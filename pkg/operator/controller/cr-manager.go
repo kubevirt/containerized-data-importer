@@ -166,5 +166,13 @@ func (r *ReconcileCDI) GetAllResources(crObject client.Object) ([]client.Object,
 		}
 	}
 
+	customizer, err := NewCustomizer(cr.Spec.CustomizeComponents)
+	if err != nil {
+		return nil, err
+	}
+	if err := customizer.Apply(resources); err != nil {
+		return nil, err
+	}
+
 	return resources, nil
 }

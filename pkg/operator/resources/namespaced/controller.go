@@ -34,10 +34,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
-const (
-	controllerResourceName = "cdi-deployment"
-)
-
 func createControllerResources(args *FactoryArgs) []client.Object {
 	return []client.Object{
 		createControllerServiceAccount(),
@@ -58,7 +54,7 @@ func createControllerResources(args *FactoryArgs) []client.Object {
 }
 
 func createControllerRoleBinding() *rbacv1.RoleBinding {
-	return utils.ResourceBuilder.CreateRoleBinding(controllerResourceName, controllerResourceName, common.ControllerServiceAccountName, "")
+	return utils.ResourceBuilder.CreateRoleBinding(common.CDIControllerResourceName, common.CDIControllerResourceName, common.ControllerServiceAccountName, "")
 }
 
 func getControllerNamespacedRules() []rbacv1.PolicyRule {
@@ -166,7 +162,7 @@ func getControllerNamespacedRules() []rbacv1.PolicyRule {
 }
 
 func createControllerRole() *rbacv1.Role {
-	return utils.ResourceBuilder.CreateRole(controllerResourceName, getControllerNamespacedRules())
+	return utils.ResourceBuilder.CreateRole(common.CDIControllerResourceName, getControllerNamespacedRules())
 }
 
 func createControllerServiceAccount() *corev1.ServiceAccount {
@@ -175,14 +171,16 @@ func createControllerServiceAccount() *corev1.ServiceAccount {
 
 func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement, replicas int32) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
-	deployment := utils.CreateDeployment(controllerResourceName, "app", "containerized-data-importer", common.ControllerServiceAccountName, imagePullSecrets, int32(1), infraNodePlacement)
+	// The match selector is immutable. that's why we should always use the same labels.
+	deployment := utils.CreateDeployment(common.CDIControllerResourceName, common.CDILabelKey, common.CDILabelValue, common.ControllerServiceAccountName, imagePullSecrets, int32(1), infraNodePlacement)
+	deployment.ObjectMeta.Labels[common.CDIComponentLabel] = common.CDIControllerResourceName
 	if priorityClassName != "" {
 		deployment.Spec.Template.Spec.PriorityClassName = priorityClassName
 	}
 	if replicas > 1 {
 		deployment.Spec.Replicas = &replicas
 	}
-	container := utils.CreateContainer("cdi-controller", controllerImage, verbosity, pullPolicy)
+	container := utils.CreateContainer(common.CDIControllerResourceName, controllerImage, verbosity, pullPolicy)
 	container.Ports = []corev1.ContainerPort{
 		{
 			Name:          "metrics",
@@ -192,7 +190,6 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 	}
 	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{common.PrometheusLabelKey: common.PrometheusLabelValue})
 	//Add label for pod affinity
-	labels = util.AppendLabels(labels, map[string]string{cdiLabel: controllerResourceName})
 	deployment.SetLabels(labels)
 	deployment.Spec.Template.SetLabels(labels)
 	container.Env = []corev1.EnvVar{
@@ -210,7 +207,7 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 		},
 		{
 			Name:  "UPLOADPROXY_SERVICE",
-			Value: uploadProxyResourceName,
+			Value: common.CDIUploadProxyResourceName,
 		},
 		{
 			Name:  "PULL_POLICY",

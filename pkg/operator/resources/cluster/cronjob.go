@@ -18,13 +18,10 @@ package cluster
 
 import (
 	rbacv1 "k8s.io/api/rbac/v1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
-)
-
-const (
-	cronJobResourceName = "cdi-cronjob"
 )
 
 func createCronJobResources(args *FactoryArgs) []client.Object {
@@ -53,9 +50,9 @@ func getCronJobClusterPolicyRules() []rbacv1.PolicyRule {
 }
 
 func createCronJobClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return utils.ResourceBuilder.CreateClusterRoleBinding(cronJobResourceName, cronJobResourceName, cronJobResourceName, namespace)
+	return utils.ResourceBuilder.CreateClusterRoleBinding(common.CDICronJobResourceName, common.CDICronJobResourceName, common.CDICronJobResourceName, namespace)
 }
 
 func createCronJobClusterRole() *rbacv1.ClusterRole {
-	return utils.ResourceBuilder.CreateClusterRole(cronJobResourceName, getCronJobClusterPolicyRules())
+	return utils.ResourceBuilder.CreateClusterRole(common.CDICronJobResourceName, getCronJobClusterPolicyRules())
 }
