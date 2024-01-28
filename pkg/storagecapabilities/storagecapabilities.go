@@ -127,6 +127,10 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"openshift-storage.cephfs.csi.ceph.com": cdiv1.CloneStrategyCsiClone,
 	"csi.trident.netapp.io/ontap-nas":       cdiv1.CloneStrategyCsiClone,
 	"csi.trident.netapp.io/ontap-san":       cdiv1.CloneStrategyCsiClone,
+	"pxd.openstorage.org/shared":            cdiv1.CloneStrategyCsiClone,
+	"pxd.openstorage.org":                   cdiv1.CloneStrategyCsiClone,
+	"pxd.portworx.com/shared":               cdiv1.CloneStrategyCsiClone,
+	"pxd.portworx.com":                      cdiv1.CloneStrategyCsiClone,
 }
 
 // ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
