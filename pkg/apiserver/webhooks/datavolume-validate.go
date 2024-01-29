@@ -112,10 +112,10 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 			return causes
 		}
 		// We know we have one access mode
-		if accessModes[0] != v1.ReadWriteOnce && accessModes[0] != v1.ReadOnlyMany && accessModes[0] != v1.ReadWriteMany {
+		if accessModes[0] != v1.ReadWriteOnce && accessModes[0] != v1.ReadOnlyMany && accessModes[0] != v1.ReadWriteMany && accessModes[0] != v1.ReadWriteOncePod {
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf(`Unsupported value: "%s": supported values: "ReadOnlyMany", "ReadWriteMany", "ReadWriteOnce"`, string(accessModes[0])),
+				Message: fmt.Sprintf(`Unsupported value: "%s": supported values: "ReadOnlyMany", "ReadWriteMany", "ReadWriteOnce", "ReadWriteOncePod"`, string(accessModes[0])),
 				Field:   field.Child("PVC", "accessModes").String(),
 			})
 			return causes
@@ -126,10 +126,10 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 		// here in storage spec we allow empty access mode and AccessModes with more than one entry
 		accessModes := spec.Storage.AccessModes
 		for _, mode := range accessModes {
-			if mode != v1.ReadWriteOnce && mode != v1.ReadOnlyMany && mode != v1.ReadWriteMany {
+			if mode != v1.ReadWriteOnce && mode != v1.ReadOnlyMany && mode != v1.ReadWriteMany && mode != v1.ReadWriteOncePod {
 				causes = append(causes, metav1.StatusCause{
 					Type:    metav1.CauseTypeFieldValueInvalid,
-					Message: fmt.Sprintf("Unsupported value: \"%s\": supported values: \"ReadOnlyMany\", \"ReadWriteMany\", \"ReadWriteOnce\"", string(accessModes[0])),
+					Message: fmt.Sprintf("Unsupported value: \"%s\": supported values: \"ReadOnlyMany\", \"ReadWriteMany\", \"ReadWriteOnce\", \"ReadWriteOncePod\"", string(accessModes[0])),
 					Field:   field.Child("PVC", "accessModes").String(),
 				})
 				return causes
