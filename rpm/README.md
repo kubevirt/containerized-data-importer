@@ -10,20 +10,32 @@ These are maintained with bazeldnf with rpm repos and names of packages  specifi
  2. `repo.yaml`
  3. `hack/build/rpm-deps.sh` 
 
-Then, running `make rpm-deps` _should_ invoke bazeldnf through the bazel cdi builder container to populate the `rpm/BUILD.bazel` file 
-
-Once rpm/BUILD.bazel is populated, it is used and re-used, pinning the rpms to be built into run & test container images to specific versions. 
-This is why it is checked in to github per CDI release process. 
+Then, running `make rpm-deps` invokes bazeldnf installed in the bazel cdi builder container volume to populate the `rpm/BUILD.bazel` file 
 
 ## Prerequisites and Caveats
 
-`bazeldnf` is not provided in the CDI build container; this method of generating lists of pinned rpms uses `bazeldnf` on the host.  
+`bazeldnf` is not provided in the persistent CDI build container; it is built and installed from a pinned source tarball in the `make rpm-defs` step as per https://github.com/kubevirt/containerized-data-importer/blob/main/WORKSPACE#L83-L95 -- so if you _exec_ into the running container, you won't find the executable of bazeldnf in your bash path; rather it is only made available to bazel build as a package, e.g.:
 
-Since `make rpm-defs` only generates text files not executable images, the architecture of the host you run it on doesn't actually matter.
+```
+[cfillekes@m1325001 containerized-data-importer]$ podman ps
+CONTAINER ID  IMAGE                                                    COMMAND               CREATED        STATUS        PORTS       NAMES
+3c4b6fed495d  icr.io/kubevirt/kubevirt-cdi-bazel-builder:native-s390x  hack/build/bazel-...  4 minutes ago  Up 4 minutes              kubevirt-cdi-volume-bazel-server
+[cfillekes@m1325001 containerized-data-importer]$ podman exec -it 3c4b6fed495d /bin/bash
+go version go1.21.5 linux/s390x
+[root@m1325001 containerized-data-importer]# which bazeldnf
+/usr/bin/which: no bazeldnf in (/root/.local/bin:/root/bin:/gimme/.gimme/versions/go1.21.5.linux.s390x/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
+[root@m1325001 containerized-data-importer]# find / -name bazeldnf
+find: ‘/sys/fs/pstore’: Permission denied
+find: ‘/sys/fs/bpf’: Permission denied
+/root/.cache/bazel/_bazel_root/e03bf9038fc5089c0dbc8615812d9838/execroot/__main__/bazel-out/host/bin/external/bazeldnf
+/root/.cache/bazel/_bazel_root/e03bf9038fc5089c0dbc8615812d9838/execroot/__main__/bazel-out/host/bin/external/bazeldnf/pkg/api/bazeldnf
+/root/.cache/bazel/_bazel_root/e03bf9038fc5089c0dbc8615812d9838/execroot/__main__/bazel-out/s390x-fastbuild/bin/bazeldnf.bash.runfiles/__main__/external/bazeldnf
+/root/.cache/bazel/_bazel_root/e03bf9038fc5089c0dbc8615812d9838/execroot/__main__/bazel-out/s390x-fastbuild/bin/bazeldnf.bash.runfiles/bazeldnf
+/root/.cache/bazel/_bazel_root/e03bf9038fc5089c0dbc8615812d9838/execroot/__main__/external/bazeldnf
+/root/.cache/bazel/_bazel_root/e03bf9038fc5089c0dbc8615812d9838/external/bazeldnf
+/root/.cache/bazel/_bazel_root/e03bf9038fc5089c0dbc8615812d9838/external/bazeldnf/pkg/api/bazeldnf
+```
 
-`bazeldnf` is available as a binary release from https://github.com/rmohr/bazeldnf/releases . 
-
-Note that version 0.5.9-rc2 https://github.com/rmohr/bazeldnf/releases/tag/v0.5.9-rc2 is the first binary release for s390x. 
 
 ## Configuring the platform, build, run and test target to maintain pinned rpm lists
 
