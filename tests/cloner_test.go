@@ -318,6 +318,9 @@ var _ = Describe("all clone tests", func() {
 			})
 
 			It("[posneg:negative][test_id:3617]Should clone across nodes when multiple local filesystem volumes exist,", func() {
+				if utils.DefaultStorageClassCsiDriver != nil {
+					Skip("this test is only relevant for non CSI local storage")
+				}
 				// Get nodes, need at least 2
 				nodeList, err := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).ToNot(HaveOccurred())
