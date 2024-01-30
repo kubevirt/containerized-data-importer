@@ -1246,30 +1246,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				}}),
 		)
 
-		DescribeTable("should have an alert suppressing label on corresponding PVC", func(dvFunc func(string, string, string) *cdiv1.DataVolume, url string) {
-			dataVolume := dvFunc("suppress-fillingup-alert-dv", "1Gi", url)
-
-			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
-			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-			Expect(err).ToNot(HaveOccurred())
-
-			// verify PVC was created
-			By("verifying pvc was created and is Bound")
-			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
-
-			// Alert-suppressing label exists
-			Expect(pvc.Labels[common.KubePersistentVolumeFillingUpSuppressLabelKey]).To(Equal(common.KubePersistentVolumeFillingUpSuppressLabelValue))
-		},
-			Entry("[test_id:8043]for import DataVolume", utils.NewDataVolumeWithHTTPImport, tinyCoreIsoURL()),
-			Entry("[test_id:8044]for upload DataVolume", createUploadDataVolume, tinyCoreIsoURL()),
-			Entry("[test_id:8045]for clone DataVolume", createCloneDataVolume, fillCommand),
-		)
-
-		DescribeTable("Should pass all DV labels and annotations to the PVC", func(dvFunc func(string, string, string) *cdiv1.DataVolume, url string) {
-			dataVolume := dvFunc("pass-all-labels-dv", "1Gi", url)
+		DescribeTable("should have an alert suppressing label and inherit labels & annotations from DV on corresponding PVC", func(dvFunc func(string, string, string) *cdiv1.DataVolume, url string) {
+			dataVolume := dvFunc("dv-labels-behaviour", "1Gi", url)
 			dataVolume.Labels = map[string]string{"test-label-1": "test-label-1", "test-label-2": "test-label-2"}
 			dataVolume.Annotations = map[string]string{"test-annotation-1": "test-annotation-1", "test-annotation-2": "test-annotation-2"}
+			// Stir things up with this non widely used access mode
+			dataVolume.Spec.PVC.AccessModes = []v1.PersistentVolumeAccessMode{v1.ReadWriteOncePod}
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -1280,15 +1262,18 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 
+			// Alert-suppressing label exists
+			Expect(pvc.Labels[common.KubePersistentVolumeFillingUpSuppressLabelKey]).To(Equal(common.KubePersistentVolumeFillingUpSuppressLabelValue))
+
 			// All labels and annotations passed
 			Expect(pvc.Labels["test-label-1"]).To(Equal("test-label-1"))
 			Expect(pvc.Labels["test-label-2"]).To(Equal("test-label-2"))
 			Expect(pvc.Annotations["test-annotation-1"]).To(Equal("test-annotation-1"))
 			Expect(pvc.Annotations["test-annotation-2"]).To(Equal("test-annotation-2"))
 		},
-			Entry("for import DataVolume", utils.NewDataVolumeWithHTTPImport, tinyCoreIsoURL()),
-			Entry("for upload DataVolume", createUploadDataVolume, tinyCoreIsoURL()),
-			Entry("for clone DataVolume", createCloneDataVolume, fillCommand),
+			Entry("[test_id:8043]for import DataVolume", utils.NewDataVolumeWithHTTPImport, tinyCoreIsoURL()),
+			Entry("[test_id:8044]for upload DataVolume", createUploadDataVolume, tinyCoreIsoURL()),
+			Entry("[test_id:8045]for clone DataVolume", createCloneDataVolume, fillCommand),
 		)
 
 		Context("default virt storage class", Serial, func() {
