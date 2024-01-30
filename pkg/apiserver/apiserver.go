@@ -96,7 +96,6 @@ type cdiAPIApp struct {
 	bindAddress string
 	bindPort    uint
 
-	cachedClient            client.Client
 	client                  kubernetes.Interface
 	aggregatorClient        aggregatorclient.Interface
 	cdiClient               cdiclient.Interface
@@ -128,7 +127,6 @@ func UploadTokenRequestAPI() []*restful.WebService {
 // NewCdiAPIServer returns an initialized CDI api server
 func NewCdiAPIServer(bindAddress string,
 	bindPort uint,
-	cachedClient client.Client,
 	client kubernetes.Interface,
 	aggregatorClient aggregatorclient.Interface,
 	cdiClient cdiclient.Interface,
@@ -143,7 +141,6 @@ func NewCdiAPIServer(bindAddress string,
 	app := &cdiAPIApp{
 		bindAddress:             bindAddress,
 		bindPort:                bindPort,
-		cachedClient:            cachedClient,
 		client:                  client,
 		aggregatorClient:        aggregatorClient,
 		cdiClient:               cdiClient,
@@ -538,7 +535,7 @@ func (app *cdiAPIApp) createDataVolumeMutatingWebhook() error {
 }
 
 func (app *cdiAPIApp) createPvcMutatingWebhook() error {
-	app.container.ServeMux.Handle(pvcMutatePath, webhooks.NewPvcMutatingWebhook(app.cachedClient, app.client, app.cdiClient))
+	app.container.ServeMux.Handle(pvcMutatePath, webhooks.NewPvcMutatingWebhook(app.controllerRuntimeClient))
 	return nil
 }
 

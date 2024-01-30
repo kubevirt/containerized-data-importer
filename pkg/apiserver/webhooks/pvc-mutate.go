@@ -25,19 +25,15 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 )
 
 type pvcMutatingWebhook struct {
 	cachedClient client.Client
-	k8sClient    kubernetes.Interface
-	cdiClient    cdiclient.Interface
 }
 
 func (wh *pvcMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {

@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -67,7 +68,7 @@ func RenderPvc(ctx context.Context, client client.Client, pvc *v1.PersistentVolu
 	}
 
 	dvContentType := cc.GetPVCContentType(pvc)
-	if err := renderPvcSpecVolumeModeAndAccessModes(client, nil, nil, nil, &pvc.Spec, dvContentType); err != nil {
+	if err := renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client, nil, nil, nil, &pvc.Spec, dvContentType); err != nil {
 		return err
 	}
 
@@ -103,7 +104,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 	if pvc == nil {
 		pvcSpec = copyStorageAsPvc(log, dv.Spec.Storage)
 		if shouldRender {
-			if err := renderPvcSpecVolumeModeAndAccessModes(client, recorder, &log, dv, pvcSpec, dv.Spec.ContentType); err != nil {
+			if err := renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client, recorder, &log, dv, pvcSpec, dv.Spec.ContentType); err != nil {
 				return nil, err
 			}
 		}
@@ -123,7 +124,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 
 // func is called from both DV controller (with recorder and log) and PVC mutating webhook (without recorder and log)
 // therefore we use wrappers for log and recorder calls
-func renderPvcSpecVolumeModeAndAccessModes(client client.Client, recorder record.EventRecorder, log *logr.Logger,
+func renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client client.Client, recorder record.EventRecorder, log *logr.Logger,
 	dv *cdiv1.DataVolume, pvcSpec *v1.PersistentVolumeClaimSpec, dvContentType cdiv1.DataVolumeContentType) error {
 
 	logInfo := func(msg string, keysAndValues ...interface{}) {
@@ -144,7 +145,7 @@ func renderPvcSpecVolumeModeAndAccessModes(client client.Client, recorder record
 			recordEventf(dv, v1.EventTypeWarning, cc.ErrClaimNotValid, "ContentType Archive cannot have block volumeMode")
 			return errors.Errorf("ContentType Archive cannot have block volumeMode")
 		}
-		pvcSpec.VolumeMode = &cc.FilesystemMode
+		pvcSpec.VolumeMode = ptr.To[v1.PersistentVolumeMode](v1.PersistentVolumeFilesystem)
 	}
 
 	storageClass, err := cc.GetStorageClassByNameWithVirtFallback(context.TODO(), client, pvcSpec.StorageClassName, dvContentType)
@@ -332,20 +333,19 @@ func renderPvcSpecFromAvailablePv(c client.Client, pvcSpec *v1.PersistentVolumeC
 	}
 
 	pvList := &v1.PersistentVolumeList{}
-	if err := c.List(context.TODO(), pvList); err != nil {
+	fields := client.MatchingFields{claimStorageClassNameField: *pvcSpec.StorageClassName}
+	if err := c.List(context.TODO(), pvList, fields); err != nil {
 		return err
 	}
 
 	for _, pv := range pvList.Items {
-		if pv.Spec.StorageClassName == *pvcSpec.StorageClassName && pv.Status.Phase == v1.VolumeAvailable {
-			pvc := &v1.PersistentVolumeClaim{Spec: *pvcSpec}
-			if err := CheckVolumeSatisfyClaim(&pv, pvc); err == nil {
-				pvcSpec.VolumeMode = pv.Spec.VolumeMode
-				if len(pvcSpec.AccessModes) == 0 {
-					pvcSpec.AccessModes = pv.Spec.AccessModes
-				}
-				return nil
+		pvc := &v1.PersistentVolumeClaim{Spec: *pvcSpec}
+		if err := CheckVolumeSatisfyClaim(&pv, pvc); err == nil {
+			pvcSpec.VolumeMode = pv.Spec.VolumeMode
+			if len(pvcSpec.AccessModes) == 0 {
+				pvcSpec.AccessModes = pv.Spec.AccessModes
 			}
+			return nil
 		}
 	}
 

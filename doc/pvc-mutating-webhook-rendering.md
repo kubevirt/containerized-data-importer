@@ -2,9 +2,9 @@
 
 ## Introduction
 
-PVC Mutating Webhook Rendering is an optional CDI feature, allowing users to get CDI PVC rendering functionality without using a `DataVolume`. Traditionally, when the CDI DV controller creates a PVC, it renders the PVC spec (`volumeMode`, `accessMode`, clone `storage` size) according to the DV storage spec (or default) `storageClass`, CDI `StorageProfiles`, `CDIConfig` `filesystemOverhead` etc.
+PVC Mutating Webhook Rendering is an optional CDI feature, allowing users to get CDI PVC rendering functionality without using a `DataVolume`. Traditionally, when the CDI DV controller creates a PVC, it renders the PVC spec (`volumeMode`, `accessMode`, `storage`) according to the DV storage spec (or default) `storageClass`, CDI `StorageProfiles`, `CDIConfig` `filesystemOverhead` etc.
 
-The PVC mutating webhook eliminats the need for DVs for `StorageProfile` based rendering, providing auto-completion of PVC missing spec fields based on optimal values per `StorageClass`. The webhook intercepts only explicitly CDI-labeled PVCs, so it won't affect cluster stability if the CDI api server is down. For labeled PVCs, `objectSelectors` decide when to call out over HTTP to the webhook, so if the CDI api server is down the request and PVC creation will fail. Unlabeled PVC will not be affected at all.
+The PVC mutating webhook eliminates the need for DVs for `StorageProfile` based rendering, providing auto-completion of PVC missing spec fields, based on optimal values per `StorageClass`. The webhook intercepts only explicitly CDI-labeled PVCs, so it won't affect cluster stability if the CDI api server is down. For labeled PVCs, `objectSelectors` decide when to call out over HTTP to the webhook, so if the CDI api server is down the request and PVC creation will fail. Unlabeled PVC will not be affected at all.
 
 CDI volume populators already cover almost all DV import/clone/upload functionality, but miss the PVC rendering functionality, so this feature complements CDI volume populators, as together they get most DV pros, but without its cons (e.g. limitations in backup and restore, disaster recovery).
 

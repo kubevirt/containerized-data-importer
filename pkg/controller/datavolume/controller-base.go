@@ -201,14 +201,9 @@ func getIndexArgs() []indexArgs {
 			},
 		},
 		{
-			obj:   &corev1.PersistentVolume{},
-			field: claimStorageClassNameField,
-			extractValue: func(obj client.Object) []string {
-				if pv, ok := obj.(*corev1.PersistentVolume); ok && pv.Status.Phase == corev1.VolumeAvailable {
-					return []string{pv.Spec.StorageClassName}
-				}
-				return nil
-			},
+			obj:          &corev1.PersistentVolume{},
+			field:        claimStorageClassNameField,
+			extractValue: extractAvailablePersistentVolumeStorageClassName,
 		},
 	}
 }
@@ -223,6 +218,19 @@ func CreateCommonIndexes(mgr manager.Manager) error {
 		if err := mgr.GetFieldIndexer().IndexField(context.TODO(), ia.obj, ia.field, ia.extractValue); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// CreateAvailablePersistentVolumeIndex adds storage class name index for available PersistentVolumes
+func CreateAvailablePersistentVolumeIndex(fieldIndexer client.FieldIndexer) error {
+	return fieldIndexer.IndexField(context.TODO(), &corev1.PersistentVolume{},
+		claimStorageClassNameField, extractAvailablePersistentVolumeStorageClassName)
+}
+
+func extractAvailablePersistentVolumeStorageClassName(obj client.Object) []string {
+	if pv, ok := obj.(*corev1.PersistentVolume); ok && pv.Status.Phase == corev1.VolumeAvailable {
+		return []string{pv.Spec.StorageClassName}
 	}
 	return nil
 }

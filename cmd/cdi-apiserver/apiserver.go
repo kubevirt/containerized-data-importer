@@ -20,7 +20,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -45,6 +44,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	certwatcher "kubevirt.io/containerized-data-importer/pkg/util/cert/watcher"
 	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 	"kubevirt.io/containerized-data-importer/pkg/version/verflag"
@@ -125,21 +125,6 @@ func main() {
 		klog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
 	}
 
-	cachedClient, err := cluster.New(cfg)
-	if err != nil {
-		klog.Fatalf("Unable to create caching client: %v\n", errors.WithStack(err))
-	}
-	cache := cachedClient.GetCache()
-	go func() {
-		if err := cache.Start(context.TODO()); err != nil {
-			klog.Fatalf("Unable to start cache: %v\n", errors.WithStack(err))
-		}
-	}()
-
-	if !cache.WaitForCacheSync(context.TODO()) {
-		klog.Fatalf("Unable to sync cache\n")
-	}
-
 	aggregatorClient := aggregatorclient.NewForConfigOrDie(cfg)
 
 	cdiClient := cdiclient.NewForConfigOrDie(cfg)
@@ -153,6 +138,10 @@ func main() {
 
 	if err := cdiv1.AddToScheme(cluster.GetScheme()); err != nil {
 		klog.Fatalf("Unable to add to scheme: %v\n", errors.WithStack(err))
+	}
+
+	if err := dvc.CreateAvailablePersistentVolumeIndex(cluster.GetFieldIndexer()); err != nil {
+		klog.Fatalf("Unable to create field index: %v\n", errors.WithStack(err))
 	}
 
 	ctx := signals.SetupSignalHandler()
@@ -179,7 +168,6 @@ func main() {
 
 	cdiAPIApp, err := apiserver.NewCdiAPIServer(defaultHost,
 		defaultPort,
-		cachedClient.GetClient(),
 		client,
 		aggregatorClient,
 		cdiClient,
