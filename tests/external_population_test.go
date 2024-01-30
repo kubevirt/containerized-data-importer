@@ -111,20 +111,6 @@ var _ = Describe("Population tests", func() {
 		return err
 	}
 
-	getNonCSIStorage := func() (string, bool) {
-		localSCName := "local"
-		// We first check if the default storage class lacks CSI drivers
-		if utils.DefaultStorageClassCsiDriver == nil {
-			return utils.DefaultStorageClass.GetName(), true
-		}
-		// If it doesn't, we attempt to get the local storage class
-		_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), localSCName, metav1.GetOptions{})
-		if err == nil {
-			return localSCName, true
-		}
-		return "", false
-	}
-
 	Context("External populator", func() {
 		BeforeEach(func() {
 			err := deploySamplePopulator()
@@ -213,13 +199,12 @@ var _ = Describe("Population tests", func() {
 
 		It("Should not populate PVC when CSI drivers are not available", func() {
 			By("Checking if non-CSI storage class is available")
-			scName, available := getNonCSIStorage()
-			if !available {
-				Skip("No storage class to run without CSI drivers, cannot run test")
+			if utils.DefaultStorageClassCsiDriver != nil {
+				Skip("default storage class has CSI Driver, cannot run test")
 			}
 
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", scName, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), nil, dummySourceRef)
+			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), nil, dummySourceRef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
