@@ -154,6 +154,17 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 		},
 		{
 			APIGroups: []string{
+				"config.openshift.io",
+			},
+			Resources: []string{
+				"clusterversions",
+			},
+			Verbs: []string{
+				"get",
+			},
+		},
+		{
+			APIGroups: []string{
 				"cdi.kubevirt.io",
 			},
 			Resources: []string{
