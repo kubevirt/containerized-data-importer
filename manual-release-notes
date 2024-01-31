@@ -21,3 +21,16 @@ Cleanup: "clone_progress" metric has been removed from the project documentation
 Enhancement: Default virtualization storage class that takes precedence over k8s default storage class (#2913)
 Cleanup: Updated to bazel 5.4.0 and golang 1.20.10 (#2934)
 Cleanup: Build with golang 1.20.10 (#2942)
+
+v1.58.1
+BugFix: Fix populators not repopulating pvc after it was deleted (#3071)
+BugFix: Fix DataImportCron PVC GC race and test flakiness (#3063)
+BugFix: Add Trident RWO Filesystem capability (#3051)
+BugFix: Extract regular files as well during clone from filesystem (#3046)
+Enhancement: Add new Prometheus alerts and label existing alerts (#3040)
+BugFix: Grant ns admin missing create RBAC for various CDI resources (#3031)
+BugFix: Update CDIMultipleDefaultVirtStorageClasses alert health impact labels to "none" (#3025)
+Enhancement: add .snyk file (#3016)
+BugFix: Add version field to the OpenAPI definition (#3014)
+BugFix: Fix Trident provisioner key for using csi-clone (#3008)
+Cleanup: Work around common snapshot controller issue in tests (#2996)
