@@ -24,6 +24,15 @@ const (
 	// CDIOperatorName is the CDI operator name
 	CDIOperatorName = "cdi-operator"
 
+	// CDIControllerResourceName is the CDI controller resource name
+	CDIControllerResourceName = "cdi-deployment"
+	// CDIApiServerResourceName is the CDI apiserver resource name
+	CDIApiServerResourceName = "cdi-apiserver"
+	// CDIUploadProxyResourceName is the CDI uploadproxy resource name
+	CDIUploadProxyResourceName = "cdi-uploadproxy"
+	// CDICronJobResourceName is the CDI cronjob resource name
+	CDICronJobResourceName = "cdi-cronjob"
+
 	// AppKubernetesPartOfLabel is the Kubernetes recommended part-of label
 	AppKubernetesPartOfLabel = "app.kubernetes.io/part-of"
 	// AppKubernetesVersionLabel is the Kubernetes recommended version label

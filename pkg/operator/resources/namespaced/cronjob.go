@@ -18,13 +18,10 @@ package namespaced
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
-)
-
-const (
-	cronJobResourceName = "cdi-cronjob"
 )
 
 func createCronJobResources(args *FactoryArgs) []client.Object {
@@ -34,5 +31,5 @@ func createCronJobResources(args *FactoryArgs) []client.Object {
 }
 
 func createCronJobServiceAccount() *corev1.ServiceAccount {
-	return utils.ResourceBuilder.CreateServiceAccount(cronJobResourceName)
+	return utils.ResourceBuilder.CreateServiceAccount(common.CDICronJobResourceName)
 }

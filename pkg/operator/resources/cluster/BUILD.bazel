@@ -19,6 +19,7 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/common:go_default_library",
         "//pkg/operator/resources:go_default_library",
         "//pkg/operator/resources/utils:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",

@@ -4,39 +4,38 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
-	"regexp"
-	"time"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
 	routev1 "github.com/openshift/api/route/v1"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
+	appsv1 "k8s.io/api/apps/v1"
+	schedulev1 "k8s.io/api/scheduling/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
+	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
+	"reflect"
+	"regexp"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
+	"time"
+
 	secclient "github.com/openshift/client-go/security/clientset/versioned"
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	schedulev1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
-	crclient "sigs.k8s.io/controller-runtime/pkg/client"
-
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 )
 
 var (
@@ -879,6 +878,93 @@ var _ = Describe("ALL Operator tests", func() {
 				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
 
 			})
+			It("Should update infra deployments when modify customizeComponents in CDI Cr", func() {
+				By("Modify the customizeComponents separately")
+				cdi := getCDI(f)
+				testJsonPatch := "test-json-patch"
+				testStrategicPatch := "test-strategic-patch"
+				testMergePatch := "test-merge-patch"
+				cdi.Spec.CustomizeComponents = cdiv1.CustomizeComponents{
+					Patches: []cdiv1.CustomizeComponentsPatch{
+						{
+							ResourceName: "cdi-apiserver",
+							ResourceType: "Deployment",
+							Patch:        fmt.Sprintf(`[{"op":"add","path":"/metadata/annotations/%s","value":"%s"}]`, testJsonPatch, testJsonPatch),
+							Type:         cdiv1.JSONPatchType,
+						},
+						{
+							ResourceName: "cdi-deployment",
+							ResourceType: "Deployment",
+							Patch:        fmt.Sprintf(`{"metadata": {"annotations": {"%s": "%s"}}}`, testStrategicPatch, testStrategicPatch),
+							Type:         cdiv1.StrategicMergePatchType,
+						},
+						{
+							ResourceName: "cdi-uploadproxy",
+							ResourceType: "Deployment",
+							Patch:        fmt.Sprintf(`{"metadata": {"annotations": {"%s": "%s"}}}`, testMergePatch, testMergePatch),
+							Type:         cdiv1.MergePatchType,
+						},
+					},
+					Flags: &cdiv1.Flags{
+						API:         map[string]string{"v": "5", "skip_headers": ""},
+						Controller:  map[string]string{"v": "6", "skip_headers": ""},
+						UploadProxy: map[string]string{"v": "7", "skip_headers": ""},
+					},
+				}
+				_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(func() bool {
+					for _, deploymentName := range []string{"cdi-apiserver", "cdi-deployment", "cdi-uploadproxy"} {
+						depl, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+
+						if err != nil || depl.GetAnnotations()[cc.AnnCdiCustomizeComponentHash] == "" {
+							return false
+						}
+					}
+					By("Patches applied")
+					return true
+				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+
+				verifyPatches := func(deployment, annoKey, annoValue string, desiredArgs ...string) {
+					By(fmt.Sprintf("Verify patches of %s", deployment))
+					Eventually(func() bool {
+						depl, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deployment, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						args := strings.Join(depl.Spec.Template.Spec.Containers[0].Args, " ")
+						for _, a := range desiredArgs {
+							if !strings.Contains(args, a) {
+								return false
+							}
+						}
+						return depl.GetAnnotations()[annoKey] == annoValue
+					}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+				}
+				verifyPatches("cdi-apiserver", testJsonPatch, testJsonPatch, "-v 5", "-skip_headers")
+				verifyPatches("cdi-deployment", testStrategicPatch, testStrategicPatch, "-v 6", "-skip_headers")
+				verifyPatches("cdi-uploadproxy", testMergePatch, testMergePatch, "-v 7", "-skip_headers")
+
+				By("Reset CustomizeComponents for CDI CR")
+				cdi = getCDI(f)
+
+				cdi.Spec.CustomizeComponents = cdiv1.CustomizeComponents{}
+				_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(func() bool {
+					for _, deploymentName := range []string{"cdi-apiserver", "cdi-deployment", "cdi-uploadproxy"} {
+						depl, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+
+						_, err = utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, deploymentName, common.CDIComponentLabel+"="+deploymentName)
+						if err != nil || depl.GetAnnotations()[cc.AnnCdiCustomizeComponentHash] != "" {
+							return false
+						}
+					}
+					return true
+				}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+
+			})
 		})
 
 		var _ = Describe("Operator cert config tests", func() {
@@ -1074,9 +1160,9 @@ var _ = Describe("ALL Operator tests", func() {
 				// Deployment
 				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(prioClass), common.CDILabelSelector)
 				// API server
-				verifyPodPriorityClass(cdiApiServerPodPrefix, string(prioClass), "")
+				verifyPodPriorityClass(cdiApiServerPodPrefix, string(prioClass), common.CDILabelSelector)
 				// Upload server
-				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(prioClass), "")
+				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(prioClass), common.CDILabelSelector)
 				By("Verifying there is just a single cdi controller pod")
 				Eventually(func() error {
 					_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
@@ -1102,9 +1188,9 @@ var _ = Describe("ALL Operator tests", func() {
 				By("Verifying the CDI deployment is updated")
 				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(systemClusterCritical), common.CDILabelSelector)
 				By("Verifying the CDI api server is updated")
-				verifyPodPriorityClass(cdiApiServerPodPrefix, string(systemClusterCritical), "")
+				verifyPodPriorityClass(cdiApiServerPodPrefix, string(systemClusterCritical), common.CDILabelSelector)
 				By("Verifying the CDI upload proxy server is updated")
-				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(systemClusterCritical), "")
+				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(systemClusterCritical), common.CDILabelSelector)
 			})
 
 			It("should use openshift priority class if not set and available", func() {
@@ -1118,9 +1204,9 @@ var _ = Describe("ALL Operator tests", func() {
 				// Deployment
 				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
 				// API server
-				verifyPodPriorityClass(cdiApiServerPodPrefix, string(osUserCrit.Name), "")
+				verifyPodPriorityClass(cdiApiServerPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
 				// Upload server
-				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(osUserCrit.Name), "")
+				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
 			})
 		})
 	})
