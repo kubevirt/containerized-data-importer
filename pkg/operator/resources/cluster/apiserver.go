@@ -35,7 +35,8 @@ import (
 )
 
 const (
-	apiServerServiceName = "cdi-api"
+	// APIServerServiceName is the API server service name
+	APIServerServiceName = "cdi-api"
 )
 
 func createStaticAPIServerResources(args *FactoryArgs) []client.Object {
@@ -250,13 +251,13 @@ func createAPIService(version, namespace string, c client.Client, l logr.Logger)
 		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf("%s.%s", version, cdiuploadv1.SchemeGroupVersion.Group),
 			Labels: map[string]string{
-				utils.CDILabel: apiServerServiceName,
+				utils.CDILabel: APIServerServiceName,
 			},
 		},
 		Spec: apiregistrationv1.APIServiceSpec{
 			Service: &apiregistrationv1.ServiceReference{
 				Namespace: namespace,
-				Name:      apiServerServiceName,
+				Name:      APIServerServiceName,
 			},
 			Group:                cdiuploadv1.SchemeGroupVersion.Group,
 			Version:              version,
@@ -269,7 +270,7 @@ func createAPIService(version, namespace string, c client.Client, l logr.Logger)
 		return apiService
 	}
 
-	bundle := getAPIServerCABundle(namespace, c, l)
+	bundle := GetAPIServerCABundle(namespace, c, l)
 	if bundle != nil {
 		apiService.Spec.CABundle = bundle
 	}
@@ -293,7 +294,7 @@ func createDataImportCronValidatingWebhook(namespace string, c client.Client, l 
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cdi-api-dataimportcron-validate",
 			Labels: map[string]string{
-				utils.CDILabel: apiServerServiceName,
+				utils.CDILabel: APIServerServiceName,
 			},
 		},
 		Webhooks: []admissionregistrationv1.ValidatingWebhook{
@@ -314,7 +315,7 @@ func createDataImportCronValidatingWebhook(namespace string, c client.Client, l 
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
 					Service: &admissionregistrationv1.ServiceReference{
 						Namespace: namespace,
-						Name:      apiServerServiceName,
+						Name:      APIServerServiceName,
 						Path:      &path,
 						Port:      &defaultServicePort,
 					},
@@ -336,7 +337,7 @@ func createDataImportCronValidatingWebhook(namespace string, c client.Client, l 
 		return whc
 	}
 
-	bundle := getAPIServerCABundle(namespace, c, l)
+	bundle := GetAPIServerCABundle(namespace, c, l)
 	if bundle != nil {
 		whc.Webhooks[0].ClientConfig.CABundle = bundle
 	}
@@ -360,7 +361,7 @@ func createPopulatorsValidatingWebhook(namespace string, c client.Client, l logr
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cdi-api-populator-validate",
 			Labels: map[string]string{
-				utils.CDILabel: apiServerServiceName,
+				utils.CDILabel: APIServerServiceName,
 			},
 		},
 		Webhooks: []admissionregistrationv1.ValidatingWebhook{
@@ -381,7 +382,7 @@ func createPopulatorsValidatingWebhook(namespace string, c client.Client, l logr
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
 					Service: &admissionregistrationv1.ServiceReference{
 						Namespace: namespace,
-						Name:      apiServerServiceName,
+						Name:      APIServerServiceName,
 						Path:      &path,
 						Port:      &defaultServicePort,
 					},
@@ -403,7 +404,7 @@ func createPopulatorsValidatingWebhook(namespace string, c client.Client, l logr
 		return whc
 	}
 
-	bundle := getAPIServerCABundle(namespace, c, l)
+	bundle := GetAPIServerCABundle(namespace, c, l)
 	if bundle != nil {
 		whc.Webhooks[0].ClientConfig.CABundle = bundle
 	}
@@ -427,7 +428,7 @@ func createDataVolumeValidatingWebhook(namespace string, c client.Client, l logr
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cdi-api-datavolume-validate",
 			Labels: map[string]string{
-				utils.CDILabel: apiServerServiceName,
+				utils.CDILabel: APIServerServiceName,
 			},
 		},
 		Webhooks: []admissionregistrationv1.ValidatingWebhook{
@@ -448,7 +449,7 @@ func createDataVolumeValidatingWebhook(namespace string, c client.Client, l logr
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
 					Service: &admissionregistrationv1.ServiceReference{
 						Namespace: namespace,
-						Name:      apiServerServiceName,
+						Name:      APIServerServiceName,
 						Path:      &path,
 						Port:      &defaultServicePort,
 					},
@@ -470,7 +471,7 @@ func createDataVolumeValidatingWebhook(namespace string, c client.Client, l logr
 		return whc
 	}
 
-	bundle := getAPIServerCABundle(namespace, c, l)
+	bundle := GetAPIServerCABundle(namespace, c, l)
 	if bundle != nil {
 		whc.Webhooks[0].ClientConfig.CABundle = bundle
 	}
@@ -494,7 +495,7 @@ func createCDIValidatingWebhook(namespace string, c client.Client, l logr.Logger
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cdi-api-validate",
 			Labels: map[string]string{
-				utils.CDILabel: apiServerServiceName,
+				utils.CDILabel: APIServerServiceName,
 			},
 		},
 		Webhooks: []admissionregistrationv1.ValidatingWebhook{
@@ -514,7 +515,7 @@ func createCDIValidatingWebhook(namespace string, c client.Client, l logr.Logger
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
 					Service: &admissionregistrationv1.ServiceReference{
 						Namespace: namespace,
-						Name:      apiServerServiceName,
+						Name:      APIServerServiceName,
 						Path:      &path,
 						Port:      &defaultServicePort,
 					},
@@ -536,7 +537,7 @@ func createCDIValidatingWebhook(namespace string, c client.Client, l logr.Logger
 		return whc
 	}
 
-	bundle := getAPIServerCABundle(namespace, c, l)
+	bundle := GetAPIServerCABundle(namespace, c, l)
 	if bundle != nil {
 		for i := range whc.Webhooks {
 			whc.Webhooks[i].ClientConfig.CABundle = bundle
@@ -563,7 +564,7 @@ func createObjectTransferValidatingWebhook(namespace string, c client.Client, l 
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "objecttransfer-api-validate",
 			Labels: map[string]string{
-				utils.CDILabel: apiServerServiceName,
+				utils.CDILabel: APIServerServiceName,
 			},
 		},
 		Webhooks: []admissionregistrationv1.ValidatingWebhook{
@@ -586,7 +587,7 @@ func createObjectTransferValidatingWebhook(namespace string, c client.Client, l 
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
 					Service: &admissionregistrationv1.ServiceReference{
 						Namespace: namespace,
-						Name:      apiServerServiceName,
+						Name:      APIServerServiceName,
 						Path:      &path,
 						Port:      &defaultServicePort,
 					},
@@ -608,7 +609,7 @@ func createObjectTransferValidatingWebhook(namespace string, c client.Client, l 
 		return whc
 	}
 
-	bundle := getAPIServerCABundle(namespace, c, l)
+	bundle := GetAPIServerCABundle(namespace, c, l)
 	if bundle != nil {
 		for i := range whc.Webhooks {
 			whc.Webhooks[i].ClientConfig.CABundle = bundle
@@ -636,7 +637,7 @@ func createDataVolumeMutatingWebhook(namespace string, c client.Client, l logr.L
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cdi-api-datavolume-mutate",
 			Labels: map[string]string{
-				utils.CDILabel: apiServerServiceName,
+				utils.CDILabel: APIServerServiceName,
 			},
 		},
 		Webhooks: []admissionregistrationv1.MutatingWebhook{
@@ -657,7 +658,7 @@ func createDataVolumeMutatingWebhook(namespace string, c client.Client, l logr.L
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
 					Service: &admissionregistrationv1.ServiceReference{
 						Namespace: namespace,
-						Name:      apiServerServiceName,
+						Name:      APIServerServiceName,
 						Path:      &path,
 						Port:      &defaultServicePort,
 					},
@@ -680,7 +681,7 @@ func createDataVolumeMutatingWebhook(namespace string, c client.Client, l logr.L
 		return whc
 	}
 
-	bundle := getAPIServerCABundle(namespace, c, l)
+	bundle := GetAPIServerCABundle(namespace, c, l)
 	if bundle != nil {
 		whc.Webhooks[0].ClientConfig.CABundle = bundle
 	}
@@ -688,80 +689,8 @@ func createDataVolumeMutatingWebhook(namespace string, c client.Client, l logr.L
 	return whc
 }
 
-// CreatePvcMutatingWebhook creates a PVC mutating webhook
-func CreatePvcMutatingWebhook(namespace string, c client.Client, l logr.Logger) *admissionregistrationv1.MutatingWebhookConfiguration {
-	path := "/pvc-mutate"
-	defaultServicePort := int32(443)
-	allScopes := admissionregistrationv1.AllScopes
-	exactPolicy := admissionregistrationv1.Exact
-	failurePolicy := admissionregistrationv1.Fail
-	defaultTimeoutSeconds := int32(10)
-	reinvocationNever := admissionregistrationv1.NeverReinvocationPolicy
-	sideEffect := admissionregistrationv1.SideEffectClassNone
-	whc := &admissionregistrationv1.MutatingWebhookConfiguration{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "admissionregistration.k8s.io/v1",
-			Kind:       "MutatingWebhookConfiguration",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "cdi-api-pvc-mutate",
-			Labels: map[string]string{
-				utils.CDILabel: apiServerServiceName,
-			},
-		},
-		Webhooks: []admissionregistrationv1.MutatingWebhook{
-			{
-				Name: "pvc-mutate.cdi.kubevirt.io",
-				Rules: []admissionregistrationv1.RuleWithOperations{{
-					Operations: []admissionregistrationv1.OperationType{
-						admissionregistrationv1.Create,
-					},
-					Rule: admissionregistrationv1.Rule{
-						APIGroups:   []string{corev1.SchemeGroupVersion.Group},
-						APIVersions: []string{corev1.SchemeGroupVersion.Version},
-						Resources:   []string{"persistentvolumeclaims"},
-						Scope:       &allScopes,
-					},
-				}},
-				ClientConfig: admissionregistrationv1.WebhookClientConfig{
-					Service: &admissionregistrationv1.ServiceReference{
-						Namespace: namespace,
-						Name:      apiServerServiceName,
-						Path:      &path,
-						Port:      &defaultServicePort,
-					},
-				},
-				FailurePolicy:     &failurePolicy,
-				SideEffects:       &sideEffect,
-				MatchPolicy:       &exactPolicy,
-				NamespaceSelector: &metav1.LabelSelector{},
-				TimeoutSeconds:    &defaultTimeoutSeconds,
-				AdmissionReviewVersions: []string{
-					"v1",
-				},
-				ObjectSelector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						common.PvcUseStorageProfileLabel: "true",
-					},
-				},
-				ReinvocationPolicy: &reinvocationNever,
-			},
-		},
-	}
-
-	if c == nil {
-		return whc
-	}
-
-	bundle := getAPIServerCABundle(namespace, c, l)
-	if bundle != nil {
-		whc.Webhooks[0].ClientConfig.CABundle = bundle
-	}
-
-	return whc
-}
-
-func getAPIServerCABundle(namespace string, c client.Client, l logr.Logger) []byte {
+// GetAPIServerCABundle returns the API server CA bundle
+func GetAPIServerCABundle(namespace string, c client.Client, l logr.Logger) []byte {
 	cm := &corev1.ConfigMap{}
 	key := client.ObjectKey{Namespace: namespace, Name: "cdi-apiserver-signer-bundle"}
 	if err := c.Get(context.TODO(), key, cm); err != nil {
