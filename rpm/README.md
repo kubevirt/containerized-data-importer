@@ -17,13 +17,20 @@ Then, running `make rpm-deps` invokes bazeldnf installed in the bazel cdi builde
 `bazeldnf` is not provided in the persistent CDI build container; it is built and installed from a pinned source tarball in the `make rpm-defs` step as per https://github.com/kubevirt/containerized-data-importer/blob/main/WORKSPACE#L83-L95 -- so if you _exec_ into the running container, you won't find the executable of bazeldnf in your bash path; rather it is only made available to bazel build as a package, e.g.:
 
 ```
-[cfillekes@m1325001 containerized-data-importer]$ podman ps
-CONTAINER ID  IMAGE                                                    COMMAND               CREATED        STATUS        PORTS       NAMES
-3c4b6fed495d  icr.io/kubevirt/kubevirt-cdi-bazel-builder:native-s390x  hack/build/bazel-...  4 minutes ago  Up 4 minutes              kubevirt-cdi-volume-bazel-server
-[cfillekes@m1325001 containerized-data-importer]$ podman exec -it 3c4b6fed495d /bin/bash
+[containerized-data-importer]$ ./hack/build/bazel-docker.sh bash
+CDI_CRI: podman, CDI_CONTAINER_BUILDCMD: buildah
+Making sure output directory exists...
+go version go1.21.5 linux/s390x
+go version go1.21.5 linux/s390x
+Starting rsyncd
+
+Rsyncing /home/cfillekes/projects/containerized-data-importer to container
+8def2759249580cd4b7880fa2a79c554611a1033fe2d3f9bcc15aa3a79008c89
+Starting bazel server
+go version go1.21.5 linux/s390x
 go version go1.21.5 linux/s390x
 [root@m1325001 containerized-data-importer]# which bazeldnf
-/usr/bin/which: no bazeldnf in (/root/.local/bin:/root/bin:/gimme/.gimme/versions/go1.21.5.linux.s390x/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
+/usr/bin/which: no bazeldnf in (/root/.local/bin:/root/bin:/gimme/.gimme/versions/go1.21.5.linux.s390x/bin:/root/go/bin:/go/bin:/opt/gradle/gradle-6.6/bin:/gimme/.gimme/versions/go1.21.5.linux.s390x/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
 [root@m1325001 containerized-data-importer]# find / -name bazeldnf
 find: ‘/sys/fs/pstore’: Permission denied
 find: ‘/sys/fs/bpf’: Permission denied
