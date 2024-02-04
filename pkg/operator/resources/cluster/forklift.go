@@ -39,11 +39,11 @@ func createOvirtVolumePopulatorCRD() *extv1.CustomResourceDefinition {
 
 // NewOpenstackVolumePopulator - provides OpenstackVolumePopulator CRD
 func NewOpenstackVolumePopulator() *extv1.CustomResourceDefinition {
-	return createOpenstackVolumePopulator()
+	return createOpenstackVolumePopulatorCRD()
 }
 
-// createOpenstackVolumePopulator creates the openstackvolumepopulator schema
-func createOpenstackVolumePopulator() *extv1.CustomResourceDefinition {
+// createOpenstackVolumePopulatorCRD creates the openstackvolumepopulator schema
+func createOpenstackVolumePopulatorCRD() *extv1.CustomResourceDefinition {
 	crd := extv1.CustomResourceDefinition{}
 	_ = k8syaml.NewYAMLToJSONDecoder(strings.NewReader(resources.CDICRDs["openstackvolumepopulator"])).Decode(&crd)
 	return &crd
