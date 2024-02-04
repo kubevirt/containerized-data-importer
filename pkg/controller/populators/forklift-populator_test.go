@@ -3,6 +3,10 @@ package populators
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"strings"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
@@ -31,7 +35,7 @@ var (
 	forkliftPopulatorLog = logf.Log.WithName("forklift-populator-test")
 )
 
-var _ = Describe("Import populator tests", func() {
+var _ = Describe("Forklift populator tests", func() {
 	var (
 		reconciler *ForkliftPopulatorReconciler
 	)
@@ -88,12 +92,21 @@ var _ = Describe("Import populator tests", func() {
 		},
 	}
 
-	populatorPod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      samplePopulatorName,
-			Namespace: metav1.NamespaceDefault,
-		},
-		Spec: corev1.PodSpec{},
+	getPopulatorPod := func(pvc, pvcPrime *corev1.PersistentVolumeClaim) *corev1.Pod {
+		return &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-%s", populatorPodPrefix, pvc.UID),
+				Namespace: metav1.NamespaceDefault,
+				OwnerReferences: []metav1.OwnerReference{
+					*metav1.NewControllerRef(pvcPrime, schema.GroupVersionKind{
+						Group:   "",
+						Version: "v1",
+						Kind:    "PersistentVolumeClaim",
+					}),
+				},
+			},
+			Spec: corev1.PodSpec{},
+		}
 	}
 
 	// Forklift populator's DataSourceRef
@@ -108,7 +121,7 @@ var _ = Describe("Import populator tests", func() {
 		It("should trigger succeeded event when podPhase is succeeded during population", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
-			pvcPrime := getPVCPrime(targetPvc, nil)
+			pvcPrime := getPVCPrime(targetPvc, make(map[string]string))
 			pvcPrime.Annotations = map[string]string{AnnPodPhase: string(corev1.PodSucceeded)}
 			pv := &corev1.PersistentVolume{
 				ObjectMeta: metav1.ObjectMeta{
@@ -122,9 +135,11 @@ var _ = Describe("Import populator tests", func() {
 				},
 			}
 			pvcPrime.Spec.VolumeName = pv.Name
+			populatorPod := getPopulatorPod(targetPvc, pvcPrime)
+
 			populatorPod.Status.Phase = corev1.PodSucceeded
 			populatorPod.Spec.Containers = []corev1.Container{
-				{Name: fmt.Sprintf("%s-%s", populatorPodPrefix, targetPvc.UID)},
+				{Name: "test-populate"},
 			}
 
 			By("Reconcile")
@@ -146,11 +161,13 @@ var _ = Describe("Import populator tests", func() {
 			Expect(found).To(BeTrue())
 		})
 
-		It("Should trigger failed import event when pod phase is podfailed", func() {
+		It("Should trigger failed import event when pod phase is pod failed", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
 			pvcPrime := getPVCPrime(targetPvc, nil)
-			pvcPrime.Annotations = map[string]string{AnnPodPhase: string(corev1.PodFailed)}
+			pvcPrime.Annotations = map[string]string{AnnPodPhase: ""}
+			populatorPod := getPopulatorPod(targetPvc, pvcPrime)
+			populatorPod.Status.Phase = corev1.PodFailed
 
 			By("Reconcile")
 			reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, sc, ovirtCr, populatorPod)
@@ -174,7 +191,12 @@ var _ = Describe("Import populator tests", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
 			pvcPrime := getPVCPrime(targetPvc, nil)
-			pvcPrime.Annotations = map[string]string{AnnPodPhase: string(corev1.PodRunning)}
+			pvcPrime.Annotations = map[string]string{
+				AnnPodPhase: "",
+			}
+
+			populatorPod := getPopulatorPod(targetPvc, pvcPrime)
+			populatorPod.Status.Phase = corev1.PodRunning
 
 			By("Reconcile")
 			reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, sc, ovirtCr, populatorPod)
@@ -238,7 +260,7 @@ var _ = Describe("Import populator tests", func() {
 		pvcPrime.Spec.VolumeName = pv.Name
 
 		By("Reconcile")
-		reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, pv, sc, ovirtCr, populatorPod)
+		reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, pv, sc, ovirtCr, getPopulatorPod(targetPvc, pvcPrime))
 		result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
 		Expect(err).To(Not(HaveOccurred()))
 		Expect(result).To(Not(BeNil()))
@@ -255,6 +277,100 @@ var _ = Describe("Import populator tests", func() {
 		Expect(found).To(BeTrue())
 	})
 
+	var _ = Describe("Forklift populator progress report", func() {
+		It("should set 100.0% if pod phase is succeeded", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
+			pvcPrime := getPVCPrime(targetPvc, nil)
+
+			reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, sc)
+			err := reconciler.updateImportProgress(string(corev1.PodSucceeded), targetPvc, pvcPrime)
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(targetPvc.Annotations[AnnPopulatorProgress]).To(Equal("100.0%"))
+		})
+
+		It("should set N/A once PVC Prime is bound", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
+			pvcPrime := getPVCPrime(targetPvc, nil)
+			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, pvcPrime.Name)
+			pvcPrime.Annotations = map[string]string{AnnImportPod: importPodName}
+			pvcPrime.Status.Phase = corev1.ClaimBound
+
+			reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, sc)
+			err := reconciler.updateImportProgress("", targetPvc, pvcPrime)
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(targetPvc.Annotations[AnnPopulatorProgress]).To(Equal("N/A"))
+		})
+
+		It("should return error if no metrics in pod", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
+			pvcPrime := getPVCPrime(targetPvc, nil)
+			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, pvcPrime.Name)
+			pvcPrime.Annotations = map[string]string{AnnImportPod: importPodName}
+			pod := CreateImporterTestPod(pvcPrime, pvcPrime.Name, nil)
+			pod.Spec.Containers[0].Ports = nil
+			pod.Status.Phase = corev1.PodRunning
+
+			reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, pod)
+			err := reconciler.updateImportProgress(string(corev1.PodRunning), targetPvc, pvcPrime)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("Metrics port not found in pod"))
+		})
+
+		It("should not error if no endpoint exists", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
+			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, targetPvc.Name)
+			targetPvc.Annotations = map[string]string{AnnImportPod: importPodName}
+			pvcPrime := getPVCPrime(targetPvc, nil)
+			pod := CreateImporterTestPod(targetPvc, pvcPrime.Name, nil)
+			pod.Spec.Containers[0].Ports[0].ContainerPort = 12345
+			pod.Status.PodIP = "127.0.0.1"
+			pod.Status.Phase = corev1.PodRunning
+
+			reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, pod)
+			err := reconciler.updateImportProgress(string(corev1.PodRunning), targetPvc, pvcPrime)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should not error if pod is not running", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
+			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, targetPvc.Name)
+			targetPvc.Annotations = map[string]string{AnnImportPod: importPodName}
+			pvcPrime := getPVCPrime(targetPvc, nil)
+			pod := CreateImporterTestPod(targetPvc, pvcPrime.Name, nil)
+
+			reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, pod)
+			err := reconciler.updateImportProgress(string(corev1.PodRunning), targetPvc, pvcPrime)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should report progress in target PVC if http endpoint returns matching data", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			targetPvc.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
+			pvcPrime := getPVCPrime(targetPvc, nil)
+			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, pvcPrime.Name)
+			pvcPrime.Annotations = map[string]string{AnnImportPod: importPodName}
+
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(fmt.Sprintf("openstack_populator_progress{ownerUID=\"%v\"} 13.45", targetPvc.GetUID())))
+				w.WriteHeader(200)
+			}))
+			defer ts.Close()
+			ep, err := url.Parse(ts.URL)
+			Expect(err).ToNot(HaveOccurred())
+			port, err := strconv.Atoi(ep.Port())
+			Expect(err).ToNot(HaveOccurred())
+
+			pod := CreateImporterTestPod(pvcPrime, pvcPrime.Name, nil)
+			pod.Spec.Containers[0].Ports[0].ContainerPort = int32(port)
+			pod.Status.PodIP = ep.Hostname()
+			pod.Status.Phase = corev1.PodRunning
+
+			reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, pod)
+			err = reconciler.updateImportProgress(string(corev1.PodRunning), targetPvc, pvcPrime)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(targetPvc.Annotations[AnnPopulatorProgress]).To(BeEquivalentTo("13.45%"))
+		})
+	})
 })
 
 func createForkliftPopulatorReconciler(objects ...runtime.Object) *ForkliftPopulatorReconciler {
@@ -308,6 +424,7 @@ func createForkliftPopulatorReconcilerWithoutConfig(objects ...runtime.Object) *
 				common.AppKubernetesVersionLabel: "v0.0.0-tests",
 			},
 		},
+		ovirtPopulatorImage: "ovirt-populator-image",
 	}
 
 	return r

@@ -263,11 +263,11 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 		}
 
 		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
-	} else {
-		anno := pvcPrimeCopy.Annotations
-		anno[cc.AnnPodPhase] = string(pod.Status.Phase)
-		anno[cc.AnnImportPod] = pod.Name
 	}
+
+	anno := pvcPrimeCopy.Annotations
+	anno[cc.AnnPodPhase] = string(pod.Status.Phase)
+	anno[cc.AnnImportPod] = pod.Name
 
 	phase := pvcPrimeCopy.Annotations[cc.AnnPodPhase]
 	switch phase {
