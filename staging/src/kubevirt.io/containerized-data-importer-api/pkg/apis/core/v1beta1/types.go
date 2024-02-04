@@ -445,12 +445,11 @@ type StorageProfileStatus struct {
 type ClaimPropertySet struct {
 	// AccessModes contains the desired access modes the volume should have.
 	// More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1
-	// +optional
-	AccessModes []corev1.PersistentVolumeAccessMode `json:"accessModes,omitempty" protobuf:"bytes,1,rep,name=accessModes,casttype=PersistentVolumeAccessMode"`
+	AccessModes []corev1.PersistentVolumeAccessMode `json:"accessModes"`
 	// VolumeMode defines what type of volume is required by the claim.
 	// Value of Filesystem is implied when not included in claim spec.
-	// +optional
-	VolumeMode *corev1.PersistentVolumeMode `json:"volumeMode,omitempty" protobuf:"bytes,6,opt,name=volumeMode,casttype=PersistentVolumeMode"`
+	// +kubebuilder:validation:Enum="Block";"Filesystem"
+	VolumeMode *corev1.PersistentVolumeMode `json:"volumeMode"`
 }
 
 // StorageProfileList provides the needed parameters to request a list of StorageProfile from the system

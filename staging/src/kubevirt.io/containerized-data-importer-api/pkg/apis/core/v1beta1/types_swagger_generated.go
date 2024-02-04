@@ -203,8 +203,8 @@ func (StorageProfileStatus) SwaggerDoc() map[string]string {
 func (ClaimPropertySet) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":            "ClaimPropertySet is a set of properties applicable to PVC",
-		"accessModes": "AccessModes contains the desired access modes the volume should have.\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1\n+optional",
-		"volumeMode":  "VolumeMode defines what type of volume is required by the claim.\nValue of Filesystem is implied when not included in claim spec.\n+optional",
+		"accessModes": "AccessModes contains the desired access modes the volume should have.\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1",
+		"volumeMode":  "VolumeMode defines what type of volume is required by the claim.\nValue of Filesystem is implied when not included in claim spec.\n+kubebuilder:validation:Enum=\"Block\";\"Filesystem\"",
 	}
 }
 

@@ -7028,7 +7028,13 @@ spec:
                       description: VolumeMode defines what type of volume is required
                         by the claim. Value of Filesystem is implied when not included
                         in claim spec.
+                      enum:
+                      - Block
+                      - Filesystem
                       type: string
+                  required:
+                  - accessModes
+                  - volumeMode
                   type: object
                 type: array
               cloneStrategy:
@@ -7066,7 +7072,13 @@ spec:
                       description: VolumeMode defines what type of volume is required
                         by the claim. Value of Filesystem is implied when not included
                         in claim spec.
+                      enum:
+                      - Block
+                      - Filesystem
                       type: string
+                  required:
+                  - accessModes
+                  - volumeMode
                   type: object
                 type: array
               cloneStrategy:
