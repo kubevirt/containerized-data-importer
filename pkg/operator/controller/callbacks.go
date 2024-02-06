@@ -381,34 +381,38 @@ func reconcilePvcMutatingWebhook(args *callbacks.ReconcileCallbackArgs) error {
 	whc := &admissionregistrationv1.MutatingWebhookConfiguration{}
 	key := client.ObjectKey{Name: "cdi-api-pvc-mutate"}
 	err = args.Client.Get(context.TODO(), key, whc)
-	if err == nil {
-		if enabled {
+	if err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+
+	exists := err == nil
+	if !enabled {
+		if !exists {
 			return nil
 		}
 		err = args.Client.Delete(context.TODO(), whc)
 		return client.IgnoreNotFound(err)
 	}
 
-	if client.IgnoreNotFound(err) != nil {
-		return err
-	}
-
-	if enabled {
-		whc = createPvcMutatingWebhook(args.Namespace, args.Client, args.Logger)
-		cdi, err := cc.GetActiveCDI(context.TODO(), args.Client)
-		if err != nil {
-			return err
-		}
-		if err = controllerutil.SetControllerReference(cdi, whc, args.Scheme); err != nil {
+	if !exists {
+		if err := initPvcMutatingWebhook(whc, args); err != nil {
 			return err
 		}
 		return args.Client.Create(context.TODO(), whc)
 	}
 
+	whcCopy := whc.DeepCopy()
+	if err := initPvcMutatingWebhook(whc, args); err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(whc, whcCopy) {
+		return args.Client.Update(context.TODO(), whc)
+	}
+
 	return nil
 }
 
-func createPvcMutatingWebhook(namespace string, c client.Client, l logr.Logger) *admissionregistrationv1.MutatingWebhookConfiguration {
+func initPvcMutatingWebhook(whc *admissionregistrationv1.MutatingWebhookConfiguration, args *callbacks.ReconcileCallbackArgs) error {
 	path := "/pvc-mutate"
 	defaultServicePort := int32(443)
 	allScopes := admissionregistrationv1.AllScopes
@@ -417,61 +421,56 @@ func createPvcMutatingWebhook(namespace string, c client.Client, l logr.Logger) 
 	defaultTimeoutSeconds := int32(10)
 	reinvocationNever := admissionregistrationv1.NeverReinvocationPolicy
 	sideEffect := admissionregistrationv1.SideEffectClassNone
-	whc := &admissionregistrationv1.MutatingWebhookConfiguration{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "admissionregistration.k8s.io/v1",
-			Kind:       "MutatingWebhookConfiguration",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "cdi-api-pvc-mutate",
-			Labels: map[string]string{
-				utils.CDILabel: cluster.APIServerServiceName,
+	bundle := cluster.GetAPIServerCABundle(args.Namespace, args.Client, args.Logger)
+
+	whc.APIVersion = "admissionregistration.k8s.io/v1"
+	whc.Kind = "MutatingWebhookConfiguration"
+	whc.Name = "cdi-api-pvc-mutate"
+	whc.Labels = map[string]string{utils.CDILabel: cluster.APIServerServiceName}
+	whc.Webhooks = []admissionregistrationv1.MutatingWebhook{
+		{
+			Name: "pvc-mutate.cdi.kubevirt.io",
+			Rules: []admissionregistrationv1.RuleWithOperations{{
+				Operations: []admissionregistrationv1.OperationType{
+					admissionregistrationv1.Create,
+				},
+				Rule: admissionregistrationv1.Rule{
+					APIGroups:   []string{corev1.SchemeGroupVersion.Group},
+					APIVersions: []string{corev1.SchemeGroupVersion.Version},
+					Resources:   []string{"persistentvolumeclaims"},
+					Scope:       &allScopes,
+				},
+			}},
+			ClientConfig: admissionregistrationv1.WebhookClientConfig{
+				Service: &admissionregistrationv1.ServiceReference{
+					Namespace: args.Namespace,
+					Name:      cluster.APIServerServiceName,
+					Path:      &path,
+					Port:      &defaultServicePort,
+				},
+				CABundle: bundle,
 			},
-		},
-		Webhooks: []admissionregistrationv1.MutatingWebhook{
-			{
-				Name: "pvc-mutate.cdi.kubevirt.io",
-				Rules: []admissionregistrationv1.RuleWithOperations{{
-					Operations: []admissionregistrationv1.OperationType{
-						admissionregistrationv1.Create,
-					},
-					Rule: admissionregistrationv1.Rule{
-						APIGroups:   []string{corev1.SchemeGroupVersion.Group},
-						APIVersions: []string{corev1.SchemeGroupVersion.Version},
-						Resources:   []string{"persistentvolumeclaims"},
-						Scope:       &allScopes,
-					},
-				}},
-				ClientConfig: admissionregistrationv1.WebhookClientConfig{
-					Service: &admissionregistrationv1.ServiceReference{
-						Namespace: namespace,
-						Name:      cluster.APIServerServiceName,
-						Path:      &path,
-						Port:      &defaultServicePort,
-					},
-				},
-				FailurePolicy:     &failurePolicy,
-				SideEffects:       &sideEffect,
-				MatchPolicy:       &exactPolicy,
-				NamespaceSelector: &metav1.LabelSelector{},
-				TimeoutSeconds:    &defaultTimeoutSeconds,
-				AdmissionReviewVersions: []string{
-					"v1",
-				},
-				ObjectSelector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						common.PvcUseStorageProfileLabel: "true",
-					},
-				},
-				ReinvocationPolicy: &reinvocationNever,
+			FailurePolicy:     &failurePolicy,
+			SideEffects:       &sideEffect,
+			MatchPolicy:       &exactPolicy,
+			NamespaceSelector: &metav1.LabelSelector{},
+			TimeoutSeconds:    &defaultTimeoutSeconds,
+			AdmissionReviewVersions: []string{
+				"v1",
 			},
+			ObjectSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					common.PvcUseStorageProfileLabel: "true",
+				},
+			},
+			ReinvocationPolicy: &reinvocationNever,
 		},
 	}
 
-	bundle := cluster.GetAPIServerCABundle(namespace, c, l)
-	if bundle != nil {
-		whc.Webhooks[0].ClientConfig.CABundle = bundle
+	cdi, err := cc.GetActiveCDI(context.TODO(), args.Client)
+	if err != nil {
+		return err
 	}
 
-	return whc
+	return controllerutil.SetControllerReference(cdi, whc, args.Scheme)
 }
