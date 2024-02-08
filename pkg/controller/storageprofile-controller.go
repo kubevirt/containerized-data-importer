@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -120,8 +121,8 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 
 	if len(storageProfile.Spec.ClaimPropertySets) > 0 {
 		for _, cps := range storageProfile.Spec.ClaimPropertySets {
-			if len(cps.AccessModes) == 0 && cps.VolumeMode != nil {
-				err = fmt.Errorf("must provide access mode for volume mode: %s", *cps.VolumeMode)
+			if cps.VolumeMode == nil || len(cps.AccessModes) == 0 {
+				err = errors.New("each ClaimPropertySet must provide both volume mode and access modes")
 				log.Error(err, "Unable to update StorageProfile")
 				return reconcile.Result{}, err
 			}
