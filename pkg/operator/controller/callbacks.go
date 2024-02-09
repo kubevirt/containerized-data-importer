@@ -423,8 +423,6 @@ func initPvcMutatingWebhook(whc *admissionregistrationv1.MutatingWebhookConfigur
 	sideEffect := admissionregistrationv1.SideEffectClassNone
 	bundle := cluster.GetAPIServerCABundle(args.Namespace, args.Client, args.Logger)
 
-	whc.APIVersion = "admissionregistration.k8s.io/v1"
-	whc.Kind = "MutatingWebhookConfiguration"
 	whc.Name = "cdi-api-pvc-mutate"
 	whc.Labels = map[string]string{utils.CDILabel: cluster.APIServerServiceName}
 	whc.Webhooks = []admissionregistrationv1.MutatingWebhook{
