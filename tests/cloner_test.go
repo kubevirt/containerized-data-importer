@@ -2685,6 +2685,9 @@ var _ = Describe("all clone tests", func() {
 			if !f.IsSnapshotStorageClassAvailable() {
 				Skip("Clone from volumesnapshot does not work without snapshot capable storage")
 			}
+			if volumeMode == v1.PersistentVolumeBlock && !f.IsBlockVolumeStorageClassAvailable() {
+				Skip("Storage Class for block volume is not available")
+			}
 
 			targetNs := f.Namespace
 			if crossNamespace {
@@ -2757,6 +2760,9 @@ var _ = Describe("all clone tests", func() {
 				var i int
 				var err error
 
+				if volumeMode == v1.PersistentVolumeBlock && !f.IsBlockVolumeStorageClassAvailable() {
+					Skip("Storage Class for block volume is not available")
+				}
 				targetNs := f.Namespace
 				if crossNamespace {
 					targetNamespace, err = f.CreateNamespace("cdi-cross-ns-snapshot-clone-test", nil)
