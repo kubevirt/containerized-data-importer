@@ -25,13 +25,18 @@ import (
 	"os"
 
 	"github.com/kelseyhightower/envconfig"
-
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	snapclient "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
 	"github.com/pkg/errors"
+
+	corev1 "k8s.io/api/core/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
+
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 
@@ -39,6 +44,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	certwatcher "kubevirt.io/containerized-data-importer/pkg/util/cert/watcher"
 	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 	"kubevirt.io/containerized-data-importer/pkg/version/verflag"
@@ -105,6 +111,10 @@ func main() {
 		klog.Fatalf("Unable to get environment variables: %v\n", errors.WithStack(err))
 	}
 
+	utilruntime.Must(corev1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(cdiv1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(snapshotv1.AddToScheme(scheme.Scheme))
+
 	cfg, err := clientcmd.BuildConfigFromFlags(kubeURL, configPath)
 	if err != nil {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
@@ -128,6 +138,10 @@ func main() {
 
 	if err := cdiv1.AddToScheme(cluster.GetScheme()); err != nil {
 		klog.Fatalf("Unable to add to scheme: %v\n", errors.WithStack(err))
+	}
+
+	if err := dvc.CreateAvailablePersistentVolumeIndex(cluster.GetFieldIndexer()); err != nil {
+		klog.Fatalf("Unable to create field index: %v\n", errors.WithStack(err))
 	}
 
 	ctx := signals.SetupSignalHandler()
@@ -165,7 +179,7 @@ func main() {
 		certWatcher,
 		installerLabels)
 	if err != nil {
-		klog.Fatalf("Upload api failed to initialize: %v\n", errors.WithStack(err))
+		klog.Fatalf("CDI API server failed to initialize: %v\n", errors.WithStack(err))
 	}
 
 	go func() {

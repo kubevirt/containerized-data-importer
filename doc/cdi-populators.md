@@ -37,6 +37,8 @@ spec:
 ### Using populators with PVCs
 User can create a CR and PVCs specifying the CR in the `DataSourceRef` field and those will be handled by the matching populator controller.
 
+PVC created with missing fields (`accessModes`, `volumeMode`, clone `storage` size), can be auto-completed with defaults from the [StorageProfiles](./storageprofile.md). This is achieved using [CDI PVC mutating webhook rendering](./pvc-mutating-webhook-rendering.md).
+
 #### Import
 Example for PVC which use the VolumeImportSource above that will be handled by the import populator:
 ```yaml

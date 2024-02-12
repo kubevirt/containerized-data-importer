@@ -18,6 +18,9 @@ const (
 	// DataVolumeClaimAdoption - if enabled will allow PVC to be adopted by a DataVolume
 	// it is not an error if PVC of sam name exists before DataVolume is created
 	DataVolumeClaimAdoption = "DataVolumeClaimAdoption"
+
+	// WebhookPvcRendering - if enabled will deploy PVC mutating webhook for PVC rendering instead of the DV controller
+	WebhookPvcRendering = "WebhookPvcRendering"
 )
 
 // FeatureGates is a util for determining whether an optional feature is enabled or not.
@@ -27,6 +30,9 @@ type FeatureGates interface {
 
 	// ClaimAdoptionEnabled - see the DataVolumeClaimAdoption const
 	ClaimAdoptionEnabled() (bool, error)
+
+	// WebhookPvcRenderingEnabled - see the WebhookPvcRendering const
+	WebhookPvcRenderingEnabled() (bool, error)
 }
 
 // CDIConfigFeatureGates is a util for determining whether an optional feature is enabled or not.
@@ -70,4 +76,15 @@ func (f *CDIConfigFeatureGates) HonorWaitForFirstConsumerEnabled() (bool, error)
 // ClaimAdoptionEnabled - see the DataVolumeClaimAdoption const
 func (f *CDIConfigFeatureGates) ClaimAdoptionEnabled() (bool, error) {
 	return f.isFeatureGateEnabled(DataVolumeClaimAdoption)
+}
+
+// WebhookPvcRenderingEnabled tells if webhook PVC rendering is enabled
+func (f *CDIConfigFeatureGates) WebhookPvcRenderingEnabled() (bool, error) {
+	return f.isFeatureGateEnabled(WebhookPvcRendering)
+}
+
+// IsWebhookPvcRenderingEnabled tells if webhook PVC rendering is enabled
+func IsWebhookPvcRenderingEnabled(c client.Client) (bool, error) {
+	gates := NewFeatureGates(c)
+	return gates.WebhookPvcRenderingEnabled()
 }

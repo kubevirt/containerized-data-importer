@@ -302,6 +302,9 @@ func (r *SnapshotCloneReconciler) detectCloneSize(log logr.Logger, syncState *dv
 		return false, nil
 	}
 
+	if pvcSpec.Resources.Requests == nil {
+		pvcSpec.Resources.Requests = corev1.ResourceList{}
+	}
 	pvcSpec.Resources.Requests[corev1.ResourceStorage] = *snapshot.Status.RestoreSize
 
 	log.V(3).Info("set pvc request size", "size", pvcSpec.Resources.Requests[corev1.ResourceStorage])

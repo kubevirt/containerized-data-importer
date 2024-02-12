@@ -7,6 +7,8 @@ Storage Profile is the resource that serves the information about recommended pa
 This can be used by CDI controllers when creating a PVC for DV. That way the DataVolume can be simplified and if the properties are missing,
 defaults can be applied from the StorageProfile.
 
+PVC created independently (without DV) with missing fields, can also be auto-completed with defaults from the StorageProfiles. This is achieved using [CDI PVC mutating webhook rendering](./pvc-mutating-webhook-rendering.md).
+
 CDI provides a collection of Storage Profiles with default recommended values for some well known backends. 
 If the storage provisioner defined in storage class does not have defaults configured in CDI the resulting StorageProfile 
 has empty `claimPropertySets`.

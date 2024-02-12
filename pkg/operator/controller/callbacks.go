@@ -22,6 +22,7 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -33,10 +34,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cdicontroller "kubevirt.io/containerized-data-importer/pkg/controller"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -51,6 +57,7 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileRemainingRelationshipLabels)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileDeleteDeprecatedResources)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCDICRD)
+	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcilePvcMutatingWebhook)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileSetConfigAuthority)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileHandleOldVersion)
 }
@@ -354,4 +361,114 @@ func restoreOlderVersions(currentCrd, desiredCrd *extv1.CustomResourceDefinition
 		}
 	}
 	return desiredCrd
+}
+
+func reconcilePvcMutatingWebhook(args *callbacks.ReconcileCallbackArgs) error {
+	if args.State != callbacks.ReconcileStatePostRead {
+		return nil
+	}
+
+	deployment, ok := args.DesiredObject.(*appsv1.Deployment)
+	if !ok || deployment.Name != common.CDIApiServerResourceName {
+		return nil
+	}
+
+	enabled, err := featuregates.IsWebhookPvcRenderingEnabled(args.Client)
+	if err != nil {
+		return cc.IgnoreNotFound(err)
+	}
+
+	whc := &admissionregistrationv1.MutatingWebhookConfiguration{}
+	key := client.ObjectKey{Name: "cdi-api-pvc-mutate"}
+	err = args.Client.Get(context.TODO(), key, whc)
+	if err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+
+	exists := err == nil
+	if !enabled {
+		if !exists {
+			return nil
+		}
+		err = args.Client.Delete(context.TODO(), whc)
+		return client.IgnoreNotFound(err)
+	}
+
+	if !exists {
+		if err := initPvcMutatingWebhook(whc, args); err != nil {
+			return err
+		}
+		return args.Client.Create(context.TODO(), whc)
+	}
+
+	whcCopy := whc.DeepCopy()
+	if err := initPvcMutatingWebhook(whc, args); err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(whc, whcCopy) {
+		return args.Client.Update(context.TODO(), whc)
+	}
+
+	return nil
+}
+
+func initPvcMutatingWebhook(whc *admissionregistrationv1.MutatingWebhookConfiguration, args *callbacks.ReconcileCallbackArgs) error {
+	path := "/pvc-mutate"
+	defaultServicePort := int32(443)
+	allScopes := admissionregistrationv1.AllScopes
+	exactPolicy := admissionregistrationv1.Exact
+	failurePolicy := admissionregistrationv1.Fail
+	defaultTimeoutSeconds := int32(10)
+	reinvocationNever := admissionregistrationv1.NeverReinvocationPolicy
+	sideEffect := admissionregistrationv1.SideEffectClassNone
+	bundle := cluster.GetAPIServerCABundle(args.Namespace, args.Client, args.Logger)
+
+	whc.Name = "cdi-api-pvc-mutate"
+	whc.Labels = map[string]string{utils.CDILabel: cluster.APIServerServiceName}
+	whc.Webhooks = []admissionregistrationv1.MutatingWebhook{
+		{
+			Name: "pvc-mutate.cdi.kubevirt.io",
+			Rules: []admissionregistrationv1.RuleWithOperations{{
+				Operations: []admissionregistrationv1.OperationType{
+					admissionregistrationv1.Create,
+				},
+				Rule: admissionregistrationv1.Rule{
+					APIGroups:   []string{corev1.SchemeGroupVersion.Group},
+					APIVersions: []string{corev1.SchemeGroupVersion.Version},
+					Resources:   []string{"persistentvolumeclaims"},
+					Scope:       &allScopes,
+				},
+			}},
+			ClientConfig: admissionregistrationv1.WebhookClientConfig{
+				Service: &admissionregistrationv1.ServiceReference{
+					Namespace: args.Namespace,
+					Name:      cluster.APIServerServiceName,
+					Path:      &path,
+					Port:      &defaultServicePort,
+				},
+				CABundle: bundle,
+			},
+			FailurePolicy:     &failurePolicy,
+			SideEffects:       &sideEffect,
+			MatchPolicy:       &exactPolicy,
+			NamespaceSelector: &metav1.LabelSelector{},
+			TimeoutSeconds:    &defaultTimeoutSeconds,
+			AdmissionReviewVersions: []string{
+				"v1",
+			},
+			ObjectSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					common.PvcUseStorageProfileLabel: "true",
+				},
+			},
+			ReinvocationPolicy: &reinvocationNever,
+		},
+	}
+
+	cdi, err := cc.GetActiveCDI(context.TODO(), args.Client)
+	if err != nil {
+		return err
+	}
+
+	return controllerutil.SetControllerReference(cdi, whc, args.Scheme)
 }

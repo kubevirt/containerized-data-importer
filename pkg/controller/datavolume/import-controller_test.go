@@ -478,10 +478,10 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("DataVolume with ContentType Archive cannot have block volumeMode"))
+			Expect(err.Error()).To(ContainSubstring("ContentType Archive cannot have block volumeMode"))
 			By("Checking error event recorded")
 			event := <-reconciler.recorder.(*record.FakeRecorder).Events
-			Expect(event).To(ContainSubstring("DataVolume with ContentType Archive cannot have block volumeMode"))
+			Expect(event).To(ContainSubstring("ContentType Archive cannot have block volumeMode"))
 		})
 
 		It("Should set on a PVC matching access mode from storageProfile to the DV given volume mode", func() {
@@ -1990,7 +1990,6 @@ func readyStatusByPhase(phase cdiv1.DataVolumePhase) corev1.ConditionStatus {
 func createImportReconcilerWFFCDisabled(objects ...client.Object) *ImportReconciler {
 	return createImportReconcilerWithFeatureGates(nil, objects...)
 }
-
 func createImportReconciler(objects ...client.Object) *ImportReconciler {
 	return createImportReconcilerWithFeatureGates([]string{featuregates.HonorWaitForFirstConsumer}, objects...)
 }

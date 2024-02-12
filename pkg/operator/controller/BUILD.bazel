@@ -22,6 +22,7 @@ go_library(
         "//pkg/common:go_default_library",
         "//pkg/controller:go_default_library",
         "//pkg/controller/common:go_default_library",
+        "//pkg/feature-gates:go_default_library",
         "//pkg/monitoring/metrics/operator-controller:go_default_library",
         "//pkg/monitoring/rules/recordingrules:go_default_library",
         "//pkg/operator:go_default_library",
