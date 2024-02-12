@@ -1417,7 +1417,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Create PVC")
 			annotations := map[string]string{"cdi.kubevirt.io/storage.populatedFor": dataVolumeName}
-			pvc := utils.NewPVCDefinition(dataVolumeName, "100m", annotations, nil)
+			pvc := utils.NewPVCDefinition(dataVolumeName, "100Mi", annotations, nil)
 			pvc = f.CreateBoundPVCFromDefinition(pvc)
 
 			By("Verifying Succeed with PVC Bound")
