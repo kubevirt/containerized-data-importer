@@ -2413,6 +2413,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		It("[test_id:6101]Clone pod should not have size corrected on block", func() {
+			if !f.IsBlockVolumeStorageClassAvailable() {
+				Skip("Storage Class for block volume is not available")
+			}
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
 			// volumeMode Block, so no overhead applied
@@ -2440,6 +2443,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		It("[test_id:6487]Clone pod should not have size corrected on block, when no volumeMode on DV", func() {
+			if !f.IsBlockVolumeStorageClassAvailable() {
+				Skip("Storage Class for block volume is not available")
+			}
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
 			// volumeMode Block, so no overhead applied

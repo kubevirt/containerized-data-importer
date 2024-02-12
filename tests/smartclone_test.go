@@ -129,6 +129,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		if !f.IsSnapshotStorageClassAvailable() {
 			Skip("Smart Clone is not applicable")
 		}
+		if !f.IsBlockVolumeStorageClassAvailable() {
+			Skip("Storage Class for block volume is not available")
+		}
 		dataVolume, expectedMd5 := createDataVolume("dv-smart-clone-test-1", utils.DefaultPvcMountPath, v1.PersistentVolumeBlock, f.SnapshotSCName, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
 		if !f.IsBindingModeWaitForFirstConsumer(&cloneStorageClassName) {
