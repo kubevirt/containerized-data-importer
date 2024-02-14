@@ -120,6 +120,11 @@ func (rd *RegistryDataSource) GetURL() *url.URL {
 	return rd.url
 }
 
+// GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
+func (rd *RegistryDataSource) GetTerminationMessage() *common.TerminationMessage {
+	return nil
+}
+
 // Close closes any readers or other open resources.
 func (rd *RegistryDataSource) Close() error {
 	// No-op, no open readers

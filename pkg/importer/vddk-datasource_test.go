@@ -21,6 +21,7 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 	v1 "k8s.io/api/core/v1"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	libnbd "libguestfs.org/libnbd"
 )
@@ -431,6 +432,18 @@ var _ = Describe("VDDK data source", func() {
 		_, err = NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(MaxPreadLength).To(Equal(uint32(MaxPreadLengthVC)))
+	})
+
+	It("GetTerminationMessage should contain VDDK connection information", func() {
+		const testVersion = "testVersion"
+		const testHost = "testHost"
+
+		source, err := NewVDDKDataSource("http://esx.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", "testdisk.vmdk", "", "", "", v1.PersistentVolumeFilesystem)
+		Expect(err).ToNot(HaveOccurred())
+
+		vddkVersion = testVersion
+		vddkHost = testHost
+		Expect(*source.GetTerminationMessage()).To(Equal(common.TerminationMessage{VddkInfo: &common.VddkInfo{Version: testVersion, Host: testHost}}))
 	})
 })
 

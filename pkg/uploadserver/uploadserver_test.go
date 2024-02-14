@@ -147,6 +147,11 @@ func (amd *AsyncMockDataSource) GetURL() *url.URL {
 	return nil
 }
 
+// GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
+func (amd *AsyncMockDataSource) GetTerminationMessage() *common.TerminationMessage {
+	return nil
+}
+
 // GetResumePhase returns the next phase to process when resuming
 func (amd *AsyncMockDataSource) GetResumePhase() importer.ProcessingPhase {
 	return importer.ProcessingPhaseComplete

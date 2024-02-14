@@ -89,6 +89,8 @@ type DataSourceInterface interface {
 	TransferFile(fileName string) (ProcessingPhase, error)
 	// Geturl returns the url that the data processor can use when converting the data.
 	GetURL() *url.URL
+	// GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
+	GetTerminationMessage() *common.TerminationMessage
 	// Close closes any readers or other open resources.
 	Close() error
 }

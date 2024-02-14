@@ -488,7 +488,7 @@ func updateUploadAnnotations(pvc *corev1.PersistentVolumeClaim, anno map[string]
 	anno[cc.AnnPodPhase] = string(podPhase)
 	anno[cc.AnnPodReady] = strconv.FormatBool(isPodReady(pod))
 
-	setAnnotationsFromPodWithPrefix(anno, pod, cc.AnnRunningCondition)
+	setAnnotationsFromPodWithPrefix(anno, pod, nil, cc.AnnRunningCondition)
 }
 
 func isPodReady(pod *v1.Pod) bool {
