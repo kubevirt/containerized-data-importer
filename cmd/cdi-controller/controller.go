@@ -14,7 +14,6 @@ import (
 	imagev1 "github.com/openshift/api/image/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/pkg/errors"
-	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"go.uber.org/zap/zapcore"
 	batchv1 "k8s.io/api/batch/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -68,7 +67,6 @@ var (
 	resourcesSchemeFuncs   = []func(*apiruntime.Scheme) error{
 		clientgoscheme.AddToScheme,
 		cdiv1.AddToScheme,
-		promv1.AddToScheme,
 		extv1.AddToScheme,
 		snapshotv1.AddToScheme,
 		imagev1.Install,
