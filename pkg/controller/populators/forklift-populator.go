@@ -36,6 +36,8 @@ const (
 	devicePath             = "/dev/block"
 )
 
+const apiGroup = "forklift.kubevirt.io"
+
 var (
 	supportedPopulators = map[string]client.Object{
 		"OvirtVolumePopulator":     &v1beta1.OvirtVolumePopulator{},
@@ -82,8 +84,8 @@ func NewForkliftPopulator(
 		return nil, err
 	}
 
-	for k, v := range supportedPopulators {
-		if err := addWatchers(mgr, forkliftPopulatorController, log, k, v); err != nil {
+	for kind, sourceType := range supportedPopulators {
+		if err := addWatchers(mgr, forkliftPopulatorController, log, kind, sourceType); err != nil {
 			return nil, err
 		}
 	}
@@ -101,6 +103,7 @@ func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, 
 				return []reconcile.Request{{NamespacedName: pvcKey}}
 			}
 
+			// TODO(benny) check dataSourceRef PVC prime
 			if isPVCForkliftKind(pvc) {
 				owner := metav1.GetControllerOf(pvc)
 				pvcKey := types.NamespacedName{Namespace: pvc.Namespace, Name: owner.Name}
@@ -115,7 +118,7 @@ func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, 
 	mapDataSourceRefToPVC := func(_ context.Context, obj client.Object) (reqs []reconcile.Request) {
 		var pvcs corev1.PersistentVolumeClaimList
 		matchingFields := client.MatchingFields{
-			dataSourceRefField: getPopulatorIndexKey(cc.AnnAPIGroup, sourceKind, obj.GetNamespace(), obj.GetName()),
+			dataSourceRefField: getPopulatorIndexKey(apiGroup, sourceKind, obj.GetNamespace(), obj.GetName()),
 		}
 		if err := mgr.GetClient().List(context.TODO(), &pvcs, matchingFields); err != nil {
 			log.Error(err, "Unable to list PVCs", "matchingFields", matchingFields)
@@ -232,13 +235,18 @@ func (r *ForkliftPopulatorReconciler) getPopulationSource(pvc *corev1.Persistent
 }
 
 func isPVCForkliftKind(pvc *corev1.PersistentVolumeClaim) bool {
-	owner := metav1.GetControllerOf(pvc)
-
-	if owner == nil || owner.Kind != "DataVolume" {
+	dataSourceRef := pvc.Spec.DataSourceRef
+	if dataSourceRef == nil {
 		return false
 	}
 
-	_, ok := supportedPopulators[pvc.Spec.DataSourceRef.Kind]
+	if dataSourceRef.APIGroup != nil &&
+		*dataSourceRef.APIGroup == apiGroup &&
+		dataSourceRef.Name != "" {
+		return false
+	}
+
+	_, ok := supportedPopulators[dataSourceRef.Kind]
 	return ok
 }
 
