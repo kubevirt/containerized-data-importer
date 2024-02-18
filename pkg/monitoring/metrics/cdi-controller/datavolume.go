@@ -1,4 +1,4 @@
-package metrics
+package cdicontroller
 
 import (
 	"github.com/machadovilaca/operator-observability/pkg/operatormetrics"

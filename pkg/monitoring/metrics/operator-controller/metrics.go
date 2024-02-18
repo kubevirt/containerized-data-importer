@@ -1,4 +1,4 @@
-package metrics
+package operatorcontroller
 
 import (
 	"github.com/machadovilaca/operator-observability/pkg/operatormetrics"

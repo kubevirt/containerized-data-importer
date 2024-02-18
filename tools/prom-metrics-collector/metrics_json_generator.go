@@ -8,7 +8,7 @@ import (
 	"github.com/kubevirt/monitoring/pkg/metrics/parser"
 	cdiMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	operatorMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/operator-controller"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules/recordingrules"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules"
 )
 
 // This should be used only for very rare cases where the naming conventions that are explained in the best practices:
@@ -27,6 +27,10 @@ func main() {
 		panic(err)
 	}
 
+	if err := rules.SetupRules("test"); err != nil {
+		panic(err)
+	}
+
 	var metricFamilies []parser.Metric
 
 	metricsList := operatorMetrics.ListMetrics()
@@ -40,13 +44,15 @@ func main() {
 		}
 	}
 
-	recordingRules := recordingrules.GetRecordRulesDesc("")
-	for _, r := range recordingRules {
-		metricFamilies = append(metricFamilies, parser.Metric{
-			Name: r.Opts.Name,
-			Help: r.Opts.Help,
-			Type: strings.ToUpper(r.Opts.Type),
-		})
+	rulesList := rules.ListRecordingRules()
+	for _, r := range rulesList {
+		if _, isExcludedMetric := excludedMetrics[r.GetOpts().Name]; !isExcludedMetric {
+			metricFamilies = append(metricFamilies, parser.Metric{
+				Name: r.GetOpts().Name,
+				Help: r.GetOpts().Help,
+				Type: strings.ToUpper(string(r.GetType())),
+			})
+		}
 	}
 
 	jsonBytes, err := json.Marshal(metricFamilies)

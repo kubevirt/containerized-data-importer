@@ -24,7 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 )
 
 const (

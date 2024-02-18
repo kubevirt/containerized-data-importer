@@ -18,11 +18,9 @@ package controller
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"reflect"
-	"strings"
 
 	"github.com/go-logr/logr"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -31,14 +29,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules/recordingrules"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules"
 	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 
@@ -52,12 +49,6 @@ const (
 	defaultMonitoringNs       = "monitoring"
 	defaultRunbookURLTemplate = "https://kubevirt.io/monitoring/runbooks/%s"
 	runbookURLTemplateEnv     = "RUNBOOK_URL_TEMPLATE"
-	severityAlertLabelKey     = "severity"
-	healthImpactAlertLabelKey = "operator_health_impact"
-	partOfAlertLabelKey       = "kubernetes_operator_part_of"
-	partOfAlertLabelValue     = "kubevirt"
-	componentAlertLabelKey    = "kubernetes_operator_component"
-	componentAlertLabelValue  = common.CDILabelValue
 )
 
 func ensurePrometheusResourcesExist(ctx context.Context, c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
@@ -134,166 +125,15 @@ func isPrometheusDeployed(logger logr.Logger, c client.Client, namespace string)
 	return true, nil
 }
 
-func getRecordRules(namespace string) []promv1.Rule {
-	var recordRules []promv1.Rule
-
-	for _, rrd := range recordingrules.GetRecordRulesDesc(namespace) {
-		recordRules = append(recordRules, generateRecordRule(rrd.Opts.Name, rrd.Expr))
-	}
-
-	return recordRules
-}
-
-func getAlertRules(runbookURLTemplate string) []promv1.Rule {
-	return []promv1.Rule{
-		generateAlertRule(
-			"CDIOperatorDown",
-			"kubevirt_cdi_operator_up == 0",
-			promv1.Duration("5m"),
-			map[string]string{
-				"summary":     "CDI operator is down",
-				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIOperatorDown"),
-			},
-			map[string]string{
-				severityAlertLabelKey:     "warning",
-				healthImpactAlertLabelKey: "critical",
-				partOfAlertLabelKey:       partOfAlertLabelValue,
-				componentAlertLabelKey:    componentAlertLabelValue,
-			},
-		),
-		generateAlertRule(
-			"CDINotReady",
-			"kubevirt_cdi_cr_ready == 0",
-			promv1.Duration("5m"),
-			map[string]string{
-				"summary":     "CDI is not available to use",
-				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDINotReady"),
-			},
-			map[string]string{
-				severityAlertLabelKey:     "warning",
-				healthImpactAlertLabelKey: "critical",
-				partOfAlertLabelKey:       partOfAlertLabelValue,
-				componentAlertLabelKey:    componentAlertLabelValue,
-			},
-		),
-		generateAlertRule(
-			"CDIDataVolumeUnusualRestartCount",
-			`kubevirt_cdi_import_pods_high_restart > 0 or
-			kubevirt_cdi_upload_pods_high_restart > 0 or
-			kubevirt_cdi_clone_pods_high_restart > 0`,
-			promv1.Duration("5m"),
-			map[string]string{
-				"summary":     "Some CDI population workloads have an unusual restart count, meaning they are probably failing and need to be investigated",
-				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIDataVolumeUnusualRestartCount"),
-			},
-			map[string]string{
-				severityAlertLabelKey:     "warning",
-				healthImpactAlertLabelKey: "warning",
-				partOfAlertLabelKey:       partOfAlertLabelValue,
-				componentAlertLabelKey:    componentAlertLabelValue,
-			},
-		),
-		generateAlertRule(
-			"CDIStorageProfilesIncomplete",
-			`sum by(storageclass,provisioner) ((kubevirt_cdi_storageprofile_info{complete="false"}>0))`,
-			promv1.Duration("5m"),
-			map[string]string{
-				"summary":     "Incomplete StorageProfile {{ $labels.storageclass }}, accessMode/volumeMode cannot be inferred by CDI for PVC population request",
-				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIStorageProfilesIncomplete"),
-			},
-			map[string]string{
-				severityAlertLabelKey:     "info",
-				healthImpactAlertLabelKey: "warning",
-				partOfAlertLabelKey:       partOfAlertLabelValue,
-				componentAlertLabelKey:    componentAlertLabelValue,
-			},
-		),
-		generateAlertRule(
-			"CDIDataImportCronOutdated",
-			`sum by(ns,cron_name) (kubevirt_cdi_dataimportcron_outdated) > 0`,
-			promv1.Duration("15m"),
-			map[string]string{
-				"summary":     "DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule",
-				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIDataImportCronOutdated"),
-			},
-			map[string]string{
-				severityAlertLabelKey:     "info",
-				healthImpactAlertLabelKey: "warning",
-				partOfAlertLabelKey:       partOfAlertLabelValue,
-				componentAlertLabelKey:    componentAlertLabelValue,
-			},
-		),
-		generateAlertRule(
-			"CDINoDefaultStorageClass",
-			`sum(kubevirt_cdi_storageprofile_info{default="true"} or on() vector(0)) +
-			sum(kubevirt_cdi_storageprofile_info{virtdefault="true"} or on() vector(0)) +
-			(count(kubevirt_cdi_datavolume_pending == 0) or on() vector(0)) == 0`,
-			promv1.Duration("5m"),
-			map[string]string{
-				"summary":     "No default StorageClass or virtualization StorageClass, and a DataVolume is pending for one",
-				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDINoDefaultStorageClass"),
-			},
-			map[string]string{
-				severityAlertLabelKey:     "warning",
-				healthImpactAlertLabelKey: "none",
-				partOfAlertLabelKey:       partOfAlertLabelValue,
-				componentAlertLabelKey:    componentAlertLabelValue,
-			},
-		),
-		generateAlertRule(
-			"CDIMultipleDefaultVirtStorageClasses",
-			`sum(kubevirt_cdi_storageprofile_info{virtdefault="true"} or on() vector(0)) > 1`,
-			promv1.Duration("5m"),
-			map[string]string{
-				"summary":     "More than one default virtualization StorageClass detected",
-				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIMultipleDefaultVirtStorageClasses"),
-			},
-			map[string]string{
-				severityAlertLabelKey:     "warning",
-				healthImpactAlertLabelKey: "none",
-				partOfAlertLabelKey:       partOfAlertLabelValue,
-				componentAlertLabelKey:    componentAlertLabelValue,
-			},
-		),
-		generateAlertRule(
-			"CDIDefaultStorageClassDegraded",
-			`sum(kubevirt_cdi_storageprofile_info{default="true",rwx="true",smartclone="true"} or on() vector(0)) +
-			sum(kubevirt_cdi_storageprofile_info{virtdefault="true",rwx="true",smartclone="true"} or on() vector(0)) == 0`,
-			promv1.Duration("5m"),
-			map[string]string{
-				"summary":     "Default storage class has no smart clone or ReadWriteMany",
-				"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIDefaultStorageClassDegraded"),
-			},
-			map[string]string{
-				severityAlertLabelKey:     "warning",
-				healthImpactAlertLabelKey: "none",
-				partOfAlertLabelKey:       partOfAlertLabelValue,
-				componentAlertLabelKey:    componentAlertLabelValue,
-			},
-		),
-	}
-}
-
 func newPrometheusRule(namespace string) *promv1.PrometheusRule {
-	runbookURLTemplate := getRunbookURLTemplate()
+	promRule, err := rules.BuildPrometheusRule(namespace)
+	if err != nil {
+		panic(err)
+	}
 
 	return &promv1.PrometheusRule{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      ruleName,
-			Namespace: namespace,
-			Labels: map[string]string{
-				common.CDIComponentLabel:  "",
-				common.PrometheusLabelKey: common.PrometheusLabelValue,
-			},
-		},
-		Spec: promv1.PrometheusRuleSpec{
-			Groups: []promv1.RuleGroup{
-				{
-					Name:  "cdi.rules",
-					Rules: append(getRecordRules(namespace), getAlertRules(runbookURLTemplate)...),
-				},
-			},
-		},
+		ObjectMeta: promRule.ObjectMeta,
+		Spec:       promRule.Spec,
 	}
 }
 
@@ -381,23 +221,6 @@ func newPrometheusServiceMonitor(namespace string) *promv1.ServiceMonitor {
 	}
 }
 
-func generateAlertRule(alert, expr string, duration promv1.Duration, annotations, labels map[string]string) promv1.Rule {
-	return promv1.Rule{
-		Alert:       alert,
-		Expr:        intstr.FromString(expr),
-		For:         &duration,
-		Annotations: annotations,
-		Labels:      labels,
-	}
-}
-
-func generateRecordRule(record, expr string) promv1.Rule {
-	return promv1.Rule{
-		Record: record,
-		Expr:   intstr.FromString(expr),
-	}
-}
-
 func (r *ReconcileCDI) watchPrometheusResources() error {
 	listObjs := []client.ObjectList{
 		&promv1.PrometheusRuleList{},
@@ -438,17 +261,4 @@ func (r *ReconcileCDI) watchPrometheusResources() error {
 	}
 
 	return nil
-}
-
-func getRunbookURLTemplate() string {
-	runbookURLTemplate, exists := os.LookupEnv(runbookURLTemplateEnv)
-	if !exists {
-		runbookURLTemplate = defaultRunbookURLTemplate
-	}
-
-	if strings.Count(runbookURLTemplate, "%s") != 1 {
-		panic(errors.New("runbook URL template must have exactly 1 %s substring"))
-	}
-
-	return runbookURLTemplate
 }

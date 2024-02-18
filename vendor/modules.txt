@@ -357,8 +357,8 @@ github.com/kubernetes-csi/lib-volume-populator/populator-machinery
 # github.com/kubevirt/monitoring/pkg/metrics/parser v0.0.0-20230627123556-81a891d4462a
 ## explicit; go 1.20
 github.com/kubevirt/monitoring/pkg/metrics/parser
-# github.com/machadovilaca/operator-observability v0.0.9
-## explicit; go 1.20
+# github.com/machadovilaca/operator-observability v0.0.13
+## explicit; go 1.21
 github.com/machadovilaca/operator-observability/pkg/docs
 github.com/machadovilaca/operator-observability/pkg/operatormetrics
 github.com/machadovilaca/operator-observability/pkg/operatorrules

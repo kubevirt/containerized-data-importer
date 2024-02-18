@@ -25,9 +25,8 @@ import (
 	"strconv"
 	"strings"
 
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
-
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
 	sdkr "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/reconciler"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -57,6 +56,8 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules"
+	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules/alerts"
 	clusterResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	namespaceResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
@@ -285,7 +286,7 @@ var _ = Describe("Controller", func() {
 				doReconcile(args)
 				Expect(setDeploymentsReady(args)).To(BeTrue())
 
-				runbookURLTemplate := getRunbookURLTemplate()
+				runbookURLTemplate := alerts.GetRunbookURLTemplate()
 
 				rule := &promv1.PrometheusRule{
 					ObjectMeta: metav1.ObjectMeta{
@@ -313,7 +314,7 @@ var _ = Describe("Controller", func() {
 					},
 				}
 
-				Expect(rule.Spec.Groups[0].Rules).To(ContainElement(cdiDownAlert))
+				Expect(rule.Spec.Groups[1].Rules).To(ContainElement(cdiDownAlert))
 				Expect(rule.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 				validateEvents(args.reconciler, createReadyEventValidationMap())
 			})
@@ -1735,6 +1736,11 @@ func createReconciler(client client.Client) *ReconcileCDI {
 		Verbosity:              "1",
 		PullPolicy:             "Always",
 		Namespace:              namespace,
+	}
+
+	err := rules.SetupRules(namespace)
+	if err != nil {
+		panic(err)
 	}
 
 	recorder := record.NewFakeRecorder(250)
