@@ -57,8 +57,9 @@ var operatorAlerts = []promv1.Rule{
 	},
 	{
 		Alert: "CDIDataImportCronOutdated",
-		Expr:  intstr.FromString("sum by(ns,cron_name) (kubevirt_cdi_dataimportcron_outdated) > 0"),
-		For:   (*promv1.Duration)(ptr.To("15m")),
+		Expr: intstr.FromString(`sum by(ns,cron_name) (kubevirt_cdi_dataimportcron_outdated) +
+								 on () (0*(sum(kubevirt_cdi_storageprofile_info{default="true"}) or sum(kubevirt_cdi_storageprofile_info{virtdefault="true"}))) > 0`),
+		For: (*promv1.Duration)(ptr.To("15m")),
 		Annotations: map[string]string{
 			"summary": "DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule",
 		},
@@ -96,7 +97,8 @@ var operatorAlerts = []promv1.Rule{
 	{
 		Alert: "CDIDefaultStorageClassDegraded",
 		Expr: intstr.FromString(`sum(kubevirt_cdi_storageprofile_info{default="true",rwx="true",smartclone="true"} or on() vector(0)) +
-								 sum(kubevirt_cdi_storageprofile_info{virtdefault="true",rwx="true",smartclone="true"} or on() vector(0)) == 0`),
+								 sum(kubevirt_cdi_storageprofile_info{virtdefault="true",rwx="true",smartclone="true"} or on() vector(0)) +
+								 on () (0*(sum(kubevirt_cdi_storageprofile_info{default="true"}) or sum(kubevirt_cdi_storageprofile_info{virtdefault="true"}))) == 0`),
 		For: (*promv1.Duration)(ptr.To("5m")),
 		Annotations: map[string]string{
 			"summary": "Default storage class has no smart clone or ReadWriteMany",
