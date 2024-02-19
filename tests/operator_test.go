@@ -4,6 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"regexp"
+	"strings"
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	routev1 "github.com/openshift/api/route/v1"
@@ -15,11 +20,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
-	"reflect"
-	"regexp"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
-	"time"
 
 	secclient "github.com/openshift/client-go/security/clientset/versioned"
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
