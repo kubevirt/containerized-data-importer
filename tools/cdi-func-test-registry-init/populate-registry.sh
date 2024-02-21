@@ -74,6 +74,8 @@ function prepareImages {
         /bin/cat  >$FILE <<-EOF
                 FROM $CONTAINER_DISK_IMAGE
                 COPY $FILENAME $IMAGE_LOCATION
+                ENV TEST_KUBEVIRT_IO_TEST=testvalue
+                ENV TEST_KUBEVIRT_IO_EXISTING=somethingelse
 EOF
 
         rm $FILENAME

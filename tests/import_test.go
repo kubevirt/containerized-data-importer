@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -2132,6 +2133,70 @@ var _ = Describe("Import populator", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.TinyCoreMD5))
 	})
+})
+
+var _ = Describe("Containerdisk envs to PVC labels", func() {
+	f := framework.NewFramework(namespacePrefix)
+
+	// The corresponding env var is defined in tests/BUILD.bazel (for pullMethod node)
+	// and tools/cdi-func-test-registry-init/populate-registry.sh (for pullMethod pod).
+	const (
+		testKubevirtIoKey           = "test.kubevirt.io/test"
+		testKubevirtIoValue         = "testvalue"
+		testKubevirtIoKeyExisting   = "test.kubevirt.io/existing"
+		testKubevirtIoValueExisting = "existing"
+	)
+
+	var (
+		tinyCoreRegistryURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
+		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
+		trustedRegistryIS   = func() string { return fmt.Sprintf(utils.TrustedRegistryIS, f.DockerPrefix) }
+	)
+
+	DescribeTable("Import should add KUBEVIRT_IO_ env vars to PVC labels when source is registry", func(pullMethod cdiv1.RegistryPullMethod, urlFn func() string, isImageStream bool) {
+		dataVolume := utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", urlFn())
+		// The existing key should not be overwritten
+		dataVolume.ObjectMeta.Labels = map[string]string{
+			testKubevirtIoKeyExisting: testKubevirtIoValueExisting,
+		}
+
+		if isImageStream {
+			dataVolume.Spec.Source.Registry.URL = nil
+			dataVolume.Spec.Source.Registry.ImageStream = ptr.To(urlFn())
+			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+		}
+
+		dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
+		if pullMethod == cdiv1.RegistryPullPod {
+			cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+			Expect(err).ToNot(HaveOccurred())
+			dataVolume.Spec.Source.Registry.CertConfigMap = &cm
+		}
+
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		phase := cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			g.Expect(pvc.GetLabels()).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
+			g.Expect(pvc.GetLabels()).To(HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoValueExisting))
+		}, timeout, pollingInterval).Should(Succeed())
+	},
+		Entry("with pullMethod pod", cdiv1.RegistryPullPod, tinyCoreRegistryURL, false),
+		Entry("with pullMethod node", cdiv1.RegistryPullNode, trustedRegistryURL, false),
+		Entry("with pullMethod node", cdiv1.RegistryPullNode, trustedRegistryIS, true),
+	)
 })
 
 func generateRegistryOnlySidecar() *unstructured.Unstructured {

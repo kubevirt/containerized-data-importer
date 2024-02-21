@@ -142,6 +142,10 @@ pkg_tar(
 
 container_image(
     name = "cdi-func-test-tinycore",
+    env = {
+        "TEST_KUBEVIRT_IO_TEST": "testvalue",
+        "TEST_KUBEVIRT_IO_EXISTING": "somethingelse",
+    },
     tars = [":tinycore-tar"],
     visibility = ["//visibility:public"],
 )
