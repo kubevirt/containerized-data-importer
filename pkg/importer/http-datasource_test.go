@@ -3,6 +3,7 @@ package importer
 import (
 	"context"
 	"crypto/x509"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -46,7 +47,7 @@ var _ = Describe("Http data source", func() {
 	BeforeEach(func() {
 		createNbdkitCurl = image.NewMockNbdkitCurl
 		By("[BeforeEach] Creating test server")
-		ts = createTestServer(imageDir)
+		ts = createTestServer(imageDir, nil)
 		dp = nil
 		tmpDir, err = os.MkdirTemp("", "scratch")
 		Expect(err).NotTo(HaveOccurred())
@@ -185,6 +186,59 @@ var _ = Describe("Http data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		_, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("GetTerminationMessage should return nil when pullMethod is not node", func() {
+		Expect(os.Setenv(common.ImporterPullMethod, string(cdiv1.RegistryPullPod))).To(Succeed())
+		DeferCleanup(func() {
+			Expect(os.Unsetenv(common.ImporterPullMethod)).To(Succeed())
+		})
+
+		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
+		Expect(err).NotTo(HaveOccurred())
+
+		termMsg := dp.GetTerminationMessage()
+		Expect(termMsg).To(BeNil())
+	})
+
+	DescribeTable("GetTerminationMessage should handle empty Env returned by http server", func(emptyEnv []string) {
+		Expect(os.Setenv(common.ImporterPullMethod, string(cdiv1.RegistryPullNode))).To(Succeed())
+		DeferCleanup(func() {
+			Expect(os.Unsetenv(common.ImporterPullMethod)).To(Succeed())
+		})
+
+		ts2 := createTestServer(imageDir, emptyEnv)
+
+		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
+		Expect(err).NotTo(HaveOccurred())
+
+		termMsg := dp.GetTerminationMessage()
+		Expect(termMsg.Labels).To(BeEmpty())
+		Expect(termMsg.String()).To(Equal("{}"))
+	},
+		Entry("empty slice", []string{}),
+		Entry("nil slice", nil),
+	)
+
+	It("GetTerminationMessage should contain labels collected from the containerimage-server when pullMethod is node", func() {
+		Expect(os.Setenv(common.ImporterPullMethod, string(cdiv1.RegistryPullNode))).To(Succeed())
+		DeferCleanup(func() {
+			Expect(os.Unsetenv(common.ImporterPullMethod)).To(Succeed())
+		})
+
+		ts2 := createTestServer(imageDir, []string{
+			"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_INSTANCETYPE=u1.small",
+			"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE=fedora",
+		})
+
+		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
+		Expect(err).NotTo(HaveOccurred())
+
+		termMsg := dp.GetTerminationMessage()
+		Expect(termMsg).ToNot(BeNil())
+		Expect(termMsg.Labels).To(HaveLen(2))
+		Expect(termMsg.Labels).To(HaveKeyWithValue("instancetype.kubevirt.io/default-instancetype", "u1.small"))
+		Expect(termMsg.Labels).To(HaveKeyWithValue("instancetype.kubevirt.io/default-preference", "fedora"))
 	})
 })
 
@@ -430,8 +484,19 @@ var _ = Describe("http pollprogress", func() {
 	})
 })
 
-func createTestServer(imageDir string) *httptest.Server {
-	return httptest.NewServer(http.FileServer(http.Dir(imageDir)))
+func createTestServer(imageDir string, env []string) *httptest.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/info", func(w http.ResponseWriter, _ *http.Request) {
+		defer GinkgoRecover()
+		info := common.ServerInfo{
+			Env: env,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		err := json.NewEncoder(w).Encode(info)
+		Expect(err).NotTo(HaveOccurred())
+	})
+	mux.Handle("/", http.FileServer(http.Dir(imageDir)))
+	return httptest.NewServer(mux)
 }
 
 // Read the contents of the file into a byte array, don't use this on really huge files.
