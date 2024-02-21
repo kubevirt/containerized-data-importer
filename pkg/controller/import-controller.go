@@ -410,11 +410,14 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		delete(anno, cc.AnnBoundConditionReason)
 	}
 
+	if pvc.GetLabels() == nil {
+		pvc.SetLabels(make(map[string]string, 0))
+	}
 	if !checkIfLabelExists(pvc, common.CDILabelKey, common.CDILabelValue) {
-		if pvc.GetLabels() == nil {
-			pvc.SetLabels(make(map[string]string, 0))
-		}
 		pvc.GetLabels()[common.CDILabelKey] = common.CDILabelValue
+	}
+	if cc.IsPVCComplete(pvc) {
+		setLabelsFromTerminationMessage(pvc.GetLabels(), termMsg)
 	}
 
 	if !reflect.DeepEqual(currentPvcCopy, pvc) {

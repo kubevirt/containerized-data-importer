@@ -17,6 +17,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -439,6 +440,59 @@ var _ = Describe("Update PVC from POD", func() {
 	},
 		Entry("Message which can be unmarshalled", `{"preAllocationApplied": true}`, ImportCompleteMessage),
 		Entry("Message which cannot be unmarshalled", "somemessage", "somemessage"),
+	)
+
+	DescribeTable("Update the PVC labels from termination message if pod is succeeded", func(phase v1.PodPhase, updated bool) {
+		const testKeyExisting = "test"
+		const testValueExisting = "existing"
+
+		termMsg := common.TerminationMessage{
+			Labels: map[string]string{
+				"instancetype.kubevirt.io/default-instancetype": "u1.small",
+				"instancetype.kubevirt.io/default-preference":   "fedora",
+				testKeyExisting: "somethingelse",
+			},
+		}
+		termMsgBytes, err := json.Marshal(termMsg)
+		Expect(err).ToNot(HaveOccurred())
+
+		// The existing key should not be overwritten
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{}, map[string]string{testKeyExisting: testValueExisting})
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.Status = corev1.PodStatus{
+			Phase: phase,
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{
+							Message: string(termMsgBytes),
+						},
+					},
+				},
+			},
+		}
+		reconciler = createImportReconciler(pvc, pod)
+		err = reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
+		Expect(err).ToNot(HaveOccurred())
+
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+
+		for k, v := range termMsg.Labels {
+			if k == testKeyExisting {
+				Expect(resPvc.GetLabels()).To(HaveKeyWithValue(testKeyExisting, testValueExisting))
+				continue
+			}
+			if updated {
+				Expect(resPvc.GetLabels()).To(HaveKeyWithValue(k, v))
+			} else {
+				Expect(resPvc.GetLabels()).ToNot(HaveKey(k))
+			}
+		}
+	},
+		Entry("should", v1.PodSucceeded, true),
+		Entry("should not", v1.PodFailed, false),
 	)
 
 	It("Should update the PVC status to running, if pod is running", func() {

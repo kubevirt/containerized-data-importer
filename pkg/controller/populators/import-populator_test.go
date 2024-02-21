@@ -395,6 +395,56 @@ var _ = Describe("Import populator tests", func() {
 			Entry("with pod succeded phase", string(corev1.PodSucceeded)),
 		)
 
+		It("should update target pvc with desired labels from succeeded pvc prime", func() {
+			const (
+				testKubevirtIoKey           = "test.kubevirt.io/test"
+				testKubevirtIoValue         = "testvalue"
+				testKubevirtIoKeyExisting   = "test.kubevirt.io/existing"
+				testKubevirtIoValueExisting = "existing"
+				testUndesiredKey            = "undesired.key"
+			)
+
+			// The existing key should not be overwritten
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil,
+				map[string]string{testKubevirtIoKeyExisting: testKubevirtIoValueExisting}, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
+			pvcPrime := getPVCPrime(targetPvc, nil)
+			AddAnnotation(pvcPrime, AnnPodPhase, string(corev1.PodSucceeded))
+
+			AddLabel(pvcPrime, testKubevirtIoKey, testKubevirtIoValue)
+			AddLabel(pvcPrime, testKubevirtIoKeyExisting, "somethingelse")
+			AddLabel(pvcPrime, testUndesiredKey, testKubevirtIoValue)
+
+			pv := &corev1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pv",
+				},
+				Spec: corev1.PersistentVolumeSpec{
+					ClaimRef: &corev1.ObjectReference{
+						Namespace: pvcPrime.Namespace,
+						Name:      pvcPrime.Name,
+					},
+				},
+			}
+			pvcPrime.Spec.VolumeName = pv.Name
+
+			By("Reconcile")
+			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, pv, volumeImportSource, sc)
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).ToNot(BeNil())
+			Expect(result.RequeueAfter).To(Equal(0 * time.Second))
+
+			updatedPVC := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}, updatedPVC)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(updatedPVC.Labels).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
+			Expect(updatedPVC.Labels).To(HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoValueExisting))
+			Expect(updatedPVC.Labels).ToNot(HaveKey(testUndesiredKey))
+		})
+
 		It("Should set multistage migration annotations on PVC prime", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.Spec.DataSourceRef = dataSourceRef

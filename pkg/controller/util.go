@@ -332,6 +332,17 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, termMs
 	}
 }
 
+func setLabelsFromTerminationMessage(labels map[string]string, termMsg *common.TerminationMessage) {
+	if labels == nil || termMsg == nil {
+		return
+	}
+	for k, v := range termMsg.Labels {
+		if _, found := labels[k]; !found {
+			labels[k] = v
+		}
+	}
+}
+
 func simplifyKnownMessage(msg string) string {
 	if strings.Contains(msg, "is larger than the reported available") ||
 		strings.Contains(msg, "no space left on device") ||
