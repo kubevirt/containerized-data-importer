@@ -2126,17 +2126,20 @@ func ClaimMayExistBeforeDataVolume(c client.Client, pvc *corev1.PersistentVolume
 	if ClaimIsPopulatedForDataVolume(pvc, dv) {
 		return true, nil
 	}
-	return ClaimAllowsAdoption(c, pvc)
+	return AllowClaimAdoption(c, pvc, dv)
 }
 
 // ClaimIsPopulatedForDataVolume returns true if the PVC is populated for the given DataVolume
 func ClaimIsPopulatedForDataVolume(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
-	return pvc.Annotations[AnnPopulatedFor] == dv.Name
+	return pvc != nil && dv != nil && pvc.Annotations[AnnPopulatedFor] == dv.Name
 }
 
-// ClaimAllowsAdoption returns true if the PVC may be adopted
-func ClaimAllowsAdoption(c client.Client, pvc *corev1.PersistentVolumeClaim) (bool, error) {
-	anno, ok := pvc.Annotations[AnnAllowClaimAdoption]
+// AllowClaimAdoption returns true if the PVC may be adopted
+func AllowClaimAdoption(c client.Client, pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (bool, error) {
+	if pvc == nil || dv == nil {
+		return false, nil
+	}
+	anno, ok := dv.Annotations[AnnAllowClaimAdoption]
 	// if annotation exists, go with that regardless of featuregate
 	if ok {
 		val, _ := strconv.ParseBool(anno)
