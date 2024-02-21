@@ -214,10 +214,10 @@ var _ = Describe("All DataVolume Tests", func() {
 	})
 
 	It("Should adopt a PVC (with annotation)", func() {
-		annotations := map[string]string{AnnAllowClaimAdoption: "true"}
-		pvc := CreatePvc("test-dv", metav1.NamespaceDefault, annotations, nil)
+		pvc := CreatePvc("test-dv", metav1.NamespaceDefault, nil, nil)
 		pvc.Status.Phase = corev1.ClaimBound
 		dv := newUploadDataVolume("test-dv")
+		AddAnnotation(dv, AnnAllowClaimAdoption, "true")
 		reconciler = createUploadReconciler(pvc, dv)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())
@@ -256,11 +256,11 @@ var _ = Describe("All DataVolume Tests", func() {
 	})
 
 	It("Should adopt a unbound PVC", func() {
-		annotations := map[string]string{AnnAllowClaimAdoption: "true"}
-		pvc := CreatePvc("test-dv", metav1.NamespaceDefault, annotations, nil)
+		pvc := CreatePvc("test-dv", metav1.NamespaceDefault, nil, nil)
 		pvc.Spec.VolumeName = ""
 		pvc.Status.Phase = corev1.ClaimPending
 		dv := newUploadDataVolume("test-dv")
+		AddAnnotation(dv, AnnAllowClaimAdoption, "true")
 		reconciler = createUploadReconciler(pvc, dv)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())

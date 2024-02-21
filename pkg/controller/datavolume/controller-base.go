@@ -91,7 +91,6 @@ var (
 
 	delayedAnnotations = []string{
 		cc.AnnPopulatedFor,
-		cc.AnnAllowClaimAdoption,
 	}
 )
 
@@ -1298,7 +1297,7 @@ func (r *ReconcilerBase) pvcRequiresWork(pvc *corev1.PersistentVolumeClaim, dv *
 	if pvcIsPopulatedForDataVolume(pvc, dv) {
 		return false, nil
 	}
-	canAdopt, err := cc.ClaimAllowsAdoption(r.client, pvc)
+	canAdopt, err := cc.AllowClaimAdoption(r.client, pvc, dv)
 	if err != nil {
 		return true, err
 	}

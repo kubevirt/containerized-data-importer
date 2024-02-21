@@ -195,7 +195,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		It("Should create a PVC on a valid import DV without delayed annotation then add on success", func() {
 			dv := NewImportDataVolume("test-dv")
 			AddAnnotation(dv, "foo", "bar")
-			AddAnnotation(dv, AnnAllowClaimAdoption, "true")
+			AddAnnotation(dv, AnnPopulatedFor, "true")
 			reconciler = createImportReconciler(dv)
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
@@ -203,7 +203,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Annotations["foo"]).To(Equal("bar"))
-			Expect(pvc.Annotations).ToNot(HaveKey(AnnAllowClaimAdoption))
+			Expect(pvc.Annotations).ToNot(HaveKey(AnnPopulatedFor))
 
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 			Expect(err).ToNot(HaveOccurred())
@@ -215,7 +215,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Annotations["foo"]).To(Equal("bar"))
-			Expect(pvc.Annotations[AnnAllowClaimAdoption]).To(Equal("true"))
+			Expect(pvc.Annotations[AnnPopulatedFor]).To(Equal("true"))
 		})
 
 		It("Should fail if dv source not import when use populators", func() {
@@ -796,10 +796,10 @@ var _ = Describe("All DataVolume Tests", func() {
 		})
 
 		It("Should adopt a PVC (with annotation)", func() {
-			annotations := map[string]string{AnnAllowClaimAdoption: "true"}
-			pvc := CreatePvc("test-dv", metav1.NamespaceDefault, annotations, nil)
+			pvc := CreatePvc("test-dv", metav1.NamespaceDefault, nil, nil)
 			pvc.Status.Phase = corev1.ClaimBound
 			dv := NewImportDataVolume("test-dv")
+			AddAnnotation(dv, AnnAllowClaimAdoption, "true")
 			reconciler = createImportReconciler(pvc, dv)
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
@@ -817,11 +817,11 @@ var _ = Describe("All DataVolume Tests", func() {
 		})
 
 		It("Should adopt a unbound PVC (with annotation)", func() {
-			annotations := map[string]string{AnnAllowClaimAdoption: "true"}
-			pvc := CreatePvc("test-dv", metav1.NamespaceDefault, annotations, nil)
+			pvc := CreatePvc("test-dv", metav1.NamespaceDefault, nil, nil)
 			pvc.Spec.VolumeName = ""
 			pvc.Status.Phase = corev1.ClaimPending
 			dv := NewImportDataVolume("test-dv")
+			AddAnnotation(dv, AnnAllowClaimAdoption, "true")
 			reconciler = createImportReconciler(pvc, dv)
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
