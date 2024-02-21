@@ -1036,6 +1036,27 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 
+	//FIXME: nicer cron name parsing
+	mapCronJobToCron := func(_ context.Context, obj client.Object) []reconcile.Request {
+		cronLabel := obj.GetLabels()[common.DataImportCronLabel]
+		cronNsName := strings.Split(cronLabel, ".")
+		if len(cronNsName) != 2 || len(cronNsName[0]) == 0 || len(cronNsName[1]) == 0 {
+			return nil
+		}
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: cronNsName[0], Name: cronNsName[1]}}}
+	}
+
+	if err := c.Watch(source.Kind(mgr.GetCache(), &batchv1.CronJob{}),
+		handler.EnqueueRequestsFromMapFunc(mapCronJobToCron),
+		predicate.Funcs{
+			CreateFunc: func(event.CreateEvent) bool { return true },
+			DeleteFunc: func(event.DeleteEvent) bool { return false },
+			UpdateFunc: func(event.UpdateEvent) bool { return true },
+		},
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
