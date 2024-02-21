@@ -447,12 +447,15 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 
 			By("Ensure metric value decrements when crons are cleaned up")
 			for i := 1; i < numCrons+1; i++ {
-				err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Delete(context.TODO(), fmt.Sprintf("cron-test-%d", i), metav1.DeleteOptions{})
+				cronName := fmt.Sprintf("cron-test-%d", i)
+				err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Delete(context.TODO(), cronName, metav1.DeleteOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(func() int {
 					return getMetricValueWithDefault(f, "kubevirt_cdi_dataimportcron_outdated", true)
 				}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", numCrons-i))
+
+				utils.VerifyCronJobCleanup(f.K8sClient, f.CdiInstallNs, f.Namespace.Name, cronName)
 			}
 
 			waitForNoPrometheusAlert(f, "CDIDataImportCronOutdated")

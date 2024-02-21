@@ -50,6 +50,7 @@ const (
 	nbdKitUserAgent          = "cdi-nbdkit-importer"
 	golangUserAgent          = "cdi-golang-importer"
 	registryUserAgent        = "Go-http-client/1.1"
+	cronName                 = "cron-test"
 )
 
 var _ = Describe("Import Proxy tests", func() {
@@ -111,6 +112,8 @@ var _ = Describe("Import Proxy tests", func() {
 			err = f.CdiClient.CdiV1beta1().DataImportCrons(cron.Namespace).Delete(context.TODO(), cron.Name, metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			cron = nil
+
+			utils.VerifyCronJobCleanup(f.K8sClient, f.CdiInstallNs, f.Namespace.Name, cronName)
 		}
 
 		if utils.IsOpenshift(f.K8sClient) {
@@ -360,7 +363,6 @@ var _ = Describe("Import Proxy tests", func() {
 
 		DescribeTable("should proxy DataImportCron CronJob poller and registry import", func(isHTTPS, hasAuth bool) {
 			const (
-				cronName            = "cron-test"
 				dataSourceName      = "datasource-test"
 				scheduleEveryMinute = "* * * * *"
 			)

@@ -900,7 +900,7 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, cron types.Names
 func (r *DataImportCronReconciler) deleteJobs(ctx context.Context, cron types.NamespacedName) error {
 	deletePropagationBackground := metav1.DeletePropagationBackground
 	deleteOpts := &client.DeleteOptions{PropagationPolicy: &deletePropagationBackground}
-	selector, err := getSelector(map[string]string{common.DataImportCronLabel: getCronJobLabelValue(cron.Namespace, cron.Name)})
+	selector, err := getSelector(map[string]string{common.DataImportCronLabel: GetCronJobLabelValue(cron.Namespace, cron.Name)})
 	if err != nil {
 		return err
 	}
@@ -1235,7 +1235,7 @@ func (r *DataImportCronReconciler) setJobCommon(cron *cdiv1.DataImportCron, obj 
 	}
 	util.SetRecommendedLabels(obj, r.installerLabels, common.CDIControllerName)
 	labels := obj.GetLabels()
-	labels[common.DataImportCronLabel] = getCronJobLabelValue(cron.Namespace, cron.Name)
+	labels[common.DataImportCronLabel] = GetCronJobLabelValue(cron.Namespace, cron.Name)
 	obj.SetLabels(labels)
 	return nil
 }
@@ -1348,7 +1348,8 @@ func getSelector(matchLabels map[string]string) (labels.Selector, error) {
 	return metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: matchLabels})
 }
 
-func getCronJobLabelValue(cronNamespace, cronName string) string {
+// GetCronJobLabelValue gets CronJob label based on the cron name and namespace
+func GetCronJobLabelValue(cronNamespace, cronName string) string {
 	const maxLen = validation.DNS1035LabelMaxLength
 	label := cronNamespace + "." + cronName
 	if len(label) > maxLen {

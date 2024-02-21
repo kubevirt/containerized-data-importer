@@ -72,6 +72,8 @@ var _ = Describe("DataImportCron", Serial, func() {
 
 		By("[AfterEach] Restore the profile")
 		Expect(utils.UpdateStorageProfile(f.CrClient, scName, *originalProfileSpec)).Should(Succeed())
+
+		utils.VerifyCronJobCleanup(f.K8sClient, f.CdiInstallNs, ns, cronName)
 	})
 
 	updateDigest := func(digest string) func(cron *cdiv1.DataImportCron) *cdiv1.DataImportCron {
@@ -600,7 +602,7 @@ var _ = Describe("DataImportCron", Serial, func() {
 	It("[test_id:8033] should delete jobs on deletion", func() {
 		noSuchCM := "nosuch"
 		reg.CertConfigMap = &noSuchCM
-		cron = utils.NewDataImportCron("cron-test", "5Gi", scheduleEveryMinute, dataSourceName, importsToKeep, *reg)
+		cron = utils.NewDataImportCron(cronName, "5Gi", scheduleEveryMinute, dataSourceName, importsToKeep, *reg)
 		By("Create new DataImportCron")
 		cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
