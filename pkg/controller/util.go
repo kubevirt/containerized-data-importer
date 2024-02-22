@@ -733,6 +733,14 @@ func GetActiveCDI(c client.Client) (*cdiv1.CDI, error) {
 		return nil, err
 	}
 
+	if len(crList.Items) == 0 {
+		return nil, nil
+	}
+
+	if len(crList.Items) == 1 {
+		return &crList.Items[0], nil
+	}
+
 	var activeResources []cdiv1.CDI
 	for _, cr := range crList.Items {
 		if cr.Status.Phase != sdkapi.PhaseError {
@@ -740,12 +748,8 @@ func GetActiveCDI(c client.Client) (*cdiv1.CDI, error) {
 		}
 	}
 
-	if len(activeResources) == 0 {
-		return nil, nil
-	}
-
-	if len(activeResources) > 1 {
-		return nil, fmt.Errorf("number of active CDI CRs > 1")
+	if len(activeResources) != 1 {
+		return nil, fmt.Errorf("invalid number of active CDI resources: %d", len(activeResources))
 	}
 
 	return &activeResources[0], nil

@@ -665,6 +665,68 @@ var _ = Describe("handleFailedPod", func() {
 	})
 })
 
+var _ = Describe("GetActiveCDI tests", func() {
+	createCDI := func(name string, phase sdkapi.Phase) *cdiv1.CDI {
+		return &cdiv1.CDI{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
+			Status: cdiv1.CDIStatus{
+				Status: sdkapi.Status{
+					Phase: phase,
+				},
+			},
+		}
+	}
+
+	It("Should return nil if no CDI", func() {
+		client := createClient()
+		cdi, err := GetActiveCDI(client)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdi).To(BeNil())
+	})
+
+	It("Should return single active", func() {
+		client := createClient(
+			createCDI("cdi1", sdkapi.PhaseDeployed),
+		)
+		cdi, err := GetActiveCDI(client)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdi).ToNot(BeNil())
+	})
+
+	It("Should return success with single active one error", func() {
+		client := createClient(
+			createCDI("cdi1", sdkapi.PhaseDeployed),
+			createCDI("cdi2", sdkapi.PhaseError),
+		)
+		cdi, err := GetActiveCDI(client)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdi).ToNot(BeNil())
+		Expect(cdi.Name).To(Equal("cdi1"))
+	})
+
+	It("Should return error if multiple CDIs are active", func() {
+		client := createClient(
+			createCDI("cdi1", sdkapi.PhaseDeployed),
+			createCDI("cdi2", sdkapi.PhaseDeployed),
+		)
+		cdi, err := GetActiveCDI(client)
+		Expect(err).To(HaveOccurred())
+		Expect(cdi).To(BeNil())
+	})
+
+	It("Should return error if multiple CDIs are error", func() {
+		client := createClient(
+			createCDI("cdi1", sdkapi.PhaseError),
+			createCDI("cdi2", sdkapi.PhaseError),
+		)
+		cdi, err := GetActiveCDI(client)
+		Expect(err).To(HaveOccurred())
+		Expect(cdi).To(BeNil())
+	})
+})
+
 func addOwnerToDV(dv *cdiv1.DataVolume, ownerName string) {
 	dv.ObjectMeta.OwnerReferences = []metav1.OwnerReference{
 		{
