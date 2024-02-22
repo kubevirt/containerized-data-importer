@@ -2741,13 +2741,19 @@ rpm(
 rpm(
     name = "systemd-0__252-18.el9.aarch64",
     sha256 = "b227048150dea6866efbcdb67f3f1a4f6fc89531fc3827bf11263857f442546a",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/systemd-252-18.el9.aarch64.rpm"],
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/systemd-252-18.el9.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/b227048150dea6866efbcdb67f3f1a4f6fc89531fc3827bf11263857f442546a",
+    ],
 )
 
 rpm(
     name = "systemd-0__252-18.el9.x86_64",
     sha256 = "9c0c1834dcc3db548f97cdfd6a6ac65a261fd4d8224edf46e30bb88b2b2c63f1",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/systemd-252-18.el9.x86_64.rpm"],
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/systemd-252-18.el9.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/9c0c1834dcc3db548f97cdfd6a6ac65a261fd4d8224edf46e30bb88b2b2c63f1",
+    ],
 )
 
 rpm(
@@ -2765,37 +2771,55 @@ rpm(
 rpm(
     name = "systemd-libs-0__252-18.el9.aarch64",
     sha256 = "f71ca1cfedf8f65a7b7212fb9dc9fd1a8b510bd740d5e79d46acece46f933d05",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/systemd-libs-252-18.el9.aarch64.rpm"],
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/systemd-libs-252-18.el9.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/f71ca1cfedf8f65a7b7212fb9dc9fd1a8b510bd740d5e79d46acece46f933d05",
+    ],
 )
 
 rpm(
     name = "systemd-libs-0__252-18.el9.x86_64",
     sha256 = "a572727265b31de5d74c8065f452e785484158941da4c960148e1618ab0b64dd",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/systemd-libs-252-18.el9.x86_64.rpm"],
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/systemd-libs-252-18.el9.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/a572727265b31de5d74c8065f452e785484158941da4c960148e1618ab0b64dd",
+    ],
 )
 
 rpm(
     name = "systemd-pam-0__252-18.el9.aarch64",
     sha256 = "d246ba6dac02d263d2f220321dd672f2b21cfafc9983f744efd10eacaf100979",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/systemd-pam-252-18.el9.aarch64.rpm"],
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/systemd-pam-252-18.el9.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/d246ba6dac02d263d2f220321dd672f2b21cfafc9983f744efd10eacaf100979",
+    ],
 )
 
 rpm(
     name = "systemd-pam-0__252-18.el9.x86_64",
     sha256 = "fdafbf55660897e5bf33c9cf39c73b3c7a24e4e5677272490855427053a6799b",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/systemd-pam-252-18.el9.x86_64.rpm"],
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/systemd-pam-252-18.el9.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/fdafbf55660897e5bf33c9cf39c73b3c7a24e4e5677272490855427053a6799b",
+    ],
 )
 
 rpm(
     name = "systemd-rpm-macros-0__252-18.el9.aarch64",
     sha256 = "8e3fef50d8c964af111bddd370675deabbc2b3e3c68a9b9c0492463e2b51ef08",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/systemd-rpm-macros-252-18.el9.noarch.rpm"],
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/systemd-rpm-macros-252-18.el9.noarch.rpm",
+        "https://storage.googleapis.com/builddeps/8e3fef50d8c964af111bddd370675deabbc2b3e3c68a9b9c0492463e2b51ef08",
+    ],
 )
 
 rpm(
     name = "systemd-rpm-macros-0__252-18.el9.x86_64",
     sha256 = "8e3fef50d8c964af111bddd370675deabbc2b3e3c68a9b9c0492463e2b51ef08",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/systemd-rpm-macros-252-18.el9.noarch.rpm"],
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/systemd-rpm-macros-252-18.el9.noarch.rpm",
+        "https://storage.googleapis.com/builddeps/8e3fef50d8c964af111bddd370675deabbc2b3e3c68a9b9c0492463e2b51ef08",
+    ],
 )
 
 rpm(
