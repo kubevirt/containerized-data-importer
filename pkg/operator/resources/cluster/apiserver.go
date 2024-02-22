@@ -408,7 +408,7 @@ func createObjectTransferValidatingWebhook(namespace string, c client.Client, l 
 	defaultServicePort := int32(443)
 	allScopes := admissionregistrationv1.AllScopes
 	exactPolicy := admissionregistrationv1.Exact
-	failurePolicy := admissionregistrationv1.Fail
+	failurePolicy := admissionregistrationv1.Ignore
 	defaultTimeoutSeconds := int32(30)
 	whc := &admissionregistrationv1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
