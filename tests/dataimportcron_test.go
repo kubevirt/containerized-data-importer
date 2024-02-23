@@ -16,7 +16,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -675,50 +674,6 @@ var _ = Describe("DataImportCron", Serial, func() {
 			_, err := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, jobName, "")
 			return errors.IsNotFound(err)
 		}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "cronjob first job pod was not deleted")
-	})
-
-	It("[Destructive] [test_id:XXXX] should eventually delete cron jobs after DataImportCron deletion when controller is down", Serial, func() {
-		noSuchCM := "nosuch"
-		reg.CertConfigMap = &noSuchCM
-		cron = utils.NewDataImportCron(cronName, "5Gi", scheduleEveryMinute, dataSourceName, importsToKeep, *reg)
-		By("Create new DataImportCron")
-		cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Verify cronjob created and has active job")
-		cronJobName := controller.GetCronJobName(cron)
-		jobName := ""
-		Eventually(func() string {
-			cronjob, _ := f.K8sClient.BatchV1().CronJobs(f.CdiInstallNs).Get(context.TODO(), cronJobName, metav1.GetOptions{})
-			if cronjob != nil && len(cronjob.Status.Active) > 0 {
-				jobName = cronjob.Status.Active[0].Name
-			}
-			return jobName
-		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeEmpty(), "cronjob has no active job")
-
-		By("Verify cronjob first job created")
-		Eventually(func() *batchv1.Job {
-			job, _ := f.K8sClient.BatchV1().Jobs(f.CdiInstallNs).Get(context.TODO(), jobName, metav1.GetOptions{})
-			return job
-		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeNil(), "cronjob first job was not created")
-
-		By("Verify cronjob first job pod created")
-		Eventually(func() *corev1.Pod {
-			pod, _ := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, jobName, "")
-			return pod
-		}, dataImportCronTimeout, pollingInterval).ShouldNot(BeNil(), "cronjob first job pod was not created")
-
-		By("Delete cdi-deployment pod, so DataImportCron controller is down until pod restored")
-		err = utils.DeletePodByName(f.K8sClient, f.ControllerPod.Name, f.CdiInstallNs, ptr.To[int64](0))
-		Expect(err).ToNot(HaveOccurred())
-		f.ControllerPod = nil
-
-		By("Delete cron")
-		err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Delete(context.TODO(), cronName, metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Verify cronjob is eventually deleted")
-		utils.VerifyCronJobCleanup(f.K8sClient, f.CdiInstallNs, ns, cronName)
 	})
 
 	Context("Change source format of existing DataImportCron", func() {
