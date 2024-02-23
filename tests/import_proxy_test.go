@@ -450,6 +450,13 @@ var _ = Describe("Import Proxy tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			verifyImportProxyConfigMapIsDeletedOnPodDeletion(pvc)
+
+			By("Deleting DataImportCron")
+			err = f.CdiClient.CdiV1beta1().DataImportCrons(cron.Namespace).Delete(context.TODO(), cron.Name, metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			cron = nil
+
+			utils.VerifyCronJobCleanup(f.K8sClient, f.CdiInstallNs, f.Namespace.Name, cronName)
 		},
 			Entry("with http proxy, no auth", false, false),
 			Entry("with http proxy, auth", false, true),

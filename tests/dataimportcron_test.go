@@ -364,6 +364,7 @@ var _ = Describe("DataImportCron", Serial, func() {
 		By("Delete cron")
 		err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Delete(context.TODO(), cronName, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
+		utils.VerifyCronJobCleanup(f.K8sClient, f.CdiInstallNs, ns, cronName)
 
 		if retention {
 			verifyRetention(format, lastImportedPVC.Name)
@@ -405,6 +406,11 @@ var _ = Describe("DataImportCron", Serial, func() {
 
 		By("Wait for digest set by external poller")
 		waitForDigest()
+
+		By("Delete cron")
+		err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Delete(context.TODO(), cronName, metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		utils.VerifyCronJobCleanup(f.K8sClient, f.CdiInstallNs, ns, cronName)
 	})
 
 	It("[test_id:10360] Should allow an empty schedule to trigger an external update to the source", func() {
@@ -448,6 +454,11 @@ var _ = Describe("DataImportCron", Serial, func() {
 		By("Verify cronjob was not created")
 		_, err = f.K8sClient.BatchV1().CronJobs(f.CdiInstallNs).Get(context.TODO(), controller.GetCronJobName(cron), metav1.GetOptions{})
 		Expect(errors.IsNotFound(err)).To(BeTrue())
+
+		By("Delete cron")
+		err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Delete(context.TODO(), cronName, metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		utils.VerifyCronJobCleanup(f.K8sClient, f.CdiInstallNs, ns, cronName)
 	})
 
 	DescribeTable("Succeed garbage collecting sources when importing new ones", func(format cdiv1.DataImportCronSourceFormat) {
@@ -594,6 +605,11 @@ var _ = Describe("DataImportCron", Serial, func() {
 			}
 			Expect(found).To(BeTrue())
 		}
+
+		By("Delete cron")
+		err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Delete(context.TODO(), cronName, metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		utils.VerifyCronJobCleanup(f.K8sClient, f.CdiInstallNs, ns, cronName)
 	},
 		Entry("[test_id:7406] with PVC & DV sources", cdiv1.DataImportCronSourceFormatPvc),
 		Entry("[test_id:10033] with snapshot sources", cdiv1.DataImportCronSourceFormatSnapshot),
@@ -676,6 +692,9 @@ var _ = Describe("DataImportCron", Serial, func() {
 			_, err := utils.FindPodByPrefixOnce(f.K8sClient, f.CdiInstallNs, jobName, "")
 			return errors.IsNotFound(err)
 		}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "cronjob first job pod was not deleted")
+
+		Expect(err).ToNot(HaveOccurred())
+		utils.VerifyCronJobCleanup(f.K8sClient, f.CdiInstallNs, ns, cronName)
 	})
 
 	Context("Change source format of existing DataImportCron", func() {
@@ -753,6 +772,11 @@ var _ = Describe("DataImportCron", Serial, func() {
 			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, path, utils.UploadFileMD5, utils.UploadFileSize)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
+
+			By("Delete cron")
+			err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Delete(context.TODO(), cronName, metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			utils.VerifyCronJobCleanup(f.K8sClient, f.CdiInstallNs, ns, cronName)
 		})
 	})
 })
