@@ -542,8 +542,8 @@ var _ = Describe("Update PVC from POD", func() {
 				{
 					State: v1.ContainerState{
 						Terminated: &corev1.ContainerStateTerminated{
-							ExitCode: common.ScratchSpaceNeededExitCode,
-							Message:  "scratch space needed",
+							ExitCode: 0,
+							Message:  common.ScratchSpaceRequired,
 						},
 					},
 				},
@@ -673,8 +673,8 @@ var _ = Describe("Update PVC from POD", func() {
 				{
 					LastTerminationState: corev1.ContainerState{
 						Terminated: &corev1.ContainerStateTerminated{
-							ExitCode: common.ScratchSpaceNeededExitCode,
-							Message:  "",
+							ExitCode: 0,
+							Message:  common.ScratchSpaceRequired,
 						},
 					},
 				},
