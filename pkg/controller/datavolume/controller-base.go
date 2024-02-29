@@ -38,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -82,7 +83,6 @@ var (
 
 	delayedAnnotations = []string{
 		cc.AnnPopulatedFor,
-		cc.AnnAllowClaimAdoption,
 	}
 )
 
@@ -200,14 +200,9 @@ func getIndexArgs() []indexArgs {
 			},
 		},
 		{
-			obj:   &corev1.PersistentVolume{},
-			field: claimStorageClassNameField,
-			extractValue: func(obj client.Object) []string {
-				if pv, ok := obj.(*corev1.PersistentVolume); ok && pv.Status.Phase == corev1.VolumeAvailable {
-					return []string{pv.Spec.StorageClassName}
-				}
-				return nil
-			},
+			obj:          &corev1.PersistentVolume{},
+			field:        claimStorageClassNameField,
+			extractValue: extractAvailablePersistentVolumeStorageClassName,
 		},
 	}
 }
@@ -222,6 +217,19 @@ func CreateCommonIndexes(mgr manager.Manager) error {
 		if err := mgr.GetFieldIndexer().IndexField(context.TODO(), ia.obj, ia.field, ia.extractValue); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// CreateAvailablePersistentVolumeIndex adds storage class name index for available PersistentVolumes
+func CreateAvailablePersistentVolumeIndex(fieldIndexer client.FieldIndexer) error {
+	return fieldIndexer.IndexField(context.TODO(), &corev1.PersistentVolume{},
+		claimStorageClassNameField, extractAvailablePersistentVolumeStorageClassName)
+}
+
+func extractAvailablePersistentVolumeStorageClassName(obj client.Object) []string {
+	if pv, ok := obj.(*corev1.PersistentVolume); ok && pv.Status.Phase == corev1.VolumeAvailable {
+		return []string{pv.Spec.StorageClassName}
 	}
 	return nil
 }
@@ -670,7 +678,7 @@ func (r *ReconcilerBase) getAvailableVolumesForDV(syncState *dvSyncState, log lo
 			pvc := &corev1.PersistentVolumeClaim{
 				Spec: *syncState.pvcSpec,
 			}
-			if err := checkVolumeSatisfyClaim(&pv, pvc); err != nil {
+			if err := CheckVolumeSatisfyClaim(&pv, pvc); err != nil {
 				continue
 			}
 			log.Info("Found matching volume for DV", "pv", pv.Name)
@@ -1120,6 +1128,20 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		annotations[cc.AnnPriorityClassName] = dataVolume.Spec.PriorityClassName
 	}
 	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, dataVolume.Spec.Preallocation))
+
+	if dataVolume.Spec.Storage != nil && labels[common.PvcUseStorageProfileLabel] == "true" {
+		isWebhookPvcRenderingEnabled, err := featuregates.IsWebhookPvcRenderingEnabled(r.client)
+		if err != nil {
+			return nil, err
+		}
+		if isWebhookPvcRenderingEnabled {
+			labels[common.PvcUseStorageProfileLabel] = "true"
+			if targetPvcSpec.VolumeMode == nil {
+				targetPvcSpec.VolumeMode = ptr.To[corev1.PersistentVolumeMode](cdiv1.PersistentVolumeFromStorageProfile)
+			}
+		}
+	}
+
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:   namespace,
@@ -1290,7 +1312,7 @@ func (r *ReconcilerBase) pvcRequiresWork(pvc *corev1.PersistentVolumeClaim, dv *
 	if pvcIsPopulatedForDataVolume(pvc, dv) {
 		return false, nil
 	}
-	canAdopt, err := cc.ClaimAllowsAdoption(r.client, pvc)
+	canAdopt, err := cc.AllowClaimAdoption(r.client, pvc, dv)
 	if err != nil {
 		return true, err
 	}

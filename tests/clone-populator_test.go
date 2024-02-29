@@ -18,8 +18,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -37,6 +39,7 @@ var _ = Describe("Clone Populator tests", func() {
 	var (
 		defaultSize = resource.MustParse("1Gi")
 		biggerSize  = resource.MustParse("2Gi")
+		target      *corev1.PersistentVolumeClaim
 	)
 
 	f := framework.NewFramework("clone-populator-test")
@@ -45,6 +48,10 @@ var _ = Describe("Clone Populator tests", func() {
 		if utils.DefaultStorageClassCsiDriver == nil {
 			Skip("No CSI driver found")
 		}
+	})
+
+	AfterEach(func() {
+		tests.DisableWebhookPvcRendering(f.CrClient)
 	})
 
 	createSource := func(sz resource.Quantity, vm corev1.PersistentVolumeMode) *corev1.PersistentVolumeClaim {
@@ -177,6 +184,25 @@ var _ = Describe("Clone Populator tests", func() {
 		return result
 	}
 
+	// Create target PVC without AccessModes and Resources.Requests, both to be auto-completed by the webhook rendering
+	createIncompleteTarget := func(sz *resource.Quantity, vm corev1.PersistentVolumeMode, strategy, scName string) *corev1.PersistentVolumeClaim {
+		tests.EnableWebhookPvcRendering(f.CrClient)
+		size := resource.Quantity{}
+		if sz != nil {
+			size = *sz
+		}
+		pvc := generateTargetPVCWithStrategy(size, vm, strategy, scName)
+		pvc.Spec.AccessModes = nil
+		cc.AddLabel(pvc, common.PvcUseStorageProfileLabel, "true")
+		err := f.CrClient.Create(context.Background(), pvc)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceSchedulingIfWaitForFirstConsumerPopulationPVC(pvc)
+		result := &corev1.PersistentVolumeClaim{}
+		err = f.CrClient.Get(context.Background(), client.ObjectKeyFromObject(pvc), result)
+		Expect(err).ToNot(HaveOccurred())
+		return result
+	}
+
 	createTarget := func(sz resource.Quantity, vm corev1.PersistentVolumeMode) *corev1.PersistentVolumeClaim {
 		return createTargetWithStrategy(sz, vm, "", utils.DefaultStorageClass.GetName())
 	}
@@ -209,15 +235,22 @@ var _ = Describe("Clone Populator tests", func() {
 	}
 
 	Context("Clone from PVC", func() {
-		It("should do filesystem to filesystem clone, with immediateBinding annotation", func() {
+		DescribeTable("should do filesystem to filesystem clone", func(webhookRendering bool) {
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()
-			target := createTargetWithImmediateBinding(defaultSize, corev1.PersistentVolumeFilesystem)
+			if webhookRendering {
+				target = createIncompleteTarget(nil, corev1.PersistentVolumeFilesystem, "", utils.DefaultStorageClass.GetName())
+			} else {
+				target = createTargetWithImmediateBinding(defaultSize, corev1.PersistentVolumeFilesystem)
+			}
 			target = waitSucceeded(target)
 			sourceHash := getHash(source, 0)
 			targetHash := getHash(target, 0)
 			Expect(targetHash).To(Equal(sourceHash))
-		})
+		},
+			Entry("with immediateBinding annotation", false),
+			Entry("with incomplete target PVC webhook rendering", Serial, true),
+		)
 
 		It("should do filesystem to filesystem clone, source created after target", func() {
 			createDataSource()
@@ -251,27 +284,38 @@ var _ = Describe("Clone Populator tests", func() {
 			Expect(targetHash).To(Equal(sourceHash))
 		})
 
-		It("should do block to filesystem clone", func() {
+		DescribeTable("should do block to filesystem clone", func(webhookRendering bool) {
 			if !f.IsBlockVolumeStorageClassAvailable() {
 				Skip("Storage Class for block volume is not available")
 			}
 			source := createSource(defaultSize, corev1.PersistentVolumeBlock)
 			createDataSource()
-			target := createTarget(biggerSize, corev1.PersistentVolumeFilesystem)
+			if webhookRendering {
+				target = createIncompleteTarget(nil, corev1.PersistentVolumeFilesystem, "", utils.DefaultStorageClass.GetName())
+			} else {
+				target = createTarget(biggerSize, corev1.PersistentVolumeFilesystem)
+			}
 			target = waitSucceeded(target)
 			sourceHash := getHash(source, 100000)
 			targetHash := getHash(target, 100000)
 			Expect(targetHash).To(Equal(sourceHash))
 			f.ExpectCloneFallback(target, clone.IncompatibleVolumeModes, clone.MessageIncompatibleVolumeModes)
-		})
+		},
+			Entry("with valid target PVC", false),
+			Entry("with incomplete target PVC webhook rendering", Serial, true),
+		)
 
-		It("should do filesystem to block clone", func() {
+		DescribeTable("should do filesystem to block clone", func(webhookRendering bool) {
 			if !f.IsBlockVolumeStorageClassAvailable() {
 				Skip("Storage Class for block volume is not available")
 			}
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()
-			target := createTarget(defaultSize, corev1.PersistentVolumeBlock)
+			if webhookRendering {
+				target = createIncompleteTarget(nil, corev1.PersistentVolumeBlock, "", utils.DefaultStorageClass.GetName())
+			} else {
+				target = createTarget(defaultSize, corev1.PersistentVolumeBlock)
+			}
 			target = waitSucceeded(target)
 			targetSize := target.Status.Capacity[corev1.ResourceStorage]
 			Expect(targetSize.Cmp(defaultSize)).To(BeNumerically(">=", 0))
@@ -279,31 +323,39 @@ var _ = Describe("Clone Populator tests", func() {
 			targetHash := getHash(target, 100000)
 			Expect(targetHash).To(Equal(sourceHash))
 			f.ExpectCloneFallback(target, clone.IncompatibleVolumeModes, clone.MessageIncompatibleVolumeModes)
-		})
+		},
+			Entry("with valid target PVC", false),
+			Entry("with incomplete target PVC webhook rendering", Serial, true),
+		)
 
-		DescribeTable("should clone explicit types requested by user", func(cloneType string, canDo func() bool) {
+		DescribeTable("should clone explicit types requested by user", func(cloneType string, webhookRendering bool, canDo func() bool) {
 			if canDo != nil && !canDo() {
 				Skip(fmt.Sprintf("Clone type %s does not work without a capable storage class", cloneType))
 			}
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()
-			target := createTargetWithStrategy(defaultSize, corev1.PersistentVolumeFilesystem, cloneType, utils.DefaultStorageClass.GetName())
+			if webhookRendering {
+				target = createIncompleteTarget(nil, corev1.PersistentVolumeFilesystem, cloneType, utils.DefaultStorageClass.GetName())
+			} else {
+				target = createTargetWithStrategy(defaultSize, corev1.PersistentVolumeFilesystem, cloneType, utils.DefaultStorageClass.GetName())
+			}
 			target = waitSucceeded(target)
 			Expect(target.Annotations["cdi.kubevirt.io/cloneType"]).To(Equal(cloneType))
 			sourceHash := getHash(source, 0)
 			targetHash := getHash(target, 0)
 			Expect(targetHash).To(Equal(sourceHash))
 		},
-			Entry("should do csi clone if possible", "csi-clone", f.IsCSIVolumeCloneStorageClassAvailable),
-			Entry("should do snapshot clone if possible", "snapshot", f.IsSnapshotStorageClassAvailable),
-			Entry("should do host assisted clone", "copy", nil),
+			Entry("should do csi clone if possible", "csi-clone", false, f.IsCSIVolumeCloneStorageClassAvailable),
+			Entry("should do csi clone if possible, with pvc webhook rendering", Serial, "csi-clone", true, f.IsCSIVolumeCloneStorageClassAvailable),
+			Entry("should do snapshot clone if possible", "snapshot", false, f.IsSnapshotStorageClassAvailable),
+			Entry("should do snapshot clone if possible, with pvc webhook rendering", Serial, "snapshot", true, f.IsSnapshotStorageClassAvailable),
+			Entry("should do host assisted clone", "copy", false, nil),
+			Entry("should do host assisted clone, with pvc webhook rendering", Serial, "copy", true, nil),
 		)
 	})
 
 	Context("Clone from Snapshot", func() {
-		var (
-			snapshot = &snapshotv1.VolumeSnapshot{}
-		)
+		var snapshot *snapshotv1.VolumeSnapshot
 
 		BeforeEach(func() {
 			if !f.IsSnapshotStorageClassAvailable() {
@@ -312,25 +364,36 @@ var _ = Describe("Clone Populator tests", func() {
 		})
 
 		AfterEach(func() {
+			if snapshot != nil {
+				return
+			}
 			By(fmt.Sprintf("[AfterEach] Removing snapshot %s/%s", snapshot.Namespace, snapshot.Name))
 			Eventually(func() bool {
 				err := f.CrClient.Delete(context.TODO(), snapshot)
 				return err != nil && k8serrors.IsNotFound(err)
 			}, time.Minute, time.Second).Should(BeTrue())
+			snapshot = nil
 		})
 
-		It("should do smart clone", func() {
+		DescribeTable("should do smart clone", func(webhookRendering bool) {
 			createSnapshotDataSource()
 			snapshot = createVolumeSnapshotSource("1Gi", nil, corev1.PersistentVolumeFilesystem)
 			By("Creating target PVC")
-			target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
+			if webhookRendering {
+				target = createIncompleteTarget(nil, corev1.PersistentVolumeFilesystem, "", utils.DefaultStorageClass.GetName())
+			} else {
+				target = createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
+			}
 			By("Waiting for population to be succeeded")
 			target = waitSucceeded(target)
 			path := utils.DefaultImagePath
 			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, target, path, utils.UploadFileMD5, utils.UploadFileSize)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
-		})
+		},
+			Entry("with valid target PVC", false),
+			Entry("with incomplete target PVC webhook rendering", Serial, true),
+		)
 
 		Context("Fallback to host assisted", func() {
 			var noExpansionStorageClass *storagev1.StorageClass
@@ -346,13 +409,18 @@ var _ = Describe("Clone Populator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("should do regular host assisted clone", func() {
+			DescribeTable("should do regular host assisted clone", func(webhookRendering bool) {
 				createSnapshotDataSource()
 				snapshot = createVolumeSnapshotSource("1Gi", &noExpansionStorageClass.Name, corev1.PersistentVolumeFilesystem)
 				By("Creating target PVC")
-				target := createTargetWithStrategy(biggerSize, corev1.PersistentVolumeFilesystem, "", noExpansionStorageClass.Name)
+				if webhookRendering {
+					target = createIncompleteTarget(&biggerSize, corev1.PersistentVolumeFilesystem, "", noExpansionStorageClass.Name)
+				} else {
+					target = createTargetWithStrategy(biggerSize, corev1.PersistentVolumeFilesystem, "", noExpansionStorageClass.Name)
+				}
 				By("Waiting for population to be succeeded")
 				target = waitSucceeded(target)
+
 				path := utils.DefaultImagePath
 				same, err := f.VerifyTargetPVCContentMD5(f.Namespace, target, path, utils.UploadFileMD5, utils.UploadFileSize)
 				Expect(err).ToNot(HaveOccurred())
@@ -361,7 +429,10 @@ var _ = Describe("Clone Populator tests", func() {
 				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(snapshot.Namespace).Get(context.TODO(), tmpSourcePVCforSnapshot, metav1.GetOptions{})
 				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 				f.ExpectCloneFallback(target, clone.NoVolumeExpansion, clone.MessageNoVolumeExpansion)
-			})
+			},
+				Entry("with valid target PVC", false),
+				Entry("with incomplete target PVC webhook rendering", Serial, true),
+			)
 
 			It("should finish the clone after creating the source snapshot", func() {
 				By("Create the clone before the source snapshot")

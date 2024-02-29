@@ -7023,13 +7023,25 @@ spec:
                         the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1'
                       items:
                         type: string
+                      maxItems: 4
                       type: array
+                      x-kubernetes-validations:
+                      - message: Illegal AccessMode
+                        rule: self.all(am, am in ['ReadWriteOnce', 'ReadOnlyMany',
+                          'ReadWriteMany', 'ReadWriteOncePod'])
                     volumeMode:
                       description: VolumeMode defines what type of volume is required
                         by the claim. Value of Filesystem is implied when not included
                         in claim spec.
+                      enum:
+                      - Block
+                      - Filesystem
                       type: string
+                  required:
+                  - accessModes
+                  - volumeMode
                   type: object
+                maxItems: 8
                 type: array
               cloneStrategy:
                 description: CloneStrategy defines the preferred method for performing
@@ -7061,13 +7073,25 @@ spec:
                         the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1'
                       items:
                         type: string
+                      maxItems: 4
                       type: array
+                      x-kubernetes-validations:
+                      - message: Illegal AccessMode
+                        rule: self.all(am, am in ['ReadWriteOnce', 'ReadOnlyMany',
+                          'ReadWriteMany', 'ReadWriteOncePod'])
                     volumeMode:
                       description: VolumeMode defines what type of volume is required
                         by the claim. Value of Filesystem is implied when not included
                         in claim spec.
+                      enum:
+                      - Block
+                      - Filesystem
                       type: string
+                  required:
+                  - accessModes
+                  - volumeMode
                   type: object
+                maxItems: 8
                 type: array
               cloneStrategy:
                 description: CloneStrategy defines the preferred method for performing

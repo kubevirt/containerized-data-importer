@@ -4,15 +4,15 @@ go_library(
     name = "go_default_library",
     srcs = [
         "operator.go",
-        "pods.go",
-        "recordingrules.go",
+        "prometheus.go",
     ],
-    importpath = "kubevirt.io/containerized-data-importer/pkg/monitoring/rules/recordingrules",
+    importpath = "kubevirt.io/containerized-data-importer/pkg/monitoring/rules/alerts",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/common:go_default_library",
-        "//vendor/github.com/machadovilaca/operator-observability/pkg/operatormetrics:go_default_library",
         "//vendor/github.com/machadovilaca/operator-observability/pkg/operatorrules:go_default_library",
+        "//vendor/github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/util/intstr:go_default_library",
+        "//vendor/k8s.io/utils/ptr:go_default_library",
     ],
 )

@@ -150,6 +150,7 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 			},
 			ResourceNames: []string{
 				"cdi-api-datavolume-mutate",
+				"cdi-api-pvc-mutate",
 			},
 			Verbs: []string{
 				"get",

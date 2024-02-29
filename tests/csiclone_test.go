@@ -67,6 +67,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		if !f.IsCSIVolumeCloneStorageClassAvailable() {
 			Skip("CSI Volume Clone is not applicable")
 		}
+		if !f.IsBlockVolumeStorageClassAvailable() {
+			Skip("Storage Class for block volume is not available")
+		}
 
 		By(fmt.Sprintf("configure storage profile %s", f.CsiCloneSCName))
 		Expect(

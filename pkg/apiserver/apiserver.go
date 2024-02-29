@@ -67,6 +67,8 @@ const (
 
 	dvMutatePath = "/datavolume-mutate"
 
+	pvcMutatePath = "/pvc-mutate"
+
 	cdiValidatePath = "/cdi-validate"
 
 	objectTransferValidatePath = "/objecttransfer-validate"
@@ -187,6 +189,11 @@ func NewCdiAPIServer(bindAddress string,
 	err = app.createDataVolumeMutatingWebhook()
 	if err != nil {
 		return nil, errors.Errorf("failed to create DataVolume mutating webhook: %s", err)
+	}
+
+	err = app.createPvcMutatingWebhook()
+	if err != nil {
+		return nil, errors.Errorf("failed to create PVC mutating webhook: %s", err)
 	}
 
 	err = app.createCDIValidatingWebhook()
@@ -524,6 +531,11 @@ func (app *cdiAPIApp) createDataVolumeValidatingWebhook() error {
 
 func (app *cdiAPIApp) createDataVolumeMutatingWebhook() error {
 	app.container.ServeMux.Handle(dvMutatePath, webhooks.NewDataVolumeMutatingWebhook(app.client, app.cdiClient, app.privateSigningKey))
+	return nil
+}
+
+func (app *cdiAPIApp) createPvcMutatingWebhook() error {
+	app.container.ServeMux.Handle(pvcMutatePath, webhooks.NewPvcMutatingWebhook(app.controllerRuntimeClient))
 	return nil
 }
 

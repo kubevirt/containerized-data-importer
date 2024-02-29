@@ -156,7 +156,7 @@ openshift-ci-image-push:
 	./hack/build/osci-image-builder.sh
 
 generate-doc: build-docgen
-	_out/pkg/monitoring/tools/metricsdocs/metricsdocs > doc/metrics.md
+	_out/tools/metricsdocs/metricsdocs > doc/metrics.md
 
 bootstrap-ginkgo:
 	${DO_BAZ} ./hack/build/bootstrap-ginkgo.sh

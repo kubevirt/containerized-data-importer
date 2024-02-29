@@ -3356,11 +3356,12 @@
       "type": "string"
      },
      "volumeMode": {
-      "description": "volumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.\n\nPossible enum values:\n - `\"Block\"` means the volume will not be formatted with a filesystem and will remain a raw block device.\n - `\"Filesystem\"` means the volume will be or is formatted with a filesystem.",
+      "description": "volumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.\n\nPossible enum values:\n - `\"Block\"` means the volume will not be formatted with a filesystem and will remain a raw block device.\n - `\"Filesystem\"` means the volume will be or is formatted with a filesystem.\n - `\"FromStorageProfile\"` means the volume mode will be auto selected by CDI according to a matching StorageProfile",
       "type": "string",
       "enum": [
        "Block",
-       "Filesystem"
+       "Filesystem",
+       "FromStorageProfile"
       ]
      },
      "volumeName": {
@@ -5123,11 +5124,12 @@
       "type": "string"
      },
      "volumeMode": {
-      "description": "volumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.\n\nPossible enum values:\n - `\"Block\"` means the volume will not be formatted with a filesystem and will remain a raw block device.\n - `\"Filesystem\"` means the volume will be or is formatted with a filesystem.",
+      "description": "volumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.\n\nPossible enum values:\n - `\"Block\"` means the volume will not be formatted with a filesystem and will remain a raw block device.\n - `\"Filesystem\"` means the volume will be or is formatted with a filesystem.\n - `\"FromStorageProfile\"` means the volume mode will be auto selected by CDI according to a matching StorageProfile",
       "type": "string",
       "enum": [
        "Block",
-       "Filesystem"
+       "Filesystem",
+       "FromStorageProfile"
       ]
      },
      "volumeName": {

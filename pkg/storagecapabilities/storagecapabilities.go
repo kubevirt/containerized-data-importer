@@ -34,6 +34,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// hostpath-provisioner
 	"kubevirt.io.hostpath-provisioner": {{rwo, file}},
 	"kubevirt.io/hostpath-provisioner": {{rwo, file}},
+	"k8s.io/minikube-hostpath":         {{rwo, file}},
 	// nfs-csi
 	"nfs.csi.k8s.io": {{rwx, file}},
 	"k8s-sigs.io/nfs-subdir-external-provisioner": {{rwx, file}},

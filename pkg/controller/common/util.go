@@ -561,13 +561,17 @@ func GetPlatformDefaultStorageClass(storageClasses *storagev1.StorageClassList, 
 
 // GetFilesystemOverheadForStorageClass determines the filesystem overhead defined in CDIConfig for the storageClass.
 func GetFilesystemOverheadForStorageClass(ctx context.Context, client client.Client, storageClassName *string) (cdiv1.Percent, error) {
+	if storageClassName != nil && *storageClassName == "" {
+		klog.V(3).Info("No storage class name passed")
+		return "0", nil
+	}
+
 	cdiConfig := &cdiv1.CDIConfig{}
 	if err := client.Get(ctx, types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
 		if k8serrors.IsNotFound(err) {
 			klog.V(1).Info("CDIConfig does not exist, pod will not start until it does")
 			return "0", nil
 		}
-
 		return "0", err
 	}
 
@@ -2122,17 +2126,20 @@ func ClaimMayExistBeforeDataVolume(c client.Client, pvc *corev1.PersistentVolume
 	if ClaimIsPopulatedForDataVolume(pvc, dv) {
 		return true, nil
 	}
-	return ClaimAllowsAdoption(c, pvc)
+	return AllowClaimAdoption(c, pvc, dv)
 }
 
 // ClaimIsPopulatedForDataVolume returns true if the PVC is populated for the given DataVolume
 func ClaimIsPopulatedForDataVolume(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
-	return pvc.Annotations[AnnPopulatedFor] == dv.Name
+	return pvc != nil && dv != nil && pvc.Annotations[AnnPopulatedFor] == dv.Name
 }
 
-// ClaimAllowsAdoption returns true if the PVC may be adopted
-func ClaimAllowsAdoption(c client.Client, pvc *corev1.PersistentVolumeClaim) (bool, error) {
-	anno, ok := pvc.Annotations[AnnAllowClaimAdoption]
+// AllowClaimAdoption returns true if the PVC may be adopted
+func AllowClaimAdoption(c client.Client, pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (bool, error) {
+	if pvc == nil || dv == nil {
+		return false, nil
+	}
+	anno, ok := dv.Annotations[AnnAllowClaimAdoption]
 	// if annotation exists, go with that regardless of featuregate
 	if ok {
 		val, _ := strconv.ParseBool(anno)

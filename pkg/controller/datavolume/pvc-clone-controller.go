@@ -520,7 +520,11 @@ func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState) (bool, erro
 		return false, err
 	}
 
+	if syncState.pvcSpec.Resources.Requests == nil {
+		syncState.pvcSpec.Resources.Requests = corev1.ResourceList{}
+	}
 	syncState.pvcSpec.Resources.Requests[corev1.ResourceStorage] = targetCapacity
+
 	return true, nil
 }
 

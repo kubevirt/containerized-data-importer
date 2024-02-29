@@ -318,6 +318,9 @@ var _ = Describe("all clone tests", func() {
 			})
 
 			It("[posneg:negative][test_id:3617]Should clone across nodes when multiple local filesystem volumes exist,", func() {
+				if utils.DefaultStorageClassCsiDriver != nil {
+					Skip("this test is only relevant for non CSI local storage")
+				}
 				// Get nodes, need at least 2
 				nodeList, err := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -2671,6 +2674,9 @@ var _ = Describe("all clone tests", func() {
 			if !f.IsSnapshotStorageClassAvailable() {
 				Skip("Clone from volumesnapshot does not work without snapshot capable storage")
 			}
+			if volumeMode == v1.PersistentVolumeBlock && !f.IsBlockVolumeStorageClassAvailable() {
+				Skip("Storage Class for block volume is not available")
+			}
 
 			targetNs := f.Namespace
 			if crossNamespace {
@@ -2743,6 +2749,9 @@ var _ = Describe("all clone tests", func() {
 				var i int
 				var err error
 
+				if volumeMode == v1.PersistentVolumeBlock && !f.IsBlockVolumeStorageClassAvailable() {
+					Skip("Storage Class for block volume is not available")
+				}
 				targetNs := f.Namespace
 				if crossNamespace {
 					targetNamespace, err = f.CreateNamespace("cdi-cross-ns-snapshot-clone-test", nil)
