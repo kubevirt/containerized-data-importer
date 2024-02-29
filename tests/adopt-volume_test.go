@@ -113,22 +113,15 @@ var _ = Describe("PVC adoption tests", func() {
 
 			DescribeTable("it should get adopted", func(defFunc func() *cdiv1.DataVolume) {
 				var pvcUID string
-				By("Adding annotation to PVC")
-				Eventually(func() error {
-					pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dvName, metav1.GetOptions{})
-					Expect(err).ToNot(HaveOccurred())
-					controller.AddAnnotation(pvc, controller.AnnAllowClaimAdoption, "true")
-					_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Update(context.TODO(), pvc, metav1.UpdateOptions{})
-					if err != nil {
-						return err
-					}
-					pvcUID = string(pvc.UID)
-					return nil
-				}, timeout, pollingInterval).Should(BeNil())
+				By("Getting PVC UID")
+				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dvName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				pvcUID = string(pvc.UID)
 
 				By("Creating target DV")
 				dvDef := defFunc()
 				controller.AddAnnotation(dvDef, controller.AnnDeleteAfterCompletion, "false")
+				controller.AddAnnotation(dvDef, controller.AnnAllowClaimAdoption, "true")
 				dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dvDef)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -136,7 +129,7 @@ var _ = Describe("PVC adoption tests", func() {
 				err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 300*time.Second)
 				Expect(err).ToNot(HaveOccurred())
 
-				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+				pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(string(pvc.UID)).To(Equal(pvcUID))
 			},
@@ -194,21 +187,10 @@ var _ = Describe("PVC adoption tests", func() {
 			)
 
 			It("should not be adopted if annotation says not to", func() {
-				By("Adding annotation to PVC")
-				Eventually(func() error {
-					pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dvName, metav1.GetOptions{})
-					Expect(err).ToNot(HaveOccurred())
-					controller.AddAnnotation(pvc, controller.AnnAllowClaimAdoption, "false")
-					_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Update(context.TODO(), pvc, metav1.UpdateOptions{})
-					if err != nil {
-						return err
-					}
-					return nil
-				}, timeout, pollingInterval).Should(BeNil())
-
 				By("Creating target DV")
 				dvDef := importDef()
 				controller.AddAnnotation(dvDef, controller.AnnDeleteAfterCompletion, "false")
+				controller.AddAnnotation(dvDef, controller.AnnAllowClaimAdoption, "false")
 				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dvDef)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("already exists"))

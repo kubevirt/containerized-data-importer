@@ -485,10 +485,9 @@ var _ = Describe("All DataVolume Tests", func() {
 
 		It("Validate clone will adopt PVC (with annotation)", func() {
 			dv := newCloneDataVolume("test-dv")
+			AddAnnotation(dv, AnnAllowClaimAdoption, "true")
 			storageProfile := createStorageProfile(scName, nil, FilesystemMode)
 			pvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
-			pvc.SetAnnotations(make(map[string]string))
-			pvc.GetAnnotations()[AnnAllowClaimAdoption] = "true"
 			reconciler = createCloneReconciler(dv, pvc, storageProfile, sc)
 
 			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -512,11 +511,10 @@ var _ = Describe("All DataVolume Tests", func() {
 
 		It("Validate clone will adopt unbound PVC (with annotation)", func() {
 			dv := newCloneDataVolume("test-dv")
+			AddAnnotation(dv, AnnAllowClaimAdoption, "true")
 			storageProfile := createStorageProfile(scName, nil, FilesystemMode)
 			pvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimPending)
 			pvc.Spec.VolumeName = ""
-			pvc.SetAnnotations(make(map[string]string))
-			pvc.GetAnnotations()[AnnAllowClaimAdoption] = "true"
 			reconciler = createCloneReconciler(dv, pvc, storageProfile, sc)
 
 			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
