@@ -606,15 +606,15 @@ rpm(
 )
 
 rpm(
-    name = "crun-0__1.11.2-1.el9.aarch64",
-    sha256 = "035153ee04d00def11428c1440eb35b9f7ff3251a18649685e8d078e6266d3b5",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/crun-1.11.2-1.el9.aarch64.rpm"],
+    name = "crun-0__1.12-1.el9.aarch64",
+    sha256 = "a2d1a41b79d5da007aa0ebcbca2d2eec8e018cdab7474954ac0168b5c53ed8af",
+    urls = ["https://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/crun-1.12-1.el9.aarch64.rpm"],
 )
 
 rpm(
-    name = "crun-0__1.11.2-1.el9.x86_64",
-    sha256 = "0f6f281969df7c2aa7c8d705d4072344f15a035634e0561d15000dc5a0edb46a",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/crun-1.11.2-1.el9.x86_64.rpm"],
+    name = "crun-0__1.12-1.el9.x86_64",
+    sha256 = "08bf93254eee3c9a612f77f0fecd58af30bf096ac7589ec797b4c6fb57e64764",
+    urls = ["https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/crun-1.12-1.el9.x86_64.rpm"],
 )
 
 rpm(
