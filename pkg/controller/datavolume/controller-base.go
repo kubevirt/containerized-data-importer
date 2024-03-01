@@ -88,6 +88,10 @@ var (
 			Help: monitoring.MetricOptsList[monitoring.DataVolumePending].Help,
 		},
 	)
+
+	delayedAnnotations = []string{
+		cc.AnnPopulatedFor,
+	}
 )
 
 // Event represents DV controller event
@@ -128,7 +132,7 @@ type ReconcilerBase struct {
 	shouldUpdateProgress bool
 }
 
-func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
+func pvcIsPopulatedForDataVolume(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
 	if pvc == nil || dv == nil {
 		return false
 	}
@@ -506,6 +510,10 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 		return syncState, err
 	}
 
+	if err := r.handleDelayedAnnotations(&syncState, log); err != nil || syncState.result != nil {
+		return syncState, err
+	}
+
 	if err = updateDataVolumeDefaultInstancetypeLabels(r.client, &syncState); err != nil {
 		return syncState, err
 	}
@@ -623,6 +631,37 @@ func (r *ReconcilerBase) handleStaticVolume(syncState *dvSyncState, log logr.Log
 	return fmt.Errorf("DataVolume bound to unexpected PV %s", syncState.pvc.Spec.VolumeName)
 }
 
+func (r *ReconcilerBase) handleDelayedAnnotations(syncState *dvSyncState, log logr.Logger) error {
+	dataVolume := syncState.dv
+	if dataVolume.Status.Phase != cdiv1.Succeeded {
+		return nil
+	}
+
+	if syncState.pvc == nil {
+		return nil
+	}
+
+	pvcCpy := syncState.pvc.DeepCopy()
+	for _, anno := range delayedAnnotations {
+		if val, ok := dataVolume.Annotations[anno]; ok {
+			// only add if not already present
+			if _, ok := pvcCpy.Annotations[anno]; !ok {
+				cc.AddAnnotation(pvcCpy, anno, val)
+			}
+		}
+	}
+
+	if !reflect.DeepEqual(syncState.pvc, pvcCpy) {
+		if err := r.updatePVC(pvcCpy); err != nil {
+			return err
+		}
+		syncState.pvc = pvcCpy
+		syncState.result = &reconcile.Result{}
+	}
+
+	return nil
+}
+
 func (r *ReconcilerBase) getAvailableVolumesForDV(syncState *dvSyncState, log logr.Logger) ([]string, error) {
 	pvList := &corev1.PersistentVolumeList{}
 	fields := client.MatchingFields{claimRefField: claimRefIndexKeyFunc(syncState.dv.Namespace, syncState.dv.Name)}
@@ -649,7 +688,7 @@ func (r *ReconcilerBase) getAvailableVolumesForDV(syncState *dvSyncState, log lo
 }
 
 func (r *ReconcilerBase) handlePrePopulation(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) {
-	if pvc.Status.Phase == corev1.ClaimBound && pvcIsPopulated(pvc, dv) {
+	if pvc.Status.Phase == corev1.ClaimBound && pvcIsPopulatedForDataVolume(pvc, dv) {
 		cc.AddAnnotation(dv, cc.AnnPrePopulated, pvc.Name)
 	}
 }
@@ -665,7 +704,11 @@ func (r *ReconcilerBase) validatePVC(dv *cdiv1.DataVolume, pvc *corev1.Persisten
 	// If the PVC is not controlled by this DataVolume resource, we should log
 	// a warning to the event recorder and return
 	if !metav1.IsControlledBy(pvc, dv) {
-		if pvcIsPopulated(pvc, dv) {
+		requiresWork, err := r.pvcRequiresWork(pvc, dv)
+		if err != nil {
+			return err
+		}
+		if !requiresWork {
 			if err := r.addOwnerRef(pvc, dv); err != nil {
 				return err
 			}
@@ -856,15 +899,23 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 		dataVolumeCopy.Status.ClaimName = pvc.Name
 
 		phase := pvc.Annotations[cc.AnnPodPhase]
-		if phase == string(cdiv1.Succeeded) {
+		requiresWork, err := r.pvcRequiresWork(pvc, dataVolumeCopy)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		if phase == string(cdiv1.Succeeded) && requiresWork {
 			if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
 				return reconcile.Result{}, err
 			}
 		} else {
 			switch pvc.Status.Phase {
 			case corev1.ClaimPending:
-				if err := r.updateStatusPVCPending(pvc, dvc, dataVolumeCopy, &event); err != nil {
-					return reconcile.Result{}, err
+				if requiresWork {
+					if err := r.updateStatusPVCPending(pvc, dvc, dataVolumeCopy, &event); err != nil {
+						return reconcile.Result{}, err
+					}
+				} else {
+					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
 				}
 			case corev1.ClaimBound:
 				switch dataVolumeCopy.Status.Phase {
@@ -876,12 +927,12 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 					dataVolumeCopy.Status.Phase = cdiv1.PVCBound
 				}
 
-				if pvcIsPopulated(pvc, dataVolumeCopy) {
-					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
-				} else {
+				if requiresWork {
 					if err := dvc.updateStatusPhase(pvc, dataVolumeCopy, &event); err != nil {
 						return reconcile.Result{}, err
 					}
+				} else {
+					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
 				}
 
 			case corev1.ClaimLost:
@@ -1107,6 +1158,10 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		pvc.Annotations[cc.AnnOwnerUID] = string(dataVolume.UID)
 	}
 
+	for _, anno := range delayedAnnotations {
+		delete(pvc.Annotations, anno)
+	}
+
 	return pvc, nil
 }
 
@@ -1233,4 +1288,21 @@ func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, er
 	}
 
 	return usePopulator, nil
+}
+
+func (r *ReconcilerBase) pvcRequiresWork(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (bool, error) {
+	if pvc == nil || dv == nil {
+		return true, nil
+	}
+	if pvcIsPopulatedForDataVolume(pvc, dv) {
+		return false, nil
+	}
+	canAdopt, err := cc.AllowClaimAdoption(r.client, pvc, dv)
+	if err != nil {
+		return true, err
+	}
+	if canAdopt {
+		return false, nil
+	}
+	return true, nil
 }

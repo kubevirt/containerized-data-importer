@@ -14,12 +14,19 @@ import (
 const (
 	// HonorWaitForFirstConsumer - if enabled will not schedule worker pods on a storage with WaitForFirstConsumer binding mode
 	HonorWaitForFirstConsumer = "HonorWaitForFirstConsumer"
+
+	// DataVolumeClaimAdoption - if enabled will allow PVC to be adopted by a DataVolume
+	// it is not an error if PVC of sam name exists before DataVolume is created
+	DataVolumeClaimAdoption = "DataVolumeClaimAdoption"
 )
 
 // FeatureGates is a util for determining whether an optional feature is enabled or not.
 type FeatureGates interface {
 	// HonorWaitForFirstConsumerEnabled - see the HonorWaitForFirstConsumer const
 	HonorWaitForFirstConsumerEnabled() (bool, error)
+
+	// ClaimAdoptionEnabled - see the DataVolumeClaimAdoption const
+	ClaimAdoptionEnabled() (bool, error)
 }
 
 // CDIConfigFeatureGates is a util for determining whether an optional feature is enabled or not.
@@ -58,4 +65,9 @@ func (f *CDIConfigFeatureGates) getConfig() ([]string, error) {
 // HonorWaitForFirstConsumerEnabled - see the HonorWaitForFirstConsumer const
 func (f *CDIConfigFeatureGates) HonorWaitForFirstConsumerEnabled() (bool, error) {
 	return f.isFeatureGateEnabled(HonorWaitForFirstConsumer)
+}
+
+// ClaimAdoptionEnabled - see the DataVolumeClaimAdoption const
+func (f *CDIConfigFeatureGates) ClaimAdoptionEnabled() (bool, error) {
+	return f.isFeatureGateEnabled(DataVolumeClaimAdoption)
 }

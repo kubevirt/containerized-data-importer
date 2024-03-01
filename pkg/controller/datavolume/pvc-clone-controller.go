@@ -252,11 +252,14 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 	pvc := syncRes.pvc
 	pvcSpec := syncRes.pvcSpec
 	datavolume := syncRes.dvMutated
-	pvcPopulated := pvcIsPopulated(pvc, datavolume)
 	staticProvisionPending := checkStaticProvisionPending(pvc, datavolume)
 	prePopulated := dvIsPrePopulated(datavolume)
+	requiresWork, err := r.pvcRequiresWork(pvc, datavolume)
+	if err != nil {
+		return syncRes, err
+	}
 
-	if pvcPopulated || prePopulated || staticProvisionPending {
+	if !requiresWork || prePopulated || staticProvisionPending {
 		return syncRes, nil
 	}
 

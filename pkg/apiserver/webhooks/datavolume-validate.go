@@ -34,6 +34,7 @@ import (
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
@@ -41,9 +42,10 @@ import (
 )
 
 type dataVolumeValidatingWebhook struct {
-	k8sClient  kubernetes.Interface
-	cdiClient  cdiclient.Interface
-	snapClient snapclient.Interface
+	k8sClient               kubernetes.Interface
+	cdiClient               cdiclient.Interface
+	snapClient              snapclient.Interface
+	controllerRuntimeClient client.Client
 }
 
 func validateNameLength(name string, maxLen int) *metav1.StatusCause {
@@ -567,8 +569,11 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 				return toAdmissionResponseError(err)
 			}
 		} else {
-			dvName, ok := pvc.Annotations[cc.AnnPopulatedFor]
-			if !ok || dvName != dv.GetName() {
+			allow, err := cc.ClaimMayExistBeforeDataVolume(wh.controllerRuntimeClient, pvc, &dv)
+			if err != nil {
+				return toAdmissionResponseError(err)
+			}
+			if !allow {
 				pvcOwner := metav1.GetControllerOf(pvc)
 				// We should reject the DV if a PVC with the same name exists, and that PVC has no ownerRef, or that
 				// PVC has an ownerRef that is not a DataVolume. Because that means that PVC is not managed by the

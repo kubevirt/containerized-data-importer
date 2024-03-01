@@ -41,6 +41,7 @@ import (
 	"k8s.io/klog/v2"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 	k8sspec "k8s.io/kube-openapi/pkg/validation/spec"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	snapclient "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
 	cdiuploadv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
@@ -93,10 +94,11 @@ type cdiAPIApp struct {
 	bindAddress string
 	bindPort    uint
 
-	client           kubernetes.Interface
-	aggregatorClient aggregatorclient.Interface
-	cdiClient        cdiclient.Interface
-	snapClient       snapclient.Interface
+	client                  kubernetes.Interface
+	aggregatorClient        aggregatorclient.Interface
+	cdiClient               cdiclient.Interface
+	snapClient              snapclient.Interface
+	controllerRuntimeClient client.Client
 
 	privateSigningKey *rsa.PrivateKey
 
@@ -127,6 +129,7 @@ func NewCdiAPIServer(bindAddress string,
 	aggregatorClient aggregatorclient.Interface,
 	cdiClient cdiclient.Interface,
 	snapClient snapclient.Interface,
+	controllerRuntimeClient client.Client,
 	authorizor CdiAPIAuthorizer,
 	authConfigWatcher AuthConfigWatcher,
 	cdiConfigTLSWatcher cryptowatch.CdiConfigTLSWatcher,
@@ -134,17 +137,18 @@ func NewCdiAPIServer(bindAddress string,
 	installerLabels map[string]string) (CdiAPIServer, error) {
 	var err error
 	app := &cdiAPIApp{
-		bindAddress:         bindAddress,
-		bindPort:            bindPort,
-		client:              client,
-		aggregatorClient:    aggregatorClient,
-		cdiClient:           cdiClient,
-		snapClient:          snapClient,
-		authorizer:          authorizor,
-		authConfigWatcher:   authConfigWatcher,
-		cdiConfigTLSWatcher: cdiConfigTLSWatcher,
-		certWarcher:         certWatcher,
-		installerLabels:     installerLabels,
+		bindAddress:             bindAddress,
+		bindPort:                bindPort,
+		client:                  client,
+		aggregatorClient:        aggregatorClient,
+		cdiClient:               cdiClient,
+		snapClient:              snapClient,
+		controllerRuntimeClient: controllerRuntimeClient,
+		authorizer:              authorizor,
+		authConfigWatcher:       authConfigWatcher,
+		cdiConfigTLSWatcher:     cdiConfigTLSWatcher,
+		certWarcher:             certWatcher,
+		installerLabels:         installerLabels,
 	}
 
 	err = app.getKeysAndCerts()
@@ -514,7 +518,7 @@ func (app *cdiAPIApp) healthzHandler(req *restful.Request, resp *restful.Respons
 }
 
 func (app *cdiAPIApp) createDataVolumeValidatingWebhook() error {
-	app.container.ServeMux.Handle(dvValidatePath, webhooks.NewDataVolumeValidatingWebhook(app.client, app.cdiClient, app.snapClient))
+	app.container.ServeMux.Handle(dvValidatePath, webhooks.NewDataVolumeValidatingWebhook(app.client, app.cdiClient, app.snapClient, app.controllerRuntimeClient))
 	return nil
 }
 
