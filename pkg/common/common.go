@@ -56,8 +56,10 @@ const (
 	// UploadTargetLabel has the UID of upload target PVC
 	UploadTargetLabel = CDIComponentLabel + "/uploadTarget"
 
-	// DataImportCronLabel has the name of the DataImportCron responsible for the labeled DataSource or DataVolume
+	// DataImportCronLabel has the name of the DataImportCron responsible for the labeled resource
 	DataImportCronLabel = CDIComponentLabel + "/dataImportCron"
+	// DataImportCronNsLabel has the namespace of the DataImportCron responsible for the labeled resource
+	DataImportCronNsLabel = CDIComponentLabel + "/dataImportCronNs"
 	// DataImportCronCleanupLabel tells whether to delete the resource when its DataImportCron is deleted
 	DataImportCronCleanupLabel = DataImportCronLabel + ".cleanup"
 

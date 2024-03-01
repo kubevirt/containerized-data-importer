@@ -101,7 +101,7 @@ func getControllerNamespacedRules() []rbacv1.PolicyRule {
 				"watch",
 				"create",
 				"update",
-				"delete",
+				"deletecollection",
 			},
 		},
 
@@ -114,7 +114,7 @@ func getControllerNamespacedRules() []rbacv1.PolicyRule {
 			},
 			Verbs: []string{
 				"create",
-				"delete",
+				"deletecollection",
 				"list",
 				"watch",
 			},
