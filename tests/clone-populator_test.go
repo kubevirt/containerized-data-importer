@@ -193,7 +193,7 @@ var _ = Describe("Clone Populator tests", func() {
 		}
 		pvc := generateTargetPVCWithStrategy(size, vm, strategy, scName)
 		pvc.Spec.AccessModes = nil
-		cc.AddLabel(pvc, common.PvcUseStorageProfileLabel, "true")
+		cc.AddLabel(pvc, common.PvcApplyStorageProfileLabel, "true")
 		err := f.CrClient.Create(context.Background(), pvc)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceSchedulingIfWaitForFirstConsumerPopulationPVC(pvc)

@@ -51,7 +51,7 @@ func (wh *pvcMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1
 	}
 
 	// Note the webhook LabelSelector should not pass us such pvcs
-	if pvc.Labels[common.PvcUseStorageProfileLabel] != "true" {
+	if pvc.Labels[common.PvcApplyStorageProfileLabel] != "true" {
 		klog.Warningf("Got PVC %s/%s which was not labeled for rendering", pvc.Namespace, pvc.Name)
 		return allowedAdmissionResponse()
 	}

@@ -99,7 +99,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 		return nil, err
 	}
 
-	shouldRender := !isWebhookRenderingEnabled || dv.Labels[common.PvcUseStorageProfileLabel] != "true"
+	shouldRender := !isWebhookRenderingEnabled || dv.Labels[common.PvcApplyStorageProfileLabel] != "true"
 
 	if pvc == nil {
 		pvcSpec = copyStorageAsPvc(log, dv.Spec.Storage)
