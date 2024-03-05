@@ -175,7 +175,36 @@ var _ = Describe("PrepClaimPhase test", func() {
 			Expect(result).To(BeNil())
 		})
 
-		It("should update PVC requestd size if necessary", func() {
+		It("should not return error if actual PVC is bound but status isnt' updated", func() {
+			claim := getClaim()
+			claim.Spec.Resources.Requests[corev1.ResourceStorage] = defaultRequestSize
+			delete(claim.Status.Capacity, corev1.ResourceStorage)
+			claim.Status.Phase = corev1.ClaimPending
+			claim.Spec.VolumeName = "test01"
+
+			p := createPrepClaimPhase(claim)
+
+			result, err := p.Reconcile(context.Background())
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result).ToNot(BeNil())
+		})
+
+		It("should return error if PVC is fully bound but doesn't have capacity", func() {
+			claim := getClaim()
+			claim.Spec.Resources.Requests[corev1.ResourceStorage] = defaultRequestSize
+			delete(claim.Status.Capacity, corev1.ResourceStorage)
+			claim.Status.Phase = corev1.ClaimBound
+			claim.Spec.VolumeName = "test01"
+
+			p := createPrepClaimPhase(claim)
+
+			result, err := p.Reconcile(context.Background())
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("actual PVC size missing"))
+			Expect(result).To(BeNil())
+		})
+
+		It("should update PVC requested size if necessary", func() {
 			claim := getClaim()
 			claim.Spec.Resources.Requests[corev1.ResourceStorage] = smallerThanDefault
 			claim.Status.Capacity[corev1.ResourceStorage] = smallerThanDefault
