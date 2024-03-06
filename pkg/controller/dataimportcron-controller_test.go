@@ -263,6 +263,60 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
+		It("Should delete DataImportCron-orphan CronJob", func() {
+			reconciler = createDataImportCronReconciler()
+
+			cron = newDataImportCron(cronName)
+			err := reconciler.client.Create(context.TODO(), cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+			cronjob := &batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Delete(context.TODO(), cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(err).To(HaveOccurred())
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+		})
+
+		It("Should update CronJob DataImportCron labels", func() {
+			reconciler = createDataImportCronReconciler()
+
+			cron = newDataImportCron(cronName)
+			err := reconciler.client.Create(context.TODO(), cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+			cronjob := &batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+
+			cronjob.Labels = nil
+			err = reconciler.client.Update(context.TODO(), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+
+			cronNsLabel, ok := cronjob.Labels[common.DataImportCronNsLabel]
+			Expect(ok).To(BeTrue())
+			Expect(cronNsLabel).To(Equal(cron.Namespace))
+
+			cronLabel, ok := cronjob.Labels[common.DataImportCronLabel]
+			Expect(ok).To(BeTrue())
+			Expect(cronLabel).To(Equal(cron.Name))
+		})
+
 		It("Should verify CronJob container env variables are empty and no extra volume is set when proxy is not configured", func() {
 			cron = newDataImportCron(cronName)
 			reconciler = createDataImportCronReconciler(cron)

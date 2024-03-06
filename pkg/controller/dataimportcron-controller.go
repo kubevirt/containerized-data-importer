@@ -42,7 +42,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -910,29 +909,19 @@ func (r *DataImportCronReconciler) cleanup(ctx context.Context, cron types.Names
 
 func (r *DataImportCronReconciler) deleteJobs(ctx context.Context, cron types.NamespacedName) error {
 	deletePropagationBackground := metav1.DeletePropagationBackground
-	deleteOpts := &client.DeleteOptions{PropagationPolicy: &deletePropagationBackground}
-	selector, err := getSelector(map[string]string{common.DataImportCronLabel: getCronJobLabelValue(cron.Namespace, cron.Name)})
+	deleteOpts := client.DeleteOptions{PropagationPolicy: &deletePropagationBackground}
+	selector, err := getSelector(map[string]string{common.DataImportCronNsLabel: cron.Namespace, common.DataImportCronLabel: cron.Name})
 	if err != nil {
 		return err
 	}
-	cronJobList := &batchv1.CronJobList{}
-	if err := r.client.List(ctx, cronJobList, &client.ListOptions{Namespace: r.cdiNamespace, LabelSelector: selector}); err != nil {
+	opts := &client.DeleteAllOfOptions{ListOptions: client.ListOptions{Namespace: r.cdiNamespace, LabelSelector: selector}, DeleteOptions: deleteOpts}
+	if err := r.client.DeleteAllOf(ctx, &batchv1.CronJob{}, opts); err != nil {
 		return err
 	}
-	for _, cronJob := range cronJobList.Items {
-		if err := r.client.Delete(ctx, &cronJob, deleteOpts); cc.IgnoreNotFound(err) != nil {
-			return err
-		}
-	}
-	jobList := &batchv1.JobList{}
-	if err := r.client.List(ctx, jobList, &client.ListOptions{Namespace: r.cdiNamespace, LabelSelector: selector}); err != nil {
+	if err := r.client.DeleteAllOf(ctx, &batchv1.Job{}, opts); err != nil {
 		return err
 	}
-	for _, job := range jobList.Items {
-		if err := r.client.Delete(ctx, &job, deleteOpts); cc.IgnoreNotFound(err) != nil {
-			return err
-		}
-	}
+
 	return nil
 }
 
@@ -977,6 +966,9 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 
 	getCronName := func(obj client.Object) string {
 		return obj.GetLabels()[common.DataImportCronLabel]
+	}
+	getCronNs := func(obj client.Object) string {
+		return obj.GetLabels()[common.DataImportCronNsLabel]
 	}
 	mapSourceObjectToCron := func(obj client.Object) []reconcile.Request {
 		if cronName := getCronName(obj); cronName != "" {
@@ -1042,6 +1034,21 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 				profileNew, okNew := e.ObjectNew.(*cdiv1.StorageProfile)
 				return okOld && okNew && profileOld.Status.DataImportCronSourceFormat != profileNew.Status.DataImportCronSourceFormat
 			},
+		},
+	); err != nil {
+		return err
+	}
+
+	mapCronJobToCron := func(obj client.Object) []reconcile.Request {
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: getCronNs(obj), Name: getCronName(obj)}}}
+	}
+
+	if err := c.Watch(&source.Kind{Type: &batchv1.CronJob{}},
+		handler.EnqueueRequestsFromMapFunc(mapCronJobToCron),
+		predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool { return getCronName(e.Object) != "" && getCronNs(e.Object) != "" },
+			DeleteFunc: func(event.DeleteEvent) bool { return false },
+			UpdateFunc: func(event.UpdateEvent) bool { return false },
 		},
 	); err != nil {
 		return err
@@ -1246,7 +1253,8 @@ func (r *DataImportCronReconciler) setJobCommon(cron *cdiv1.DataImportCron, obj 
 	}
 	util.SetRecommendedLabels(obj, r.installerLabels, common.CDIControllerName)
 	labels := obj.GetLabels()
-	labels[common.DataImportCronLabel] = getCronJobLabelValue(cron.Namespace, cron.Name)
+	labels[common.DataImportCronNsLabel] = cron.Namespace
+	labels[common.DataImportCronLabel] = cron.Name
 	obj.SetLabels(labels)
 	return nil
 }
@@ -1357,13 +1365,4 @@ func GetInitialJobName(cron *cdiv1.DataImportCron) string {
 
 func getSelector(matchLabels map[string]string) (labels.Selector, error) {
 	return metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: matchLabels})
-}
-
-func getCronJobLabelValue(cronNamespace, cronName string) string {
-	const maxLen = validation.DNS1035LabelMaxLength
-	label := cronNamespace + "." + cronName
-	if len(label) > maxLen {
-		return label[:maxLen]
-	}
-	return label
 }
