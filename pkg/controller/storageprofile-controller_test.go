@@ -275,7 +275,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(updatedSp.Labels[common.AppKubernetesPartOfLabel]).To(Equal("newtesting"))
 	})
 
-	It("Should error when updating storage profile with missing access modes", func() {
+	DescribeTable("Should error when updating storage profile with missing", func(hasVolumeMode, hasAccessModes bool) {
 		reconciler = createStorageProfileReconciler(CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}))
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).ToNot(HaveOccurred())
@@ -287,16 +287,24 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
 		Expect(sp.Status.ClaimPropertySets).To(BeEmpty())
 
+		partialClaimPropertySet := cdiv1.ClaimPropertySet{}
+		if hasVolumeMode {
+			partialClaimPropertySet.VolumeMode = &FilesystemMode
+		}
+		if hasAccessModes {
+			partialClaimPropertySet.AccessModes = []v1.PersistentVolumeAccessMode{v1.ReadWriteOncePod}
+		}
+
 		claimPropertySets := []cdiv1.ClaimPropertySet{
 			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany}, VolumeMode: &BlockMode},
-			{VolumeMode: &FilesystemMode},
+			partialClaimPropertySet,
 		}
 		sp.Spec.ClaimPropertySets = claimPropertySets
 		err = reconciler.client.Update(context.TODO(), sp.DeepCopy())
 		Expect(err).ToNot(HaveOccurred())
 		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("must provide access mode for volume mode: %s", FilesystemMode)))
+		Expect(err.Error()).To(ContainSubstring("each ClaimPropertySet must provide both volume mode and access modes"))
 		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(storageProfileList.Items).To(HaveLen(1))
@@ -304,7 +312,11 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(*updatedSp.Status.StorageClass).To(Equal(storageClassName))
 		Expect(updatedSp.Status.ClaimPropertySets).To(BeEmpty())
 		Expect(updatedSp.Spec.ClaimPropertySets).To(Equal(claimPropertySets))
-	})
+	},
+		Entry("volume mode", false, true),
+		Entry("access modes", true, false),
+		Entry("both volume mode and access modes", false, false),
+	)
 
 	DescribeTable("should create clone strategy", func(cloneStrategy cdiv1.CDICloneStrategy) {
 		storageClass := CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"})

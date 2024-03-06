@@ -25403,6 +25403,7 @@ func schema_pkg_apis_core_v1beta1_ClaimPropertySet(ref common.ReferenceCallback)
 						},
 					},
 				},
+				Required: []string{"accessModes", "volumeMode"},
 			},
 		},
 	}
