@@ -518,6 +518,38 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Entry("empty schedule", emptySchedule, "should succeed with an empty schedule"),
 		)
 
+		It("Should recreate DataVolume if the last import was deleted", func() {
+			cron = newDataImportCron(cronName)
+			cron.Annotations[AnnSourceDesiredDigest] = testDigest
+			reconciler = createDataImportCronReconciler(cron)
+
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), cronKey, cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			imports := cron.Status.CurrentImports
+			Expect(imports).ToNot(BeEmpty())
+			dvName := imports[0].DataVolumeName
+			Expect(dvName).ToNot(BeEmpty())
+
+			dv := &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Delete(context.TODO(), dv)
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+			Expect(err).To(HaveOccurred())
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
 		It("Should not create DV if PVC exists on DesiredDigest update; Should update DIC and DAS, and GC LRU PVCs", func() {
 			const nPVCs = 3
 			var (

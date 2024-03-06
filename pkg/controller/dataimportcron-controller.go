@@ -374,7 +374,8 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		importSucceeded = true
 	} else {
 		if len(imports) > 0 {
-			dataImportCron.Status.CurrentImports = imports[1:]
+			imports = imports[1:]
+			dataImportCron.Status.CurrentImports = imports
 		}
 		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, "No current import", noImport)
 	}
