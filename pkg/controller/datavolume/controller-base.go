@@ -1129,13 +1129,13 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 	}
 	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, dataVolume.Spec.Preallocation))
 
-	if dataVolume.Spec.Storage != nil && labels[common.PvcUseStorageProfileLabel] == "true" {
+	if dataVolume.Spec.Storage != nil && labels[common.PvcApplyStorageProfileLabel] == "true" {
 		isWebhookPvcRenderingEnabled, err := featuregates.IsWebhookPvcRenderingEnabled(r.client)
 		if err != nil {
 			return nil, err
 		}
 		if isWebhookPvcRenderingEnabled {
-			labels[common.PvcUseStorageProfileLabel] = "true"
+			labels[common.PvcApplyStorageProfileLabel] = "true"
 			if targetPvcSpec.VolumeMode == nil {
 				targetPvcSpec.VolumeMode = ptr.To[corev1.PersistentVolumeMode](cdiv1.PersistentVolumeFromStorageProfile)
 			}

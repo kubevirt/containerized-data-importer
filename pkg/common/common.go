@@ -63,8 +63,8 @@ const (
 	// DataImportCronCleanupLabel tells whether to delete the resource when its DataImportCron is deleted
 	DataImportCronCleanupLabel = DataImportCronLabel + ".cleanup"
 
-	// PvcUseStorageProfileLabel tells whether the PVC should be rendered by the mutating webhook based on StorageProfiles
-	PvcUseStorageProfileLabel = CDIComponentLabel + "/useStorageProfile"
+	// PvcApplyStorageProfileLabel tells whether the PVC should be rendered by the mutating webhook based on StorageProfiles
+	PvcApplyStorageProfileLabel = CDIComponentLabel + "/applyStorageProfile"
 
 	// ImporterVolumePath provides a constant for the directory where the PV is mounted.
 	ImporterVolumePath = "/data"

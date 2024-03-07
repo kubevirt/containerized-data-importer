@@ -1628,7 +1628,7 @@ var _ = Describe("Import populator", func() {
 
 		if webhookRendering {
 			tests.EnableWebhookPvcRendering(f.CrClient)
-			controller.AddLabel(pvc, common.PvcUseStorageProfileLabel, "true")
+			controller.AddLabel(pvc, common.PvcApplyStorageProfileLabel, "true")
 			// Unset AccessModes which will be set by the webhook rendering
 			pvc.Spec.AccessModes = nil
 		}
