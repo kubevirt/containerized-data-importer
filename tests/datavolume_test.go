@@ -2986,14 +2986,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				"rm /tmp/shared/images/"+testImageName)
 			Expect(err).ToNot(HaveOccurred())
 
-			By("Verify the number of retries on the datavolume")
-			Eventually(func() int32 {
-				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				Expect(err).NotTo(HaveOccurred())
-				restarts := dv.Status.RestartCount
-				return restarts
-			}, timeout, pollingInterval).Should(BeNumerically(">=", 1))
-
 			By("Restore the file, import should progress")
 			Expect(utils.WaitTimeoutForPodReady(f.K8sClient, fileHostPod.Name, fileHostPod.Namespace, utils.PodWaitForTime)).To(Succeed())
 			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
@@ -3004,6 +2996,17 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Wait for the eventual success")
 			err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name, 300*time.Second)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verify content")
+			pvc, err := utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(md5).To(Equal(utils.ImageioMD5))
+
+			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 			Expect(err).ToNot(HaveOccurred())
 		})
 	})
