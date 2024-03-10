@@ -1042,6 +1042,26 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 
+	if err := mgr.GetClient().List(context.TODO(), &snapshotv1.VolumeSnapshotList{}); err != nil {
+		if meta.IsNoMatchError(err) {
+			// Back out if there's no point to attempt watch
+			return nil
+		}
+		if !cc.IsErrCacheNotStarted(err) {
+			return err
+		}
+	}
+	if err := c.Watch(source.Kind(mgr.GetCache(), &snapshotv1.VolumeSnapshot{}),
+		handler.EnqueueRequestsFromMapFunc(mapSourceObjectToCron),
+		predicate.Funcs{
+			CreateFunc: func(event.CreateEvent) bool { return false },
+			UpdateFunc: func(event.UpdateEvent) bool { return false },
+			DeleteFunc: func(e event.DeleteEvent) bool { return getCronName(e.Object) != "" },
+		},
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
