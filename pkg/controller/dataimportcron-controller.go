@@ -27,9 +27,9 @@ import (
 
 	"github.com/containers/image/v5/docker/reference"
 	"github.com/go-logr/logr"
-	"github.com/gorhill/cronexpr"
 	imagev1 "github.com/openshift/api/image/v1"
 	"github.com/pkg/errors"
+	cronexpr "github.com/robfig/cron/v3"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -263,7 +263,7 @@ func (r *DataImportCronReconciler) pollImageStreamDigest(ctx context.Context, da
 
 func (r *DataImportCronReconciler) setNextCronTime(dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
 	now := time.Now()
-	expr, err := cronexpr.Parse(dataImportCron.Spec.Schedule)
+	expr, err := cronexpr.ParseStandard(dataImportCron.Spec.Schedule)
 	if err != nil {
 		return reconcile.Result{}, err
 	}

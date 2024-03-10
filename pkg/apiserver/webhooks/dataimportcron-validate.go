@@ -23,7 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/gorhill/cronexpr"
+	cronexpr "github.com/robfig/cron/v3"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -117,7 +117,7 @@ func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *a
 	}
 
 	if spec.Schedule != "" {
-		if _, err := cronexpr.Parse(spec.Schedule); err != nil {
+		if _, err := cronexpr.ParseStandard(spec.Schedule); err != nil {
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueInvalid,
 				Message: "Illegal cron schedule",

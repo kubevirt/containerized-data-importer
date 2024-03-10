@@ -17,7 +17,6 @@ require (
 	github.com/google/uuid v1.3.1
 	github.com/gophercloud/gophercloud v1.7.0
 	github.com/gophercloud/utils v0.0.0-20231010081019-80377eca5d56
-	github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/klauspost/compress v1.16.7
 	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1
@@ -38,6 +37,7 @@ require (
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.68.0
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/cors v1.7.0
 	github.com/ulikunitz/xz v0.5.11
 	github.com/vmware/govmomi v0.23.1
