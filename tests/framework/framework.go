@@ -32,6 +32,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/klog/v2"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -728,7 +729,7 @@ func (f *Framework) GetNoSnapshotStorageClass() *string {
 		return nil
 	}
 	for _, sc := range scs.Items {
-		if sc.Name == "local" || strings.Contains(sc.Provisioner, "no-provisioner") {
+		if sc.Name == "local" || sc.Provisioner == storagehelpers.NotSupportedProvisioner {
 			continue
 		}
 		for _, vsc := range vscs.Items {
