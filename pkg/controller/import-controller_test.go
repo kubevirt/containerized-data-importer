@@ -531,7 +531,7 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()[cc.AnnRunningConditionReason]).To(Equal("Explosion"))
 	})
 
-	It("Should NOT update phase on PVC, if pod exited with error state that is scratchspace exit", func() {
+	It("Should NOT update phase on PVC, if pod exited with scratchspace required msg", func() {
 		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodRunning)}, nil, corev1.ClaimBound)
 		scratchPvcName := &corev1.PersistentVolumeClaim{}
 		scratchPvcName.Name = "testPvc1-scratch"
@@ -540,17 +540,10 @@ var _ = Describe("Update PVC from POD", func() {
 			Phase: corev1.PodPending,
 			ContainerStatuses: []corev1.ContainerStatus{
 				{
-					LastTerminationState: corev1.ContainerState{
-						Terminated: &corev1.ContainerStateTerminated{
-							ExitCode: common.ScratchSpaceNeededExitCode,
-							Message:  "scratch space needed",
-						},
-					},
 					State: v1.ContainerState{
 						Terminated: &corev1.ContainerStateTerminated{
-							ExitCode: 1,
-							Message:  "I went poof",
-							Reason:   "Explosion",
+							ExitCode: 0,
+							Message:  common.ScratchSpaceRequired,
 						},
 					},
 				},
@@ -571,9 +564,6 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()[cc.AnnBoundCondition]).To(Equal("false"))
 		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionMessage]).To(Equal("Creating scratch space"))
 		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionReason]).To(Equal(creatingScratch))
-		Expect(resPvc.GetAnnotations()[cc.AnnRunningCondition]).To(Equal("false"))
-		Expect(resPvc.GetAnnotations()[cc.AnnRunningConditionMessage]).To(Equal("I went poof"))
-		Expect(resPvc.GetAnnotations()[cc.AnnRunningConditionReason]).To(Equal("Explosion"))
 	})
 
 	It("Should mark PVC as waiting for VDDK configmap, if not already present", func() {
@@ -683,8 +673,8 @@ var _ = Describe("Update PVC from POD", func() {
 				{
 					LastTerminationState: corev1.ContainerState{
 						Terminated: &corev1.ContainerStateTerminated{
-							ExitCode: common.ScratchSpaceNeededExitCode,
-							Message:  "",
+							ExitCode: 0,
+							Message:  common.ScratchSpaceRequired,
 						},
 					},
 				},

@@ -187,7 +187,10 @@ func handleImport(
 			if err := util.WriteTerminationMessage(common.ScratchSpaceRequired); err != nil {
 				klog.Errorf("%+v", err)
 			}
-			return common.ScratchSpaceNeededExitCode
+			// Exiting instead of returning 0 as normally to avoid clashing
+			// with cleanup functions (fsyncDataFile) that assume the imported
+			// file will be there during regular exit.
+			os.Exit(0)
 		}
 		err = util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %v", err.Error()))
 		if err != nil {

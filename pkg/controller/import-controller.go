@@ -370,15 +370,14 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 
 	scratchExitCode := false
 	if pod.Status.ContainerStatuses != nil &&
-		pod.Status.ContainerStatuses[0].LastTerminationState.Terminated != nil &&
-		pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode > 0 {
-		log.Info("Pod termination code", "pod.Name", pod.Name, "ExitCode", pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode)
-		if pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode == common.ScratchSpaceNeededExitCode {
+		pod.Status.ContainerStatuses[0].State.Terminated != nil {
+		if message := pod.Status.ContainerStatuses[0].State.Terminated.Message; strings.Contains(message, common.ScratchSpaceRequired) {
 			log.V(1).Info("Pod requires scratch space, terminating pod, and restarting with scratch space", "pod.Name", pod.Name)
 			scratchExitCode = true
 			anno[cc.AnnRequiresScratch] = "true"
-		} else {
-			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message)
+		} else if pod.Status.ContainerStatuses[0].State.Terminated.ExitCode > 0 {
+			log.Info("Pod termination code", "pod.Name", pod.Name, "ExitCode", pod.Status.ContainerStatuses[0].State.Terminated.ExitCode)
+			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].State.Terminated.Message)
 		}
 	}
 

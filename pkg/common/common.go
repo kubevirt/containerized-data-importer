@@ -219,9 +219,6 @@ const (
 	// DefaultResyncPeriod sets a 10 minute resync period, used in the controller pkg and the controller cmd executable
 	DefaultResyncPeriod = 10 * time.Minute
 
-	// ScratchSpaceNeededExitCode is the exit code that indicates the importer pod requires scratch space to function properly.
-	ScratchSpaceNeededExitCode = 42
-
 	// ScratchNameSuffix (controller pkg only)
 	ScratchNameSuffix = "scratch"
 
