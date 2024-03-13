@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -148,7 +149,7 @@ var _ = Describe("setAnnotationsFromPod", func() {
 				},
 			},
 		}
-		setAnnotationsFromPodWithPrefix(result, testPod, AnnRunningCondition)
+		setAnnotationsFromPodWithPrefix(result, testPod, nil, AnnRunningCondition)
 		Expect(result[AnnRunningCondition]).To(Equal("true"))
 		Expect(result[AnnRunningConditionReason]).To(Equal("Pod is running"))
 	})
@@ -168,7 +169,7 @@ var _ = Describe("setAnnotationsFromPod", func() {
 				},
 			},
 		}
-		setAnnotationsFromPodWithPrefix(result, testPod, AnnRunningCondition)
+		setAnnotationsFromPodWithPrefix(result, testPod, nil, AnnRunningCondition)
 		Expect(result[AnnRunningCondition]).To(Equal("false"))
 		Expect(result[AnnRunningConditionMessage]).To(Equal("The container completed"))
 		Expect(result[AnnRunningConditionReason]).To(Equal("Completed"))
@@ -189,7 +190,7 @@ var _ = Describe("setAnnotationsFromPod", func() {
 				},
 			},
 		}
-		setAnnotationsFromPodWithPrefix(result, testPod, AnnRunningCondition)
+		setAnnotationsFromPodWithPrefix(result, testPod, nil, AnnRunningCondition)
 		Expect(result[AnnRunningCondition]).To(Equal("false"))
 		Expect(result[AnnRunningConditionMessage]).To(Equal("container is waiting"))
 		Expect(result[AnnRunningConditionReason]).To(Equal("Pending"))
@@ -202,37 +203,32 @@ var _ = Describe("setAnnotationsFromPod", func() {
 			ContainerStatuses: []v1.ContainerStatus{
 				{
 					State: v1.ContainerState{
-						Terminated: &v1.ContainerStateTerminated{
-							Message: "container completed, " + common.PreallocationApplied,
-							Reason:  "Completed",
-						},
+						Terminated: &v1.ContainerStateTerminated{},
 					},
 				},
 			},
 		}
-		setAnnotationsFromPodWithPrefix(result, testPod, AnnRunningCondition)
+		setAnnotationsFromPodWithPrefix(result, testPod, &common.TerminationMessage{PreallocationApplied: ptr.To(true)}, AnnRunningCondition)
 		Expect(result[AnnPreallocationApplied]).To(Equal("true"))
 	})
 
-	It("Should handle generic error when msg is scratch space required", func() {
+	It("Should set scratch space required status", func() {
 		result := make(map[string]string)
 		testPod := CreateImporterTestPod(CreatePvc("test", metav1.NamespaceDefault, nil, nil), "test", nil)
 		testPod.Status = v1.PodStatus{
 			ContainerStatuses: []v1.ContainerStatus{
 				{
 					State: v1.ContainerState{
-						Terminated: &v1.ContainerStateTerminated{
-							Message: common.ScratchSpaceRequired,
-							Reason:  common.GenericError,
-						},
+						Terminated: &v1.ContainerStateTerminated{},
 					},
 				},
 			},
 		}
-		setAnnotationsFromPodWithPrefix(result, testPod, AnnRunningCondition)
+		setAnnotationsFromPodWithPrefix(result, testPod, &common.TerminationMessage{ScratchSpaceRequired: ptr.To(true)}, AnnRunningCondition)
 		Expect(result[AnnRunningCondition]).To(Equal("false"))
 		Expect(result[AnnRunningConditionMessage]).To(Equal(common.ScratchSpaceRequired))
 		Expect(result[AnnRunningConditionReason]).To(Equal(ScratchSpaceRequiredReason))
+		Expect(result[AnnRequiresScratch]).To(Equal("true"))
 	})
 })
 

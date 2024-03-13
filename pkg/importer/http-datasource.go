@@ -194,6 +194,11 @@ func (hs *HTTPDataSource) GetURL() *url.URL {
 	return hs.url
 }
 
+// GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
+func (hs *HTTPDataSource) GetTerminationMessage() *common.TerminationMessage {
+	return nil
+}
+
 // Close all readers.
 func (hs *HTTPDataSource) Close() error {
 	var err error

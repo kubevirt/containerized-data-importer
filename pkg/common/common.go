@@ -1,6 +1,8 @@
 package common
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -327,4 +329,32 @@ var SyncUploadFormPaths = []string{
 var AsyncUploadFormPaths = []string{
 	UploadFormAsync,
 	"/v1alpha1/upload-form-async",
+}
+
+// VddkInfo holds VDDK version and connection information returned by an importer pod
+type VddkInfo struct {
+	Version string
+	Host    string
+}
+
+// TerminationMessage contains data to be serialized and used as the termination message of the importer.
+type TerminationMessage struct {
+	ScratchSpaceRequired *bool             `json:"scratchSpaceRequired,omitempty"`
+	PreallocationApplied *bool             `json:"preallocationApplied,omitempty"`
+	VddkInfo             *VddkInfo         `json:"vddkInfo,omitempty"`
+	Labels               map[string]string `json:"labels,omitempty"`
+}
+
+func (it *TerminationMessage) String() (string, error) {
+	msg, err := json.Marshal(it)
+	if err != nil {
+		return "", err
+	}
+
+	// Messages longer than 4096 are truncated by kubelet
+	if length := len(msg); length > 4096 {
+		return "", fmt.Errorf("Termination message length %d exceeds maximum length of 4096 bytes", length)
+	}
+
+	return string(msg), nil
 }

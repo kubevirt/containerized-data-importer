@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"container/ring"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -941,22 +940,6 @@ func (vs *VDDKDataSource) Info() (ProcessingPhase, error) {
 
 // Close closes any readers or other open resources.
 func (vs *VDDKDataSource) Close() error {
-	if vddkVersion != "" || vddkHost != "" {
-		existingbytes, _ := os.ReadFile(common.PodTerminationMessageFile)
-		existing := string(existingbytes)
-		if existing != "" {
-			existing += "; "
-		}
-		stopinfo := util.VddkInfo{
-			Version: vddkVersion,
-			Host:    vddkHost,
-		}
-		stopmsg, _ := json.Marshal(stopinfo)
-		err := util.WriteTerminationMessage(existing + "VDDK: " + string(stopmsg))
-		if err != nil {
-			klog.Errorf("Unable to write termination message: %v", err)
-		}
-	}
 	vs.NbdKit.Handle.Close()
 	return vs.NbdKit.n.KillNbdkit()
 }
@@ -964,6 +947,16 @@ func (vs *VDDKDataSource) Close() error {
 // GetURL returns the url that the data processor can use when converting the data.
 func (vs *VDDKDataSource) GetURL() *url.URL {
 	return vs.NbdKit.Socket
+}
+
+// GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
+func (vs *VDDKDataSource) GetTerminationMessage() *common.TerminationMessage {
+	return &common.TerminationMessage{
+		VddkInfo: &common.VddkInfo{
+			Version: vddkVersion,
+			Host:    vddkHost,
+		},
+	}
 }
 
 // Transfer is called to transfer the data from the source to the path passed in.

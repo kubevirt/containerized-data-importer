@@ -42,12 +42,6 @@ type CountingReader struct {
 	Done    bool
 }
 
-// VddkInfo holds VDDK version and connection information returned by an importer pod
-type VddkInfo struct {
-	Version string
-	Host    string
-}
-
 // RandAlphaNum provides an implementation to generate a random alpha numeric string of the specified length
 func RandAlphaNum(n int) string {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))

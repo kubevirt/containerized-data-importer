@@ -30,6 +30,10 @@ func (V VDDKDataSource) GetURL() *url.URL {
 	panic("not support")
 }
 
+func (V VDDKDataSource) GetTerminationMessage() *common.TerminationMessage {
+	panic("not support")
+}
+
 func (V VDDKDataSource) Close() error {
 	panic("not support")
 }

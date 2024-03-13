@@ -17,6 +17,7 @@ import (
 
 	"k8s.io/klog/v2"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -124,6 +125,11 @@ func (sd *S3DataSource) TransferFile(fileName string) (ProcessingPhase, error) {
 // GetURL returns the url that the data processor can use when converting the data.
 func (sd *S3DataSource) GetURL() *url.URL {
 	return sd.url
+}
+
+// GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
+func (sd *S3DataSource) GetTerminationMessage() *common.TerminationMessage {
+	return nil
 }
 
 // Close closes any readers or other open resources.

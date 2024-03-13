@@ -366,19 +366,23 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 
 	log.V(1).Info("Updating PVC from pod")
 	anno := pvc.GetAnnotations()
-	setAnnotationsFromPodWithPrefix(anno, pod, cc.AnnRunningCondition)
 
-	scratchExitCode := false
+	termMsg, err := parseTerminationMessage(pod)
+	if err != nil {
+		log.V(3).Info("Ignoring failure to parse termination message", "error", err.Error())
+	}
+	setAnnotationsFromPodWithPrefix(anno, pod, termMsg, cc.AnnRunningCondition)
+
+	scratchSpaceRequired := termMsg != nil && termMsg.ScratchSpaceRequired != nil && *termMsg.ScratchSpaceRequired
+	if scratchSpaceRequired {
+		log.V(1).Info("Pod requires scratch space, terminating pod, and restarting with scratch space", "pod.Name", pod.Name)
+	}
+
 	if pod.Status.ContainerStatuses != nil &&
-		pod.Status.ContainerStatuses[0].State.Terminated != nil {
-		if message := pod.Status.ContainerStatuses[0].State.Terminated.Message; strings.Contains(message, common.ScratchSpaceRequired) {
-			log.V(1).Info("Pod requires scratch space, terminating pod, and restarting with scratch space", "pod.Name", pod.Name)
-			scratchExitCode = true
-			anno[cc.AnnRequiresScratch] = "true"
-		} else if pod.Status.ContainerStatuses[0].State.Terminated.ExitCode > 0 {
-			log.Info("Pod termination code", "pod.Name", pod.Name, "ExitCode", pod.Status.ContainerStatuses[0].State.Terminated.ExitCode)
-			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].State.Terminated.Message)
-		}
+		pod.Status.ContainerStatuses[0].State.Terminated != nil &&
+		pod.Status.ContainerStatuses[0].State.Terminated.ExitCode > 0 {
+		log.Info("Pod termination code", "pod.Name", pod.Name, "ExitCode", pod.Status.ContainerStatuses[0].State.Terminated.ExitCode)
+		r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].State.Terminated.Message)
 	}
 
 	if anno[cc.AnnCurrentCheckpoint] != "" {
@@ -386,8 +390,8 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	}
 
 	anno[cc.AnnImportPod] = string(pod.Name)
-	if !scratchExitCode {
-		// No scratch exit code, update the phase based on the pod. If we do have scratch exit code we don't want to update the
+	if !scratchSpaceRequired {
+		// No scratch space required, update the phase based on the pod. If we require scratch space we don't want to update the
 		// phase, because the pod might terminate cleanly and mistakenly mark the import complete.
 		anno[cc.AnnPodPhase] = string(pod.Status.Phase)
 	}
@@ -420,8 +424,8 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		log.V(1).Info("Updated PVC", "pvc.anno.Phase", anno[cc.AnnPodPhase], "pvc.anno.Restarts", anno[cc.AnnPodRestarts])
 	}
 
-	if cc.IsPVCComplete(pvc) || scratchExitCode {
-		if !scratchExitCode {
+	if cc.IsPVCComplete(pvc) || scratchSpaceRequired {
+		if !scratchSpaceRequired {
 			r.recorder.Event(pvc, corev1.EventTypeNormal, ImportSucceededPVC, "Import Successful")
 			log.V(1).Info("Import completed successfully")
 		}
