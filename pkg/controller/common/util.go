@@ -150,8 +150,13 @@ const (
 	// AnnVddkInitImageURL saves a per-DV VDDK image URL on the PVC
 	AnnVddkInitImageURL = AnnAPIGroup + "/storage.pod.vddk.initimageurl"
 
-	// AnnRequiresScratch provides a const for our PVC requires scratch annotation
+	// AnnRequiresScratch provides a const for our PVC requiring scratch annotation
 	AnnRequiresScratch = AnnAPIGroup + "/storage.import.requiresScratch"
+
+	// AnnRequiresDirectIO provides a const for our PVC requiring direct io annotation (due to OOMs we need to try qemu cache=none)
+	AnnRequiresDirectIO = AnnAPIGroup + "/storage.import.requiresDirectIo"
+	// OOMKilledReason provides a value that container runtimes must return in the reason field for an OOMKilled container
+	OOMKilledReason = "OOMKilled"
 
 	// AnnContentType provides a const for the PVC content-type
 	AnnContentType = AnnAPIGroup + "/storage.contentType"
@@ -837,7 +842,7 @@ func GetPriorityClass(pvc *corev1.PersistentVolumeClaim) string {
 
 // ShouldDeletePod returns whether the PVC workload pod should be deleted
 func ShouldDeletePod(pvc *corev1.PersistentVolumeClaim) bool {
-	return pvc.GetAnnotations()[AnnPodRetainAfterCompletion] != "true" || pvc.GetAnnotations()[AnnRequiresScratch] == "true" || pvc.DeletionTimestamp != nil
+	return pvc.GetAnnotations()[AnnPodRetainAfterCompletion] != "true" || pvc.GetAnnotations()[AnnRequiresScratch] == "true" || pvc.GetAnnotations()[AnnRequiresDirectIO] == "true" || pvc.DeletionTimestamp != nil
 }
 
 // AddFinalizer adds a finalizer to a resource
