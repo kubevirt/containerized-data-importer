@@ -288,12 +288,17 @@ func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorCon
 	}
 
 	// Each populator reconciles the target PVC in a different way
-	if cc.IsUnbound(pvc) || !cc.IsPVCComplete(pvc) || cc.IsMultiStageImportInProgress(pvc) {
-		return populator.reconcileTargetPVC(pvc, pvcPrime)
+	res, err := populator.reconcileTargetPVC(pvc, pvcPrime)
+	if err != nil {
+		return res, err
 	}
 
-	// Making sure to clean PVC'
-	return r.reconcileCleanup(pvcPrime)
+	// Making sure to clean PVC once it is complete
+	if cc.IsPVCComplete(pvc) && !cc.IsMultiStageImportInProgress(pvc) {
+		res, err = r.reconcileCleanup(pvcPrime)
+	}
+
+	return res, err
 }
 
 func (r *ReconcilerBase) reconcileCommon(pvc *corev1.PersistentVolumeClaim, populator populatorController, pvcNameLogger logr.Logger) (*corev1.PersistentVolumeClaim, error) {

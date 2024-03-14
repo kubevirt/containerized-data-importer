@@ -156,9 +156,11 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 			break
 		}
 
-		// Once the import is succeeded, we rebind the PV from PVC' to target PVC
-		if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvc); err != nil {
-			return reconcile.Result{}, err
+		if cc.IsPVCComplete(pvcPrime) && cc.IsUnbound(pvc) {
+			// Once the import is succeeded, we rebind the PV from PVC to target PVC
+			if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvc); err != nil {
+				return reconcile.Result{}, err
+			}
 		}
 	}
 
