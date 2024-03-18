@@ -8,6 +8,7 @@ import (
 	"net/url"
 
 	v1 "k8s.io/api/core/v1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 // VDDKDataSource is the data provider for vddk.
