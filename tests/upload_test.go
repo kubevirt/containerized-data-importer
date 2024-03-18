@@ -304,6 +304,39 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 	})
 
+	It("Verify cross-site scripting XSS attempt is escaped accordingly to avoid attack", func() {
+		By("Verify PVC annotation says ready")
+		const XSSAttempt = "<script>Bad stuff here...</script>"
+		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+		pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		pvc.Annotations[controller.AnnContentType] = XSSAttempt
+		pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		var token string
+		By("Get an upload token")
+		token, err = utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Do upload")
+		resp, err := getUploadToPathResponse(binaryRequestFunc, utils.UploadFile, uploadProxyURL, syncUploadPath, token)
+		Expect(err).ToNot(HaveOccurred())
+		body, err := io.ReadAll(resp.Body)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify XSS attempt")
+		// Verify XSS attack is not present in the error msg
+		Expect(string(body)).ToNot(ContainSubstring(XSSAttempt))
+		// Verify < and > characters are escaped accordingly
+		Expect(string(body)).To(ContainSubstring("&lt;script&gt;"))
+		// Verify PVC name is intact
+		Expect(string(body)).To(ContainSubstring(pvc.Name))
+	})
+
 	DescribeTable("Verify validation error message on async upload if virtual size > pvc size", func(filename string) {
 		By("Verify PVC annotation says ready")
 		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
@@ -553,6 +586,32 @@ func uploadFileNameToPath(requestFunc uploadFileNameRequestCreator, fileName, po
 	}
 
 	return nil
+}
+
+func getUploadToPathResponse(requestFunc uploadFileNameRequestCreator, fileName, portForwardURL, path, token string) (*http.Response, error) {
+	url := portForwardURL + path
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	req, err := requestFunc(url, fileName)
+	if err != nil {
+		return nil, err
+	}
+	defer req.Body.Close()
+
+	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Add("Origin", "foo.bar.com")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 func uploadFileNameToPathWithClient(client *http.Client, requestFunc uploadFileNameRequestCreator, fileName, portForwardURL, path, token string, expectedStatus int) error {
