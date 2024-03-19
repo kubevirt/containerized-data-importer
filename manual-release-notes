@@ -34,3 +34,13 @@ Enhancement: add .snyk file (#3016)
 BugFix: Add version field to the OpenAPI definition (#3014)
 BugFix: Fix Trident provisioner key for using csi-clone (#3008)
 Cleanup: Work around common snapshot controller issue in tests (#2996)
+
+v1.58.2
+Cleanup: Adapt test suite for Filesystem only advanced storage
+BugFix: StorageProfile ClaimPropertySets validation
+BugFix: Fix DataImportCron import DataVolume creation when last import is not found
+BugFix: Watch DataImportCron-orphan cronjobs and cleanup them
+Enhancement: cdi.kubevirt.io/garbageCollected added to PVCs when DataVolumes are garbage collected
+Enhancement: DataVolume supports PVC adoption via DataVolumeClaimAdoption feature gate and cdi.kubevirt.io/allowClaimAdoption annotation on PVC
+BugFix: Change CDI webhook failure policy to Ignore
+BugFix: Allow Deployed CDI to get out of Error Phase
