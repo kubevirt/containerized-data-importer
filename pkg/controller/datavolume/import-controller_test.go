@@ -182,7 +182,8 @@ var _ = Describe("All DataVolume Tests", func() {
 		})
 
 		It("Should create a PVC on a valid import DV", func() {
-			reconciler = createImportReconciler(NewImportDataVolume("test-dv"))
+			dv := NewImportDataVolume("test-dv")
+			reconciler = createImportReconciler(dv)
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc := &corev1.PersistentVolumeClaim{}
@@ -191,6 +192,9 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.Name).To(Equal("test-dv"))
 			Expect(pvc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 			Expect(pvc.Labels[common.KubePersistentVolumeFillingUpSuppressLabelKey]).To(Equal(common.KubePersistentVolumeFillingUpSuppressLabelValue))
+			val, ok := pvc.Annotations[AnnCreatedForDataVolume]
+			Expect(ok).To(BeTrue())
+			Expect(val).To(Equal(string(dv.UID)))
 		})
 
 		It("Should create a PVC on a valid import DV without delayed annotation then add on success", func() {
@@ -817,6 +821,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
 			Expect(string(dv.Status.Progress)).To(Equal("N/A"))
+			_, ok := pvc.Annotations[AnnCreatedForDataVolume]
+			Expect(ok).To(BeFalse())
 		})
 
 		It("Should adopt a unbound PVC (with annotation)", func() {
@@ -839,6 +845,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
 			Expect(string(dv.Status.Progress)).To(Equal("N/A"))
+			_, ok := pvc.Annotations[AnnCreatedForDataVolume]
+			Expect(ok).To(BeFalse())
 		})
 
 		It("Should adopt a PVC (with featuregate)", func() {
@@ -860,6 +868,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
 			Expect(string(dv.Status.Progress)).To(Equal("N/A"))
+			_, ok := pvc.Annotations[AnnCreatedForDataVolume]
+			Expect(ok).To(BeFalse())
 		})
 
 		It("Should set multistage migration annotations on a newly created PVC", func() {
@@ -2098,6 +2108,7 @@ func newUploadDataVolume(name string) *cdiv1.DataVolume {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: metav1.NamespaceDefault,
+			UID:       types.UID("uid"),
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: &cdiv1.DataVolumeSource{
