@@ -248,8 +248,8 @@ var _ = Describe("Clone Populator tests", func() {
 			targetHash := getHash(target, 0)
 			Expect(targetHash).To(Equal(sourceHash))
 		},
-			Entry("with immediateBinding annotation", false),
-			Entry("with incomplete target PVC webhook rendering", Serial, true),
+			Entry("[test_id:10973]with immediateBinding annotation", false),
+			Entry("[rfe_id:10985][crit:high][test_id:10974]with incomplete target PVC webhook rendering", Serial, true),
 		)
 
 		It("should do filesystem to filesystem clone, source created after target", func() {
@@ -301,8 +301,8 @@ var _ = Describe("Clone Populator tests", func() {
 			Expect(targetHash).To(Equal(sourceHash))
 			f.ExpectCloneFallback(target, clone.IncompatibleVolumeModes, clone.MessageIncompatibleVolumeModes)
 		},
-			Entry("with valid target PVC", false),
-			Entry("with incomplete target PVC webhook rendering", Serial, true),
+			Entry("[test_id:10975]with valid target PVC", false),
+			Entry("[rfe_id:10985][crit:high][test_id:10976]with incomplete target PVC webhook rendering", Serial, true),
 		)
 
 		DescribeTable("should do filesystem to block clone", func(webhookRendering bool) {
@@ -324,8 +324,8 @@ var _ = Describe("Clone Populator tests", func() {
 			Expect(targetHash).To(Equal(sourceHash))
 			f.ExpectCloneFallback(target, clone.IncompatibleVolumeModes, clone.MessageIncompatibleVolumeModes)
 		},
-			Entry("with valid target PVC", false),
-			Entry("with incomplete target PVC webhook rendering", Serial, true),
+			Entry("[test_id:11044]with valid target PVC", false),
+			Entry("[rfe_id:10985][crit:high][test_id:11013]with incomplete target PVC webhook rendering", Serial, true),
 		)
 
 		DescribeTable("should clone explicit types requested by user", func(cloneType string, webhookRendering bool, canDo func() bool) {
@@ -345,12 +345,12 @@ var _ = Describe("Clone Populator tests", func() {
 			targetHash := getHash(target, 0)
 			Expect(targetHash).To(Equal(sourceHash))
 		},
-			Entry("should do csi clone if possible", "csi-clone", false, f.IsCSIVolumeCloneStorageClassAvailable),
-			Entry("should do csi clone if possible, with pvc webhook rendering", Serial, "csi-clone", true, f.IsCSIVolumeCloneStorageClassAvailable),
-			Entry("should do snapshot clone if possible", "snapshot", false, f.IsSnapshotStorageClassAvailable),
-			Entry("should do snapshot clone if possible, with pvc webhook rendering", Serial, "snapshot", true, f.IsSnapshotStorageClassAvailable),
-			Entry("should do host assisted clone", "copy", false, nil),
-			Entry("should do host assisted clone, with pvc webhook rendering", Serial, "copy", true, nil),
+			Entry("[test_id:10977]should do csi clone if possible", "csi-clone", false, f.IsCSIVolumeCloneStorageClassAvailable),
+			Entry("[rfe_id:10985][crit:high][test_id:10992]should do csi clone if possible, with pvc webhook rendering", Serial, "csi-clone", true, f.IsCSIVolumeCloneStorageClassAvailable),
+			Entry("[test_id:10993]should do snapshot clone if possible", "snapshot", false, f.IsSnapshotStorageClassAvailable),
+			Entry("[rfe_id:10985][crit:high][test_id:10994]should do snapshot clone if possible, with pvc webhook rendering", Serial, "snapshot", true, f.IsSnapshotStorageClassAvailable),
+			Entry("[test_id:10995]should do host assisted clone", "copy", false, nil),
+			Entry("[rfe_id:10985][crit:high][test_id:10996]should do host assisted clone, with pvc webhook rendering", Serial, "copy", true, nil),
 		)
 	})
 
@@ -391,8 +391,8 @@ var _ = Describe("Clone Populator tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
 		},
-			Entry("with valid target PVC", false),
-			Entry("with incomplete target PVC webhook rendering", Serial, true),
+			Entry("[test_id:10997]with valid target PVC", false),
+			Entry("[rfe_id:10985][crit:high][test_id:10998]with incomplete target PVC webhook rendering", Serial, true),
 		)
 
 		Context("Fallback to host assisted", func() {
@@ -430,8 +430,8 @@ var _ = Describe("Clone Populator tests", func() {
 				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 				f.ExpectCloneFallback(target, clone.NoVolumeExpansion, clone.MessageNoVolumeExpansion)
 			},
-				Entry("with valid target PVC", false),
-				Entry("with incomplete target PVC webhook rendering", Serial, true),
+				Entry("[test_id:10999]with valid target PVC", false),
+				Entry("[rfe_id:10985][crit:high][test_id:11000]with incomplete target PVC webhook rendering", Serial, true),
 			)
 
 			It("should finish the clone after creating the source snapshot", func() {
