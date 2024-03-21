@@ -321,7 +321,10 @@ const (
 	AnnEventSource = "cdi.kubevirt.io/events.source"
 
 	// AnnAllowClaimAdoption is the annotation that allows a claim to be adopted by a DataVolume
-	AnnAllowClaimAdoption = "cdi.kubevirt.io/allowClaimAdoption"
+	AnnAllowClaimAdoption = AnnAPIGroup + "/allowClaimAdoption"
+
+	// AnnCreatedForDataVolume stores the UID of the datavolume that the PVC was created for
+	AnnCreatedForDataVolume = AnnAPIGroup + "/createdForDataVolume"
 )
 
 // Size-detection pod error codes
@@ -2127,7 +2130,11 @@ func AllowClaimAdoption(c client.Client, pvc *corev1.PersistentVolumeClaim, dv *
 	if pvc == nil || dv == nil {
 		return false, nil
 	}
-	anno, ok := dv.Annotations[AnnAllowClaimAdoption]
+	anno, ok := pvc.Annotations[AnnCreatedForDataVolume]
+	if ok && anno == string(dv.UID) {
+		return false, nil
+	}
+	anno, ok = dv.Annotations[AnnAllowClaimAdoption]
 	// if annotation exists, go with that regardless of featuregate
 	if ok {
 		val, _ := strconv.ParseBool(anno)

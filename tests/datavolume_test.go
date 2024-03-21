@@ -242,6 +242,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			phase                        cdiv1.DataVolumePhase
 			repeat                       int
 			checkPermissions             bool
+			addClaimAdoptionAnnotation   bool
 			readyCondition               *cdiv1.DataVolumeCondition
 			boundCondition               *cdiv1.DataVolumeCondition
 			boundConditionWithPopulators *cdiv1.DataVolumeCondition
@@ -311,6 +312,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			// Have to call the function in here, to make sure the BeforeEach in the Framework has run.
 			dataVolume := args.dvFunc(args.name, args.size, args.url())
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
+			if args.addClaimAdoptionAnnotation {
+				controller.AddAnnotation(dataVolume, controller.AnnAllowClaimAdoption, "true")
+			}
 			repeat := 1
 			if utils.IsHostpathProvisioner() && args.repeat > 0 {
 				// Repeat rapidly to make sure we don't get regular and scratch space on different nodes.
@@ -361,6 +365,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					err := utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 					Expect(err).ToNot(HaveOccurred())
 				}
+				Expect(pvc.Annotations[controller.AnnCreatedForDataVolume]).To(Equal(string(dataVolume.UID)))
 				By("Cleaning up")
 				err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
 				Expect(err).ToNot(HaveOccurred())
@@ -457,6 +462,30 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-http-import Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			Entry("succeed creating import dv with adoption annotation", dataVolumeTestArguments{
+				name:                       "dv-http-import",
+				size:                       "1Gi",
+				url:                        tinyCoreIsoURL,
+				dvFunc:                     utils.NewDataVolumeWithHTTPImport,
+				eventReason:                dvc.ImportSucceeded,
+				phase:                      cdiv1.Succeeded,
+				addClaimAdoptionAnnotation: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
@@ -784,6 +813,36 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Status: v1.ConditionTrue,
 					Reason: "Pod is running",
 				}}),
+			Entry("succeed creating upload dv with adoption annotation", dataVolumeTestArguments{
+				name:                       "upload-dv",
+				size:                       "1Gi",
+				url:                        func() string { return "" },
+				dvFunc:                     createUploadDataVolume,
+				eventReason:                dvc.UploadReady,
+				phase:                      cdiv1.UploadReady,
+				addClaimAdoptionAnnotation: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+					Reason: "TransferRunning",
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC upload-dv Bound",
+					Reason:  "Bound",
+				},
+				boundConditionWithPopulators: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionFalse,
+					Message: "PVC upload-dv Pending",
+					Reason:  "Pending",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeRunning,
+					Status: v1.ConditionTrue,
+					Reason: "Pod is running",
+				}}),
 			Entry("[rfe_id:1947][crit:high][test_id:2145]succeed creating import dv with given tar archive url", dataVolumeTestArguments{
 				name:        "dv-tar-archive",
 				size:        "1Gi",
@@ -920,6 +979,30 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				dvFunc:      createCloneDataVolume,
 				eventReason: dvc.CloneSucceeded,
 				phase:       cdiv1.Succeeded,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-clone-test1 Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Clone Complete",
+					Reason:  "Completed",
+				}}),
+			Entry("succeed creating clone dv with adoption annotation", dataVolumeTestArguments{
+				name:                       "dv-clone-test1",
+				size:                       "1Gi",
+				url:                        func() string { return fillCommand }, // its not URL, but command, but the parameter lines up.
+				dvFunc:                     createCloneDataVolume,
+				eventReason:                dvc.CloneSucceeded,
+				phase:                      cdiv1.Succeeded,
+				addClaimAdoptionAnnotation: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
