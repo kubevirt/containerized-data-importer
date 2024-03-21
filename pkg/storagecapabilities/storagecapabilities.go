@@ -75,7 +75,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// Hitachi
 	"hspc.csi.hitachi.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// HPE
-	"csi.hpe.com": createRWOBlockAndFilesystemCapabilities(),
+	"csi.hpe.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// IBM HCI/GPFS2 (Spectrum Scale / Spectrum Fusion)
 	"spectrumscale.csi.ibm.com": {{rwx, file}, {rwo, file}},
 	// IBM block arrays (FlashSystem)
