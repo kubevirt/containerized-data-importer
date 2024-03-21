@@ -44,3 +44,6 @@ Enhancement: cdi.kubevirt.io/garbageCollected added to PVCs when DataVolumes are
 Enhancement: DataVolume supports PVC adoption via DataVolumeClaimAdoption feature gate and cdi.kubevirt.io/allowClaimAdoption annotation on PVC
 BugFix: Change CDI webhook failure policy to Ignore
 BugFix: Allow Deployed CDI to get out of Error Phase
+
+v1.58.3
+BugFix: CNV-39618 - cdi.kubevirt.io/allowClaimAdoption annotation broken
