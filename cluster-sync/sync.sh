@@ -275,6 +275,12 @@ if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
   configure_uploadproxy_override
   # Tell prometheus to watch our namespace
   configure_prometheus
+  if [ "$KUBEVIRT_STORAGE" == "nfs" ]; then
+  # nfs writing started to consistently breach the dirty_ratio, causing OOMKills
+  # we think the problem sits somewhere around the fsync calls to writeout to nfs being slow/failing
+  # https://github.com/kubevirt/containerized-data-importer/pull/3023#issuecomment-1913529241
+  _kubectl patch cdi ${CR_NAME} --type merge -p '{"spec":{"config":{"podResourceRequirements": {"limits": {"cpu": "750m", "memory": "1Gi"}, "requests": {"cpu": "100m", "memory": "60M"}}}}}'
+  fi
 fi
 
 # Grab all the CDI crds so we can check if they are structural schemas
