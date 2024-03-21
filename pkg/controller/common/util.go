@@ -329,6 +329,9 @@ const (
 
 	// AnnCdiCustomizeComponentHash annotation is a hash of all customizations that live under spec.CustomizeComponents
 	AnnCdiCustomizeComponentHash = AnnAPIGroup + "/customizer-identifier"
+
+	// AnnCreatedForDataVolume stores the UID of the datavolume that the PVC was created for
+	AnnCreatedForDataVolume = AnnAPIGroup + "/createdForDataVolume"
 )
 
 // Size-detection pod error codes
@@ -2139,7 +2142,11 @@ func AllowClaimAdoption(c client.Client, pvc *corev1.PersistentVolumeClaim, dv *
 	if pvc == nil || dv == nil {
 		return false, nil
 	}
-	anno, ok := dv.Annotations[AnnAllowClaimAdoption]
+	anno, ok := pvc.Annotations[AnnCreatedForDataVolume]
+	if ok && anno == string(dv.UID) {
+		return false, nil
+	}
+	anno, ok = dv.Annotations[AnnAllowClaimAdoption]
 	// if annotation exists, go with that regardless of featuregate
 	if ok {
 		val, _ := strconv.ParseBool(anno)

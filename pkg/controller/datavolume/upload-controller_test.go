@@ -174,6 +174,9 @@ var _ = Describe("All DataVolume Tests", func() {
 		uploadSourceName := volumeUploadSourceName(dv)
 		Expect(pvc.Spec.DataSourceRef.Name).To(Equal(uploadSourceName))
 		Expect(pvc.Spec.DataSourceRef.Kind).To(Equal(cdiv1.VolumeUploadSourceRef))
+		val, ok := pvc.Annotations[AnnCreatedForDataVolume]
+		Expect(ok).To(BeTrue())
+		Expect(val).To(Equal(string(dv.UID)))
 	})
 
 	It("Should always report NA progress for upload population", func() {
@@ -232,6 +235,8 @@ var _ = Describe("All DataVolume Tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
 		Expect(string(dv.Status.Progress)).To(Equal("N/A"))
+		_, ok := pvc.Annotations[AnnCreatedForDataVolume]
+		Expect(ok).To(BeFalse())
 	})
 
 	It("Should adopt a PVC (with featuregate)", func() {
@@ -253,6 +258,8 @@ var _ = Describe("All DataVolume Tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
 		Expect(string(dv.Status.Progress)).To(Equal("N/A"))
+		_, ok := pvc.Annotations[AnnCreatedForDataVolume]
+		Expect(ok).To(BeFalse())
 	})
 
 	It("Should adopt a unbound PVC", func() {
@@ -275,6 +282,8 @@ var _ = Describe("All DataVolume Tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
 		Expect(string(dv.Status.Progress)).To(Equal("N/A"))
+		_, ok := pvc.Annotations[AnnCreatedForDataVolume]
+		Expect(ok).To(BeFalse())
 	})
 
 	var _ = Describe("Reconcile Datavolume status", func() {

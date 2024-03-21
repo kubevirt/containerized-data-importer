@@ -1128,6 +1128,7 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		annotations[cc.AnnPriorityClassName] = dataVolume.Spec.PriorityClassName
 	}
 	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, dataVolume.Spec.Preallocation))
+	annotations[cc.AnnCreatedForDataVolume] = string(dataVolume.UID)
 
 	if dataVolume.Spec.Storage != nil && labels[common.PvcApplyStorageProfileLabel] == "true" {
 		isWebhookPvcRenderingEnabled, err := featuregates.IsWebhookPvcRenderingEnabled(r.client)

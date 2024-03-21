@@ -152,6 +152,9 @@ var _ = Describe("All DataVolume Tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(vcs.Spec.Source.Kind).To(Equal("PersistentVolumeClaim"))
 				Expect(vcs.Spec.Source.Name).To(Equal(srcPvc.Name))
+				val, ok := pvc.Annotations[AnnCreatedForDataVolume]
+				Expect(val).To(Equal(string(dv.UID)))
+				Expect(ok).To(BeTrue())
 			},
 				Entry("with same namespace", metav1.NamespaceDefault),
 				Entry("with different namespace", "source-ns"),
@@ -507,6 +510,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.OwnerReferences).To(HaveLen(1))
 			Expect(pvc.OwnerReferences[0].Name).To(Equal("test-dv"))
 			Expect(pvc.OwnerReferences[0].Kind).To(Equal("DataVolume"))
+			_, ok := pvc.Annotations[AnnCreatedForDataVolume]
+			Expect(ok).To(BeFalse())
 		})
 
 		It("Validate clone will adopt unbound PVC (with annotation)", func() {
@@ -534,6 +539,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.OwnerReferences).To(HaveLen(1))
 			Expect(pvc.OwnerReferences[0].Name).To(Equal("test-dv"))
 			Expect(pvc.OwnerReferences[0].Kind).To(Equal("DataVolume"))
+			_, ok := pvc.Annotations[AnnCreatedForDataVolume]
+			Expect(ok).To(BeFalse())
 		})
 
 		It("Validate clone will adopt PVC (with featuregate)", func() {
@@ -560,6 +567,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc.OwnerReferences).To(HaveLen(1))
 			Expect(pvc.OwnerReferences[0].Name).To(Equal("test-dv"))
 			Expect(pvc.OwnerReferences[0].Kind).To(Equal("DataVolume"))
+			_, ok := pvc.Annotations[AnnCreatedForDataVolume]
+			Expect(ok).To(BeFalse())
 		})
 
 		DescribeTable("Validation mechanism rejects or accepts the clone depending on the contentType combination",
