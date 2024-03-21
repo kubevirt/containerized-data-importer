@@ -232,6 +232,52 @@ var _ = Describe("setAnnotationsFromPod", func() {
 	})
 })
 
+var _ = Describe("setLabelsFromTerminationMessage", func() {
+	It("should set labels from termMsg", func() {
+		labels := make(map[string]string, 0)
+		termMsg := &common.TerminationMessage{
+			Labels: map[string]string{
+				"test": "test",
+			},
+		}
+
+		setLabelsFromTerminationMessage(labels, termMsg)
+		for k, v := range termMsg.Labels {
+			Expect(labels).To(HaveKeyWithValue(k, v))
+		}
+	})
+
+	It("should not overwrite existing labels from termMsg", func() {
+		const testKeyExisting = "test"
+		const testValueExisting = "existing"
+
+		labels := map[string]string{
+			testKeyExisting: testValueExisting,
+		}
+		termMsg := &common.TerminationMessage{
+			Labels: map[string]string{
+				testKeyExisting: "somethingelse",
+			},
+		}
+
+		setLabelsFromTerminationMessage(labels, termMsg)
+		Expect(labels).To(HaveKeyWithValue(testKeyExisting, testValueExisting))
+	})
+
+	It("should handle nil termMsg", func() {
+		labels := map[string]string{
+			"test": "test",
+		}
+		labelsOriginal := make(map[string]string, len(labels))
+		for k, v := range labels {
+			labelsOriginal[k] = v
+		}
+
+		setLabelsFromTerminationMessage(labels, nil)
+		Expect(labels).To(Equal(labelsOriginal))
+	})
+})
+
 var _ = Describe("GetPreallocation", func() {
 	It("Should return preallocation for DataVolume if specified", func() {
 		client := CreateClient()

@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -196,7 +197,19 @@ func (hs *HTTPDataSource) GetURL() *url.URL {
 
 // GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
 func (hs *HTTPDataSource) GetTerminationMessage() *common.TerminationMessage {
-	return nil
+	if pullMethod, _ := util.ParseEnvVar(common.ImporterPullMethod, false); pullMethod != string(cdiv1.RegistryPullNode) {
+		return nil
+	}
+
+	info, err := getServerInfo(hs.ctx, fmt.Sprintf("%s://%s/info", hs.endpoint.Scheme, hs.endpoint.Host))
+	if err != nil {
+		klog.Errorf("%+v", err)
+		return nil
+	}
+
+	return &common.TerminationMessage{
+		Labels: envsToLabels(info.Env),
+	}
 }
 
 // Close all readers.
@@ -501,4 +514,34 @@ func getExtraHeadersFromSecrets() ([]string, error) {
 	})
 
 	return secretExtraHeaders, err
+}
+
+func getServerInfo(ctx context.Context, infoURL string) (*common.ServerInfo, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", infoURL, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to construct request for containerimage-server info")
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed request containerimage-server info")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed request containerimage-server info: expected status code 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read body of containerimage-server info request")
+	}
+
+	info := &common.ServerInfo{}
+	if err := json.Unmarshal(body, info); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal body of containerimage-server info request")
+	}
+
+	return info, nil
 }

@@ -358,3 +358,8 @@ func (it *TerminationMessage) String() (string, error) {
 
 	return string(msg), nil
 }
+
+// ServerInfo contains data to be serialized and used as the body of responses to the info endpoint of the containerimage-server.
+type ServerInfo struct {
+	Env []string `json:"env,omitempty"`
+}
