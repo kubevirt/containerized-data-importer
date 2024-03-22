@@ -417,7 +417,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		pvc.GetLabels()[common.CDILabelKey] = common.CDILabelValue
 	}
 	if cc.IsPVCComplete(pvc) {
-		setLabelsFromTerminationMessage(pvc.GetLabels(), termMsg)
+		pvc.SetLabels(addLabelsFromTerminationMessage(pvc.GetLabels(), termMsg))
 	}
 
 	if !reflect.DeepEqual(currentPvcCopy, pvc) {

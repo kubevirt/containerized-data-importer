@@ -332,15 +332,19 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, termMs
 	}
 }
 
-func setLabelsFromTerminationMessage(labels map[string]string, termMsg *common.TerminationMessage) {
-	if labels == nil || termMsg == nil {
-		return
+func addLabelsFromTerminationMessage(labels map[string]string, termMsg *common.TerminationMessage) map[string]string {
+	newLabels := make(map[string]string, 0)
+	for k, v := range labels {
+		newLabels[k] = v
 	}
-	for k, v := range termMsg.Labels {
-		if _, found := labels[k]; !found {
-			labels[k] = v
+	if termMsg != nil {
+		for k, v := range termMsg.Labels {
+			if _, found := newLabels[k]; !found {
+				newLabels[k] = v
+			}
 		}
 	}
+	return newLabels
 }
 
 func simplifyKnownMessage(msg string) string {
