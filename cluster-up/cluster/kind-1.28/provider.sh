@@ -2,7 +2,7 @@
 
 set -e
 
-DEFAULT_CLUSTER_NAME="kind-1.23"
+DEFAULT_CLUSTER_NAME="kind-1.28"
 DEFAULT_HOST_PORT=5000
 ALTERNATE_HOST_PORT=5001
 export CLUSTER_NAME=${CLUSTER_NAME:-$DEFAULT_CLUSTER_NAME}
@@ -14,9 +14,11 @@ else
 fi
 
 function set_kind_params() {
-    export KIND_VERSION="${KIND_VERSION:-0.12.0}"
-    export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-quay.io/kubevirtci/kindest-node:v1.23.4}"
-    export KUBECTL_PATH="${KUBECTL_PATH:-/bin/kubectl}"
+    version=$(cat cluster-up/cluster/$KUBEVIRT_PROVIDER/version)
+    export KIND_VERSION="${KIND_VERSION:-$version}"
+
+    image=$(cat cluster-up/cluster/$KUBEVIRT_PROVIDER/image)
+    export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-$image}"
 }
 
 function configure_registry_proxy() {
