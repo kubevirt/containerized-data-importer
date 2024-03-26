@@ -325,7 +325,7 @@ func (p *Planner) computeStrategyForSourcePVC(ctx context.Context, args *ChooseS
 		strategy = *cs
 	} else if args.TargetClaim.Spec.StorageClassName != nil {
 		sp := &cdiv1.StorageProfile{}
-		exists, err := getResource(ctx, p.Client, "", *args.TargetClaim.Spec.StorageClassName, sp)
+		exists, err := getResource(ctx, p.Client, metav1.NamespaceNone, *args.TargetClaim.Spec.StorageClassName, sp)
 		if err != nil {
 			return nil, err
 		}
@@ -544,7 +544,7 @@ func (p *Planner) planHostAssistedFromSnapshot(ctx context.Context, args *PlanAr
 		return nil, fmt.Errorf("source claim does not exist")
 	}
 
-	sourceClaimForDumbClone, err := createTempSourceClaim(ctx, args.DataSource.Namespace, args.TargetClaim, sourceSnapshot, p.Client)
+	sourceClaimForDumbClone, err := createTempSourceClaim(ctx, args.Log, args.DataSource.Namespace, args.TargetClaim, sourceSnapshot, p.Client)
 	if err != nil {
 		return nil, err
 	}
@@ -773,13 +773,25 @@ func createDesiredClaim(namespace string, targetClaim *corev1.PersistentVolumeCl
 	return desiredClaim
 }
 
-func createTempSourceClaim(ctx context.Context, namespace string, targetClaim *corev1.PersistentVolumeClaim, snapshot *snapshotv1.VolumeSnapshot, client client.Client) (*corev1.PersistentVolumeClaim, error) {
-	scName, err := getStorageClassNameForTempSourceClaim(ctx, snapshot, client)
+func createTempSourceClaim(ctx context.Context, log logr.Logger, namespace string, targetClaim *corev1.PersistentVolumeClaim, snapshot *snapshotv1.VolumeSnapshot, client client.Client) (*corev1.PersistentVolumeClaim, error) {
+	if snapshot.Status == nil || snapshot.Status.BoundVolumeSnapshotContentName == nil {
+		return nil, fmt.Errorf("volumeSnapshotContent name not found")
+	}
+	vsc := &snapshotv1.VolumeSnapshotContent{}
+	if err := client.Get(ctx, types.NamespacedName{Name: *snapshot.Status.BoundVolumeSnapshotContentName}, vsc); err != nil {
+		return nil, err
+	}
+	scName, err := getStorageClassNameForTempSourceClaim(ctx, vsc, client)
+	if err != nil {
+		return nil, err
+	}
+	targetCpy := targetClaim.DeepCopy()
+	fallbackVolumeMode := targetCpy.Spec.VolumeMode
+	volumeMode, err := getVolumeModeForTempSourceClaim(log, snapshot, vsc, fallbackVolumeMode)
 	if err != nil {
 		return nil, err
 	}
 	// Get the appropriate size from the snapshot
-	targetCpy := targetClaim.DeepCopy()
 	if snapshot.Status == nil || snapshot.Status.RestoreSize == nil || snapshot.Status.RestoreSize.Sign() == -1 {
 		return nil, fmt.Errorf("snapshot has no RestoreSize")
 	}
@@ -796,33 +808,35 @@ func createTempSourceClaim(ctx context.Context, namespace string, targetClaim *c
 			Labels:      targetCpy.Labels,
 			Annotations: targetCpy.Annotations,
 		},
-		Spec: targetCpy.Spec,
+		Spec: corev1.PersistentVolumeClaimSpec{
+			StorageClassName: &scName,
+			// We've found that ReadWriteOnce is consensus among CSI drivers
+			// Although we know this is read only at all times, some drivers disallow mounting a block PVC ReadOnly
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteOnce,
+			},
+			VolumeMode: volumeMode,
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: *restoreSize,
+				},
+			},
+		},
 	}
-	desiredClaim.Spec.DataSource = nil
-	desiredClaim.Spec.DataSourceRef = nil
-	desiredClaim.Spec.StorageClassName = &scName
-	desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage] = *restoreSize
 
 	return desiredClaim, nil
 }
 
-func getStorageClassNameForTempSourceClaim(ctx context.Context, snapshot *snapshotv1.VolumeSnapshot, client client.Client) (string, error) {
+func getStorageClassNameForTempSourceClaim(ctx context.Context, vsc *snapshotv1.VolumeSnapshotContent, client client.Client) (string, error) {
 	var matches []string
 
-	if snapshot.Status == nil || snapshot.Status.BoundVolumeSnapshotContentName == nil {
-		return "", fmt.Errorf("volumeSnapshotContent name not found")
-	}
-	volumeSnapshotContent := &snapshotv1.VolumeSnapshotContent{}
-	if err := client.Get(ctx, types.NamespacedName{Name: *snapshot.Status.BoundVolumeSnapshotContentName}, volumeSnapshotContent); err != nil {
-		return "", err
-	}
 	// Attempting to get a storageClass compatible with the source snapshot
 	storageClasses := &storagev1.StorageClassList{}
 	if err := client.List(ctx, storageClasses); err != nil {
 		return "", err
 	}
 	for _, storageClass := range storageClasses.Items {
-		if storageClass.Provisioner == volumeSnapshotContent.Spec.Driver {
+		if storageClass.Provisioner == vsc.Spec.Driver {
 			matches = append(matches, storageClass.Name)
 		}
 	}
@@ -831,4 +845,20 @@ func getStorageClassNameForTempSourceClaim(ctx context.Context, snapshot *snapsh
 	}
 	sort.Strings(matches)
 	return matches[0], nil
+}
+
+func getVolumeModeForTempSourceClaim(log logr.Logger, snapshot *snapshotv1.VolumeSnapshot, vsc *snapshotv1.VolumeSnapshotContent, fallback *corev1.PersistentVolumeMode) (*corev1.PersistentVolumeMode, error) {
+	if vsc.Spec.SourceVolumeMode != nil {
+		// Since 1.29 we should always return here
+		// Older versions did not populate this field and thus need more care
+		return vsc.Spec.SourceVolumeMode, nil
+	}
+
+	if v, ok := snapshot.Annotations[cc.AnnSourceVolumeMode]; ok {
+		mode := corev1.PersistentVolumeMode(v)
+		return &mode, nil
+	}
+
+	log.V(1).Info("Could not infer source volume mode of snapshot, creating a temporary restore with target PVC volume mode")
+	return fallback, nil
 }
