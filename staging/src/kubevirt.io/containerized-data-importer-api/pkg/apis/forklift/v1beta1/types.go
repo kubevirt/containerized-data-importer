@@ -5,6 +5,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// OvirtVolumePopulatorKind is the type of the CR used to populator a volume from an oVirt disk
 var OvirtVolumePopulatorKind = "OvirtVolumePopulator"
 
 // OvirtVolumePopulator is the CR used to populator a volume from an oVirt disk
@@ -21,6 +22,7 @@ type OvirtVolumePopulator struct {
 	Status OvirtVolumePopulatorStatus `json:"status"`
 }
 
+// OvirtVolumePopulatorSpec is the spec of the OvirtVolumePopulator CR
 type OvirtVolumePopulatorSpec struct {
 	EngineURL        string `json:"engineUrl"`
 	EngineSecretName string `json:"engineSecretName"`
@@ -29,6 +31,7 @@ type OvirtVolumePopulatorSpec struct {
 	TransferNetwork *core.ObjectReference `json:"transferNetwork,omitempty"`
 }
 
+// OvirtVolumePopulatorStatus is the status of the OvirtVolumePopulator CR
 type OvirtVolumePopulatorStatus struct {
 	// +optional
 	Progress string `json:"progress"`
@@ -57,6 +60,7 @@ type OpenstackVolumePopulator struct {
 	Status OpenstackVolumePopulatorStatus `json:"status"`
 }
 
+// OpenstackVolumePopulatorSpec is the spec of the OpenstackVolumePopulator CR
 type OpenstackVolumePopulatorSpec struct {
 	IdentityURL string `json:"identityUrl"`
 	SecretName  string `json:"secretName"`
@@ -65,6 +69,7 @@ type OpenstackVolumePopulatorSpec struct {
 	TransferNetwork *core.ObjectReference `json:"transferNetwork,omitempty"`
 }
 
+// OpenstackVolumePopulatorStatus is the status of the OpenstackVolumePopulator CR
 type OpenstackVolumePopulatorStatus struct {
 	// +optional
 	Progress string `json:"progress"`

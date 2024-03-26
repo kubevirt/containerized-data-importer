@@ -155,6 +155,11 @@ func (r *ForkliftPopulatorReconciler) reconcile(req reconcile.Request, populator
 		return reconcile.Result{}, err
 	}
 
+	if pvc.Status.Phase == corev1.ClaimBound {
+		r.log.Info("PVC is bound, skipping...", "pvc", pvc.Name)
+		return reconcile.Result{}, nil
+	}
+
 	// We first perform the common reconcile steps.
 	// We should only continue if we get a valid PVC'
 	pvcPrime, err := r.reconcileCommon(pvc, populator, log)
@@ -322,7 +327,7 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 
 func (r *ForkliftPopulatorReconciler) updatePVCPrime(pvc, pvcPrime *corev1.PersistentVolumeClaim) error {
 	pvcCopy := pvc.DeepCopy()
-	err := r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateAnnotations)
+	_, err := r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateAnnotations)
 	if err != nil {
 		return err
 	}
