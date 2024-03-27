@@ -412,10 +412,24 @@ func updatePendingDataVolumesGauge(ctx context.Context, log logr.Logger, dv *cdi
 		return
 	}
 
-	dvList := &cdiv1.DataVolumeList{}
-	if err := c.List(ctx, dvList, client.MatchingFields{dvPhaseField: string(cdiv1.Pending)}); err != nil {
+	countPending, err := getDefaultStorageClassDataVolumeCount(ctx, c, string(cdiv1.Pending))
+	if err != nil {
 		log.V(3).Error(err, "Failed listing the pending DataVolumes")
 		return
+	}
+	countUnset, err := getDefaultStorageClassDataVolumeCount(ctx, c, string(cdiv1.PhaseUnset))
+	if err != nil {
+		log.V(3).Error(err, "Failed listing the unset DataVolumes")
+		return
+	}
+
+	metrics.SetDataVolumePending(countPending + countUnset)
+}
+
+func getDefaultStorageClassDataVolumeCount(ctx context.Context, c client.Client, dvPhase string) (int, error) {
+	dvList := &cdiv1.DataVolumeList{}
+	if err := c.List(ctx, dvList, client.MatchingFields{dvPhaseField: dvPhase}); err != nil {
+		return 0, err
 	}
 
 	dvCount := 0
@@ -424,7 +438,8 @@ func updatePendingDataVolumesGauge(ctx context.Context, log logr.Logger, dv *cdi
 			dvCount++
 		}
 	}
-	metrics.SetDataVolumePending(dvCount)
+
+	return dvCount, nil
 }
 
 type dvController interface {
