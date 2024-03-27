@@ -29,6 +29,7 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 	versioned "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	core "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/core"
+	forklift "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/forklift"
 	internalinterfaces "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/internalinterfaces"
 	upload "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/upload"
 )
@@ -245,11 +246,16 @@ type SharedInformerFactory interface {
 	InformerFor(obj runtime.Object, newFunc internalinterfaces.NewInformerFunc) cache.SharedIndexInformer
 
 	Cdi() core.Interface
+	Forklift() forklift.Interface
 	Upload() upload.Interface
 }
 
 func (f *sharedInformerFactory) Cdi() core.Interface {
 	return core.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) Forklift() forklift.Interface {
+	return forklift.New(f, f.namespace, f.tweakListOptions)
 }
 
 func (f *sharedInformerFactory) Upload() upload.Interface {
