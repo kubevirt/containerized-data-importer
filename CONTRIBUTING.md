@@ -37,7 +37,7 @@ at [kubevirt/containerized-data-importer](https://github.com/kubevirt/containeri
 For bigger changes, please create a tracker Issue, describing what you want to
 do. Then either as the first commit in a Pull Request, or as an independent
 Pull Request, provide an **informal** design proposal of your intended changes.
-The location for such propoals is
+The location for such proposals is
 [/docs](docs/) in the CDI repository. Make sure that all your Pull Requests link back to the
 relevant Issues.
 
@@ -76,11 +76,14 @@ Maintainers are:
 ### PR Checklist
 
 Before your PR can be merged it must meet the following criteria:
+* Informative PR Description alongside an overview of the changes and a high-level design in case of a new feature
+* Commits split logically with a clear purpose.
+* Commits title concise and clear while commit message informative stating the nature and purpose of the changes in the commit.
 * [README.md](README.md) has been updated if core functionality is affected.
 * Complex features need standalone documentation in [doc/](doc/).
 * Functionality must be fully tested.  Unit test code coverage as reported by
   [Goveralls](https://coveralls.io/github/kubevirt/containerized-data-importer?branch=main)
-  must not decrease unless justification is given (ie. you're adding generated
+  must not decrease unless justification is given (i.e you're adding generated
   code).
 
 
