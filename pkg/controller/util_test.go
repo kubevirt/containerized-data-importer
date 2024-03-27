@@ -232,8 +232,8 @@ var _ = Describe("setAnnotationsFromPod", func() {
 	})
 })
 
-var _ = Describe("setLabelsFromTerminationMessage", func() {
-	It("should set labels from termMsg", func() {
+var _ = Describe("addLabelsFromTerminationMessage", func() {
+	It("should add labels from termMsg", func() {
 		labels := make(map[string]string, 0)
 		termMsg := &common.TerminationMessage{
 			Labels: map[string]string{
@@ -241,9 +241,24 @@ var _ = Describe("setLabelsFromTerminationMessage", func() {
 			},
 		}
 
-		setLabelsFromTerminationMessage(labels, termMsg)
+		newLabels := addLabelsFromTerminationMessage(labels, termMsg)
+
+		Expect(labels).To(BeEmpty())
 		for k, v := range termMsg.Labels {
-			Expect(labels).To(HaveKeyWithValue(k, v))
+			Expect(newLabels).To(HaveKeyWithValue(k, v))
+		}
+	})
+
+	It("should handle nil labels", func() {
+		termMsg := &common.TerminationMessage{
+			Labels: map[string]string{
+				"test": "test",
+			},
+		}
+
+		newLabels := addLabelsFromTerminationMessage(nil, termMsg)
+		for k, v := range termMsg.Labels {
+			Expect(newLabels).To(HaveKeyWithValue(k, v))
 		}
 	})
 
@@ -260,21 +275,17 @@ var _ = Describe("setLabelsFromTerminationMessage", func() {
 			},
 		}
 
-		setLabelsFromTerminationMessage(labels, termMsg)
-		Expect(labels).To(HaveKeyWithValue(testKeyExisting, testValueExisting))
+		newLabels := addLabelsFromTerminationMessage(labels, termMsg)
+		Expect(newLabels).To(HaveKeyWithValue(testKeyExisting, testValueExisting))
 	})
 
 	It("should handle nil termMsg", func() {
 		labels := map[string]string{
 			"test": "test",
 		}
-		labelsOriginal := make(map[string]string, len(labels))
-		for k, v := range labels {
-			labelsOriginal[k] = v
-		}
 
-		setLabelsFromTerminationMessage(labels, nil)
-		Expect(labels).To(Equal(labelsOriginal))
+		newLabels := addLabelsFromTerminationMessage(labels, nil)
+		Expect(newLabels).To(Equal(labels))
 	})
 })
 
