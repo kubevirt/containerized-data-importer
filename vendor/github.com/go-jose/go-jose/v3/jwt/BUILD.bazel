@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "builder.go",
+        "claims.go",
+        "doc.go",
+        "errors.go",
+        "jwt.go",
+        "validation.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/go-jose/go-jose/v3/jwt",
+    importpath = "github.com/go-jose/go-jose/v3/jwt",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/go-jose/go-jose/v3:go_default_library",
+        "//vendor/github.com/go-jose/go-jose/v3/json:go_default_library",
+    ],
+)
