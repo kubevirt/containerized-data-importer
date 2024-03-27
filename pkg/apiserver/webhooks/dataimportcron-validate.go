@@ -90,10 +90,28 @@ func (wh *dataImportCronValidatingWebhook) Admit(ar admissionv1.AdmissionReview)
 func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *admissionv1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataImportCronSpec, namespace *string) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 
-	if spec.Template.Spec.Source == nil || spec.Template.Spec.Source.Registry == nil {
+	if spec.Template.Spec.Source == nil || (spec.Template.Spec.Source.Registry == nil && spec.Template.Spec.Source.HTTP == nil) {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: "Missing registry source",
+			Message: "Missing registry or HTTP source",
+			Field:   field.Child("Template").String(),
+		})
+		return causes
+	}
+
+	if spec.Template.Spec.Source.Registry != nil && spec.Template.Spec.Source.HTTP != nil {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: "Only one source type can be selected: Registry or HTTP",
+			Field:   field.Child("Template").String(),
+		})
+		return causes
+	}
+
+	if spec.Template.Spec.Source.HTTP != nil && spec.Schedule != "" {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: "Schedule must be empty when using HTTP import",
 			Field:   field.Child("Template").String(),
 		})
 		return causes
