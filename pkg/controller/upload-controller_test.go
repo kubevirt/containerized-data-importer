@@ -595,7 +595,7 @@ var _ = Describe("updateUploadAnnotations", func() {
 
 		pvcCopy := testPvc.DeepCopy()
 
-		updateUploadAnnotations(testPvc, pvcCopy.Annotations, pod, false)
+		updateUploadAnnotations(pvcCopy.Annotations, pod)
 		Expect(pvcCopy.Annotations[cc.AnnPodRestarts]).To(Equal("1"))
 		Expect(pvcCopy.GetAnnotations()[cc.AnnRunningCondition]).To(Equal("true"))
 		Expect(pvcCopy.GetAnnotations()[cc.AnnRunningConditionMessage]).To(Equal(""))
