@@ -1082,6 +1082,7 @@ func makeImporterInitContainersSpec(args *importerPodArgs) []corev1.Container {
 			Image:           args.image,
 			ImagePullPolicy: corev1.PullPolicy(args.pullPolicy),
 			Command:         []string{"sh", "-c", "cp /usr/bin/cdi-containerimage-server /shared/server"},
+			Resources:       *args.podResourceRequirements,
 			VolumeMounts: []corev1.VolumeMount{
 				{
 					MountPath: "/shared",
@@ -1092,8 +1093,9 @@ func makeImporterInitContainersSpec(args *importerPodArgs) []corev1.Container {
 	}
 	if args.vddkImageName != nil {
 		initContainers = append(initContainers, corev1.Container{
-			Name:  "vddk-side-car",
-			Image: *args.vddkImageName,
+			Name:      "vddk-side-car",
+			Image:     *args.vddkImageName,
+			Resources: *args.podResourceRequirements,
 			VolumeMounts: []corev1.VolumeMount{
 				{
 					Name:      "vddk-vol-mount",
