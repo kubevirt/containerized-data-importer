@@ -50,7 +50,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	cdv "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
+	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 )
 
 var (
@@ -736,7 +736,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(*dv.Spec.Source.Registry.URL).To(Equal("docker://" + testDockerRef))
 			Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
 			dv.Status.Phase = cdiv1.Succeeded
-			dv.Status.Conditions = cdv.UpdateReadyCondition(dv.Status.Conditions, corev1.ConditionTrue, "", "")
+			dv.Status.Conditions = dvc.UpdateReadyCondition(dv.Status.Conditions, corev1.ConditionTrue, "", "")
 			err = reconciler.client.Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
 
