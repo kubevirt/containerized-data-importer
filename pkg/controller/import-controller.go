@@ -1102,6 +1102,11 @@ func makeImporterInitContainersSpec(args *importerPodArgs) []corev1.Container {
 			},
 		})
 	}
+	if args.podResourceRequirements != nil {
+		for i := range initContainers {
+			initContainers[i].Resources = *args.podResourceRequirements
+		}
+	}
 	return initContainers
 }
 
