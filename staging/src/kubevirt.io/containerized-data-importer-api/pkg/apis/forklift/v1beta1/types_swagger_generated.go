@@ -11,12 +11,14 @@ func (OvirtVolumePopulator) SwaggerDoc() map[string]string {
 
 func (OvirtVolumePopulatorSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
+		"":                "OvirtVolumePopulatorSpec is the spec of the OvirtVolumePopulator CR",
 		"transferNetwork": "The network attachment definition that should be used for disk transfer.",
 	}
 }
 
 func (OvirtVolumePopulatorStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
+		"":         "OvirtVolumePopulatorStatus is the status of the OvirtVolumePopulator CR",
 		"progress": "+optional",
 	}
 }
@@ -36,12 +38,14 @@ func (OpenstackVolumePopulator) SwaggerDoc() map[string]string {
 
 func (OpenstackVolumePopulatorSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
+		"":                "OpenstackVolumePopulatorSpec is the spec of the OpenstackVolumePopulator CR",
 		"transferNetwork": "The network attachment definition that should be used for disk transfer.",
 	}
 }
 
 func (OpenstackVolumePopulatorStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
+		"":         "OpenstackVolumePopulatorStatus is the status of the OpenstackVolumePopulator CR",
 		"progress": "+optional",
 	}
 }
