@@ -1,0 +1,37 @@
+v1.59.0
+BugFix: Fix Trident provisioner key for using csi-clone
+Cleanup: When building CDI builder, use of podman fails to report image digest
+Enhancement: Run a subset of functional tests in parallel
+Enhancement: Added ability to specify replicas for infra structure pods 
+Enhancement: Add Prometheus alerts CDINoDefaultStorageClass and CDIDefaultStorageClassDegraded; add informative labels to existing alerts
+Cleanup: Refactor monitoring code
+BugFix: Cephfs to Block cloning is creating empty block device
+BugFix: Add Trident RWO Filesystem capability
+BugFix: Fix DataImportCron PVC timestamping for garbage collection
+Enhancement: cdi.kubevirt.io/garbageCollected added to PVCs when DataVolumes are garbage collected
+Enhancement: DataVolume supports PVC adoption via DataVolumeClaimAdoption feature gate and cdi.kubevirt.io/allowClaimAdoption annotation on PVC
+BugFix: Fix DataImportCron import DataVolume creation when last import is not found
+Enhancement: k8s 1.28 dependencies bump
+Cleanup: Remove deprecated insecure registries config map from a CDI install
+Enhancement: Added option customizeComponents
+Enhancement: ReadWriteOncePod is now allowed to use with CDI DataVolumes
+BugFix: StorageProfile ClaimPropertySets validation
+Enhancement: Add PVC spec mutating webhook rendering based on StorageProfiles
+Cleanup: Refactor recording-rules and alerts code
+BugFix: Change CDI webhook failure policy to Ignore
+BugFix:  Allow Deployed CDI to get out of Error Phase
+BugFix: Added the k8s.io/minikube-hostpath storage provider to the list of known storage providers
+Enhancement: Check for cdi.kubevirt.io/allowClaimAdoption on DataVolume rather than PVC
+BugFix: Watch DataImportCron-orphan cronjobs and cleanup them
+Cleanup: Replace cron expression golang library
+BugFix: Avoid race condition during importer termination
+Enhancement: Get all no-provisioner storage capabilities from PVs
+BugFix: ns admin cannot create multiple user-facing CDI resources
+Cleanup: Improve handling of unpopulated capacity field in clone populator
+BugFix: Avoid XSS vulnerability in Upload proxy
+BugFix: cdi.kubevirt.io/allowClaimAdoption annotation broken
+Enhancement: Make importer datasource communication explicit
+Enhancement: Registry imports can now set PVC labels derived from env vars on containerdisks
+BugFix: Add HPE RWX/Block capability
+Enhancement: add forklift populators apps to cdi-importer image
+Cleanup: Switch to using maintained non-archived go-jose
