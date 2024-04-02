@@ -29,6 +29,7 @@ import (
 	. "github.com/onsi/gomega"
 	imagev1 "github.com/openshift/api/image/v1"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -51,6 +52,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 )
 
 var (
@@ -471,6 +473,8 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
 			verifyConditions("Import scheduled", false, false, false, scheduled, inProgress, noSource, &corev1.PersistentVolumeClaim{})
+			verifyDataImportCronOutdatedMetric(cron, true, 1)
+			verifyDataImportCronOutdatedMetric(cron, false, 0)
 
 			dv.Status.Phase = cdiv1.ImportInProgress
 			err = reconciler.client.Update(context.TODO(), dv)
@@ -486,6 +490,8 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready, &corev1.PersistentVolumeClaim{})
+			verifyDataImportCronOutdatedMetric(cron, true, 0)
+			verifyDataImportCronOutdatedMetric(cron, false, 0)
 
 			sourcePVC := cdiv1.DataVolumeSourcePVC{
 				Namespace: cron.Namespace,
@@ -545,6 +551,47 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
 			Expect(err).ToNot(HaveOccurred())
 		})
+
+		DescribeTable("Should set the DataImportCronOutdated metric correctly", func(isPending bool) {
+			cron = newDataImportCron(cronName)
+			cron.Annotations[AnnSourceDesiredDigest] = testDigest
+
+			reconciler = createDataImportCronReconciler(cron)
+
+			if !isPending {
+				sc := cc.CreateStorageClass(storageClassName, map[string]string{cc.AnnDefaultStorageClass: "true"})
+				err := reconciler.client.Create(context.TODO(), sc)
+				Expect(err).ToNot(HaveOccurred())
+
+				sp := &cdiv1.StorageProfile{}
+				sp.Name = storageClassName
+				err = reconciler.client.Create(context.TODO(), sp)
+				Expect(err).ToNot(HaveOccurred())
+			}
+
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+			err = reconciler.client.Get(context.TODO(), cronKey, cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			imports := cron.Status.CurrentImports
+			Expect(imports).ToNot(BeEmpty())
+			dvName := imports[0].DataVolumeName
+			Expect(dvName).ToNot(BeEmpty())
+
+			dv := &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			verifyDataImportCronOutdatedMetric(cron, isPending, 1)
+			verifyDataImportCronOutdatedMetric(cron, !isPending, 0)
+		},
+			Entry("with DataVolume pending for deafult storage class", true),
+			Entry("with deafult storage class", false),
+		)
 
 		It("Should not create DV if PVC exists on DesiredDigest update; Should update DIC and DAS, and GC LRU PVCs", func() {
 			const nPVCs = 3
@@ -1343,6 +1390,15 @@ func verifyConditionState(condType string, condState cdiv1.ConditionState, desir
 	}
 	Expect(condState.Status).To(Equal(desiredStatus))
 	Expect(condState.Reason).To(Equal(desiredReason))
+}
+
+func verifyDataImportCronOutdatedMetric(cron *cdiv1.DataImportCron, isPending bool, expectedValue int) {
+	labels := prometheus.Labels{
+		metrics.PrometheusCronNsLabel:      cron.Namespace,
+		metrics.PrometheusCronNameLabel:    cron.Name,
+		metrics.PrometheusCronPendingLabel: strconv.FormatBool(isPending),
+	}
+	Expect(int(metrics.GetDataImportCronOutdated(labels))).To(Equal(expectedValue))
 }
 
 func getEnvVar(env []corev1.EnvVar, name string) string {
