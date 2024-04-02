@@ -439,7 +439,7 @@ func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.P
 			return errCrNotFound
 		}
 		executable = "ovirt-populator"
-		args = getOvirtPopulatorPodArgs(string(pvc.UID), rawBlock, crInstance)
+		args = getOvirtPopulatorPodArgs(rawBlock, crInstance)
 		secretName = crInstance.Spec.EngineSecretName
 		containerImage = r.ovirtPopulatorImage
 	case "OpenstackVolumePopulator":
@@ -553,7 +553,7 @@ func makePopulatePodSpec(pvcPrimeName, secretName string) corev1.PodSpec {
 	}
 }
 
-func getOvirtPopulatorPodArgs(ownerUID string, rawBlock bool, ovirtCR *v1beta1.OvirtVolumePopulator) []string {
+func getOvirtPopulatorPodArgs(rawBlock bool, ovirtCR *v1beta1.OvirtVolumePopulator) []string {
 	var args []string
 	if rawBlock {
 		args = append(args, "--volume-path="+devicePath)
