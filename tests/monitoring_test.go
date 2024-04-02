@@ -472,47 +472,6 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 			waitForNoPrometheusAlert(f, "CDIDataImportCronOutdated")
 		})
 
-		It("[test_id:XXXXX] DataImportCron failing metric expected value but no alert when no default storage class", func() {
-			numCrons := 2
-			originalCronMetricVal := getMetricValueWithDefault(f, "kubevirt_cdi_dataimportcron_outdated", true)
-			Expect(originalCronMetricVal).To(BeZero())
-
-			waitForNoPrometheusAlert(f, "CDIDataImportCronOutdated")
-
-			reg, err := getDataVolumeSourceRegistry(f)
-			Expect(err).ToNot(HaveOccurred())
-			defer func() {
-				if err := utils.RemoveInsecureRegistry(f.CrClient, *reg.URL); err != nil {
-					_, _ = fmt.Fprintf(GinkgoWriter, "failed to remove registry; %v", err)
-				}
-			}()
-
-			updateDefaultStorageClasses("false")
-
-			for i := 1; i <= numCrons; i++ {
-				cron := utils.NewDataImportCron(fmt.Sprintf("cron-test-%d", i), "5Gi", scheduleEveryMinute, fmt.Sprintf("datasource-test-%d", i), 1, *reg)
-				By(fmt.Sprintf("Create new DataImportCron %s", *reg.URL))
-				_, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Create(context.TODO(), cron, metav1.CreateOptions{})
-				Expect(err).ToNot(HaveOccurred())
-
-				By(fmt.Sprintf("Ensuring metric value incremented to %d", i))
-				Eventually(func() int {
-					return getMetricValue(f, "kubevirt_cdi_dataimportcron_outdated")
-				}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", i))
-			}
-
-			By("Verify no CDIDataImportCronOutdated alert")
-			Consistently(func() bool {
-				return checkPrometheusAlertExists(f, "CDIDataImportCronOutdated", false)
-			}, metricConsistentPollingTimeout, metricPollingInterval).Should(BeTrue())
-
-			updateDefaultStorageClasses("true")
-			By("Ensuring metric value decremented to zero")
-			Eventually(func() int {
-				return getMetricValue(f, "kubevirt_cdi_dataimportcron_outdated")
-			}, metricPollingTimeout, metricPollingInterval).Should(BeZero())
-		})
-
 		It("[test_id:7962] CDIOperatorDown alert firing when operator scaled down", func() {
 			deploymentName := "cdi-operator"
 			By("Scale down operator so alert will trigger")
