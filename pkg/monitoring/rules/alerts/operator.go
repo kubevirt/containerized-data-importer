@@ -57,9 +57,8 @@ var operatorAlerts = []promv1.Rule{
 	},
 	{
 		Alert: "CDIDataImportCronOutdated",
-		Expr: intstr.FromString(`sum by(ns,cron_name) (kubevirt_cdi_dataimportcron_outdated) +
-								 on () (0*(sum(kubevirt_cdi_storageprofile_info{default="true"}) or sum(kubevirt_cdi_storageprofile_info{virtdefault="true"}))) > 0`),
-		For: (*promv1.Duration)(ptr.To("15m")),
+		Expr:  intstr.FromString(`sum by(ns,cron_name) (kubevirt_cdi_dataimportcron_outdated{pending="false"}) > 0`),
+		For:   (*promv1.Duration)(ptr.To("15m")),
 		Annotations: map[string]string{
 			"summary": "DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule",
 		},

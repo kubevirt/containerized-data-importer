@@ -68,9 +68,6 @@ const (
 	ErrDataSourceAlreadyManaged = "ErrDataSourceAlreadyManaged"
 	// MessageDataSourceAlreadyManaged provides a const to form DataSource already managed error message
 	MessageDataSourceAlreadyManaged = "DataSource %s is already managed by DataImportCron %s"
-
-	prometheusNsLabel       = "ns"
-	prometheusCronNameLabel = "cron_name"
 )
 
 // DataImportCronReconciler members
@@ -887,7 +884,8 @@ func (r *DataImportCronReconciler) garbageCollectSnapshots(ctx context.Context, 
 
 func (r *DataImportCronReconciler) cleanup(ctx context.Context, cron types.NamespacedName) error {
 	// Don't keep alerting over a cron thats being deleted, will get set back to 1 again by reconcile loop if needed.
-	metrics.DeleteDataImportCronOutdated(getPrometheusCronLabels(cron))
+	metrics.DeleteDataImportCronOutdated(getPrometheusCronLabels(cron.Namespace, cron.Name))
+
 	if err := r.deleteJobs(ctx, cron); err != nil {
 		return err
 	}
