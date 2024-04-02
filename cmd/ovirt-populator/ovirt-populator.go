@@ -24,7 +24,7 @@ type engineConfig struct {
 	insecure bool
 }
 
-type TransferProgress struct {
+type transferProgress struct {
 	Transferred uint64  `json:"transferred"`
 	Description string  `json:"description"`
 	Size        *uint64 `json:"size,omitempty"`
@@ -32,10 +32,10 @@ type TransferProgress struct {
 }
 
 func main() {
-	var engineUrl, diskID, volPath, secretName, crName, crNamespace, ownerUID string
+	var engineURL, diskID, volPath, secretName, crName, crNamespace, ownerUID string
 	var pvcSize *int64
 
-	flag.StringVar(&engineUrl, "engine-url", "", "ovirt-engine url (https://engine.fqdn)")
+	flag.StringVar(&engineURL, "engine-url", "", "ovirt-engine url (https://engine.fqdn)")
 	flag.StringVar(&diskID, "disk-id", "", "ovirt-engine disk id")
 	flag.StringVar(&volPath, "volume-path", "", "Volume path to populate")
 	flag.StringVar(&secretName, "secret-name", "", "Name of secret containing ovirt credentials")
@@ -57,7 +57,7 @@ func main() {
 
 	prometheusutil.StartPrometheusEndpoint(certsDirectory)
 
-	populate(engineUrl, diskID, volPath, ownerUID, *pvcSize)
+	populate(engineURL, diskID, volPath, ownerUID, *pvcSize)
 }
 
 func populate(engineURL, diskID, volPath, ownerUID string, pvcSize int64) {
@@ -124,7 +124,7 @@ func monitorProgress(scanner *bufio.Scanner, ownerUID string, pvcSize int64, don
 	metric := &dto.Metric{}
 
 	for scanner.Scan() {
-		progressOutput := TransferProgress{}
+		progressOutput := transferProgress{}
 		text := scanner.Text()
 		klog.Info(text)
 		if err := json.Unmarshal([]byte(text), &progressOutput); err != nil {

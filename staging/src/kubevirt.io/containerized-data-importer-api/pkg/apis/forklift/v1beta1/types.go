@@ -45,8 +45,10 @@ type OvirtVolumePopulatorList struct {
 	Items           []OvirtVolumePopulator `json:"items"`
 }
 
+// OpenstackVolumePopulatorKind is the type of the CR used to populator a volume from an Openstack image
 var OpenstackVolumePopulatorKind = "OpenstackVolumePopulator"
 
+// OpenstackVolumePopulator is the CR used to populator a volume from an Openstack image
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +k8s:openapi-gen=true
@@ -75,6 +77,7 @@ type OpenstackVolumePopulatorStatus struct {
 	Progress string `json:"progress"`
 }
 
+// OpenstackVolumePopulatorList contains a list of OpenstackVolumePopulators
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type OpenstackVolumePopulatorList struct {
 	metav1.TypeMeta `json:",inline"`

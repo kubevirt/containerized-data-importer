@@ -7005,6 +7005,8 @@ spec:
   - name: v1beta1
     schema:
       openAPIV3Schema:
+        description: OpenstackVolumePopulator is the CR used to populator a volume
+          from an Openstack image
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -7019,6 +7021,8 @@ spec:
           metadata:
             type: object
           spec:
+            description: OpenstackVolumePopulatorSpec is the spec of the OpenstackVolumePopulator
+              CR
             properties:
               identityUrl:
                 type: string
@@ -7070,6 +7074,8 @@ spec:
             - secretName
             type: object
           status:
+            description: OpenstackVolumePopulatorStatus is the status of the OpenstackVolumePopulator
+              CR
             properties:
               progress:
                 type: string
@@ -7124,6 +7130,8 @@ spec:
           metadata:
             type: object
           spec:
+            description: OvirtVolumePopulatorSpec is the spec of the OvirtVolumePopulator
+              CR
             properties:
               diskId:
                 type: string
@@ -7175,6 +7183,8 @@ spec:
             - engineUrl
             type: object
           status:
+            description: OvirtVolumePopulatorStatus is the status of the OvirtVolumePopulator
+              CR
             properties:
               progress:
                 type: string
