@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/docker/go-units"
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
@@ -285,6 +286,11 @@ func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeC
 		}
 		setRequestedVolumeSize(pvcSpec, resource.Quantity{})
 		return nil
+	}
+
+	// Kubevirt doesn't allow disks smaller than 1MiB. Rejecting for consistency.
+	if requestedSize.Value() < units.MiB {
+		return errors.Errorf("PVC Spec is not valid - storage size should be at least 1MiB")
 	}
 
 	requestedSize, err := cc.InflateSizeWithOverhead(context.TODO(), client, requestedSize.Value(), pvcSpec)

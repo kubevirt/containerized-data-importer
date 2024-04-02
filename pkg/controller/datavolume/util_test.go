@@ -46,6 +46,22 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 		Expect(found).To(BeFalse())
 	})
 
+	It("Should return error on PVC with storage size smaller than 1MiB", func() {
+		volumeMode := corev1.PersistentVolumeBlock
+		pvcSpec := &corev1.PersistentVolumeClaimSpec{
+			StorageClassName: &scName,
+			VolumeMode:       &volumeMode,
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("9"),
+				},
+			},
+		}
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("PVC Spec is not valid - storage size should be at least 1MiB"))
+	})
+
 	It("Should return the same volume size (block volume mode)", func() {
 		volumeMode := corev1.PersistentVolumeBlock
 		pvcSpec := &corev1.PersistentVolumeClaimSpec{
