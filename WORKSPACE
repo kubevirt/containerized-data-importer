@@ -2418,39 +2418,57 @@ rpm(
 )
 
 rpm(
-    name = "nginx-1__1.24.0-1.module_el9__plus__833__plus__e1ad0c2b.aarch64",
-    sha256 = "e2ac2496a48209fd98e6445d08a2dd35ebdcf070af0783ed5318fe714b739c49",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nginx-1.24.0-1.module_el9+833+e1ad0c2b.aarch64.rpm"],
+    name = "nginx-1__1.22.1-4.module_el9__plus__666__plus__132dc76f.aarch64",
+    sha256 = "73f304462d847fd7324ed9d578c8fcf31bf7f9a15dd04097b7bd757670531c33",
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nginx-1.22.1-4.module_el9+666+132dc76f.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/73f304462d847fd7324ed9d578c8fcf31bf7f9a15dd04097b7bd757670531c33",
+    ],
 )
 
 rpm(
-    name = "nginx-1__1.24.0-1.module_el9__plus__833__plus__e1ad0c2b.x86_64",
-    sha256 = "086d863e90e9b62cc56b1160a6a9558483a9f75970032f1200cbdb811afee4b3",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nginx-1.24.0-1.module_el9+833+e1ad0c2b.x86_64.rpm"],
+    name = "nginx-1__1.22.1-4.module_el9__plus__666__plus__132dc76f.x86_64",
+    sha256 = "6a6e8247840fdd4f8328f94701a7a3649903c8d8fd72aaec9b214a9dad690e5c",
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nginx-1.22.1-4.module_el9+666+132dc76f.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/6a6e8247840fdd4f8328f94701a7a3649903c8d8fd72aaec9b214a9dad690e5c",
+    ],
 )
 
 rpm(
-    name = "nginx-core-1__1.24.0-1.module_el9__plus__833__plus__e1ad0c2b.aarch64",
-    sha256 = "992131cc1604751947787cf003fd1332baa5843748d306e38781be88b23086a0",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nginx-core-1.24.0-1.module_el9+833+e1ad0c2b.aarch64.rpm"],
+    name = "nginx-core-1__1.22.1-4.module_el9__plus__666__plus__132dc76f.aarch64",
+    sha256 = "70009983e5f5cf026805ce8d584aa251f48f8f386e1d489def7902eb6714990c",
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nginx-core-1.22.1-4.module_el9+666+132dc76f.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/70009983e5f5cf026805ce8d584aa251f48f8f386e1d489def7902eb6714990c",
+    ],
 )
 
 rpm(
-    name = "nginx-core-1__1.24.0-1.module_el9__plus__833__plus__e1ad0c2b.x86_64",
-    sha256 = "edeb5c275c635e31d51294b6ff4120627115aa85d95f34c51b1de04ed7296dc1",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nginx-core-1.24.0-1.module_el9+833+e1ad0c2b.x86_64.rpm"],
+    name = "nginx-core-1__1.22.1-4.module_el9__plus__666__plus__132dc76f.x86_64",
+    sha256 = "67e61b35c5b95457264201f23ef8aef797b2564e7fb0ea9a68b2245d75464d5c",
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nginx-core-1.22.1-4.module_el9+666+132dc76f.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/67e61b35c5b95457264201f23ef8aef797b2564e7fb0ea9a68b2245d75464d5c",
+    ],
 )
 
 rpm(
-    name = "nginx-filesystem-1__1.24.0-1.module_el9__plus__833__plus__e1ad0c2b.aarch64",
-    sha256 = "225ef9082e6fe80a591e04cd373f3dd2bb5386dbd24bf7e1ee4af76f963fd925",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nginx-filesystem-1.24.0-1.module_el9+833+e1ad0c2b.noarch.rpm"],
+    name = "nginx-filesystem-1__1.22.1-4.module_el9__plus__666__plus__132dc76f.aarch64",
+    sha256 = "8e564ab711b4a60b769a970dc03fb7a32e6441bf9e761321e3f0a24080491eb2",
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/nginx-filesystem-1.22.1-4.module_el9+666+132dc76f.noarch.rpm",
+        "https://storage.googleapis.com/builddeps/8e564ab711b4a60b769a970dc03fb7a32e6441bf9e761321e3f0a24080491eb2",
+    ],
 )
 
 rpm(
-    name = "nginx-filesystem-1__1.24.0-1.module_el9__plus__833__plus__e1ad0c2b.x86_64",
-    sha256 = "225ef9082e6fe80a591e04cd373f3dd2bb5386dbd24bf7e1ee4af76f963fd925",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nginx-filesystem-1.24.0-1.module_el9+833+e1ad0c2b.noarch.rpm"],
+    name = "nginx-filesystem-1__1.22.1-4.module_el9__plus__666__plus__132dc76f.x86_64",
+    sha256 = "8e564ab711b4a60b769a970dc03fb7a32e6441bf9e761321e3f0a24080491eb2",
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/nginx-filesystem-1.22.1-4.module_el9+666+132dc76f.noarch.rpm",
+        "https://storage.googleapis.com/builddeps/8e564ab711b4a60b769a970dc03fb7a32e6441bf9e761321e3f0a24080491eb2",
+    ],
 )
 
 rpm(
