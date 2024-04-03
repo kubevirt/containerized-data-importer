@@ -18,6 +18,7 @@ package datavolume
 
 import (
 	"context"
+	"maps"
 	"reflect"
 	"strings"
 	"time"
@@ -27,6 +28,7 @@ import (
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -45,8 +47,10 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/mesh"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 )
 
@@ -854,6 +858,24 @@ var _ = Describe("All DataVolume Tests", func() {
 				Expect(targetSizeInt64).To(Equal(expectedSizeInt64))
 			},
 			Entry("hostAssited with empty size and 'Block' volume mode", cdiv1.CloneStrategyHostAssisted, BlockMode),
+		)
+
+		DescribeTable("should create pvc clone pod with service mesh lifecycle hook", func(annotations map[string]string, expectedHook *v1.Lifecycle) {
+			dv := newCloneDataVolumeWithEmptyStorage("test-dv", "default")
+			cloneStrategy := cdiv1.CloneStrategyHostAssisted
+			storageProfile := createStorageProfileWithCloneStrategy(scName, []cdiv1.ClaimPropertySet{
+				{AccessModes: accessMode, VolumeMode: &BlockMode}}, &cloneStrategy)
+
+			maps.Copy(annotations, annKubevirt)
+			pvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, annotations, nil, corev1.ClaimBound)
+			reconciler := createCloneReconciler(dv, pvc, storageProfile, sc)
+			pod := reconciler.makeSizeDetectionPodSpec(pvc, dv)
+
+			By("Verifying the pod lifecycle hook is set")
+			Expect(pod.Spec.Containers[0].Lifecycle).To(Equal(expectedHook))
+		},
+			Entry("should create pod with linkerd mesh lifecycle hook", map[string]string{cc.AnnPodSidecarInjectionLinkerd: "enabled"}, &v1.Lifecycle{PreStop: mesh.L5dPreStopHook()}),
+			Entry("should create pod with istio mesh lifecycle hook", map[string]string{cc.AnnPodSidecarInjectionIstio: "true"}, &v1.Lifecycle{PreStop: mesh.IstioPreStopHook()}),
 		)
 	})
 })

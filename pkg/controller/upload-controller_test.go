@@ -22,6 +22,7 @@ import (
 
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/mesh"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -32,6 +33,7 @@ import (
 
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -489,6 +491,29 @@ var _ = Describe("reconcilePVC loop", func() {
 		},
 			Entry("no profile set", nil),
 			Entry("'Old' profile set", &ocpconfigv1.TLSSecurityProfile{Type: ocpconfigv1.TLSProfileOldType, Old: &ocpconfigv1.OldTLSProfile{}}),
+		)
+
+		DescribeTable("should create upload pod with service mesh lifecycle hook", func(annotations map[string]string, expectedHook *v1.Lifecycle) {
+			testPvc := cc.CreatePvc(testPvcName, "default", annotations, nil)
+			reconciler := createUploadReconciler(testPvc)
+			cdiConfig := &cdiv1.CDIConfig{}
+			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = reconciler.reconcilePVC(reconciler.log, testPvc, isClone)
+			Expect(err).ToNot(HaveOccurred())
+
+			pod := &corev1.Pod{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, pod)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pod.Name).To(Equal(uploadResourceName))
+
+			By("Verifying the pod lifecycle hook is set")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pod.Spec.Containers[0].Lifecycle).To(Equal(expectedHook))
+		},
+			Entry("should create pod with linkerd mesh lifecycle hook", map[string]string{cc.AnnPodSidecarInjectionLinkerd: "enabled", cc.AnnUploadRequest: "", AnnUploadPod: uploadResourceName}, &v1.Lifecycle{PreStop: mesh.L5dPreStopHook()}),
+			Entry("should create pod with istio mesh lifecycle hook", map[string]string{cc.AnnPodSidecarInjectionIstio: "true", cc.AnnUploadRequest: "", AnnUploadPod: uploadResourceName}, &v1.Lifecycle{PreStop: mesh.IstioPreStopHook()}),
 		)
 	})
 })

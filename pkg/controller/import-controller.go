@@ -32,6 +32,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/mesh"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
@@ -1010,6 +1011,9 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 			containers[i].Resources = *args.podResourceRequirements
 		}
 	}
+
+	mesh.ApplyPreStopHook(args.pvc.ObjectMeta, &containers[0])
+
 	return containers
 }
 

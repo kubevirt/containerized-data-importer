@@ -18,11 +18,13 @@ package clone
 
 import (
 	"context"
+	"maps"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +37,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/mesh"
 )
 
 var _ = Describe("PrepClaimPhase test", func() {
@@ -262,6 +265,28 @@ var _ = Describe("PrepClaimPhase test", func() {
 			Expect(pod.Spec.Containers[0].ImagePullPolicy).To(Equal(p.PullPolicy))
 			Expect(pod.Spec.NodeName).To(Equal(""))
 		})
+
+		DescribeTable("should create prep claim pod with service mesh lifecycle hook", func(annotations map[string]string, expectedHook *v1.Lifecycle) {
+			claim := getClaim()
+			cc.AddAnnotation(claim, cc.AnnSelectedNode, "node1")
+			maps.Copy(claim.Annotations, annotations)
+			claim.Spec.Resources.Requests[corev1.ResourceStorage] = defaultRequestSize
+
+			p := createPrepClaimPhase(claim)
+
+			result, err := p.Reconcile(context.Background())
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result).ToNot(BeNil())
+			Expect(result.Requeue).To(BeFalse())
+			Expect(result.RequeueAfter).To(BeZero())
+
+			pod := getCreatedPod(p)
+			By("Verifying the pod lifecycle hook is set")
+			Expect(pod.Spec.Containers[0].Lifecycle).To(Equal(expectedHook))
+		},
+			Entry("should create pod with linkerd mesh lifecycle hook", map[string]string{cc.AnnPodSidecarInjectionLinkerd: "enabled"}, &v1.Lifecycle{PreStop: mesh.L5dPreStopHook()}),
+			Entry("should create pod with istio mesh lifecycle hook", map[string]string{cc.AnnPodSidecarInjectionIstio: "true"}, &v1.Lifecycle{PreStop: mesh.IstioPreStopHook()}),
+		)
 
 		Context("with prep pod created", func() {
 			getPod := func() *corev1.Pod {

@@ -43,6 +43,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/mesh"
 )
 
 const (
@@ -642,6 +643,8 @@ func (r *PvcCloneReconciler) makeSizeDetectionPodSpec(
 	if err != nil {
 		return nil
 	}
+
+	mesh.ApplyPreStopHook(sourcePvc.ObjectMeta, container)
 
 	// Assemble the pod
 	pod := &corev1.Pod{

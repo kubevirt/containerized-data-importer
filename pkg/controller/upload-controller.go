@@ -25,6 +25,7 @@ import (
 	"time"
 
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/mesh"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 
 	"github.com/go-logr/logr"
@@ -871,6 +872,9 @@ func (r *UploadReconciler) makeUploadPodContainers(args UploadPodArgs, resourceR
 	if resourceRequirements != nil {
 		containers[0].Resources = *resourceRequirements
 	}
+
+	mesh.ApplyPreStopHook(args.PVC.ObjectMeta, &containers[0])
+
 	return containers
 }
 

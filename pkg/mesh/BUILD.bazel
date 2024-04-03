@@ -1,0 +1,33 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "istio.go",
+        "linkerd.go",
+        "mesh.go",
+    ],
+    importpath = "kubevirt.io/containerized-data-importer/pkg/mesh",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/controller/common:go_default_library",
+        "//vendor/k8s.io/api/core/v1:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = [
+        "mesh_suite_test.go",
+        "mesh_test.go",
+    ],
+    embed = [":go_default_library"],
+    deps = [
+        "//pkg/controller/common:go_default_library",
+        "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
+        "//vendor/github.com/onsi/gomega:go_default_library",
+        "//vendor/k8s.io/api/core/v1:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
+    ],
+)

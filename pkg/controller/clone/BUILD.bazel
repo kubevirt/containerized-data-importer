@@ -17,6 +17,7 @@ go_library(
     deps = [
         "//pkg/common:go_default_library",
         "//pkg/controller/common:go_default_library",
+        "//pkg/mesh:go_default_library",
         "//pkg/util:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/go-logr/logr:go_default_library",
@@ -55,6 +56,7 @@ go_test(
     embed = [":go_default_library"],
     deps = [
         "//pkg/controller/common:go_default_library",
+        "//pkg/mesh:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1:go_default_library",
         "//vendor/github.com/onsi/ginkgo/v2:go_default_library",

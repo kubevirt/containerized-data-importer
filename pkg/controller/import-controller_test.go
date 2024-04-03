@@ -25,6 +25,7 @@ import (
 
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/mesh"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 
@@ -876,6 +877,30 @@ var _ = Describe("Create Importer Pod", func() {
 		Entry("with long checkpoint name", "testPvc1", strings.Repeat("repeating-checkpoint-id-", 10)),
 		Entry("with long PVC name", strings.Repeat("test-pvc-", 20), "snap1"),
 		Entry("with long PVC and checkpoint names", strings.Repeat("test-pvc-", 20), strings.Repeat("repeating-checkpoint-id-", 10)),
+	)
+
+	DescribeTable("should create importer pod with service mesh lifecycle hook", func(annotations map[string]string, expectedHook *v1.Lifecycle) {
+		pvc := cc.CreatePvc("testPvc1", "default", annotations, nil)
+		reconciler := createImportReconciler(pvc)
+		podEnvVar := &importPodEnvVar{
+			imageSize:          "1G",
+			filesystemOverhead: "0.055",
+		}
+		podArgs := &importerPodArgs{
+			image:             testImage,
+			verbose:           "5",
+			pullPolicy:        testPullPolicy,
+			podEnvVar:         podEnvVar,
+			pvc:               pvc,
+			scratchPvcName:    nil,
+			priorityClassName: pvc.Annotations[cc.AnnPriorityClassName],
+		}
+		pod, err := createImporterPod(context.TODO(), reconciler.log, reconciler.client, podArgs, map[string]string{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pod.Spec.Containers[0].Lifecycle).To(Equal(expectedHook))
+	},
+		Entry("should create pod with linkerd mesh lifecycle hook", map[string]string{cc.AnnPodSidecarInjectionLinkerd: "enabled", cc.AnnImportPod: "podName"}, &v1.Lifecycle{PreStop: mesh.L5dPreStopHook()}),
+		Entry("should create pod with istio mesh lifecycle hook", map[string]string{cc.AnnPodSidecarInjectionIstio: "true", cc.AnnImportPod: "podName"}, &v1.Lifecycle{PreStop: mesh.IstioPreStopHook()}),
 	)
 })
 

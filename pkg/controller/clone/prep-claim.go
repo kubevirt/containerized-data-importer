@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/mesh"
 )
 
 // PrepClaimPhaseName is the name of the prep claim phase
@@ -205,6 +206,8 @@ func (p *PrepClaimPhase) createPod(ctx context.Context, name string, pvc *corev1
 	if p.OwnershipLabel != "" {
 		AddOwnershipLabel(p.OwnershipLabel, pod, p.Owner)
 	}
+
+	mesh.ApplyPreStopHook(pvc.ObjectMeta, &pod.Spec.Containers[0])
 
 	cc.SetRestrictedSecurityContext(&pod.Spec)
 

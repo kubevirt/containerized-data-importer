@@ -18,6 +18,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 	"time"
@@ -26,6 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,6 +41,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/mesh"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 )
@@ -295,6 +298,39 @@ var _ = Describe("Clone controller reconcile loop", func() {
 			pod.Labels = map[string]string{"cdi.kubevirt.io": "cdi-clone-source"}
 			return pod
 		}),
+	)
+
+	DescribeTable("should create clone pod with service mesh lifecycle hook", func(annotations map[string]string, expectedHook *v1.Lifecycle) {
+		defaultAnnotations := map[string]string{
+			cc.AnnCloneRequest:   "default/source",
+			cc.AnnPodReady:       "true",
+			cc.AnnCloneToken:     "foobaz",
+			AnnUploadClientName:  "uploadclient",
+			cc.AnnCloneSourcePod: "default-testPvc1-source-pod",
+		}
+		maps.Copy(defaultAnnotations, annotations)
+		testPvc := cc.CreatePvc("testPvc1", "default", defaultAnnotations, nil)
+		sourcePvc := cc.CreatePvc("source", "default", map[string]string{}, nil)
+		pod := podUsingBlockPVC(sourcePvc, false)
+		pod.Name = "other-target-pvc-uid" + common.ClonerSourcePodNameSuffix
+		pod.Labels = map[string]string{
+			common.CDIComponentLabel: common.ClonerSourcePodName,
+		}
+		reconciler = createCloneReconciler(testPvc, sourcePvc, pod)
+		result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result.RequeueAfter).To(BeZero())
+		By("Verifying source pod gets created")
+		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sourcePod).ToNot(BeNil())
+		Expect(sourcePod.Name).ToNot(Equal(pod.Name))
+		By("Verifying the pod lifecycle hook is set")
+		Expect(sourcePod.Spec.Containers[0].Lifecycle).To(Equal(expectedHook))
+		reconciler = nil
+	},
+		Entry("should create pod with linkerd mesh lifecycle hook", map[string]string{cc.AnnPodSidecarInjectionLinkerd: "enabled"}, &v1.Lifecycle{PreStop: mesh.L5dPreStopHook()}),
+		Entry("should create pod with istio mesh lifecycle hook", map[string]string{cc.AnnPodSidecarInjectionIstio: "true"}, &v1.Lifecycle{PreStop: mesh.IstioPreStopHook()}),
 	)
 
 	It("Should error with missing upload client name annotation if none provided", func() {
