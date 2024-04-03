@@ -4,7 +4,7 @@ package v1beta1
 
 func (OvirtVolumePopulator) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":       "+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+k8s:openapi-gen=true\n+kubebuilder:resource:shortName={ovvp,ovvps}\nOvirtVolumePopulator is the CR used to populator a volume from an oVirt disk",
+		"":       "OvirtVolumePopulator is the CR used to populator a volume from an oVirt disk\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+k8s:openapi-gen=true\n+kubebuilder:resource:shortName={ovvp,ovvps}",
 		"status": "+optional",
 	}
 }
@@ -25,13 +25,13 @@ func (OvirtVolumePopulatorStatus) SwaggerDoc() map[string]string {
 
 func (OvirtVolumePopulatorList) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "OvirtVolumePopulatorList contains a list of OvirtVolumePopulators\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\nOvirtVolumePopulatorList is the CR used to populator a volume from an oVirt disk",
+		"": "OvirtVolumePopulatorList contains a list of OvirtVolumePopulators\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
 	}
 }
 
 func (OpenstackVolumePopulator) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":       "+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+k8s:openapi-gen=true\n+kubebuilder:resource:shortName={osvp,osvps}\nOpenstackVolumePopulator is the CR used to populator a volume from an Openstack image",
+		"":       "OpenstackVolumePopulator is the CR used to populator a volume from an Openstack image\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+k8s:openapi-gen=true\n+kubebuilder:resource:shortName={osvp,osvps}",
 		"status": "+optional",
 	}
 }
@@ -52,6 +52,6 @@ func (OpenstackVolumePopulatorStatus) SwaggerDoc() map[string]string {
 
 func (OpenstackVolumePopulatorList) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\nOpenstackVolumePopulatorList contains a list of OpenstackVolumePopulators",
+		"": "OpenstackVolumePopulatorList contains a list of OpenstackVolumePopulators\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
 	}
 }
