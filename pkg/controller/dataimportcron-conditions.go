@@ -40,18 +40,7 @@ const (
 
 func updateDataImportCronCondition(cron *cdiv1.DataImportCron, conditionType cdiv1.DataImportCronConditionType, status corev1.ConditionStatus, message, reason string) {
 	if conditionType == cdiv1.DataImportCronUpToDate {
-		isUpToDate := status == corev1.ConditionTrue
-		isPending := false
-		if !isUpToDate {
-			_, scExists := cron.Annotations[AnnStorageClass]
-			isPending = !scExists && common.GetStorageClassFromDVSpec(&cron.Spec.Template) == nil
-		}
-
-		labels := getPrometheusCronLabels(cron.Namespace, cron.Name)
-		metrics.DeleteDataImportCronOutdated(labels)
-
-		labels[metrics.PrometheusCronPendingLabel] = strconv.FormatBool(isPending)
-		metrics.SetDataImportCronOutdated(labels, !isUpToDate)
+		updateDataImportCronOutdatedMetric(cron, status)
 	}
 
 	if condition := FindDataImportCronConditionByType(cron, conditionType); condition != nil {
@@ -61,6 +50,22 @@ func updateDataImportCronCondition(cron *cdiv1.DataImportCron, conditionType cdi
 		updateConditionState(&condition.ConditionState, status, message, reason)
 		cron.Status.Conditions = append(cron.Status.Conditions, *condition)
 	}
+}
+
+func updateDataImportCronOutdatedMetric(cron *cdiv1.DataImportCron, status corev1.ConditionStatus) {
+	isUpToDate := status == corev1.ConditionTrue
+	isPending := false
+	// Check if the DataImportCron import DV is pending for default k8s/virt storage class
+	if !isUpToDate {
+		_, scExists := cron.Annotations[AnnStorageClass]
+		isPending = !scExists && common.GetStorageClassFromDVSpec(&cron.Spec.Template) == nil
+	}
+
+	labels := getPrometheusCronLabels(cron.Namespace, cron.Name)
+	metrics.DeleteDataImportCronOutdated(labels)
+
+	labels[metrics.PrometheusCronPendingLabel] = strconv.FormatBool(isPending)
+	metrics.SetDataImportCronOutdated(labels, !isUpToDate)
 }
 
 // FindDataImportCronConditionByType finds DataImportCronCondition by condition type
