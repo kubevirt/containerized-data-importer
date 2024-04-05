@@ -795,7 +795,7 @@ func IsPopulated(pvc *corev1.PersistentVolumeClaim, c client.Client) (bool, erro
 	})
 }
 
-// GetPreallocation retuns the preallocation setting for the specified object (DV or VolumeImportSource), falling back to StorageClass and global setting (in this order)
+// GetPreallocation returns the preallocation setting for the specified object (DV or VolumeImportSource), falling back to StorageClass and global setting (in this order)
 func GetPreallocation(ctx context.Context, client client.Client, preallocation *bool) bool {
 	// First, the DV's preallocation
 	if preallocation != nil {

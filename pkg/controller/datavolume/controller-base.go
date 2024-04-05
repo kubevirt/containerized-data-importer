@@ -625,7 +625,7 @@ func (r *ReconcilerBase) handleStaticVolume(syncState *dvSyncState, log logr.Log
 	for _, v := range volumes {
 		if v == syncState.pvc.Spec.VolumeName {
 			pvcCpy := syncState.pvc.DeepCopy()
-			// handle as "populatedFor" going foreward
+			// handle as "populatedFor" going forward
 			cc.AddAnnotation(pvcCpy, cc.AnnPopulatedFor, syncState.dvMutated.Name)
 			delete(pvcCpy.Annotations, cc.AnnPersistentVolumeList)
 			if err := r.updatePVC(pvcCpy); err != nil {

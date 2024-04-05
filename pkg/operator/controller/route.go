@@ -79,7 +79,7 @@ func ensureUploadProxyRouteExists(ctx context.Context, logger logr.Logger, c cli
 				"cdi.kubevirt.io": "",
 			},
 			Annotations: map[string]string{
-				// long timeout here to make sure client conection doesn't die during qcow->raw conversion
+				// long timeout here to make sure client connection doesn't die during qcow->raw conversion
 				"haproxy.router.openshift.io/timeout": "60m",
 			},
 		},

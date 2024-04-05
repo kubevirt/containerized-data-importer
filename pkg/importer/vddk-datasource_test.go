@@ -178,7 +178,7 @@ var _ = Describe("VDDK data source", func() {
 		Expect(sourceSum).To(Equal(destSum))
 	})
 
-	It("VDDK delta copy should sucessfully apply a delta to a base disk image", func() {
+	It("VDDK delta copy should successfully apply a delta to a base disk image", func() {
 
 		// Copy base disk ("snapshot 1")
 		snap1, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "", "", v1.PersistentVolumeFilesystem)

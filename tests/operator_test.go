@@ -768,7 +768,7 @@ var _ = Describe("ALL Operator tests", func() {
 				cdiConfig, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
-				By("Enable non existant featureGate")
+				By("Enable non existent featureGate")
 				cdiConfig.Spec = cdiv1.CDIConfigSpec{
 					FeatureGates: []string{feature},
 				}

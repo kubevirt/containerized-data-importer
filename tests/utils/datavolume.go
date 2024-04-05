@@ -71,7 +71,7 @@ const (
 	LargePhysicalDiskQcow = "http://cdi-file-host.%s/cirros-large-physical-size.qcow2"
 	// LargePhysicalDiskXz provides a test url for a cirros image with a large physical size, in RAW format, XZ-compressed
 	LargePhysicalDiskXz = "http://cdi-file-host.%s/cirros-large-physical-size.raw.xz"
-	// TarArchiveURL provides a test url for a tar achive file
+	// TarArchiveURL provides a test url for a tar archive file
 	TarArchiveURL = "http://cdi-file-host.%s/archive.tar"
 	// CirrosURL provides the standard cirros image qcow image
 	CirrosURL = "http://cdi-file-host.%s/cirros-qcow2.img"

@@ -117,8 +117,8 @@ func main() {
 		volumeMode = v1.PersistentVolumeFilesystem
 	}
 
-	// With writeback cache mode it's possible that the process will exit before all writes have been commited to storage.
-	// To guarantee that our write was commited to storage, we make a fsync syscall and ensure success.
+	// With writeback cache mode it's possible that the process will exit before all writes have been committed to storage.
+	// To guarantee that our write was committed to storage, we make a fsync syscall and ensure success.
 	// Also might be a good idea to sync any chmod's we might have done.
 	defer fsyncDataFile(contentType, volumeMode)
 
@@ -362,6 +362,6 @@ func fsyncDataFile(contentType string, volumeMode v1.PersistentVolumeMode) {
 		klog.Errorf("could not fsync following qemu-img writing: %+v", err)
 		os.Exit(1)
 	}
-	klog.V(3).Infof("Successfully completed fsync(%s) syscall, commited to disk\n", dataFile)
+	klog.V(3).Infof("Successfully completed fsync(%s) syscall, committed to disk\n", dataFile)
 	file.Close()
 }

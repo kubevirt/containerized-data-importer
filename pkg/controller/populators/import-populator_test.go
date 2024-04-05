@@ -392,7 +392,7 @@ var _ = Describe("Import populator tests", func() {
 		},
 			Entry("with pod running phase", string(corev1.PodRunning)),
 			Entry("with pod failed phase", string(corev1.PodFailed)),
-			Entry("with pod succeded phase", string(corev1.PodSucceeded)),
+			Entry("with pod succeeded phase", string(corev1.PodSucceeded)),
 		)
 
 		It("should update target pvc with desired labels from succeeded pvc prime", func() {
