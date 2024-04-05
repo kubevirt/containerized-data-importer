@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -1633,7 +1634,8 @@ func GetMetricsURL(pod *corev1.Pod) (string, error) {
 	if err != nil || pod.Status.PodIP == "" {
 		return "", err
 	}
-	url := fmt.Sprintf("https://%s:%d/metrics", pod.Status.PodIP, port)
+	domain := net.JoinHostPort(pod.Status.PodIP, fmt.Sprint(port))
+	url := fmt.Sprintf("https://%s/metrics", domain)
 	return url, nil
 }
 
