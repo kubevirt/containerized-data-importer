@@ -408,7 +408,7 @@ func getSourceRefOp(ctx context.Context, log logr.Logger, dv *cdiv1.DataVolume, 
 }
 
 func updatePendingDataVolumesGauge(ctx context.Context, log logr.Logger, dv *cdiv1.DataVolume, c client.Client) {
-	if cc.GetStorageClassFromDVSpec(dv) != nil {
+	if !cc.IsDataVolumeUsingDefaultStorageClass(dv) {
 		return
 	}
 
@@ -434,7 +434,7 @@ func getDefaultStorageClassDataVolumeCount(ctx context.Context, c client.Client,
 
 	dvCount := 0
 	for _, dv := range dvList.Items {
-		if cc.GetStorageClassFromDVSpec(&dv) == nil {
+		if cc.IsDataVolumeUsingDefaultStorageClass(&dv) {
 			dvCount++
 		}
 	}

@@ -58,7 +58,7 @@ func updateDataImportCronOutdatedMetric(cron *cdiv1.DataImportCron, status corev
 	// Check if the DataImportCron import DV is pending for default k8s/virt storage class
 	if !isUpToDate {
 		_, scExists := cron.Annotations[AnnStorageClass]
-		isPending = !scExists && common.GetStorageClassFromDVSpec(&cron.Spec.Template) == nil
+		isPending = !scExists && common.IsDataVolumeUsingDefaultStorageClass(&cron.Spec.Template)
 	}
 
 	labels := getPrometheusCronLabels(cron.Namespace, cron.Name)
