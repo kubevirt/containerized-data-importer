@@ -17,13 +17,15 @@ See the License for the specific language governing permissions and
 package controller
 
 import (
+	"strconv"
+
 	"github.com/prometheus/client_golang/prometheus"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/controller/common"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 )
 
@@ -38,8 +40,9 @@ const (
 
 func updateDataImportCronCondition(cron *cdiv1.DataImportCron, conditionType cdiv1.DataImportCronConditionType, status corev1.ConditionStatus, message, reason string) {
 	if conditionType == cdiv1.DataImportCronUpToDate {
-		metrics.SetDataImportCronOutdated(getPrometheusCronLabels(types.NamespacedName{Namespace: cron.Namespace, Name: cron.Name}), status != corev1.ConditionTrue)
+		updateDataImportCronOutdatedMetric(cron, status)
 	}
+
 	if condition := FindDataImportCronConditionByType(cron, conditionType); condition != nil {
 		updateConditionState(&condition.ConditionState, status, message, reason)
 	} else {
@@ -47,6 +50,22 @@ func updateDataImportCronCondition(cron *cdiv1.DataImportCron, conditionType cdi
 		updateConditionState(&condition.ConditionState, status, message, reason)
 		cron.Status.Conditions = append(cron.Status.Conditions, *condition)
 	}
+}
+
+func updateDataImportCronOutdatedMetric(cron *cdiv1.DataImportCron, status corev1.ConditionStatus) {
+	isUpToDate := status == corev1.ConditionTrue
+	isPending := false
+	// Check if the DataImportCron import DV is pending for default k8s/virt storage class
+	if !isUpToDate {
+		_, scExists := cron.Annotations[AnnStorageClass]
+		isPending = !scExists && common.IsDataVolumeUsingDefaultStorageClass(&cron.Spec.Template)
+	}
+
+	labels := getPrometheusCronLabels(cron.Namespace, cron.Name)
+	metrics.DeleteDataImportCronOutdated(labels)
+
+	labels[metrics.PrometheusCronPendingLabel] = strconv.FormatBool(isPending)
+	metrics.SetDataImportCronOutdated(labels, !isUpToDate)
 }
 
 // FindDataImportCronConditionByType finds DataImportCronCondition by condition type
@@ -74,9 +93,9 @@ func updateConditionState(condition *cdiv1.ConditionState, status corev1.Conditi
 	}
 }
 
-func getPrometheusCronLabels(cron types.NamespacedName) prometheus.Labels {
+func getPrometheusCronLabels(cronNamespace, cronName string) prometheus.Labels {
 	return prometheus.Labels{
-		prometheusNsLabel:       cron.Namespace,
-		prometheusCronNameLabel: cron.Name,
+		metrics.PrometheusCronNsLabel:   cronNamespace,
+		metrics.PrometheusCronNameLabel: cronName,
 	}
 }
