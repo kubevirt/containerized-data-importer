@@ -846,6 +846,54 @@ var _ = Describe("Planner test", func() {
 			validateRebindPhase(planner, args, plan[3])
 		})
 
+		Context("temp host assisted source pvc spec", func() {
+			volumeSnapshotContentWithSourceVolumeMode := func() *snapshotv1.VolumeSnapshotContent {
+				vsc := createDefaultVolumeSnapshotContent()
+				vsc.Spec.SourceVolumeMode = ptr.To[corev1.PersistentVolumeMode]("dummy")
+				return vsc
+			}
+
+			snapWithSourceVolumeModeAnnotation := func() *snapshotv1.VolumeSnapshot {
+				snap := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+				cc.AddAnnotation(snap, cc.AnnSourceVolumeMode, "dummyfromann")
+				return snap
+			}
+
+			DescribeTable("should pick correct spec for temp host assisted source in clone from snapshot", func(objs []runtime.Object, expectedVolumeMode corev1.PersistentVolumeMode, source *snapshotv1.VolumeSnapshot) {
+				target := createTargetClaim()
+				target.Spec.VolumeMode = ptr.To[corev1.PersistentVolumeMode]("dummytargetvolmode")
+				args := &PlanArgs{
+					Strategy:    cdiv1.CloneStrategyHostAssisted,
+					TargetClaim: target,
+					DataSource:  createSnapshotDataSource(),
+					Log:         log,
+				}
+				runtimeObjs := []runtime.Object{cdiConfig, source, createVolumeSnapshotClass()}
+				runtimeObjs = append(runtimeObjs, objs...)
+				planner = createPlanner(runtimeObjs...)
+				plan, err := planner.Plan(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(plan).ToNot(BeNil())
+				Expect(plan).To(HaveLen(4))
+				validateSnapshotClonePhase(planner, args, plan[0])
+				validatePrepClaimPhase(planner, args, plan[1])
+				validateHostClonePhase(planner, args, plan[2])
+				validateRebindPhase(planner, args, plan[3])
+				Expect(plan[0].(*SnapshotClonePhase).DesiredClaim.Spec.VolumeMode).To(HaveValue(Equal(expectedVolumeMode)))
+				Expect(plan[0].(*SnapshotClonePhase).DesiredClaim.Spec.AccessModes).To(ConsistOf(
+					[]corev1.PersistentVolumeAccessMode{
+						corev1.ReadWriteOnce,
+					},
+				))
+				Expect(plan[0].(*SnapshotClonePhase).DesiredClaim.Spec.DataSource).To(BeNil())
+				Expect(plan[0].(*SnapshotClonePhase).DesiredClaim.Spec.DataSourceRef).To(BeNil())
+			},
+				Entry("when volumesnapshotcontent has source volume mode", []runtime.Object{volumeSnapshotContentWithSourceVolumeMode(), createStorageClass()}, corev1.PersistentVolumeMode("dummy"), createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")),
+				Entry("when volumesnapshotcontent has no source volume mode but annotated with AnnSourceVolumeMode", []runtime.Object{createDefaultVolumeSnapshotContent(), createStorageClass()}, corev1.PersistentVolumeMode("dummyfromann"), snapWithSourceVolumeModeAnnotation()),
+				Entry("when neither source volume mode on volumesnapshotcontent nor AnnSourceVolumeMode annotation", []runtime.Object{createDefaultVolumeSnapshotContent(), createStorageClass()}, corev1.PersistentVolumeMode("dummytargetvolmode"), createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")),
+			)
+		})
+
 		It("should fail planning host-assisted clone from snapshot when no valid storage class for source PVC is found", func() {
 			source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
 			target := createTargetClaim()

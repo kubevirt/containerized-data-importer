@@ -50,7 +50,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	cdv "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
+	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 )
 
 var (
@@ -736,7 +736,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(*dv.Spec.Source.Registry.URL).To(Equal("docker://" + testDockerRef))
 			Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
 			dv.Status.Phase = cdiv1.Succeeded
-			dv.Status.Conditions = cdv.UpdateReadyCondition(dv.Status.Conditions, corev1.ConditionTrue, "", "")
+			dv.Status.Conditions = dvc.UpdateReadyCondition(dv.Status.Conditions, corev1.ConditionTrue, "", "")
 			err = reconciler.client.Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -893,6 +893,12 @@ var _ = Describe("All DataImportCron Tests", func() {
 					},
 					Status: cdiv1.StorageProfileStatus{
 						DataImportCronSourceFormat: &snapFormat,
+						ClaimPropertySets: []cdiv1.ClaimPropertySet{
+							{
+								AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+								VolumeMode:  ptr.To[corev1.PersistentVolumeMode]("dummyfromsp"),
+							},
+						},
 					},
 				}
 				reconciler = createDataImportCronReconciler(sc, sp, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
@@ -969,6 +975,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 				Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
 
 				pvc := cc.CreatePvc(dv.Name, dv.Namespace, nil, nil)
+				pvc.Spec.VolumeMode = ptr.To[corev1.PersistentVolumeMode]("dummy")
 				err = reconciler.client.Create(context.TODO(), pvc)
 				Expect(err).ToNot(HaveOccurred())
 				// DV GCed after hitting succeeded
@@ -982,6 +989,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 				snap := &snapshotv1.VolumeSnapshot{}
 				err = reconciler.client.Get(context.TODO(), dvKey(dvName), snap)
 				Expect(err).ToNot(HaveOccurred())
+				Expect(snap.Annotations[cc.AnnSourceVolumeMode]).To(Equal("dummy"))
 				snap.Status = &snapshotv1.VolumeSnapshotStatus{
 					ReadyToUse: ptr.To[bool](true),
 				}
@@ -1154,6 +1162,67 @@ var _ = Describe("All DataImportCron Tests", func() {
 				err = reconciler.client.Get(context.TODO(), dvKey(dvName), snap)
 				Expect(err).To(HaveOccurred())
 				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+			})
+
+			It("Should set snapshot source volume mode annotation on carried-over-upgrade snapshot", func() {
+				cron = newDataImportCron(cronName)
+				dataSource = nil
+				retentionPolicy := cdiv1.DataImportCronRetainNone
+				cron.Spec.RetentionPolicy = &retentionPolicy
+				err := reconciler.client.Create(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				verifyConditions("Before DesiredDigest is set", false, false, false, noImport, noDigest, "", &snapshotv1.VolumeSnapshot{})
+
+				cc.AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
+				err = reconciler.client.Update(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				dataSource = &cdiv1.DataSource{}
+				verifyConditions("After DesiredDigest is set", false, false, false, noImport, outdated, noSource, &snapshotv1.VolumeSnapshot{})
+
+				imports := cron.Status.CurrentImports
+				Expect(imports).ToNot(BeNil())
+				Expect(imports).ToNot(BeEmpty())
+				dvName := imports[0].DataVolumeName
+				Expect(dvName).ToNot(BeEmpty())
+				digest := imports[0].Digest
+				Expect(digest).To(Equal(testDigest))
+
+				dv := &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(*dv.Spec.Source.Registry.URL).To(Equal(testRegistryURL + "@" + testDigest))
+				Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
+
+				// DV GCed after hitting succeeded
+				err = reconciler.client.Delete(context.TODO(), dv)
+				Expect(err).ToNot(HaveOccurred())
+				pvc := cc.CreatePvc(dv.Name, dv.Namespace, nil, nil)
+				// Snap already exists, without the source volume mode annotation
+				snap := &snapshotv1.VolumeSnapshot{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      pvc.Name,
+						Namespace: metav1.NamespaceDefault,
+					},
+					Spec: snapshotv1.VolumeSnapshotSpec{
+						Source: snapshotv1.VolumeSnapshotSource{
+							PersistentVolumeClaimName: &pvc.Name,
+						},
+					},
+					Status: &snapshotv1.VolumeSnapshotStatus{
+						ReadyToUse: ptr.To[bool](true),
+					},
+				}
+				err = reconciler.client.Create(context.TODO(), snap)
+				Expect(err).ToNot(HaveOccurred())
+
+				verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready, &snapshotv1.VolumeSnapshot{})
+
+				snap = &snapshotv1.VolumeSnapshot{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), snap)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(*snap.Status.ReadyToUse).To(BeTrue())
+				Expect(*snap.Spec.Source.PersistentVolumeClaimName).To(Equal(dvName))
+				Expect(snap.Annotations[cc.AnnSourceVolumeMode]).To(Equal("dummyfromsp"))
 			})
 		})
 	})

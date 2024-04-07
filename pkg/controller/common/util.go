@@ -217,6 +217,9 @@ const (
 	// AnnDefaultSnapshotClass is the annotation indicating that a snapshot class is the default one
 	AnnDefaultSnapshotClass = "snapshot.storage.kubernetes.io/is-default-class"
 
+	// AnnSourceVolumeMode is the volume mode of the source PVC specified as an annotation on snapshots
+	AnnSourceVolumeMode = AnnAPIGroup + "/storage.import.sourceVolumeMode"
+
 	// AnnOpenShiftImageLookup is the annotation for OpenShift image stream lookup
 	AnnOpenShiftImageLookup = "alpha.image.policy.openshift.io/resolve-names"
 
