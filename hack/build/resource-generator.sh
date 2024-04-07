@@ -18,6 +18,20 @@ script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
+normalize_image_name() {
+    local image_name=$1
+    local prefix=$2
+    local tag=$3
+
+    if [[ "$image_name" != *"/"* && "$image_name" != *":"* ]]; then
+        image_name="${prefix}/${image_name}:${tag}"
+    fi
+
+    echo "$image_name"
+}
+
+OVIRT_POPULATOR_IMAGE_NAME=$(normalize_image_name "${OVIRT_POPULATOR_IMAGE_NAME}" "${DOCKER_PREFIX}" "${DOCKER_TAG}")
+
 #all generated files are placed in manifests/generated
 function generateResourceManifest() {
     generator=$1
