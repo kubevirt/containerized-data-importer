@@ -473,6 +473,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			err = reconciler.client.Update(context.TODO(), dv)
 			Expect(err).ToNot(HaveOccurred())
 			verifyConditions("Import scheduled", false, false, false, scheduled, inProgress, noSource, &corev1.PersistentVolumeClaim{})
+			// Verify DIC outdated metric is 1 only with pending=true
 			verifyDataImportCronOutdatedMetric(cron, true, 1)
 			verifyDataImportCronOutdatedMetric(cron, false, 0)
 
@@ -490,6 +491,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready, &corev1.PersistentVolumeClaim{})
+			// Verify DIC outdated metric is 0 with either pending=true/false
 			verifyDataImportCronOutdatedMetric(cron, true, 0)
 			verifyDataImportCronOutdatedMetric(cron, false, 0)
 
@@ -586,6 +588,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			_, err = reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
 
+			// Verify DIC outdated metric is 1 only with correct pending label
 			verifyDataImportCronOutdatedMetric(cron, isPending, 1)
 			verifyDataImportCronOutdatedMetric(cron, !isPending, 0)
 		},
