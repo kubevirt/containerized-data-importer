@@ -433,6 +433,11 @@ func GetVolumeMode(pvc *corev1.PersistentVolumeClaim) corev1.PersistentVolumeMod
 	return util.ResolveVolumeMode(pvc.Spec.VolumeMode)
 }
 
+// IsDataVolumeUsingDefaultStorageClass checks if the DataVolume is using the default StorageClass
+func IsDataVolumeUsingDefaultStorageClass(dv *cdiv1.DataVolume) bool {
+	return GetStorageClassFromDVSpec(dv) == nil
+}
+
 // GetStorageClassFromDVSpec returns the StorageClassName from DataVolume PVC or Storage spec
 func GetStorageClassFromDVSpec(dv *cdiv1.DataVolume) *string {
 	if dv.Spec.PVC != nil {

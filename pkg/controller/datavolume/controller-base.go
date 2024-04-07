@@ -254,7 +254,7 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 			if getDataVolumeOp(mgr.GetLogger(), dv, mgr.GetClient()) != op {
 				return nil
 			}
-			updatePendingDataVolumesGauge(mgr.GetLogger(), dv, mgr.GetClient())
+			updatePendingDataVolumesGauge(context.TODO(), mgr.GetLogger(), dv, mgr.GetClient())
 			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}}}
 		}),
 	); err != nil {
@@ -404,24 +404,39 @@ func getSourceRefOp(log logr.Logger, dv *cdiv1.DataVolume, client client.Client)
 	}
 }
 
-func updatePendingDataVolumesGauge(log logr.Logger, dv *cdiv1.DataVolume, c client.Client) {
-	if cc.GetStorageClassFromDVSpec(dv) != nil {
+func updatePendingDataVolumesGauge(ctx context.Context, log logr.Logger, dv *cdiv1.DataVolume, c client.Client) {
+	if !cc.IsDataVolumeUsingDefaultStorageClass(dv) {
 		return
 	}
 
-	dvList := &cdiv1.DataVolumeList{}
-	if err := c.List(context.TODO(), dvList, client.MatchingFields{dvPhaseField: string(cdiv1.Pending)}); err != nil {
+	countPending, err := getDefaultStorageClassDataVolumeCount(ctx, c, string(cdiv1.Pending))
+	if err != nil {
 		log.V(3).Error(err, "Failed listing the pending DataVolumes")
 		return
+	}
+	countUnset, err := getDefaultStorageClassDataVolumeCount(ctx, c, string(cdiv1.PhaseUnset))
+	if err != nil {
+		log.V(3).Error(err, "Failed listing the unset DataVolumes")
+		return
+	}
+
+	DataVolumePendingGauge.Set(float64(countPending + countUnset))
+}
+
+func getDefaultStorageClassDataVolumeCount(ctx context.Context, c client.Client, dvPhase string) (int, error) {
+	dvList := &cdiv1.DataVolumeList{}
+	if err := c.List(ctx, dvList, client.MatchingFields{dvPhaseField: dvPhase}); err != nil {
+		return 0, err
 	}
 
 	dvCount := 0
 	for _, dv := range dvList.Items {
-		if cc.GetStorageClassFromDVSpec(&dv) == nil {
+		if cc.IsDataVolumeUsingDefaultStorageClass(&dv) {
 			dvCount++
 		}
 	}
-	DataVolumePendingGauge.Set(float64(dvCount))
+
+	return dvCount, nil
 }
 
 type dvController interface {

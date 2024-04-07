@@ -11,6 +11,7 @@ import (
 	"time"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
@@ -262,7 +263,7 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 			}
 		})
 
-		It("[test_id:10719]CDINoDefaultStorageClass fired when no default storage class exists, and a DataVolume is waiting for one", func() {
+		DescribeTable("[test_id:10719] CDINoDefaultStorageClass fired when no default storage class exists, and a DataVolume is waiting for one", func(withAccessModes bool) {
 			By("Ensure initial metric values")
 			defaultSCs := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "default", "true")
 			Expect(defaultSCs).To(Equal(1))
@@ -272,6 +273,9 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 			updateDefaultStorageClasses("false")
 
 			dv := utils.NewDataVolumeWithHTTPImportAndStorageSpec("test-dv", "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
+			if !withAccessModes {
+				dv.Spec.Storage.AccessModes = nil
+			}
 			_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -296,9 +300,12 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 			}, metricPollingTimeout, metricPollingInterval).Should(BeZero())
 
 			waitForNoPrometheusAlert(f, "CDINoDefaultStorageClass")
-		})
+		},
+			Entry("[test_id:10719]with AccessModes, so Pending PVC is created", true),
+			Entry("[test_id:XXXXX]without AccessModes, so PVC is not created until default storage class exists", false),
+		)
 
-		It("[test_id:10720]CDIDefaultStorageClassDegraded fired when default storage class has no smart clone or ReadWriteMany", func() {
+		It("[test_id:10720]CDIDefaultStorageClassDegraded fired when there is a default storage class, but it has no smart clone or ReadWriteMany", func() {
 			rwx := corev1.ReadWriteMany
 			rwo := corev1.ReadWriteOnce
 			isStubSnapshotClass := false
@@ -332,6 +339,14 @@ var _ = Describe("[Destructive] Monitoring Tests", func() {
 			By("Remove storage profile ReadWriteMany access mode")
 			updateDefaultStorageClassProfileClaimPropertySets(&rwo)
 
+			waitForPrometheusAlert(f, "CDIDefaultStorageClassDegraded")
+
+			By("Verify the alert stops when no default storage class")
+			updateDefaultStorageClasses("false")
+			waitForNoPrometheusAlert(f, "CDIDefaultStorageClassDegraded")
+
+			By("Verify the alert fires when default storage class is set")
+			updateDefaultStorageClasses("true")
 			waitForPrometheusAlert(f, "CDIDefaultStorageClassDegraded")
 
 			By("Restore storage profile")
@@ -661,26 +676,30 @@ func waitForNoPrometheusAlert(f *framework.Framework, alertName string) {
 
 func waitForPrometheusAlertExists(f *framework.Framework, alertName string, shouldExist bool) {
 	Eventually(func() bool {
-		result, err := getPrometheusAlerts(f)
-		if err != nil {
+		return checkPrometheusAlertExists(f, alertName, shouldExist)
+	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+}
+
+func checkPrometheusAlertExists(f *framework.Framework, alertName string, shouldExist bool) bool {
+	result, err := getPrometheusAlerts(f)
+	if err != nil {
+		return false
+	}
+
+	alerts := result["data"].(map[string]interface{})["alerts"].([]interface{})
+	for _, alert := range alerts {
+		name := alert.(map[string]interface{})["labels"].(map[string]interface{})["alertname"].(string)
+		if name == alertName {
+			if shouldExist {
+				state := alert.(map[string]interface{})["state"].(string)
+				By(fmt.Sprintf("Alert %s state %s", name, state))
+				return state == "pending" || state == "firing"
+			}
 			return false
 		}
+	}
 
-		alerts := result["data"].(map[string]interface{})["alerts"].([]interface{})
-		for _, alert := range alerts {
-			name := alert.(map[string]interface{})["labels"].(map[string]interface{})["alertname"].(string)
-			if name == alertName {
-				if shouldExist {
-					state := alert.(map[string]interface{})["state"].(string)
-					By(fmt.Sprintf("Alert %s state %s", name, state))
-					return state == "pending" || state == "firing"
-				}
-				return false
-			}
-		}
-
-		return !shouldExist
-	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+	return !shouldExist
 }
 
 func getPrometheusAlerts(f *framework.Framework) (alerts map[string]interface{}, err error) {
