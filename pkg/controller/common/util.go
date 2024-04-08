@@ -950,7 +950,7 @@ func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNa
 
 // validateContentTypes compares the content type of a clone DV against its source PVC's one
 func validateContentTypes(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
-	sourceContentType := cdiv1.DataVolumeContentType(GetPVCContentType(sourcePVC))
+	sourceContentType := GetPVCContentType(sourcePVC)
 	targetContentType := spec.ContentType
 	if targetContentType == "" {
 		targetContentType = cdiv1.DataVolumeKubeVirt
@@ -1225,7 +1225,7 @@ func CreatePvcInStorageClass(name, ns string, storageClassName *string, annotati
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany, corev1.ReadWriteOnce},
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("1G"),
+					corev1.ResourceStorage: resource.MustParse("1G"),
 				},
 			},
 			StorageClassName: storageClassName,

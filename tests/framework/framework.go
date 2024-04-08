@@ -332,7 +332,7 @@ func (f *Framework) GetRESTConfigForServiceAccount(namespace, name string) (*res
 	return &rest.Config{
 		Host:        f.RestConfig.Host,
 		APIPath:     f.RestConfig.APIPath,
-		BearerToken: string(token),
+		BearerToken: token,
 		TLSClientConfig: rest.TLSClientConfig{
 			Insecure: true,
 		},

@@ -348,7 +348,7 @@ func newUploadPopulatorPVC(name string) *corev1.PersistentVolumeClaim {
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("1Gi"),
+					corev1.ResourceStorage: resource.MustParse("1Gi"),
 				},
 			},
 			DataSourceRef: &corev1.TypedObjectReference{

@@ -1159,11 +1159,11 @@ var _ = Describe("ALL Operator tests", func() {
 					prioClass = osUserCrit.Name
 				}
 				// Deployment
-				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(prioClass), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiDeploymentPodPrefix, prioClass, common.CDILabelSelector)
 				// API server
-				verifyPodPriorityClass(cdiApiServerPodPrefix, string(prioClass), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiApiServerPodPrefix, prioClass, common.CDILabelSelector)
 				// Upload server
-				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(prioClass), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiUploadProxyPodPrefix, prioClass, common.CDILabelSelector)
 				By("Verifying there is just a single cdi controller pod")
 				Eventually(func() error {
 					_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
@@ -1203,11 +1203,11 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				By("Verifying the CDI control plane is updated")
 				// Deployment
-				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiDeploymentPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 				// API server
-				verifyPodPriorityClass(cdiApiServerPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiApiServerPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 				// Upload server
-				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiUploadProxyPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 			})
 		})
 	})

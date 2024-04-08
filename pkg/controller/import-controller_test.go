@@ -1117,7 +1117,7 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 		},
 		{
 			Name:  common.OwnerUID,
-			Value: string(uid),
+			Value: uid,
 		},
 		{
 			Name:  common.FilesystemOverheadVar,

@@ -250,7 +250,7 @@ func (f *Framework) GetMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolu
 		return "", err
 	}
 
-	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: md5sum found %s\n", string(output[:32]))
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: md5sum found %s\n", output[:32])
 	// Don't delete pod, other verification might happen.
 	return output[:32], nil
 }
@@ -277,7 +277,7 @@ func (f *Framework) VerifyBlankDisk(namespace *k8sv1.Namespace, pvc *k8sv1.Persi
 
 	return f.verifyInPod(namespace, pvc, cmd, func(output, stderr string) (bool, error) {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: empty file check %s\n", output)
-		return strings.Compare("All zeros", string(output)) == 0, nil
+		return strings.Compare("All zeros", output) == 0, nil
 	})
 }
 
@@ -388,7 +388,7 @@ func (f *Framework) VerifyTargetPVCArchiveContent(namespace *k8sv1.Namespace, pv
 	cmd := "ls -I lost+found " + utils.DefaultPvcMountPath + " | wc -l"
 
 	return f.verifyInPod(namespace, pvc, cmd, func(output, stderr string) (bool, error) {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: file count found %s\n", string(output))
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: file count found %s\n", output)
 		return strings.Compare(count, output) == 0, nil
 	})
 }
@@ -536,7 +536,7 @@ func (f *Framework) GetImageInfo(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 
 		err := json.Unmarshal([]byte(output), info)
 		if err != nil {
-			klog.Errorf("Invalid JSON:\n%s\n", string(output))
+			klog.Errorf("Invalid JSON:\n%s\n", output)
 			return false, err
 		}
 
@@ -555,7 +555,7 @@ func (f *Framework) GetImageContentSize(namespace *k8sv1.Namespace, pvc *k8sv1.P
 
 		size, err := strconv.ParseInt(output, 10, 64)
 		if err != nil {
-			klog.Errorf("Invalid image content size:\n%s\n", string(output))
+			klog.Errorf("Invalid image content size:\n%s\n", output)
 			return false, err
 		}
 		*imageSize = size

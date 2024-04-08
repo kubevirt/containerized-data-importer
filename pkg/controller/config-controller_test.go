@@ -1081,7 +1081,7 @@ func createClusterWideProxyCAConfigMap(certBytes string) *corev1.ConfigMap {
 		TypeMeta:   metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{Name: ClusterWideProxyConfigMapName, Namespace: ClusterWideProxyConfigMapNameSpace},
 		Immutable:  new(bool),
-		Data:       map[string]string{ClusterWideProxyConfigMapKey: string(certBytes)},
+		Data:       map[string]string{ClusterWideProxyConfigMapKey: certBytes},
 		BinaryData: map[string][]byte{},
 	}
 	return configMap

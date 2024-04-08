@@ -1377,7 +1377,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		fsOverhead := "0.055" // The default value
 		tests.SetFilesystemOverhead(f, fsOverhead, fsOverhead)
 
-		volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+		volumeMode := v1.PersistentVolumeFilesystem
 		accessModes := []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
 		dvName := "upload-dv"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))

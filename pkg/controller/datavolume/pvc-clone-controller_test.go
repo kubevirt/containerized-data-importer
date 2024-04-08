@@ -804,7 +804,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			// Prepare the source PVC with the required annotations
 			pvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, annKubevirt, nil, corev1.ClaimBound)
 			pvc.Annotations[AnnVirtualImageSize] = "100" // Mock value
-			pvc.Annotations[AnnSourceCapacity] = string(pvc.Status.Capacity.Storage().String())
+			pvc.Annotations[AnnSourceCapacity] = pvc.Status.Capacity.Storage().String()
 			reconciler := createCloneReconciler(dv, pvc, storageProfile, sc)
 
 			// Get the expected value
