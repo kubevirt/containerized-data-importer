@@ -300,6 +300,52 @@ var _ = Describe("Rebind", func() {
 	})
 })
 
+var _ = Describe("GetMetricsURL", func() {
+	makePod := func(ip string, withMetrics bool) *v1.Pod {
+		pod := &v1.Pod{
+			Status: v1.PodStatus{
+				PodIP: ip,
+			},
+		}
+
+		if !withMetrics {
+			return pod
+		}
+
+		pod.Spec = v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Ports: []v1.ContainerPort{
+						{Name: "metrics", ContainerPort: 8080},
+					},
+				},
+			},
+		}
+
+		return pod
+	}
+
+	It("Should suceed with IPv4", func() {
+		pod := makePod("127.0.0.1", true)
+		url, err := GetMetricsURL(pod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(url).To(Equal("https://127.0.0.1:8080/metrics"))
+	})
+
+	It("Should suceed with IPv6", func() {
+		pod := makePod("::1", true)
+		url, err := GetMetricsURL(pod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(url).To(Equal("https://[::1]:8080/metrics"))
+	})
+
+	It("Should fail when there is no metrics port", func() {
+		pod := makePod("127.0.0.1", false)
+		_, err := GetMetricsURL(pod)
+		Expect(err).To(HaveOccurred())
+	})
+})
+
 func createPvcNoSize(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
 	return &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
