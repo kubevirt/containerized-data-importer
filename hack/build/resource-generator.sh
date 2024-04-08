@@ -18,20 +18,6 @@ script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
-normalize_image_name() {
-    local image_name=$1
-    local prefix=$2
-    local tag=$3
-
-    if [[ "$image_name" != *"/"* && "$image_name" != *":"* ]]; then
-        image_name="${prefix}/${image_name}:${tag}"
-    fi
-
-    echo "$image_name"
-}
-
-OVIRT_POPULATOR_IMAGE_NAME=$(normalize_image_name "${OVIRT_POPULATOR_IMAGE_NAME}" "${DOCKER_PREFIX}" "${DOCKER_TAG}")
-
 #all generated files are placed in manifests/generated
 function generateResourceManifest() {
     generator=$1
@@ -59,7 +45,7 @@ function generateResourceManifest() {
             -apiserver-image="${DOCKER_PREFIX}/${APISERVER_IMAGE_NAME}:${DOCKER_TAG}" \
             -uploadproxy-image="${DOCKER_PREFIX}/${UPLOADPROXY_IMAGE_NAME}:${DOCKER_TAG}" \
             -uploadserver-image="${DOCKER_PREFIX}/${UPLOADSERVER_IMAGE_NAME}:${DOCKER_TAG}" \
-            -ovirt-populator-image="${OVIRT_POPULATOR_IMAGE_NAME}" \
+            -ovirt-populator-image="${DOCKER_PREFIX}/${OVIRT_POPULATOR_IMAGE_NAME}:${DOCKER_TAG}" \
             -verbosity="${VERBOSITY}" \
             -pull-policy="${PULL_POLICY}" \
             -namespace="${CDI_NAMESPACE}"
