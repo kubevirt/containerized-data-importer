@@ -3,6 +3,7 @@ linters:
   - ginkgolinter
   - goimports
   - misspell
+  - unconvert
 linters-settings:
   ginkgolinter:
     forbid-focus-container: true
