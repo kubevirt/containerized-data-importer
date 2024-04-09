@@ -1378,7 +1378,7 @@ type DiskSnapshotsServiceListRequest struct {
 	srv *ovirtsdk4.DiskSnapshotsServiceListRequest
 }
 
-// Send returns a reponse from listing disk snapshots
+// Send returns a response from listing disk snapshots
 func (service *DiskSnapshotsServiceListRequest) Send() (DiskSnapshotsServiceListResponseInterface, error) {
 	resp, err := service.srv.Send()
 	return &DiskSnapshotsServiceListResponse{

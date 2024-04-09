@@ -135,5 +135,5 @@ func main() {
 		klog.Fatalf("Invalid mode: %s", mode)
 	}
 
-	klog.Infof("CDI sample populator finished succesfully in '%s' mode", mode)
+	klog.Infof("CDI sample populator finished successfully in '%s' mode", mode)
 }

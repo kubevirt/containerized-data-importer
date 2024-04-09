@@ -325,14 +325,14 @@ var _ = Describe("GetMetricsURL", func() {
 		return pod
 	}
 
-	It("Should suceed with IPv4", func() {
+	It("Should succeed with IPv4", func() {
 		pod := makePod("127.0.0.1", true)
 		url, err := GetMetricsURL(pod)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(url).To(Equal("https://127.0.0.1:8080/metrics"))
 	})
 
-	It("Should suceed with IPv6", func() {
+	It("Should succeed with IPv6", func() {
 		pod := makePod("::1", true)
 		url, err := GetMetricsURL(pod)
 		Expect(err).ToNot(HaveOccurred())

@@ -984,7 +984,7 @@ var _ = Describe("Controller", func() {
 					return ok
 				},
 				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
 						return false
@@ -1023,7 +1023,7 @@ var _ = Describe("Controller", func() {
 					return ok
 				},
 				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
 						return false
@@ -1072,7 +1072,7 @@ var _ = Describe("Controller", func() {
 					return false
 				},
 				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
 						return false
@@ -1122,7 +1122,7 @@ var _ = Describe("Controller", func() {
 					return false
 				},
 				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
 						return false
@@ -1165,7 +1165,7 @@ var _ = Describe("Controller", func() {
 					return false
 				},
 				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
 						return false
@@ -1198,7 +1198,7 @@ var _ = Describe("Controller", func() {
 					return ok
 				},
 				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					post, ok := postUpgradeObj.(*corev1.Service)
 					if !ok {
 						return false
@@ -1277,7 +1277,7 @@ var _ = Describe("Controller", func() {
 					return ok
 				},
 				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					post, ok := postUpgradeObj.(*corev1.Service)
 					if !ok {
 						return false

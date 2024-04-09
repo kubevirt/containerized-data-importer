@@ -354,7 +354,7 @@ func createResponseSequences(data *imageIoInventoryData) *bytes.Buffer {
 		},
 	}
 
-	// Add responses to individual transfer finalize requests, just needs HTTP sucess
+	// Add responses to individual transfer finalize requests, just needs HTTP success
 	for index, snapshot := range data.Snapshots {
 		times := 1
 		if index == 1 {

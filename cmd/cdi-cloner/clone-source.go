@@ -57,7 +57,7 @@ func init() {
 func getEnvVarOrDie(name string) string {
 	value := os.Getenv(name)
 	if value == "" {
-		klog.Fatalf("Error geting env var %s", name)
+		klog.Fatalf("Error getting env var %s", name)
 	}
 	return value
 }

@@ -274,7 +274,7 @@ var _ = Describe("Data Processor", func() {
 		})
 	})
 
-	It("should allow phase regsitry", func() {
+	It("should allow phase registry", func() {
 		mcdp := &MockCustomizedDataProvider{
 			MockDataProvider: MockDataProvider{
 				infoResponse:     ProcessingPhaseTransferDataDir,
