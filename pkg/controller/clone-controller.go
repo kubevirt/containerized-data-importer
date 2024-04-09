@@ -58,6 +58,20 @@ const (
 	uploadClientCertDuration = 365 * 24 * time.Hour
 )
 
+// SourceClonePodArgs are the parameters required to create a source clone pod
+type sourceClonePodArgs struct {
+	name                    string
+	image                   string
+	pullPolicy              string
+	ownerRef                string
+	sourcePvc               *corev1.PersistentVolumeClaim
+	targetPvc               *corev1.PersistentVolumeClaim
+	podResourceRequirements *corev1.ResourceRequirements
+	imagePullSecrets        []corev1.LocalObjectReference
+	workloadNodePlacement   *sdkapi.NodePlacement
+	serverCACert            []byte
+}
+
 // CloneReconciler members
 type CloneReconciler struct {
 	client              client.Client
@@ -258,9 +272,17 @@ func (r *CloneReconciler) reconcileSourcePod(ctx context.Context, sourcePod *cor
 			return 2 * time.Second, nil
 		}
 
-		sourcePod, err := r.CreateCloneSourcePod(r.image, r.pullPolicy, targetPvc, log)
+		// all checks passed, let's create the clone pod
+		podArgs := &sourceClonePodArgs{
+			name:       targetPvc.Annotations[cc.AnnCloneSourcePod],
+			image:      r.image,
+			pullPolicy: r.pullPolicy,
+			targetPvc:  targetPvc,
+		}
+
+		sourcePod, err := r.CreateCloneSourcePod(podArgs, log)
 		// Check if pod has failed and, in that case, record an event with the error
-		if podErr := cc.HandleFailedPod(err, cc.CreateCloneSourcePodName(targetPvc), targetPvc, r.recorder, r.client); podErr != nil {
+		if podErr := cc.HandleFailedPod(err, podArgs.name, targetPvc, r.recorder, r.client); podErr != nil {
 			return 0, podErr
 		}
 
@@ -464,232 +486,167 @@ func (r *CloneReconciler) cleanup(pvc *corev1.PersistentVolumeClaim, log logr.Lo
 }
 
 // CreateCloneSourcePod creates our cloning src pod which will be used for out of band cloning to read the contents of the src PVC
-func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*corev1.Pod, error) {
-	exists, _, _ := ParseCloneRequestAnnotation(pvc)
+func (r *CloneReconciler) CreateCloneSourcePod(podArgs *sourceClonePodArgs, log logr.Logger) (*corev1.Pod, error) {
+	var err error
+	exists, _, _ := ParseCloneRequestAnnotation(podArgs.targetPvc)
 	if !exists {
 		return nil, errors.Errorf("bad CloneRequest Annotation")
 	}
 
-	ownerKey, err := cache.MetaNamespaceKeyFunc(pvc)
+	podArgs.ownerRef, err = cache.MetaNamespaceKeyFunc(podArgs.targetPvc)
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting cache key")
 	}
 
-	serverCABundle, err := r.serverCAFetcher.BundleBytes()
+	podArgs.serverCACert, err = r.serverCAFetcher.BundleBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	podResourceRequirements, err := cc.GetDefaultPodResourceRequirements(r.client)
+	podArgs.podResourceRequirements, err = cc.GetDefaultPodResourceRequirements(r.client)
 	if err != nil {
 		return nil, err
 	}
 
-	imagePullSecrets, err := cc.GetImagePullSecrets(r.client)
+	podArgs.imagePullSecrets, err = cc.GetImagePullSecrets(r.client)
 	if err != nil {
 		return nil, err
 	}
 
-	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(context.TODO(), r.client)
+	podArgs.workloadNodePlacement, err = cc.GetWorkloadNodePlacement(context.TODO(), r.client)
 	if err != nil {
 		return nil, err
 	}
 
-	sourcePvc, err := r.getCloneRequestSourcePVC(pvc)
+	podArgs.sourcePvc, err = r.getCloneRequestSourcePVC(podArgs.targetPvc)
 	if err != nil {
 		return nil, err
 	}
 
-	var sourceVolumeMode corev1.PersistentVolumeMode
-	if sourcePvc.Spec.VolumeMode != nil {
-		sourceVolumeMode = *sourcePvc.Spec.VolumeMode
-	} else {
-		sourceVolumeMode = corev1.PersistentVolumeFilesystem
-	}
-
-	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, ownerKey, imagePullSecrets, serverCABundle, pvc, sourcePvc, podResourceRequirements, workloadNodePlacement)
+	pod := makeCloneSourcePodSpec(podArgs)
 	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 
 	if err := r.client.Create(context.TODO(), pod); err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")
 	}
 
-	log.V(1).Info("cloning source pod (image) created\n", "pod.Namespace", pod.Namespace, "pod.Name", pod.Name, "image", image)
+	log.V(1).Info("cloning source pod (image) created\n", "pod.Namespace", pod.Namespace, "pod.Name", pod.Name, "image", r.image)
 
 	return pod, nil
 }
 
-// MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
-func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image, pullPolicy, ownerRefAnno string, imagePullSecrets []corev1.LocalObjectReference,
-	serverCACert []byte, targetPvc, sourcePvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements,
-	workloadNodePlacement *sdkapi.NodePlacement) *corev1.Pod {
-
-	sourcePvcName := sourcePvc.GetName()
-	sourcePvcNamespace := sourcePvc.GetNamespace()
-	sourcePvcUID := string(sourcePvc.GetUID())
-
-	var ownerID string
-	cloneSourcePodName := targetPvc.Annotations[cc.AnnCloneSourcePod]
-	url := GetUploadServerURL(targetPvc.Namespace, targetPvc.Name, common.UploadPathSync)
-	pvcOwner := metav1.GetControllerOf(targetPvc)
-	if pvcOwner != nil && pvcOwner.Kind == "DataVolume" {
-		ownerID = string(pvcOwner.UID)
-	} else {
-		ouid, ok := targetPvc.Annotations[cc.AnnOwnerUID]
-		if ok {
-			ownerID = ouid
-		}
-	}
-
-	preallocationRequested := targetPvc.Annotations[cc.AnnPreallocationRequested]
-
+// makeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
+func makeCloneSourcePodSpec(args *sourceClonePodArgs) *corev1.Pod {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cloneSourcePodName,
-			Namespace: sourcePvcNamespace,
+			Name:      args.name,
+			Namespace: args.sourcePvc.GetNamespace(),
 			Annotations: map[string]string{
 				cc.AnnCreatedBy: "yes",
-				AnnOwnerRef:     ownerRefAnno,
+				AnnOwnerRef:     args.ownerRef,
 			},
 			Labels: map[string]string{
 				common.CDILabelKey:       common.CDILabelValue, //filtered by the podInformer
 				common.CDIComponentLabel: common.ClonerSourcePodName,
 				// this label is used when searching for a pvc's cloner source pod.
-				cc.CloneUniqueID:          cloneSourcePodName,
+				cc.CloneUniqueID:          args.name,
 				common.PrometheusLabelKey: common.PrometheusLabelValue,
-				hostAssistedCloneSource:   sourcePvcUID,
+				hostAssistedCloneSource:   string(args.sourcePvc.GetUID()),
 			},
 		},
 		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:            common.ClonerSourcePodName,
-					Image:           image,
-					ImagePullPolicy: corev1.PullPolicy(pullPolicy),
-					Env: []corev1.EnvVar{
-						{
-							Name: "CLIENT_KEY",
-							ValueFrom: &corev1.EnvVarSource{
-								SecretKeyRef: &corev1.SecretKeySelector{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: cloneSourcePodName,
-									},
-									Key: "tls.key",
-								},
-							},
-						},
-						{
-							Name: "CLIENT_CERT",
-							ValueFrom: &corev1.EnvVarSource{
-								SecretKeyRef: &corev1.SecretKeySelector{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: cloneSourcePodName,
-									},
-									Key: "tls.crt",
-								},
-							},
-						},
-						{
-							Name:  "SERVER_CA_CERT",
-							Value: string(serverCACert),
-						},
-						{
-							Name:  "UPLOAD_URL",
-							Value: url,
-						},
-						{
-							Name:  common.OwnerUID,
-							Value: ownerID,
-						},
-						{
-							Name:  common.Preallocation,
-							Value: preallocationRequested,
-						},
-					},
-					Ports: []corev1.ContainerPort{
-						{
-							Name:          "metrics",
-							ContainerPort: 8443,
-							Protocol:      corev1.ProtocolTCP,
-						},
-					},
-				},
-			},
-			ImagePullSecrets: imagePullSecrets,
-			RestartPolicy:    corev1.RestartPolicyOnFailure,
-			Volumes: []corev1.Volume{
-				{
-					Name: cc.DataVolName,
-					VolumeSource: corev1.VolumeSource{
-						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-							ClaimName: sourcePvcName,
-						},
-					},
-				},
-			},
-			NodeSelector:      workloadNodePlacement.NodeSelector,
-			Tolerations:       workloadNodePlacement.Tolerations,
-			Affinity:          workloadNodePlacement.Affinity,
-			PriorityClassName: cc.GetPriorityClass(targetPvc),
+			Containers:        makeCloneSourceContainerSpec(args),
+			Volumes:           makeCloneSourceVolumeSpec(args),
+			Affinity:          makeCloneSourceAffinitySpec(args),
+			ImagePullSecrets:  args.imagePullSecrets,
+			RestartPolicy:     corev1.RestartPolicyOnFailure,
+			NodeSelector:      args.workloadNodePlacement.NodeSelector,
+			Tolerations:       args.workloadNodePlacement.Tolerations,
+			PriorityClassName: cc.GetPriorityClass(args.targetPvc),
 		},
 	}
 
-	if pod.Spec.Affinity == nil {
-		pod.Spec.Affinity = &corev1.Affinity{}
+	cc.SetPvcAllowedAnnotations(pod, args.targetPvc)
+	cc.SetRestrictedSecurityContext(&pod.Spec)
+	return pod
+}
+
+func makeCloneSourceContainerSpec(args *sourceClonePodArgs) []corev1.Container {
+	var ownerID string
+	url := GetUploadServerURL(args.targetPvc.Namespace, args.targetPvc.Name, common.UploadPathSync)
+	pvcOwner := metav1.GetControllerOf(args.targetPvc)
+	if pvcOwner != nil && pvcOwner.Kind == "DataVolume" {
+		ownerID = string(pvcOwner.UID)
+	} else {
+		ouid, ok := args.targetPvc.Annotations[cc.AnnOwnerUID]
+		if ok {
+			ownerID = ouid
+		}
 	}
 
-	if pod.Spec.Affinity.PodAffinity == nil {
-		pod.Spec.Affinity.PodAffinity = &corev1.PodAffinity{}
-	}
-
-	if len(sourcePvc.Spec.AccessModes) == 1 && sourcePvc.Spec.AccessModes[0] == corev1.ReadWriteOnce {
-		pod.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(
-			pod.Spec.Affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
-			corev1.PodAffinityTerm{
-				LabelSelector: &metav1.LabelSelector{
-					MatchExpressions: []metav1.LabelSelectorRequirement{
-						{
-							Key:      hostAssistedCloneSource,
-							Operator: metav1.LabelSelectorOpIn,
-							Values:   []string{sourcePvcUID},
+	containers := []corev1.Container{
+		{
+			Name:            common.ClonerSourcePodName,
+			Image:           args.image,
+			ImagePullPolicy: corev1.PullPolicy(args.pullPolicy),
+			Env: []corev1.EnvVar{
+				{
+					Name: "CLIENT_KEY",
+					ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: args.name,
+							},
+							Key: "tls.key",
 						},
 					},
 				},
-				Namespaces:  []string{sourcePvcNamespace},
-				TopologyKey: corev1.LabelHostname,
+				{
+					Name: "CLIENT_CERT",
+					ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: args.name,
+							},
+							Key: "tls.crt",
+						},
+					},
+				},
+				{
+					Name:  "SERVER_CA_CERT",
+					Value: string(args.serverCACert),
+				},
+				{
+					Name:  "UPLOAD_URL",
+					Value: url,
+				},
+				{
+					Name:  common.OwnerUID,
+					Value: ownerID,
+				},
+				{
+					Name:  common.Preallocation,
+					Value: args.targetPvc.Annotations[cc.AnnPreallocationRequested],
+				},
 			},
-		)
-	}
-
-	pod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(
-		pod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution,
-		corev1.WeightedPodAffinityTerm{
-			Weight: 100,
-			PodAffinityTerm: corev1.PodAffinityTerm{
-				LabelSelector: &metav1.LabelSelector{
-					MatchExpressions: []metav1.LabelSelectorRequirement{
-						{
-							Key:      common.UploadTargetLabel,
-							Operator: metav1.LabelSelectorOpIn,
-							Values:   []string{string(targetPvc.UID)},
-						},
-					},
+			Ports: []corev1.ContainerPort{
+				{
+					Name:          "metrics",
+					ContainerPort: 8443,
+					Protocol:      corev1.ProtocolTCP,
 				},
-				Namespaces:  []string{targetPvc.Namespace},
-				TopologyKey: corev1.LabelHostname,
 			},
 		},
-	)
-
-	if resourceRequirements != nil {
-		pod.Spec.Containers[0].Resources = *resourceRequirements
 	}
 
-	var addVars []corev1.EnvVar
+	if args.podResourceRequirements != nil {
+		containers[0].Resources = *args.podResourceRequirements
+	}
 
-	if sourceVolumeMode == corev1.PersistentVolumeBlock {
-		pod.Spec.Containers[0].VolumeDevices = cc.AddVolumeDevices()
-		addVars = []corev1.EnvVar{
+	sourceVolumeMode := args.sourcePvc.Spec.VolumeMode
+	if sourceVolumeMode != nil && *sourceVolumeMode == corev1.PersistentVolumeBlock {
+		containers[0].VolumeDevices = cc.AddVolumeDevices()
+		containers[0].Env = append(containers[0].Env, []corev1.EnvVar{
 			{
 				Name:  "VOLUME_MODE",
 				Value: "block",
@@ -698,16 +655,16 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 				Name:  "MOUNT_POINT",
 				Value: common.WriteBlockPath,
 			},
-		}
+		}...)
 	} else {
-		pod.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+		containers[0].VolumeMounts = []corev1.VolumeMount{
 			{
 				Name:      cc.DataVolName,
 				MountPath: common.ClonerMountPath,
 				ReadOnly:  true,
 			},
 		}
-		addVars = []corev1.EnvVar{
+		containers[0].Env = append(containers[0].Env, []corev1.EnvVar{
 			{
 				Name:  "VOLUME_MODE",
 				Value: "filesystem",
@@ -716,13 +673,72 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 				Name:  "MOUNT_POINT",
 				Value: common.ClonerMountPath,
 			},
-		}
+		}...)
 	}
 
-	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, addVars...)
-	cc.SetPvcAllowedAnnotations(pod, targetPvc)
-	cc.SetRestrictedSecurityContext(&pod.Spec)
-	return pod
+	return containers
+}
+
+func makeCloneSourceAffinitySpec(args *sourceClonePodArgs) *corev1.Affinity {
+	affinity := args.workloadNodePlacement.Affinity
+	if affinity == nil {
+		affinity = &corev1.Affinity{}
+	}
+	if affinity.PodAffinity == nil {
+		affinity.PodAffinity = &corev1.PodAffinity{}
+	}
+
+	if len(args.sourcePvc.Spec.AccessModes) == 1 && args.sourcePvc.Spec.AccessModes[0] == corev1.ReadWriteOnce {
+		affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(
+			affinity.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
+			corev1.PodAffinityTerm{
+				LabelSelector: &metav1.LabelSelector{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      hostAssistedCloneSource,
+							Operator: metav1.LabelSelectorOpIn,
+							Values:   []string{string(args.sourcePvc.GetUID())},
+						},
+					},
+				},
+				Namespaces:  []string{args.sourcePvc.GetNamespace()},
+				TopologyKey: corev1.LabelHostname,
+			},
+		)
+	}
+	affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(
+		affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution,
+		corev1.WeightedPodAffinityTerm{
+			Weight: 100,
+			PodAffinityTerm: corev1.PodAffinityTerm{
+				LabelSelector: &metav1.LabelSelector{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      common.UploadTargetLabel,
+							Operator: metav1.LabelSelectorOpIn,
+							Values:   []string{string(args.targetPvc.UID)},
+						},
+					},
+				},
+				Namespaces:  []string{args.targetPvc.Namespace},
+				TopologyKey: corev1.LabelHostname,
+			},
+		},
+	)
+	return affinity
+}
+
+func makeCloneSourceVolumeSpec(args *sourceClonePodArgs) []corev1.Volume {
+	return []corev1.Volume{
+		{
+			Name: cc.DataVolName,
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: args.sourcePvc.GetName(),
+				},
+			},
+		},
+	}
 }
 
 // ParseCloneRequestAnnotation parses the clone request annotation
