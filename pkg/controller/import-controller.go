@@ -218,20 +218,6 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 		return reconcile.Result{}, nil
 	}
 
-	// In case this is a request to create a blank disk on a block device, we do not create a pod.
-	// we just mark the DV as successful
-	volumeMode := cc.GetVolumeMode(pvc)
-	if volumeMode == corev1.PersistentVolumeBlock && pvc.GetAnnotations()[cc.AnnSource] == cc.SourceNone && pvc.GetAnnotations()[cc.AnnPreallocationRequested] != "true" {
-		log.V(1).Info("attempting to create blank disk for block mode, this is a no-op, marking pvc with pod-phase succeeded")
-		if pvc.GetAnnotations() == nil {
-			pvc.SetAnnotations(make(map[string]string, 0))
-		}
-		pvc.GetAnnotations()[cc.AnnPodPhase] = string(corev1.PodSucceeded)
-		if err := r.updatePVC(pvc, log); err != nil {
-			return reconcile.Result{}, errors.WithMessage(err, fmt.Sprintf("could not update pvc %q annotation and/or label", pvc.Name))
-		}
-		return reconcile.Result{}, nil
-	}
 	return r.reconcilePvc(pvc, log)
 }
 

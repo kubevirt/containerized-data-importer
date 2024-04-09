@@ -185,7 +185,22 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 	})
 
 	It("Should succeed and be marked complete, if creating a block PVC with source none", func() {
-		reconciler = createImportReconciler(createBlockPvc("testPvc1", "block", map[string]string{cc.AnnSource: cc.SourceNone}, nil))
+		pvc := createBlockPvc("testPvc1", "block", map[string]string{cc.AnnSource: cc.SourceNone}, nil)
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodSucceeded,
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{
+							Message: "Import Completed",
+							Reason:  "Reason",
+						},
+					},
+				},
+			},
+		}
+		reconciler = createImportReconciler(pvc, pod)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "block"}})
 		Expect(err).ToNot(HaveOccurred())
 		resultPvc := &corev1.PersistentVolumeClaim{}
