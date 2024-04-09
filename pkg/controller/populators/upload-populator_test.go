@@ -283,8 +283,8 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(ok).To(BeFalse())
 	},
 		Entry("with pod running phase", string(corev1.PodRunning)),
-		Entry("with pod succeded phase", string(corev1.PodFailed)),
-		Entry("with pod succeded phase", string(corev1.PodSucceeded)),
+		Entry("with pod succeeded phase", string(corev1.PodFailed)),
+		Entry("with pod succeeded phase", string(corev1.PodSucceeded)),
 	)
 
 	DescribeTable("Should create PVC Prime with proper upload annotations", func(key, value, expectedValue string) {

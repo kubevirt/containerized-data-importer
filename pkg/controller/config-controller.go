@@ -490,7 +490,7 @@ func NewConfigController(mgr manager.Manager, log logr.Logger, uploadProxyServic
 		return nil, err
 	}
 	if err := reconciler.Init(); err != nil {
-		log.Error(err, "Unable to initalize CDIConfig")
+		log.Error(err, "Unable to initialize CDIConfig")
 	}
 	log.Info("Initialized CDI Config object")
 	return configController, nil

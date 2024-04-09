@@ -325,7 +325,7 @@ var _ = Describe("all clone tests", func() {
 				nodeList, err := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				if len(nodeList.Items) < 2 {
-					Skip("Need at least 2 nodes to copy accross nodes")
+					Skip("Need at least 2 nodes to copy across nodes")
 				}
 				nodeMap := make(map[string]bool)
 				for _, node := range nodeList.Items {
@@ -2663,7 +2663,7 @@ var _ = Describe("all clone tests", func() {
 			}
 		})
 
-		DescribeTable("Should sucessfully clone without falling back to host assisted", func(volumeMode v1.PersistentVolumeMode, repeat int, crossNamespace bool) {
+		DescribeTable("Should successfully clone without falling back to host assisted", func(volumeMode v1.PersistentVolumeMode, repeat int, crossNamespace bool) {
 			var i int
 			var err error
 

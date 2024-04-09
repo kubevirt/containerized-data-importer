@@ -187,7 +187,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			tempHostAssistedPvc := CreatePvcInStorageClass(getTempHostAssistedSourcePvcName(dv), snapshot.Namespace, &scName, nil, labels, corev1.ClaimBound)
 			err := setAnnOwnedByDataVolume(tempHostAssistedPvc, dv)
 			Expect(err).ToNot(HaveOccurred())
-			// mimic target PVC being aroud
+			// mimic target PVC being around
 			annotations := map[string]string{
 				AnnCloneToken: "foobar",
 			}

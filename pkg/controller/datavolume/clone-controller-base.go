@@ -91,9 +91,9 @@ const (
 	SizeDetectionPodCreated = "SizeDetectionPodCreated"
 	// MessageSizeDetectionPodCreated provides a const to indicate that the size-detection pod has been created (message)
 	MessageSizeDetectionPodCreated = "Size-detection pod created"
-	// SizeDetectionPodNotReady reports that the size-detection pod has not finished its exectuion (reason)
+	// SizeDetectionPodNotReady reports that the size-detection pod has not finished its execution (reason)
 	SizeDetectionPodNotReady = "SizeDetectionPodNotReady"
-	// MessageSizeDetectionPodNotReady reports that the size-detection pod has not finished its exectuion (message)
+	// MessageSizeDetectionPodNotReady reports that the size-detection pod has not finished its execution (message)
 	MessageSizeDetectionPodNotReady = "The size detection pod is not finished yet"
 	// ImportPVCNotReady reports that it's not yet possible to access the source PVC (reason)
 	ImportPVCNotReady = "ImportPVCNotReady"
