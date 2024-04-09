@@ -1,3 +1,4 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image")
 load("@bazel_gazelle//:def.bzl", "gazelle")
 load("@bazel_tools//tools/python:toolchain.bzl", "py_runtime_pair")
@@ -32,6 +33,13 @@ toolchain(
 gazelle(name = "gazelle")
 
 bazeldnf(name = "bazeldnf")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["doc.go"],
+    importpath = "kubevirt.io/containerized-data-importer",
+    visibility = ["//visibility:public"],
+)
 
 load(
     "@io_bazel_rules_docker//container:container.bzl",
@@ -82,12 +90,14 @@ container_bundle(
 
 load("@io_bazel_rules_docker//contrib:push-all.bzl", "docker_push")
 
+
+
 alias(
     name = "test-container-images",
     actual = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": ":test-container-images-aarch64",
-        "//conditions:default": ":test-container-images-amd64",
-    }),
+        "@io_bazel_rules_go//go/platform:linux_arm64":":test-container-images-aarch64",
+        "//conditions:default":  ":test-container-images-amd64",
+    })
 )
 
 docker_push(
@@ -161,17 +171,17 @@ container_push(
 filegroup(
     name = "test-images",
     srcs = [
-        "//tests:images/archive.tar",
-        "//tests:images/cirros.raw",
-        "//tests:images/cirros-large-physical-size.qcow2",
-        "//tests:images/cirros-large-physical-size.raw.xz",
-        "//tests:images/cirros-large-virtual-size.qcow2",
-        "//tests:images/cirros-large-virtual-size.raw.xz",
-        "//tests:images/cirros-qcow2.img",
-        "//tests:images/cirros-snapshot1.qcow2",
-        "//tests:images/cirros-snapshot2.qcow2",
         "//tests:images/tinyCore.iso",
         "//tests:images/tinyCore.vdi",
+        "//tests:images/archive.tar",
+        "//tests:images/cirros-qcow2.img",
+        "//tests:images/cirros.raw",
+	"//tests:images/cirros-large-virtual-size.raw.xz",
+	"//tests:images/cirros-large-virtual-size.qcow2",
+	"//tests:images/cirros-large-physical-size.raw.xz",
+	"//tests:images/cirros-large-physical-size.qcow2",
+	"//tests:images/cirros-snapshot1.qcow2",
+	"//tests:images/cirros-snapshot2.qcow2",
     ],
     visibility = ["//visibility:public"],
 )
