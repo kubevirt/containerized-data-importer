@@ -797,7 +797,6 @@ func getDataVolumeSourceRegistry(f *framework.Framework) (*cdiv1.DataVolumeSourc
 
 func updateDataImportCron(clientSet *cdiclientset.Clientset, namespace string, cronName string,
 	update func(cron *cdiv1.DataImportCron) *cdiv1.DataImportCron) func() error {
-
 	return func() error {
 		cron, err := clientSet.CdiV1beta1().DataImportCrons(namespace).Get(context.TODO(), cronName, metav1.GetOptions{})
 		if err != nil {

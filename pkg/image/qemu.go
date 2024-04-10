@@ -182,7 +182,6 @@ func checkOutputQemuImgInfo(output []byte, image string) (*ImgInfo, error) {
 		return nil, errors.Wrapf(err, "Invalid json for image %s", image)
 	}
 	return &info, nil
-
 }
 
 // Info returns information about the image from the url

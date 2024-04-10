@@ -59,7 +59,6 @@ func (wh *pvcMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1
 	pvcCpy := pvc.DeepCopy()
 	if err := dvc.RenderPvc(context.TODO(), wh.cachedClient, pvcCpy); err != nil {
 		return toAdmissionResponseError(err)
-
 	}
 
 	return toPatchResponse(pvc, pvcCpy)

@@ -3235,7 +3235,6 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 				*sourcePVC.Spec.StorageClassName == f.CsiCloneSCName &&
 				(!isCrossNamespaceClone || bindingMode == storagev1.VolumeBindingImmediate || usesPopulator) &&
 				(allowsExpansion || sourcePVC.Status.Capacity.Storage().Cmp(*targetPVC.Status.Capacity.Storage()) == 0) {
-
 				cloneType = "csi-clone"
 			}
 		}

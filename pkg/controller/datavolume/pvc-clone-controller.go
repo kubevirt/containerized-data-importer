@@ -492,7 +492,6 @@ func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState) (bool, erro
 				return false, nil
 			}
 		}
-
 	} else {
 		targetSize, _ = sourceCapacity.AsInt64()
 	}
@@ -594,7 +593,6 @@ func (r *PvcCloneReconciler) getSizeFromPod(targetPvc, sourcePvc *corev1.Persist
 func (r *PvcCloneReconciler) getOrCreateSizeDetectionPod(
 	sourcePvc *corev1.PersistentVolumeClaim,
 	dv *cdiv1.DataVolume) (*corev1.Pod, error) {
-
 	podName := sizeDetectionPodName(sourcePvc)
 	pod := &corev1.Pod{}
 	nn := types.NamespacedName{Namespace: sourcePvc.Namespace, Name: podName}
@@ -627,7 +625,6 @@ func (r *PvcCloneReconciler) getOrCreateSizeDetectionPod(
 func (r *PvcCloneReconciler) makeSizeDetectionPodSpec(
 	sourcePvc *corev1.PersistentVolumeClaim,
 	dv *cdiv1.DataVolume) *corev1.Pod {
-
 	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(context.TODO(), r.client)
 	if err != nil {
 		return nil

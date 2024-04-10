@@ -518,7 +518,6 @@ func yamlFiletoStruct(fileName string, o *map[string]interface{}) error {
 		return err
 	}
 	return nil
-
 }
 
 func structToYamlFile(fileName string, o interface{}) error {

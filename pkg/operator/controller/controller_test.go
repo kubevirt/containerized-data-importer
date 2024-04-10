@@ -1566,7 +1566,6 @@ func setDeploymentsDegraded(args *args) {
 			err = args.client.Status().Update(context.TODO(), d)
 			Expect(err).ToNot(HaveOccurred())
 		}
-
 	}
 	doReconcile(args)
 }

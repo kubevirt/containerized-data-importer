@@ -16,7 +16,6 @@ import (
 )
 
 func main() {
-
 	dirname := flag.String("crdDir", "_out/manifests/schema/", "path to directory with crds from where validation field will be parsed")
 	outputdir := flag.String("outputDir", "pkg/operator/resources/", "path to dir where go file will be generated")
 
@@ -43,7 +42,6 @@ func main() {
 				crds[crdname] = crd
 			}
 		}
-
 	}
 	generateGoFile(*outputdir, crds)
 }
@@ -79,7 +77,6 @@ func generateGoFile(outputDir string, crds map[string]*extv1.CustomResourceDefin
 		writeOrPanic(file, fmt.Sprintf(variable, crdname, strings.ReplaceAll(string(b), "`", "` + \"`\" + `")))
 	}
 	writeOrPanic(file, "}\n")
-
 }
 
 func getCRD(filename string) (string, *extv1.CustomResourceDefinition) {

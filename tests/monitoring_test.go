@@ -578,7 +578,6 @@ func getMetricValueWithDefault(f *framework.Framework, endpoint string, useDefau
 					found = true
 				}
 			}
-
 		}
 		return found
 	}, 1*time.Minute, 1*time.Second).Should(BeTrue())

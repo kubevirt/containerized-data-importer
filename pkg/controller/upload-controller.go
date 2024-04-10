@@ -212,7 +212,6 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 					"namespace", pvc.Namespace, "name", pvc.Name, "pod", pod.Name)
 				r.recorder.Eventf(es, corev1.EventTypeWarning, UploadTargetInUse,
 					"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, pvc.Name)
-
 			}
 			return reconcile.Result{Requeue: true}, nil
 		}

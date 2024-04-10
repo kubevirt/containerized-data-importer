@@ -644,7 +644,6 @@ func getURLFromRoute(route *routev1.Route, uploadProxyServiceName string) string
 		}
 	}
 	return ""
-
 }
 
 // getClusterWideProxy returns the OpenShift cluster wide proxy object

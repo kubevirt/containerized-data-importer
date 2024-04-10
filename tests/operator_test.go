@@ -1423,7 +1423,6 @@ func checkLogForRegEx(regEx *regexp.Regexp, log string) bool {
 }
 
 func checkAntiAffinity(name string, deploymentAffinity *corev1.Affinity) {
-
 	affinityTampleValue := &corev1.PodAntiAffinity{
 		PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
 			{
@@ -1445,7 +1444,6 @@ func checkAntiAffinity(name string, deploymentAffinity *corev1.Affinity) {
 	affCopy := framework.AffinityTestValue.DeepCopy()
 	affCopy.PodAntiAffinity = affinityTampleValue
 	Expect(reflect.DeepEqual(deploymentAffinity, affCopy)).To(BeTrue())
-
 }
 
 func getLog(f *framework.Framework, name string) string {

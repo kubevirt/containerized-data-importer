@@ -255,7 +255,6 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 						"namespace", pvc.Namespace, "name", pvc.Name, "pod", pod.Name)
 					r.recorder.Eventf(pvc, corev1.EventTypeWarning, ImportTargetInUse,
 						"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, pvc.Name)
-
 				}
 				return reconcile.Result{Requeue: true}, nil
 			}
@@ -1264,7 +1263,6 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 				},
 			},
 		})
-
 	}
 	if podEnvVar.secretName != "" && podEnvVar.source == cc.SourceGCS {
 		env = append(env, corev1.EnvVar{

@@ -487,7 +487,6 @@ func (handle *mockNbdOperations) GetSize() (uint64, error) {
 }
 
 func (handle *mockNbdOperations) Pread(buf []byte, offset uint64, optargs *libnbd.PreadOptargs) error {
-
 	fakebuf, err := currentExport.Read(offset)
 	copy(buf, fakebuf[offset:offset+uint64(len(buf))])
 	return err

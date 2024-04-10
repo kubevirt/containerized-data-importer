@@ -54,7 +54,6 @@ func startServer(port string, basicAuth bool, useTLS bool, wg *sync.WaitGroup) {
 			}
 			klog.Infof("INFO: METHOD:%s URL:%s SRC IP:%s DURATION:%s USER AGENT:%s\n",
 				r.Method, r.URL, r.RemoteAddr, fmt.Sprint(time.Since(start)), r.UserAgent())
-
 		}),
 		// Disable HTTP/2.
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),

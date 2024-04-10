@@ -61,7 +61,6 @@ func CreateCertForTestService(namespace, serviceName, configMapName, certDir, ce
 		if err != nil {
 			return err
 		}
-
 	} else {
 		cpy := stored.DeepCopy()
 		cpy.Data = cm.Data

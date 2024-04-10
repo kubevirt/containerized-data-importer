@@ -1035,7 +1035,6 @@ func newPVCDataVolume(name, pvcNamespace, pvcName string) *cdiv1.DataVolume {
 }
 
 func newDataVolumeWithEmptyPVCSpec(name, url string) *cdiv1.DataVolume {
-
 	httpSource := cdiv1.DataVolumeSource{
 		HTTP: &cdiv1.DataVolumeSourceHTTP{URL: url},
 	}

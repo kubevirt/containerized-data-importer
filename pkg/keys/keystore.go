@@ -121,7 +121,6 @@ func newSecret(client kubernetes.Interface, namespace, secretName string, data m
 		if err != nil {
 			return nil, errors.Wrap(err, "Error setting secret owner ref")
 		}
-
 	} else {
 		secret.OwnerReferences = []metav1.OwnerReference{*owner}
 	}

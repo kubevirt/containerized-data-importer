@@ -122,7 +122,6 @@ func processLayer(ctx context.Context,
 	pathPrefix string,
 	cache types.BlobInfoCache,
 	stopAtFirst bool) (bool, error) {
-
 	var reader io.ReadCloser
 	reader, _, err := src.GetBlob(ctx, layer, cache)
 	if err != nil {

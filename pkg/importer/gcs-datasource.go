@@ -92,7 +92,6 @@ func NewGCSDataSource(endpoint, keyFile string) (*GCSDataSource, error) {
 		keyFile:   keyFile,
 		gcsReader: gcsReader,
 	}, nil
-
 }
 
 // Info is called to get initial information about the data.

@@ -456,7 +456,6 @@ func copyDiskImage(f *framework.Framework, pod *v1.Pod, name string) {
 
 // Add ticket to imageiotest API, so importer can download it
 func addTicket(f *framework.Framework, pod *v1.Pod, snapshot imageIoDiskSnapshot) {
-
 	// Create ticket
 	ticket := imageIoTicket{
 		UUID:    snapshot.SnapshotID,

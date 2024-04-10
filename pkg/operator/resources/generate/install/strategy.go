@@ -107,7 +107,6 @@ func (ins *Strategy) ControllerDeployments() []*appsv1.Deployment {
 			continue
 		}
 		deployments = append(deployments, deployment)
-
 	}
 
 	return deployments
@@ -236,27 +235,22 @@ func dumpInstallStrategy(strategy *Strategy) (string, error) {
 	err = dumpSlice(strategy.roleBindings, writer)
 	if err != nil {
 		return "", err
-
 	}
 	err = dumpSlice(strategy.crds, writer)
 	if err != nil {
 		return "", err
-
 	}
 	err = dumpSlice(strategy.services, writer)
 	if err != nil {
 		return "", err
-
 	}
 	err = dumpSlice(strategy.certificateSecrets, writer)
 	if err != nil {
 		return "", err
-
 	}
 	err = dumpSlice(strategy.validatingWebhookConfigurations, writer)
 	if err != nil {
 		return "", err
-
 	}
 	err = dumpSlice(strategy.mutatingWebhookConfigurations, writer)
 	if err != nil {
@@ -275,7 +269,6 @@ func dumpInstallStrategy(strategy *Strategy) (string, error) {
 	err = dumpSlice(strategy.daemonSets, writer)
 	if err != nil {
 		return "", err
-
 	}
 	err = dumpSlice(strategy.sccs, writer)
 	if err != nil {
@@ -296,7 +289,6 @@ func dumpInstallStrategy(strategy *Strategy) (string, error) {
 }
 
 func generateCurrentInstallStrategy(resources []runtime.Object, reqLogger logr.Logger) (*Strategy, error) {
-
 	strategy := &Strategy{}
 
 	for _, desiredRuntimeObj := range resources {

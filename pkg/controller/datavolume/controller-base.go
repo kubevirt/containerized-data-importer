@@ -871,7 +871,6 @@ func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 	dataVolumeCopy *cdiv1.DataVolume,
 	pvc *corev1.PersistentVolumeClaim,
 	event Event) error {
-
 	if dataVolume == nil {
 		return nil
 	}
