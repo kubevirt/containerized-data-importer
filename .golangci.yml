@@ -3,6 +3,7 @@ linters:
   - durationcheck
   - errname
   - errorlint
+  - gci
   - ginkgolinter
   - gofmt
   - goimports
@@ -19,6 +20,15 @@ linters-settings:
   errorlint:
     # We want to allow for usage of %v to avoid leaking implementation details
     errorf: false
+  gci:
+    custom-order: true
+    sections:
+      - standard                  # Standard library
+      - prefix(github.com/onsi/)  # Ginko and Gomega
+      - default                   # Everything else
+      - prefix(k8s.io)            # Kubernetes
+      - prefix(sigs.k8s.io)       # Kubernetes
+      - prefix(kubevirt.io)       # Kubevirt
   ginkgolinter:
     forbid-focus-container: true
   nakedret:
