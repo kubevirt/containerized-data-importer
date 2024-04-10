@@ -26,12 +26,12 @@ import (
 	"strings"
 
 	"github.com/emicklei/go-restful/v3"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog/v2"
 
 	authorization "k8s.io/api/authorization/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	authorizationclient "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	restclient "k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 )
 
 const (

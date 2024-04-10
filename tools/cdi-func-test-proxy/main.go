@@ -14,9 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"k8s.io/klog/v2"
 
-	"github.com/pkg/errors"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )

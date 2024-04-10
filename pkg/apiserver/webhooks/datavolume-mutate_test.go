@@ -30,6 +30,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/appscode/jsonpatch"
+
 	admissionv1 "k8s.io/api/admission/v1"
 	authorization "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -39,11 +40,10 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/utils/ptr"
 
+	cdicorev1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-
-	cdicorev1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
 
 var _ = Describe("Mutating DataVolume Webhook", func() {

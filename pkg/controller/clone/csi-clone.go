@@ -6,13 +6,15 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
 
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
 // CSIClonePhaseName is the name of the csi clone phase

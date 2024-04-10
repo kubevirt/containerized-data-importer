@@ -9,9 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"cloud.google.com/go/storage"
+	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 
 	"k8s.io/klog/v2"

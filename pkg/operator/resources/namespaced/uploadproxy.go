@@ -22,12 +22,12 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"kubevirt.io/containerized-data-importer/pkg/common"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
 func createUploadProxyResources(args *FactoryArgs) []client.Object {

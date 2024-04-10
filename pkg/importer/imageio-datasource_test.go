@@ -15,12 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog/v2"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	ovirtsdk4 "github.com/ovirt/go-ovirt"
 	"github.com/pkg/errors"
+
+	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"

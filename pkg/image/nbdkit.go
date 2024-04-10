@@ -3,15 +3,15 @@ package image
 import (
 	"bufio"
 	"fmt"
-	"strings"
-
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
+
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"

@@ -29,9 +29,10 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	snapclientfake "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake"
+
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
@@ -41,10 +42,10 @@ import (
 	fakeclient "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/utils/ptr"
 
-	snapclientfake "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake"
-	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 )
 
 var (

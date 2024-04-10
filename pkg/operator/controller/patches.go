@@ -11,16 +11,19 @@ import (
 	"strings"
 
 	jsonpatch "github.com/evanphx/json-patch/v5"
+
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // The Customizer structure is used for customizing components with a collection of patches.

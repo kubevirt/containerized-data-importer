@@ -5,13 +5,14 @@ import (
 	"time"
 
 	"github.com/onsi/gomega"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // GetStorageProfileSpec attempts to get the StorageProfile for storageClass by Name.

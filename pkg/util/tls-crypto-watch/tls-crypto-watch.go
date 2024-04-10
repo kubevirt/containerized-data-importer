@@ -25,13 +25,14 @@ import (
 	"sync"
 
 	ocpcrypto "github.com/openshift/library-go/pkg/crypto"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
-	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 

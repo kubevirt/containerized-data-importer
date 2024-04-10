@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/openshift/library-go/pkg/build/naming"
+
 	kvalidation "k8s.io/apimachinery/pkg/util/validation"
 )
 
