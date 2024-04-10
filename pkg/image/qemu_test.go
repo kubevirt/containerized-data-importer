@@ -207,7 +207,7 @@ var _ = Describe("Resize", func() {
 			o := NewQEMUOperations()
 			err = o.Resize("image", quantity, false)
 			Expect(err).To(HaveOccurred())
-			Expect(strings.Contains(err.Error(), "Error resizing image image")).To(BeTrue())
+			Expect(strings.Contains(err.Error(), "Error resizing image")).To(BeTrue())
 		})
 	})
 })

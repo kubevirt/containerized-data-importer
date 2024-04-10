@@ -597,7 +597,7 @@ var _ = Describe("Controller", func() {
 				Expect(args.reconciler.namespacedArgs.Verbosity).To(Equal(strconv.Itoa(int(expectedValue))))
 			})
 
-			It("can become become ready, un-ready, and ready again", func() {
+			It("can become ready, un-ready, and ready again", func() {
 				var deployment *appsv1.Deployment
 
 				args := createArgs()
