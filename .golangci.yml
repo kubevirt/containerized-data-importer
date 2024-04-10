@@ -1,5 +1,6 @@
 linters:
   enable:
+  - errname
   - errorlint
   - ginkgolinter
   - goimports
