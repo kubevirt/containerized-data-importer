@@ -1,8 +1,12 @@
 linters:
   enable:
+  - errorlint
   - ginkgolinter
   - goimports
   - misspell
 linters-settings:
   ginkgolinter:
     forbid-focus-container: true
+  errorlint:
+    # We want to allow for usage of %v to avoid leaking implementation details
+    errorf: false
