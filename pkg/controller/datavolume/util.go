@@ -64,6 +64,19 @@ func renderPvcSpec(client client.Client, recorder record.EventRecorder, log logr
 	return nil, errors.Errorf("datavolume one of {pvc, storage} field is required")
 }
 
+// RenderPvcSpec is an exported version of renderPvcSpec solely for backport purposes of #3155
+//
+// Deprecated: Should not be used, newer versions have RenderPVC
+func RenderPvcSpec(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume, pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaimSpec, error) {
+	if dv.Spec.PVC != nil {
+		return dv.Spec.PVC.DeepCopy(), nil
+	} else if dv.Spec.Storage != nil {
+		return pvcFromStorage(client, recorder, log, dv, pvc)
+	}
+
+	return nil, errors.Errorf("datavolume one of {pvc, storage} field is required")
+}
+
 func pvcFromStorage(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume, pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaimSpec, error) {
 	var pvcSpec *v1.PersistentVolumeClaimSpec
 

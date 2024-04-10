@@ -56,7 +56,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	cdv "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
+	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/monitoring"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -368,6 +368,17 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			return res, err
 		}
 	} else if snapshot != nil {
+		// Below k8s 1.29 there's no way to know the source volume mode
+		// Let's at least expose this info on our own snapshots
+		if _, ok := snapshot.Annotations[cc.AnnSourceVolumeMode]; !ok {
+			volMode, err := r.inferVolumeModeForSnapshot(dataImportCron)
+			if err != nil {
+				return res, err
+			}
+			if volMode != nil {
+				cc.AddAnnotation(snapshot, cc.AnnSourceVolumeMode, string(*volMode))
+			}
+		}
 		if err := r.updateSource(ctx, dataImportCron, snapshot); err != nil {
 			return res, err
 		}
@@ -419,7 +430,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			}
 		}
 	} else if importSucceeded {
-		if err := r.updateDataImportCronSuccessCondition(ctx, dataImportCron, format, snapshot); err != nil {
+		if err := r.updateDataImportCronSuccessCondition(dataImportCron, format, snapshot); err != nil {
 			return res, err
 		}
 	} else if len(imports) > 0 {
@@ -503,7 +514,7 @@ func (r *DataImportCronReconciler) updateSource(ctx context.Context, cron *cdiv1
 
 func (r *DataImportCronReconciler) deleteErroneousDataVolume(ctx context.Context, cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume) error {
 	log := r.log.WithValues("name", dv.Name).WithValues("uid", dv.UID)
-	if cond := cdv.FindConditionByType(cdiv1.DataVolumeRunning, dv.Status.Conditions); cond != nil {
+	if cond := dvc.FindConditionByType(cdiv1.DataVolumeRunning, dv.Status.Conditions); cond != nil {
 		if cond.Status == corev1.ConditionFalse && cond.Reason == common.GenericError {
 			log.Info("Delete DataVolume and reset DesiredDigest due to error", "message", cond.Message)
 			// Unlabel the DV before deleting it, to eliminate reconcile before DIC is updated
@@ -721,6 +732,9 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 			return err
 		}
 		cc.AddAnnotation(desiredSnapshot, AnnLastUseTime, time.Now().UTC().Format(time.RFC3339Nano))
+		if pvc.Spec.VolumeMode != nil {
+			cc.AddAnnotation(desiredSnapshot, cc.AnnSourceVolumeMode, string(*pvc.Spec.VolumeMode))
+		}
 		if err := r.client.Create(ctx, desiredSnapshot); err != nil {
 			return err
 		}
@@ -737,7 +751,7 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 	return nil
 }
 
-func (r *DataImportCronReconciler) updateDataImportCronSuccessCondition(ctx context.Context, dataImportCron *cdiv1.DataImportCron, format cdiv1.DataImportCronSourceFormat, snapshot *snapshotv1.VolumeSnapshot) error {
+func (r *DataImportCronReconciler) updateDataImportCronSuccessCondition(dataImportCron *cdiv1.DataImportCron, format cdiv1.DataImportCronSourceFormat, snapshot *snapshotv1.VolumeSnapshot) error {
 	dataImportCron.Status.SourceFormat = &format
 
 	switch format {
@@ -953,14 +967,14 @@ func NewDataImportCronController(mgr manager.Manager, log logr.Logger, importerI
 	if err != nil {
 		return nil, err
 	}
-	if err := addDataImportCronControllerWatches(mgr, dataImportCronController, log); err != nil {
+	if err := addDataImportCronControllerWatches(mgr, dataImportCronController); err != nil {
 		return nil, err
 	}
 	log.Info("Initialized DataImportCron controller")
 	return dataImportCronController, nil
 }
 
-func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
+func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Controller) error {
 	if err := c.Watch(&source.Kind{Type: &cdiv1.DataImportCron{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
@@ -1366,4 +1380,15 @@ func GetInitialJobName(cron *cdiv1.DataImportCron) string {
 
 func getSelector(matchLabels map[string]string) (labels.Selector, error) {
 	return metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: matchLabels})
+}
+
+func (r *DataImportCronReconciler) inferVolumeModeForSnapshot(cron *cdiv1.DataImportCron) (*corev1.PersistentVolumeMode, error) {
+	dv := &cron.Spec.Template
+	//nolint:staticcheck // hack for backport of #3155
+	spec, err := dvc.RenderPvcSpec(r.client, r.recorder, r.log, dv, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return spec.VolumeMode, nil
 }
