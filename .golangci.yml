@@ -9,6 +9,7 @@ linters:
   - misspell
   - nakedret
   - unconvert
+  - whitespace
 
 issues:
   max-issues-per-linter: 0
