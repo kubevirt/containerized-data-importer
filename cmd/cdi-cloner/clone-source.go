@@ -151,7 +151,7 @@ func validateMount() {
 
 func newTarReader(preallocation bool) (io.ReadCloser, error) {
 	excludeMap := map[string]struct{}{
-		"lost+found": struct{}{},
+		"lost+found": {},
 	}
 
 	args := []string{"/usr/bin/tar", "cv"}
