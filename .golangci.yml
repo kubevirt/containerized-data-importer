@@ -4,6 +4,7 @@ linters:
   - errname
   - errorlint
   - ginkgolinter
+  - gofmt
   - goimports
   - misspell
   - nakedret
