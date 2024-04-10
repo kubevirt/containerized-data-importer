@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"flag"
 	"io"
 	"net/http"
@@ -34,7 +35,7 @@ type execReader struct {
 
 func (er *execReader) Read(p []byte) (n int, err error) {
 	n, err = er.stdout.Read(p)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		if err2 := er.cmd.Wait(); err2 != nil {
 			errBytes, _ := io.ReadAll(er.stderr)
 			klog.Fatalf("Subprocess did not execute successfully, result is: %q\n%s", er.cmd.ProcessState.ExitCode(), string(errBytes))
