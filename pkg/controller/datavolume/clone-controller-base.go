@@ -551,17 +551,18 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 	}
 
 	// Function to reconcile DVs that match the selected fields
-	dataVolumeMapper := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+	dataVolumeMapper := func(ctx context.Context, obj client.Object) []reconcile.Request {
 		dvList := &cdiv1.DataVolumeList{}
 		namespacedName := types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}
 		matchingFields := client.MatchingFields{indexingKey: namespacedName.String()}
 		if err := mgr.GetClient().List(ctx, dvList, matchingFields); err != nil {
-			return
+			return nil
 		}
+		var reqs []reconcile.Request
 		for _, dv := range dvList.Items {
 			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
 		}
-		return
+		return reqs
 	}
 
 	if err := datavolumeController.Watch(source.Kind(mgr.GetCache(), typeToWatch),

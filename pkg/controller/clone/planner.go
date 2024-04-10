@@ -260,20 +260,21 @@ func (p *Planner) watchSnapshots(ctx context.Context, log logr.Logger) error {
 func (p *Planner) watchOwned(log logr.Logger, obj client.Object) error {
 	objList := p.RootObjectType.DeepCopyObject().(client.ObjectList)
 	if err := p.Controller.Watch(source.Kind(p.GetCache(), obj), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			uid, ok := obj.GetLabels()[p.OwnershipLabel]
 			if !ok {
-				return
+				return nil
 			}
 			matchingFields := client.MatchingFields{
 				p.UIDField: uid,
 			}
 			if err := p.Client.List(ctx, objList, matchingFields); err != nil {
 				log.Error(err, "Unable to list resource", "matchingFields", matchingFields)
-				return
+				return nil
 			}
 			sv := reflect.ValueOf(objList).Elem()
 			iv := sv.FieldByName("Items")
+			var reqs []reconcile.Request
 			for i := 0; i < iv.Len(); i++ {
 				o := iv.Index(i).Addr().Interface().(client.Object)
 				reqs = append(reqs, reconcile.Request{
@@ -283,7 +284,7 @@ func (p *Planner) watchOwned(log logr.Logger, obj client.Object) error {
 					},
 				})
 			}
-			return
+			return reqs
 		}),
 	); err != nil {
 		return err

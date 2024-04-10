@@ -260,7 +260,7 @@ func WriteTerminationMessageToFile(file, message string) error {
 }
 
 // CopyDir copies a dir from one location to another.
-func CopyDir(source string, dest string) (err error) {
+func CopyDir(source string, dest string) error {
 	// get properties of source dir
 	sourceinfo, err := os.Stat(source)
 	if err != nil {
@@ -294,7 +294,7 @@ func CopyDir(source string, dest string) (err error) {
 			}
 		}
 	}
-	return
+	return err
 }
 
 // LinkFile symlinks the source to the target

@@ -978,29 +978,30 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return nil
 	}
 
-	mapStorageProfileToCron := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+	mapStorageProfileToCron := func(ctx context.Context, obj client.Object) []reconcile.Request {
 		// TODO: Get rid of this after at least one version; use indexer on storage class annotation instead
 		// Otherwise we risk losing the storage profile event
 		var crons cdiv1.DataImportCronList
 		if err := mgr.GetClient().List(ctx, &crons); err != nil {
 			c.GetLogger().Error(err, "Unable to list DataImportCrons")
-			return
+			return nil
 		}
 		// Storage profiles are 1:1 to storage classes
 		scName := obj.GetName()
+		var reqs []reconcile.Request
 		for _, cron := range crons.Items {
 			dataVolume := cron.Spec.Template
 			explicitScName := cc.GetStorageClassFromDVSpec(&dataVolume)
 			templateSc, err := cc.GetStorageClassByNameWithVirtFallback(ctx, mgr.GetClient(), explicitScName, dataVolume.Spec.ContentType)
 			if err != nil || templateSc == nil {
 				c.GetLogger().Error(err, "Unable to get storage class", "templateSc", templateSc)
-				return
+				return reqs
 			}
 			if templateSc.Name == scName {
 				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: cron.Namespace, Name: cron.Name}})
 			}
 		}
-		return
+		return reqs
 	}
 
 	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{}),
