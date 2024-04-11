@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -285,7 +286,7 @@ func isNoProvisioner(name string, cl client.Client) bool {
 	if err := cl.Get(context.TODO(), types.NamespacedName{Name: name}, storageClass); err != nil {
 		return false
 	}
-	return storageClass.Provisioner == "kubernetes.io/no-provisioner"
+	return storageClass.Provisioner == storagehelpers.NotSupportedProvisioner
 }
 
 func (r *StorageProfileReconciler) computeMetrics(profile *cdiv1.StorageProfile, sc *storagev1.StorageClass) error {

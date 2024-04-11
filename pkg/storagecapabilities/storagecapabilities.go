@@ -8,6 +8,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -141,7 +142,7 @@ var UnsupportedProvisioners = map[string]struct{}{
 // GetCapabilities finds and returns a predefined StorageCapabilities for a given StorageClass
 func GetCapabilities(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
 	provisionerKey := storageProvisionerKey(sc)
-	if provisionerKey == "kubernetes.io/no-provisioner" {
+	if provisionerKey == storagehelpers.NotSupportedProvisioner {
 		return capabilitiesForNoProvisioner(cl, sc)
 	}
 	capabilities, found := CapabilitiesByProvisionerKey[provisionerKey]
@@ -162,20 +163,7 @@ func GetAdvisedCloneStrategy(sc *storagev1.StorageClass) (cdiv1.CDICloneStrategy
 	return strategy, found
 }
 
-func isLocalStorageOperator(sc *storagev1.StorageClass) bool {
-	_, found := sc.Labels["local.storage.openshift.io/owner-name"]
-	return found
-}
-
-func knownNoProvisioner(sc *storagev1.StorageClass) bool {
-	return isLocalStorageOperator(sc)
-}
-
 func capabilitiesForNoProvisioner(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
-	// There's so many no-provisioner storage classes, let's start slow with the known ones.
-	if !knownNoProvisioner(sc) {
-		return []StorageCapabilities{}, false
-	}
 	pvs := &v1.PersistentVolumeList{}
 	err := cl.List(context.TODO(), pvs)
 	if err != nil {
