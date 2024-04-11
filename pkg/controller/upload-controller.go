@@ -741,7 +741,9 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			Name:      args.Name,
 			Namespace: args.PVC.Namespace,
 			Annotations: map[string]string{
-				annCreatedByUpload: "yes",
+				annCreatedByUpload:               "yes",
+				cc.AnnPodSidecarInjectionIstio:   args.PVC.Annotations[cc.AnnPodSidecarInjectionIstio],
+				cc.AnnPodSidecarInjectionLinkerd: args.PVC.Annotations[cc.AnnPodSidecarInjectionLinkerd],
 			},
 			Labels: map[string]string{
 				common.CDILabelKey:              common.CDILabelValue,

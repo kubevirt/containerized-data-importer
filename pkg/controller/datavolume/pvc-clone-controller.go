@@ -632,7 +632,7 @@ func (r *PvcCloneReconciler) makeSizeDetectionPodSpec(
 		return nil
 	}
 	// Generate individual specs
-	objectMeta := makeSizeDetectionObjectMeta(sourcePvc, dv)
+	objectMeta := makeSizeDetectionObjectMeta(sourcePvc)
 	volume := makeSizeDetectionVolumeSpec(sourcePvc.Name)
 	container := r.makeSizeDetectionContainerSpec(volume.Name)
 	if container == nil {
@@ -683,10 +683,14 @@ func (r *PvcCloneReconciler) makeSizeDetectionPodSpec(
 }
 
 // makeSizeDetectionObjectMeta creates and returns the object metadata for the size-detection pod
-func makeSizeDetectionObjectMeta(sourcePvc *corev1.PersistentVolumeClaim, dataVolume *cdiv1.DataVolume) *metav1.ObjectMeta {
+func makeSizeDetectionObjectMeta(sourcePvc *corev1.PersistentVolumeClaim) *metav1.ObjectMeta {
 	return &metav1.ObjectMeta{
 		Name:      sizeDetectionPodName(sourcePvc),
 		Namespace: sourcePvc.Namespace,
+		Annotations: map[string]string{
+			cc.AnnPodSidecarInjectionIstio:   sourcePvc.Annotations[cc.AnnPodSidecarInjectionIstio],
+			cc.AnnPodSidecarInjectionLinkerd: sourcePvc.Annotations[cc.AnnPodSidecarInjectionLinkerd],
+		},
 		Labels: map[string]string{
 			common.CDILabelKey:       common.CDILabelValue,
 			common.CDIComponentLabel: common.ImporterPodName,

@@ -147,7 +147,9 @@ func (p *PrepClaimPhase) createPod(ctx context.Context, name string, pvc *corev1
 			Name:      name,
 			Namespace: pvc.Namespace,
 			Annotations: map[string]string{
-				cc.AnnCreatedBy: "yes",
+				cc.AnnCreatedBy:                  "yes",
+				cc.AnnPodSidecarInjectionIstio:   pvc.Annotations[cc.AnnPodSidecarInjectionIstio],
+				cc.AnnPodSidecarInjectionLinkerd: pvc.Annotations[cc.AnnPodSidecarInjectionLinkerd],
 			},
 			Labels: map[string]string{
 				common.CDILabelKey:       common.CDILabelValue,
