@@ -360,15 +360,21 @@ rpm(
 )
 
 rpm(
-    name = "buildah-1__1.31.3-1.el9.aarch64",
-    sha256 = "75cee8238006cd2ad42054a66cb93a36d429c86d661d293a632c19acf87b24a9",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/buildah-1.31.3-1.el9.aarch64.rpm"],
+    name = "buildah-1__1.34.0-1.el9.aarch64",
+    sha256 = "547e1cdac7a455194d13dfc0d0382fd9cb7273977467eb8f4475b8cb341c0720",
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/buildah-1.34.0-1.el9.aarch64.rpm",
+        "https://storage.googleapis.com/builddeps/547e1cdac7a455194d13dfc0d0382fd9cb7273977467eb8f4475b8cb341c0720",
+    ],
 )
 
 rpm(
-    name = "buildah-1__1.31.3-1.el9.x86_64",
-    sha256 = "468a96b262c7368f340dfbd3f3d02a6ba1c67eda39bd5f8ebe47f379b7c1ad43",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/buildah-1.31.3-1.el9.x86_64.rpm"],
+    name = "buildah-1__1.34.0-1.el9.x86_64",
+    sha256 = "508522c5474437d2fa85fec9db2a28bf2dd930b465d99731476badd9f1095102",
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/buildah-1.34.0-1.el9.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/508522c5474437d2fa85fec9db2a28bf2dd930b465d99731476badd9f1095102",
+    ],
 )
 
 rpm(
@@ -608,13 +614,13 @@ rpm(
 rpm(
     name = "crun-0__1.12-1.el9.aarch64",
     sha256 = "a2d1a41b79d5da007aa0ebcbca2d2eec8e018cdab7474954ac0168b5c53ed8af",
-    urls = ["https://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/crun-1.12-1.el9.aarch64.rpm"],
+    urls = ["https://storage.googleapis.com/builddeps/a2d1a41b79d5da007aa0ebcbca2d2eec8e018cdab7474954ac0168b5c53ed8af"],
 )
 
 rpm(
     name = "crun-0__1.12-1.el9.x86_64",
     sha256 = "08bf93254eee3c9a612f77f0fecd58af30bf096ac7589ec797b4c6fb57e64764",
-    urls = ["https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/crun-1.12-1.el9.x86_64.rpm"],
+    urls = ["https://storage.googleapis.com/builddeps/08bf93254eee3c9a612f77f0fecd58af30bf096ac7589ec797b4c6fb57e64764"],
 )
 
 rpm(
@@ -2643,15 +2649,15 @@ rpm(
 )
 
 rpm(
-    name = "qemu-img-17__8.1.0-4.el9.aarch64",
-    sha256 = "fa44be249c36aadcf6a6dae2e58b34b5baeb29c1e2d7bcb765b385efc3dd5f48",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/qemu-img-8.1.0-4.el9.aarch64.rpm"],
+    name = "qemu-img-17__8.0.0-13.el9.aarch64",
+    sha256 = "4e5e088c57310147f64a0dc8b7096a0fe9daac8cee6149c42687a0679923fc39",
+    urls = ["https://storage.googleapis.com/builddeps/4e5e088c57310147f64a0dc8b7096a0fe9daac8cee6149c42687a0679923fc39"],
 )
 
 rpm(
-    name = "qemu-img-17__8.1.0-4.el9.x86_64",
-    sha256 = "7355c1f3028925851b3f46898aaab6baf98bbee037f214bddaaaf4b5beb976b4",
-    urls = ["http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/qemu-img-8.1.0-4.el9.x86_64.rpm"],
+    name = "qemu-img-17__8.0.0-13.el9.x86_64",
+    sha256 = "2f2b859728eaacf2034ec755f5b1b8a35650f46bb11ec8005d59400ceaefaefa",
+    urls = ["https://storage.googleapis.com/builddeps/2f2b859728eaacf2034ec755f5b1b8a35650f46bb11ec8005d59400ceaefaefa"],
 )
 
 rpm(
