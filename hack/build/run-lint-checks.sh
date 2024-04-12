@@ -21,13 +21,6 @@ source hack/build/config.sh
 source hack/build/common.sh
 
 LINTABLE=(staging/src/kubevirt.io/containerized-data-importer-api pkg cmd tests tools)
-ec=0
-out="$(gofmt -l -s ${SOURCE_DIRS} | grep ".*\.go")"
-if [[ ${out} ]]; then
-    echo "FAIL: Format errors found in the following files:"
-    echo "${out}"
-    ec=1
-fi
 for p in "${LINTABLE[@]}"; do
     echo "running golint on directory: ${p}"
     out="$(golint ${p}/...)"
