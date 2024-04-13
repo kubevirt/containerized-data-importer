@@ -17,6 +17,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
@@ -229,6 +230,55 @@ var _ = Describe("setAnnotationsFromPod", func() {
 		Expect(result[AnnRunningConditionMessage]).To(Equal(common.ScratchSpaceRequired))
 		Expect(result[AnnRunningConditionReason]).To(Equal(ScratchSpaceRequiredReason))
 		Expect(result[AnnRequiresScratch]).To(Equal("true"))
+	})
+
+	It("Should set image pull failure message and reason", func() {
+		const errorIncludesImagePullText = `Unable to process data: ` + common.ImagePullFailureText + `: reading manifest wrong
+in quay.io/myproject/myimage: manifest unknown`
+
+		result := make(map[string]string)
+		testPod := CreateImporterTestPod(CreatePvc("test", metav1.NamespaceDefault, nil, nil), "test", nil)
+		testPod.Status = v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{
+							Message: errorIncludesImagePullText,
+							Reason:  common.GenericError,
+						},
+					},
+				},
+			},
+		}
+		setAnnotationsFromPodWithPrefix(result, testPod, nil, AnnRunningCondition)
+		Expect(result[AnnRunningCondition]).To(Equal("false"))
+		Expect(result[AnnRunningConditionMessage]).To(Equal(errorIncludesImagePullText))
+		Expect(result[AnnRunningConditionReason]).To(Equal(ImagePullFailedReason))
+		Expect(result[AnnRequiresScratch]).To(BeEmpty())
+	})
+
+	It("Should set running reason as error for general errors", func() {
+		const errorMessage = `just a fake error text to check in this test`
+
+		result := make(map[string]string)
+		testPod := CreateImporterTestPod(CreatePvc("test", metav1.NamespaceDefault, nil, nil), "test", nil)
+		testPod.Status = v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{
+							Message: errorMessage,
+							Reason:  common.GenericError,
+						},
+					},
+				},
+			},
+		}
+		setAnnotationsFromPodWithPrefix(result, testPod, nil, AnnRunningCondition)
+		Expect(result[AnnRunningCondition]).To(Equal("false"))
+		Expect(result[AnnRunningConditionMessage]).To(Equal(errorMessage))
+		Expect(result[AnnRunningConditionReason]).To(Equal(common.GenericError))
+		Expect(result[AnnRequiresScratch]).To(BeEmpty())
 	})
 })
 

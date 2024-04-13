@@ -26,6 +26,7 @@ import (
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
@@ -176,23 +177,6 @@ func OpenFileOrBlockDevice(fileName string) (*os.File, error) {
 		return nil, errors.Wrapf(err, "could not open file %q", fileName)
 	}
 	return outFile, nil
-}
-
-// StreamDataToFile provides a function to stream the specified io.Reader to the specified local file
-func StreamDataToFile(r io.Reader, fileName string) error {
-	outFile, err := OpenFileOrBlockDevice(fileName)
-	if err != nil {
-		return err
-	}
-	defer outFile.Close()
-	klog.V(1).Infof("Writing data...\n")
-	if _, err = io.Copy(outFile, r); err != nil {
-		klog.Errorf("Unable to write file from dataReader: %v\n", err)
-		os.Remove(outFile.Name())
-		return errors.Wrapf(err, "unable to write to file")
-	}
-	err = outFile.Sync()
-	return err
 }
 
 // UnArchiveTar unarchives a tar file and streams its files

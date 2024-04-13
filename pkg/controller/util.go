@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -35,8 +36,8 @@ import (
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
@@ -59,6 +60,9 @@ const (
 
 	// ScratchSpaceRequiredReason is a const that defines the pod exited due to a lack of scratch space
 	ScratchSpaceRequiredReason = "Scratch space required"
+
+	// ImagePullFailedReason is a const that defines the pod exited due to failure when pulling image
+	ImagePullFailedReason = "ImagePullFailed"
 
 	// ImportCompleteMessage is a const that defines the pod completeded the import successfully
 	ImportCompleteMessage = "Import Complete"
@@ -294,6 +298,18 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, termMs
 	}
 
 	anno[cc.AnnRunningCondition] = "false"
+
+	for _, status := range pod.Status.ContainerStatuses {
+		if status.Started != nil && !(*status.Started) {
+			if status.State.Waiting != nil &&
+				(status.State.Waiting.Reason == "ImagePullBackOff" || status.State.Waiting.Reason == "ErrImagePull") {
+				anno[prefix+".message"] = fmt.Sprintf("%s: %s", common.ImagePullFailureText, status.Image)
+				anno[prefix+".reason"] = ImagePullFailedReason
+				return
+			}
+		}
+	}
+
 	if containerState.Waiting != nil && containerState.Waiting.Reason != "CrashLoopBackOff" {
 		anno[prefix+".message"] = simplifyKnownMessage(containerState.Waiting.Message)
 		anno[prefix+".reason"] = containerState.Waiting.Reason
@@ -326,6 +342,11 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, termMs
 			anno[prefix+".message"] = simplifyKnownMessage(containerState.Terminated.Message)
 			if strings.Contains(containerState.Terminated.Message, common.PreallocationApplied) {
 				anno[cc.AnnPreallocationApplied] = "true"
+			}
+
+			if strings.Contains(containerState.Terminated.Message, common.ImagePullFailureText) {
+				anno[prefix+".reason"] = ImagePullFailedReason
+				return
 			}
 		}
 		anno[prefix+".reason"] = containerState.Terminated.Reason
