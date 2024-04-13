@@ -39,6 +39,7 @@ import (
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -160,7 +161,7 @@ func (hs *HTTPDataSource) Transfer(path string) (ProcessingPhase, error) {
 		if err != nil || size <= 0 {
 			return ProcessingPhaseError, ErrInvalidPath
 		}
-		err = util.StreamDataToFile(hs.readers.TopReader(), file)
+		err = streamDataToFile(hs.readers.TopReader(), file)
 		if err != nil {
 			return ProcessingPhaseError, err
 		}
@@ -183,7 +184,7 @@ func (hs *HTTPDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		return ProcessingPhaseError, err
 	}
 	hs.readers.StartProgressUpdate()
-	err := util.StreamDataToFile(hs.readers.TopReader(), fileName)
+	err := streamDataToFile(hs.readers.TopReader(), fileName)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
