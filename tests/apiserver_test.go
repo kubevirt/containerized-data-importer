@@ -11,7 +11,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	ocpconfigv1 "github.com/openshift/api/config/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -105,11 +104,11 @@ var _ = Describe("cdi-apiserver tests", Serial, func() {
 
 		It("[test_id:9062]should fail reaching server when TLS profile requires minimal TLS version higher than our client's", func() {
 			Expect(utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-				config.TLSSecurityProfile = &ocpconfigv1.TLSSecurityProfile{
+				config.TLSSecurityProfile = &cdiv1.TLSSecurityProfile{
 					// Modern profile requires TLS 1.3
 					// https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility
-					Type:   ocpconfigv1.TLSProfileModernType,
-					Modern: &ocpconfigv1.ModernTLSProfile{},
+					Type:   cdiv1.TLSProfileModernType,
+					Modern: &cdiv1.ModernTLSProfile{},
 				}
 			})).To(Succeed())
 
@@ -148,11 +147,11 @@ var _ = Describe("cdi-apiserver tests", Serial, func() {
 
 			// Change to intermediate, which is fine with 1.2, expect success
 			err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-				config.TLSSecurityProfile = &ocpconfigv1.TLSSecurityProfile{
+				config.TLSSecurityProfile = &cdiv1.TLSSecurityProfile{
 					// Intermediate profile requires TLS 1.2
 					// https://wiki.mozilla.org/Security/Server_Side_TLS#Intermediate_compatibility_.28recommended.29
-					Type:         ocpconfigv1.TLSProfileIntermediateType,
-					Intermediate: &ocpconfigv1.IntermediateTLSProfile{},
+					Type:         cdiv1.TLSProfileIntermediateType,
+					Intermediate: &cdiv1.IntermediateTLSProfile{},
 				}
 			})
 			Expect(err).ToNot(HaveOccurred())
