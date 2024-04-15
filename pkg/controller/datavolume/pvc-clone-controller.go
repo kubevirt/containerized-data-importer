@@ -688,10 +688,6 @@ func makeSizeDetectionObjectMeta(sourcePvc *corev1.PersistentVolumeClaim) *metav
 	return &metav1.ObjectMeta{
 		Name:      sizeDetectionPodName(sourcePvc),
 		Namespace: sourcePvc.Namespace,
-		Annotations: map[string]string{
-			cc.AnnPodSidecarInjectionIstio:   sourcePvc.Annotations[cc.AnnPodSidecarInjectionIstio],
-			cc.AnnPodSidecarInjectionLinkerd: sourcePvc.Annotations[cc.AnnPodSidecarInjectionLinkerd],
-		},
 		Labels: map[string]string{
 			common.CDILabelKey:       common.CDILabelValue,
 			common.CDIComponentLabel: common.ImporterPodName,
