@@ -425,7 +425,7 @@ func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.P
 
 	crKind := pvc.Spec.DataSourceRef.Kind
 	crName := pvc.Spec.DataSourceRef.Name
-	var executable, secretName, containerImage string
+	var executable, secretName, containerImage, transferNetwork string
 	var args []string
 
 	switch crKind {
@@ -442,6 +442,7 @@ func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.P
 		args = getOvirtPopulatorPodArgs(rawBlock, crInstance)
 		secretName = crInstance.Spec.EngineSecretName
 		containerImage = r.ovirtPopulatorImage
+		transferNetwork = crInstance.Spec.TransferNetwork
 	case "OpenstackVolumePopulator":
 		crInstance := &v1beta1.OpenstackVolumePopulator{}
 		found, err := cc.GetResource(context.TODO(), r.client, pvc.Namespace, crName, crInstance)
@@ -455,12 +456,19 @@ func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.P
 		args = getOpenstackPopulatorPodArgs(rawBlock, crInstance)
 		secretName = crInstance.Spec.SecretName
 		containerImage = r.importerImage
+		transferNetwork = crInstance.Spec.TransferNetwork
 	default:
 		return fmt.Errorf("unknown populator type %T", crKind)
 	}
 
 	args = append(args, fmt.Sprintf("--owner-uid=%s", string(pvc.UID)))
 	args = append(args, fmt.Sprintf("--pvc-size=%d", pvc.Spec.Resources.Requests.Storage().Value()))
+
+	annotations := make(map[string]string)
+
+	if transferNetwork != "" {
+		annotations[cc.AnnPodMultusDefaultNetwork] = transferNetwork
+	}
 
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -476,6 +484,7 @@ func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.P
 					BlockOwnerDeletion: ptr.To(true),
 				},
 			},
+			Annotations: annotations,
 		},
 
 		Spec: makePopulatePodSpec(pvcPrime.Name, secretName),

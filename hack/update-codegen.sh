@@ -50,7 +50,6 @@ swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-import
 
 swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1/types.go
 swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1/types.go
-swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1/types.go
 
 swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1/types.go
 

@@ -1,7 +1,6 @@
 package v1beta1
 
 import (
-	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,7 +27,7 @@ type OvirtVolumePopulatorSpec struct {
 	EngineSecretName string `json:"engineSecretName"`
 	DiskID           string `json:"diskId"`
 	// The network attachment definition that should be used for disk transfer.
-	TransferNetwork *core.ObjectReference `json:"transferNetwork,omitempty"`
+	TransferNetwork string `json:"transferNetwork,omitempty"`
 }
 
 // OvirtVolumePopulatorStatus is the status of the OvirtVolumePopulator CR
@@ -68,7 +67,7 @@ type OpenstackVolumePopulatorSpec struct {
 	SecretName  string `json:"secretName"`
 	ImageID     string `json:"imageId"`
 	// The network attachment definition that should be used for disk transfer.
-	TransferNetwork *core.ObjectReference `json:"transferNetwork,omitempty"`
+	TransferNetwork string `json:"transferNetwork,omitempty"`
 }
 
 // OpenstackVolumePopulatorStatus is the status of the OpenstackVolumePopulator CR
