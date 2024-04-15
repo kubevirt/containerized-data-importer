@@ -615,7 +615,7 @@ func setAnnOwnedByDataVolume(dest, obj metav1.Object) error {
 // CheckVolumeSatisfyClaim checks if the volume requested by the claim satisfies the requirements of the claim
 // adapted from k8s.io/kubernetes/pkg/controller/volume/persistentvolume/pv_controller.go
 func CheckVolumeSatisfyClaim(volume *v1.PersistentVolume, claim *v1.PersistentVolumeClaim) error {
-	requestedQty := claim.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)]
+	requestedQty := claim.Spec.Resources.Requests[v1.ResourceStorage]
 	requestedSize := requestedQty.Value()
 
 	// check if PV's DeletionTimeStamp is set, if so, return error.

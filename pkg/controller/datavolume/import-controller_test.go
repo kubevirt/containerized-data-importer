@@ -1700,7 +1700,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		largeOverhead   = float64(0.75)
 	)
 	DescribeTable("GetRequiredSpace should return properly enlarged sizes,", func(imageSize int64, overhead float64) {
-		for testedSize := int64(imageSize - 1024); testedSize < imageSize+1024; testedSize++ {
+		for testedSize := imageSize - 1024; testedSize < imageSize+1024; testedSize++ {
 			alignedImageSpace := imageSize
 			if testedSize > imageSize {
 				alignedImageSpace = imageSize + Mi

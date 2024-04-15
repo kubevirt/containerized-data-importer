@@ -159,7 +159,7 @@ func (p *PrepClaimPhase) createPod(ctx context.Context, name string, pvc *corev1
 				{
 					Name:            "dummy",
 					Image:           p.Image,
-					ImagePullPolicy: corev1.PullPolicy(p.PullPolicy),
+					ImagePullPolicy: p.PullPolicy,
 					Command:         []string{"/bin/bash"},
 					Args:            []string{"-c", "echo", "'hello cdi'"},
 				},
