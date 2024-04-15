@@ -720,7 +720,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 	}
 
 	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, addVars...)
-	cc.SetAllowedAnnotations(pod, targetPvc.ObjectMeta)
+	cc.CopyAllowedAnnotations(targetPvc, pod)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
 	return pod
 }

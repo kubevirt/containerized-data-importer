@@ -2124,16 +2124,17 @@ func OwnedByDataVolume(obj metav1.Object) bool {
 	return owner != nil && owner.Kind == "DataVolume"
 }
 
-// SetAllowedAnnotations applies source object annotations on the given obj
-func SetAllowedAnnotations(obj metav1.Object, sourceMeta metav1.ObjectMeta) {
+// CopyAllowedAnnotations copies the allowed annotations from the source object
+// to the destination object
+func CopyAllowedAnnotations(srcObj, dstObj metav1.Object) {
 	for ann, def := range allowedAnnotations {
-		val, ok := sourceMeta.Annotations[ann]
+		val, ok := srcObj.GetAnnotations()[ann]
 		if !ok && def != "" {
 			val = def
 		}
 		if val != "" {
-			klog.V(1).Info("Applying annotation", "Name", obj.GetName(), ann, val)
-			AddAnnotation(obj, ann, val)
+			klog.V(1).Info("Applying annotation", "Name", dstObj.GetName(), ann, val)
+			AddAnnotation(dstObj, ann, val)
 		}
 	}
 }
