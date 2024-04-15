@@ -91,7 +91,7 @@ func ensureUploadProxyRouteExists(ctx context.Context, logger logr.Logger, c cli
 			TLS: &routev1.TLSConfig{
 				Termination:                   routev1.TLSTerminationReencrypt,
 				InsecureEdgeTerminationPolicy: routev1.InsecureEdgeTerminationPolicyRedirect,
-				DestinationCACertificate:      string(cert),
+				DestinationCACertificate:      cert,
 			},
 		},
 	}

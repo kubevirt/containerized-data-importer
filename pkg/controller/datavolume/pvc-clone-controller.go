@@ -46,7 +46,7 @@ import (
 )
 
 const (
-	sourceInUseRequeueDuration = time.Duration(5 * time.Second)
+	sourceInUseRequeueDuration = 5 * time.Second
 
 	pvcCloneControllerName = "datavolume-pvc-clone-controller"
 

@@ -133,7 +133,7 @@ var _ = Describe("Population tests", func() {
 			}
 
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), nil, dataSourceRef)
+			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeFilesystem, nil, dataSourceRef)
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
@@ -176,7 +176,7 @@ var _ = Describe("Population tests", func() {
 			}
 
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock), nil, dataSourceRef)
+			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeBlock, nil, dataSourceRef)
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
@@ -204,7 +204,7 @@ var _ = Describe("Population tests", func() {
 			}
 
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), nil, dummySourceRef)
+			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeFilesystem, nil, dummySourceRef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -244,7 +244,7 @@ var _ = Describe("Population tests", func() {
 			}
 
 			By(fmt.Sprintf("Creating target datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), dataSource, nil)
+			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeFilesystem, dataSource, nil)
 			dataVolume.Spec.Storage.StorageClassName = nil
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -308,7 +308,7 @@ var _ = Describe("Population tests", func() {
 
 			By(fmt.Sprintf("Creating target datavolume %s", dataVolumeName))
 			// PVC API because some provisioners only allow exact match between source size and restore size
-			dataVolume := utils.NewDataVolumeWithExternalPopulation(dataVolumeName, snapshot.Status.RestoreSize.String(), f.SnapshotSCName, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), dataSource, nil)
+			dataVolume := utils.NewDataVolumeWithExternalPopulation(dataVolumeName, snapshot.Status.RestoreSize.String(), f.SnapshotSCName, corev1.PersistentVolumeFilesystem, dataSource, nil)
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())

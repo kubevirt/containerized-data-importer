@@ -74,7 +74,7 @@ func NfsPvDef(index int, prefix, serviceIP, size string) *corev1.PersistentVolum
 				corev1.ReadWriteMany,
 			},
 			Capacity: corev1.ResourceList{
-				corev1.ResourceName(corev1.ResourceStorage): resource.MustParse(size),
+				corev1.ResourceStorage: resource.MustParse(size),
 			},
 			PersistentVolumeSource: corev1.PersistentVolumeSource{
 				NFS: &corev1.NFSVolumeSource{

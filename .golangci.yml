@@ -3,6 +3,12 @@ linters:
   - ginkgolinter
   - goimports
   - misspell
+  - unconvert
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
 linters-settings:
   ginkgolinter:
     forbid-focus-container: true

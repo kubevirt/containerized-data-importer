@@ -537,7 +537,7 @@ func CreatePv(name string, storageClassName string) *v1.PersistentVolume {
 		Spec: v1.PersistentVolumeSpec{
 			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany, v1.ReadWriteOnce},
 			Capacity: v1.ResourceList{
-				v1.ResourceName(v1.ResourceStorage): resource.MustParse("1G"),
+				v1.ResourceStorage: resource.MustParse("1G"),
 			},
 			StorageClassName: storageClassName,
 			VolumeMode:       &volumeMode,

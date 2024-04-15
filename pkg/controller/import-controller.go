@@ -389,7 +389,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		anno[cc.AnnCurrentPodID] = string(pod.ObjectMeta.UID)
 	}
 
-	anno[cc.AnnImportPod] = string(pod.Name)
+	anno[cc.AnnImportPod] = pod.Name
 	if !scratchSpaceRequired {
 		// No scratch space required, update the phase based on the pod. If we require scratch space we don't want to update the
 		// phase, because the pod might terminate cleanly and mistakenly mark the import complete.
