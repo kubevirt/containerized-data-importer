@@ -134,14 +134,21 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"pxd.portworx.com":                      cdiv1.CloneStrategyCsiClone,
 }
 
-// ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
-const ProvisionerNoobaa = "openshift-storage.noobaa.io/obc"
+const (
+	// ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
+	ProvisionerNoobaa = "openshift-storage.noobaa.io/obc"
+	// ProvisionerOCSBucket is the provisioner string for the downstream ODF/OCS provisoner for buckets which does not work with CDI
+	ProvisionerOCSBucket = "openshift-storage.ceph.rook.io/bucket"
+	// ProvisionerRookCephBucket is the provisioner string for the upstream Rook Ceph provisoner for buckets which does not work with CDI
+	ProvisionerRookCephBucket = "rook-ceph.ceph.rook.io/bucket"
+)
 
 // UnsupportedProvisioners is a hash of provisioners which are known not to work with CDI
 var UnsupportedProvisioners = map[string]struct{}{
 	// The following provisioners may be found in Rook/Ceph deployments and are related to object storage
-	"openshift-storage.ceph.rook.io/bucket": {},
-	ProvisionerNoobaa:                       {},
+	ProvisionerOCSBucket:      {},
+	ProvisionerRookCephBucket: {},
+	ProvisionerNoobaa:         {},
 }
 
 // GetCapabilities finds and returns a predefined StorageCapabilities for a given StorageClass
