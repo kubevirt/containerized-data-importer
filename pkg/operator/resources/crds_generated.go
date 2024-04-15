@@ -253,7 +253,7 @@ spec:
                           can be catastrophic. An example custom profile looks like
                           this: \n ciphers: - ECDHE-ECDSA-CHACHA20-POLY1305 - ECDHE-RSA-CHACHA20-POLY1305
                           - ECDHE-RSA-AES128-GCM-SHA256 - ECDHE-ECDSA-AES128-GCM-SHA256
-                          minTLSVersion: TLSv1.1"
+                          minTLSVersion: VersionTLS11"
                         nullable: true
                         properties:
                           ciphers:
@@ -269,15 +269,18 @@ spec:
                             description: "minTLSVersion is used to specify the minimal
                               version of the TLS protocol that is negotiated during
                               the TLS handshake. For example, to use TLS versions
-                              1.1, 1.2 and 1.3 (yaml): \n minTLSVersion: TLSv1.1 \n
-                              NOTE: currently the highest minTLSVersion allowed is
-                              VersionTLS12"
+                              1.1, 1.2 and 1.3 (yaml): \n minTLSVersion: VersionTLS11
+                              \n NOTE: currently the highest minTLSVersion allowed
+                              is VersionTLS12"
                             enum:
                             - VersionTLS10
                             - VersionTLS11
                             - VersionTLS12
                             - VersionTLS13
                             type: string
+                        required:
+                        - ciphers
+                        - minTLSVersion
                         type: object
                       intermediate:
                         description: "intermediate is a TLS security profile based
@@ -288,7 +291,7 @@ spec:
                           - ECDHE-ECDSA-AES256-GCM-SHA384 - ECDHE-RSA-AES256-GCM-SHA384
                           - ECDHE-ECDSA-CHACHA20-POLY1305 - ECDHE-RSA-CHACHA20-POLY1305
                           - DHE-RSA-AES128-GCM-SHA256 - DHE-RSA-AES256-GCM-SHA384
-                          minTLSVersion: TLSv1.2"
+                          minTLSVersion: VersionTLS12"
                         nullable: true
                         type: object
                       modern:
@@ -296,7 +299,7 @@ spec:
                           https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility
                           \n and looks like this (yaml): \n ciphers: - TLS_AES_128_GCM_SHA256
                           - TLS_AES_256_GCM_SHA384 - TLS_CHACHA20_POLY1305_SHA256
-                          minTLSVersion: TLSv1.3 \n NOTE: Currently unsupported."
+                          minTLSVersion: VersionTLS13 \n NOTE: Currently unsupported."
                         nullable: true
                         type: object
                       old:
@@ -313,7 +316,7 @@ spec:
                           ECDHE-ECDSA-AES256-SHA - ECDHE-RSA-AES256-SHA - DHE-RSA-AES128-SHA256
                           - DHE-RSA-AES256-SHA256 - AES128-GCM-SHA256 - AES256-GCM-SHA384
                           - AES128-SHA256 - AES256-SHA256 - AES128-SHA - AES256-SHA
-                          - DES-CBC3-SHA minTLSVersion: TLSv1.0"
+                          - DES-CBC3-SHA minTLSVersion: VersionTLS10"
                         nullable: true
                         type: object
                       type:
@@ -2553,7 +2556,7 @@ spec:
                           can be catastrophic. An example custom profile looks like
                           this: \n ciphers: - ECDHE-ECDSA-CHACHA20-POLY1305 - ECDHE-RSA-CHACHA20-POLY1305
                           - ECDHE-RSA-AES128-GCM-SHA256 - ECDHE-ECDSA-AES128-GCM-SHA256
-                          minTLSVersion: TLSv1.1"
+                          minTLSVersion: VersionTLS11"
                         nullable: true
                         properties:
                           ciphers:
@@ -2569,15 +2572,18 @@ spec:
                             description: "minTLSVersion is used to specify the minimal
                               version of the TLS protocol that is negotiated during
                               the TLS handshake. For example, to use TLS versions
-                              1.1, 1.2 and 1.3 (yaml): \n minTLSVersion: TLSv1.1 \n
-                              NOTE: currently the highest minTLSVersion allowed is
-                              VersionTLS12"
+                              1.1, 1.2 and 1.3 (yaml): \n minTLSVersion: VersionTLS11
+                              \n NOTE: currently the highest minTLSVersion allowed
+                              is VersionTLS12"
                             enum:
                             - VersionTLS10
                             - VersionTLS11
                             - VersionTLS12
                             - VersionTLS13
                             type: string
+                        required:
+                        - ciphers
+                        - minTLSVersion
                         type: object
                       intermediate:
                         description: "intermediate is a TLS security profile based
@@ -2588,7 +2594,7 @@ spec:
                           - ECDHE-ECDSA-AES256-GCM-SHA384 - ECDHE-RSA-AES256-GCM-SHA384
                           - ECDHE-ECDSA-CHACHA20-POLY1305 - ECDHE-RSA-CHACHA20-POLY1305
                           - DHE-RSA-AES128-GCM-SHA256 - DHE-RSA-AES256-GCM-SHA384
-                          minTLSVersion: TLSv1.2"
+                          minTLSVersion: VersionTLS12"
                         nullable: true
                         type: object
                       modern:
@@ -2596,7 +2602,7 @@ spec:
                           https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility
                           \n and looks like this (yaml): \n ciphers: - TLS_AES_128_GCM_SHA256
                           - TLS_AES_256_GCM_SHA384 - TLS_CHACHA20_POLY1305_SHA256
-                          minTLSVersion: TLSv1.3 \n NOTE: Currently unsupported."
+                          minTLSVersion: VersionTLS13 \n NOTE: Currently unsupported."
                         nullable: true
                         type: object
                       old:
@@ -2613,7 +2619,7 @@ spec:
                           ECDHE-ECDSA-AES256-SHA - ECDHE-RSA-AES256-SHA - DHE-RSA-AES128-SHA256
                           - DHE-RSA-AES256-SHA256 - AES128-GCM-SHA256 - AES256-GCM-SHA384
                           - AES128-SHA256 - AES256-SHA256 - AES128-SHA - AES256-SHA
-                          - DES-CBC3-SHA minTLSVersion: TLSv1.0"
+                          - DES-CBC3-SHA minTLSVersion: VersionTLS10"
                         nullable: true
                         type: object
                       type:
@@ -4822,7 +4828,7 @@ spec:
                       can be catastrophic. An example custom profile looks like this:
                       \n ciphers: - ECDHE-ECDSA-CHACHA20-POLY1305 - ECDHE-RSA-CHACHA20-POLY1305
                       - ECDHE-RSA-AES128-GCM-SHA256 - ECDHE-ECDSA-AES128-GCM-SHA256
-                      minTLSVersion: TLSv1.1"
+                      minTLSVersion: VersionTLS11"
                     nullable: true
                     properties:
                       ciphers:
@@ -4837,14 +4843,17 @@ spec:
                         description: "minTLSVersion is used to specify the minimal
                           version of the TLS protocol that is negotiated during the
                           TLS handshake. For example, to use TLS versions 1.1, 1.2
-                          and 1.3 (yaml): \n minTLSVersion: TLSv1.1 \n NOTE: currently
-                          the highest minTLSVersion allowed is VersionTLS12"
+                          and 1.3 (yaml): \n minTLSVersion: VersionTLS11 \n NOTE:
+                          currently the highest minTLSVersion allowed is VersionTLS12"
                         enum:
                         - VersionTLS10
                         - VersionTLS11
                         - VersionTLS12
                         - VersionTLS13
                         type: string
+                    required:
+                    - ciphers
+                    - minTLSVersion
                     type: object
                   intermediate:
                     description: "intermediate is a TLS security profile based on:
@@ -4854,14 +4863,14 @@ spec:
                       - ECDHE-RSA-AES128-GCM-SHA256 - ECDHE-ECDSA-AES256-GCM-SHA384
                       - ECDHE-RSA-AES256-GCM-SHA384 - ECDHE-ECDSA-CHACHA20-POLY1305
                       - ECDHE-RSA-CHACHA20-POLY1305 - DHE-RSA-AES128-GCM-SHA256 -
-                      DHE-RSA-AES256-GCM-SHA384 minTLSVersion: TLSv1.2"
+                      DHE-RSA-AES256-GCM-SHA384 minTLSVersion: VersionTLS12"
                     nullable: true
                     type: object
                   modern:
                     description: "modern is a TLS security profile based on: \n https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility
                       \n and looks like this (yaml): \n ciphers: - TLS_AES_128_GCM_SHA256
                       - TLS_AES_256_GCM_SHA384 - TLS_CHACHA20_POLY1305_SHA256 minTLSVersion:
-                      TLSv1.3 \n NOTE: Currently unsupported."
+                      VersionTLS13 \n NOTE: Currently unsupported."
                     nullable: true
                     type: object
                   old:
@@ -4876,7 +4885,7 @@ spec:
                       - ECDHE-ECDSA-AES256-SHA384 - ECDHE-RSA-AES256-SHA384 - ECDHE-ECDSA-AES256-SHA
                       - ECDHE-RSA-AES256-SHA - DHE-RSA-AES128-SHA256 - DHE-RSA-AES256-SHA256
                       - AES128-GCM-SHA256 - AES256-GCM-SHA384 - AES128-SHA256 - AES256-SHA256
-                      - AES128-SHA - AES256-SHA - DES-CBC3-SHA minTLSVersion: TLSv1.0"
+                      - AES128-SHA - AES256-SHA - DES-CBC3-SHA minTLSVersion: VersionTLS10"
                     nullable: true
                     type: object
                   type:
