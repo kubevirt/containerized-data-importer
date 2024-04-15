@@ -364,6 +364,16 @@ var (
 
 	apiServerKeyOnce sync.Once
 	apiServerKey     *rsa.PrivateKey
+
+	// allowedAnnotations is a list of annotations
+	// that can be propagated from the pvc/dv to a pod
+	allowedAnnotations = map[string]string{
+		AnnPodNetwork:                 "",
+		AnnPodSidecarInjectionIstio:   AnnPodSidecarInjectionIstioDefault,
+		AnnPodSidecarInjectionLinkerd: AnnPodSidecarInjectionLinkerdDefault,
+		AnnPriorityClassName:          "",
+		AnnPodMultusDefaultNetwork:    "",
+	}
 )
 
 // FakeValidator is a fake token validator
@@ -2114,21 +2124,15 @@ func OwnedByDataVolume(obj metav1.Object) bool {
 	return owner != nil && owner.Kind == "DataVolume"
 }
 
-// SetPvcAllowedAnnotations applies PVC annotations on the given obj
-func SetPvcAllowedAnnotations(obj metav1.Object, pvc *corev1.PersistentVolumeClaim) {
-	allowedAnnotations := map[string]string{
-		AnnPodNetwork:                 "",
-		AnnPodSidecarInjectionIstio:   AnnPodSidecarInjectionIstioDefault,
-		AnnPodSidecarInjectionLinkerd: AnnPodSidecarInjectionLinkerdDefault,
-		AnnPriorityClassName:          "",
-		AnnPodMultusDefaultNetwork:    ""}
+// SetAllowedAnnotations applies source object annotations on the given obj
+func SetAllowedAnnotations(obj metav1.Object, sourceMeta metav1.ObjectMeta) {
 	for ann, def := range allowedAnnotations {
-		val, ok := pvc.Annotations[ann]
+		val, ok := sourceMeta.Annotations[ann]
 		if !ok && def != "" {
 			val = def
 		}
 		if val != "" {
-			klog.V(1).Info("Applying PVC annotation", "Name", obj.GetName(), ann, val)
+			klog.V(1).Info("Applying annotation", "Name", obj.GetName(), ann, val)
 			AddAnnotation(obj, ann, val)
 		}
 	}

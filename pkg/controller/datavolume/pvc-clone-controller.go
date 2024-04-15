@@ -677,7 +677,7 @@ func (r *PvcCloneReconciler) makeSizeDetectionPodSpec(
 		pod.Annotations[cc.AnnOwnerUID] = string(dv.UID)
 	}
 
-	cc.SetPvcAllowedAnnotations(pod, sourcePvc)
+	cc.SetAllowedAnnotations(pod, dv.ObjectMeta)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
 
 	return pod

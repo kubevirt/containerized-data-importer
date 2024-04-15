@@ -765,7 +765,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 		},
 	}
 
-	cc.SetPvcAllowedAnnotations(pod, args.PVC)
+	cc.SetAllowedAnnotations(pod, args.PVC.ObjectMeta)
 	cc.SetNodeNameIfPopulator(args.PVC, &pod.Spec)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
 
