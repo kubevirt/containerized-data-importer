@@ -875,9 +875,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			Name:      podName,
 			Namespace: args.pvc.Namespace,
 			Annotations: map[string]string{
-				cc.AnnCreatedBy:                  "yes",
-				cc.AnnPodSidecarInjectionIstio:   args.pvc.Annotations[cc.AnnPodSidecarInjectionIstio],
-				cc.AnnPodSidecarInjectionLinkerd: args.pvc.Annotations[cc.AnnPodSidecarInjectionLinkerd],
+				cc.AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
 				common.CDILabelKey:        common.CDILabelValue,

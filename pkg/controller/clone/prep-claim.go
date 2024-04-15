@@ -147,9 +147,7 @@ func (p *PrepClaimPhase) createPod(ctx context.Context, name string, pvc *corev1
 			Name:      name,
 			Namespace: pvc.Namespace,
 			Annotations: map[string]string{
-				cc.AnnCreatedBy:                  "yes",
-				cc.AnnPodSidecarInjectionIstio:   pvc.Annotations[cc.AnnPodSidecarInjectionIstio],
-				cc.AnnPodSidecarInjectionLinkerd: pvc.Annotations[cc.AnnPodSidecarInjectionLinkerd],
+				cc.AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
 				common.CDILabelKey:       common.CDILabelValue,
@@ -208,6 +206,7 @@ func (p *PrepClaimPhase) createPod(ctx context.Context, name string, pvc *corev1
 		AddOwnershipLabel(p.OwnershipLabel, pod, p.Owner)
 	}
 
+	cc.SetPvcAllowedAnnotations(pod, pvc)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
 
 	if err := p.Client.Create(ctx, pod); err != nil {

@@ -548,10 +548,8 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 			Name:      cloneSourcePodName,
 			Namespace: sourcePvcNamespace,
 			Annotations: map[string]string{
-				cc.AnnCreatedBy:                  "yes",
-				AnnOwnerRef:                      ownerRefAnno,
-				cc.AnnPodSidecarInjectionIstio:   sourcePvc.Annotations[cc.AnnPodSidecarInjectionIstio],
-				cc.AnnPodSidecarInjectionLinkerd: sourcePvc.Annotations[cc.AnnPodSidecarInjectionLinkerd],
+				cc.AnnCreatedBy: "yes",
+				AnnOwnerRef:     ownerRefAnno,
 			},
 			Labels: map[string]string{
 				common.CDILabelKey:       common.CDILabelValue, //filtered by the podInformer
