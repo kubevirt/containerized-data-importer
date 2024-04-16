@@ -48,7 +48,13 @@ Disks can be imported from VMware with the `vddk` source. CDI will transfer the 
 
 ### Content Types
 
-CDI features specialized handling for two types of content: Kubevirt VM disk images and tar archives.  The `kubevirt` content type indicates that the data being imported should be treated as a Kubevirt VM disk.  CDI will automatically decompress and convert the file from qcow2 to raw format if needed.  It will also resize the disk to use all available space.  The `archive` content type indicates that the data is a tar archive. Compression is not yet supported for archives.  CDI will extract the contents of the archive into the volume.  The content type can be selected by specifying the `contentType` field in the DataVolume.  `kubevirt` is the default content type.  CDI only supports certain combinations of `source` and `contentType` as indicated below:
+CDI features specialized handling for two types of content: Kubevirt VM disk images and tar archives. 
+- The `kubevirt` content type indicates that the data being imported should be treated as a Kubevirt VM disk.  CDI will automatically decompress and convert the file from qcow2 to raw format if needed.  It will also resize the disk to use all available space.  
+- The `archive` content type indicates that the data is a tar archive. Compression is not yet supported for archives.  CDI will extract the contents of the archive into the volume; which can then be used with either a regular pod, or a VM using Kubevirt's [filesystem](https://kubevirt.io/user-guide/virtual_machines/disks_and_volumes/#filesystems) feature.
+
+The content type can be selected by specifying the `contentType` field in the DataVolume. `kubevirt` is the default content type.
+
+CDI only supports certain combinations of `source` and `contentType` as indicated below:
 
 * `http` &rarr; `kubevirt`, `archive`
 * `registry` &rarr; `kubevirt`
