@@ -328,7 +328,7 @@ var _ = Describe("[Istio] Namespace sidecar injection", Serial, func() {
 		dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
 		// A single service mesh provider is deployed so either Istio or Linkerd, not both.
 		dataVolume.Annotations[controller.AnnPodSidecarInjectionIstio] = "true"
-		dataVolume.Annotations[controller.AnnPodSidecarInjectionLinkerd] = "true"
+		dataVolume.Annotations[controller.AnnPodSidecarInjectionLinkerd] = "enabled"
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
 

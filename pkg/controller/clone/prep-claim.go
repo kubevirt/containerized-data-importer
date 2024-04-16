@@ -206,6 +206,7 @@ func (p *PrepClaimPhase) createPod(ctx context.Context, name string, pvc *corev1
 		AddOwnershipLabel(p.OwnershipLabel, pod, p.Owner)
 	}
 
+	cc.CopyAllowedAnnotations(pvc, pod)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
 
 	if err := p.Client.Create(ctx, pod); err != nil {

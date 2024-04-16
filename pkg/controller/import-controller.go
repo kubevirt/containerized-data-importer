@@ -920,7 +920,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 		pod.Annotations[cc.AnnOpenShiftImageLookup] = "*"
 	}
 
-	cc.SetPvcAllowedAnnotations(pod, args.pvc)
+	cc.CopyAllowedAnnotations(args.pvc, pod)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
 	// We explicitly define a NodeName for dynamically provisioned PVCs
 	// when the PVC is being handled by a populator (PVC')
