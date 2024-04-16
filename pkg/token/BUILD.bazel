@@ -6,9 +6,9 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/pkg/token",
     visibility = ["//visibility:public"],
     deps = [
+        "//vendor/github.com/go-jose/go-jose/v3:go_default_library",
+        "//vendor/github.com/go-jose/go-jose/v3/jwt:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
-        "//vendor/gopkg.in/square/go-jose.v2:go_default_library",
-        "//vendor/gopkg.in/square/go-jose.v2/jwt:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
     ],
 )

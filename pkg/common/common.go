@@ -1,6 +1,8 @@
 package common
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -56,13 +58,15 @@ const (
 	// UploadTargetLabel has the UID of upload target PVC
 	UploadTargetLabel = CDIComponentLabel + "/uploadTarget"
 
-	// DataImportCronLabel has the name of the DataImportCron responsible for the labeled DataSource or DataVolume
+	// DataImportCronLabel has the name of the DataImportCron responsible for the labeled resource
 	DataImportCronLabel = CDIComponentLabel + "/dataImportCron"
+	// DataImportCronNsLabel has the namespace of the DataImportCron responsible for the labeled resource
+	DataImportCronNsLabel = CDIComponentLabel + "/dataImportCronNs"
 	// DataImportCronCleanupLabel tells whether to delete the resource when its DataImportCron is deleted
 	DataImportCronCleanupLabel = DataImportCronLabel + ".cleanup"
 
-	// PvcUseStorageProfileLabel tells whether the PVC should be rendered by the mutating webhook based on StorageProfiles
-	PvcUseStorageProfileLabel = CDIComponentLabel + "/useStorageProfile"
+	// PvcApplyStorageProfileLabel tells whether the PVC should be rendered by the mutating webhook based on StorageProfiles
+	PvcApplyStorageProfileLabel = CDIComponentLabel + "/applyStorageProfile"
 
 	// ImporterVolumePath provides a constant for the directory where the PV is mounted.
 	ImporterVolumePath = "/data"
@@ -217,9 +221,6 @@ const (
 	// DefaultResyncPeriod sets a 10 minute resync period, used in the controller pkg and the controller cmd executable
 	DefaultResyncPeriod = 10 * time.Minute
 
-	// ScratchSpaceNeededExitCode is the exit code that indicates the importer pod requires scratch space to function properly.
-	ScratchSpaceNeededExitCode = 42
-
 	// ScratchNameSuffix (controller pkg only)
 	ScratchNameSuffix = "scratch"
 
@@ -328,4 +329,37 @@ var SyncUploadFormPaths = []string{
 var AsyncUploadFormPaths = []string{
 	UploadFormAsync,
 	"/v1alpha1/upload-form-async",
+}
+
+// VddkInfo holds VDDK version and connection information returned by an importer pod
+type VddkInfo struct {
+	Version string
+	Host    string
+}
+
+// TerminationMessage contains data to be serialized and used as the termination message of the importer.
+type TerminationMessage struct {
+	ScratchSpaceRequired *bool             `json:"scratchSpaceRequired,omitempty"`
+	PreallocationApplied *bool             `json:"preallocationApplied,omitempty"`
+	VddkInfo             *VddkInfo         `json:"vddkInfo,omitempty"`
+	Labels               map[string]string `json:"labels,omitempty"`
+}
+
+func (it *TerminationMessage) String() (string, error) {
+	msg, err := json.Marshal(it)
+	if err != nil {
+		return "", err
+	}
+
+	// Messages longer than 4096 are truncated by kubelet
+	if length := len(msg); length > 4096 {
+		return "", fmt.Errorf("Termination message length %d exceeds maximum length of 4096 bytes", length)
+	}
+
+	return string(msg), nil
+}
+
+// ServerInfo contains data to be serialized and used as the body of responses to the info endpoint of the containerimage-server.
+type ServerInfo struct {
+	Env []string `json:"env,omitempty"`
 }

@@ -340,7 +340,7 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 
 		if err != nil {
 			klog.Errorf("Saving stream failed: %s", err)
-			if _, ok := err.(importer.ValidationSizeError); ok {
+			if errors.As(err, &importer.ValidationSizeError{}) {
 				w.WriteHeader(http.StatusBadRequest)
 			} else {
 				w.WriteHeader(http.StatusInternalServerError)

@@ -13,6 +13,7 @@ package main
 //    ImporterSecretKey     Optional. Secret key is the password to your account.
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -20,11 +21,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -117,8 +117,8 @@ func main() {
 		volumeMode = v1.PersistentVolumeFilesystem
 	}
 
-	// With writeback cache mode it's possible that the process will exit before all writes have been commited to storage.
-	// To guarantee that our write was commited to storage, we make a fsync syscall and ensure success.
+	// With writeback cache mode it's possible that the process will exit before all writes have been committed to storage.
+	// To guarantee that our write was committed to storage, we make a fsync syscall and ensure success.
 	// Also might be a good idea to sync any chmod's we might have done.
 	defer fsyncDataFile(contentType, volumeMode)
 
@@ -149,20 +149,17 @@ func main() {
 }
 
 func handleEmptyImage(contentType string, imageSize string, availableDestSpace int64, preallocation bool, volumeMode v1.PersistentVolumeMode, filesystemOverhead float64) error {
-	var preallocationApplied bool
-
 	if contentType == string(cdiv1.DataVolumeKubeVirt) {
 		if volumeMode == v1.PersistentVolumeBlock && !preallocation {
 			klog.V(1).Infoln("Blank block without preallocation is exactly an empty PVC, done populating")
 			return nil
 		}
 		createBlankImage(imageSize, availableDestSpace, preallocation, volumeMode, filesystemOverhead)
-		preallocationApplied = preallocation
 	} else {
 		errorEmptyDiskWithContentTypeArchive()
 	}
 
-	err := importCompleteTerminationMessage(preallocationApplied)
+	err := writeTerminationMessage(&common.TerminationMessage{PreallocationApplied: ptr.To(preallocation)})
 	return err
 }
 
@@ -181,46 +178,47 @@ func handleImport(
 	processor := newDataProcessor(contentType, volumeMode, ds, imageSize, filesystemOverhead, preallocation)
 	err := processor.ProcessData()
 
-	if err != nil {
+	scratchSpaceRequired := errors.Is(err, importer.ErrRequiresScratchSpace)
+	if err != nil && !scratchSpaceRequired {
 		klog.Errorf("%+v", err)
-		if err == importer.ErrRequiresScratchSpace {
-			if err := util.WriteTerminationMessage(common.ScratchSpaceRequired); err != nil {
-				klog.Errorf("%+v", err)
-			}
-			return common.ScratchSpaceNeededExitCode
-		}
-		err = util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %v", err.Error()))
-		if err != nil {
+		if err := util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %v", err.Error())); err != nil {
 			klog.Errorf("%+v", err)
 		}
-
 		return 1
 	}
+
+	termMsg := ds.GetTerminationMessage()
+	if termMsg == nil {
+		termMsg = &common.TerminationMessage{}
+	}
+	termMsg.ScratchSpaceRequired = &scratchSpaceRequired
+	termMsg.PreallocationApplied = ptr.To(processor.PreallocationApplied())
+
 	touchDoneFile()
-	// due to the way some data sources can add additional information to termination message
-	// after finished (ds.close() ) termination message has to be written first, before the
-	// the ds is closed
-	// TODO: think about making communication explicit, probably DS interface should be extended
-	err = importCompleteTerminationMessage(processor.PreallocationApplied())
-	if err != nil {
+	if err := writeTerminationMessage(termMsg); err != nil {
 		klog.Errorf("%+v", err)
 		return 1
+	}
+
+	if scratchSpaceRequired {
+		// Exiting instead of returning 0 as normally to avoid clashing
+		// with cleanup functions (fsyncDataFile) that assume the imported
+		// file will be there during regular exit.
+		os.Exit(0)
 	}
 
 	return 0
 }
 
-func importCompleteTerminationMessage(preallocationApplied bool) error {
-	message := "Import Complete"
-	if preallocationApplied {
-		message += ", " + common.PreallocationApplied
-	}
-	err := util.WriteTerminationMessage(message)
+func writeTerminationMessage(termMsg *common.TerminationMessage) error {
+	msg, err := termMsg.String()
 	if err != nil {
 		return err
 	}
-
-	klog.V(1).Infoln(message)
+	if err := util.WriteTerminationMessage(msg); err != nil {
+		return err
+	}
+	klog.V(1).Infoln(msg)
 	return nil
 }
 
@@ -364,6 +362,6 @@ func fsyncDataFile(contentType string, volumeMode v1.PersistentVolumeMode) {
 		klog.Errorf("could not fsync following qemu-img writing: %+v", err)
 		os.Exit(1)
 	}
-	klog.V(3).Infof("Successfully completed fsync(%s) syscall, commited to disk\n", dataFile)
+	klog.V(3).Infof("Successfully completed fsync(%s) syscall, committed to disk\n", dataFile)
 	file.Close()
 }

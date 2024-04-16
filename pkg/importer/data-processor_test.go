@@ -12,6 +12,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 )
 
@@ -87,6 +88,11 @@ func (m *MockDataProvider) TransferFile(fileName string) (ProcessingPhase, error
 // Geturl returns the url that the data processor can use when converting the data.
 func (m *MockDataProvider) GetURL() *url.URL {
 	return m.url
+}
+
+// GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
+func (m *MockDataProvider) GetTerminationMessage() *common.TerminationMessage {
+	return nil
 }
 
 // Close closes any readers or other open resources.
@@ -268,7 +274,7 @@ var _ = Describe("Data Processor", func() {
 		})
 	})
 
-	It("should allow phase regsitry", func() {
+	It("should allow phase registry", func() {
 		mcdp := &MockCustomizedDataProvider{
 			MockDataProvider: MockDataProvider{
 				infoResponse:     ProcessingPhaseTransferDataDir,

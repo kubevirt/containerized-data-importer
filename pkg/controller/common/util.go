@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -217,6 +218,9 @@ const (
 	// AnnDefaultSnapshotClass is the annotation indicating that a snapshot class is the default one
 	AnnDefaultSnapshotClass = "snapshot.storage.kubernetes.io/is-default-class"
 
+	// AnnSourceVolumeMode is the volume mode of the source PVC specified as an annotation on snapshots
+	AnnSourceVolumeMode = AnnAPIGroup + "/storage.import.sourceVolumeMode"
+
 	// AnnOpenShiftImageLookup is the annotation for OpenShift image stream lookup
 	AnnOpenShiftImageLookup = "alpha.image.policy.openshift.io/resolve-names"
 
@@ -329,6 +333,9 @@ const (
 
 	// AnnCdiCustomizeComponentHash annotation is a hash of all customizations that live under spec.CustomizeComponents
 	AnnCdiCustomizeComponentHash = AnnAPIGroup + "/customizer-identifier"
+
+	// AnnCreatedForDataVolume stores the UID of the datavolume that the PVC was created for
+	AnnCreatedForDataVolume = AnnAPIGroup + "/createdForDataVolume"
 )
 
 // Size-detection pod error codes
@@ -357,6 +364,16 @@ var (
 
 	apiServerKeyOnce sync.Once
 	apiServerKey     *rsa.PrivateKey
+
+	// allowedAnnotations is a list of annotations
+	// that can be propagated from the pvc/dv to a pod
+	allowedAnnotations = map[string]string{
+		AnnPodNetwork:                 "",
+		AnnPodSidecarInjectionIstio:   AnnPodSidecarInjectionIstioDefault,
+		AnnPodSidecarInjectionLinkerd: AnnPodSidecarInjectionLinkerdDefault,
+		AnnPriorityClassName:          "",
+		AnnPodMultusDefaultNetwork:    "",
+	}
 )
 
 // FakeValidator is a fake token validator
@@ -459,6 +476,11 @@ func GetRequestedImageSize(pvc *corev1.PersistentVolumeClaim) (string, error) {
 // GetVolumeMode returns the volumeMode from PVC handling default empty value
 func GetVolumeMode(pvc *corev1.PersistentVolumeClaim) corev1.PersistentVolumeMode {
 	return util.ResolveVolumeMode(pvc.Spec.VolumeMode)
+}
+
+// IsDataVolumeUsingDefaultStorageClass checks if the DataVolume is using the default StorageClass
+func IsDataVolumeUsingDefaultStorageClass(dv *cdiv1.DataVolume) bool {
+	return GetStorageClassFromDVSpec(dv) == nil
 }
 
 // GetStorageClassFromDVSpec returns the StorageClassName from DataVolume PVC or Storage spec
@@ -783,7 +805,7 @@ func IsPopulated(pvc *corev1.PersistentVolumeClaim, c client.Client) (bool, erro
 	})
 }
 
-// GetPreallocation retuns the preallocation setting for the specified object (DV or VolumeImportSource), falling back to StorageClass and global setting (in this order)
+// GetPreallocation returns the preallocation setting for the specified object (DV or VolumeImportSource), falling back to StorageClass and global setting (in this order)
 func GetPreallocation(ctx context.Context, client client.Client, preallocation *bool) bool {
 	// First, the DV's preallocation
 	if preallocation != nil {
@@ -938,7 +960,7 @@ func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNa
 
 // validateContentTypes compares the content type of a clone DV against its source PVC's one
 func validateContentTypes(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
-	sourceContentType := cdiv1.DataVolumeContentType(GetPVCContentType(sourcePVC))
+	sourceContentType := GetPVCContentType(sourcePVC)
 	targetContentType := spec.ContentType
 	if targetContentType == "" {
 		targetContentType = cdiv1.DataVolumeKubeVirt
@@ -1213,7 +1235,7 @@ func CreatePvcInStorageClass(name, ns string, storageClassName *string, annotati
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany, corev1.ReadWriteOnce},
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("1G"),
+					corev1.ResourceStorage: resource.MustParse("1G"),
 				},
 			},
 			StorageClassName: storageClassName,
@@ -1438,11 +1460,8 @@ func GetNamespace(namespace, defaultNamespace string) string {
 
 // IsErrCacheNotStarted checked is the error is of cache not started
 func IsErrCacheNotStarted(err error) bool {
-	if err == nil {
-		return false
-	}
-	_, ok := err.(*runtimecache.ErrCacheNotStarted)
-	return ok
+	target := &runtimecache.ErrCacheNotStarted{}
+	return errors.As(err, &target)
 }
 
 // GetDataVolumeTTLSeconds gets the current DataVolume TTL in seconds if GC is enabled, or < 0 if GC is disabled
@@ -1630,7 +1649,8 @@ func GetMetricsURL(pod *corev1.Pod) (string, error) {
 	if err != nil || pod.Status.PodIP == "" {
 		return "", err
 	}
-	url := fmt.Sprintf("https://%s:%d/metrics", pod.Status.PodIP, port)
+	domain := net.JoinHostPort(pod.Status.PodIP, fmt.Sprint(port))
+	url := fmt.Sprintf("https://%s/metrics", domain)
 	return url, nil
 }
 
@@ -2101,22 +2121,17 @@ func OwnedByDataVolume(obj metav1.Object) bool {
 	return owner != nil && owner.Kind == "DataVolume"
 }
 
-// SetPvcAllowedAnnotations applies PVC annotations on the given obj
-func SetPvcAllowedAnnotations(obj metav1.Object, pvc *corev1.PersistentVolumeClaim) {
-	allowedAnnotations := map[string]string{
-		AnnPodNetwork:                 "",
-		AnnPodSidecarInjectionIstio:   AnnPodSidecarInjectionIstioDefault,
-		AnnPodSidecarInjectionLinkerd: AnnPodSidecarInjectionLinkerdDefault,
-		AnnPriorityClassName:          "",
-		AnnPodMultusDefaultNetwork:    ""}
+// CopyAllowedAnnotations copies the allowed annotations from the source object
+// to the destination object
+func CopyAllowedAnnotations(srcObj, dstObj metav1.Object) {
 	for ann, def := range allowedAnnotations {
-		val, ok := pvc.Annotations[ann]
+		val, ok := srcObj.GetAnnotations()[ann]
 		if !ok && def != "" {
 			val = def
 		}
 		if val != "" {
-			klog.V(1).Info("Applying PVC annotation", "Name", obj.GetName(), ann, val)
-			AddAnnotation(obj, ann, val)
+			klog.V(1).Info("Applying annotation", "Name", dstObj.GetName(), ann, val)
+			AddAnnotation(dstObj, ann, val)
 		}
 	}
 }
@@ -2139,7 +2154,11 @@ func AllowClaimAdoption(c client.Client, pvc *corev1.PersistentVolumeClaim, dv *
 	if pvc == nil || dv == nil {
 		return false, nil
 	}
-	anno, ok := dv.Annotations[AnnAllowClaimAdoption]
+	anno, ok := pvc.Annotations[AnnCreatedForDataVolume]
+	if ok && anno == string(dv.UID) {
+		return false, nil
+	}
+	anno, ok = dv.Annotations[AnnAllowClaimAdoption]
 	// if annotation exists, go with that regardless of featuregate
 	if ok {
 		val, _ := strconv.ParseBool(anno)

@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -327,7 +328,7 @@ var _ = Describe("[Istio] Namespace sidecar injection", Serial, func() {
 		dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
 		// A single service mesh provider is deployed so either Istio or Linkerd, not both.
 		dataVolume.Annotations[controller.AnnPodSidecarInjectionIstio] = "true"
-		dataVolume.Annotations[controller.AnnPodSidecarInjectionLinkerd] = "true"
+		dataVolume.Annotations[controller.AnnPodSidecarInjectionLinkerd] = "enabled"
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -1628,7 +1629,7 @@ var _ = Describe("Import populator", func() {
 
 		if webhookRendering {
 			tests.EnableWebhookPvcRendering(f.CrClient)
-			controller.AddLabel(pvc, common.PvcUseStorageProfileLabel, "true")
+			controller.AddLabel(pvc, common.PvcApplyStorageProfileLabel, "true")
 			// Unset AccessModes which will be set by the webhook rendering
 			pvc.Spec.AccessModes = nil
 		}
@@ -1682,17 +1683,17 @@ var _ = Describe("Import populator", func() {
 			return err != nil && k8serrors.IsNotFound(err)
 		}, timeout, pollingInterval).Should(BeTrue())
 	},
-		Entry("with HTTP image and preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, false),
-		Entry("with HTTP image without preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, false, false),
-		Entry("with HTTP image and preallocation, with incomplete PVC webhook rendering", Serial, utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, true),
-		Entry("with Registry image and preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, true, false),
-		Entry("with Registry image without preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, false, false),
-		Entry("with ImageIO image with preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, true, false),
-		Entry("with ImageIO image without preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, false, false),
-		Entry("with VDDK image with preallocation", utils.VcenterMD5, createVDDKImportPopulatorCR, true, false),
-		Entry("with VDDK image without preallocation", utils.VcenterMD5, createVDDKImportPopulatorCR, false, false),
-		Entry("with Blank image with preallocation", utils.BlankMD5, createBlankImportPopulatorCR, true, false),
-		Entry("with Blank image without preallocation", utils.BlankMD5, createBlankImportPopulatorCR, false, false),
+		Entry("[test_id:11001]with HTTP image and preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, false),
+		Entry("[test_id:11002]with HTTP image without preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, false, false),
+		Entry("[rfe_id:10985][crit:high][test_id:11003]with HTTP image and preallocation, with incomplete PVC webhook rendering", Serial, utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, true),
+		Entry("[test_id:11004]with Registry image and preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, true, false),
+		Entry("[test_id:11005]with Registry image without preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, false, false),
+		Entry("[test_id:11006]with ImageIO image with preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, true, false),
+		Entry("[test_id:11007]with ImageIO image without preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, false, false),
+		Entry("[test_id:11008]with VDDK image with preallocation", utils.VcenterMD5, createVDDKImportPopulatorCR, true, false),
+		Entry("[test_id:11009]with VDDK image without preallocation", utils.VcenterMD5, createVDDKImportPopulatorCR, false, false),
+		Entry("[test_id:11010]with Blank image with preallocation", utils.BlankMD5, createBlankImportPopulatorCR, true, false),
+		Entry("[test_id:11011]with Blank image without preallocation", utils.BlankMD5, createBlankImportPopulatorCR, false, false),
 	)
 
 	DescribeTable("should import Block PVC", func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error) {
@@ -2132,6 +2133,70 @@ var _ = Describe("Import populator", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.TinyCoreMD5))
 	})
+})
+
+var _ = Describe("Containerdisk envs to PVC labels", func() {
+	f := framework.NewFramework(namespacePrefix)
+
+	// The corresponding env var is defined in tests/BUILD.bazel (for pullMethod node)
+	// and tools/cdi-func-test-registry-init/populate-registry.sh (for pullMethod pod).
+	const (
+		testKubevirtIoKey           = "test.kubevirt.io/test"
+		testKubevirtIoValue         = "testvalue"
+		testKubevirtIoKeyExisting   = "test.kubevirt.io/existing"
+		testKubevirtIoValueExisting = "existing"
+	)
+
+	var (
+		tinyCoreRegistryURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
+		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
+		trustedRegistryIS   = func() string { return fmt.Sprintf(utils.TrustedRegistryIS, f.DockerPrefix) }
+	)
+
+	DescribeTable("Import should add KUBEVIRT_IO_ env vars to PVC labels when source is registry", func(pullMethod cdiv1.RegistryPullMethod, urlFn func() string, isImageStream bool) {
+		dataVolume := utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", urlFn())
+		// The existing key should not be overwritten
+		dataVolume.ObjectMeta.Labels = map[string]string{
+			testKubevirtIoKeyExisting: testKubevirtIoValueExisting,
+		}
+
+		if isImageStream {
+			dataVolume.Spec.Source.Registry.URL = nil
+			dataVolume.Spec.Source.Registry.ImageStream = ptr.To(urlFn())
+			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+		}
+
+		dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
+		if pullMethod == cdiv1.RegistryPullPod {
+			cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+			Expect(err).ToNot(HaveOccurred())
+			dataVolume.Spec.Source.Registry.CertConfigMap = &cm
+		}
+
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		phase := cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			g.Expect(pvc.GetLabels()).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
+			g.Expect(pvc.GetLabels()).To(HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoValueExisting))
+		}, timeout, pollingInterval).Should(Succeed())
+	},
+		Entry("with pullMethod pod", cdiv1.RegistryPullPod, tinyCoreRegistryURL, false),
+		Entry("with pullMethod node", cdiv1.RegistryPullNode, trustedRegistryURL, false),
+		Entry("with pullMethod node", cdiv1.RegistryPullNode, trustedRegistryIS, true),
+	)
 })
 
 func generateRegistryOnlySidecar() *unstructured.Unstructured {

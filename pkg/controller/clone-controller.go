@@ -331,7 +331,7 @@ func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.Pe
 		r.recorder.Event(pvc, corev1.EventTypeNormal, CloneSucceededPVC, cc.CloneComplete)
 	}
 
-	setAnnotationsFromPodWithPrefix(pvc.Annotations, sourcePod, cc.AnnSourceRunningCondition)
+	setAnnotationsFromPodWithPrefix(pvc.Annotations, sourcePod, nil, cc.AnnSourceRunningCondition)
 
 	if !reflect.DeepEqual(currentPvcCopy, pvc) {
 		return r.updatePVC(pvc)
@@ -720,7 +720,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 	}
 
 	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, addVars...)
-	cc.SetPvcAllowedAnnotations(pod, targetPvc)
+	cc.CopyAllowedAnnotations(targetPvc, pod)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
 	return pod
 }

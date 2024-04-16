@@ -249,6 +249,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			phase                        cdiv1.DataVolumePhase
 			repeat                       int
 			checkPermissions             bool
+			addClaimAdoptionAnnotation   bool
 			readyCondition               *cdiv1.DataVolumeCondition
 			boundCondition               *cdiv1.DataVolumeCondition
 			boundConditionWithPopulators *cdiv1.DataVolumeCondition
@@ -318,6 +319,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			// Have to call the function in here, to make sure the BeforeEach in the Framework has run.
 			dataVolume := args.dvFunc(args.name, args.size, args.url())
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
+			if args.addClaimAdoptionAnnotation {
+				controller.AddAnnotation(dataVolume, controller.AnnAllowClaimAdoption, "true")
+			}
 			repeat := 1
 			if utils.IsHostpathProvisioner() && args.repeat > 0 {
 				// Repeat rapidly to make sure we don't get regular and scratch space on different nodes.
@@ -368,6 +372,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					err := utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 					Expect(err).ToNot(HaveOccurred())
 				}
+				Expect(pvc.Annotations[controller.AnnCreatedForDataVolume]).To(Equal(string(dataVolume.UID)))
 				By("Cleaning up")
 				err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
 				Expect(err).ToNot(HaveOccurred())
@@ -464,6 +469,30 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-http-import Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			Entry("succeed creating import dv with adoption annotation", dataVolumeTestArguments{
+				name:                       "dv-http-import",
+				size:                       "1Gi",
+				url:                        tinyCoreIsoURL,
+				dvFunc:                     utils.NewDataVolumeWithHTTPImport,
+				eventReason:                dvc.ImportSucceeded,
+				phase:                      cdiv1.Succeeded,
+				addClaimAdoptionAnnotation: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
@@ -791,6 +820,36 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Status: v1.ConditionTrue,
 					Reason: "Pod is running",
 				}}),
+			Entry("succeed creating upload dv with adoption annotation", dataVolumeTestArguments{
+				name:                       "upload-dv",
+				size:                       "1Gi",
+				url:                        func() string { return "" },
+				dvFunc:                     createUploadDataVolume,
+				eventReason:                dvc.UploadReady,
+				phase:                      cdiv1.UploadReady,
+				addClaimAdoptionAnnotation: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+					Reason: "TransferRunning",
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC upload-dv Bound",
+					Reason:  "Bound",
+				},
+				boundConditionWithPopulators: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionFalse,
+					Message: "PVC upload-dv Pending",
+					Reason:  "Pending",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeRunning,
+					Status: v1.ConditionTrue,
+					Reason: "Pod is running",
+				}}),
 			Entry("[rfe_id:1947][crit:high][test_id:2145]succeed creating import dv with given tar archive url", dataVolumeTestArguments{
 				name:        "dv-tar-archive",
 				size:        "1Gi",
@@ -943,6 +1002,30 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Clone Complete",
 					Reason:  "Completed",
 				}}),
+			Entry("succeed creating clone dv with adoption annotation", dataVolumeTestArguments{
+				name:                       "dv-clone-test1",
+				size:                       "1Gi",
+				url:                        func() string { return fillCommand }, // its not URL, but command, but the parameter lines up.
+				dvFunc:                     createCloneDataVolume,
+				eventReason:                dvc.CloneSucceeded,
+				phase:                      cdiv1.Succeeded,
+				addClaimAdoptionAnnotation: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-clone-test1 Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Clone Complete",
+					Reason:  "Completed",
+				}}),
 			Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", dataVolumeTestArguments{
 				name:             "dv-import-registry",
 				size:             "1Gi",
@@ -1013,7 +1096,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
-					Message: "Import Complete; VDDK: {\"Version\":\"1.2.3\",\"Host\":\"esx.test\"}",
+					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
 			PEntry("[quarantine][test_id:5078]succeed creating warm import dv from VDDK source", dataVolumeTestArguments{
@@ -1037,7 +1120,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
-					Message: "Import Complete; VDDK: {\"Version\":\"1.2.3\",\"Host\":\"esx.test\"}",
+					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
 			Entry("[rfe_id:XXXX][crit:high][test_id:XXXX]succeed creating import dv from GCS URL using RAW image", dataVolumeTestArguments{
@@ -1169,7 +1252,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
-					Message: "Import Complete; VDDK: {\"Version\":\"1.2.3\",\"Host\":\"esx.test\"}",
+					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
 		)
@@ -2115,7 +2198,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				},
 			}
 			dataVolume := createLabeledDataVolumeForImport(f, spec,
-				map[string]string{common.PvcUseStorageProfileLabel: webhookRenderingLabel})
+				map[string]string{common.PvcApplyStorageProfileLabel: webhookRenderingLabel})
 
 			By("verifying pvc not created")
 			_, err := utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
@@ -2134,7 +2217,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, timeout, pollingInterval).Should(BeTrue())
 		},
 			Entry("[test_id:5912] (controller rendering)", "false", verifyControllerRenderingEvent),
-			Entry("[test_id:XXXX] (webhook rendering)", Serial, "true", verifyWebhookRenderingEvent),
+			Entry("[rfe_id:10985][crit:high][test_id:11045] (webhook rendering)", Serial, "true", verifyWebhookRenderingEvent),
 		)
 
 		DescribeTable("Import fails when no default storage class, and recovers when default is set", func(webhookRenderingLabel string, verifyEvent func(string) bool) {
@@ -2155,7 +2238,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				},
 			}
 			dataVolume := createLabeledDataVolumeForImport(f, spec,
-				map[string]string{common.PvcUseStorageProfileLabel: webhookRenderingLabel})
+				map[string]string{common.PvcApplyStorageProfileLabel: webhookRenderingLabel})
 
 			By("verifying event occurred")
 			Eventually(func() bool {
@@ -2183,7 +2266,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 		},
 			Entry("[test_id:8383] (controller rendering)", "false", verifyControllerRenderingNoDefaultScEvent),
-			Entry("[test_id:XXXX] (webhook rendering)", Serial, "true", verifyWebhookRenderingEvent),
+			Entry("[rfe_id:10985][crit:high][test_id:11046] (webhook rendering)", Serial, "true", verifyWebhookRenderingEvent),
 		)
 
 		DescribeTable("Import recovers when user adds accessModes to profile", func(webhookRenderingLabel string, verifyEvent func(string) bool) {
@@ -2204,7 +2287,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				},
 			}
 			dataVolume := createLabeledDataVolumeForImport(f, spec,
-				map[string]string{common.PvcUseStorageProfileLabel: webhookRenderingLabel})
+				map[string]string{common.PvcApplyStorageProfileLabel: webhookRenderingLabel})
 
 			By("verifying pvc not created")
 			_, err := utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
@@ -2238,7 +2321,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			updateStorageProfileSpec(f.CrClient, storageProfileName, *originalProfileSpec)
 		},
 			Entry("[test_id:5913] (controller rendering)", "false", verifyControllerRenderingEvent),
-			Entry("[test_id:XXXX] (webhook rendering)", Serial, "true", verifyWebhookRenderingEvent),
+			Entry("[rfe_id:10985][crit:high][test_id:11047] (webhook rendering)", Serial, "true", verifyWebhookRenderingEvent),
 		)
 
 		It("[test_id:6483]Import pod should not have size corrected on block", func() {
@@ -2628,7 +2711,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("creating new datavolume %s with StorageClassName %s", dataVolumeName, scName))
 			dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
 				dataVolumeName, "100Mi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
-			dataVolume.Labels = map[string]string{common.PvcUseStorageProfileLabel: webhookRenderingLabel}
+			dataVolume.Labels = map[string]string{common.PvcApplyStorageProfileLabel: webhookRenderingLabel}
 			dataVolume.Spec.Storage.StorageClassName = ptr.To[string](scName)
 			dataVolume.Spec.Storage.AccessModes = nil
 
@@ -2656,9 +2739,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Entry("[test_id:9922]the storage class is created (controller rendering)", "false", testScName, verifyControllerRenderingEventAndConditions, createStorageClass),
 			Entry("[test_id:9924]PV with the SC name is created (controller rendering)", "false", testScName, verifyControllerRenderingEventAndConditions, createPV),
 			Entry("[test_id:9925]PV with the SC name (\"\" blank) is created (controller rendering)", "false", "", verifyControllerRenderingEventAndConditions, createPV),
-			Entry("[test_id:XXXX]the storage class is created (webhook rendering)", Serial, "true", testScName, verifyWebhookRenderingEventAndConditions, createStorageClass),
-			Entry("[test_id:XXXX]PV with the SC name is created (webhook rendering)", Serial, "true", testScName, verifyWebhookRenderingEventAndConditions, createPV),
-			Entry("[test_id:XXXX]PV with the SC name (\"\" blank) is created (webhook rendering)", Serial, "true", "", verifyWebhookRenderingEventAndConditions, createPV),
+			Entry("[rfe_id:10985][crit:high][test_id:11049]the storage class is created (webhook rendering)", Serial, "true", testScName, verifyWebhookRenderingEventAndConditions, createStorageClass),
+			Entry("[rfe_id:10985][crit:high][test_id:11050]PV with the SC name is created (webhook rendering)", Serial, "true", testScName, verifyWebhookRenderingEventAndConditions, createPV),
+			Entry("[rfe_id:10985][crit:high][test_id:11051]PV with the SC name (\"\" blank) is created (webhook rendering)", Serial, "true", "", verifyWebhookRenderingEventAndConditions, createPV),
 		)
 
 		newDataVolumeWithStorageSpec := func(scName string) *cdiv1.DataVolume {
@@ -3051,14 +3134,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				"rm /tmp/shared/images/"+testImageName)
 			Expect(err).ToNot(HaveOccurred())
 
-			By("Verify the number of retries on the datavolume")
-			Eventually(func() int32 {
-				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				Expect(err).NotTo(HaveOccurred())
-				restarts := dv.Status.RestartCount
-				return restarts
-			}, timeout, pollingInterval).Should(BeNumerically(">=", 1))
-
 			By("Restore the file, import should progress")
 			Expect(utils.WaitTimeoutForPodReady(f.K8sClient, fileHostPod.Name, fileHostPod.Namespace, utils.PodWaitForTime)).To(Succeed())
 			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
@@ -3069,6 +3144,17 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Wait for the eventual success")
 			err = utils.WaitForDataVolumePhaseWithTimeout(f, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name, 300*time.Second)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verify content")
+			pvc, err := utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(md5).To(Equal(utils.ImageioMD5))
+
+			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 			Expect(err).ToNot(HaveOccurred())
 		})
 	})

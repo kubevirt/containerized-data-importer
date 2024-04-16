@@ -24,7 +24,6 @@ import (
 	"crypto/tls"
 	"sync"
 
-	ocpconfigv1 "github.com/openshift/api/config/v1"
 	ocpcrypto "github.com/openshift/library-go/pkg/crypto"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
@@ -126,11 +125,11 @@ func (ctw *cdiConfigTLSWatcher) updateConfig(config *cdiv1.CDIConfig) {
 }
 
 // SelectCipherSuitesAndMinTLSVersion returns cipher names and minimal TLS version according to the input profile
-func SelectCipherSuitesAndMinTLSVersion(profile *ocpconfigv1.TLSSecurityProfile) ([]string, ocpconfigv1.TLSProtocolVersion) {
+func SelectCipherSuitesAndMinTLSVersion(profile *cdiv1.TLSSecurityProfile) ([]string, cdiv1.TLSProtocolVersion) {
 	if profile == nil {
-		profile = &ocpconfigv1.TLSSecurityProfile{
-			Type:         ocpconfigv1.TLSProfileIntermediateType,
-			Intermediate: &ocpconfigv1.IntermediateTLSProfile{},
+		profile = &cdiv1.TLSSecurityProfile{
+			Type:         cdiv1.TLSProfileIntermediateType,
+			Intermediate: &cdiv1.IntermediateTLSProfile{},
 		}
 	}
 
@@ -138,14 +137,14 @@ func SelectCipherSuitesAndMinTLSVersion(profile *ocpconfigv1.TLSSecurityProfile)
 		return profile.Custom.TLSProfileSpec.Ciphers, profile.Custom.TLSProfileSpec.MinTLSVersion
 	}
 
-	return ocpconfigv1.TLSProfiles[profile.Type].Ciphers, ocpconfigv1.TLSProfiles[profile.Type].MinTLSVersion
+	return cdiv1.TLSProfiles[profile.Type].Ciphers, cdiv1.TLSProfiles[profile.Type].MinTLSVersion
 }
 
 // DefaultCryptoConfig returns a crypto config with legitimate defaults to start with
 func DefaultCryptoConfig() *CryptoConfig {
-	defaultType := ocpconfigv1.TLSProfileIntermediateType
-	minTLSVersion, _ := ocpcrypto.TLSVersion(string(ocpconfigv1.TLSProfiles[defaultType].MinTLSVersion))
-	ciphers := CipherSuitesIDs(ocpconfigv1.TLSProfiles[defaultType].Ciphers)
+	defaultType := cdiv1.TLSProfileIntermediateType
+	minTLSVersion, _ := ocpcrypto.TLSVersion(string(cdiv1.TLSProfiles[defaultType].MinTLSVersion))
+	ciphers := CipherSuitesIDs(cdiv1.TLSProfiles[defaultType].Ciphers)
 
 	return &CryptoConfig{
 		CipherSuites: ciphers,

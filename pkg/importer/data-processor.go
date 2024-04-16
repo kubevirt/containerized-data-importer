@@ -89,6 +89,8 @@ type DataSourceInterface interface {
 	TransferFile(fileName string) (ProcessingPhase, error)
 	// Geturl returns the url that the data processor can use when converting the data.
 	GetURL() *url.URL
+	// GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
+	GetTerminationMessage() *common.TerminationMessage
 	// Close closes any readers or other open resources.
 	Close() error
 }
@@ -179,7 +181,7 @@ func (dp *DataProcessor) initDefaultPhases() {
 	})
 	dp.RegisterPhaseExecutor(ProcessingPhaseTransferScratch, func() (ProcessingPhase, error) {
 		pp, err := dp.source.Transfer(dp.scratchDataDir)
-		if err == ErrInvalidPath {
+		if errors.Is(err, ErrInvalidPath) {
 			// Passed in invalid scratch space path, return scratch space needed error.
 			err = ErrRequiresScratchSpace
 		} else if err != nil {

@@ -71,7 +71,7 @@ const (
 	LargePhysicalDiskQcow = "http://cdi-file-host.%s/cirros-large-physical-size.qcow2"
 	// LargePhysicalDiskXz provides a test url for a cirros image with a large physical size, in RAW format, XZ-compressed
 	LargePhysicalDiskXz = "http://cdi-file-host.%s/cirros-large-physical-size.raw.xz"
-	// TarArchiveURL provides a test url for a tar achive file
+	// TarArchiveURL provides a test url for a tar archive file
 	TarArchiveURL = "http://cdi-file-host.%s/archive.tar"
 	// CirrosURL provides the standard cirros image qcow image
 	CirrosURL = "http://cdi-file-host.%s/cirros-qcow2.img"
@@ -324,7 +324,7 @@ func NewDataVolumeWithImageioImport(dataVolumeName string, size string, httpURL 
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -353,7 +353,7 @@ func NewDataVolumeWithImageioWarmImport(dataVolumeName string, size string, http
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -363,7 +363,7 @@ func NewDataVolumeWithImageioWarmImport(dataVolumeName string, size string, http
 
 // NewDataVolumeWithHTTPImportToBlockPV initializes a DataVolume struct with HTTP annotations to import to block PV
 func NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName string, size string, httpURL, storageClassName string) *cdiv1.DataVolume {
-	volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock)
+	volumeMode := corev1.PersistentVolumeBlock
 	dataVolume := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
@@ -380,7 +380,7 @@ func NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName string, size string, ht
 				AccessModes:      []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -404,7 +404,7 @@ func NewDataVolumeWithExternalPopulation(dataVolumeName, size, storageClassName 
 				DataSourceRef:    dataSourceRef,
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -428,7 +428,7 @@ func NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, size, sto
 				DataSourceRef:    dataSourceRef,
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -439,7 +439,7 @@ func NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, size, sto
 
 // NewDataVolumeCloneToBlockPV initializes a DataVolume for block cloning
 func NewDataVolumeCloneToBlockPV(dataVolumeName string, size string, srcNamespace, srcName, storageClassName string) *cdiv1.DataVolume {
-	volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock)
+	volumeMode := corev1.PersistentVolumeBlock
 	dataVolume := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
@@ -457,7 +457,7 @@ func NewDataVolumeCloneToBlockPV(dataVolumeName string, size string, srcNamespac
 				AccessModes:      []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -485,7 +485,7 @@ func NewDataVolumeCloneToBlockPVStorageAPI(dataVolumeName string, size string, s
 				StorageClassName: &storageClassName,
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -509,7 +509,7 @@ func NewDataVolumeForUpload(dataVolumeName string, size string) *cdiv1.DataVolum
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -532,7 +532,7 @@ func NewDataVolumeForUploadWithStorageAPI(dataVolumeName string, size string) *c
 			Storage: &cdiv1.StorageSpec{
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -555,7 +555,7 @@ func NewDataVolumeForBlankRawImage(dataVolumeName, size string) *cdiv1.DataVolum
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -565,7 +565,7 @@ func NewDataVolumeForBlankRawImage(dataVolumeName, size string) *cdiv1.DataVolum
 
 // NewDataVolumeForBlankRawImageBlock initializes a DataVolume struct for creating blank raw image for a block device
 func NewDataVolumeForBlankRawImageBlock(dataVolumeName, size string, storageClassName string) *cdiv1.DataVolume {
-	volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock)
+	volumeMode := corev1.PersistentVolumeBlock
 	dataVolume := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
@@ -580,7 +580,7 @@ func NewDataVolumeForBlankRawImageBlock(dataVolumeName, size string, storageClas
 				AccessModes:      []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -607,7 +607,7 @@ func NewDataVolumeForImageCloning(dataVolumeName, size, namespace, pvcName strin
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -703,7 +703,7 @@ func NewDataVolumeForSnapshotCloning(dataVolumeName, size, namespace, snapshot s
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -736,7 +736,7 @@ func NewDataVolumeForSnapshotCloningAndStorageSpec(dataVolumeName, size, namespa
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -768,7 +768,7 @@ func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registr
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -778,7 +778,7 @@ func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registr
 
 // ModifyDataVolumeWithImportToBlockPV modifies a DataVolume struct for import to a block PV
 func ModifyDataVolumeWithImportToBlockPV(dataVolume *cdiv1.DataVolume, storageClassName string) *cdiv1.DataVolume {
-	volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock)
+	volumeMode := corev1.PersistentVolumeBlock
 	dataVolume.Spec.PVC.VolumeMode = &volumeMode
 	dataVolume.Spec.PVC.StorageClassName = &storageClassName
 	return dataVolume
@@ -804,7 +804,7 @@ func NewDataVolumeWithVddkImport(dataVolumeName string, size string, backingFile
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -838,7 +838,7 @@ func NewDataVolumeWithVddkWarmImport(dataVolumeName string, size string, backing
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -977,7 +977,7 @@ func NewDataVolumeWithArchiveContent(dataVolumeName string, size string, httpURL
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},
@@ -1002,7 +1002,7 @@ func NewDataVolumeWithArchiveContentStorage(dataVolumeName string, size string, 
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(size),
 					},
 				},
 			},

@@ -38,6 +38,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -191,6 +192,11 @@ func (is *ImageioDataSource) TransferFile(fileName string) (ProcessingPhase, err
 // GetURL returns the URI that the data processor can use when converting the data.
 func (is *ImageioDataSource) GetURL() *url.URL {
 	return is.url
+}
+
+// GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
+func (is *ImageioDataSource) GetTerminationMessage() *common.TerminationMessage {
+	return nil
 }
 
 // Close all readers.
@@ -422,7 +428,7 @@ func (reader *extentReader) Read(p []byte) (int, error) {
 	length := end - start + 1
 
 	responseBody, err := reader.GetRange(start, end)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return 0, errors.Wrap(err, "failed to read from range")
 	}
 	if responseBody != nil {
@@ -430,7 +436,7 @@ func (reader *extentReader) Read(p []byte) (int, error) {
 	}
 
 	var written int
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		written, err = io.ReadFull(responseBody, p[:length])
 	}
 
@@ -1372,7 +1378,7 @@ type DiskSnapshotsServiceListRequest struct {
 	srv *ovirtsdk4.DiskSnapshotsServiceListRequest
 }
 
-// Send returns a reponse from listing disk snapshots
+// Send returns a response from listing disk snapshots
 func (service *DiskSnapshotsServiceListRequest) Send() (DiskSnapshotsServiceListResponseInterface, error) {
 	resp, err := service.srv.Send()
 	return &DiskSnapshotsServiceListResponse{

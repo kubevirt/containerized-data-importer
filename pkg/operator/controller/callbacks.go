@@ -458,7 +458,7 @@ func initPvcMutatingWebhook(whc *admissionregistrationv1.MutatingWebhookConfigur
 			},
 			ObjectSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					common.PvcUseStorageProfileLabel: "true",
+					common.PvcApplyStorageProfileLabel: "true",
 				},
 			},
 			ReinvocationPolicy: &reinvocationNever,

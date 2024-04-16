@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/http/httputil"
@@ -247,7 +248,8 @@ func (app *uploadProxyApp) resolveUploadPath(pvc *v1.PersistentVolumeClaim, pvcN
 			path = common.UploadArchivePath
 		}
 	default:
-		return "", fmt.Errorf("rejecting upload request for PVC %s - upload content-type %s is invalid", pvcName, contentType)
+		// Escaping user-controlled strings to avoid cross-site scripting (XSS) attacks
+		return "", fmt.Errorf("rejecting upload request for PVC %s - upload content-type %s is invalid", html.EscapeString(pvcName), html.EscapeString(contentType))
 	}
 
 	return app.urlResolver(pvc.Namespace, pvc.Name, path), nil

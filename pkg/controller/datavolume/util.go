@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/docker/go-units"
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
@@ -99,7 +100,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 		return nil, err
 	}
 
-	shouldRender := !isWebhookRenderingEnabled || dv.Labels[common.PvcUseStorageProfileLabel] != "true"
+	shouldRender := !isWebhookRenderingEnabled || dv.Labels[common.PvcApplyStorageProfileLabel] != "true"
 
 	if pvc == nil {
 		pvcSpec = copyStorageAsPvc(log, dv.Spec.Storage)
@@ -285,6 +286,11 @@ func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeC
 		}
 		setRequestedVolumeSize(pvcSpec, resource.Quantity{})
 		return nil
+	}
+
+	// Kubevirt doesn't allow disks smaller than 1MiB. Rejecting for consistency.
+	if requestedSize.Value() < units.MiB {
+		return errors.Errorf("PVC Spec is not valid - storage size should be at least 1MiB")
 	}
 
 	requestedSize, err := cc.InflateSizeWithOverhead(context.TODO(), client, requestedSize.Value(), pvcSpec)
@@ -615,7 +621,7 @@ func setAnnOwnedByDataVolume(dest, obj metav1.Object) error {
 // CheckVolumeSatisfyClaim checks if the volume requested by the claim satisfies the requirements of the claim
 // adapted from k8s.io/kubernetes/pkg/controller/volume/persistentvolume/pv_controller.go
 func CheckVolumeSatisfyClaim(volume *v1.PersistentVolume, claim *v1.PersistentVolumeClaim) error {
-	requestedQty := claim.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)]
+	requestedQty := claim.Spec.Resources.Requests[v1.ResourceStorage]
 	requestedSize := requestedQty.Value()
 
 	// check if PV's DeletionTimeStamp is set, if so, return error.

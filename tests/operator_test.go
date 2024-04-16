@@ -4,6 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"regexp"
+	"strings"
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	routev1 "github.com/openshift/api/route/v1"
@@ -15,11 +20,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
-	"reflect"
-	"regexp"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
-	"time"
 
 	secclient "github.com/openshift/client-go/security/clientset/versioned"
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
@@ -767,7 +768,7 @@ var _ = Describe("ALL Operator tests", func() {
 				cdiConfig, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
-				By("Enable non existant featureGate")
+				By("Enable non existent featureGate")
 				cdiConfig.Spec = cdiv1.CDIConfigSpec{
 					FeatureGates: []string{feature},
 				}
@@ -1158,11 +1159,11 @@ var _ = Describe("ALL Operator tests", func() {
 					prioClass = osUserCrit.Name
 				}
 				// Deployment
-				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(prioClass), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiDeploymentPodPrefix, prioClass, common.CDILabelSelector)
 				// API server
-				verifyPodPriorityClass(cdiApiServerPodPrefix, string(prioClass), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiApiServerPodPrefix, prioClass, common.CDILabelSelector)
 				// Upload server
-				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(prioClass), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiUploadProxyPodPrefix, prioClass, common.CDILabelSelector)
 				By("Verifying there is just a single cdi controller pod")
 				Eventually(func() error {
 					_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
@@ -1202,11 +1203,11 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				By("Verifying the CDI control plane is updated")
 				// Deployment
-				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiDeploymentPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 				// API server
-				verifyPodPriorityClass(cdiApiServerPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiApiServerPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 				// Upload server
-				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiUploadProxyPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 			})
 		})
 	})

@@ -48,6 +48,33 @@ docker push vmdisks/fedora28:latest
 
 ```
 
+## Decorate the PVC of the imported containerdisk with additional labels
+
+It is possible to add additional labels to the PVC into which the
+containerdisk is imported. To do this, add `ENV` variables prefixed with
+`*_KUBEVIRT_IO_` or `KUBEVIRT_IO_` durning the containerdisk build.
+
+
+For example, when using the following Dockerfile, the imported PVC will
+receive these additional labels:
+- `instancetype.kubevirt.io/default-instancetype`: `u1.small`
+- `instancetype.kubevirt.io/default-preference`: `fedora`
+
+```
+FROM kubevirt/container-disk-v1alpha
+ADD fedora28.qcow2 /disk
+
+ENV INSTANCETYPE_KUBEVIRT_IO_DEFAULT_INSTANCETYPE u1.small
+ENV INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE fedora
+```
+
+For this feature, environment variables were chosen over labels on the image's
+manifest so they can be accessed with both pull methods `pod` and
+`node`. During imports with pull method `node` the image's manifest is not
+accessible by the importer. However, the image's environment variables can
+still be accessed by the importer's server binary, which is injected into the
+container responsible for pulling the image.
+
 # Import the registry image into a Data volume
 
 Use the following to import a fedora cloud image from docker hub:

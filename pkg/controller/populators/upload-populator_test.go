@@ -195,7 +195,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		cc.AddAnnotation(pvcPrime, AnnPVCPrimeName, pvcPrime.Name)
 
 		r := createUploadPopulatorReconciler(pvc, pvcPrime)
-		err := r.updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime, r.updateUploadAnnotations)
+		pvc, err := r.updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime, r.updateUploadAnnotations)
 		Expect(err).ToNot(HaveOccurred())
 
 		//should always remove the pvc prime annotation
@@ -283,8 +283,8 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(ok).To(BeFalse())
 	},
 		Entry("with pod running phase", string(corev1.PodRunning)),
-		Entry("with pod succeded phase", string(corev1.PodFailed)),
-		Entry("with pod succeded phase", string(corev1.PodSucceeded)),
+		Entry("with pod succeeded phase", string(corev1.PodFailed)),
+		Entry("with pod succeeded phase", string(corev1.PodSucceeded)),
 	)
 
 	DescribeTable("Should create PVC Prime with proper upload annotations", func(key, value, expectedValue string) {
@@ -348,7 +348,7 @@ func newUploadPopulatorPVC(name string) *corev1.PersistentVolumeClaim {
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("1Gi"),
+					corev1.ResourceStorage: resource.MustParse("1Gi"),
 				},
 			},
 			DataSourceRef: &corev1.TypedObjectReference{

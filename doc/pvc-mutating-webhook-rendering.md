@@ -26,7 +26,7 @@ spec:
 
 ## Usage
 
-For any PVC you want to use `StorageProfile` mutating webhook rendering, label it with `cdi.kubevirt.io/useStorageProfile: "true"`
+For any PVC you want to use `StorageProfile` mutating webhook rendering, label it with `cdi.kubevirt.io/applyStorageProfile: "true"`
 
 If you want to use `volumeMode` preferred by CDI according to `StorageProfiles`, set it to `FromStorageProfile`. Otherwise if not explicitly set to `Block`, it will be `Filesystem` by k8s default.
 
@@ -40,7 +40,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: my-blank-pvc
   labels:
-    cdi.kubevirt.io/useStorageProfile: "true"
+    cdi.kubevirt.io/applyStorageProfile: "true"
 spec:
   storageClassName: rook-ceph-block
   volumeMode: FromStorageProfile
@@ -57,7 +57,7 @@ kind: PersistentVolumeClaim
 metadata:
   name:  my-imported-pvc
   labels:
-    cdi.kubevirt.io/useStorageProfile: "true"
+    cdi.kubevirt.io/applyStorageProfile: "true"
 spec:
   dataSourceRef:
     apiGroup: cdi.kubevirt.io
@@ -76,7 +76,7 @@ kind: PersistentVolumeClaim
 metadata:
   name:  my-cloned-pvc
   labels:
-    cdi.kubevirt.io/useStorageProfile: "true"
+    cdi.kubevirt.io/applyStorageProfile: "true"
 spec:
   dataSourceRef:
     apiGroup: cdi.kubevirt.io

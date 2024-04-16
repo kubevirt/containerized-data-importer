@@ -19,6 +19,7 @@ package populators
 import (
 	"context"
 	"reflect"
+	"regexp"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -58,6 +59,10 @@ const (
 	dataSourceRefField = "spec.dataSourceRef"
 
 	uidField = "metadata.uid"
+)
+
+var (
+	validLabelsMatch = regexp.MustCompile(`^([\w.]+\.kubevirt.io|kubevirt.io)/\w+$`)
 )
 
 // Interface to store populator-specific methods
@@ -202,7 +207,7 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 			Kind:    "PersistentVolumeClaim",
 		}),
 	}
-	cc.SetPvcAllowedAnnotations(pvcPrime, pvc)
+	cc.CopyAllowedAnnotations(pvc, pvcPrime)
 	util.SetRecommendedLabels(pvcPrime, r.installerLabels, "cdi-controller")
 
 	// We use the populator-specific pvcModifierFunc to add required annotations
@@ -223,7 +228,7 @@ var desiredAnnotations = []string{cc.AnnPodPhase, cc.AnnPodReady, cc.AnnPodResta
 	cc.AnnPreallocationRequested, cc.AnnPreallocationApplied, cc.AnnCurrentCheckpoint, cc.AnnMultiStageImportDone,
 	cc.AnnRunningCondition, cc.AnnRunningConditionMessage, cc.AnnRunningConditionReason}
 
-func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim, updateFunc updatePVCAnnotationsFunc) error {
+func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim, updateFunc updatePVCAnnotationsFunc) (*corev1.PersistentVolumeClaim, error) {
 	pvcCopy := pvc.DeepCopy()
 	for _, ann := range desiredAnnotations {
 		if value, ok := pvcPrime.GetAnnotations()[ann]; ok {
@@ -241,10 +246,25 @@ func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.
 	if !reflect.DeepEqual(pvc.ObjectMeta, pvcCopy.ObjectMeta) {
 		err := r.client.Update(context.TODO(), pvcCopy)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
+	return pvcCopy, nil
+}
+
+func (r *ReconcilerBase) updatePVCWithPVCPrimeLabels(pvc *corev1.PersistentVolumeClaim, pvcPrimeLabels map[string]string) error {
+	pvcCopy := pvc.DeepCopy()
+	for label, value := range pvcPrimeLabels {
+		if _, found := pvcCopy.GetLabels()[label]; !found && validLabelsMatch.MatchString(label) {
+			cc.AddLabel(pvcCopy, label, value)
+		}
+	}
+	if !reflect.DeepEqual(pvc.ObjectMeta, pvcCopy.ObjectMeta) {
+		if err := r.client.Update(context.TODO(), pvcCopy); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -268,12 +288,17 @@ func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorCon
 	}
 
 	// Each populator reconciles the target PVC in a different way
-	if cc.IsUnbound(pvc) || !cc.IsPVCComplete(pvc) || cc.IsMultiStageImportInProgress(pvc) {
-		return populator.reconcileTargetPVC(pvc, pvcPrime)
+	res, err := populator.reconcileTargetPVC(pvc, pvcPrime)
+	if err != nil {
+		return res, err
 	}
 
-	// Making sure to clean PVC'
-	return r.reconcileCleanup(pvcPrime)
+	// Making sure to clean PVC once it is complete
+	if cc.IsPVCComplete(pvc) && !cc.IsMultiStageImportInProgress(pvc) {
+		res, err = r.reconcileCleanup(pvcPrime)
+	}
+
+	return res, err
 }
 
 func (r *ReconcilerBase) reconcileCommon(pvc *corev1.PersistentVolumeClaim, populator populatorController, pvcNameLogger logr.Logger) (*corev1.PersistentVolumeClaim, error) {

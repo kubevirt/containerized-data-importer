@@ -48,7 +48,7 @@ var (
 
 func init() {
 	if err := prometheus.Register(progress); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+		if are := (prometheus.AlreadyRegisteredError{}); errors.As(err, &are) {
 			// A counter for that metric has been registered before.
 			// Use the old counter from now on.
 			progress = are.ExistingCollector.(*prometheus.CounterVec)

@@ -366,29 +366,32 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 
 	log.V(1).Info("Updating PVC from pod")
 	anno := pvc.GetAnnotations()
-	setAnnotationsFromPodWithPrefix(anno, pod, cc.AnnRunningCondition)
 
-	scratchExitCode := false
+	termMsg, err := parseTerminationMessage(pod)
+	if err != nil {
+		log.V(3).Info("Ignoring failure to parse termination message", "error", err.Error())
+	}
+	setAnnotationsFromPodWithPrefix(anno, pod, termMsg, cc.AnnRunningCondition)
+
+	scratchSpaceRequired := termMsg != nil && termMsg.ScratchSpaceRequired != nil && *termMsg.ScratchSpaceRequired
+	if scratchSpaceRequired {
+		log.V(1).Info("Pod requires scratch space, terminating pod, and restarting with scratch space", "pod.Name", pod.Name)
+	}
+
 	if pod.Status.ContainerStatuses != nil &&
-		pod.Status.ContainerStatuses[0].LastTerminationState.Terminated != nil &&
-		pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode > 0 {
-		log.Info("Pod termination code", "pod.Name", pod.Name, "ExitCode", pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode)
-		if pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode == common.ScratchSpaceNeededExitCode {
-			log.V(1).Info("Pod requires scratch space, terminating pod, and restarting with scratch space", "pod.Name", pod.Name)
-			scratchExitCode = true
-			anno[cc.AnnRequiresScratch] = "true"
-		} else {
-			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message)
-		}
+		pod.Status.ContainerStatuses[0].State.Terminated != nil &&
+		pod.Status.ContainerStatuses[0].State.Terminated.ExitCode > 0 {
+		log.Info("Pod termination code", "pod.Name", pod.Name, "ExitCode", pod.Status.ContainerStatuses[0].State.Terminated.ExitCode)
+		r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].State.Terminated.Message)
 	}
 
 	if anno[cc.AnnCurrentCheckpoint] != "" {
 		anno[cc.AnnCurrentPodID] = string(pod.ObjectMeta.UID)
 	}
 
-	anno[cc.AnnImportPod] = string(pod.Name)
-	if !scratchExitCode {
-		// No scratch exit code, update the phase based on the pod. If we do have scratch exit code we don't want to update the
+	anno[cc.AnnImportPod] = pod.Name
+	if !scratchSpaceRequired {
+		// No scratch space required, update the phase based on the pod. If we require scratch space we don't want to update the
 		// phase, because the pod might terminate cleanly and mistakenly mark the import complete.
 		anno[cc.AnnPodPhase] = string(pod.Status.Phase)
 	}
@@ -407,11 +410,14 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		delete(anno, cc.AnnBoundConditionReason)
 	}
 
+	if pvc.GetLabels() == nil {
+		pvc.SetLabels(make(map[string]string, 0))
+	}
 	if !checkIfLabelExists(pvc, common.CDILabelKey, common.CDILabelValue) {
-		if pvc.GetLabels() == nil {
-			pvc.SetLabels(make(map[string]string, 0))
-		}
 		pvc.GetLabels()[common.CDILabelKey] = common.CDILabelValue
+	}
+	if cc.IsPVCComplete(pvc) {
+		pvc.SetLabels(addLabelsFromTerminationMessage(pvc.GetLabels(), termMsg))
 	}
 
 	if !reflect.DeepEqual(currentPvcCopy, pvc) {
@@ -421,8 +427,8 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		log.V(1).Info("Updated PVC", "pvc.anno.Phase", anno[cc.AnnPodPhase], "pvc.anno.Restarts", anno[cc.AnnPodRestarts])
 	}
 
-	if cc.IsPVCComplete(pvc) || scratchExitCode {
-		if !scratchExitCode {
+	if cc.IsPVCComplete(pvc) || scratchSpaceRequired {
+		if !scratchSpaceRequired {
 			r.recorder.Event(pvc, corev1.EventTypeNormal, ImportSucceededPVC, "Import Successful")
 			log.V(1).Info("Import completed successfully")
 		}
@@ -835,16 +841,15 @@ func createImporterPod(ctx context.Context, log logr.Logger, client client.Clien
 		return nil, err
 	}
 
-	var pod *corev1.Pod
-	if cc.GetSource(args.pvc) == cc.SourceRegistry && args.pvc.Annotations[cc.AnnRegistryImportMethod] == string(cdiv1.RegistryPullNode) {
+	if isRegistryNodeImport(args) {
 		args.importImage, err = getRegistryImportImage(args.pvc)
 		if err != nil {
 			return nil, err
 		}
-		pod = makeNodeImporterPodSpec(args)
-	} else {
-		pod = makeImporterPodSpec(args)
+		setRegistryNodeImportEnvVars(args)
 	}
+
+	pod := makeImporterPodSpec(args)
 
 	util.SetRecommendedLabels(pod, installerLabels, "cdi-controller")
 
@@ -856,165 +861,10 @@ func createImporterPod(ctx context.Context, log logr.Logger, client client.Clien
 	return pod, nil
 }
 
-// makeNodeImporterPodSpec creates and returns the node docker cache based importer pod spec based on the passed-in importImage and pvc.
-func makeNodeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
-	// importer pod name contains the pvc name
-	podName := args.pvc.Annotations[cc.AnnImportPod]
-
-	volumes := []corev1.Volume{
-		{
-			Name: "shared-volume",
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
-		},
-		{
-			Name: cc.DataVolName,
-			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: args.pvc.Name,
-					ReadOnly:  false,
-				},
-			},
-		},
-	}
-
-	importerContainer := makeImporterContainerSpec(args.image, args.verbose, args.pullPolicy)
-
-	pod := &corev1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      podName,
-			Namespace: args.pvc.Namespace,
-			Annotations: map[string]string{
-				cc.AnnCreatedBy: "yes",
-			},
-			Labels: map[string]string{
-				common.CDILabelKey:        common.CDILabelValue,
-				common.CDIComponentLabel:  common.ImporterPodName,
-				common.PrometheusLabelKey: common.PrometheusLabelValue,
-			},
-		},
-		Spec: corev1.PodSpec{
-			InitContainers: []corev1.Container{
-				{
-					Name:            "init",
-					Image:           args.image,
-					ImagePullPolicy: corev1.PullPolicy(args.pullPolicy),
-					Command:         []string{"sh", "-c", "cp /usr/bin/cdi-containerimage-server /shared/server"},
-					VolumeMounts: []corev1.VolumeMount{
-						{
-							MountPath: "/shared",
-							Name:      "shared-volume",
-						},
-					},
-				},
-			},
-			Containers: []corev1.Container{
-				*importerContainer,
-				{
-					Name:            "server",
-					Image:           args.importImage,
-					ImagePullPolicy: corev1.PullPolicy(args.pullPolicy),
-					Command:         []string{"/shared/server", "-p", "8100", "-image-dir", "/disk", "-ready-file", "/shared/ready", "-done-file", "/shared/done"},
-					VolumeMounts: []corev1.VolumeMount{
-						{
-							MountPath: "/shared",
-							Name:      "shared-volume",
-						},
-					},
-				},
-			},
-			RestartPolicy:     corev1.RestartPolicyOnFailure,
-			Volumes:           volumes,
-			NodeSelector:      args.workloadNodePlacement.NodeSelector,
-			Tolerations:       args.workloadNodePlacement.Tolerations,
-			Affinity:          args.workloadNodePlacement.Affinity,
-			PriorityClassName: args.priorityClassName,
-			ImagePullSecrets:  args.imagePullSecrets,
-		},
-	}
-
-	/**
-	FIXME: When registry source is ImageStream, if we set importer pod OwnerReference (to its pvc, like all other cases),
-	for some reason (OCP issue?) we get the following error:
-		Failed to pull image "imagestream-name": rpc error: code = Unknown
-		desc = Error reading manifest latest in docker.io/library/imagestream-name: errors:
-		denied: requested access to the resource is denied
-		unauthorized: authentication required
-	When we don't set pod OwnerReferences, all works well.
-	*/
-	if cc.IsImageStream(args.pvc) {
-		pod.Annotations[cc.AnnOpenShiftImageLookup] = "*"
-	} else {
-		blockOwnerDeletion := true
-		isController := true
-		ownerRef := metav1.OwnerReference{
-			APIVersion:         "v1",
-			Kind:               "PersistentVolumeClaim",
-			Name:               args.pvc.Name,
-			UID:                args.pvc.GetUID(),
-			BlockOwnerDeletion: &blockOwnerDeletion,
-			Controller:         &isController,
-		}
-		pod.OwnerReferences = append(pod.OwnerReferences, ownerRef)
-	}
-
-	args.podEnvVar.source = cc.SourceHTTP
-	args.podEnvVar.ep = "http://localhost:8100/disk.img"
-	args.podEnvVar.pullMethod = string(cdiv1.RegistryPullNode)
-	args.podEnvVar.readyFile = "/shared/ready"
-	args.podEnvVar.doneFile = "/shared/done"
-	setImporterPodCommons(pod, args.podEnvVar, args.pvc, args.podResourceRequirements, args.imagePullSecrets)
-	pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
-		MountPath: "/shared",
-		Name:      "shared-volume",
-	})
-
-	cc.SetRestrictedSecurityContext(&pod.Spec)
-	// We explicitly define a NodeName for dynamically provisioned PVCs
-	// when the PVC is being handled by a populator (PVC')
-	cc.SetNodeNameIfPopulator(args.pvc, &pod.Spec)
-
-	return pod
-}
-
 // makeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
 func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 	// importer pod name contains the pvc name
 	podName := args.pvc.Annotations[cc.AnnImportPod]
-
-	blockOwnerDeletion := true
-	isController := true
-
-	volumes := []corev1.Volume{
-		{
-			Name: cc.DataVolName,
-			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: args.pvc.Name,
-					ReadOnly:  false,
-				},
-			},
-		},
-	}
-
-	if args.scratchPvcName != nil {
-		volumes = append(volumes, corev1.Volume{
-			Name: cc.ScratchVolName,
-			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: *args.scratchPvcName,
-					ReadOnly:  false,
-				},
-			},
-		})
-	}
-
-	importerContainer := makeImporterContainerSpec(args.image, args.verbose, args.pullPolicy)
 
 	pod := &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -1038,17 +888,16 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 					Kind:               "PersistentVolumeClaim",
 					Name:               args.pvc.Name,
 					UID:                args.pvc.GetUID(),
-					BlockOwnerDeletion: &blockOwnerDeletion,
-					Controller:         &isController,
+					BlockOwnerDeletion: ptr.To[bool](true),
+					Controller:         ptr.To[bool](true),
 				},
 			},
 		},
 		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				*importerContainer,
-			},
+			Containers:        makeImporterContainerSpec(args),
+			InitContainers:    makeImporterInitContainersSpec(args),
+			Volumes:           makeImporterVolumeSpec(args),
 			RestartPolicy:     corev1.RestartPolicyOnFailure,
-			Volumes:           volumes,
 			NodeSelector:      args.workloadNodePlacement.NodeSelector,
 			Tolerations:       args.workloadNodePlacement.Tolerations,
 			Affinity:          args.workloadNodePlacement.Affinity,
@@ -1057,23 +906,192 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 		},
 	}
 
-	setImporterPodCommons(pod, args.podEnvVar, args.pvc, args.podResourceRequirements, args.imagePullSecrets)
+	/**
+	FIXME: When registry source is ImageStream, if we set importer pod OwnerReference (to its pvc, like all other cases),
+	for some reason (OCP issue?) we get the following error:
+		Failed to pull image "imagestream-name": rpc error: code = Unknown
+		desc = Error reading manifest latest in docker.io/library/imagestream-name: errors:
+		denied: requested access to the resource is denied
+		unauthorized: authentication required
+	When we don't set pod OwnerReferences, all works well.
+	*/
+	if isRegistryNodeImport(args) && cc.IsImageStream(args.pvc) {
+		pod.OwnerReferences = nil
+		pod.Annotations[cc.AnnOpenShiftImageLookup] = "*"
+	}
 
+	cc.CopyAllowedAnnotations(args.pvc, pod)
+	cc.SetRestrictedSecurityContext(&pod.Spec)
+	// We explicitly define a NodeName for dynamically provisioned PVCs
+	// when the PVC is being handled by a populator (PVC')
+	cc.SetNodeNameIfPopulator(args.pvc, &pod.Spec)
+
+	return pod
+}
+
+func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
+	containers := []corev1.Container{
+		{
+			Name:            common.ImporterPodName,
+			Image:           args.image,
+			ImagePullPolicy: corev1.PullPolicy(args.pullPolicy),
+			Args:            []string{"-v=" + args.verbose},
+			Env:             makeImportEnv(args.podEnvVar, getOwnerUID(args)),
+			Ports: []corev1.ContainerPort{
+				{
+					Name:          "metrics",
+					ContainerPort: 8443,
+					Protocol:      corev1.ProtocolTCP,
+				},
+			},
+		},
+	}
+	if cc.GetVolumeMode(args.pvc) == corev1.PersistentVolumeBlock {
+		containers[0].VolumeDevices = cc.AddVolumeDevices()
+	} else {
+		containers[0].VolumeMounts = cc.AddImportVolumeMounts()
+	}
+	if isRegistryNodeImport(args) {
+		containers = append(containers, corev1.Container{
+			Name:            "server",
+			Image:           args.importImage,
+			ImagePullPolicy: corev1.PullPolicy(args.pullPolicy),
+			Command:         []string{"/shared/server", "-p", "8100", "-image-dir", "/disk", "-ready-file", "/shared/ready", "-done-file", "/shared/done"},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					MountPath: "/shared",
+					Name:      "shared-volume",
+				},
+			},
+		})
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
+			MountPath: "/shared",
+			Name:      "shared-volume",
+		})
+	}
 	if args.scratchPvcName != nil {
-		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
 			Name:      cc.ScratchVolName,
 			MountPath: common.ScratchDataDir,
 		})
 	}
-
 	if args.vddkImageName != nil {
-		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      "vddk-vol-mount",
+			MountPath: "/opt",
+		})
+	}
+	if args.podEnvVar.certConfigMap != "" {
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      CertVolName,
+			MountPath: common.ImporterCertDir,
+		})
+	}
+	if args.podEnvVar.certConfigMapProxy != "" {
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      ProxyCertVolName,
+			MountPath: common.ImporterProxyCertDir,
+		})
+	}
+	if args.podEnvVar.source == cc.SourceGCS && args.podEnvVar.secretName != "" {
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      SecretVolName,
+			MountPath: common.ImporterGoogleCredentialDir,
+		})
+	}
+	for index := range args.podEnvVar.secretExtraHeaders {
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      fmt.Sprintf(secretExtraHeadersVolumeName, index),
+			MountPath: path.Join(common.ImporterSecretExtraHeadersDir, fmt.Sprint(index)),
+		})
+	}
+	if args.podResourceRequirements != nil {
+		for i := range containers {
+			containers[i].Resources = *args.podResourceRequirements
+		}
+	}
+	return containers
+}
+
+func makeImporterVolumeSpec(args *importerPodArgs) []corev1.Volume {
+	volumes := []corev1.Volume{
+		{
+			Name: cc.DataVolName,
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: args.pvc.Name,
+					ReadOnly:  false,
+				},
+			},
+		},
+	}
+	if isRegistryNodeImport(args) {
+		volumes = append(volumes, corev1.Volume{
+			Name: "shared-volume",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		})
+	}
+	if args.scratchPvcName != nil {
+		volumes = append(volumes, corev1.Volume{
+			Name: cc.ScratchVolName,
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: *args.scratchPvcName,
+					ReadOnly:  false,
+				},
+			},
+		})
+	}
+	if args.vddkImageName != nil {
+		volumes = append(volumes, corev1.Volume{
 			Name: "vddk-vol-mount",
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		})
-		pod.Spec.InitContainers = append(pod.Spec.InitContainers, corev1.Container{
+	}
+	if args.podEnvVar.certConfigMap != "" {
+		volumes = append(volumes, createConfigMapVolume(CertVolName, args.podEnvVar.certConfigMap))
+	}
+	if args.podEnvVar.certConfigMapProxy != "" {
+		volumes = append(volumes, createConfigMapVolume(ProxyCertVolName, GetImportProxyConfigMapName(args.pvc.Name)))
+	}
+	if args.podEnvVar.source == cc.SourceGCS && args.podEnvVar.secretName != "" {
+		volumes = append(volumes, createSecretVolume(SecretVolName, args.podEnvVar.secretName))
+	}
+	for index, header := range args.podEnvVar.secretExtraHeaders {
+		volumes = append(volumes, corev1.Volume{
+			Name: fmt.Sprintf(secretExtraHeadersVolumeName, index),
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: header,
+				},
+			},
+		})
+	}
+	return volumes
+}
+
+func makeImporterInitContainersSpec(args *importerPodArgs) []corev1.Container {
+	var initContainers []corev1.Container
+	if isRegistryNodeImport(args) {
+		initContainers = append(initContainers, corev1.Container{
+			Name:            "init",
+			Image:           args.image,
+			ImagePullPolicy: corev1.PullPolicy(args.pullPolicy),
+			Command:         []string{"sh", "-c", "cp /usr/bin/cdi-containerimage-server /shared/server"},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					MountPath: "/shared",
+					Name:      "shared-volume",
+				},
+			},
+		})
+	}
+	if args.vddkImageName != nil {
+		initContainers = append(initContainers, corev1.Container{
 			Name:  "vddk-side-car",
 			Image: *args.vddkImageName,
 			VolumeMounts: []corev1.VolumeMount{
@@ -1083,104 +1101,33 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 				},
 			},
 		})
-		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
-			Name:      "vddk-vol-mount",
-			MountPath: "/opt",
-		})
 	}
-
-	if args.podEnvVar.certConfigMap != "" {
-		vm := corev1.VolumeMount{
-			Name:      CertVolName,
-			MountPath: common.ImporterCertDir,
+	if args.podResourceRequirements != nil {
+		for i := range initContainers {
+			initContainers[i].Resources = *args.podResourceRequirements
 		}
-		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
-		pod.Spec.Volumes = append(pod.Spec.Volumes, createConfigMapVolume(CertVolName, args.podEnvVar.certConfigMap))
 	}
-
-	if args.podEnvVar.certConfigMapProxy != "" {
-		vm := corev1.VolumeMount{
-			Name:      ProxyCertVolName,
-			MountPath: common.ImporterProxyCertDir,
-		}
-		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
-		pod.Spec.Volumes = append(pod.Spec.Volumes, createConfigMapVolume(ProxyCertVolName, GetImportProxyConfigMapName(args.pvc.Name)))
-	}
-
-	if args.podEnvVar.source == cc.SourceGCS && args.podEnvVar.secretName != "" {
-		vm := corev1.VolumeMount{
-			Name:      SecretVolName,
-			MountPath: common.ImporterGoogleCredentialDir,
-		}
-		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
-		pod.Spec.Volumes = append(pod.Spec.Volumes, createSecretVolume(SecretVolName, args.podEnvVar.secretName))
-	}
-
-	for index, header := range args.podEnvVar.secretExtraHeaders {
-		vm := corev1.VolumeMount{
-			Name:      fmt.Sprintf(secretExtraHeadersVolumeName, index),
-			MountPath: path.Join(common.ImporterSecretExtraHeadersDir, fmt.Sprint(index)),
-		}
-
-		vol := corev1.Volume{
-			Name: fmt.Sprintf(secretExtraHeadersVolumeName, index),
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: header,
-				},
-			},
-		}
-
-		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
-		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
-	}
-
-	cc.SetRestrictedSecurityContext(&pod.Spec)
-	// We explicitly define a NodeName for dynamically provisioned PVCs
-	// when the PVC is being handled by a populator (PVC')
-	cc.SetNodeNameIfPopulator(args.pvc, &pod.Spec)
-
-	return pod
+	return initContainers
 }
 
-func setImporterPodCommons(pod *corev1.Pod, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, podResourceRequirements *corev1.ResourceRequirements, imagePullSecrets []corev1.LocalObjectReference) {
-	if podResourceRequirements != nil {
-		for i := range pod.Spec.Containers {
-			pod.Spec.Containers[i].Resources = *podResourceRequirements
-		}
-	}
-	pod.Spec.ImagePullSecrets = imagePullSecrets
-
-	ownerUID := pvc.UID
-	if len(pvc.OwnerReferences) == 1 {
-		ownerUID = pvc.OwnerReferences[0].UID
-	}
-
-	if cc.GetVolumeMode(pvc) == corev1.PersistentVolumeBlock {
-		pod.Spec.Containers[0].VolumeDevices = cc.AddVolumeDevices()
-	} else {
-		pod.Spec.Containers[0].VolumeMounts = cc.AddImportVolumeMounts()
-	}
-
-	pod.Spec.Containers[0].Env = makeImportEnv(podEnvVar, ownerUID)
-
-	cc.SetPvcAllowedAnnotations(pod, pvc)
+func isRegistryNodeImport(args *importerPodArgs) bool {
+	return cc.GetSource(args.pvc) == cc.SourceRegistry &&
+		args.pvc.Annotations[cc.AnnRegistryImportMethod] == string(cdiv1.RegistryPullNode)
 }
 
-func makeImporterContainerSpec(image, verbose, pullPolicy string) *corev1.Container {
-	return &corev1.Container{
-		Name:            common.ImporterPodName,
-		Image:           image,
-		ImagePullPolicy: corev1.PullPolicy(pullPolicy),
-		Args:            []string{"-v=" + verbose},
-		Ports: []corev1.ContainerPort{
-			{
-				Name:          "metrics",
-				ContainerPort: 8443,
-				Protocol:      corev1.ProtocolTCP,
-			},
-		},
+func getOwnerUID(args *importerPodArgs) types.UID {
+	if len(args.pvc.OwnerReferences) == 1 {
+		return args.pvc.OwnerReferences[0].UID
 	}
+	return args.pvc.UID
+}
+
+func setRegistryNodeImportEnvVars(args *importerPodArgs) {
+	args.podEnvVar.source = cc.SourceHTTP
+	args.podEnvVar.ep = "http://localhost:8100/disk.img"
+	args.podEnvVar.pullMethod = string(cdiv1.RegistryPullNode)
+	args.podEnvVar.readyFile = "/shared/ready"
+	args.podEnvVar.doneFile = "/shared/done"
 }
 
 func createConfigMapVolume(certVolName, objRef string) corev1.Volume {

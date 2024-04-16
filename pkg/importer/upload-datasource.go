@@ -9,6 +9,7 @@ import (
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -107,6 +108,11 @@ func (ud *UploadDataSource) GetURL() *url.URL {
 	return ud.url
 }
 
+// GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
+func (ud *UploadDataSource) GetTerminationMessage() *common.TerminationMessage {
+	return nil
+}
+
 // Close closes any readers or other open resources.
 func (ud *UploadDataSource) Close() error {
 	if ud.stream != nil {
@@ -185,6 +191,11 @@ func (aud *AsyncUploadDataSource) Close() error {
 // GetURL returns the url that the data processor can use when converting the data.
 func (aud *AsyncUploadDataSource) GetURL() *url.URL {
 	return aud.uploadDataSource.GetURL()
+}
+
+// GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
+func (aud *AsyncUploadDataSource) GetTerminationMessage() *common.TerminationMessage {
+	return nil
 }
 
 // GetResumePhase returns the next phase to process when resuming

@@ -195,6 +195,10 @@ func isPVCUploadPopulation(pvc *corev1.PersistentVolumeClaim) bool {
 
 func (r *UploadReconciler) shouldUpdateStatusPhase(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (bool, error) {
 	pvcCopy := pvc.DeepCopy()
+	requiresWork, err := r.pvcRequiresWork(pvcCopy, dv)
+	if err != nil {
+		return false, err
+	}
 	if isPVCUploadPopulation(pvcCopy) {
 		// Better to play it safe and check the PVC Prime too
 		// before updating DV phase.
@@ -208,10 +212,6 @@ func (r *UploadReconciler) shouldUpdateStatusPhase(pvc *corev1.PersistentVolumeC
 		}
 	}
 	_, ok := pvcCopy.Annotations[cc.AnnUploadRequest]
-	requiresWork, err := r.pvcRequiresWork(pvcCopy, dv)
-	if err != nil {
-		return false, err
-	}
 	return ok && pvcCopy.Status.Phase == corev1.ClaimBound && requiresWork, nil
 }
 

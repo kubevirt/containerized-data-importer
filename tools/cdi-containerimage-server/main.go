@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -12,6 +13,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 func printFiles(dir string) error {
@@ -46,8 +49,21 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed get image filename in %s: %v", *directory, err)
 	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/info", func(w http.ResponseWriter, _ *http.Request) {
+		info := common.ServerInfo{
+			Env: os.Environ(),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		err := json.NewEncoder(w).Encode(info)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
+	mux.Handle("/", http.FileServer(http.Dir(*directory)))
 	server := &http.Server{
-		Handler: http.FileServer(http.Dir(*directory)),
+		Handler: mux,
 	}
 	addr := fmt.Sprintf("localhost:%d", *port)
 	listener, err := net.Listen("tcp", addr)

@@ -8,6 +8,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -78,7 +79,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// Hitachi
 	"hspc.csi.hitachi.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// HPE
-	"csi.hpe.com": createRWOBlockAndFilesystemCapabilities(),
+	"csi.hpe.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// IBM HCI/GPFS2 (Spectrum Scale / Spectrum Fusion)
 	"spectrumscale.csi.ibm.com": {{rwx, file}, {rwo, file}},
 	// IBM block arrays (FlashSystem)
@@ -133,20 +134,27 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"pxd.portworx.com":                      cdiv1.CloneStrategyCsiClone,
 }
 
-// ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
-const ProvisionerNoobaa = "openshift-storage.noobaa.io/obc"
+const (
+	// ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
+	ProvisionerNoobaa = "openshift-storage.noobaa.io/obc"
+	// ProvisionerOCSBucket is the provisioner string for the downstream ODF/OCS provisoner for buckets which does not work with CDI
+	ProvisionerOCSBucket = "openshift-storage.ceph.rook.io/bucket"
+	// ProvisionerRookCephBucket is the provisioner string for the upstream Rook Ceph provisoner for buckets which does not work with CDI
+	ProvisionerRookCephBucket = "rook-ceph.ceph.rook.io/bucket"
+)
 
 // UnsupportedProvisioners is a hash of provisioners which are known not to work with CDI
 var UnsupportedProvisioners = map[string]struct{}{
 	// The following provisioners may be found in Rook/Ceph deployments and are related to object storage
-	"openshift-storage.ceph.rook.io/bucket": {},
-	ProvisionerNoobaa:                       {},
+	ProvisionerOCSBucket:      {},
+	ProvisionerRookCephBucket: {},
+	ProvisionerNoobaa:         {},
 }
 
 // GetCapabilities finds and returns a predefined StorageCapabilities for a given StorageClass
 func GetCapabilities(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
 	provisionerKey := storageProvisionerKey(sc)
-	if provisionerKey == "kubernetes.io/no-provisioner" {
+	if provisionerKey == storagehelpers.NotSupportedProvisioner {
 		return capabilitiesForNoProvisioner(cl, sc)
 	}
 	capabilities, found := CapabilitiesByProvisionerKey[provisionerKey]
@@ -167,20 +175,7 @@ func GetAdvisedCloneStrategy(sc *storagev1.StorageClass) (cdiv1.CDICloneStrategy
 	return strategy, found
 }
 
-func isLocalStorageOperator(sc *storagev1.StorageClass) bool {
-	_, found := sc.Labels["local.storage.openshift.io/owner-name"]
-	return found
-}
-
-func knownNoProvisioner(sc *storagev1.StorageClass) bool {
-	return isLocalStorageOperator(sc)
-}
-
 func capabilitiesForNoProvisioner(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
-	// There's so many no-provisioner storage classes, let's start slow with the known ones.
-	if !knownNoProvisioner(sc) {
-		return []StorageCapabilities{}, false
-	}
 	pvs := &v1.PersistentVolumeList{}
 	err := cl.List(context.TODO(), pvs)
 	if err != nil {

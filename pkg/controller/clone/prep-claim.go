@@ -70,6 +70,11 @@ func (p *PrepClaimPhase) Reconcile(ctx context.Context) (*reconcile.Result, erro
 
 	if !hasActual {
 		if cc.IsBound(actualClaim) {
+			// PVC is bound but its status hasn't been updated yet.
+			// We'll reconcile again once the status is updated.
+			if actualClaim.Status.Phase == corev1.ClaimPending {
+				return &reconcile.Result{}, nil
+			}
 			return nil, fmt.Errorf("actual PVC size missing")
 		}
 
@@ -154,7 +159,7 @@ func (p *PrepClaimPhase) createPod(ctx context.Context, name string, pvc *corev1
 				{
 					Name:            "dummy",
 					Image:           p.Image,
-					ImagePullPolicy: corev1.PullPolicy(p.PullPolicy),
+					ImagePullPolicy: p.PullPolicy,
 					Command:         []string{"/bin/bash"},
 					Args:            []string{"-c", "echo", "'hello cdi'"},
 				},
@@ -201,6 +206,7 @@ func (p *PrepClaimPhase) createPod(ctx context.Context, name string, pvc *corev1
 		AddOwnershipLabel(p.OwnershipLabel, pod, p.Owner)
 	}
 
+	cc.CopyAllowedAnnotations(pvc, pod)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
 
 	if err := p.Client.Create(ctx, pod); err != nil {

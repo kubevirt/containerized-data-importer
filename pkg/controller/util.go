@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/rsa"
 	"encoding/json"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -61,6 +60,9 @@ const (
 	// ScratchSpaceRequiredReason is a const that defines the pod exited due to a lack of scratch space
 	ScratchSpaceRequiredReason = "Scratch space required"
 
+	// ImportCompleteMessage is a const that defines the pod completeded the import successfully
+	ImportCompleteMessage = "Import Complete"
+
 	// ProxyCertVolName is the name of the volumecontaining certs
 	ProxyCertVolName = "cdi-proxy-cert-vol"
 	// ClusterWideProxyAPIGroup is the APIGroup for OpenShift Cluster Wide Proxy
@@ -77,10 +79,6 @@ const (
 	ClusterWideProxyConfigMapNameSpace = "openshift-config"
 	// ClusterWideProxyConfigMapKey is the OpenShift Cluster Wide Proxy ConfigMap key name for CA certificates.
 	ClusterWideProxyConfigMapKey = "ca-bundle.crt"
-)
-
-var (
-	vddkInfoMatch = regexp.MustCompile(`((.*; )|^)VDDK: (?P<info>{.*})`)
 )
 
 func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string, log logr.Logger) bool {
@@ -277,7 +275,7 @@ func podSucceededFromPVC(pvc *v1.PersistentVolumeClaim) bool {
 	return podPhaseFromPVC(pvc) == v1.PodSucceeded
 }
 
-func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, prefix string) {
+func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, termMsg *common.TerminationMessage, prefix string) {
 	if pod == nil || pod.Status.ContainerStatuses == nil {
 		return
 	}
@@ -286,38 +284,67 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, prefix
 	if podRestarts >= annPodRestarts {
 		anno[cc.AnnPodRestarts] = strconv.Itoa(podRestarts)
 	}
-	setVddkAnnotations(anno, pod)
+
 	containerState := pod.Status.ContainerStatuses[0].State
 	if containerState.Running != nil {
 		anno[prefix] = "true"
 		anno[prefix+".message"] = ""
 		anno[prefix+".reason"] = PodRunningReason
-	} else {
-		anno[cc.AnnRunningCondition] = "false"
-		if containerState.Waiting != nil && containerState.Waiting.Reason != "CrashLoopBackOff" {
-			anno[prefix+".message"] = simplifyKnownMessage(containerState.Waiting.Message)
-			anno[prefix+".reason"] = containerState.Waiting.Reason
-		} else if containerState.Terminated != nil {
-			anno[prefix+".message"] = simplifyKnownMessage(containerState.Terminated.Message)
-			reason := containerState.Terminated.Reason
-			if reason == common.GenericError {
-				reason = handleGenericErrorReason(containerState.Terminated.Message)
+		return
+	}
+
+	anno[cc.AnnRunningCondition] = "false"
+	if containerState.Waiting != nil && containerState.Waiting.Reason != "CrashLoopBackOff" {
+		anno[prefix+".message"] = simplifyKnownMessage(containerState.Waiting.Message)
+		anno[prefix+".reason"] = containerState.Waiting.Reason
+		return
+	}
+
+	if containerState.Terminated != nil {
+		if termMsg != nil {
+			if termMsg.ScratchSpaceRequired != nil && *termMsg.ScratchSpaceRequired {
+				anno[cc.AnnRequiresScratch] = "true"
+				anno[prefix+".message"] = common.ScratchSpaceRequired
+				anno[prefix+".reason"] = ScratchSpaceRequiredReason
+				return
 			}
-			anno[prefix+".reason"] = reason
+			// Handle extended termination message
+			anno[prefix+".message"] = ImportCompleteMessage
+			if termMsg.VddkInfo != nil {
+				if termMsg.VddkInfo.Host != "" {
+					anno[cc.AnnVddkHostConnection] = termMsg.VddkInfo.Host
+				}
+				if termMsg.VddkInfo.Version != "" {
+					anno[cc.AnnVddkVersion] = termMsg.VddkInfo.Version
+				}
+			}
+			if termMsg.PreallocationApplied != nil && *termMsg.PreallocationApplied {
+				anno[cc.AnnPreallocationApplied] = "true"
+			}
+		} else {
+			// Handle plain termination message (legacy)
+			anno[prefix+".message"] = simplifyKnownMessage(containerState.Terminated.Message)
 			if strings.Contains(containerState.Terminated.Message, common.PreallocationApplied) {
 				anno[cc.AnnPreallocationApplied] = "true"
 			}
 		}
+		anno[prefix+".reason"] = containerState.Terminated.Reason
 	}
 }
 
-func handleGenericErrorReason(message string) string {
-	if strings.Contains(message, common.ScratchSpaceRequired) {
-		// Sometimes the pod will need scratch space to complete some operations.
-		// Better to add a custom reason instead of a generic container state.
-		return ScratchSpaceRequiredReason
+func addLabelsFromTerminationMessage(labels map[string]string, termMsg *common.TerminationMessage) map[string]string {
+	newLabels := make(map[string]string, 0)
+	for k, v := range labels {
+		newLabels[k] = v
 	}
-	return common.GenericError
+	if termMsg != nil {
+		for k, v := range termMsg.Labels {
+			if _, found := newLabels[k]; !found {
+				newLabels[k] = v
+			}
+		}
+	}
+	return newLabels
 }
 
 func simplifyKnownMessage(msg string) string {
@@ -330,33 +357,22 @@ func simplifyKnownMessage(msg string) string {
 	return msg
 }
 
-func setVddkAnnotations(anno map[string]string, pod *v1.Pod) {
-	if pod.Status.ContainerStatuses[0].State.Terminated == nil {
-		return
-	}
-	terminationMessage := pod.Status.ContainerStatuses[0].State.Terminated.Message
-	klog.V(1).Info("Saving VDDK annotations from pod status message: ", "message", terminationMessage)
-
-	var terminationInfo string
-	matches := vddkInfoMatch.FindAllStringSubmatch(terminationMessage, -1)
-	for index, matchName := range vddkInfoMatch.SubexpNames() {
-		if matchName == "info" && len(matches) > 0 {
-			terminationInfo = matches[0][index]
-			break
-		}
+func parseTerminationMessage(pod *v1.Pod) (*common.TerminationMessage, error) {
+	if pod == nil || pod.Status.ContainerStatuses == nil {
+		return nil, nil
 	}
 
-	var vddkInfo util.VddkInfo
-	err := json.Unmarshal([]byte(terminationInfo), &vddkInfo)
-	if err != nil {
-		return
+	state := pod.Status.ContainerStatuses[0].State
+	if state.Terminated == nil || state.Terminated.ExitCode != 0 {
+		return nil, nil
 	}
-	if vddkInfo.Host != "" {
-		anno[cc.AnnVddkHostConnection] = vddkInfo.Host
+
+	termMsg := &common.TerminationMessage{}
+	if err := json.Unmarshal([]byte(state.Terminated.Message), termMsg); err != nil {
+		return nil, err
 	}
-	if vddkInfo.Version != "" {
-		anno[cc.AnnVddkVersion] = vddkInfo.Version
-	}
+
+	return termMsg, nil
 }
 
 func setBoundConditionFromPVC(anno map[string]string, prefix string, pvc *v1.PersistentVolumeClaim) {

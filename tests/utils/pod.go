@@ -244,7 +244,7 @@ func isExpectedNode(clientSet *kubernetes.Clientset, nodeName, podName, namespac
 			}
 			return false, err
 		}
-		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Checking Node name: %s\n", string(pod.Spec.NodeName))
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Checking Node name: %s\n", pod.Spec.NodeName)
 		if pod.Spec.NodeName == nodeName {
 			return true, nil
 		}

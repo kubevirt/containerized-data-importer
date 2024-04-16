@@ -1,6 +1,19 @@
 linters:
   enable:
+  - errname
+  - errorlint
   - ginkgolinter
+  - goimports
+  - misspell
+  - unconvert
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
 linters-settings:
   ginkgolinter:
     forbid-focus-container: true
+  errorlint:
+    # We want to allow for usage of %v to avoid leaking implementation details
+    errorf: false

@@ -38,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/utils/ptr"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -55,10 +56,6 @@ const (
 
 var (
 	storageProfileLog = logf.Log.WithName("storageprofile-controller-test")
-	lsoLabels         = map[string]string{
-		"local.storage.openshift.io/owner-name":      "local",
-		"local.storage.openshift.io/owner-namespace": "openshift-local-storage",
-	}
 )
 
 var _ = Describe("Storage profile controller reconcile loop", func() {
@@ -182,8 +179,8 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(sp.Status.ClaimPropertySets).To(Equal(claimPropertySets))
 	})
 
-	It("Should find storage capabilities for no-provisioner LSO storage class", func() {
-		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, lsoLabels, "kubernetes.io/no-provisioner")
+	It("Should find storage capabilities for no-provisioner storage class", func() {
+		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, nil, storagehelpers.NotSupportedProvisioner)
 		pv := CreatePv("my-pv", storageClassName)
 
 		reconciler = createStorageProfileReconciler(storageClass, pv)
@@ -199,8 +196,8 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(sp.Status.ClaimPropertySets).ToNot(BeEmpty())
 	})
 
-	It("Should not have storage capabilities for no-provisioner LSO storage class if there are no PVs for it", func() {
-		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, lsoLabels, "kubernetes.io/no-provisioner")
+	It("Should not have storage capabilities for no-provisioner storage class if there are no PVs for it", func() {
+		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, nil, storagehelpers.NotSupportedProvisioner)
 
 		reconciler = createStorageProfileReconciler(storageClass)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
@@ -540,7 +537,7 @@ func CreatePv(name string, storageClassName string) *v1.PersistentVolume {
 		Spec: v1.PersistentVolumeSpec{
 			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany, v1.ReadWriteOnce},
 			Capacity: v1.ResourceList{
-				v1.ResourceName(v1.ResourceStorage): resource.MustParse("1G"),
+				v1.ResourceStorage: resource.MustParse("1G"),
 			},
 			StorageClassName: storageClassName,
 			VolumeMode:       &volumeMode,

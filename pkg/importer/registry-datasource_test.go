@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/containers/image/v5/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -68,6 +69,22 @@ var _ = Describe("Registry data source", func() {
 		result, err := ds.TransferFile("file")
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
+	})
+
+	It("GetTerminationMessage should contain labels collected from the image", func() {
+		ds = NewRegistryDataSource("", "", "", "", true)
+		ds.info = &types.ImageInspectInfo{
+			Env: []string{
+				"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_INSTANCETYPE=u1.small",
+				"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE=fedora",
+			},
+		}
+
+		termMesg := ds.GetTerminationMessage()
+		Expect(termMesg).ToNot(BeNil())
+		Expect(termMesg.Labels).To(HaveLen(2))
+		Expect(termMesg.Labels).To(HaveKeyWithValue("instancetype.kubevirt.io/default-instancetype", "u1.small"))
+		Expect(termMesg.Labels).To(HaveKeyWithValue("instancetype.kubevirt.io/default-preference", "fedora"))
 	})
 
 	It("getImageFileName should return an error with non-existing image directory", func() {

@@ -17,6 +17,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -410,6 +411,90 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()[cc.AnnRunningConditionReason]).To(Equal("Reason"))
 	})
 
+	DescribeTable("Should handle termination messages", func(termMsg, conditionMessage string) {
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{}, nil)
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodSucceeded,
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{
+							Message: termMsg,
+						},
+					},
+				},
+			},
+		}
+		reconciler = createImportReconciler(pvc, pod)
+		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
+		Expect(err).ToNot(HaveOccurred())
+
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(resPvc.GetAnnotations()).To(HaveKeyWithValue(cc.AnnPodPhase, string(corev1.PodSucceeded)))
+		Expect(resPvc.GetAnnotations()).To(HaveKeyWithValue(cc.AnnRunningCondition, "false"))
+		Expect(resPvc.GetAnnotations()).To(HaveKeyWithValue(cc.AnnRunningConditionMessage, conditionMessage))
+	},
+		Entry("Message which can be unmarshalled", `{"preAllocationApplied": true}`, ImportCompleteMessage),
+		Entry("Message which cannot be unmarshalled", "somemessage", "somemessage"),
+	)
+
+	DescribeTable("Update the PVC labels from termination message if pod is succeeded", func(phase v1.PodPhase, updated bool) {
+		const testKeyExisting = "test"
+		const testValueExisting = "existing"
+
+		termMsg := common.TerminationMessage{
+			Labels: map[string]string{
+				"instancetype.kubevirt.io/default-instancetype": "u1.small",
+				"instancetype.kubevirt.io/default-preference":   "fedora",
+				testKeyExisting: "somethingelse",
+			},
+		}
+		termMsgBytes, err := json.Marshal(termMsg)
+		Expect(err).ToNot(HaveOccurred())
+
+		// The existing key should not be overwritten
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{}, map[string]string{testKeyExisting: testValueExisting})
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.Status = corev1.PodStatus{
+			Phase: phase,
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{
+							Message: string(termMsgBytes),
+						},
+					},
+				},
+			},
+		}
+		reconciler = createImportReconciler(pvc, pod)
+		err = reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
+		Expect(err).ToNot(HaveOccurred())
+
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+
+		for k, v := range termMsg.Labels {
+			if k == testKeyExisting {
+				Expect(resPvc.GetLabels()).To(HaveKeyWithValue(testKeyExisting, testValueExisting))
+				continue
+			}
+			if updated {
+				Expect(resPvc.GetLabels()).To(HaveKeyWithValue(k, v))
+			} else {
+				Expect(resPvc.GetLabels()).ToNot(HaveKey(k))
+			}
+		}
+	},
+		Entry("should", v1.PodSucceeded, true),
+		Entry("should not", v1.PodFailed, false),
+	)
+
 	It("Should update the PVC status to running, if pod is running", func() {
 		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending)}, nil)
 		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
@@ -531,7 +616,7 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()[cc.AnnRunningConditionReason]).To(Equal("Explosion"))
 	})
 
-	It("Should NOT update phase on PVC, if pod exited with error state that is scratchspace exit", func() {
+	It("Should NOT update phase on PVC, if pod exited with termination message stating scratch space is required", func() {
 		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodRunning)}, nil, corev1.ClaimBound)
 		scratchPvcName := &corev1.PersistentVolumeClaim{}
 		scratchPvcName.Name = "testPvc1-scratch"
@@ -540,17 +625,10 @@ var _ = Describe("Update PVC from POD", func() {
 			Phase: corev1.PodPending,
 			ContainerStatuses: []corev1.ContainerStatus{
 				{
-					LastTerminationState: corev1.ContainerState{
-						Terminated: &corev1.ContainerStateTerminated{
-							ExitCode: common.ScratchSpaceNeededExitCode,
-							Message:  "scratch space needed",
-						},
-					},
 					State: v1.ContainerState{
 						Terminated: &corev1.ContainerStateTerminated{
-							ExitCode: 1,
-							Message:  "I went poof",
-							Reason:   "Explosion",
+							ExitCode: 0,
+							Message:  `{"scratchSpaceRequired": true}`,
 						},
 					},
 				},
@@ -571,9 +649,6 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()[cc.AnnBoundCondition]).To(Equal("false"))
 		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionMessage]).To(Equal("Creating scratch space"))
 		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionReason]).To(Equal(creatingScratch))
-		Expect(resPvc.GetAnnotations()[cc.AnnRunningCondition]).To(Equal("false"))
-		Expect(resPvc.GetAnnotations()[cc.AnnRunningConditionMessage]).To(Equal("I went poof"))
-		Expect(resPvc.GetAnnotations()[cc.AnnRunningConditionReason]).To(Equal("Explosion"))
 	})
 
 	It("Should mark PVC as waiting for VDDK configmap, if not already present", func() {
@@ -650,7 +725,7 @@ var _ = Describe("Update PVC from POD", func() {
 					State: v1.ContainerState{
 						Terminated: &corev1.ContainerStateTerminated{
 							ExitCode: 0,
-							Message:  `Import Complete; VDDK: {"Version": "1.0.0", "Host": "esx15.test.lan"}`,
+							Message:  `{"vddkInfo": {"Version": "1.0.0", "Host": "esx15.test.lan"}}`,
 							Reason:   "Completed",
 						},
 					},
@@ -682,10 +757,7 @@ var _ = Describe("Update PVC from POD", func() {
 			ContainerStatuses: []corev1.ContainerStatus{
 				{
 					LastTerminationState: corev1.ContainerState{
-						Terminated: &corev1.ContainerStateTerminated{
-							ExitCode: common.ScratchSpaceNeededExitCode,
-							Message:  "",
-						},
+						Terminated: &corev1.ContainerStateTerminated{},
 					},
 				},
 			},
@@ -1045,7 +1117,7 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 		},
 		{
 			Name:  common.OwnerUID,
-			Value: string(uid),
+			Value: uid,
 		},
 		{
 			Name:  common.FilesystemOverheadVar,

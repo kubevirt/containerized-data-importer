@@ -139,7 +139,7 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		if err = cc.MaybeSetPvcMultiStageAnnotation(pvcPrime, r.getCheckpointArgs(source)); err != nil {
 			return reconcile.Result{}, err
 		}
-		if err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations); err != nil {
+		if _, err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations); err != nil {
 			return reconcile.Result{}, err
 		}
 		// We requeue to keep reporting progress
@@ -156,17 +156,21 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 			break
 		}
 
-		// Once the import is succeeded, we rebind the PV from PVC' to target PVC
-		if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvc); err != nil {
-			return reconcile.Result{}, err
+		if cc.IsPVCComplete(pvcPrime) && cc.IsUnbound(pvc) {
+			// Once the import is succeeded, we rebind the PV from PVC to target PVC
+			if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvc); err != nil {
+				return reconcile.Result{}, err
+			}
 		}
 	}
 
-	err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations)
-	if err != nil {
+	if pvcCopy, err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations); err != nil {
 		return reconcile.Result{}, err
 	}
 	if cc.IsPVCComplete(pvcPrime) && !cc.IsMultiStageImportInProgress(pvc) {
+		if err = r.updatePVCWithPVCPrimeLabels(pvcCopy, pvcPrime.GetLabels()); err != nil {
+			return reconcile.Result{}, err
+		}
 		r.recorder.Eventf(pvc, corev1.EventTypeNormal, importSucceeded, messageImportSucceeded, pvc.Name)
 	}
 

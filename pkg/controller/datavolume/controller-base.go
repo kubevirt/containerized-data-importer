@@ -408,23 +408,38 @@ func getSourceRefOp(ctx context.Context, log logr.Logger, dv *cdiv1.DataVolume, 
 }
 
 func updatePendingDataVolumesGauge(ctx context.Context, log logr.Logger, dv *cdiv1.DataVolume, c client.Client) {
-	if cc.GetStorageClassFromDVSpec(dv) != nil {
+	if !cc.IsDataVolumeUsingDefaultStorageClass(dv) {
 		return
 	}
 
-	dvList := &cdiv1.DataVolumeList{}
-	if err := c.List(ctx, dvList, client.MatchingFields{dvPhaseField: string(cdiv1.Pending)}); err != nil {
+	countPending, err := getDefaultStorageClassDataVolumeCount(ctx, c, string(cdiv1.Pending))
+	if err != nil {
 		log.V(3).Error(err, "Failed listing the pending DataVolumes")
 		return
+	}
+	countUnset, err := getDefaultStorageClassDataVolumeCount(ctx, c, string(cdiv1.PhaseUnset))
+	if err != nil {
+		log.V(3).Error(err, "Failed listing the unset DataVolumes")
+		return
+	}
+
+	metrics.SetDataVolumePending(countPending + countUnset)
+}
+
+func getDefaultStorageClassDataVolumeCount(ctx context.Context, c client.Client, dvPhase string) (int, error) {
+	dvList := &cdiv1.DataVolumeList{}
+	if err := c.List(ctx, dvList, client.MatchingFields{dvPhaseField: dvPhase}); err != nil {
+		return 0, err
 	}
 
 	dvCount := 0
 	for _, dv := range dvList.Items {
-		if cc.GetStorageClassFromDVSpec(&dv) == nil {
+		if cc.IsDataVolumeUsingDefaultStorageClass(&dv) {
 			dvCount++
 		}
 	}
-	metrics.SetDataVolumePending(dvCount)
+
+	return dvCount, nil
 }
 
 type dvController interface {
@@ -610,7 +625,7 @@ func (r *ReconcilerBase) handleStaticVolume(syncState *dvSyncState, log logr.Log
 	for _, v := range volumes {
 		if v == syncState.pvc.Spec.VolumeName {
 			pvcCpy := syncState.pvc.DeepCopy()
-			// handle as "populatedFor" going foreward
+			// handle as "populatedFor" going forward
 			cc.AddAnnotation(pvcCpy, cc.AnnPopulatedFor, syncState.dvMutated.Name)
 			delete(pvcCpy.Annotations, cc.AnnPersistentVolumeList)
 			if err := r.updatePVC(pvcCpy); err != nil {
@@ -1128,14 +1143,15 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		annotations[cc.AnnPriorityClassName] = dataVolume.Spec.PriorityClassName
 	}
 	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, dataVolume.Spec.Preallocation))
+	annotations[cc.AnnCreatedForDataVolume] = string(dataVolume.UID)
 
-	if dataVolume.Spec.Storage != nil && labels[common.PvcUseStorageProfileLabel] == "true" {
+	if dataVolume.Spec.Storage != nil && labels[common.PvcApplyStorageProfileLabel] == "true" {
 		isWebhookPvcRenderingEnabled, err := featuregates.IsWebhookPvcRenderingEnabled(r.client)
 		if err != nil {
 			return nil, err
 		}
 		if isWebhookPvcRenderingEnabled {
-			labels[common.PvcUseStorageProfileLabel] = "true"
+			labels[common.PvcApplyStorageProfileLabel] = "true"
 			if targetPvcSpec.VolumeMode == nil {
 				targetPvcSpec.VolumeMode = ptr.To[corev1.PersistentVolumeMode](cdiv1.PersistentVolumeFromStorageProfile)
 			}

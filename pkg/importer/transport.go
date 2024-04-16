@@ -140,7 +140,7 @@ func processLayer(ctx context.Context,
 	found := false
 	for {
 		hdr, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break // End of archive
 		}
 		if err != nil {
@@ -172,7 +172,7 @@ func processLayer(ctx context.Context,
 	return found, nil
 }
 
-func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry, stopAtFirst bool) error {
+func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry, stopAtFirst bool) (*types.ImageInspectInfo, error) {
 	klog.Infof("Downloading image from '%v', copying file from '%v' to '%v'", url, pathPrefix, destDir)
 
 	ctx, cancel := commandTimeoutContext()
@@ -181,14 +181,14 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir stri
 
 	src, err := readImageSource(ctx, srcCtx, url)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer closeImage(src)
 
 	imgCloser, err := image.FromSource(ctx, srcCtx, src)
 	if err != nil {
 		klog.Errorf("Error retrieving image: %v", err)
-		return errors.Wrap(err, "Error retrieving image")
+		return nil, errors.Wrap(err, "Error retrieving image")
 	}
 	defer imgCloser.Close()
 
@@ -212,10 +212,15 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir stri
 
 	if !found {
 		klog.Errorf("Failed to find VM disk image file in the container image")
-		return errors.New("Failed to find VM disk image file in the container image")
+		return nil, errors.New("Failed to find VM disk image file in the container image")
 	}
 
-	return nil
+	info, err := imgCloser.Inspect(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return info, nil
 }
 
 // GetImageDigest returns the digest of the container image at url.
@@ -258,7 +263,7 @@ func GetImageDigest(url, accessKey, secKey, certDir string, insecureRegistry boo
 // secKey: secretKey for the registry described in url.
 // certDir: directory public CA keys are stored for registry identity verification
 // insecureRegistry: boolean if true will allow insecure registries.
-func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry bool) error {
+func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry bool) (*types.ImageInspectInfo, error) {
 	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir, insecureRegistry, true)
 }
 
@@ -270,6 +275,6 @@ func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir stri
 // secKey: secretKey for the registry described in url.
 // certDir: directory public CA keys are stored for registry identity verification
 // insecureRegistry: boolean if true will allow insecure registries.
-func CopyRegistryImageAll(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry bool) error {
+func CopyRegistryImageAll(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry bool) (*types.ImageInspectInfo, error) {
 	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir, insecureRegistry, false)
 }

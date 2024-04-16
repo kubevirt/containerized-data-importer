@@ -42,12 +42,6 @@ type CountingReader struct {
 	Done    bool
 }
 
-// VddkInfo holds VDDK version and connection information returned by an importer pod
-type VddkInfo struct {
-	Version string
-	Host    string
-}
-
 // RandAlphaNum provides an implementation to generate a random alpha numeric string of the specified length
 func RandAlphaNum(n int) string {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -90,7 +84,7 @@ func ParseEnvVar(envVarName string, decode bool) (string, error) {
 func (r *CountingReader) Read(p []byte) (n int, err error) {
 	n, err = r.Reader.Read(p)
 	r.Current += uint64(n)
-	r.Done = err == io.EOF
+	r.Done = errors.Is(err, io.EOF)
 	return n, err
 }
 
@@ -115,7 +109,7 @@ func GetAvailableSpace(path string) (int64, error) {
 	if err != nil {
 		return int64(-1), err
 	}
-	return int64(stat.Bavail) * int64(stat.Bsize), nil
+	return int64(stat.Bavail) * stat.Bsize, nil
 }
 
 // GetAvailableSpaceBlock gets the amount of available space at the block device path specified.

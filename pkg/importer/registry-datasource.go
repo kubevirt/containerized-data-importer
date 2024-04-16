@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 
@@ -48,6 +49,8 @@ type RegistryDataSource struct {
 	imageDir    string
 	//The discovered image file in scratch space.
 	url *url.URL
+	//The discovered image info from the registry.
+	info *types.ImageInspectInfo
 }
 
 // NewRegistryDataSource creates a new instance of the Registry Data Source.
@@ -94,7 +97,7 @@ func (rd *RegistryDataSource) Transfer(path string) (ProcessingPhase, error) {
 	}
 
 	klog.V(1).Infof("Copying registry image to scratch space.")
-	err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.certDir, rd.insecureTLS)
+	rd.info, err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.certDir, rd.insecureTLS)
 	if err != nil {
 		return ProcessingPhaseError, errors.Wrapf(err, "Failed to read registry image")
 	}
@@ -118,6 +121,16 @@ func (rd *RegistryDataSource) TransferFile(fileName string) (ProcessingPhase, er
 // GetURL returns the url that the data processor can use when converting the data.
 func (rd *RegistryDataSource) GetURL() *url.URL {
 	return rd.url
+}
+
+// GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
+func (rd *RegistryDataSource) GetTerminationMessage() *common.TerminationMessage {
+	if rd.info == nil {
+		return nil
+	}
+	return &common.TerminationMessage{
+		Labels: envsToLabels(rd.info.Env),
+	}
 }
 
 // Close closes any readers or other open resources.

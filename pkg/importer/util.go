@@ -4,12 +4,18 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/pkg/errors"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+)
+
+const (
+	kubevirtEnvPrefix   = "KUBEVIRT_IO_"
+	kubevirtLabelPrefix = "kubevirt.io/"
 )
 
 // ParseEndpoint parses the required endpoint and return the url struct.
@@ -49,5 +55,30 @@ func GetTerminationChannel() <-chan os.Signal {
 	return terminationChannel
 }
 
-// newTerminationChannel should be overriden for unit tests
+// newTerminationChannel should be overridden for unit tests
 var newTerminationChannel = GetTerminationChannel
+
+func envsToLabels(envs []string) map[string]string {
+	labels := map[string]string{}
+	for _, env := range envs {
+		k, v, found := strings.Cut(env, "=")
+		if !found || !strings.Contains(k, kubevirtEnvPrefix) {
+			continue
+		}
+		labels[envToLabel(k)] = v
+	}
+
+	return labels
+}
+
+func envToLabel(env string) string {
+	label := ""
+	before, after, _ := strings.Cut(env, kubevirtEnvPrefix)
+	if elems := strings.Split(strings.TrimSuffix(before, "_"), "_"); len(elems) > 0 && elems[0] != "" {
+		label += strings.Join(elems, ".") + "."
+	}
+	label += kubevirtLabelPrefix
+	label += strings.Join(strings.Split(after, "_"), "-")
+
+	return strings.ToLower(label)
+}

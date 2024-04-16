@@ -79,18 +79,17 @@ const (
 
 // UploadReconciler members
 type UploadReconciler struct {
-	client                 client.Client
-	recorder               record.EventRecorder
-	scheme                 *runtime.Scheme
-	log                    logr.Logger
-	image                  string
-	verbose                string
-	pullPolicy             string
-	uploadProxyServiceName string //nolint:unused // TODO: check if need to remove this field
-	serverCertGenerator    generator.CertGenerator
-	clientCAFetcher        fetcher.CertBundleFetcher
-	featureGates           featuregates.FeatureGates
-	installerLabels        map[string]string
+	client              client.Client
+	recorder            record.EventRecorder
+	scheme              *runtime.Scheme
+	log                 logr.Logger
+	image               string
+	verbose             string
+	pullPolicy          string
+	serverCertGenerator generator.CertGenerator
+	clientCAFetcher     fetcher.CertBundleFetcher
+	featureGates        featuregates.FeatureGates
+	installerLabels     map[string]string
 }
 
 // UploadPodArgs are the parameters required to create an upload pod
@@ -249,7 +248,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 	}
 
 	// Update the annotations in the PVC to reflect the current state of the upload
-	updateUploadAnnotations(pvc, anno, pod, isCloneTarget)
+	updateUploadAnnotations(anno, pod)
 
 	if !reflect.DeepEqual(pvc, pvcCopy) {
 		if err := r.updatePVC(pvcCopy); err != nil {
@@ -483,12 +482,12 @@ func (r *UploadReconciler) deleteService(namespace, serviceName string) error {
 }
 
 // updateUploadAnnotations updates annotations to reflect the current state of the upload
-func updateUploadAnnotations(pvc *corev1.PersistentVolumeClaim, anno map[string]string, pod *v1.Pod, isCloneTarget bool) {
+func updateUploadAnnotations(anno map[string]string, pod *v1.Pod) {
 	podPhase := pod.Status.Phase
 	anno[cc.AnnPodPhase] = string(podPhase)
 	anno[cc.AnnPodReady] = strconv.FormatBool(isPodReady(pod))
 
-	setAnnotationsFromPodWithPrefix(anno, pod, cc.AnnRunningCondition)
+	setAnnotationsFromPodWithPrefix(anno, pod, nil, cc.AnnRunningCondition)
 }
 
 func isPodReady(pod *v1.Pod) bool {
@@ -737,8 +736,6 @@ func createUploadServiceNameFromPvcName(pvc string) string {
 }
 
 func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequirements *v1.ResourceRequirements, imagePullSecrets []v1.LocalObjectReference, workloadNodePlacement *sdkapi.NodePlacement) *v1.Pod {
-	requestImageSize, _ := cc.GetRequestedImageSize(args.PVC)
-	serviceName := naming.GetServiceNameFromResourceName(args.Name)
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      args.Name,
@@ -749,7 +746,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			Labels: map[string]string{
 				common.CDILabelKey:              common.CDILabelValue,
 				common.CDIComponentLabel:        common.UploadServerCDILabel,
-				common.UploadServerServiceLabel: serviceName,
+				common.UploadServerServiceLabel: naming.GetServiceNameFromResourceName(args.Name),
 				common.UploadTargetLabel:        string(args.PVC.UID),
 			},
 			OwnerReferences: []metav1.OwnerReference{
@@ -757,91 +754,9 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			},
 		},
 		Spec: v1.PodSpec{
-			Containers: []v1.Container{
-				{
-					Name:            common.UploadServerPodname,
-					Image:           r.image,
-					ImagePullPolicy: v1.PullPolicy(r.pullPolicy),
-					Env: []v1.EnvVar{
-						{
-							Name: "TLS_KEY",
-							ValueFrom: &v1.EnvVarSource{
-								SecretKeyRef: &v1.SecretKeySelector{
-									LocalObjectReference: v1.LocalObjectReference{
-										Name: args.Name,
-									},
-									Key: "tls.key",
-								},
-							},
-						},
-						{
-							Name: "TLS_CERT",
-							ValueFrom: &v1.EnvVarSource{
-								SecretKeyRef: &v1.SecretKeySelector{
-									LocalObjectReference: v1.LocalObjectReference{
-										Name: args.Name,
-									},
-									Key: "tls.crt",
-								},
-							},
-						},
-						{
-							Name:  "CLIENT_CERT",
-							Value: string(args.ClientCA),
-						},
-						{
-							Name:  common.FilesystemOverheadVar,
-							Value: args.FilesystemOverhead,
-						},
-						{
-							Name:  common.UploadImageSize,
-							Value: requestImageSize,
-						},
-						{
-							Name:  "CLIENT_NAME",
-							Value: args.ClientName,
-						},
-						{
-							Name:  common.Preallocation,
-							Value: args.Preallocation,
-						},
-						{
-							Name:  common.CiphersTLSVar,
-							Value: args.CryptoEnvVars.Ciphers,
-						},
-						{
-							Name:  common.MinVersionTLSVar,
-							Value: args.CryptoEnvVars.MinTLSVersion,
-						},
-					},
-					Args: []string{"-v=" + r.verbose},
-					ReadinessProbe: &v1.Probe{
-						ProbeHandler: v1.ProbeHandler{
-							HTTPGet: &v1.HTTPGetAction{
-								Path: "/healthz",
-								Port: intstr.IntOrString{
-									Type:   intstr.Int,
-									IntVal: 8080,
-								},
-							},
-						},
-						InitialDelaySeconds: 2,
-						PeriodSeconds:       5,
-					},
-				},
-			},
-			RestartPolicy: v1.RestartPolicyOnFailure,
-			Volumes: []v1.Volume{
-				{
-					Name: cc.DataVolName,
-					VolumeSource: v1.VolumeSource{
-						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
-							ClaimName: args.PVC.Name,
-							ReadOnly:  false,
-						},
-					},
-				},
-			},
+			Containers:        r.makeUploadPodContainers(args, resourceRequirements),
+			Volumes:           r.makeUploadPodVolumes(args),
+			RestartPolicy:     v1.RestartPolicyOnFailure,
 			NodeSelector:      workloadNodePlacement.NodeSelector,
 			Tolerations:       workloadNodePlacement.Tolerations,
 			Affinity:          workloadNodePlacement.Affinity,
@@ -850,32 +765,129 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 		},
 	}
 
-	if resourceRequirements != nil {
-		pod.Spec.Containers[0].Resources = *resourceRequirements
-	}
+	cc.CopyAllowedAnnotations(args.PVC, pod)
+	cc.SetNodeNameIfPopulator(args.PVC, &pod.Spec)
+	cc.SetRestrictedSecurityContext(&pod.Spec)
 
-	if cc.GetVolumeMode(args.PVC) == v1.PersistentVolumeBlock {
-		pod.Spec.Containers[0].VolumeDevices = []v1.VolumeDevice{
-			{
-				Name:       cc.DataVolName,
-				DevicePath: common.WriteBlockPath,
+	return pod
+}
+
+func (r *UploadReconciler) makeUploadPodContainers(args UploadPodArgs, resourceRequirements *v1.ResourceRequirements) []v1.Container {
+	requestImageSize, _ := cc.GetRequestedImageSize(args.PVC)
+	containers := []v1.Container{
+		{
+			Name:            common.UploadServerPodname,
+			Image:           r.image,
+			ImagePullPolicy: v1.PullPolicy(r.pullPolicy),
+			Env: []v1.EnvVar{
+				{
+					Name: "TLS_KEY",
+					ValueFrom: &v1.EnvVarSource{
+						SecretKeyRef: &v1.SecretKeySelector{
+							LocalObjectReference: v1.LocalObjectReference{
+								Name: args.Name,
+							},
+							Key: "tls.key",
+						},
+					},
+				},
+				{
+					Name: "TLS_CERT",
+					ValueFrom: &v1.EnvVarSource{
+						SecretKeyRef: &v1.SecretKeySelector{
+							LocalObjectReference: v1.LocalObjectReference{
+								Name: args.Name,
+							},
+							Key: "tls.crt",
+						},
+					},
+				},
+				{
+					Name:  "CLIENT_CERT",
+					Value: string(args.ClientCA),
+				},
+				{
+					Name:  common.FilesystemOverheadVar,
+					Value: args.FilesystemOverhead,
+				},
+				{
+					Name:  common.UploadImageSize,
+					Value: requestImageSize,
+				},
+				{
+					Name:  "CLIENT_NAME",
+					Value: args.ClientName,
+				},
+				{
+					Name:  common.Preallocation,
+					Value: args.Preallocation,
+				},
+				{
+					Name:  common.CiphersTLSVar,
+					Value: args.CryptoEnvVars.Ciphers,
+				},
+				{
+					Name:  common.MinVersionTLSVar,
+					Value: args.CryptoEnvVars.MinTLSVersion,
+				},
 			},
-		}
-		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, v1.EnvVar{
+			Args: []string{"-v=" + r.verbose},
+			ReadinessProbe: &v1.Probe{
+				ProbeHandler: v1.ProbeHandler{
+					HTTPGet: &v1.HTTPGetAction{
+						Path: "/healthz",
+						Port: intstr.IntOrString{
+							Type:   intstr.Int,
+							IntVal: 8080,
+						},
+					},
+				},
+				InitialDelaySeconds: 2,
+				PeriodSeconds:       5,
+			},
+		},
+	}
+	if cc.GetVolumeMode(args.PVC) == v1.PersistentVolumeBlock {
+		containers[0].VolumeDevices = append(containers[0].VolumeDevices, v1.VolumeDevice{
+			Name:       cc.DataVolName,
+			DevicePath: common.WriteBlockPath,
+		})
+		containers[0].Env = append(containers[0].Env, v1.EnvVar{
 			Name:  "DESTINATION",
 			Value: common.WriteBlockPath,
 		})
 	} else {
-		pod.Spec.Containers[0].VolumeMounts = []v1.VolumeMount{
-			{
-				Name:      cc.DataVolName,
-				MountPath: common.UploadServerDataDir,
-			},
-		}
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, v1.VolumeMount{
+			Name:      cc.DataVolName,
+			MountPath: common.UploadServerDataDir,
+		})
 	}
-
 	if args.ScratchPVCName != "" {
-		pod.Spec.Volumes = append(pod.Spec.Volumes, v1.Volume{
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, v1.VolumeMount{
+			Name:      cc.ScratchVolName,
+			MountPath: common.ScratchDataDir,
+		})
+	}
+	if resourceRequirements != nil {
+		containers[0].Resources = *resourceRequirements
+	}
+	return containers
+}
+
+func (r *UploadReconciler) makeUploadPodVolumes(args UploadPodArgs) []v1.Volume {
+	volumes := []v1.Volume{
+		{
+			Name: cc.DataVolName,
+			VolumeSource: v1.VolumeSource{
+				PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+					ClaimName: args.PVC.Name,
+					ReadOnly:  false,
+				},
+			},
+		},
+	}
+	if args.ScratchPVCName != "" {
+		volumes = append(volumes, v1.Volume{
 			Name: cc.ScratchVolName,
 			VolumeSource: v1.VolumeSource{
 				PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
@@ -884,14 +896,6 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 				},
 			},
 		})
-
-		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, v1.VolumeMount{
-			Name:      cc.ScratchVolName,
-			MountPath: common.ScratchDataDir,
-		})
 	}
-	cc.SetPvcAllowedAnnotations(pod, args.PVC)
-	cc.SetNodeNameIfPopulator(args.PVC, &pod.Spec)
-	cc.SetRestrictedSecurityContext(&pod.Spec)
-	return pod
+	return volumes
 }

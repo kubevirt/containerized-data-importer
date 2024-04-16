@@ -374,11 +374,19 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(BeFalse())
 		})
 
+		It("should reject DataVolume with size smaller than 1MiB", func() {
+			dataVolume := newBlankDataVolume("blank")
+			quantity, err := resource.ParseQuantity("9")
+			Expect(err).ToNot(HaveOccurred())
+			dataVolume.Spec.PVC.Resources.Requests["storage"] = quantity
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(BeFalse())
+		})
+
 		It("should accept DataVolume with Blank source and no content type", func() {
 			dataVolume := newBlankDataVolume("blank")
 			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(BeTrue())
-
 		})
 
 		It("should accept DataVolume with Blank source and kubevirt contentType", func() {

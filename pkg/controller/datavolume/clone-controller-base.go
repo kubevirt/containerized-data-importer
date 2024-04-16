@@ -91,9 +91,9 @@ const (
 	SizeDetectionPodCreated = "SizeDetectionPodCreated"
 	// MessageSizeDetectionPodCreated provides a const to indicate that the size-detection pod has been created (message)
 	MessageSizeDetectionPodCreated = "Size-detection pod created"
-	// SizeDetectionPodNotReady reports that the size-detection pod has not finished its exectuion (reason)
+	// SizeDetectionPodNotReady reports that the size-detection pod has not finished its execution (reason)
 	SizeDetectionPodNotReady = "SizeDetectionPodNotReady"
-	// MessageSizeDetectionPodNotReady reports that the size-detection pod has not finished its exectuion (message)
+	// MessageSizeDetectionPodNotReady reports that the size-detection pod has not finished its execution (message)
 	MessageSizeDetectionPodNotReady = "The size detection pod is not finished yet"
 	// ImportPVCNotReady reports that it's not yet possible to access the source PVC (reason)
 	ImportPVCNotReady = "ImportPVCNotReady"
@@ -426,7 +426,7 @@ var populatorPhaseMap = map[string]cdiv1.DataVolumePhase{
 	clone.RebindPhaseName:        cdiv1.RebindInProgress,
 	clone.SnapshotClonePhaseName: cdiv1.CloneFromSnapshotSourceInProgress,
 	clone.SnapshotPhaseName:      cdiv1.SnapshotForSmartCloneInProgress,
-	//clone.ErrorPhaseName:         cdiv1.Error, // Want to hold off on this for now
+	clone.ErrorPhaseName:         cdiv1.Failed,
 }
 
 func (r *CloneReconcilerBase) updateStatusPhaseForPopulator(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
@@ -437,7 +437,10 @@ func (r *CloneReconcilerBase) updateStatusPhaseForPopulator(pvc *corev1.Persiste
 		//dataVolumeCopy.Status.Phase = cdiv1.Unknown // hold off on this for now
 		return nil
 	}
-	dataVolumeCopy.Status.Phase = dvPhase
+	// Avoid setting DV to failed for consistency with non-populator flow
+	if dvPhase != cdiv1.Failed {
+		dataVolumeCopy.Status.Phase = dvPhase
+	}
 	r.setEventForPhase(dataVolumeCopy, dvPhase, event)
 	return nil
 }
