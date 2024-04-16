@@ -746,7 +746,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	})
 })
 
-var ErrorTestFake = errors.New("TestFakeError")
+var ErrTestFake = errors.New("TestFakeError")
 
 // LimitThenErrorReader returns a Reader that reads from r
 // but stops with FakeError after n bytes.
@@ -764,7 +764,7 @@ type limitThenErrorReader struct {
 
 func (l *limitThenErrorReader) Read(p []byte) (n int, err error) {
 	if l.n <= 0 {
-		return 0, ErrorTestFake // EOF
+		return 0, ErrTestFake // EOF
 	}
 	if int64(len(p)) > l.n {
 		p = p[0:l.n]

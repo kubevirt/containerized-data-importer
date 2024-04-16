@@ -3,6 +3,7 @@ package tests_test
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"os/exec"
 	"time"
@@ -158,8 +159,8 @@ func afterCMD(cmd *exec.Cmd) {
 		ExpectWithOffset(1, cmd.Process.Kill()).Should(Succeed())
 		err := cmd.Wait()
 		if err != nil {
-			_, ok := err.(*exec.ExitError)
-			ExpectWithOffset(1, ok).Should(BeTrue())
+			t := &exec.ExitError{}
+			ExpectWithOffset(1, errors.As(err, &t)).Should(BeTrue())
 		}
 	}
 }

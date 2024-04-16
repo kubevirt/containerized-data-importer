@@ -139,7 +139,7 @@ func processLayer(ctx context.Context,
 	found := false
 	for {
 		hdr, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break // End of archive
 		}
 		if err != nil {

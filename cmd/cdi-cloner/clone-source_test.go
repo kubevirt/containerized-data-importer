@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"os"
 	"time"
@@ -36,7 +37,7 @@ func isDirEmpty(dirName string) (bool, error) {
 	defer f.Close()
 
 	_, err = f.Readdirnames(1)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return true, nil
 	}
 	return false, err

@@ -428,7 +428,7 @@ func (reader *extentReader) Read(p []byte) (int, error) {
 	length := end - start + 1
 
 	responseBody, err := reader.GetRange(start, end)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return 0, errors.Wrap(err, "failed to read from range")
 	}
 	if responseBody != nil {
@@ -436,7 +436,7 @@ func (reader *extentReader) Read(p []byte) (int, error) {
 	}
 
 	var written int
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		written, err = io.ReadFull(responseBody, p[:length])
 	}
 

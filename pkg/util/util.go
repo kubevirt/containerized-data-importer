@@ -85,7 +85,7 @@ func ParseEnvVar(envVarName string, decode bool) (string, error) {
 func (r *CountingReader) Read(p []byte) (n int, err error) {
 	n, err = r.Reader.Read(p)
 	r.Current += uint64(n)
-	r.Done = err == io.EOF
+	r.Done = errors.Is(err, io.EOF)
 	return n, err
 }
 
