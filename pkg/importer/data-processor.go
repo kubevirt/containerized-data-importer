@@ -181,7 +181,7 @@ func (dp *DataProcessor) initDefaultPhases() {
 	})
 	dp.RegisterPhaseExecutor(ProcessingPhaseTransferScratch, func() (ProcessingPhase, error) {
 		pp, err := dp.source.Transfer(dp.scratchDataDir)
-		if err == ErrInvalidPath {
+		if errors.Is(err, ErrInvalidPath) {
 			// Passed in invalid scratch space path, return scratch space needed error.
 			err = ErrRequiresScratchSpace
 		} else if err != nil {

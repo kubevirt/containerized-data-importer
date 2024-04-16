@@ -1450,11 +1450,8 @@ func GetNamespace(namespace, defaultNamespace string) string {
 
 // IsErrCacheNotStarted checked is the error is of cache not started
 func IsErrCacheNotStarted(err error) bool {
-	if err == nil {
-		return false
-	}
-	_, ok := err.(*runtimecache.ErrCacheNotStarted)
-	return ok
+	target := &runtimecache.ErrCacheNotStarted{}
+	return errors.As(err, &target)
 }
 
 // GetDataVolumeTTLSeconds gets the current DataVolume TTL in seconds if GC is enabled, or < 0 if GC is disabled

@@ -22,6 +22,7 @@ package webhooks
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	authv1 "k8s.io/api/authorization/v1"
@@ -107,7 +108,7 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 	proxy := &authProxy{k8sClient: wh.k8sClient, cdiClient: wh.cdiClient}
 	response, err := modifiedDataVolume.AuthorizeUser(ar.Request.Namespace, ar.Request.Name, proxy, ar.Request.UserInfo)
 	if err != nil {
-		if err == cdiv1.ErrNoTokenOkay {
+		if errors.Is(err, cdiv1.ErrNoTokenOkay) {
 			return toPatchResponse(dataVolume, modifiedDataVolume)
 		}
 		return toAdmissionResponseError(err)
