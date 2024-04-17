@@ -440,7 +440,7 @@ func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.P
 		}
 		executable = "ovirt-populator"
 		args = getOvirtPopulatorPodArgs(rawBlock, crInstance)
-		secretName = crInstance.Spec.EngineSecretName
+		secretName = crInstance.Spec.SecretRef
 		containerImage = r.ovirtPopulatorImage
 		transferNetwork = crInstance.Spec.TransferNetwork
 	case "OpenstackVolumePopulator":
@@ -454,7 +454,7 @@ func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.P
 		}
 		executable = "openstack-populator"
 		args = getOpenstackPopulatorPodArgs(rawBlock, crInstance)
-		secretName = crInstance.Spec.SecretName
+		secretName = crInstance.Spec.SecretRef
 		containerImage = r.importerImage
 		transferNetwork = crInstance.Spec.TransferNetwork
 	default:
@@ -570,7 +570,7 @@ func getOvirtPopulatorPodArgs(rawBlock bool, ovirtCR *v1beta1.OvirtVolumePopulat
 		args = append(args, "--volume-path="+mountPath+"disk.img")
 	}
 
-	args = append(args, "--secret-name="+ovirtCR.Spec.EngineSecretName)
+	args = append(args, "--secret-name="+ovirtCR.Spec.SecretRef)
 	args = append(args, "--disk-id="+ovirtCR.Spec.DiskID)
 	args = append(args, "--engine-url="+ovirtCR.Spec.EngineURL)
 
@@ -586,7 +586,7 @@ func getOpenstackPopulatorPodArgs(rawBlock bool, openstackCR *v1beta1.OpenstackV
 	}
 
 	args = append(args, "--endpoint="+openstackCR.Spec.IdentityURL)
-	args = append(args, "--secret-name="+openstackCR.Spec.SecretName)
+	args = append(args, "--secret-name="+openstackCR.Spec.SecretRef)
 	args = append(args, "--image-id="+openstackCR.Spec.ImageID)
 
 	return args

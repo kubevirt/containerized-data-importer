@@ -7028,7 +7028,7 @@ spec:
                 type: string
               imageId:
                 type: string
-              secretName:
+              secretRef:
                 type: string
               transferNetwork:
                 description: The network attachment definition that should be used
@@ -7037,7 +7037,7 @@ spec:
             required:
             - identityUrl
             - imageId
-            - secretName
+            - secretRef
             type: object
           status:
             description: OpenstackVolumePopulatorStatus is the status of the OpenstackVolumePopulator
@@ -7101,9 +7101,9 @@ spec:
             properties:
               diskId:
                 type: string
-              engineSecretName:
-                type: string
               engineUrl:
+                type: string
+              secretRef:
                 type: string
               transferNetwork:
                 description: The network attachment definition that should be used
@@ -7111,8 +7111,8 @@ spec:
                 type: string
             required:
             - diskId
-            - engineSecretName
             - engineUrl
+            - secretRef
             type: object
           status:
             description: OvirtVolumePopulatorStatus is the status of the OvirtVolumePopulator

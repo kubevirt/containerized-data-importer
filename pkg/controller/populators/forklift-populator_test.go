@@ -86,9 +86,9 @@ var _ = Describe("Forklift populator tests", func() {
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: v1beta1.OvirtVolumePopulatorSpec{
-			EngineURL:        "https://ovirt-engine.example.com",
-			EngineSecretName: "ovirt-engine-secret",
-			DiskID:           "12345678-1234-1234-1234-123456789012",
+			EngineURL: "https://ovirt-engine.example.com",
+			SecretRef: "ovirt-engine-secret",
+			DiskID:    "12345678-1234-1234-1234-123456789012",
 		},
 	}
 

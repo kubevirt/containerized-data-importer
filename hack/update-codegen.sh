@@ -79,6 +79,11 @@ swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-import
         --output-base ${GOPATH} \
         --output-package kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1 \
         --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
+
+    openapi-gen --input-dirs k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/api/core/v1,kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1 \
+        --output-base ${GOPATH} \
+        --output-package kubevirt.io/containerized-data-importer/pkg/apis/forklift/v1beta1 \
+        --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 )
 
 (cd ${SCRIPT_ROOT}/tools/openapi-spec-generator/ && go build -o ../../bin/openapi-spec-generator)

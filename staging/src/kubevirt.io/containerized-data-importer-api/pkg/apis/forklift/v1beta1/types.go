@@ -23,9 +23,9 @@ type OvirtVolumePopulator struct {
 
 // OvirtVolumePopulatorSpec is the spec of the OvirtVolumePopulator CR
 type OvirtVolumePopulatorSpec struct {
-	EngineURL        string `json:"engineUrl"`
-	EngineSecretName string `json:"engineSecretName"`
-	DiskID           string `json:"diskId"`
+	EngineURL string `json:"engineUrl"`
+	SecretRef string `json:"secretRef"`
+	DiskID    string `json:"diskId"`
 	// The network attachment definition that should be used for disk transfer.
 	TransferNetwork string `json:"transferNetwork,omitempty"`
 }
@@ -64,7 +64,7 @@ type OpenstackVolumePopulator struct {
 // OpenstackVolumePopulatorSpec is the spec of the OpenstackVolumePopulator CR
 type OpenstackVolumePopulatorSpec struct {
 	IdentityURL string `json:"identityUrl"`
-	SecretName  string `json:"secretName"`
+	SecretRef   string `json:"secretRef"`
 	ImageID     string `json:"imageId"`
 	// The network attachment definition that should be used for disk transfer.
 	TransferNetwork string `json:"transferNetwork,omitempty"`
