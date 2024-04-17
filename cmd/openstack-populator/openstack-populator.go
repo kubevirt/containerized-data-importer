@@ -264,7 +264,7 @@ func getAuthType() (clientconfig.AuthType, error) {
 
 func getStringFromSecret(key string) string {
 	value := os.Getenv(key)
-	return string(value)
+	return value
 }
 
 func getBoolFromSecret(key string) bool {
