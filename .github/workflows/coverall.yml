@@ -17,5 +17,7 @@
 
       - name: Coveralls
         uses: coverallsapp/github-action@master
+        env:
+          COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           github-token: ${{ secrets.github_token }}
