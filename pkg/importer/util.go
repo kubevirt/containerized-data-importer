@@ -4,11 +4,9 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/pkg/errors"
-	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -26,20 +24,19 @@ func ParseEndpoint(endpt string) (*url.URL, error) {
 	return url.Parse(endpt)
 }
 
-// CleanDir cleans the contents of a directory including its sub directories, but does NOT remove the
-// directory itself.
-func CleanDir(dest string) error {
-	dir, err := os.ReadDir(dest)
-	if err != nil {
-		klog.Errorf("Unable read directory to clean: %s, %v", dest, err)
-		return err
-	}
-	for _, d := range dir {
-		klog.V(1).Infoln("deleting file: " + filepath.Join(dest, d.Name()))
-		err = os.RemoveAll(filepath.Join(dest, d.Name()))
+// CleanAll deletes all files at specified paths (recursively)
+func CleanAll(paths ...string) error {
+	for _, p := range paths {
+		isDevice, err := util.IsDevice(p)
 		if err != nil {
-			klog.Errorf("Unable to delete file: %s, %v", filepath.Join(dest, d.Name()), err)
 			return err
+		}
+
+		if !isDevice {
+			// Remove handles p not existing
+			if err := os.RemoveAll(p); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
