@@ -1,23 +1,18 @@
-  on: ["push","pull_request"]
+name: Test Coveralls
 
-  name: Test Coveralls
+on: 
+  push:
+  pull_request:
 
-  jobs:
-
-    build:
-      name: Build
-      runs-on: ubuntu-latest
-      steps:
-
-      - uses: actions/checkout@master
-
-      - name: make test-coverage
-        run: |
-          make goveralls
-
-      - name: Coveralls
-        uses: coverallsapp/github-action@master
-        env:
-          COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          github-token: ${{ secrets.github_token }}
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@master
+    - name: Run test coverage and upload to Coveralls
+      env:
+        COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        make goveralls
