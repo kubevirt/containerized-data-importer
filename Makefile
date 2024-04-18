@@ -92,6 +92,9 @@ publish: manifests push
 vet:
 	${DO_BAZ} "./hack/build/build-go.sh vet ${WHAT}"
 
+vulncheck:
+	${DO_BAZ} ./hack/build/run-vulncheck.sh
+
 format:
 	${DO_BAZ} "./hack/build/format.sh"
 
