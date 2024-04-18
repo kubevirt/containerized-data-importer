@@ -293,6 +293,10 @@ const (
 
 	// CDIControllerLeaderElectionHelperName is the name of the configmap that is used as a helper for controller leader election
 	CDIControllerLeaderElectionHelperName = "cdi-controller-leader-election-helper"
+
+	// ImagePullFailureText is the text of the ErrImagePullFailed error. We need it as a common constant because we're using
+	// both to create and to later check the error in the termination text of the importer pod.
+	ImagePullFailureText = "failed to pull image"
 )
 
 // ProxyPaths are all supported paths

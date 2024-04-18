@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "data-processor.go",
+        "errors.go",
         "format-readers.go",
         "gcs-datasource.go",
         "http-datasource.go",

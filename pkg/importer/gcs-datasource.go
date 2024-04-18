@@ -128,7 +128,7 @@ func (sd *GCSDataSource) Transfer(path string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, ErrInvalidPath
 	}
 
-	err := util.StreamDataToFile(sd.readers.TopReader(), file)
+	err := streamDataToFile(sd.readers.TopReader(), file)
 
 	if err != nil {
 		klog.V(3).Infoln("GCS Importer: Transfer Error: ", err)
@@ -145,7 +145,7 @@ func (sd *GCSDataSource) TransferFile(fileName string) (ProcessingPhase, error) 
 		return ProcessingPhaseError, err
 	}
 
-	err := util.StreamDataToFile(sd.readers.TopReader(), fileName)
+	err := streamDataToFile(sd.readers.TopReader(), fileName)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}

@@ -34,7 +34,6 @@ import (
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -76,7 +75,7 @@ func readImageSource(ctx context.Context, sys *types.SystemContext, img string) 
 	src, err := ref.NewImageSource(ctx, sys)
 	if err != nil {
 		klog.Errorf("Could not create image reference: %v", err)
-		return nil, errors.Wrap(err, "Could not create image reference")
+		return nil, NewImagePullFailedError(err)
 	}
 
 	return src, nil
@@ -157,7 +156,7 @@ func processLayer(ctx context.Context,
 				return false, errors.Wrap(err, "Error creating output file's directory")
 			}
 
-			if err := util.StreamDataToFile(tarReader, filepath.Join(destDir, hdr.Name)); err != nil {
+			if err := streamDataToFile(tarReader, filepath.Join(destDir, hdr.Name)); err != nil {
 				klog.Errorf("Error copying file: %v", err)
 				return false, errors.Wrap(err, "Error copying file")
 			}
