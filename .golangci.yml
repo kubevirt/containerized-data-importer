@@ -1,5 +1,6 @@
 linters:
   enable:
+  - durationcheck
   - errname
   - errorlint
   - ginkgolinter
