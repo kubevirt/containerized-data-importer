@@ -20,18 +20,5 @@
 source hack/build/config.sh
 source hack/build/common.sh
 
-LINTABLE=(staging/src/kubevirt.io/containerized-data-importer-api pkg cmd tests tools)
-for p in "${LINTABLE[@]}"; do
-    echo "running golint on directory: ${p}"
-    out="$(golint ${p}/...)"
-    if [[ ${out} ]]; then
-        echo "FAIL: following golint errors found:"
-        echo "${out}"
-        ec=1
-    fi
-done
-
 set -e
 ./hack/build/run-linters.sh
-
-exit ${ec}
