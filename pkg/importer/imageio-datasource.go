@@ -136,7 +136,7 @@ func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, ErrInvalidPath
 	}
 	is.readers.StartProgressUpdate()
-	err = util.StreamDataToFile(is.readers.TopReader(), file)
+	err = streamDataToFile(is.readers.TopReader(), file)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -181,7 +181,7 @@ func (is *ImageioDataSource) TransferFile(fileName string) (ProcessingPhase, err
 			return ProcessingPhaseError, err
 		}
 	} else {
-		err := util.StreamDataToFile(is.readers.TopReader(), fileName)
+		err := streamDataToFile(is.readers.TopReader(), fileName)
 		if err != nil {
 			return ProcessingPhaseError, err
 		}

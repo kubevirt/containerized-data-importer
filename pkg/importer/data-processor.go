@@ -17,7 +17,6 @@ limitations under the License.
 package importer
 
 import (
-	"fmt"
 	"net/url"
 	"os"
 
@@ -61,19 +60,6 @@ const (
 	// ProcessingPhaseMergeDelta is the phase in a multi-stage import where a delta image downloaded to scratch is applied to the base image
 	ProcessingPhaseMergeDelta ProcessingPhase = "MergeDelta"
 )
-
-// ValidationSizeError is an error indication size validation failure.
-type ValidationSizeError struct {
-	err error
-}
-
-func (e ValidationSizeError) Error() string { return e.err.Error() }
-
-// ErrRequiresScratchSpace indicates that we require scratch space.
-var ErrRequiresScratchSpace = fmt.Errorf(common.ScratchSpaceRequired)
-
-// ErrInvalidPath indicates that the path is invalid.
-var ErrInvalidPath = fmt.Errorf("invalid transfer path")
 
 // may be overridden in tests
 var getAvailableSpaceBlockFunc = util.GetAvailableSpaceBlock

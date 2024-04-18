@@ -11,7 +11,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 var _ = Describe("Parse endpoints", func() {
@@ -69,7 +68,7 @@ var _ = Describe("Stream Data To File", func() {
 		if useTmpDir {
 			fileName = filepath.Join(tmpDir, fileName)
 		}
-		err = util.StreamDataToFile(r, fileName)
+		err = streamDataToFile(r, fileName)
 		if !wantErr {
 			Expect(err).NotTo(HaveOccurred())
 		} else {

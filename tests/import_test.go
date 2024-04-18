@@ -30,6 +30,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
@@ -2196,6 +2197,41 @@ var _ = Describe("Containerdisk envs to PVC labels", func() {
 		Entry("with pullMethod pod", cdiv1.RegistryPullPod, tinyCoreRegistryURL, false),
 		Entry("with pullMethod node", cdiv1.RegistryPullNode, trustedRegistryURL, false),
 		Entry("with pullMethod node", cdiv1.RegistryPullNode, trustedRegistryIS, true),
+	)
+})
+
+var _ = Describe("pull image failure", func() {
+	var (
+		f = framework.NewFramework(namespacePrefix)
+	)
+
+	DescribeTable(`Should fail with "ImagePullFailed" reason if failed to pull image`, func(url string, pullMethod cdiv1.RegistryPullMethod) {
+		dv := utils.NewDataVolumeWithRegistryImport("failed-to-pull-image", "10Gi", "docker://"+url)
+		if dv.Annotations == nil {
+			dv.Annotations = make(map[string]string)
+		}
+		dv.Annotations[controller.AnnImmediateBinding] = "true"
+		dv.Spec.Source.Registry.PullMethod = &pullMethod
+
+		var err error
+		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify ImagePullFailed running condition")
+		runningCondition := &cdiv1.DataVolumeCondition{
+			Type:    cdiv1.DataVolumeRunning,
+			Status:  v1.ConditionFalse,
+			Message: common.ImagePullFailureText,
+			Reason:  "ImagePullFailed",
+		}
+		utils.WaitForConditions(f, dv.Name, f.Namespace.Name, controllerSkipPVCCompleteTimeout, assertionPollInterval, runningCondition)
+
+	},
+		Entry("pull method = pod", "myregistry/myorg/myimage:wrongtag", cdiv1.RegistryPullPod),
+		Entry("pull method = node", "myregistry/myorg/myimage:wrongtag", cdiv1.RegistryPullNode),
 	)
 })
 
