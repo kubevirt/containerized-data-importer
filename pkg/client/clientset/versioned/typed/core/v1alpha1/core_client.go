@@ -22,7 +22,6 @@ import (
 	"net/http"
 
 	rest "k8s.io/client-go/rest"
-
 	v1alpha1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
 )

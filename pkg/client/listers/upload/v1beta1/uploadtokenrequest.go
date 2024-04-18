@@ -22,7 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
-
 	v1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 )
 
