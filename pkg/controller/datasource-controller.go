@@ -239,10 +239,9 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 		return err
 	}
 
-	mapToDataSource := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
-		reqs = appendMatchingDataSourceRequests(ctx, dataSourcePvcField, obj, reqs)
-		reqs = appendMatchingDataSourceRequests(ctx, dataSourceSnapshotField, obj, reqs)
-		return
+	mapToDataSource := func(ctx context.Context, obj client.Object) []reconcile.Request {
+		reqs := appendMatchingDataSourceRequests(ctx, dataSourcePvcField, obj, nil)
+		return appendMatchingDataSourceRequests(ctx, dataSourceSnapshotField, obj, reqs)
 	}
 
 	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{}),

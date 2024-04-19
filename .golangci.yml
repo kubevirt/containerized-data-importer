@@ -6,6 +6,7 @@ linters:
   - ginkgolinter
   - goimports
   - misspell
+  - nakedret
   - unconvert
 
 issues:
@@ -13,8 +14,10 @@ issues:
   max-same-issues: 0
 
 linters-settings:
-  ginkgolinter:
-    forbid-focus-container: true
   errorlint:
     # We want to allow for usage of %v to avoid leaking implementation details
     errorf: false
+  ginkgolinter:
+    forbid-focus-container: true
+  nakedret:
+    max-func-lines: 0
