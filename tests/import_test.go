@@ -466,10 +466,7 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		afterCMD(portForwardCmd)
 	})
 
-	// Skipping this test until we can get progress information again. What happens is that the go
-	// http client cannot determine the total size, and thus the prometheus endpoint is not initialized
-	// This causes this test to now fail because the endpoint is not there, skipping for now.
-	PIt("[test_id:4970]Import pod should have prometheus stats available while importing", func() {
+	It("[test_id:4970]Import pod should have prometheus stats available while importing", func() {
 		var endpoint *v1.Endpoints
 		c := f.K8sClient
 		ns := f.Namespace.Name
