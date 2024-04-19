@@ -660,10 +660,10 @@ func getClusterWideProxy(r client.Client) (*ocpconfigv1.Proxy, error) {
 // GetImportProxyConfig attempts to import proxy URLs if configured in the CDIConfig.
 func GetImportProxyConfig(config *cdiv1.CDIConfig, field string) (string, error) {
 	if config == nil {
-		return "", errors.Errorf("failed to get field, the CDIConfig is nil\n")
+		return "", errors.New("failed to get field, the CDIConfig is nil")
 	}
 	if config.Status.ImportProxy == nil {
-		return "", errors.Errorf("failed to get field, the CDIConfig ImportProxy is nil\n")
+		return "", errors.New("failed to get field, the CDIConfig ImportProxy is nil")
 	}
 
 	switch field {
@@ -684,7 +684,7 @@ func GetImportProxyConfig(config *cdiv1.CDIConfig, field string) (string, error)
 			return *config.Status.ImportProxy.TrustedCAProxy, nil
 		}
 	default:
-		return "", errors.Errorf("CDIConfig ImportProxy does not have the field: %s\n", field)
+		return "", errors.Errorf("CDIConfig ImportProxy does not have the field: %s", field)
 	}
 
 	// If everything fails, return blank

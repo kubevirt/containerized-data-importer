@@ -666,14 +666,14 @@ var _ = Describe("VDDK get block status", func() {
 		flagSetting := true
 		currentMockNbdFunctions.BlockStatus = func(length uint64, offset uint64, callback libnbd.ExtentCallback, optargs *libnbd.BlockStatusOptargs) error {
 			err := 0
-			len := uint32(MaxBlockStatusLength)
+			L := uint32(MaxBlockStatusLength)
 			if length < MaxBlockStatusLength {
-				len = uint32(length)
+				L = uint32(length)
 			}
 			if flagSetting {
-				callback("base:allocation", offset, []uint32{len, 0}, &err)
+				callback("base:allocation", offset, []uint32{L, 0}, &err)
 			} else {
-				callback("base:allocation", offset, []uint32{len, 3}, &err)
+				callback("base:allocation", offset, []uint32{L, 3}, &err)
 			}
 			flagSetting = !flagSetting
 			return nil

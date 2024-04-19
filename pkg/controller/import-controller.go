@@ -793,7 +793,7 @@ func (r *ImportReconciler) getVddkImageName() (*string, error) {
 		return &image, nil
 	}
 
-	return nil, errors.Errorf("Found %s ConfigMap in namespace %s, but it does not contain a '%s' entry.", common.VddkConfigMap, namespace, common.VddkConfigDataKey)
+	return nil, errors.Errorf("found %s ConfigMap in namespace %s, but it does not contain a '%s' entry", common.VddkConfigMap, namespace, common.VddkConfigDataKey)
 }
 
 // returns the import image part of the endpoint string

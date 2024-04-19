@@ -502,7 +502,7 @@ const MaxPreadLengthVC = (2 << 20)
 // MaxPreadLength is the maxmimum read size to request from VMware. Default to
 // the larger option, and reduce it in createVddkDataSource when connecting to
 // vCenter endpoints.
-var MaxPreadLength int = MaxPreadLengthESX
+var MaxPreadLength = MaxPreadLengthESX
 
 // NbdOperations provides a mockable interface for the things needed from libnbd.
 type NbdOperations interface {

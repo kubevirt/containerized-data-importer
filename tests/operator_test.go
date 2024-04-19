@@ -885,7 +885,7 @@ var _ = Describe("ALL Operator tests", func() {
 			It("Should update infra deployments when modify customizeComponents in CDI Cr", func() {
 				By("Modify the customizeComponents separately")
 				cdi := getCDI(f)
-				testJsonPatch := "test-json-patch"
+				testJSONPatch := "test-json-patch"
 				testStrategicPatch := "test-strategic-patch"
 				testMergePatch := "test-merge-patch"
 				cdi.Spec.CustomizeComponents = cdiv1.CustomizeComponents{
@@ -893,7 +893,7 @@ var _ = Describe("ALL Operator tests", func() {
 						{
 							ResourceName: "cdi-apiserver",
 							ResourceType: "Deployment",
-							Patch:        fmt.Sprintf(`[{"op":"add","path":"/metadata/annotations/%s","value":"%s"}]`, testJsonPatch, testJsonPatch),
+							Patch:        fmt.Sprintf(`[{"op":"add","path":"/metadata/annotations/%s","value":"%s"}]`, testJSONPatch, testJSONPatch),
 							Type:         cdiv1.JSONPatchType,
 						},
 						{
@@ -945,7 +945,7 @@ var _ = Describe("ALL Operator tests", func() {
 						return depl.GetAnnotations()[annoKey] == annoValue
 					}, 5*time.Minute, 1*time.Second).Should(BeTrue())
 				}
-				verifyPatches("cdi-apiserver", testJsonPatch, testJsonPatch, "-v 5", "-skip_headers")
+				verifyPatches("cdi-apiserver", testJSONPatch, testJSONPatch, "-v 5", "-skip_headers")
 				verifyPatches("cdi-deployment", testStrategicPatch, testStrategicPatch, "-v 6", "-skip_headers")
 				verifyPatches("cdi-uploadproxy", testMergePatch, testMergePatch, "-v 7", "-skip_headers")
 
@@ -1164,7 +1164,7 @@ var _ = Describe("ALL Operator tests", func() {
 				// Deployment
 				verifyPodPriorityClass(cdiDeploymentPodPrefix, prioClass, common.CDILabelSelector)
 				// API server
-				verifyPodPriorityClass(cdiApiServerPodPrefix, prioClass, common.CDILabelSelector)
+				verifyPodPriorityClass(cdiAPIServerPodPrefix, prioClass, common.CDILabelSelector)
 				// Upload server
 				verifyPodPriorityClass(cdiUploadProxyPodPrefix, prioClass, common.CDILabelSelector)
 				By("Verifying there is just a single cdi controller pod")
@@ -1192,7 +1192,7 @@ var _ = Describe("ALL Operator tests", func() {
 				By("Verifying the CDI deployment is updated")
 				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(systemClusterCritical), common.CDILabelSelector)
 				By("Verifying the CDI api server is updated")
-				verifyPodPriorityClass(cdiApiServerPodPrefix, string(systemClusterCritical), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiAPIServerPodPrefix, string(systemClusterCritical), common.CDILabelSelector)
 				By("Verifying the CDI upload proxy server is updated")
 				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(systemClusterCritical), common.CDILabelSelector)
 			})
@@ -1208,7 +1208,7 @@ var _ = Describe("ALL Operator tests", func() {
 				// Deployment
 				verifyPodPriorityClass(cdiDeploymentPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 				// API server
-				verifyPodPriorityClass(cdiApiServerPodPrefix, osUserCrit.Name, common.CDILabelSelector)
+				verifyPodPriorityClass(cdiAPIServerPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 				// Upload server
 				verifyPodPriorityClass(cdiUploadProxyPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 			})

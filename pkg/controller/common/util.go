@@ -1125,7 +1125,7 @@ func GetEndpoint(pvc *corev1.PersistentVolumeClaim) (string, error) {
 		if !found {
 			verb = "missing"
 		}
-		return ep, errors.Errorf("annotation %q in pvc \"%s/%s\" is %s\n", AnnEndpoint, pvc.Namespace, pvc.Name, verb)
+		return ep, errors.Errorf("annotation %q in pvc \"%s/%s\" is %s", AnnEndpoint, pvc.Namespace, pvc.Name, verb)
 	}
 	return ep, nil
 }

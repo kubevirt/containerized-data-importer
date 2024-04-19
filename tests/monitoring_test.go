@@ -60,15 +60,15 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 		Eventually(func() bool {
 			scs, err := f.K8sClient.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			sc_count := len(scs.Items)
+			scCount := len(scs.Items)
 			sps, err := f.CdiClient.CdiV1beta1().StorageProfiles().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			sp_count := len(sps.Items)
+			spCount := len(sps.Items)
 
 			complete := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "true")
 			incomplete := countMetricLabelValue(f, "kubevirt_cdi_storageprofile_info", "complete", "false")
 
-			return sc_count == sp_count && sc_count == complete+incomplete
+			return scCount == spCount && scCount == complete+incomplete
 		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 	}
 

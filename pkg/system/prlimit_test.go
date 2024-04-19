@@ -210,7 +210,7 @@ func doFaker(args []string) {
 }
 
 func doSpinner(args []string) {
-	for { //nolint:staticcheck
+	for { //nolint:staticcheck,revive
 
 	}
 }

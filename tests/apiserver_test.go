@@ -22,7 +22,7 @@ import (
 
 const (
 	cdiDeploymentPodPrefix  = "cdi-deployment-"
-	cdiApiServerPodPrefix   = "cdi-apiserver-"
+	cdiAPIServerPodPrefix   = "cdi-apiserver-"
 	cdiUploadProxyPodPrefix = "cdi-uploadproxy-"
 
 	pollingInterval = 2 * time.Second
