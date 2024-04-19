@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -42,7 +41,7 @@ const (
 	certDir           = "/certs"
 )
 
-func startServer(port string, basicAuth bool, useTLS bool, wg *sync.WaitGroup) {
+func startServer(port string, basicAuth bool, useTLS bool) {
 	server := &http.Server{
 		Addr: ":" + port,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -63,13 +62,11 @@ func startServer(port string, basicAuth bool, useTLS bool, wg *sync.WaitGroup) {
 		go func() {
 			klog.Infof("INFO: started proxy on port %s\n", port)
 			log.Fatal(server.ListenAndServeTLS(filepath.Join(certDir, certFile), filepath.Join(certDir, keyFile)))
-			wg.Done()
 		}()
 	} else {
 		go func() {
 			klog.Infof("INFO: started proxy on port %s\n", port)
 			log.Fatal(server.ListenAndServe())
-			wg.Done()
 		}()
 	}
 }
@@ -216,19 +213,10 @@ func main() {
 		klog.Fatal(errors.Wrapf(err, "populate certificate directory %s' errored: ", certDir))
 	}
 
-	wg := new(sync.WaitGroup)
+	startServer(httpPort, noBasicAuth, false)
+	startServer(httpPortWithAuth, withBasicAuth, false)
+	startServer(httpsPort, noBasicAuth, true)
+	startServer(httpsPortWithAuth, withBasicAuth, true)
 
-	wg.Add(1)
-	startServer(httpPort, noBasicAuth, false, wg)
-
-	wg.Add(1)
-	startServer(httpPortWithAuth, withBasicAuth, false, wg)
-
-	wg.Add(1)
-	startServer(httpsPort, noBasicAuth, true, wg)
-
-	wg.Add(1)
-	startServer(httpsPortWithAuth, withBasicAuth, true, wg)
-
-	wg.Wait()
+	select {}
 }
