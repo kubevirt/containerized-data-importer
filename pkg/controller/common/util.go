@@ -1491,16 +1491,14 @@ func NewImportDataVolume(name string) *cdiv1.DataVolume {
 func GetCloneSourceInfo(dv *cdiv1.DataVolume) (sourceType, sourceName, sourceNamespace string) {
 	// Cloning sources are mutually exclusive
 	if dv.Spec.Source.PVC != nil {
-		sourceType = "pvc"
-		sourceName = dv.Spec.Source.PVC.Name
-		sourceNamespace = dv.Spec.Source.PVC.Namespace
-	} else if dv.Spec.Source.Snapshot != nil {
-		sourceType = "snapshot"
-		sourceName = dv.Spec.Source.Snapshot.Name
-		sourceNamespace = dv.Spec.Source.Snapshot.Namespace
+		return "pvc", dv.Spec.Source.PVC.Name, dv.Spec.Source.PVC.Namespace
 	}
 
-	return
+	if dv.Spec.Source.Snapshot != nil {
+		return "snapshot", dv.Spec.Source.Snapshot.Name, dv.Spec.Source.Snapshot.Namespace
+	}
+
+	return "", "", ""
 }
 
 // IsWaitForFirstConsumerEnabled tells us if we should respect "real" WFFC behavior or just let our worker pods randomly spawn

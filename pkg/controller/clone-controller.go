@@ -730,17 +730,15 @@ func ParseCloneRequestAnnotation(pvc *corev1.PersistentVolumeClaim) (exists bool
 	var ann string
 	ann, exists = pvc.Annotations[cc.AnnCloneRequest]
 	if !exists {
-		return
+		return false, "", ""
 	}
 
 	sp := strings.Split(ann, "/")
 	if len(sp) != 2 {
-		exists = false
-		return
+		return false, "", ""
 	}
 
-	namespace, name = sp[0], sp[1]
-	return
+	return true, sp[0], sp[1]
 }
 
 // ValidateCanCloneSourceAndTargetContentType validates the pvcs passed has the same content type.

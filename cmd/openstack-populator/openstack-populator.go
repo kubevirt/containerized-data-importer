@@ -184,16 +184,19 @@ func writeData(reader io.ReadCloser, file *os.File, imageID string, progress *pr
 	return nil
 }
 
-func getAuthType() (authType clientconfig.AuthType, err error) {
-	if configuredAuthType := getStringFromSecret(authTypeString); configuredAuthType == "" {
-		authType = clientconfig.AuthPassword
-	} else if supportedAuthType, found := supportedAuthTypes[configuredAuthType]; found {
-		authType = supportedAuthType
-	} else {
-		err = errors.New(unsupportedAuthTypeErrStr)
-		klog.Fatal(err.Error(), "authType", configuredAuthType)
+func getAuthType() (clientconfig.AuthType, error) {
+	configuredAuthType := getStringFromSecret(authTypeString)
+	if configuredAuthType == "" {
+		return clientconfig.AuthPassword, nil
 	}
-	return
+
+	if supportedAuthType, found := supportedAuthTypes[configuredAuthType]; found {
+		return supportedAuthType, nil
+	}
+
+	err := errors.New(unsupportedAuthTypeErrStr)
+	klog.Fatal(err.Error(), "authType", configuredAuthType)
+	return clientconfig.AuthType(""), err
 }
 
 func getStringFromSecret(key string) string {
@@ -216,7 +219,7 @@ func getBoolFromSecret(key string) bool {
 	return false
 }
 
-func getProviderClient(identityEndpoint string) (provider *gophercloud.ProviderClient, err error) {
+func getProviderClient(identityEndpoint string) (*gophercloud.ProviderClient, error) {
 
 	authInfo := &clientconfig.AuthInfo{
 		AuthURL:           identityEndpoint,
@@ -233,10 +236,10 @@ func getProviderClient(identityEndpoint string) (provider *gophercloud.ProviderC
 	}
 
 	var authType clientconfig.AuthType
-	authType, err = getAuthType()
+	authType, err := getAuthType()
 	if err != nil {
 		klog.Fatal(err.Error())
-		return
+		return nil, err
 	}
 
 	switch authType {
@@ -256,7 +259,7 @@ func getProviderClient(identityEndpoint string) (provider *gophercloud.ProviderC
 	identityURL, err := url.Parse(identityEndpoint)
 	if err != nil {
 		klog.Fatal(err.Error())
-		return
+		return nil, err
 	}
 
 	var TLSClientConfig *tls.Config
@@ -273,7 +276,7 @@ func getProviderClient(identityEndpoint string) (provider *gophercloud.ProviderC
 				if !ok {
 					err = errors.New(malformedCAErrStr)
 					klog.Fatal(err.Error())
-					return
+					return nil, err
 				}
 				TLSClientConfig = &tls.Config{RootCAs: roots}
 			}
@@ -281,10 +284,10 @@ func getProviderClient(identityEndpoint string) (provider *gophercloud.ProviderC
 		}
 	}
 
-	provider, err = openstack.NewClient(identityEndpoint)
+	provider, err := openstack.NewClient(identityEndpoint)
 	if err != nil {
 		klog.Fatal(err.Error())
-		return
+		return nil, err
 	}
 
 	provider.HTTPClient.Transport = &http.Transport{
@@ -308,13 +311,13 @@ func getProviderClient(identityEndpoint string) (provider *gophercloud.ProviderC
 	opts, err := clientconfig.AuthOptions(clientOpts)
 	if err != nil {
 		klog.Fatal(err.Error())
-		return
+		return nil, err
 	}
 
 	err = openstack.Authenticate(provider, *opts)
 	if err != nil {
 		klog.Fatal(err.Error())
-		return
+		return nil, err
 	}
-	return
+	return provider, nil
 }

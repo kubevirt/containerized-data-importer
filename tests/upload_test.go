@@ -762,16 +762,16 @@ type limitThenErrorReader struct {
 	n int64     // max bytes remaining
 }
 
-func (l *limitThenErrorReader) Read(p []byte) (n int, err error) {
+func (l *limitThenErrorReader) Read(p []byte) (int, error) {
 	if l.n <= 0 {
 		return 0, ErrTestFake // EOF
 	}
 	if int64(len(p)) > l.n {
 		p = p[0:l.n]
 	}
-	n, err = l.r.Read(p)
+	n, err := l.r.Read(p)
 	l.n -= int64(n)
-	return
+	return n, err
 }
 
 func startUploadProxyPortForward(f *framework.Framework) (string, *exec.Cmd, error) {

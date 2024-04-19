@@ -33,15 +33,20 @@ type execReader struct {
 	stderr io.ReadCloser
 }
 
-func (er *execReader) Read(p []byte) (n int, err error) {
-	n, err = er.stdout.Read(p)
-	if errors.Is(err, io.EOF) {
-		if err2 := er.cmd.Wait(); err2 != nil {
-			errBytes, _ := io.ReadAll(er.stderr)
-			klog.Fatalf("Subprocess did not execute successfully, result is: %q\n%s", er.cmd.ProcessState.ExitCode(), string(errBytes))
-		}
+func (er *execReader) Read(p []byte) (int, error) {
+	n, err := er.stdout.Read(p)
+	if err == nil {
+		return n, nil
+	} else if !errors.Is(err, io.EOF) {
+		return n, err
 	}
-	return
+
+	if err := er.cmd.Wait(); err != nil {
+		errBytes, _ := io.ReadAll(er.stderr)
+		klog.Fatalf("Subprocess did not execute successfully, result is: %q\n%s", er.cmd.ProcessState.ExitCode(), string(errBytes))
+	}
+
+	return n, io.EOF
 }
 
 func (er *execReader) Close() error {
@@ -194,23 +199,25 @@ func newTarReader(preallocation bool) (io.ReadCloser, error) {
 	return &execReader{cmd: cmd, stdout: stdout, stderr: io.NopCloser(&stderr)}, nil
 }
 
-func getInputStream(preallocation bool) (rc io.ReadCloser) {
-	var err error
+func getInputStream(preallocation bool) io.ReadCloser {
 	switch contentType {
 	case "filesystem-clone":
-		rc, err = newTarReader(preallocation)
+		rc, err := newTarReader(preallocation)
 		if err != nil {
 			klog.Fatalf("Error creating tar reader for %q: %+v", mountPoint, err)
 		}
+		return rc
 	case "blockdevice-clone":
-		rc, err = os.Open(mountPoint)
+		rc, err := os.Open(mountPoint)
 		if err != nil {
 			klog.Fatalf("Error opening block device %q: %+v", mountPoint, err)
 		}
+		return rc
 	default:
 		klog.Fatalf("Invalid content-type %q", contentType)
 	}
-	return
+
+	return nil
 }
 
 func main() {

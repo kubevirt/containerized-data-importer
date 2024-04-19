@@ -152,17 +152,18 @@ func addDataSourceWatch(mgr manager.Manager, c controller.Controller) error {
 		return err
 	}
 
-	mapToDataVolume := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+	mapToDataVolume := func(ctx context.Context, obj client.Object) []reconcile.Request {
 		var dvs cdiv1.DataVolumeList
 		matchingFields := client.MatchingFields{dvDataSourceField: getKey(obj.GetNamespace(), obj.GetName())}
 		if err := mgr.GetClient().List(ctx, &dvs, matchingFields); err != nil {
 			c.GetLogger().Error(err, "Unable to list DataVolumes", "matchingFields", matchingFields)
-			return
+			return nil
 		}
+		var reqs []reconcile.Request
 		for _, dv := range dvs.Items {
 			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
 		}
-		return
+		return reqs
 	}
 
 	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{}),

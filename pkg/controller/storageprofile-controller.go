@@ -421,19 +421,20 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 
-	mapSnapshotClassToProfile := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+	mapSnapshotClassToProfile := func(ctx context.Context, obj client.Object) []reconcile.Request {
 		var scList storagev1.StorageClassList
 		if err := mgr.GetClient().List(ctx, &scList); err != nil {
 			c.GetLogger().Error(err, "Unable to list StorageClasses")
-			return
+			return nil
 		}
 		vsc := obj.(*snapshotv1.VolumeSnapshotClass)
+		var reqs []reconcile.Request
 		for _, sc := range scList.Items {
 			if sc.Provisioner == vsc.Driver {
 				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: sc.Name}})
 			}
 		}
-		return
+		return reqs
 	}
 	if err := mgr.GetClient().List(context.TODO(), &snapshotv1.VolumeSnapshotClassList{}, &client.ListOptions{Limit: 1}); err != nil {
 		if meta.IsNoMatchError(err) {

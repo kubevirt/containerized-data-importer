@@ -485,7 +485,7 @@ func mockExecFunction(output, errString string, expectedLimits *system.ProcessLi
 			err = errors.New(errString)
 		}
 
-		return
+		return bytes, err
 	}
 }
 
@@ -502,7 +502,7 @@ func mockExecFunctionStrict(output, errString string, expectedLimits *system.Pro
 			err = errors.New(errString)
 		}
 
-		return
+		return bytes, err
 	}
 }
 
@@ -525,7 +525,7 @@ func mockExecFunctionTwoCalls(output, errString string, expectedLimits *system.P
 			err = errors.New(errString)
 		}
 
-		return
+		return bytes, err
 	}
 }
 
