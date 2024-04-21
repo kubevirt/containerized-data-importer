@@ -1899,7 +1899,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Verifying the image is sparse")
-			Expect(f.VerifySparse(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv), utils.DefaultImagePath)).To(BeTrue())
+			Expect(f.VerifySparse(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv), utils.DefaultImagePath, utils.UploadFileSize)).To(BeTrue())
 			By("Deleting verifier pod")
 			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 			Expect(err).ToNot(HaveOccurred())
