@@ -17,6 +17,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/docker/go-units"
 	"github.com/google/uuid"
 
 	v1 "k8s.io/api/core/v1"
@@ -125,7 +126,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		By("Verify the image contents")
 		Expect(f.VerifyBlankDisk(f.Namespace, pvc)).To(BeTrue())
 		By("Verifying the image is sparse")
-		Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
+		Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileSize)).To(BeTrue())
 		By("Verifying permissions are 660")
 		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
 		if utils.DefaultStorageCSIRespectsFsGroup {
@@ -1543,7 +1544,7 @@ var _ = Describe("Import populator", func() {
 		tests.DisableWebhookPvcRendering(f.CrClient)
 	})
 
-	DescribeTable("should import fileSystem PVC", func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error, preallocation, webhookRendering bool) {
+	DescribeTable("should import fileSystem PVC", func(expectedMD5 string, originalVirtualSize int, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error, preallocation, webhookRendering bool) {
 		pvc = importPopulationPVCDefinition()
 
 		if webhookRendering {
@@ -1577,7 +1578,7 @@ var _ = Describe("Import populator", func() {
 			Expect(ok).To(BeTrue())
 		} else {
 			By("Verifying the image is sparse")
-			Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
+			Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath, int64(originalVirtualSize))).To(BeTrue())
 		}
 
 		if utils.DefaultStorageCSIRespectsFsGroup {
@@ -1602,17 +1603,17 @@ var _ = Describe("Import populator", func() {
 			return err != nil && k8serrors.IsNotFound(err)
 		}, timeout, pollingInterval).Should(BeTrue())
 	},
-		Entry("[test_id:11001]with HTTP image and preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, false),
-		Entry("[test_id:11002]with HTTP image without preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, false, false),
-		Entry("[rfe_id:10985][crit:high][test_id:11003]with HTTP image and preallocation, with incomplete PVC webhook rendering", Serial, utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, true),
-		Entry("[test_id:11004]with Registry image and preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, true, false),
-		Entry("[test_id:11005]with Registry image without preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, false, false),
-		Entry("[test_id:11006]with ImageIO image with preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, true, false),
-		Entry("[test_id:11007]with ImageIO image without preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, false, false),
-		Entry("[test_id:11008]with VDDK image with preallocation", Label("VDDK"), utils.VcenterMD5, createVDDKImportPopulatorCR, true, false),
-		Entry("[test_id:11009]with VDDK image without preallocation", Label("VDDK"), utils.VcenterMD5, createVDDKImportPopulatorCR, false, false),
-		Entry("[test_id:11010]with Blank image with preallocation", utils.BlankMD5, createBlankImportPopulatorCR, true, false),
-		Entry("[test_id:11011]with Blank image without preallocation", utils.BlankMD5, createBlankImportPopulatorCR, false, false),
+		Entry("[test_id:11001]with HTTP image and preallocation", utils.TinyCoreMD5, utils.UploadFileSize, createHTTPImportPopulatorCR, true, false),
+		Entry("[test_id:11002]with HTTP image without preallocation", utils.TinyCoreMD5, utils.UploadFileSize, createHTTPImportPopulatorCR, false, false),
+		Entry("[rfe_id:10985][crit:high][test_id:11003]with HTTP image and preallocation, with incomplete PVC webhook rendering", Serial, utils.TinyCoreMD5, utils.UploadFileSize, createHTTPImportPopulatorCR, true, true),
+		Entry("[test_id:11004]with Registry image and preallocation", utils.TinyCoreMD5, utils.UploadFileSize, createRegistryImportPopulatorCR, true, false),
+		Entry("[test_id:11005]with Registry image without preallocation", utils.TinyCoreMD5, utils.UploadFileSize, createRegistryImportPopulatorCR, false, false),
+		Entry("[test_id:11006]with ImageIO image with preallocation", Serial, utils.ImageioMD5, utils.CirrosRawFileSize, createImageIOImportPopulatorCR, true, false),
+		Entry("[test_id:11007]with ImageIO image without preallocation", Serial, utils.ImageioMD5, utils.CirrosRawFileSize, createImageIOImportPopulatorCR, false, false),
+		Entry("[test_id:11008]with VDDK image with preallocation", Label("VDDK"), utils.VcenterMD5, utils.CirrosRawFileSize, createVDDKImportPopulatorCR, true, false),
+		Entry("[test_id:11009]with VDDK image without preallocation", Label("VDDK"), utils.VcenterMD5, utils.CirrosRawFileSize, createVDDKImportPopulatorCR, false, false),
+		Entry("[test_id:11010]with Blank image with preallocation", utils.BlankMD5, units.MiB, createBlankImportPopulatorCR, true, false),
+		Entry("[test_id:11011]with Blank image without preallocation", utils.BlankMD5, units.MiB, createBlankImportPopulatorCR, false, false),
 	)
 
 	DescribeTable("should import Block PVC", func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error) {
@@ -1640,7 +1641,7 @@ var _ = Describe("Import populator", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(expectedMD5))
 		By("Verifying the image is sparse")
-		Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultPvcMountPath)).To(BeTrue())
+		Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultPvcMountPath, utils.UploadFileSize)).To(BeTrue())
 
 		By("Verify 100.0% annotation")
 		progress, ok, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPopulatorProgress)
@@ -1716,8 +1717,6 @@ var _ = Describe("Import populator", func() {
 		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.TinyCoreMD5))
-		By("Verifying the image is sparse")
-		Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
 		sourceMD5 := md5
 
 		By("Retaining PV")

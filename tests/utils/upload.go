@@ -41,6 +41,8 @@ const (
 
 	// UploadFileSize is the size of UploadFile
 	UploadFileSize = 18874368
+	// CirrosRawFileSize is the size of cirros.raw
+	CirrosRawFileSize = 46137344
 
 	// UploadFileMD5 is the expected MD5 of the uploaded file
 	UploadFileMD5 = "2a7a52285c846314d1dbd79e9818270d"
