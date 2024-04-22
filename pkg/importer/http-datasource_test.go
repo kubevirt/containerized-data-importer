@@ -102,12 +102,12 @@ var _ = Describe("Http data source", func() {
 		Entry("return TransferTarget with archive content type and archive endpoint ", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, diskimageArchiveData, false),
 	)
 
-	It("calling info with raw gz image should return TransferDataFile", func() {
+	It("calling info with raw gz image should return TransferScratch", func() {
 		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
 		Expect(err).NotTo(HaveOccurred())
 		newPhase, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferDataFile).To(Equal(newPhase))
+		Expect(ProcessingPhaseTransferScratch).To(Equal(newPhase))
 	})
 
 	DescribeTable("calling transfer should", func(image string, contentType cdiv1.DataVolumeContentType, expectedPhase ProcessingPhase, scratchPath string, want []byte, wantErr bool) {
@@ -148,20 +148,20 @@ var _ = Describe("Http data source", func() {
 		Entry("return Convert with scratch space and valid qcow file", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseConvert, "", cirrosData, false),
 	)
 
-	It("TransferFile should succeed when writing to valid file, and reading raw gz", func() {
+	It("TransferScratch should succeed when writing to valid file, and reading raw gz", func() {
 		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
 		Expect(err).NotTo(HaveOccurred())
 		result, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
+		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
 	})
 
-	It("TransferFile should succeed when writing to valid file and reading raw xz", func() {
+	It("TransferScratch should succeed when writing to valid file and reading raw xz", func() {
 		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreXz, "", "", "", cdiv1.DataVolumeKubeVirt)
 		Expect(err).NotTo(HaveOccurred())
 		result, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
+		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
 	})
 
 	It("should get extra headers on creation of new HTTP data source", func() {
