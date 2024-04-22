@@ -175,15 +175,15 @@ func (fr *FormatReaders) fileFormatSelector(hdr *image.Header) {
 			fr.Archived = true
 			fr.ArchiveZstd = true
 		}
-	case "qcow2":
-		r, err = fr.qcow2NopReader(hdr)
-		fr.Convert = true
 	case "xz":
 		r, err = fr.xzReader()
 		if err == nil {
 			fr.Archived = true
 			fr.ArchiveXz = true
 		}
+	case "qcow2":
+		r, err = fr.qcow2NopReader(hdr)
+		fr.Convert = true
 	case "vmdk":
 		r = nil
 		fr.Convert = true
