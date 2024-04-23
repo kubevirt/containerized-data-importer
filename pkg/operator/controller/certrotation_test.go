@@ -165,11 +165,17 @@ var _ = Describe("Cert rotation tests", func() {
 			apiServer := getCertNotAfter(client, namespace, "cdi-apiserver-server-cert")
 			proxyCA := getCertNotAfter(client, namespace, "cdi-uploadproxy-signer")
 			proxyServer := getCertNotAfter(client, namespace, "cdi-uploadproxy-server-cert")
+			uploadServerCA := getCertNotAfter(client, namespace, "cdi-uploadserver-signer")
+			uploadClientCA := getCertNotAfter(client, namespace, "cdi-uploadserver-client-signer")
+			uploadClient := getCertNotAfter(client, namespace, "cdi-uploadserver-client-cert")
 
 			apiCAConfig := getCertConfigAnno(client, namespace, "cdi-apiserver-signer")
 			apiServerConfig := getCertConfigAnno(client, namespace, "cdi-apiserver-server-cert")
 			proxyCAConfig := getCertConfigAnno(client, namespace, "cdi-uploadproxy-signer")
 			proxyServerConfig := getCertConfigAnno(client, namespace, "cdi-uploadproxy-server-cert")
+			uploadServerCAConfig := getCertConfigAnno(client, namespace, "cdi-uploadserver-signer")
+			uploadClientCAConfig := getCertConfigAnno(client, namespace, "cdi-uploadserver-client-signer")
+			uploadClientConfig := getCertConfigAnno(client, namespace, "cdi-uploadserver-client-cert")
 
 			timeBeforeSync := time.Now().Truncate(time.Second)
 
@@ -177,8 +183,10 @@ var _ = Describe("Cert rotation tests", func() {
 				Namespace:         namespace,
 				SignerDuration:    pt(50 * time.Hour),
 				SignerRenewBefore: pt(25 * time.Hour),
-				TargetDuration:    pt(26 * time.Hour),
-				TargetRenewBefore: pt(13 * time.Hour),
+				ServerDuration:    pt(28 * time.Hour),
+				ServerRenewBefore: pt(14 * time.Hour),
+				ClientDuration:    pt(26 * time.Hour),
+				ClientRenewBefore: pt(13 * time.Hour),
 			}
 
 			certs = cert.CreateCertificateDefinitions(args)
@@ -189,34 +197,53 @@ var _ = Describe("Cert rotation tests", func() {
 			apiServer2 := getCertNotAfter(client, namespace, "cdi-apiserver-server-cert")
 			proxyCA2 := getCertNotAfter(client, namespace, "cdi-uploadproxy-signer")
 			proxyServer2 := getCertNotAfter(client, namespace, "cdi-uploadproxy-server-cert")
+			uploadServerCA2 := getCertNotAfter(client, namespace, "cdi-uploadserver-signer")
+			uploadClientCA2 := getCertNotAfter(client, namespace, "cdi-uploadserver-client-signer")
+			uploadClient2 := getCertNotAfter(client, namespace, "cdi-uploadserver-client-cert")
 
 			Expect(apiCA2).To(BeTemporally(">=", timeBeforeSync))
 			Expect(apiServer2).To(BeTemporally(">=", timeBeforeSync))
 			Expect(proxyCA2).To(BeTemporally(">=", timeBeforeSync))
 			Expect(proxyServer2).To(BeTemporally(">=", timeBeforeSync))
+			Expect(uploadServerCA2).To(BeTemporally(">=", timeBeforeSync))
+			Expect(uploadClientCA2).To(BeTemporally(">=", timeBeforeSync))
+			Expect(uploadClient2).To(BeTemporally(">=", timeBeforeSync))
 
 			Expect(apiCA2).To(BeTemporally("<", apiCA))
 			Expect(apiServer2).To(BeTemporally("<", apiServer))
 			Expect(proxyCA2).To(BeTemporally("<", proxyCA))
 			Expect(proxyServer2).To(BeTemporally("<", proxyServer))
+			Expect(uploadServerCA2).To(BeTemporally("<", uploadServerCA))
+			Expect(uploadClientCA2).To(BeTemporally("<", uploadClientCA))
+			Expect(uploadClient2).To(BeTemporally("<", uploadClient))
 
 			apiCAConfig2 := getCertConfigAnno(client, namespace, "cdi-apiserver-signer")
 			apiServerConfig2 := getCertConfigAnno(client, namespace, "cdi-apiserver-server-cert")
 			proxyCAConfig2 := getCertConfigAnno(client, namespace, "cdi-uploadproxy-signer")
 			proxyServerConfig2 := getCertConfigAnno(client, namespace, "cdi-uploadproxy-server-cert")
+			uploadServerCAConfig2 := getCertConfigAnno(client, namespace, "cdi-uploadserver-signer")
+			uploadClientCAConfig2 := getCertConfigAnno(client, namespace, "cdi-uploadserver-client-signer")
+			uploadClientConfig2 := getCertConfigAnno(client, namespace, "cdi-uploadserver-client-cert")
 
 			Expect(apiCAConfig2).ToNot(Equal(apiCAConfig))
 			Expect(apiServerConfig2).ToNot(Equal(apiServerConfig))
 			Expect(proxyCAConfig2).ToNot(Equal(proxyCAConfig))
 			Expect(proxyServerConfig2).ToNot(Equal(proxyServerConfig))
+			Expect(uploadServerCAConfig2).ToNot(Equal(uploadServerCAConfig))
+			Expect(uploadClientCAConfig2).ToNot(Equal(uploadClientCAConfig))
+			Expect(uploadClientConfig2).ToNot(Equal(uploadClientConfig))
 
 			scc := toSerializedCertConfig(50*time.Hour, 25*time.Hour)
-			scc2 := toSerializedCertConfig(26*time.Hour, 13*time.Hour)
+			scc2 := toSerializedCertConfig(28*time.Hour, 14*time.Hour)
+			scc3 := toSerializedCertConfig(26*time.Hour, 13*time.Hour)
 
 			Expect(apiCAConfig2).To(Equal(scc))
 			Expect(apiServerConfig2).To(Equal(scc2))
 			Expect(proxyCAConfig2).To(Equal(scc))
 			Expect(proxyServerConfig2).To(Equal(scc2))
+			Expect(uploadServerCAConfig2).To(Equal(scc))
+			Expect(uploadClientCAConfig2).To(Equal(scc))
+			Expect(uploadClientConfig2).To(Equal(scc3))
 		})
 	})
 })
