@@ -72,6 +72,21 @@ spec:
                           time that we will begin to attempt to renew the certificate.
                         type: string
                     type: object
+                  client:
+                    description: |-
+                      Client configuration
+                      Certs are rotated and discarded
+                    properties:
+                      duration:
+                        description: The requested 'duration' (i.e. lifetime) of the
+                          Certificate.
+                        type: string
+                      renewBefore:
+                        description: |-
+                          The amount of time before the currently issued certificate's ` + "`" + `notAfter` + "`" + `
+                          time that we will begin to attempt to renew the certificate.
+                        type: string
+                    type: object
                   server:
                     description: |-
                       Server configuration
@@ -2257,6 +2272,21 @@ spec:
                     description: |-
                       CA configuration
                       CA certs are kept in the CA bundle as long as they are valid
+                    properties:
+                      duration:
+                        description: The requested 'duration' (i.e. lifetime) of the
+                          Certificate.
+                        type: string
+                      renewBefore:
+                        description: |-
+                          The amount of time before the currently issued certificate's ` + "`" + `notAfter` + "`" + `
+                          time that we will begin to attempt to renew the certificate.
+                        type: string
+                    type: object
+                  client:
+                    description: |-
+                      Client configuration
+                      Certs are rotated and discarded
                     properties:
                       duration:
                         description: The requested 'duration' (i.e. lifetime) of the

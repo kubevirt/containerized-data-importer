@@ -420,6 +420,7 @@ func (CDICertConfig) SwaggerDoc() map[string]string {
 		"":       "CDICertConfig has the CertConfigs for CDI",
 		"ca":     "CA configuration\nCA certs are kept in the CA bundle as long as they are valid",
 		"server": "Server configuration\nCerts are rotated and discarded",
+		"client": "Client configuration\nCerts are rotated and discarded",
 	}
 }
 
