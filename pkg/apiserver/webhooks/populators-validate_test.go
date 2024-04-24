@@ -31,9 +31,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
 
-	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
-
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 )
 
 var (

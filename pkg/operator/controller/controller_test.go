@@ -25,10 +25,6 @@ import (
 	"strconv"
 	"strings"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
-	sdkr "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/reconciler"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -36,6 +32,7 @@ import (
 	secv1 "github.com/openshift/api/security/v1"
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -48,6 +45,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -61,6 +59,9 @@ import (
 	clusterResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	namespaceResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
+	sdkr "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/reconciler"
 )
 
 const (
@@ -1566,7 +1567,6 @@ func setDeploymentsDegraded(args *args) {
 			err = args.client.Status().Update(context.TODO(), d)
 			Expect(err).ToNot(HaveOccurred())
 		}
-
 	}
 	doReconcile(args)
 }

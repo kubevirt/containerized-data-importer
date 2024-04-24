@@ -8,21 +8,21 @@ import (
 	"io"
 	"strings"
 
-	"github.com/go-logr/logr"
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	"github.com/ghodss/yaml"
+	"github.com/go-logr/logr"
 	secv1 "github.com/openshift/api/security/v1"
-	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -107,7 +107,6 @@ func (ins *Strategy) ControllerDeployments() []*appsv1.Deployment {
 			continue
 		}
 		deployments = append(deployments, deployment)
-
 	}
 
 	return deployments
@@ -236,27 +235,22 @@ func dumpInstallStrategy(strategy *Strategy) (string, error) {
 	err = dumpSlice(strategy.roleBindings, writer)
 	if err != nil {
 		return "", err
-
 	}
 	err = dumpSlice(strategy.crds, writer)
 	if err != nil {
 		return "", err
-
 	}
 	err = dumpSlice(strategy.services, writer)
 	if err != nil {
 		return "", err
-
 	}
 	err = dumpSlice(strategy.certificateSecrets, writer)
 	if err != nil {
 		return "", err
-
 	}
 	err = dumpSlice(strategy.validatingWebhookConfigurations, writer)
 	if err != nil {
 		return "", err
-
 	}
 	err = dumpSlice(strategy.mutatingWebhookConfigurations, writer)
 	if err != nil {
@@ -275,7 +269,6 @@ func dumpInstallStrategy(strategy *Strategy) (string, error) {
 	err = dumpSlice(strategy.daemonSets, writer)
 	if err != nil {
 		return "", err
-
 	}
 	err = dumpSlice(strategy.sccs, writer)
 	if err != nil {
@@ -296,7 +289,6 @@ func dumpInstallStrategy(strategy *Strategy) (string, error) {
 }
 
 func generateCurrentInstallStrategy(resources []runtime.Object, reqLogger logr.Logger) (*Strategy, error) {
-
 	strategy := &Strategy{}
 
 	for _, desiredRuntimeObj := range resources {

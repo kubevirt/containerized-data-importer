@@ -22,6 +22,7 @@ import (
 	"crypto/rsa"
 
 	"github.com/pkg/errors"
+
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -121,7 +122,6 @@ func newSecret(client kubernetes.Interface, namespace, secretName string, data m
 		if err != nil {
 			return nil, errors.Wrap(err, "Error setting secret owner ref")
 		}
-
 	} else {
 		secret.OwnerReferences = []metav1.OwnerReference{*owner}
 	}

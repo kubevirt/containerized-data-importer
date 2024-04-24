@@ -37,6 +37,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -127,7 +128,6 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 // therefore we use wrappers for log and recorder calls
 func renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client client.Client, recorder record.EventRecorder, log *logr.Logger,
 	dv *cdiv1.DataVolume, pvcSpec *v1.PersistentVolumeClaimSpec, dvContentType cdiv1.DataVolumeContentType) error {
-
 	logInfo := func(msg string, keysAndValues ...interface{}) {
 		if log != nil {
 			log.V(1).Info(msg, keysAndValues...)
@@ -581,7 +581,6 @@ func createStorageProfileWithClaimPropertySets(name string,
 func createStorageProfileWithCloneStrategy(name string,
 	claimPropertySets []cdiv1.ClaimPropertySet,
 	cloneStrategy *cdiv1.CDICloneStrategy) *cdiv1.StorageProfile {
-
 	return &cdiv1.StorageProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,

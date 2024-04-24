@@ -39,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -871,7 +872,6 @@ func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 	dataVolumeCopy *cdiv1.DataVolume,
 	pvc *corev1.PersistentVolumeClaim,
 	event Event) error {
-
 	if dataVolume == nil {
 		return nil
 	}

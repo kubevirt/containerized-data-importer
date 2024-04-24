@@ -220,7 +220,6 @@ func getBoolFromSecret(key string) bool {
 }
 
 func getProviderClient(identityEndpoint string) (*gophercloud.ProviderClient, error) {
-
 	authInfo := &clientconfig.AuthInfo{
 		AuthURL:           identityEndpoint,
 		ProjectName:       getStringFromSecret(projectName),
@@ -280,7 +279,6 @@ func getProviderClient(identityEndpoint string) (*gophercloud.ProviderClient, er
 				}
 				TLSClientConfig = &tls.Config{RootCAs: roots}
 			}
-
 		}
 	}
 

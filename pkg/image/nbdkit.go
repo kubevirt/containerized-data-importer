@@ -3,15 +3,15 @@ package image
 import (
 	"bufio"
 	"fmt"
-	"strings"
-
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
+
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -124,7 +124,6 @@ func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraH
 
 // NewNbdkitVddk creates a new Nbdkit instance with the vddk plugin
 func NewNbdkitVddk(nbdkitPidFile, socket, server, username, password, thumbprint, moref string) (NbdkitOperation, error) {
-
 	pluginArgs := []string{
 		"libdir=" + nbdVddkLibraryPath,
 	}
@@ -295,7 +294,6 @@ func watchNbdLog(output *bufio.Reader) {
 		if err != nil {
 			klog.Errorf("failed to write log line; %v", err)
 		}
-
 	}
 	if err := scanner.Err(); err != nil {
 		klog.Errorf("Error watching nbdkit log: %v", err)

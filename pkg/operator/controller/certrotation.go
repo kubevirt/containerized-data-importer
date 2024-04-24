@@ -27,6 +27,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/certrotation"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	toolscache "k8s.io/client-go/tools/cache"
+
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	cdicerts "kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"

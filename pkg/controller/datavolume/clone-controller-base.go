@@ -22,11 +22,12 @@ import (
 	"reflect"
 
 	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"kubevirt.io/containerized-data-importer/pkg/token"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -41,6 +42,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
+	"kubevirt.io/containerized-data-importer/pkg/token"
 )
 
 const (

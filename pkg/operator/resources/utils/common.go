@@ -107,7 +107,6 @@ func CreateDeployment(name, matchKey, matchValue, serviceAccountName string, ima
 
 // CreateOperatorDeployment creates operator deployment
 func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAccount string, imagePullSecrets []corev1.LocalObjectReference, numReplicas int32) *appsv1.Deployment {
-
 	podSpec := corev1.PodSpec{
 		SecurityContext: &corev1.PodSecurityContext{
 			RunAsNonRoot: &[]bool{true}[0],

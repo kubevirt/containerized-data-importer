@@ -29,6 +29,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog/v2"
 
@@ -182,7 +183,6 @@ func checkOutputQemuImgInfo(output []byte, image string) (*ImgInfo, error) {
 		return nil, errors.Wrapf(err, "Invalid json for image %s", image)
 	}
 	return &info, nil
-
 }
 
 // Info returns information about the image from the url

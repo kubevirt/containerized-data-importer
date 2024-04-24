@@ -3,8 +3,9 @@ package framework
 import (
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/onsi/gomega"
+
+	"github.com/google/uuid"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"

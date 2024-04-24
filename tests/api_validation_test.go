@@ -7,9 +7,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/ghodss/yaml"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -518,7 +520,6 @@ func yamlFiletoStruct(fileName string, o *map[string]interface{}) error {
 		return err
 	}
 	return nil
-
 }
 
 func structToYamlFile(fileName string, o interface{}) error {
