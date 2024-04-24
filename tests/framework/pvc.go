@@ -32,7 +32,7 @@ func (f *Framework) CreatePVCFromDefinition(def *k8sv1.PersistentVolumeClaim) (*
 	return utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, def)
 }
 
-// CreateBoundPVCFromDefinition is a wrapper around utils.CreatePVCFromDefinition that also force binds pvc on
+// CreateBoundPVCFromDefinition is a wrapper around utils.CreatePVCFromDefinition that also force binds pvc
 // on WaitForFirstConsumer storage class by executing f.ForceBindIfWaitForFirstConsumer(pvc)
 func (f *Framework) CreateBoundPVCFromDefinition(def *k8sv1.PersistentVolumeClaim) *k8sv1.PersistentVolumeClaim {
 	pvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, def)
