@@ -503,7 +503,7 @@ func isPodReady(pod *v1.Pod) bool {
 	return numReady == len(pod.Status.ContainerStatuses)
 }
 
-// createUploadService creates upload service service manifest and sends to server
+// createUploadService creates an upload service manifest and sends it to server
 func (r *UploadReconciler) createUploadService(name string, pvc *v1.PersistentVolumeClaim) (*v1.Service, error) {
 	ns := pvc.Namespace
 	service := r.makeUploadServiceSpec(name, pvc)
@@ -522,7 +522,7 @@ func (r *UploadReconciler) createUploadService(name string, pvc *v1.PersistentVo
 	return service, nil
 }
 
-// makeUploadServiceSpec creates upload service service manifest
+// makeUploadServiceSpec creates upload service manifest
 func (r *UploadReconciler) makeUploadServiceSpec(name string, pvc *v1.PersistentVolumeClaim) *v1.Service {
 	blockOwnerDeletion := true
 	isController := true

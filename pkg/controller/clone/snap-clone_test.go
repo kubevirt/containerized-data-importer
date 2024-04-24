@@ -160,7 +160,7 @@ var _ = Describe("SnapshotClonePhase test", func() {
 			assertNotFound(err)
 		})
 
-		It("should should create the claim when ready", func() {
+		It("should create the claim when ready", func() {
 			snapshot := getSnapshot()
 			snapshot.Status.ReadyToUse = ptr.To[bool](true)
 
