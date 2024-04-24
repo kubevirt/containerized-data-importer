@@ -23,18 +23,16 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/pkg/errors"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
+	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
-	"kubevirt.io/containerized-data-importer/pkg/system"
+	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"kubevirt.io/containerized-data-importer/pkg/system"
 )
 
 const goodValidateJSON = `

@@ -19,11 +19,13 @@ import (
 	"text/template"
 
 	"k8s.io/klog/v2"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	cdioperator "kubevirt.io/containerized-data-importer/pkg/operator/resources/operator"
 	"kubevirt.io/containerized-data-importer/tools/util"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type templateData struct {

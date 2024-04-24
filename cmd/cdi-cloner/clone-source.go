@@ -14,6 +14,7 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
+
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -151,7 +152,7 @@ func validateMount() {
 
 func newTarReader(preallocation bool) (io.ReadCloser, error) {
 	excludeMap := map[string]struct{}{
-		"lost+found": struct{}{},
+		"lost+found": {},
 	}
 
 	args := []string{"/usr/bin/tar", "cv"}

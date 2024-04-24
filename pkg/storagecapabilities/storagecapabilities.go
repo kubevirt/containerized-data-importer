@@ -9,10 +9,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
-	"kubevirt.io/containerized-data-importer/pkg/util"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 // StorageCapabilities is a simple holder of storage capabilities (accessMode etc.)

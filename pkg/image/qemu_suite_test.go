@@ -1,10 +1,10 @@
 package image
 
 import (
+	"testing"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"testing"
 )
 
 func TestQEMU(t *testing.T) {

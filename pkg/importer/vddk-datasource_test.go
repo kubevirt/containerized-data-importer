@@ -15,15 +15,17 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/soap"
 	"github.com/vmware/govmomi/vim25/types"
+	libnbd "libguestfs.org/libnbd"
+
 	v1 "k8s.io/api/core/v1"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
-	libnbd "libguestfs.org/libnbd"
 )
 
 const (
@@ -487,7 +489,6 @@ func (handle *mockNbdOperations) GetSize() (uint64, error) {
 }
 
 func (handle *mockNbdOperations) Pread(buf []byte, offset uint64, optargs *libnbd.PreadOptargs) error {
-
 	fakebuf, err := currentExport.Read(offset)
 	copy(buf, fakebuf[offset:offset+uint64(len(buf))])
 	return err

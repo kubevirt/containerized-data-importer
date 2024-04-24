@@ -6,6 +6,7 @@ import (
 
 	"github.com/machadovilaca/operator-observability/pkg/operatormetrics"
 	"github.com/machadovilaca/operator-observability/pkg/operatorrules"
+
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"

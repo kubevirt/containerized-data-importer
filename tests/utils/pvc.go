@@ -2,12 +2,12 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
-	"fmt"
-
 	"github.com/onsi/ginkgo/v2"
+
 	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"

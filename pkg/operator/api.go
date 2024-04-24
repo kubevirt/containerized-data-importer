@@ -26,9 +26,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 
-	"kubevirt.io/containerized-data-importer/pkg/util"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (

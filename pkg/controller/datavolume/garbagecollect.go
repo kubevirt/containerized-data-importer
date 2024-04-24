@@ -21,15 +21,18 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 func (r *ReconcilerBase) garbageCollect(syncState *dvSyncState, log logr.Logger) error {

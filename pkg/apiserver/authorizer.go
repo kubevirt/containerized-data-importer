@@ -26,12 +26,12 @@ import (
 	"strings"
 
 	"github.com/emicklei/go-restful/v3"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog/v2"
 
 	authorization "k8s.io/api/authorization/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	authorizationclient "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	restclient "k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -84,7 +84,6 @@ var verbMap = map[string]string{
 }
 
 func (a *authorizor) generateAccessReview(req *restful.Request) (*authorization.SubjectAccessReview, error) {
-
 	httpRequest := req.Request
 
 	if httpRequest == nil {
@@ -159,7 +158,6 @@ func (a *authorizor) generateAccessReview(req *restful.Request) (*authorization.
 }
 
 func isInfoEndpoint(req *restful.Request) bool {
-
 	httpRequest := req.Request
 	if httpRequest == nil || httpRequest.URL == nil {
 		return false
@@ -192,17 +190,14 @@ func isAuthenticated(req *restful.Request) bool {
 }
 
 func isAllowed(result *authorization.SubjectAccessReview) (bool, string) {
-
 	if result.Status.Allowed {
 		return true, ""
 	}
 
 	return false, result.Status.Reason
-
 }
 
 func (a *authorizor) Authorize(req *restful.Request) (bool, string, error) {
-
 	// Endpoints related to getting information about
 	// what apis our server provides are authorized to
 	// all users.

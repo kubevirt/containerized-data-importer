@@ -20,8 +20,10 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	utils "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/resources"

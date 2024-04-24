@@ -14,12 +14,12 @@ package main
 
 import (
 	"flag"
-
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/pkg/errors"
+
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/util"

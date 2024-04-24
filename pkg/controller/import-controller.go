@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -21,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -255,7 +257,6 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 						"namespace", pvc.Namespace, "name", pvc.Name, "pod", pod.Name)
 					r.recorder.Eventf(pvc, corev1.EventTypeWarning, ImportTargetInUse,
 						"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, pvc.Name)
-
 				}
 				return reconcile.Result{Requeue: true}, nil
 			}
@@ -1259,7 +1260,6 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 				},
 			},
 		})
-
 	}
 	if podEnvVar.secretName != "" && podEnvVar.source == cc.SourceGCS {
 		env = append(env, corev1.EnvVar{

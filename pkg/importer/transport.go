@@ -31,6 +31,7 @@ import (
 	"github.com/containers/image/v5/pkg/blobinfocache"
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
+
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -122,7 +123,6 @@ func processLayer(ctx context.Context,
 	pathPrefix string,
 	cache types.BlobInfoCache,
 	stopAtFirst bool) (bool, error) {
-
 	var reader io.ReadCloser
 	reader, _, err := src.GetBlob(ctx, layer, cache)
 	if err != nil {
