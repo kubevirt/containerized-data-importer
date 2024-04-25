@@ -19,6 +19,7 @@
 		vet \
 		format \
 		goveralls \
+		coverage \
 		release-description \
 		bazel-generate bazel-build bazel-build-images bazel-push-images \
 		fossa \
@@ -100,6 +101,9 @@ manifests:
 
 goveralls: test-unit
 	${DO} "TRAVIS_JOB_ID=${TRAVIS_JOB_ID} TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST} TRAVIS_BRANCH=${TRAVIS_BRANCH} ./hack/build/goveralls.sh"
+
+coverage: test-unit
+	./hack/build/coverage.sh
 
 release-description:
 	./hack/build/release-description.sh ${RELREF} ${PREREF}
@@ -210,6 +214,8 @@ help:
 	@echo "  : Update vendored Go code in vendor/ subdirectory."
 	@echo " goveralls "
 	@echo "  : run code coverage tracking system."
+	@echo " coverage"
+	@echo "  : run code coverage report locally."
 	@echo " manifests "
 	@echo "  : generate a cdi-controller and operator manifests in '_out/manifests/'.  Accepts [make variables]\(#make-variables\) DOCKER_TAG, DOCKER_PREFIX, VERBOSITY, PULL_POLICY, CSV_VERSION, QUAY_REPOSITORY, QUAY_NAMESPACE"
 	@echo " openshift-ci-image-push "
