@@ -27,6 +27,7 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
+
 	versioned "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	core "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/core"
 	internalinterfaces "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/internalinterfaces"
