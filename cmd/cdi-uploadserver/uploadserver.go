@@ -58,19 +58,21 @@ func main() {
 	filesystemOverhead, _ := strconv.ParseFloat(os.Getenv(common.FilesystemOverheadVar), 64)
 	preallocation, _ := strconv.ParseBool(os.Getenv(common.Preallocation))
 
-	server := uploadserver.NewUploadServer(
-		listenAddress,
-		listenPort,
-		destination,
-		os.Getenv("TLS_KEY"),
-		os.Getenv("TLS_CERT"),
-		os.Getenv("CLIENT_CERT"),
-		os.Getenv("CLIENT_NAME"),
-		os.Getenv(common.UploadImageSize),
-		filesystemOverhead,
-		preallocation,
-		cryptoConfig,
-	)
+	config := &uploadserver.Config{
+		BindAddress:        listenAddress,
+		BindPort:           listenPort,
+		Destination:        destination,
+		ServerKey:          os.Getenv("TLS_KEY"),
+		ServerCert:         os.Getenv("TLS_CERT"),
+		ClientCert:         os.Getenv("CLIENT_CERT"),
+		ClientName:         os.Getenv("CLIENT_NAME"),
+		ImageSize:          os.Getenv(common.UploadImageSize),
+		FilesystemOverhead: filesystemOverhead,
+		Preallocation:      preallocation,
+		CryptoConfig:       cryptoConfig,
+	}
+
+	server := uploadserver.NewUploadServer(config)
 
 	klog.Infof("Running server on %s:%d", listenAddress, listenPort)
 

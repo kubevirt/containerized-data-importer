@@ -44,7 +44,14 @@ import (
 )
 
 func newServer() *uploadServerApp {
-	server := NewUploadServer("127.0.0.1", 0, "disk.img", "", "", "", "", "", 0.055, false, *cryptowatch.DefaultCryptoConfig())
+	config := &Config{
+		BindAddress:        "127.0.0.1",
+		BindPort:           0,
+		Destination:        "disk.img",
+		FilesystemOverhead: 0.055,
+		CryptoConfig:       *cryptowatch.DefaultCryptoConfig(),
+	}
+	server := NewUploadServer(config)
 	return server.(*uploadServerApp)
 }
 
@@ -62,7 +69,19 @@ func newTLSServer(clientCertName, expectedName string) (*uploadServerApp, *tripl
 	tlsCert := string(cert.EncodeCertPEM(serverKeyPair.Cert))
 	clientCert := string(cert.EncodeCertPEM(clientCA.Cert))
 
-	server := NewUploadServer("127.0.0.1", 0, "disk.img", tlsKey, tlsCert, clientCert, expectedName, "", 0.055, false, *cryptowatch.DefaultCryptoConfig()).(*uploadServerApp)
+	config := &Config{
+		BindAddress:        "127.0.0.1",
+		BindPort:           0,
+		Destination:        "disk.img",
+		ServerKey:          tlsKey,
+		ServerCert:         tlsCert,
+		ClientCert:         clientCert,
+		ClientName:         expectedName,
+		FilesystemOverhead: 0.055,
+		CryptoConfig:       *cryptowatch.DefaultCryptoConfig(),
+	}
+
+	server := NewUploadServer(config).(*uploadServerApp)
 
 	clientKeyPair, err := triple.NewClientKeyPair(clientCA, clientCertName, []string{})
 	Expect(err).ToNot(HaveOccurred())
@@ -356,15 +375,15 @@ var _ = Describe("Upload server tests", func() {
 			}()
 
 			for i := 0; i < 10; i++ {
-				if server.bindPort != 0 {
+				if server.config.BindPort != 0 {
 					break
 				}
 				time.Sleep(500 * time.Millisecond)
 			}
 
-			Expect(server.bindPort).ToNot(Equal(0))
+			Expect(server.config.BindPort).ToNot(Equal(0))
 
-			url := fmt.Sprintf("https://localhost:%d%s", server.bindPort, common.UploadPathSync)
+			url := fmt.Sprintf("https://localhost:%d%s", server.config.BindPort, common.UploadPathSync)
 			stringReader := strings.NewReader("nothing")
 
 			resp, err := client.Post(url, "application/x-www-form-urlencoded", stringReader)
