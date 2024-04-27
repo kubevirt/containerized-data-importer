@@ -30,7 +30,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -58,8 +57,8 @@ type Config struct {
 
 	Destination string
 
-	ServerKey, ServerCert  string
-	ClientCert, ClientName string
+	ServerKeyFile, ServerCertFile string
+	ClientCertFile, ClientName    string
 
 	ImageSize          string
 	FilesystemOverhead float64
@@ -75,12 +74,7 @@ type UploadServer interface {
 }
 
 type uploadServerApp struct {
-<<<<<<< Updated upstream
-	config               *UploadServerConfig
-	keyFile, certFile    string
-=======
 	config               *Config
->>>>>>> Stashed changes
 	mux                  *http.ServeMux
 	uploading            bool
 	processing           bool
@@ -156,9 +150,9 @@ func NewUploadServer(config *Config) UploadServer {
 }
 
 func (app *uploadServerApp) Run() error {
-	uploadServer, err := app.createUploadServer()
-	if err != nil {
-		return errors.Wrap(err, "Error creating upload http server")
+	uploadServer := http.Server{
+		Handler:           app,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	healthzServer, err := app.createHealthzServer()
@@ -176,14 +170,20 @@ func (app *uploadServerApp) Run() error {
 		return errors.Wrap(err, "Error creating healthz listerner")
 	}
 
+	tlsConfig, err := app.getTLSConfig()
+	if err != nil {
+		return errors.Wrap(err, "Error getting TLS config")
+	}
+
 	go func() {
 		defer uploadListener.Close()
 
 		// maybe bind port was 0 (unit tests) assign port here
 		app.config.BindPort = uploadListener.Addr().(*net.TCPAddr).Port
 
-		if app.keyFile != "" && app.certFile != "" {
-			app.errChan <- uploadServer.ServeTLS(uploadListener, app.certFile, app.keyFile)
+		if tlsConfig != nil {
+			uploadServer.TLSConfig = tlsConfig
+			app.errChan <- uploadServer.ServeTLS(uploadListener, "", "")
 			return
 		}
 
@@ -213,48 +213,40 @@ func (app *uploadServerApp) Run() error {
 	return err
 }
 
-func (app *uploadServerApp) createUploadServer() (*http.Server, error) {
-	server := &http.Server{
-		Handler:           app,
-		ReadHeaderTimeout: 10 * time.Second,
+func (app *uploadServerApp) getTLSConfig() (*tls.Config, error) {
+	if app.config.ServerCertFile == "" || app.config.ServerKeyFile == "" {
+		return nil, nil
 	}
 
-	if app.config.ServerKey != "" && app.config.ServerCert != "" {
-		certDir, err := os.MkdirTemp("", "uploadserver-tls")
-		if err != nil {
-			return nil, errors.Wrap(err, "Error creating cert dir")
-		}
-
-		app.keyFile = filepath.Join(certDir, "tls.key")
-		app.certFile = filepath.Join(certDir, "tls.crt")
-
-		err = os.WriteFile(app.keyFile, []byte(app.config.ServerKey), 0600)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error creating key file")
-		}
-
-		err = os.WriteFile(app.certFile, []byte(app.config.ServerCert), 0600)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error creating cert file")
-		}
+	//nolint:gosec // False positive: Min version is not known statically
+	config := &tls.Config{
+		CipherSuites: app.config.CryptoConfig.CipherSuites,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		MinVersion:   app.config.CryptoConfig.MinVersion,
 	}
 
-	if app.config.ClientCert != "" {
+	if app.config.ClientCertFile != "" {
+		bs, err := os.ReadFile(app.config.ClientCertFile)
+		if err != nil {
+			return nil, err
+		}
+
 		caCertPool := x509.NewCertPool()
-		if ok := caCertPool.AppendCertsFromPEM([]byte(app.config.ClientCert)); !ok {
-			klog.Fatalf("Invalid ca cert file %s", app.config.ClientCert)
+		if ok := caCertPool.AppendCertsFromPEM(bs); !ok {
+			return nil, err
 		}
 
-		//nolint:gosec // False positive: Min version is not known statically
-		server.TLSConfig = &tls.Config{
-			CipherSuites: app.config.CryptoConfig.CipherSuites,
-			ClientCAs:    caCertPool,
-			ClientAuth:   tls.RequireAndVerifyClientCert,
-			MinVersion:   app.config.CryptoConfig.MinVersion,
-		}
+		config.ClientCAs = caCertPool
 	}
 
-	return server, nil
+	cert, err := tls.LoadX509KeyPair(app.config.ServerCertFile, app.config.ServerKeyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	config.Certificates = []tls.Certificate{cert}
+
+	return config, nil
 }
 
 func (app *uploadServerApp) createHealthzServer() (*http.Server, error) {

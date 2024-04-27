@@ -29,6 +29,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -55,7 +57,14 @@ func newServer() *uploadServerApp {
 	return server.(*uploadServerApp)
 }
 
-func newTLSServer(clientCertName, expectedName string) (*uploadServerApp, *triple.KeyPair, *x509.Certificate) {
+func newTLSServer(clientCertName, expectedName string) (*uploadServerApp, *triple.KeyPair, *x509.Certificate, func()) {
+	dir, err := os.MkdirTemp("", "tls")
+	Expect(err).ToNot(HaveOccurred())
+
+	cleanup := func() {
+		os.RemoveAll(dir)
+	}
+
 	serverCA, err := triple.NewCA("server")
 	Expect(err).ToNot(HaveOccurred())
 
@@ -65,17 +74,17 @@ func newTLSServer(clientCertName, expectedName string) (*uploadServerApp, *tripl
 	serverKeyPair, err := triple.NewServerKeyPair(serverCA, "localhost", "localhost", "default", "local", []string{"127.0.0.1"}, []string{"localhost"})
 	Expect(err).ToNot(HaveOccurred())
 
-	tlsKey := string(cert.EncodePrivateKeyPEM(serverKeyPair.Key))
-	tlsCert := string(cert.EncodeCertPEM(serverKeyPair.Cert))
-	clientCert := string(cert.EncodeCertPEM(clientCA.Cert))
+	os.WriteFile(filepath.Join(dir, "tls.key"), cert.EncodePrivateKeyPEM(serverKeyPair.Key), 0600)
+	os.WriteFile(filepath.Join(dir, "tls.crt"), cert.EncodeCertPEM(serverKeyPair.Cert), 0600)
+	os.WriteFile(filepath.Join(dir, "client.crt"), cert.EncodeCertPEM(clientCA.Cert), 0600)
 
 	config := &Config{
 		BindAddress:        "127.0.0.1",
 		BindPort:           0,
 		Destination:        "disk.img",
-		ServerKey:          tlsKey,
-		ServerCert:         tlsCert,
-		ClientCert:         clientCert,
+		ServerKeyFile:      filepath.Join(dir, "tls.key"),
+		ServerCertFile:     filepath.Join(dir, "tls.crt"),
+		ClientCertFile:     filepath.Join(dir, "client.crt"),
 		ClientName:         expectedName,
 		FilesystemOverhead: 0.055,
 		CryptoConfig:       *cryptowatch.DefaultCryptoConfig(),
@@ -86,7 +95,7 @@ func newTLSServer(clientCertName, expectedName string) (*uploadServerApp, *tripl
 	clientKeyPair, err := triple.NewClientKeyPair(clientCA, clientCertName, []string{})
 	Expect(err).ToNot(HaveOccurred())
 
-	return server, clientKeyPair, serverCA.Cert
+	return server, clientKeyPair, serverCA.Cert, cleanup
 }
 
 func newHTTPClient(clientKeyPair *triple.KeyPair, serverCACert *x509.Certificate) *http.Client {
@@ -363,7 +372,8 @@ var _ = Describe("Upload server tests", func() {
 
 	DescribeTable("Real upload with client", func(certName string, expectedName string, expectedResponse int) {
 		withProcessorSuccess(func() {
-			server, clientKeyPair, serverCACert := newTLSServer(certName, expectedName)
+			server, clientKeyPair, serverCACert, cleanup := newTLSServer(certName, expectedName)
+			defer cleanup()
 
 			client := newHTTPClient(clientKeyPair, serverCACert)
 
