@@ -20,9 +20,10 @@ import (
 	"github.com/gophercloud/utils/openstack/clientconfig"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 
 	"k8s.io/klog/v2"
+
+	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
 
 const (

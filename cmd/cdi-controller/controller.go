@@ -38,7 +38,6 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	forklift "kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
-
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"

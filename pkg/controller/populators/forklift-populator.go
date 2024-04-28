@@ -2,29 +2,30 @@ package populators
 
 import (
 	"context"
-
-	"github.com/pkg/errors"
-
 	"fmt"
 	"regexp"
 	"strconv"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
-	"kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	"kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 )
 
 const (
@@ -225,7 +226,6 @@ func (r *ForkliftPopulatorReconciler) reconcileCommon(pvc *corev1.PersistentVolu
 	}
 
 	return nil, nil
-
 }
 
 func (r *ForkliftPopulatorReconciler) getPopulationSource(pvc *corev1.PersistentVolumeClaim) (client.Object, error) {
