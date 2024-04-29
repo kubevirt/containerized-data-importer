@@ -199,7 +199,10 @@ func (app *uploadServerApp) Run() error {
 
 	select {
 	case err = <-app.errChan:
-		klog.Errorf("HTTP server returned error %s", err.Error())
+		if err != nil {
+			klog.Errorf("HTTP server returned error %s", err.Error())
+			return err
+		}
 	case <-app.doneChan:
 		klog.Info("Shutting down http server after successful upload")
 		if err := healthzServer.Shutdown(context.Background()); err != nil {
@@ -210,7 +213,7 @@ func (app *uploadServerApp) Run() error {
 		}
 	}
 
-	return err
+	return nil
 }
 
 func (app *uploadServerApp) getTLSConfig() (*tls.Config, error) {
@@ -335,6 +338,7 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 		processor, err := uploadProcessorFuncAsync(readCloser, app.config.Destination, app.config.ImageSize, app.config.FilesystemOverhead, app.config.Preallocation, cdiContentType)
 
 		app.mutex.Lock()
+		defer app.mutex.Unlock()
 
 		if err != nil {
 			klog.Errorf("Saving stream failed: %s", err)
@@ -350,24 +354,24 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 			}
 
 			app.uploading = false
-			app.mutex.Unlock()
 			return
 		}
-		defer app.mutex.Unlock()
 
 		app.uploading = false
 		app.processing = true
 
 		// Start processing.
 		go func() {
-			defer close(app.doneChan)
-			if err := processor.ProcessDataResume(); err != nil {
-				klog.Errorf("Error during resumed processing: %v", err)
-				app.errChan <- err
-			}
+			err := processor.ProcessDataResume()
 			app.mutex.Lock()
 			defer app.mutex.Unlock()
 			app.processing = false
+			if err != nil {
+				klog.Errorf("Error during resumed processing: %v", err)
+				app.errChan <- err
+				return
+			}
+			defer close(app.doneChan)
 			app.done = true
 			app.preallocationApplied = processor.PreallocationApplied()
 			klog.Infof("Wrote data to %s", app.config.Destination)
@@ -395,17 +399,15 @@ func (app *uploadServerApp) processUpload(irc imageReadCloser, w http.ResponseWr
 
 	app.mutex.Lock()
 	defer app.mutex.Unlock()
+	app.uploading = false
 
 	if err != nil {
 		klog.Errorf("Saving stream failed: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		app.uploading = false
 		return
 	}
 
-	app.uploading = false
 	app.done = true
-
 	close(app.doneChan)
 
 	if dvContentType == cdiv1.DataVolumeArchive {
