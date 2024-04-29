@@ -351,8 +351,10 @@ type VddkInfo struct {
 type TerminationMessage struct {
 	ScratchSpaceRequired *bool             `json:"scratchSpaceRequired,omitempty"`
 	PreallocationApplied *bool             `json:"preallocationApplied,omitempty"`
+	DeadlinePassed       *bool             `json:"deadlinePassed,omitempty"`
 	VddkInfo             *VddkInfo         `json:"vddkInfo,omitempty"`
 	Labels               map[string]string `json:"labels,omitempty"`
+	Message              *string           `json:"message,omitempty"`
 }
 
 func (it *TerminationMessage) String() (string, error) {

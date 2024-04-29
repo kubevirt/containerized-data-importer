@@ -64,13 +64,21 @@ type Config struct {
 	FilesystemOverhead float64
 	Preallocation      bool
 
+	Deadline *time.Time
+
 	CryptoConfig cryptowatch.CryptoConfig
+}
+
+// RunResult is the result of the upload server run
+type RunResult struct {
+	CloneTarget          bool
+	PreallocationApplied bool
+	DeadlinePassed       bool
 }
 
 // UploadServer is the interface to uploadServerApp
 type UploadServer interface {
-	Run() error
-	PreallocationApplied() bool
+	Run() (*RunResult, error)
 }
 
 type uploadServerApp struct {
@@ -80,6 +88,7 @@ type uploadServerApp struct {
 	processing           bool
 	done                 bool
 	preallocationApplied bool
+	cloneTarget          bool
 	doneChan             chan struct{}
 	errChan              chan error
 	mutex                sync.Mutex
@@ -119,6 +128,10 @@ func formReadCloser(r *http.Request) (io.ReadCloser, error) {
 	return filePart, nil
 }
 
+func isCloneTraget(contentType string) bool {
+	return contentType == common.BlockdeviceClone || contentType == common.FilesystemCloneContentType
+}
+
 // NewUploadServer returns a new instance of uploadServerApp
 func NewUploadServer(config *Config) UploadServer {
 	server := &uploadServerApp{
@@ -149,7 +162,7 @@ func NewUploadServer(config *Config) UploadServer {
 	return server
 }
 
-func (app *uploadServerApp) Run() error {
+func (app *uploadServerApp) Run() (*RunResult, error) {
 	uploadServer := http.Server{
 		Handler:           app,
 		ReadHeaderTimeout: 10 * time.Second,
@@ -157,22 +170,22 @@ func (app *uploadServerApp) Run() error {
 
 	healthzServer, err := app.createHealthzServer()
 	if err != nil {
-		return errors.Wrap(err, "Error creating healthz http server")
+		return nil, errors.Wrap(err, "Error creating healthz http server")
 	}
 
 	uploadListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", app.config.BindAddress, app.config.BindPort))
 	if err != nil {
-		return errors.Wrap(err, "Error creating upload listerner")
+		return nil, errors.Wrap(err, "Error creating upload listerner")
 	}
 
 	healthzListener, err := net.Listen("tcp", fmt.Sprintf(":%d", healthzPort))
 	if err != nil {
-		return errors.Wrap(err, "Error creating healthz listerner")
+		return nil, errors.Wrap(err, "Error creating healthz listerner")
 	}
 
 	tlsConfig, err := app.getTLSConfig()
 	if err != nil {
-		return errors.Wrap(err, "Error getting TLS config")
+		return nil, errors.Wrap(err, "Error getting TLS config")
 	}
 
 	go func() {
@@ -197,11 +210,21 @@ func (app *uploadServerApp) Run() error {
 		app.errChan <- healthzServer.Serve(healthzListener)
 	}()
 
+	var timeChan <-chan time.Time
+
+	if app.config.Deadline != nil {
+		timeChan = time.After(time.Until(*app.config.Deadline))
+	} else {
+		tc := make(chan time.Time)
+		defer close(tc)
+		timeChan = tc
+	}
+
 	select {
 	case err = <-app.errChan:
 		if err != nil {
 			klog.Errorf("HTTP server returned error %s", err.Error())
-			return err
+			return nil, err
 		}
 	case <-app.doneChan:
 		klog.Info("Shutting down http server after successful upload")
@@ -211,9 +234,32 @@ func (app *uploadServerApp) Run() error {
 		if err := uploadServer.Shutdown(context.Background()); err != nil {
 			klog.Errorf("failed to shutdown uploadServer; %v", err)
 		}
+	case <-timeChan:
+		klog.Info("deadline exceeded, shutting down")
+		app.mutex.Lock()
+		defer app.mutex.Unlock()
+		for {
+			if app.uploading || app.processing {
+				klog.Info("waiting for upload to finish")
+				app.mutex.Unlock()
+				time.Sleep(2 * time.Second)
+				app.mutex.Lock()
+			} else {
+				break
+			}
+		}
+		if !app.done {
+			klog.Info("upload not done, process exiting")
+			return &RunResult{DeadlinePassed: true}, nil
+		}
 	}
 
-	return nil
+	result := &RunResult{
+		CloneTarget:          app.cloneTarget,
+		PreallocationApplied: app.preallocationApplied,
+	}
+
+	return result, nil
 }
 
 func (app *uploadServerApp) getTLSConfig() (*tls.Config, error) {
@@ -374,6 +420,7 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 			defer close(app.doneChan)
 			app.done = true
 			app.preallocationApplied = processor.PreallocationApplied()
+			app.cloneTarget = isCloneTraget(cdiContentType)
 			klog.Infof("Wrote data to %s", app.config.Destination)
 		}()
 
@@ -395,7 +442,7 @@ func (app *uploadServerApp) processUpload(irc imageReadCloser, w http.ResponseWr
 		w.WriteHeader(http.StatusBadRequest)
 	}
 
-	app.preallocationApplied, err = uploadProcessorFunc(readCloser, app.config.Destination, app.config.ImageSize, app.config.FilesystemOverhead, app.config.Preallocation, cdiContentType, dvContentType)
+	preallocationApplied, err := uploadProcessorFunc(readCloser, app.config.Destination, app.config.ImageSize, app.config.FilesystemOverhead, app.config.Preallocation, cdiContentType, dvContentType)
 
 	app.mutex.Lock()
 	defer app.mutex.Unlock()
@@ -408,6 +455,8 @@ func (app *uploadServerApp) processUpload(irc imageReadCloser, w http.ResponseWr
 	}
 
 	app.done = true
+	app.preallocationApplied = preallocationApplied
+	app.cloneTarget = isCloneTraget(cdiContentType)
 	close(app.doneChan)
 
 	if dvContentType == cdiv1.DataVolumeArchive {
@@ -427,10 +476,6 @@ func (app *uploadServerApp) uploadArchiveHandler(irc imageReadCloser) http.Handl
 	return func(w http.ResponseWriter, r *http.Request) {
 		app.processUpload(irc, w, r, cdiv1.DataVolumeArchive)
 	}
-}
-
-func (app *uploadServerApp) PreallocationApplied() bool {
-	return app.preallocationApplied
 }
 
 func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string) (*importer.DataProcessor, error) {

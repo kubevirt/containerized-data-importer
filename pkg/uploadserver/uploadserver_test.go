@@ -380,7 +380,7 @@ var _ = Describe("Upload server tests", func() {
 			ch := make(chan struct{})
 
 			go func() {
-				_ = server.Run()
+				_, _ = server.Run()
 				close(ch)
 			}()
 
@@ -410,6 +410,31 @@ var _ = Describe("Upload server tests", func() {
 		Entry("Valid data", "client", "client", 200),
 		Entry("Invalid data", "foo", "bar", 401),
 	)
+
+	It("should handle deadline", func() {
+		server, _, _, cleanup := newTLSServer("client", "client")
+		defer cleanup()
+
+		now := time.Now()
+		server.config.Deadline = &now
+
+		var runResult *RunResult
+		var err error
+		ch := make(chan struct{})
+
+		go func() {
+			runResult, err = server.Run()
+			close(ch)
+		}()
+
+		select {
+		case <-ch:
+			Expect(err).ToNot(HaveOccurred())
+			Expect(runResult.DeadlinePassed).To(BeTrue())
+		case <-time.After(10 * time.Second):
+			Fail("Timed out waiting for server to exit")
+		}
+	})
 })
 
 func newFormRequest(path string) *http.Request {

@@ -24,10 +24,12 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	ocpcrypto "github.com/openshift/library-go/pkg/crypto"
 
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
@@ -54,6 +56,7 @@ func main() {
 
 	cryptoConfig := getCryptoConfig()
 	destination := getDestination()
+	deadline := getDeadline()
 
 	filesystemOverhead, _ := strconv.ParseFloat(os.Getenv(common.FilesystemOverheadVar), 64)
 	preallocation, _ := strconv.ParseBool(os.Getenv(common.Preallocation))
@@ -70,39 +73,45 @@ func main() {
 		FilesystemOverhead: filesystemOverhead,
 		Preallocation:      preallocation,
 		CryptoConfig:       cryptoConfig,
+		Deadline:           deadline,
 	}
 
 	server := uploadserver.NewUploadServer(config)
 
 	klog.Infof("Running server on %s:%d", listenAddress, listenPort)
 
-	err := server.Run()
+	result, err := server.Run()
 	if err != nil {
 		klog.Errorf("UploadServer failed: %s", err)
 		os.Exit(1)
 	}
 
-	// Check if cloning or uploading based on the existence of the scratch space. Clone won't have scratch space
-	clone := false
-	_, err = os.OpenFile(common.ScratchDataDir, os.O_RDONLY, 0600)
-	if err != nil {
-		// Cloning instead of uploading.
-		clone = true
-	}
-	var message string
-	if clone {
-		message = "Clone Complete"
+	termMsg := &common.TerminationMessage{}
+
+	if !result.DeadlinePassed {
+		if result.CloneTarget {
+			termMsg.Message = ptr.To("Clone Complete")
+		} else {
+			termMsg.Message = ptr.To("Upload Complete")
+		}
+		termMsg.PreallocationApplied = ptr.To(result.PreallocationApplied)
 	} else {
-		message = "Upload Complete"
+		termMsg.Message = ptr.To("Deadline Passed")
+		termMsg.DeadlinePassed = ptr.To(true)
 	}
-	if server.PreallocationApplied() {
-		message += ", " + common.PreallocationApplied
+
+	message, err := termMsg.String()
+	if err != nil {
+		klog.Errorf("%+v", err)
+		os.Exit(1)
 	}
+
 	err = util.WriteTerminationMessage(message)
 	if err != nil {
 		klog.Errorf("%+v", err)
 		os.Exit(1)
 	}
+
 	klog.Info("UploadServer successfully exited")
 }
 
@@ -144,4 +153,16 @@ func getDestination() string {
 	}
 
 	return destination
+}
+
+func getDeadline() *time.Time {
+	dl := os.Getenv("DEADLINE")
+	if dl != "" {
+		result, err := time.Parse(time.RFC3339, dl)
+		if err != nil {
+			klog.Fatalf("Failed to parse deadline: %v", err)
+		}
+		return &result
+	}
+	return nil
 }
