@@ -37,7 +37,7 @@ const (
 	devicePath             = "/dev/block"
 )
 
-const apiGroup = "forklift.kubevirt.io"
+const apiGroup = "forklift.konveyor.io"
 
 var (
 	supportedPopulators = map[string]client.Object{
@@ -104,13 +104,43 @@ func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, 
 				return []reconcile.Request{{NamespacedName: pvcKey}}
 			}
 
-			// TODO(benny) check dataSourceRef PVC prime
-			if isPVCForkliftKind(pvc) {
+			if isPVCPrimeForkliftKind(pvc) {
 				owner := metav1.GetControllerOf(pvc)
 				pvcKey := types.NamespacedName{Namespace: pvc.Namespace, Name: owner.Name}
 				return []reconcile.Request{{NamespacedName: pvcKey}}
 			}
 			return nil
+		}),
+	); err != nil {
+		return err
+	}
+
+	// Watch the populator Pod
+	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}), handler.EnqueueRequestsFromMapFunc(
+		func(_ context.Context, obj client.Object) []reconcile.Request {
+			pod := obj.(*corev1.Pod)
+			if pod.GetAnnotations()[cc.AnnPopulatorKind] != "forklift" {
+				return nil
+			}
+
+			// Get pod owner reference
+			owner := metav1.GetControllerOf(pod)
+			if owner == nil {
+				return nil
+			}
+
+			pvcPrime := &corev1.PersistentVolumeClaim{}
+			err := mgr.GetClient().Get(context.TODO(), types.NamespacedName{Namespace: pod.Namespace, Name: owner.Name}, pvcPrime)
+			if err != nil {
+				return nil
+			}
+
+			// Check if the owner is a PVC prime
+			if !isPVCPrimeForkliftKind(pvcPrime) {
+				return nil
+			}
+
+			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}}}
 		}),
 	); err != nil {
 		return err
@@ -141,15 +171,15 @@ func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, 
 }
 
 // Reconcile the reconcile loop for the PVC with DataSourceRef of OvirtVolumePopulator or OpenstackVolumePopulator kind
-func (r *ForkliftPopulatorReconciler) Reconcile(_ context.Context, req reconcile.Request) (reconcile.Result, error) {
+func (r *ForkliftPopulatorReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("PVC", req.NamespacedName)
 	log.V(1).Info("reconciling Forklift PVCs")
-	return r.reconcile(req, r, log)
+	return r.reconcile(ctx, req, r, log)
 }
 
-func (r *ForkliftPopulatorReconciler) reconcile(req reconcile.Request, populator populatorController, log logr.Logger) (reconcile.Result, error) {
+func (r *ForkliftPopulatorReconciler) reconcile(ctx context.Context, req reconcile.Request, populator populatorController, log logr.Logger) (reconcile.Result, error) {
 	pvc := &corev1.PersistentVolumeClaim{}
-	if err := r.client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {
+	if err := r.client.Get(ctx, req.NamespacedName, pvc); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return reconcile.Result{}, nil
 		}
@@ -202,7 +232,7 @@ func (r *ForkliftPopulatorReconciler) reconcileCommon(pvc *corev1.PersistentVolu
 	}
 
 	// TODO: Remove this check once we support cross-namespace dataSourceRef
-	if dataSourceRef.Namespace != nil {
+	if dataSourceRef.Namespace != nil && *dataSourceRef.Namespace != pvc.Namespace {
 		log.V(1).Info("cross-namespace dataSourceRef not supported yet, ignoring")
 		return nil, nil
 	}
@@ -245,14 +275,23 @@ func isPVCForkliftKind(pvc *corev1.PersistentVolumeClaim) bool {
 		return false
 	}
 
-	if dataSourceRef.APIGroup != nil &&
-		*dataSourceRef.APIGroup == apiGroup &&
-		dataSourceRef.Name != "" {
+	if (dataSourceRef.APIGroup != nil && *dataSourceRef.APIGroup != apiGroup) ||
+		dataSourceRef.Name == "" {
 		return false
 	}
 
 	_, ok := supportedPopulators[dataSourceRef.Kind]
 	return ok
+}
+
+func isPVCPrimeForkliftKind(pvc *corev1.PersistentVolumeClaim) bool {
+	owner := metav1.GetControllerOf(pvc)
+	if owner == nil || owner.Kind != "PersistentVolumeClaim" {
+		return false
+	}
+
+	populatorKind := pvc.Annotations[cc.AnnPopulatorKind]
+	return populatorKind == "forklift"
 }
 
 func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
@@ -270,12 +309,12 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 		err = r.createPopulatorPod(pvcPrime, pvcCopy)
 		if err != nil {
 			if errors.Is(err, errCrNotFound) {
-				return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
+				return reconcile.Result{}, nil
 			}
 			return reconcile.Result{}, err
 		}
 
-		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
+		return reconcile.Result{}, nil
 	}
 
 	anno := pvcPrimeCopy.Annotations
@@ -411,7 +450,7 @@ func (r *ForkliftPopulatorReconciler) getImportPod(pvc *corev1.PersistentVolumeC
 		return nil, nil
 	}
 
-	if !metav1.IsControlledBy(pod, pvc) && !cc.IsImageStream(pvc) {
+	if !metav1.IsControlledBy(pod, pvc) {
 		return nil, errors.Errorf("Pod is not owned by PVC")
 	}
 	return pod, nil
@@ -419,7 +458,7 @@ func (r *ForkliftPopulatorReconciler) getImportPod(pvc *corev1.PersistentVolumeC
 
 func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.PersistentVolumeClaim) error {
 	var rawBlock bool
-	if nil != pvc.Spec.VolumeMode && corev1.PersistentVolumeBlock == *pvc.Spec.VolumeMode {
+	if pvc.Spec.VolumeMode != nil && corev1.PersistentVolumeBlock == *pvc.Spec.VolumeMode {
 		rawBlock = true
 	}
 
@@ -464,7 +503,9 @@ func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.P
 	args = append(args, fmt.Sprintf("--owner-uid=%s", string(pvc.UID)))
 	args = append(args, fmt.Sprintf("--pvc-size=%d", pvc.Spec.Resources.Requests.Storage().Value()))
 
-	annotations := make(map[string]string)
+	annotations := map[string]string{
+		cc.AnnPopulatorKind: "forklift",
+	}
 
 	if transferNetwork != "" {
 		annotations[cc.AnnPodMultusDefaultNetwork] = transferNetwork
