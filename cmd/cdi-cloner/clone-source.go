@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -55,7 +56,7 @@ func (er *execReader) Close() error {
 }
 
 func init() {
-	flag.StringVar(&contentType, "content-type", "", "filesystem-clone|blockdevice-clone")
+	flag.StringVar(&contentType, "content-type", "", fmt.Sprintf("%s|%s", common.FilesystemCloneContentType, common.BlockdeviceClone))
 	flag.StringVar(&mountPoint, "mount", "", "pvc mount point")
 	flag.Uint64Var(&uploadBytes, "upload-bytes", 0, "approx number of bytes in input")
 	klog.InitFlags(nil)
@@ -133,7 +134,7 @@ func pipeToSnappy(reader io.ReadCloser) io.ReadCloser {
 
 func validateContentType() {
 	switch contentType {
-	case "filesystem-clone", "blockdevice-clone":
+	case common.FilesystemCloneContentType, common.BlockdeviceClone:
 	default:
 		klog.Fatalf("Invalid content-type %q", contentType)
 	}
@@ -198,13 +199,13 @@ func newTarReader(preallocation bool) (io.ReadCloser, error) {
 
 func getInputStream(preallocation bool) io.ReadCloser {
 	switch contentType {
-	case "filesystem-clone":
+	case common.FilesystemCloneContentType:
 		rc, err := newTarReader(preallocation)
 		if err != nil {
 			klog.Fatalf("Error creating tar reader for %q: %+v", mountPoint, err)
 		}
 		return rc
-	case "blockdevice-clone":
+	case common.BlockdeviceClone:
 		rc, err := os.Open(mountPoint)
 		if err != nil {
 			klog.Fatalf("Error opening block device %q: %+v", mountPoint, err)
