@@ -71,14 +71,14 @@ var _ = Describe("Upload data source", func() {
 		Expect(ProcessingPhaseTransferDataDir).To(Equal(result))
 	})
 
-	It("Info should return TransferData, when passed in a valid raw image", func() {
+	It("Info should return TransferScratch, when passed in a valid raw image", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
 		ud = NewUploadDataSource(file, dvKubevirt)
 		result, err := ud.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
+		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
 	})
 
 	DescribeTable("calling transfer should", func(fileName string, dvContentType cdiv1.DataVolumeContentType, expectedPhase ProcessingPhase, scratchPath string, want []byte, wantErr bool) {
@@ -136,7 +136,7 @@ var _ = Describe("Upload data source", func() {
 		ud = NewUploadDataSource(sourceFile, dvKubevirt)
 		result, err := ud.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
+		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
 		result, err = ud.TransferFile(filepath.Join(tmpDir, "file"))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(ProcessingPhaseResize).To(Equal(result))
@@ -149,7 +149,7 @@ var _ = Describe("Upload data source", func() {
 		ud = NewUploadDataSource(sourceFile, dvKubevirt)
 		result, err := ud.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
+		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
 		result, err = ud.TransferFile("/invalidpath/invalidfile")
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
@@ -204,14 +204,14 @@ var _ = Describe("Async Upload data source", func() {
 		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
 	})
 
-	It("Info should return TransferData, when passed in a valid raw image", func() {
+	It("Info should return TransferScratch, when passed in a valid raw image", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
 		aud = NewAsyncUploadDataSource(file)
 		result, err := aud.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
+		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
 	})
 
 	DescribeTable("calling transfer should", func(fileName, scratchPath string, want []byte, wantErr bool) {
@@ -260,7 +260,7 @@ var _ = Describe("Async Upload data source", func() {
 		aud = NewAsyncUploadDataSource(sourceFile)
 		result, err := aud.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
+		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
 		result, err = aud.TransferFile(filepath.Join(tmpDir, "file"))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(ProcessingPhaseValidatePause).To(Equal(result))
@@ -274,7 +274,7 @@ var _ = Describe("Async Upload data source", func() {
 		aud = NewAsyncUploadDataSource(sourceFile)
 		result, err := aud.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
+		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
 		result, err = aud.TransferFile("/invalidpath/invalidfile")
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
