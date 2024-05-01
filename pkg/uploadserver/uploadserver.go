@@ -494,7 +494,8 @@ func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, file
 	}
 
 	// Clone block device to block device or file system
-	uds := importer.NewUploadDataSource(newContentReader(stream, sourceContentType), dvContentType)
+	directWriteException := sourceContentType == common.BlockdeviceClone
+	uds := importer.NewUploadDataSource(newContentReader(stream, sourceContentType), dvContentType, directWriteException)
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation, "")
 	err := processor.ProcessData()
 	return processor.PreallocationApplied(), err
