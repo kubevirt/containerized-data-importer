@@ -670,6 +670,63 @@ var _ = Describe("VDDK get block status", func() {
 		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
 		Expect(blocks).To(Equal(expectedBlocks))
 	})
+
+	It("should handle large blocks with the same flags", func() {
+		const blockSize = MaxBlockStatusLength * 2
+
+		extent := types.DiskChangeExtent{
+			Start:  0,
+			Length: blockSize,
+		}
+		expectedBlocks := []*BlockStatusData{
+			{
+				Offset: uint64(extent.Start),
+				Length: uint32(extent.Length),
+				Flags:  0,
+			},
+		}
+
+		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
+		Expect(blocks).To(Equal(expectedBlocks))
+	})
+
+	It("should handle large blocks with different flags", func() {
+		const blockSize = 1024 * 1024 * 1024 * 1024 * 1024
+
+		// Alternate flags between blocks, so GetBlockStatus returns a long
+		// list of different blocks instead of one giant block.
+		flagSetting := true
+		currentMockNbdFunctions.BlockStatus = func(length uint64, offset uint64, callback libnbd.ExtentCallback, optargs *libnbd.BlockStatusOptargs) error {
+			err := 0
+			len := uint32(MaxBlockStatusLength)
+			if length < MaxBlockStatusLength {
+				len = uint32(length)
+			}
+			if flagSetting {
+				callback("base:allocation", offset, []uint32{len, 0}, &err)
+			} else {
+				callback("base:allocation", offset, []uint32{len, 3}, &err)
+			}
+			flagSetting = !flagSetting
+			return nil
+		}
+
+		extent := types.DiskChangeExtent{
+			Start:  0,
+			Length: blockSize,
+		}
+
+		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
+		for index, block := range blocks {
+			Expect(block.Offset).To(Equal(uint64(index * MaxBlockStatusLength)))
+			Expect(block.Length).To(Equal(uint32(MaxBlockStatusLength)))
+			if index%2 == 0 {
+				Expect(block.Flags).To(Equal(uint32(0)))
+			} else {
+				Expect(block.Flags).To(Equal(uint32(3)))
+			}
+		}
+	})
 })
 
 type mockNbdFunctions struct {
