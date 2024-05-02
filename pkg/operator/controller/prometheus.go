@@ -210,7 +210,7 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		),
 		generateAlertRule(
 			"CDIDataImportCronOutdated",
-			`sum by(ns,cron_name) (kubevirt_cdi_dataimportcron_outdated) > 0`,
+			`sum by(ns,cron_name) (kubevirt_cdi_dataimportcron_outdated{pending="false"}) > 0`,
 			promv1.Duration("15m"),
 			map[string]string{
 				"summary":     "DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule",
@@ -258,7 +258,8 @@ func getAlertRules(runbookURLTemplate string) []promv1.Rule {
 		generateAlertRule(
 			"CDIDefaultStorageClassDegraded",
 			`sum(kubevirt_cdi_storageprofile_info{default="true",rwx="true",smartclone="true"} or on() vector(0)) +
-			sum(kubevirt_cdi_storageprofile_info{virtdefault="true",rwx="true",smartclone="true"} or on() vector(0)) == 0`,
+			sum(kubevirt_cdi_storageprofile_info{virtdefault="true",rwx="true",smartclone="true"} or on() vector(0)) +
+			on () (0*(sum(kubevirt_cdi_storageprofile_info{default="true"}) or sum(kubevirt_cdi_storageprofile_info{virtdefault="true"}))) == 0`,
 			promv1.Duration("5m"),
 			map[string]string{
 				"summary":     "Default storage class has no smart clone or ReadWriteMany",
