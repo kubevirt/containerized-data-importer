@@ -580,6 +580,27 @@ var _ = Describe("VDDK get block status", func() {
 		Expect(blocks).To(Equal(expectedBlocks))
 		Expect(nbdCalled).To(BeTrue())
 	})
+
+	It("should return the whole block when block list is unchanged after status request", func() {
+		// Default mock block status callback always returns the same extents,
+		// so force it to return multiple blocks in the list by asking for more
+		// than the maximum single block status length. This triggers the
+		// "No new block status data" codepath in GetBlockStatus.
+		extent := types.DiskChangeExtent{
+			Start:  0,
+			Length: MaxBlockStatusLength + 1024,
+		}
+		expectedBlocks := []*BlockStatusData{
+			{
+				Offset: uint64(extent.Start),
+				Length: uint32(extent.Length),
+				Flags:  0,
+			},
+		}
+
+		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
+		Expect(blocks).To(Equal(expectedBlocks))
+	})
 })
 
 type mockNbdFunctions struct {

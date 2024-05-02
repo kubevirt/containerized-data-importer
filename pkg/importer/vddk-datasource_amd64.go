@@ -593,9 +593,7 @@ func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) []*Bloc
 		} else {
 			length = uint64(missingLength)
 		}
-		err := handle.BlockStatus(length, uint64(lastOffset), updateBlocksCallback, &fixedOptArgs)
-		if err != nil {
-			klog.Errorf("Error getting block status at offset %d, returning whole block instead. Error was: %v", lastOffset, err)
+		createWholeBlock := func() []*BlockStatusData {
 			block := &BlockStatusData{
 				Offset: uint64(extent.Start),
 				Length: uint32(extent.Length),
@@ -604,10 +602,16 @@ func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) []*Bloc
 			blocks = []*BlockStatusData{block}
 			return blocks
 		}
+		err := handle.BlockStatus(length, uint64(lastOffset), updateBlocksCallback, &fixedOptArgs)
+		if err != nil {
+			klog.Errorf("Error getting block status at offset %d, returning whole block instead. Error was: %v", lastOffset, err)
+			return createWholeBlock()
+		}
 		last := len(blocks) - 1
 		newOffset := blocks[last].Offset + uint64(blocks[last].Length)
 		if uint64(lastOffset) == newOffset {
-			klog.Infof("No new block status data at offset %d", newOffset)
+			klog.Infof("No new block status data at offset %d, returning whole block.", newOffset)
+			return createWholeBlock()
 		}
 		lastOffset = int64(newOffset)
 	}
