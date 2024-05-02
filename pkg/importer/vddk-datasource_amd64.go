@@ -562,7 +562,7 @@ func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) []*Bloc
 					// Merge with previous block
 					blocks[last] = &BlockStatusData{
 						Offset: lastBlock.Offset,
-						Length: lastBlock.Length,
+						Length: lastBlock.Length + length,
 						Flags:  lastFlags,
 					}
 				} else {
