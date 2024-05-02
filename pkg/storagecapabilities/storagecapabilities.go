@@ -148,6 +148,8 @@ const (
 	ProvisionerOCSBucket = "openshift-storage.ceph.rook.io/bucket"
 	// ProvisionerRookCephBucket is the provisioner string for the upstream Rook Ceph provisoner for buckets which does not work with CDI
 	ProvisionerRookCephBucket = "rook-ceph.ceph.rook.io/bucket"
+	// ProvisionerStorkSnapshot is the provisioner string for the Stork snapshot provisoner which does not work with CDI
+	ProvisionerStorkSnapshot = "stork-snapshot"
 )
 
 // UnsupportedProvisioners is a hash of provisioners which are known not to work with CDI
@@ -156,6 +158,7 @@ var UnsupportedProvisioners = map[string]struct{}{
 	ProvisionerOCSBucket:      {},
 	ProvisionerRookCephBucket: {},
 	ProvisionerNoobaa:         {},
+	ProvisionerStorkSnapshot:  {},
 }
 
 // GetCapabilities finds and returns a predefined StorageCapabilities for a given StorageClass
