@@ -601,6 +601,75 @@ var _ = Describe("VDDK get block status", func() {
 		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
 		Expect(blocks).To(Equal(expectedBlocks))
 	})
+
+	It("should chunk up block status requests when asking for more than the maximum status request length", func() {
+		timesCalled := 0
+		currentMockNbdFunctions.BlockStatus = func(length uint64, offset uint64, callback libnbd.ExtentCallback, optargs *libnbd.BlockStatusOptargs) error {
+			if timesCalled == 0 {
+				Expect(offset).To(Equal(uint64(0)))
+				Expect(length).To(Equal(uint64(MaxBlockStatusLength)))
+			}
+			if timesCalled == 1 {
+				Expect(offset).To(Equal(uint64(MaxBlockStatusLength)))
+				Expect(length).To(Equal(uint64(1024)))
+			}
+			timesCalled++
+			err := 0
+			callback("base:allocation", offset, []uint32{uint32(length), 0}, &err)
+			return nil
+		}
+
+		extent := types.DiskChangeExtent{
+			Start:  0,
+			Length: MaxBlockStatusLength + 1024,
+		}
+		expectedBlocks := []*BlockStatusData{
+			{
+				Offset: uint64(extent.Start),
+				Length: uint32(extent.Length),
+				Flags:  0,
+			},
+		}
+
+		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
+		Expect(blocks).To(Equal(expectedBlocks))
+		Expect(timesCalled).To(Equal(2))
+	})
+
+	It("should return multiple blocks when data source ranges have different flags", func() {
+		const blockSize = 1024 * 1024
+
+		currentMockNbdFunctions.BlockStatus = func(length uint64, offset uint64, callback libnbd.ExtentCallback, optargs *libnbd.BlockStatusOptargs) error {
+			err := 0
+			if offset == 0 {
+				callback("base:allocation", offset, []uint32{blockSize, 0}, &err)
+			}
+			if offset == blockSize {
+				callback("base:allocation", offset, []uint32{blockSize, 3}, &err)
+			}
+			return nil
+		}
+
+		extent := types.DiskChangeExtent{
+			Start:  0,
+			Length: 2 * blockSize,
+		}
+		expectedBlocks := []*BlockStatusData{
+			{
+				Offset: 0,
+				Length: blockSize,
+				Flags:  0,
+			},
+			{
+				Offset: blockSize,
+				Length: blockSize,
+				Flags:  3,
+			},
+		}
+
+		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
+		Expect(blocks).To(Equal(expectedBlocks))
+	})
 })
 
 type mockNbdFunctions struct {
