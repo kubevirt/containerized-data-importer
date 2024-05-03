@@ -76,7 +76,7 @@ metadata:
 spec:
   source:
       upload: {}
-  pvc:
+  storage:
     accessModes:
       - ReadWriteOnce
     resources:

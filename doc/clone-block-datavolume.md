@@ -21,7 +21,7 @@ spec:
     pvc:
       namespace: "source-ns"
       name: "source-datavolume"
-  pvc:
+  storage:
     volumeMode: Block
     accessModes:
       - ReadWriteOnce

@@ -16,7 +16,7 @@ metadata:
 spec:
   source:
       blank: {}
-  pvc:
+  storage:
     accessModes:
       - ReadWriteOnce
     resources:

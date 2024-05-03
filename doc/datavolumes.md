@@ -54,7 +54,7 @@ spec:
          url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img" # S3 or GCS
          secretRef: "" # Optional
          certConfigMap: "" # Optional
-  pvc:
+  storage:
     accessModes:
       - ReadWriteOnce
     resources:
@@ -90,7 +90,7 @@ spec:
          url: "http://server/archive.tar"
          secretRef: "" # Optional
    contentType: "archive"
-  pvc:
+  storage:
     accessModes:
       - ReadWriteOnce
     resources:
@@ -112,7 +112,7 @@ spec:
          extraHeaders:
          - "X-First-Header: 12345"
          - "X-Another-Header: abcde"
-  pvc:
+  storage:
     accessModes:
       - ReadWriteOnce
     resources:
@@ -136,7 +136,7 @@ spec:
          secretExtraHeaders:
            - "first-secret"
            - "second-secret"
-  pvc:
+  storage:
     accessModes:
       - ReadWriteOnce
     resources:
@@ -169,7 +169,7 @@ metadata:
   name: "example-clone-dv"
 spec:
   source:
-      pvc:
+      storage:
         name: source-pvc
         namespace: example-ns
   storage:
@@ -208,7 +208,7 @@ metadata:
 spec:
   source:
     upload: {}
-  pvc:
+  storage:
     accessModes:
       - ReadWriteOnce
     resources:
@@ -226,7 +226,7 @@ metadata:
 spec:
   source:
     blank: {}
-  pvc:
+  storage:
     accessModes:
       - ReadWriteOnce
     resources:
@@ -248,7 +248,7 @@ spec:
          secretRef: "endpoint-secret"
          certConfigMap: "tls-certs"
          diskId: "1"
-  pvc:
+  storage:
     accessModes:
       - ReadWriteOnce
     resources:
@@ -275,7 +275,7 @@ spec:
            thumbprint: "20:6C:8A:5D:44:40:B3:79:4B:28:EA:76:13:60:90:6E:49:D9:D9:A3" # SSL fingerprint of vCenter/ESX host
            secretRef: "vddk-credentials"
            initImageURL: "registry:5000/vddk-init:latest"
-    pvc:
+    storage:
        accessModes:
          - ReadWriteOnce
        resources:
@@ -312,7 +312,7 @@ metadata:
       current: "1c44c27e-d2d8-49c4-841a-cc26c4b1e406"
     - previous: "1c44c27e-d2d8-49c4-841a-cc26c4b1e406"
       current: "c55bb7bb-20f2-46b5-a7f3-11fd6010b7d0"
-  pvc:
+  storage:
     accessModes:
       - ReadWriteOnce
     resources:
@@ -344,7 +344,7 @@ spec:
         previous: ""
       - current: "snapshot-2"
         previous: "snapshot-1"
-    pvc:
+    storage:
        accessModes:
          - ReadWriteOnce
        resources:
@@ -459,7 +459,7 @@ spec:
          url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img" # S3 or GCS
          secretRef: "" # Optional
          certConfigMap: "" # Optional
-  pvc:
+  storage:
     volumeMode: Block
     accessModes:
       - ReadWriteOnce
@@ -496,8 +496,8 @@ metadata:
 spec:
   priorityClassName: kubevirt
   source:
-   ....
-  pvc:
+    ...
+  storage:
     ...
 ```
 
@@ -532,7 +532,7 @@ spec:
       creationTimestamp: null
       name: fedora-dv
     spec:
-      pvc:
+      storage:
         accessModes:
         - ReadWriteOnce
         resources:

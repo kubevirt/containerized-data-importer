@@ -64,7 +64,7 @@ spec:
   source:
       http:
          url: "http://distro.ibiblio.org/tinycorelinux/9.x/x86/release/Core-current.iso"
-  pvc:
+  storage:
     volumeMode: Block
     accessModes:
       - ReadWriteOnce

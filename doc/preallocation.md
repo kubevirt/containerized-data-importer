@@ -25,7 +25,7 @@ metadata:
 spec:
   source:
     ...
-  pvc:
+  storage:
     ...
   preallocation: true
 ```
