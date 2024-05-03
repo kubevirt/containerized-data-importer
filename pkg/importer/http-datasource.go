@@ -130,9 +130,6 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	if hs.contentType == cdiv1.DataVolumeArchive {
 		return ProcessingPhaseTransferDataDir, nil
 	}
-	if !hs.readers.Convert {
-		return ProcessingPhaseTransferDataFile, nil
-	}
 	if pullMethod, _ := util.ParseEnvVar(common.ImporterPullMethod, false); pullMethod == string(cdiv1.RegistryPullNode) {
 		hs.url, _ = url.Parse(fmt.Sprintf("nbd+unix:///?socket=%s", nbdkitSocket))
 		if err = hs.n.StartNbdkit(hs.endpoint.String()); err != nil {
@@ -140,9 +137,6 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 		}
 		return ProcessingPhaseConvert, nil
 	}
-	// removing check for hs.brokenForQemuImg, and always assuming it is true
-	// revert once we are able to get nbdkit 1.35.8, which contains a fix for the
-	// slow download speed.
 	return ProcessingPhaseTransferScratch, nil
 }
 
