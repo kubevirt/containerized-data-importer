@@ -431,7 +431,7 @@ spec:
         storage: 1Gi
 ```
 
-`Storage` can request specific size the same way as `pvc`. When requesting a storage with the fileSystem volumeMode CDI 
+With `storage`, you can request a specific size the same way as with `pvc`. When requesting a storage with the fileSystem volumeMode CDI 
 takes into account the file system overhead and requests PVC big enough to fit an image and file system metadata. 
 This logic is only applied for the DataVolume.spec.storage. 
 
