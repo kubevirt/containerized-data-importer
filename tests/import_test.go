@@ -939,12 +939,15 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		restartsValue, status, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodRestarts)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(status).To(BeTrue())
-		Expect(restartsValue).To(Equal("0"))
+		// Restarting the pod for scratch space causes a restart in the DataVolume.
+		// This is expected behavior.
+		expectedRestarts := 1
+		Expect(restartsValue).To(Equal(strconv.Itoa(expectedRestarts)))
 
 		By("Verify the number of retries on the datavolume")
 		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
+		Expect(dv.Status.RestartCount).To(BeNumerically("==", expectedRestarts))
 	})
 
 	It("[test_id:3996] Import datavolume with bad url will increase dv retry count", func() {
