@@ -289,7 +289,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				snapshot := utils.NewVolumeSnapshot("snap-"+pvc.Name, pvc.Namespace, pvc.Name, &snapClass.Name)
 				err = f.CrClient.Create(context.TODO(), snapshot)
 				Expect(err).ToNot(HaveOccurred())
-				volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem)
+				volumeMode := corev1.PersistentVolumeFilesystem
 				targetDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("target-dv", "1Gi", snapshot.Namespace, snapshot.Name, nil, &volumeMode)
 
 				client, err := f.GetCdiClientForServiceAccount(targetNamespace.Name, serviceAccountName)

@@ -6,10 +6,12 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
@@ -297,6 +299,52 @@ var _ = Describe("Rebind", func() {
 			Expect(cdi).To(BeNil())
 		})
 
+	})
+})
+
+var _ = Describe("GetMetricsURL", func() {
+	makePod := func(ip string, withMetrics bool) *v1.Pod {
+		pod := &v1.Pod{
+			Status: v1.PodStatus{
+				PodIP: ip,
+			},
+		}
+
+		if !withMetrics {
+			return pod
+		}
+
+		pod.Spec = v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Ports: []v1.ContainerPort{
+						{Name: "metrics", ContainerPort: 8080},
+					},
+				},
+			},
+		}
+
+		return pod
+	}
+
+	It("Should succeed with IPv4", func() {
+		pod := makePod("127.0.0.1", true)
+		url, err := GetMetricsURL(pod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(url).To(Equal("https://127.0.0.1:8080/metrics"))
+	})
+
+	It("Should succeed with IPv6", func() {
+		pod := makePod("::1", true)
+		url, err := GetMetricsURL(pod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(url).To(Equal("https://[::1]:8080/metrics"))
+	})
+
+	It("Should fail when there is no metrics port", func() {
+		pod := makePod("127.0.0.1", false)
+		_, err := GetMetricsURL(pod)
+		Expect(err).To(HaveOccurred())
 	})
 })
 

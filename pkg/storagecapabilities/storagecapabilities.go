@@ -9,10 +9,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
-	"kubevirt.io/containerized-data-importer/pkg/util"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 // StorageCapabilities is a simple holder of storage capabilities (accessMode etc.)
@@ -111,6 +112,10 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 	"rook-ceph.rbd.csi.ceph.com":         cdiv1.DataImportCronSourceFormatSnapshot,
 	"openshift-storage.rbd.csi.ceph.com": cdiv1.DataImportCronSourceFormatSnapshot,
+	"topolvm.cybozu.com":                 cdiv1.DataImportCronSourceFormatSnapshot,
+	"topolvm.io":                         cdiv1.DataImportCronSourceFormatSnapshot,
+	"csi.trident.netapp.io/ontap-nas":    cdiv1.DataImportCronSourceFormatSnapshot,
+	"csi.trident.netapp.io/ontap-san":    cdiv1.DataImportCronSourceFormatSnapshot,
 }
 
 // CloneStrategyByProvisionerKey defines the advised clone strategy for a provisioner
@@ -126,12 +131,14 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"openshift-storage.rbd.csi.ceph.com":    cdiv1.CloneStrategyCsiClone,
 	"cephfs.csi.ceph.com":                   cdiv1.CloneStrategyCsiClone,
 	"openshift-storage.cephfs.csi.ceph.com": cdiv1.CloneStrategyCsiClone,
-	"csi.trident.netapp.io/ontap-nas":       cdiv1.CloneStrategyCsiClone,
-	"csi.trident.netapp.io/ontap-san":       cdiv1.CloneStrategyCsiClone,
 	"pxd.openstorage.org/shared":            cdiv1.CloneStrategyCsiClone,
 	"pxd.openstorage.org":                   cdiv1.CloneStrategyCsiClone,
 	"pxd.portworx.com/shared":               cdiv1.CloneStrategyCsiClone,
 	"pxd.portworx.com":                      cdiv1.CloneStrategyCsiClone,
+	"topolvm.cybozu.com":                    cdiv1.CloneStrategyCsiClone,
+	"topolvm.io":                            cdiv1.CloneStrategyCsiClone,
+	"csi.trident.netapp.io/ontap-nas":       cdiv1.CloneStrategySnapshot,
+	"csi.trident.netapp.io/ontap-san":       cdiv1.CloneStrategySnapshot,
 }
 
 // ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI

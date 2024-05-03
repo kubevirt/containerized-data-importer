@@ -20,13 +20,13 @@ import (
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
@@ -85,7 +85,7 @@ func ParseEnvVar(envVarName string, decode bool) (string, error) {
 func (r *CountingReader) Read(p []byte) (n int, err error) {
 	n, err = r.Reader.Read(p)
 	r.Current += uint64(n)
-	r.Done = err == io.EOF
+	r.Done = errors.Is(err, io.EOF)
 	return n, err
 }
 
@@ -110,7 +110,7 @@ func GetAvailableSpace(path string) (int64, error) {
 	if err != nil {
 		return int64(-1), err
 	}
-	return int64(stat.Bavail) * int64(stat.Bsize), nil
+	return int64(stat.Bavail) * stat.Bsize, nil
 }
 
 // GetAvailableSpaceBlock gets the amount of available space at the block device path specified.
@@ -244,7 +244,7 @@ func WriteTerminationMessageToFile(file, message string) error {
 }
 
 // CopyDir copies a dir from one location to another.
-func CopyDir(source string, dest string) (err error) {
+func CopyDir(source string, dest string) error {
 	// get properties of source dir
 	sourceinfo, err := os.Stat(source)
 	if err != nil {
@@ -278,7 +278,7 @@ func CopyDir(source string, dest string) (err error) {
 			}
 		}
 	}
-	return
+	return err
 }
 
 // LinkFile symlinks the source to the target

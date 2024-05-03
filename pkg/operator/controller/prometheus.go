@@ -24,11 +24,13 @@ import (
 
 	"github.com/go-logr/logr"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -38,7 +40,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules"
 	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-
 	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 )
 

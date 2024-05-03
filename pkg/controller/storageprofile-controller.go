@@ -10,6 +10,7 @@ import (
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	"github.com/prometheus/client_golang/prometheus"
+
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -30,7 +32,6 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
@@ -421,19 +422,20 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 
-	mapSnapshotClassToProfile := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+	mapSnapshotClassToProfile := func(ctx context.Context, obj client.Object) []reconcile.Request {
 		var scList storagev1.StorageClassList
 		if err := mgr.GetClient().List(ctx, &scList); err != nil {
 			c.GetLogger().Error(err, "Unable to list StorageClasses")
-			return
+			return nil
 		}
 		vsc := obj.(*snapshotv1.VolumeSnapshotClass)
+		var reqs []reconcile.Request
 		for _, sc := range scList.Items {
 			if sc.Provisioner == vsc.Driver {
 				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: sc.Name}})
 			}
 		}
-		return
+		return reqs
 	}
 	if err := mgr.GetClient().List(context.TODO(), &snapshotv1.VolumeSnapshotClassList{}, &client.ListOptions{Limit: 1}); err != nil {
 		if meta.IsNoMatchError(err) {

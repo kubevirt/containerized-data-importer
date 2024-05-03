@@ -23,16 +23,20 @@ import (
 	"strconv"
 	"strings"
 
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-	"kubevirt.io/containerized-data-importer/pkg/util/naming"
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-
-	"k8s.io/apimachinery/pkg/runtime"
-	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	kvalidation "k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
+	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -40,15 +44,10 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-
-	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	kvalidation "k8s.io/apimachinery/pkg/util/validation"
-	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/tools/record"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
 const (
@@ -1117,7 +1116,7 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 		},
 		{
 			Name:  common.OwnerUID,
-			Value: string(uid),
+			Value: uid,
 		},
 		{
 			Name:  common.FilesystemOverheadVar,

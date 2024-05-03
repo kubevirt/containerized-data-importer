@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/pkg/errors"
+
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -57,7 +58,7 @@ func GetTerminationChannel() <-chan os.Signal {
 	return terminationChannel
 }
 
-// newTerminationChannel should be overriden for unit tests
+// newTerminationChannel should be overridden for unit tests
 var newTerminationChannel = GetTerminationChannel
 
 func envsToLabels(envs []string) map[string]string {

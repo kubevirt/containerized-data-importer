@@ -13,10 +13,11 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
-	"github.com/pkg/errors"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	"github.com/pkg/errors"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+
 	authenticationv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/klog/v2"
+
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -332,7 +334,7 @@ func (f *Framework) GetRESTConfigForServiceAccount(namespace, name string) (*res
 	return &rest.Config{
 		Host:        f.RestConfig.Host,
 		APIPath:     f.RestConfig.APIPath,
-		BearerToken: string(token),
+		BearerToken: token,
 		TLSClientConfig: rest.TLSClientConfig{
 			Insecure: true,
 		},

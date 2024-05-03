@@ -15,15 +15,17 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/soap"
 	"github.com/vmware/govmomi/vim25/types"
+	libnbd "libguestfs.org/libnbd"
+
 	v1 "k8s.io/api/core/v1"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
-	libnbd "libguestfs.org/libnbd"
 )
 
 const (
@@ -178,7 +180,7 @@ var _ = Describe("VDDK data source", func() {
 		Expect(sourceSum).To(Equal(destSum))
 	})
 
-	It("VDDK delta copy should sucessfully apply a delta to a base disk image", func() {
+	It("VDDK delta copy should successfully apply a delta to a base disk image", func() {
 
 		// Copy base disk ("snapshot 1")
 		snap1, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "", "", v1.PersistentVolumeFilesystem)
@@ -487,7 +489,6 @@ func (handle *mockNbdOperations) GetSize() (uint64, error) {
 }
 
 func (handle *mockNbdOperations) Pread(buf []byte, offset uint64, optargs *libnbd.PreadOptargs) error {
-
 	fakebuf, err := currentExport.Read(offset)
 	copy(buf, fakebuf[offset:offset+uint64(len(buf))])
 	return err

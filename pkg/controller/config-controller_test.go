@@ -24,6 +24,7 @@ import (
 
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -35,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -1081,7 +1083,7 @@ func createClusterWideProxyCAConfigMap(certBytes string) *corev1.ConfigMap {
 		TypeMeta:   metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{Name: ClusterWideProxyConfigMapName, Namespace: ClusterWideProxyConfigMapNameSpace},
 		Immutable:  new(bool),
-		Data:       map[string]string{ClusterWideProxyConfigMapKey: string(certBytes)},
+		Data:       map[string]string{ClusterWideProxyConfigMapKey: certBytes},
 		BinaryData: map[string][]byte{},
 	}
 	return configMap

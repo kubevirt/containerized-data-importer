@@ -2,12 +2,12 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
-	"fmt"
-
 	"github.com/onsi/ginkgo/v2"
+
 	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -165,7 +165,7 @@ func NewPVCDefinitionWithSelector(pvcName, size, storageClassName string, select
 			AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 			Resources: k8sv1.ResourceRequirements{
 				Requests: k8sv1.ResourceList{
-					k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					k8sv1.ResourceStorage: resource.MustParse(size),
 				},
 			},
 			Selector: &metav1.LabelSelector{
@@ -193,7 +193,7 @@ func NewPVCDefinition(pvcName string, size string, annotations, labels map[strin
 			AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 			Resources: k8sv1.ResourceRequirements{
 				Requests: k8sv1.ResourceList{
-					k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					k8sv1.ResourceStorage: resource.MustParse(size),
 				},
 			},
 		},

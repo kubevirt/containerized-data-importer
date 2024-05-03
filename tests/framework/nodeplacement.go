@@ -4,10 +4,10 @@ import (
 	"context"
 	"runtime"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
 var (

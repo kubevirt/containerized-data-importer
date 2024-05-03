@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -36,6 +37,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -187,7 +189,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			tempHostAssistedPvc := CreatePvcInStorageClass(getTempHostAssistedSourcePvcName(dv), snapshot.Namespace, &scName, nil, labels, corev1.ClaimBound)
 			err := setAnnOwnedByDataVolume(tempHostAssistedPvc, dv)
 			Expect(err).ToNot(HaveOccurred())
-			// mimic target PVC being aroud
+			// mimic target PVC being around
 			annotations := map[string]string{
 				AnnCloneToken: "foobar",
 			}

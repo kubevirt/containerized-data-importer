@@ -18,9 +18,10 @@ package namespaced
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	"kubevirt.io/containerized-data-importer/pkg/common"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 

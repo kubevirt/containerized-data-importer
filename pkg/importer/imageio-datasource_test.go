@@ -15,12 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog/v2"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	ovirtsdk4 "github.com/ovirt/go-ovirt"
 	"github.com/pkg/errors"
+
+	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
@@ -31,7 +32,7 @@ var it = &ovirtsdk4.ImageTransfer{}
 var disk = &ovirtsdk4.Disk{}
 var diskID = "disk-123"
 var diskAvailable = true
-var diskCreateError error
+var errDiskCreate error
 var diskSnapshots = &ovirtsdk4.DiskSnapshotSlice{}
 var storageDomain = &ovirtsdk4.StorageDomain{}
 var storageDomains = &ovirtsdk4.StorageDomainSlice{}
@@ -53,7 +54,7 @@ var _ = Describe("Imageio reader", func() {
 		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
 		it.SetTransferUrl(ts.URL + "/" + cirrosFileName)
 		it.SetId(diskID)
-		diskCreateError = nil
+		errDiskCreate = nil
 		diskAvailable = true
 	})
 
@@ -99,7 +100,7 @@ var _ = Describe("Imageio data source", func() {
 		it.SetTransferUrl(ts.URL)
 		it.SetId(diskID)
 		diskAvailable = true
-		diskCreateError = nil
+		errDiskCreate = nil
 	})
 
 	AfterEach(func() {
@@ -161,7 +162,7 @@ var _ = Describe("Imageio data source", func() {
 	})
 
 	It("NewImageioDataSource should fail if disk creation fails", func() {
-		diskCreateError = errors.New("this is error message")
+		errDiskCreate = errors.New("this is error message")
 		_, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
 		Expect(err).To(HaveOccurred())
 	})
@@ -252,7 +253,7 @@ var _ = Describe("Imageio cancel", func() {
 		it.SetTransferUrl(ts.URL)
 		it.SetId(diskID)
 		diskAvailable = true
-		diskCreateError = nil
+		errDiskCreate = nil
 	})
 
 	AfterEach(func() {
@@ -392,7 +393,7 @@ var _ = Describe("imageio snapshots", func() {
 		it.SetTransferUrl(ts.URL)
 		it.SetId(snapshotID)
 		diskAvailable = true
-		diskCreateError = nil
+		errDiskCreate = nil
 
 		disks := &ovirtsdk4.DiskSlice{}
 		disks.SetSlice([]*ovirtsdk4.Disk{disk})
@@ -478,7 +479,7 @@ var _ = Describe("Imageio extents", func() {
 		it.SetId(diskID)
 		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
 		it.SetTransferUrl(ts.URL + "/ovirt-engine/api/tickets/" + diskID)
-		diskCreateError = nil
+		errDiskCreate = nil
 		diskAvailable = true
 	})
 
@@ -713,7 +714,7 @@ func (conn *MockOvirtClient) Disk() (*ovirtsdk4.Disk, bool) {
 }
 
 func (conn *MockOvirtClient) Send() (DiskServiceResponseInterface, error) {
-	return conn, diskCreateError
+	return conn, errDiskCreate
 }
 
 func (conn *MockOvirtClient) Get() DiskServiceGetInterface {

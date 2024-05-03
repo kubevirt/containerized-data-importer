@@ -26,6 +26,7 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -59,7 +60,6 @@ func (wh *pvcMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1
 	pvcCpy := pvc.DeepCopy()
 	if err := dvc.RenderPvc(context.TODO(), wh.cachedClient, pvcCpy); err != nil {
 		return toAdmissionResponseError(err)
-
 	}
 
 	return toPatchResponse(pvc, pvcCpy)

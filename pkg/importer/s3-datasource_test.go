@@ -6,11 +6,10 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"github.com/aws/aws-sdk-go/service/s3"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/pkg/errors"
 )
 

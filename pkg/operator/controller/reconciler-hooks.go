@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
+
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-
-	"github.com/go-logr/logr"
-	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
 
 // watch registers CDI-specific watches

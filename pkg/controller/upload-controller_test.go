@@ -20,17 +20,9 @@ import (
 	"context"
 	"strings"
 
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	ocpconfigv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,10 +31,15 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-
-	//cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )
@@ -448,13 +445,13 @@ var _ = Describe("reconcilePVC loop", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		DescribeTable("should pass correct crypto config to created pod", func(profile *ocpconfigv1.TLSSecurityProfile) {
+		DescribeTable("should pass correct crypto config to created pod", func(profile *cdiv1.TLSSecurityProfile) {
 			testPvc := cc.CreatePvc(testPvcName, "default", map[string]string{cc.AnnUploadRequest: "", AnnUploadPod: uploadResourceName}, nil)
 			reconciler := createUploadReconciler(testPvc)
 			cdiConfig := &cdiv1.CDIConfig{}
 			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
 			Expect(err).ToNot(HaveOccurred())
-			profileType := ocpconfigv1.TLSProfileIntermediateType
+			profileType := cdiv1.TLSProfileIntermediateType
 			if profile != nil {
 				profileType = profile.Type
 				cdiConfig.Spec.TLSSecurityProfile = profile
@@ -473,7 +470,7 @@ var _ = Describe("reconcilePVC loop", func() {
 			foundMinVersionEnvVar := false
 			for _, envVar := range uploadPod.Spec.Containers[0].Env {
 				if envVar.Name == common.MinVersionTLSVar {
-					Expect(envVar.Value).To(Equal(string(ocpconfigv1.TLSProfiles[profileType].MinTLSVersion)))
+					Expect(envVar.Value).To(Equal(string(cdiv1.TLSProfiles[profileType].MinTLSVersion)))
 					foundMinVersionEnvVar = true
 				}
 			}
@@ -481,14 +478,14 @@ var _ = Describe("reconcilePVC loop", func() {
 			foundCiphersEnvVar := false
 			for _, envVar := range uploadPod.Spec.Containers[0].Env {
 				if envVar.Name == common.CiphersTLSVar {
-					Expect(envVar.Value).To(Equal(strings.Join(ocpconfigv1.TLSProfiles[profileType].Ciphers, ",")))
+					Expect(envVar.Value).To(Equal(strings.Join(cdiv1.TLSProfiles[profileType].Ciphers, ",")))
 					foundCiphersEnvVar = true
 				}
 			}
 			Expect(foundCiphersEnvVar).To(BeTrue())
 		},
 			Entry("no profile set", nil),
-			Entry("'Old' profile set", &ocpconfigv1.TLSSecurityProfile{Type: ocpconfigv1.TLSProfileOldType, Old: &ocpconfigv1.OldTLSProfile{}}),
+			Entry("'Old' profile set", &cdiv1.TLSSecurityProfile{Type: cdiv1.TLSProfileOldType, Old: &cdiv1.OldTLSProfile{}}),
 		)
 	})
 })

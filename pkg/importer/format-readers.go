@@ -27,6 +27,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ulikunitz/xz"
+
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -48,7 +49,7 @@ var (
 
 func init() {
 	if err := prometheus.Register(progress); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+		if are := (prometheus.AlreadyRegisteredError{}); errors.As(err, &are) {
 			// A counter for that metric has been registered before.
 			// Use the old counter from now on.
 			progress = are.ExistingCollector.(*prometheus.CounterVec)

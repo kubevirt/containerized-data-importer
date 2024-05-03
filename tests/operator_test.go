@@ -11,32 +11,35 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	routev1 "github.com/openshift/api/route/v1"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
-	appsv1 "k8s.io/api/apps/v1"
-	schedulev1 "k8s.io/api/scheduling/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
-	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
-	crclient "sigs.k8s.io/controller-runtime/pkg/client"
-
 	secclient "github.com/openshift/client-go/security/clientset/versioned"
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
+
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	schedulev1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
+
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 )
 
 var (
@@ -768,7 +771,7 @@ var _ = Describe("ALL Operator tests", func() {
 				cdiConfig, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
-				By("Enable non existant featureGate")
+				By("Enable non existent featureGate")
 				cdiConfig.Spec = cdiv1.CDIConfigSpec{
 					FeatureGates: []string{feature},
 				}
@@ -1159,11 +1162,11 @@ var _ = Describe("ALL Operator tests", func() {
 					prioClass = osUserCrit.Name
 				}
 				// Deployment
-				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(prioClass), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiDeploymentPodPrefix, prioClass, common.CDILabelSelector)
 				// API server
-				verifyPodPriorityClass(cdiApiServerPodPrefix, string(prioClass), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiApiServerPodPrefix, prioClass, common.CDILabelSelector)
 				// Upload server
-				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(prioClass), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiUploadProxyPodPrefix, prioClass, common.CDILabelSelector)
 				By("Verifying there is just a single cdi controller pod")
 				Eventually(func() error {
 					_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
@@ -1203,11 +1206,11 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				By("Verifying the CDI control plane is updated")
 				// Deployment
-				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiDeploymentPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 				// API server
-				verifyPodPriorityClass(cdiApiServerPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiApiServerPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 				// Upload server
-				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiUploadProxyPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 			})
 		})
 	})
@@ -1423,7 +1426,6 @@ func checkLogForRegEx(regEx *regexp.Regexp, log string) bool {
 }
 
 func checkAntiAffinity(name string, deploymentAffinity *corev1.Affinity) {
-
 	affinityTampleValue := &corev1.PodAntiAffinity{
 		PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
 			{
@@ -1445,7 +1447,6 @@ func checkAntiAffinity(name string, deploymentAffinity *corev1.Affinity) {
 	affCopy := framework.AffinityTestValue.DeepCopy()
 	affCopy.PodAntiAffinity = affinityTampleValue
 	Expect(reflect.DeepEqual(deploymentAffinity, affCopy)).To(BeTrue())
-
 }
 
 func getLog(f *framework.Framework, name string) string {

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -37,6 +38,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -53,6 +55,10 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 
+	runtimecache "sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiv1utils "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1/utils"
 	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
@@ -61,9 +67,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-	runtimecache "sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 const (
@@ -794,7 +797,7 @@ func IsPopulated(pvc *corev1.PersistentVolumeClaim, c client.Client) (bool, erro
 	})
 }
 
-// GetPreallocation retuns the preallocation setting for the specified object (DV or VolumeImportSource), falling back to StorageClass and global setting (in this order)
+// GetPreallocation returns the preallocation setting for the specified object (DV or VolumeImportSource), falling back to StorageClass and global setting (in this order)
 func GetPreallocation(ctx context.Context, client client.Client, preallocation *bool) bool {
 	// First, the DV's preallocation
 	if preallocation != nil {
@@ -949,7 +952,7 @@ func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNa
 
 // validateContentTypes compares the content type of a clone DV against its source PVC's one
 func validateContentTypes(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
-	sourceContentType := cdiv1.DataVolumeContentType(GetPVCContentType(sourcePVC))
+	sourceContentType := GetPVCContentType(sourcePVC)
 	targetContentType := spec.ContentType
 	if targetContentType == "" {
 		targetContentType = cdiv1.DataVolumeKubeVirt
@@ -1224,7 +1227,7 @@ func CreatePvcInStorageClass(name, ns string, storageClassName *string, annotati
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany, corev1.ReadWriteOnce},
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("1G"),
+					corev1.ResourceStorage: resource.MustParse("1G"),
 				},
 			},
 			StorageClassName: storageClassName,
@@ -1449,11 +1452,8 @@ func GetNamespace(namespace, defaultNamespace string) string {
 
 // IsErrCacheNotStarted checked is the error is of cache not started
 func IsErrCacheNotStarted(err error) bool {
-	if err == nil {
-		return false
-	}
-	_, ok := err.(*runtimecache.ErrCacheNotStarted)
-	return ok
+	target := &runtimecache.ErrCacheNotStarted{}
+	return errors.As(err, &target)
 }
 
 // GetDataVolumeTTLSeconds gets the current DataVolume TTL in seconds if GC is enabled, or < 0 if GC is disabled
@@ -1493,16 +1493,14 @@ func NewImportDataVolume(name string) *cdiv1.DataVolume {
 func GetCloneSourceInfo(dv *cdiv1.DataVolume) (sourceType, sourceName, sourceNamespace string) {
 	// Cloning sources are mutually exclusive
 	if dv.Spec.Source.PVC != nil {
-		sourceType = "pvc"
-		sourceName = dv.Spec.Source.PVC.Name
-		sourceNamespace = dv.Spec.Source.PVC.Namespace
-	} else if dv.Spec.Source.Snapshot != nil {
-		sourceType = "snapshot"
-		sourceName = dv.Spec.Source.Snapshot.Name
-		sourceNamespace = dv.Spec.Source.Snapshot.Namespace
+		return "pvc", dv.Spec.Source.PVC.Name, dv.Spec.Source.PVC.Namespace
 	}
 
-	return
+	if dv.Spec.Source.Snapshot != nil {
+		return "snapshot", dv.Spec.Source.Snapshot.Name, dv.Spec.Source.Snapshot.Namespace
+	}
+
+	return "", "", ""
 }
 
 // IsWaitForFirstConsumerEnabled tells us if we should respect "real" WFFC behavior or just let our worker pods randomly spawn
@@ -1641,7 +1639,8 @@ func GetMetricsURL(pod *corev1.Pod) (string, error) {
 	if err != nil || pod.Status.PodIP == "" {
 		return "", err
 	}
-	url := fmt.Sprintf("https://%s:%d/metrics", pod.Status.PodIP, port)
+	domain := net.JoinHostPort(pod.Status.PodIP, fmt.Sprint(port))
+	url := fmt.Sprintf("https://%s/metrics", domain)
 	return url, nil
 }
 

@@ -8,9 +8,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	"github.com/pkg/errors"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
@@ -274,7 +274,7 @@ var _ = Describe("Data Processor", func() {
 		})
 	})
 
-	It("should allow phase regsitry", func() {
+	It("should allow phase registry", func() {
 		mcdp := &MockCustomizedDataProvider{
 			MockDataProvider: MockDataProvider{
 				infoResponse:     ProcessingPhaseTransferDataDir,

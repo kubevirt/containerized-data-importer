@@ -11,13 +11,14 @@ import (
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	crclient "sigs.k8s.io/controller-runtime/pkg/client"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
@@ -133,7 +134,7 @@ var _ = Describe("Population tests", func() {
 			}
 
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), nil, dataSourceRef)
+			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeFilesystem, nil, dataSourceRef)
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
@@ -176,7 +177,7 @@ var _ = Describe("Population tests", func() {
 			}
 
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock), nil, dataSourceRef)
+			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeBlock, nil, dataSourceRef)
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
@@ -204,7 +205,7 @@ var _ = Describe("Population tests", func() {
 			}
 
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), nil, dummySourceRef)
+			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeFilesystem, nil, dummySourceRef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -244,7 +245,7 @@ var _ = Describe("Population tests", func() {
 			}
 
 			By(fmt.Sprintf("Creating target datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), dataSource, nil)
+			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeFilesystem, dataSource, nil)
 			dataVolume.Spec.Storage.StorageClassName = nil
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -308,7 +309,7 @@ var _ = Describe("Population tests", func() {
 
 			By(fmt.Sprintf("Creating target datavolume %s", dataVolumeName))
 			// PVC API because some provisioners only allow exact match between source size and restore size
-			dataVolume := utils.NewDataVolumeWithExternalPopulation(dataVolumeName, snapshot.Status.RestoreSize.String(), f.SnapshotSCName, corev1.PersistentVolumeMode(corev1.PersistentVolumeFilesystem), dataSource, nil)
+			dataVolume := utils.NewDataVolumeWithExternalPopulation(dataVolumeName, snapshot.Status.RestoreSize.String(), f.SnapshotSCName, corev1.PersistentVolumeFilesystem, dataSource, nil)
 			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())

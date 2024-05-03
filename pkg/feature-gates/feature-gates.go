@@ -4,7 +4,9 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+
 	"k8s.io/apimachinery/pkg/types"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"

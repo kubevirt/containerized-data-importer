@@ -30,6 +30,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -40,6 +41,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -392,7 +394,7 @@ var _ = Describe("Import populator tests", func() {
 		},
 			Entry("with pod running phase", string(corev1.PodRunning)),
 			Entry("with pod failed phase", string(corev1.PodFailed)),
-			Entry("with pod succeded phase", string(corev1.PodSucceeded)),
+			Entry("with pod succeeded phase", string(corev1.PodSucceeded)),
 		)
 
 		It("should update target pvc with desired labels from succeeded pvc prime", func() {

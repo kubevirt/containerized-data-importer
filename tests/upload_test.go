@@ -18,7 +18,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	ocpconfigv1 "github.com/openshift/api/config/v1"
 
 	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -747,7 +746,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	})
 })
 
-var ErrorTestFake = errors.New("TestFakeError")
+var ErrTestFake = errors.New("TestFakeError")
 
 // LimitThenErrorReader returns a Reader that reads from r
 // but stops with FakeError after n bytes.
@@ -763,16 +762,16 @@ type limitThenErrorReader struct {
 	n int64     // max bytes remaining
 }
 
-func (l *limitThenErrorReader) Read(p []byte) (n int, err error) {
+func (l *limitThenErrorReader) Read(p []byte) (int, error) {
 	if l.n <= 0 {
-		return 0, ErrorTestFake // EOF
+		return 0, ErrTestFake // EOF
 	}
 	if int64(len(p)) > l.n {
 		p = p[0:l.n]
 	}
-	n, err = l.r.Read(p)
+	n, err := l.r.Read(p)
 	l.n -= int64(n)
-	return
+	return n, err
 }
 
 func startUploadProxyPortForward(f *framework.Framework) (string, *exec.Cmd, error) {
@@ -1258,11 +1257,11 @@ var _ = Describe("CDIConfig manipulation upload tests", Serial, func() {
 			Skip("OpenShift reencrypt routes are used, client tls config will be dropped")
 		}
 		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-			config.TLSSecurityProfile = &ocpconfigv1.TLSSecurityProfile{
+			config.TLSSecurityProfile = &cdiv1.TLSSecurityProfile{
 				// Modern profile requires TLS 1.3
 				// https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility
-				Type:   ocpconfigv1.TLSProfileModernType,
-				Modern: &ocpconfigv1.ModernTLSProfile{},
+				Type:   cdiv1.TLSProfileModernType,
+				Modern: &cdiv1.ModernTLSProfile{},
 			}
 		})
 		Expect(err).ToNot(HaveOccurred())
@@ -1306,11 +1305,11 @@ var _ = Describe("CDIConfig manipulation upload tests", Serial, func() {
 
 		// Change to intermediate, which is fine with 1.2, expect success
 		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-			config.TLSSecurityProfile = &ocpconfigv1.TLSSecurityProfile{
+			config.TLSSecurityProfile = &cdiv1.TLSSecurityProfile{
 				// Intermediate profile requires TLS 1.2
 				// https://wiki.mozilla.org/Security/Server_Side_TLS#Intermediate_compatibility_.28recommended.29
-				Type:         ocpconfigv1.TLSProfileIntermediateType,
-				Intermediate: &ocpconfigv1.IntermediateTLSProfile{},
+				Type:         cdiv1.TLSProfileIntermediateType,
+				Intermediate: &cdiv1.IntermediateTLSProfile{},
 			}
 		})
 		Expect(err).ToNot(HaveOccurred())
@@ -1377,7 +1376,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		fsOverhead := "0.055" // The default value
 		tests.SetFilesystemOverhead(f, fsOverhead, fsOverhead)
 
-		volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+		volumeMode := v1.PersistentVolumeFilesystem
 		accessModes := []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
 		dvName := "upload-dv"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))

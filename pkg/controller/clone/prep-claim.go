@@ -5,15 +5,17 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
-	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/util"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 // PrepClaimPhaseName is the name of the prep claim phase
@@ -159,7 +161,7 @@ func (p *PrepClaimPhase) createPod(ctx context.Context, name string, pvc *corev1
 				{
 					Name:            "dummy",
 					Image:           p.Image,
-					ImagePullPolicy: corev1.PullPolicy(p.PullPolicy),
+					ImagePullPolicy: p.PullPolicy,
 					Command:         []string{"/bin/bash"},
 					Args:            []string{"-c", "echo", "'hello cdi'"},
 				},

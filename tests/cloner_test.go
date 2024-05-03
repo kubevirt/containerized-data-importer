@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -22,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -325,7 +327,7 @@ var _ = Describe("all clone tests", func() {
 				nodeList, err := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				if len(nodeList.Items) < 2 {
-					Skip("Need at least 2 nodes to copy accross nodes")
+					Skip("Need at least 2 nodes to copy across nodes")
 				}
 				nodeMap := make(map[string]bool)
 				for _, node := range nodeList.Items {
@@ -499,7 +501,7 @@ var _ = Describe("all clone tests", func() {
 				sourcePvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
-				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+				volumeMode := v1.PersistentVolumeFilesystem
 				targetDV := utils.NewDataVolumeForImageCloning("target-dv", "1.1Gi", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
 				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
@@ -590,7 +592,7 @@ var _ = Describe("all clone tests", func() {
 				// should clone from fs to fs using the same size in spec.storage.size
 				// source pvc might be bigger than the size, but the clone should work
 				// as the actual data is the same
-				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+				volumeMode := v1.PersistentVolumeFilesystem
 
 				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				dataVolume.Spec.Storage.VolumeMode = &volumeMode
@@ -833,7 +835,7 @@ var _ = Describe("all clone tests", func() {
 				})
 
 				It("should report correct status for smart/CSI clones", func() {
-					volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+					volumeMode := v1.PersistentVolumeFilesystem
 
 					dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 					dataVolume.Spec.Storage.VolumeMode = &volumeMode
@@ -880,7 +882,7 @@ var _ = Describe("all clone tests", func() {
 				})
 
 				It("should succeed smart/CSI clones with immediate bind requested", func() {
-					volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+					volumeMode := v1.PersistentVolumeFilesystem
 
 					dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 					dataVolume.Spec.Storage.VolumeMode = &volumeMode
@@ -1170,7 +1172,7 @@ var _ = Describe("all clone tests", func() {
 		//	3. 'HostAssisted' is used as clone strategy.
 		Context("Clone with empty size using the size-detection pod", func() {
 			diskImagePath := filepath.Join(testBaseDir, testFile)
-			volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+			volumeMode := v1.PersistentVolumeFilesystem
 
 			deleteAndWaitForVerifierPod := func() {
 				By("Deleting verifier pod")
@@ -1528,8 +1530,8 @@ var _ = Describe("all clone tests", func() {
 
 		Context("Clone without a source PVC", func() {
 			diskImagePath := filepath.Join(testBaseDir, testFile)
-			fsVM := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
-			blockVM := v1.PersistentVolumeMode(v1.PersistentVolumeBlock)
+			fsVM := v1.PersistentVolumeFilesystem
+			blockVM := v1.PersistentVolumeBlock
 
 			deleteAndWaitForVerifierPod := func() {
 				By("Deleting verifier pod")
@@ -2663,7 +2665,7 @@ var _ = Describe("all clone tests", func() {
 			}
 		})
 
-		DescribeTable("Should sucessfully clone without falling back to host assisted", func(volumeMode v1.PersistentVolumeMode, repeat int, crossNamespace bool) {
+		DescribeTable("Should successfully clone without falling back to host assisted", func(volumeMode v1.PersistentVolumeMode, repeat int, crossNamespace bool) {
 			var i int
 			var err error
 
@@ -2725,10 +2727,10 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
 		},
-			Entry("[test_id:9703] with filesystem single clone", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 1, true),
-			Entry("[test_id:9708] with filesystem multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 5, false),
-			Entry("[test_id:9709] with block single clone", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 1, false),
-			Entry("[test_id:9710] with block multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 5, false),
+			Entry("[test_id:9703] with filesystem single clone", v1.PersistentVolumeFilesystem, 1, true),
+			Entry("[test_id:9708] with filesystem multiple clones", v1.PersistentVolumeFilesystem, 5, false),
+			Entry("[test_id:9709] with block single clone", v1.PersistentVolumeBlock, 1, false),
+			Entry("[test_id:9710] with block multiple clones", v1.PersistentVolumeBlock, 5, false),
 		)
 
 		Context("Fallback to host assisted", func() {
@@ -2806,10 +2808,10 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(same).To(BeTrue())
 			},
-				Entry("[test_id:9714] with filesystem single clone", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 1, true),
-				Entry("[test_id:9715] with filesystem multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 5, false),
-				Entry("[test_id:9716] with block single clone", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 1, false),
-				Entry("[test_id:9717] with block multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 5, false),
+				Entry("[test_id:9714] with filesystem single clone", v1.PersistentVolumeFilesystem, 1, true),
+				Entry("[test_id:9715] with filesystem multiple clones", v1.PersistentVolumeFilesystem, 5, false),
+				Entry("[test_id:9716] with block single clone", v1.PersistentVolumeBlock, 1, false),
+				Entry("[test_id:9717] with block multiple clones", v1.PersistentVolumeBlock, 5, false),
 			)
 		})
 
@@ -2835,7 +2837,7 @@ var _ = Describe("all clone tests", func() {
 				var err error
 
 				size := "1Gi"
-				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+				volumeMode := v1.PersistentVolumeFilesystem
 				dvName := "clone-from-snap"
 				createSnapshot(size, &wffcStorageClass.Name, volumeMode)
 
@@ -2863,7 +2865,7 @@ var _ = Describe("all clone tests", func() {
 					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
 				}
 				size := "1Gi"
-				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+				volumeMode := v1.PersistentVolumeFilesystem
 				By("Create the clone before the source snapshot")
 				cloneDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("clone-from-snap", size, f.Namespace.Name, "snap-"+dataVolumeName, &f.SnapshotSCName, &volumeMode)
 				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
@@ -2901,7 +2903,7 @@ var _ = Describe("all clone tests", func() {
 				}
 
 				recommendedSnapSize := "2Gi"
-				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+				volumeMode := v1.PersistentVolumeFilesystem
 
 				By("Create source snapshot")
 				createSnapshot(recommendedSnapSize, &f.SnapshotSCName, volumeMode)
@@ -2920,7 +2922,7 @@ var _ = Describe("all clone tests", func() {
 				}
 
 				size := "1Gi"
-				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+				volumeMode := v1.PersistentVolumeFilesystem
 				createSnapshot(size, &f.SnapshotSCName, volumeMode)
 
 				targetDS := utils.NewSnapshotDataSource("test-datasource", snapshot.Namespace, snapshot.Name, snapshot.Namespace)
@@ -3235,7 +3237,6 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 				*sourcePVC.Spec.StorageClassName == f.CsiCloneSCName &&
 				(!isCrossNamespaceClone || bindingMode == storagev1.VolumeBindingImmediate || usesPopulator) &&
 				(allowsExpansion || sourcePVC.Status.Capacity.Storage().Cmp(*targetPVC.Status.Capacity.Storage()) == 0) {
-
 				cloneType = "csi-clone"
 			}
 		}

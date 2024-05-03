@@ -5,20 +5,23 @@ import (
 	"fmt"
 	"time"
 
-	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -72,6 +75,23 @@ var _ = Describe("DataImportCron", Serial, func() {
 
 		By("[AfterEach] Restore the profile")
 		Expect(utils.UpdateStorageProfile(f.CrClient, scName, *originalProfileSpec)).Should(Succeed())
+
+		// Clean up existing dataimportcrons in the environment that we might have switched
+		l, err := labels.Parse(common.DataImportCronLabel)
+		Expect(err).ToNot(HaveOccurred())
+		snapshots := &snapshotv1.VolumeSnapshotList{}
+		err = f.CrClient.List(context.TODO(), snapshots, &client.ListOptions{Namespace: metav1.NamespaceAll, LabelSelector: l})
+		Expect(err).To(Or(
+			Not(HaveOccurred()),
+			Satisfy(meta.IsNoMatchError),
+		))
+		for i := range snapshots.Items {
+			err = f.CrClient.Delete(context.TODO(), &snapshots.Items[i])
+			Expect(err).To(Or(
+				Not(HaveOccurred()),
+				Satisfy(meta.IsNoMatchError),
+			))
+		}
 	})
 
 	updateDigest := func(digest string) func(cron *cdiv1.DataImportCron) *cdiv1.DataImportCron {
@@ -778,7 +798,6 @@ func getDataVolumeSourceRegistry(f *framework.Framework) (*cdiv1.DataVolumeSourc
 
 func updateDataImportCron(clientSet *cdiclientset.Clientset, namespace string, cronName string,
 	update func(cron *cdiv1.DataImportCron) *cdiv1.DataImportCron) func() error {
-
 	return func() error {
 		cron, err := clientSet.CdiV1beta1().DataImportCrons(namespace).Get(context.TODO(), cronName, metav1.GetOptions{})
 		if err != nil {

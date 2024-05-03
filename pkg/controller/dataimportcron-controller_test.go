@@ -23,10 +23,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/google/uuid"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -592,8 +593,8 @@ var _ = Describe("All DataImportCron Tests", func() {
 			verifyDataImportCronOutdatedMetric(cron, isPending, 1)
 			verifyDataImportCronOutdatedMetric(cron, !isPending, 0)
 		},
-			Entry("with DataVolume pending for deafult storage class", true),
-			Entry("with deafult storage class", false),
+			Entry("with DataVolume pending for default storage class", true),
+			Entry("with default storage class", false),
 		)
 
 		It("Should not create DV if PVC exists on DesiredDigest update; Should update DIC and DAS, and GC LRU PVCs", func() {

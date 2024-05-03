@@ -39,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -311,17 +312,18 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 	// Watch for SC updates and reconcile the DVs waiting for default SC
 	// Relevant only when the DV StorageSpec has no AccessModes set and no matching StorageClass yet, so PVC cannot be created (test_id:9922)
 	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			dvList := &cdiv1.DataVolumeList{}
 			if err := mgr.GetClient().List(ctx, dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
-				return
+				return nil
 			}
+			var reqs []reconcile.Request
 			for _, dv := range dvList.Items {
 				if getDataVolumeOp(ctx, mgr.GetLogger(), &dv, mgr.GetClient()) == op {
 					reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
 				}
 			}
-			return
+			return reqs
 		},
 	),
 	); err != nil {
@@ -331,12 +333,13 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 	// Watch for PV updates to reconcile the DVs waiting for available PV
 	// Relevant only when the DV StorageSpec has no AccessModes set and no matching StorageClass yet, so PVC cannot be created (test_id:9924,9925)
 	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolume{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			pv := obj.(*corev1.PersistentVolume)
 			dvList := &cdiv1.DataVolumeList{}
 			if err := mgr.GetClient().List(ctx, dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
-				return
+				return nil
 			}
+			var reqs []reconcile.Request
 			for _, dv := range dvList.Items {
 				storage := dv.Spec.Storage
 				if storage != nil &&
@@ -347,7 +350,7 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 					reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
 				}
 			}
-			return
+			return reqs
 		},
 	),
 	); err != nil {
@@ -625,7 +628,7 @@ func (r *ReconcilerBase) handleStaticVolume(syncState *dvSyncState, log logr.Log
 	for _, v := range volumes {
 		if v == syncState.pvc.Spec.VolumeName {
 			pvcCpy := syncState.pvc.DeepCopy()
-			// handle as "populatedFor" going foreward
+			// handle as "populatedFor" going forward
 			cc.AddAnnotation(pvcCpy, cc.AnnPopulatedFor, syncState.dvMutated.Name)
 			delete(pvcCpy.Annotations, cc.AnnPersistentVolumeList)
 			if err := r.updatePVC(pvcCpy); err != nil {
@@ -869,7 +872,6 @@ func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 	dataVolumeCopy *cdiv1.DataVolume,
 	pvc *corev1.PersistentVolumeClaim,
 	event Event) error {
-
 	if dataVolume == nil {
 		return nil
 	}

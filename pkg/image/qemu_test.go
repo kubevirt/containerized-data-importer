@@ -23,18 +23,16 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/pkg/errors"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
+	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
-	"kubevirt.io/containerized-data-importer/pkg/system"
+	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"kubevirt.io/containerized-data-importer/pkg/system"
 )
 
 const goodValidateJSON = `
@@ -207,7 +205,7 @@ var _ = Describe("Resize", func() {
 			o := NewQEMUOperations()
 			err = o.Resize("image", quantity, false)
 			Expect(err).To(HaveOccurred())
-			Expect(strings.Contains(err.Error(), "Error resizing image image")).To(BeTrue())
+			Expect(strings.Contains(err.Error(), "Error resizing image")).To(BeTrue())
 		})
 	})
 })
@@ -485,7 +483,7 @@ func mockExecFunction(output, errString string, expectedLimits *system.ProcessLi
 			err = errors.New(errString)
 		}
 
-		return
+		return bytes, err
 	}
 }
 
@@ -502,7 +500,7 @@ func mockExecFunctionStrict(output, errString string, expectedLimits *system.Pro
 			err = errors.New(errString)
 		}
 
-		return
+		return bytes, err
 	}
 }
 
@@ -525,7 +523,7 @@ func mockExecFunctionTwoCalls(output, errString string, expectedLimits *system.P
 			err = errors.New(errString)
 		}
 
-		return
+		return bytes, err
 	}
 }
 

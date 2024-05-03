@@ -43,13 +43,14 @@ import (
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	"golang.org/x/sys/unix"
+	libnbd "libguestfs.org/libnbd"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-	libnbd "libguestfs.org/libnbd"
 )
 
 // May be overridden in tests
@@ -789,7 +790,7 @@ type VDDKDataSource struct {
 
 func init() {
 	if err := prometheus.Register(progress); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+		if are := (prometheus.AlreadyRegisteredError{}); errors.Is(err, &are) {
 			// A counter for that metric has been registered before.
 			// Use the old counter from now on.
 			progress = are.ExistingCollector.(*prometheus.CounterVec)

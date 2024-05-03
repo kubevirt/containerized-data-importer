@@ -36,6 +36,7 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/pkg/errors"
+
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -340,7 +341,7 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 
 		if err != nil {
 			klog.Errorf("Saving stream failed: %s", err)
-			if _, ok := err.(importer.ValidationSizeError); ok {
+			if errors.As(err, &importer.ValidationSizeError{}) {
 				w.WriteHeader(http.StatusBadRequest)
 			} else {
 				w.WriteHeader(http.StatusInternalServerError)

@@ -22,11 +22,12 @@ import (
 	"reflect"
 
 	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"kubevirt.io/containerized-data-importer/pkg/token"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -41,6 +42,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
+	"kubevirt.io/containerized-data-importer/pkg/token"
 )
 
 const (
@@ -91,9 +93,9 @@ const (
 	SizeDetectionPodCreated = "SizeDetectionPodCreated"
 	// MessageSizeDetectionPodCreated provides a const to indicate that the size-detection pod has been created (message)
 	MessageSizeDetectionPodCreated = "Size-detection pod created"
-	// SizeDetectionPodNotReady reports that the size-detection pod has not finished its exectuion (reason)
+	// SizeDetectionPodNotReady reports that the size-detection pod has not finished its execution (reason)
 	SizeDetectionPodNotReady = "SizeDetectionPodNotReady"
-	// MessageSizeDetectionPodNotReady reports that the size-detection pod has not finished its exectuion (message)
+	// MessageSizeDetectionPodNotReady reports that the size-detection pod has not finished its execution (message)
 	MessageSizeDetectionPodNotReady = "The size detection pod is not finished yet"
 	// ImportPVCNotReady reports that it's not yet possible to access the source PVC (reason)
 	ImportPVCNotReady = "ImportPVCNotReady"
@@ -548,17 +550,18 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 	}
 
 	// Function to reconcile DVs that match the selected fields
-	dataVolumeMapper := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+	dataVolumeMapper := func(ctx context.Context, obj client.Object) []reconcile.Request {
 		dvList := &cdiv1.DataVolumeList{}
 		namespacedName := types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}
 		matchingFields := client.MatchingFields{indexingKey: namespacedName.String()}
 		if err := mgr.GetClient().List(ctx, dvList, matchingFields); err != nil {
-			return
+			return nil
 		}
+		var reqs []reconcile.Request
 		for _, dv := range dvList.Items {
 			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
 		}
-		return
+		return reqs
 	}
 
 	if err := datavolumeController.Watch(source.Kind(mgr.GetCache(), typeToWatch),

@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	ocpcrypto "github.com/openshift/library-go/pkg/crypto"
+
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"

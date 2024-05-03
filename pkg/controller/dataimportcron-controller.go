@@ -27,11 +27,11 @@ import (
 
 	"github.com/containers/image/v5/docker/reference"
 	"github.com/go-logr/logr"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 	"github.com/pkg/errors"
 	cronexpr "github.com/robfig/cron/v3"
 
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -44,6 +44,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -266,8 +267,8 @@ func (r *DataImportCronReconciler) setNextCronTime(dataImportCron *cdiv1.DataImp
 		return reconcile.Result{}, err
 	}
 	nextTime := expr.Next(now)
-	diffSec := time.Duration(nextTime.Sub(now).Seconds()) + 1
-	res := reconcile.Result{Requeue: true, RequeueAfter: diffSec * time.Second}
+	requeueAfter := nextTime.Sub(now) + time.Second
+	res := reconcile.Result{Requeue: true, RequeueAfter: requeueAfter}
 	cc.AddAnnotation(dataImportCron, AnnNextCronTime, nextTime.Format(time.RFC3339))
 	return res, err
 }
@@ -978,29 +979,30 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return nil
 	}
 
-	mapStorageProfileToCron := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+	mapStorageProfileToCron := func(ctx context.Context, obj client.Object) []reconcile.Request {
 		// TODO: Get rid of this after at least one version; use indexer on storage class annotation instead
 		// Otherwise we risk losing the storage profile event
 		var crons cdiv1.DataImportCronList
 		if err := mgr.GetClient().List(ctx, &crons); err != nil {
 			c.GetLogger().Error(err, "Unable to list DataImportCrons")
-			return
+			return nil
 		}
 		// Storage profiles are 1:1 to storage classes
 		scName := obj.GetName()
+		var reqs []reconcile.Request
 		for _, cron := range crons.Items {
 			dataVolume := cron.Spec.Template
 			explicitScName := cc.GetStorageClassFromDVSpec(&dataVolume)
 			templateSc, err := cc.GetStorageClassByNameWithVirtFallback(ctx, mgr.GetClient(), explicitScName, dataVolume.Spec.ContentType)
 			if err != nil || templateSc == nil {
 				c.GetLogger().Error(err, "Unable to get storage class", "templateSc", templateSc)
-				return
+				return reqs
 			}
 			if templateSc.Name == scName {
 				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: cron.Namespace, Name: cron.Name}})
 			}
 		}
-		return
+		return reqs
 	}
 
 	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{}),
@@ -1050,6 +1052,26 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 			CreateFunc: func(e event.CreateEvent) bool { return getCronName(e.Object) != "" && getCronNs(e.Object) != "" },
 			DeleteFunc: func(event.DeleteEvent) bool { return false },
 			UpdateFunc: func(event.UpdateEvent) bool { return false },
+		},
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetClient().List(context.TODO(), &snapshotv1.VolumeSnapshotList{}); err != nil {
+		if meta.IsNoMatchError(err) {
+			// Back out if there's no point to attempt watch
+			return nil
+		}
+		if !cc.IsErrCacheNotStarted(err) {
+			return err
+		}
+	}
+	if err := c.Watch(source.Kind(mgr.GetCache(), &snapshotv1.VolumeSnapshot{}),
+		handler.EnqueueRequestsFromMapFunc(mapSourceObjectToCron),
+		predicate.Funcs{
+			CreateFunc: func(event.CreateEvent) bool { return false },
+			UpdateFunc: func(event.UpdateEvent) bool { return false },
+			DeleteFunc: func(e event.DeleteEvent) bool { return getCronName(e.Object) != "" },
 		},
 	); err != nil {
 		return err

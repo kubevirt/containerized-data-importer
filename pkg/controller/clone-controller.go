@@ -9,20 +9,19 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -36,6 +35,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
 const (
@@ -523,7 +523,6 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image, pullPolicy, ownerRefAnno string, imagePullSecrets []corev1.LocalObjectReference,
 	serverCACert []byte, targetPvc, sourcePvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements,
 	workloadNodePlacement *sdkapi.NodePlacement) *corev1.Pod {
-
 	sourcePvcName := sourcePvc.GetName()
 	sourcePvcNamespace := sourcePvc.GetNamespace()
 	sourcePvcUID := string(sourcePvc.GetUID())
@@ -730,17 +729,15 @@ func ParseCloneRequestAnnotation(pvc *corev1.PersistentVolumeClaim) (exists bool
 	var ann string
 	ann, exists = pvc.Annotations[cc.AnnCloneRequest]
 	if !exists {
-		return
+		return false, "", ""
 	}
 
 	sp := strings.Split(ann, "/")
 	if len(sp) != 2 {
-		exists = false
-		return
+		return false, "", ""
 	}
 
-	namespace, name = sp[0], sp[1]
-	return
+	return true, sp[0], sp[1]
 }
 
 // ValidateCanCloneSourceAndTargetContentType validates the pvcs passed has the same content type.

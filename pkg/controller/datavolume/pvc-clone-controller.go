@@ -25,6 +25,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -32,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -46,7 +48,7 @@ import (
 )
 
 const (
-	sourceInUseRequeueDuration = time.Duration(5 * time.Second)
+	sourceInUseRequeueDuration = 5 * time.Second
 
 	pvcCloneControllerName = "datavolume-pvc-clone-controller"
 
@@ -152,17 +154,18 @@ func addDataSourceWatch(mgr manager.Manager, c controller.Controller) error {
 		return err
 	}
 
-	mapToDataVolume := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+	mapToDataVolume := func(ctx context.Context, obj client.Object) []reconcile.Request {
 		var dvs cdiv1.DataVolumeList
 		matchingFields := client.MatchingFields{dvDataSourceField: getKey(obj.GetNamespace(), obj.GetName())}
 		if err := mgr.GetClient().List(ctx, &dvs, matchingFields); err != nil {
 			c.GetLogger().Error(err, "Unable to list DataVolumes", "matchingFields", matchingFields)
-			return
+			return nil
 		}
+		var reqs []reconcile.Request
 		for _, dv := range dvs.Items {
 			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
 		}
-		return
+		return reqs
 	}
 
 	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{}),
@@ -491,7 +494,6 @@ func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState) (bool, erro
 				return false, nil
 			}
 		}
-
 	} else {
 		targetSize, _ = sourceCapacity.AsInt64()
 	}
@@ -593,7 +595,6 @@ func (r *PvcCloneReconciler) getSizeFromPod(targetPvc, sourcePvc *corev1.Persist
 func (r *PvcCloneReconciler) getOrCreateSizeDetectionPod(
 	sourcePvc *corev1.PersistentVolumeClaim,
 	dv *cdiv1.DataVolume) (*corev1.Pod, error) {
-
 	podName := sizeDetectionPodName(sourcePvc)
 	pod := &corev1.Pod{}
 	nn := types.NamespacedName{Namespace: sourcePvc.Namespace, Name: podName}
@@ -626,7 +627,6 @@ func (r *PvcCloneReconciler) getOrCreateSizeDetectionPod(
 func (r *PvcCloneReconciler) makeSizeDetectionPodSpec(
 	sourcePvc *corev1.PersistentVolumeClaim,
 	dv *cdiv1.DataVolume) *corev1.Pod {
-
 	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(context.TODO(), r.client)
 	if err != nil {
 		return nil

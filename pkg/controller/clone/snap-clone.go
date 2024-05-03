@@ -6,14 +6,16 @@ import (
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
 // SnapshotClonePhaseName is the name of the snapshot clone phase

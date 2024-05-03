@@ -21,14 +21,10 @@ import (
 	"fmt"
 	"reflect"
 
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 
 	v1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -40,6 +36,11 @@ import (
 	"k8s.io/client-go/tools/record"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/utils/ptr"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -537,7 +538,7 @@ func CreatePv(name string, storageClassName string) *v1.PersistentVolume {
 		Spec: v1.PersistentVolumeSpec{
 			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany, v1.ReadWriteOnce},
 			Capacity: v1.ResourceList{
-				v1.ResourceName(v1.ResourceStorage): resource.MustParse("1G"),
+				v1.ResourceStorage: resource.MustParse("1G"),
 			},
 			StorageClassName: storageClassName,
 			VolumeMode:       &volumeMode,

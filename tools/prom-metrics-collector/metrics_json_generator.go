@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kubevirt/monitoring/pkg/metrics/parser"
+
 	cdiMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	operatorMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/operator-controller"
 	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules"
