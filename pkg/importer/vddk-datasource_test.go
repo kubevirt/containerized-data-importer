@@ -431,10 +431,10 @@ var _ = Describe("VDDK data source", func() {
 		}
 		_, err := NewVDDKDataSource("http://esx.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(MaxPreadLength).To(Equal(uint32(MaxPreadLengthESX)))
+		Expect(MaxPreadLength).To(Equal(MaxPreadLengthESX))
 		_, err = NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(MaxPreadLength).To(Equal(uint32(MaxPreadLengthVC)))
+		Expect(MaxPreadLength).To(Equal(MaxPreadLengthVC))
 	})
 
 	It("GetTerminationMessage should contain VDDK connection information", func() {
@@ -514,8 +514,8 @@ var _ = Describe("VDDK get block status", func() {
 		}
 		expectedBlocks := []*BlockStatusData{
 			{
-				Offset: uint64(extent.Start),
-				Length: uint32(extent.Length),
+				Offset: extent.Start,
+				Length: extent.Length,
 				Flags:  0,
 			},
 		}
@@ -538,8 +538,8 @@ var _ = Describe("VDDK get block status", func() {
 		}
 		expectedBlocks := []*BlockStatusData{
 			{
-				Offset: uint64(extent.Start),
-				Length: uint32(extent.Length),
+				Offset: extent.Start,
+				Length: extent.Length,
 				Flags:  0,
 			},
 		}
@@ -560,8 +560,8 @@ var _ = Describe("VDDK get block status", func() {
 		}
 		expectedBlocks := []*BlockStatusData{
 			{
-				Offset: uint64(extent.Start),
-				Length: uint32(extent.Length),
+				Offset: extent.Start,
+				Length: extent.Length,
 				Flags:  0,
 			},
 		}
@@ -593,8 +593,8 @@ var _ = Describe("VDDK get block status", func() {
 		}
 		expectedBlocks := []*BlockStatusData{
 			{
-				Offset: uint64(extent.Start),
-				Length: uint32(extent.Length),
+				Offset: extent.Start,
+				Length: extent.Length,
 				Flags:  0,
 			},
 		}
@@ -648,8 +648,8 @@ var _ = Describe("VDDK get block status", func() {
 		}
 		expectedBlocks := []*BlockStatusData{
 			{
-				Offset: uint64(extent.Start),
-				Length: uint32(extent.Length),
+				Offset: extent.Start,
+				Length: extent.Length,
 				Flags:  0,
 			},
 		}
@@ -686,8 +686,8 @@ var _ = Describe("VDDK get block status", func() {
 
 		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
 		for index, block := range blocks {
-			Expect(block.Offset).To(Equal(uint64(index * MaxBlockStatusLength)))
-			Expect(block.Length).To(Equal(uint32(MaxBlockStatusLength)))
+			Expect(block.Offset).To(Equal(int64(index * MaxBlockStatusLength)))
+			Expect(block.Length).To(Equal(int64(MaxBlockStatusLength)))
 			if index%2 == 0 {
 				Expect(block.Flags).To(Equal(uint32(0)))
 			} else {
@@ -775,9 +775,9 @@ type mockVddkDataSink struct {
 	position int
 }
 
-func (sink *mockVddkDataSink) ZeroRange(offset uint64, length uint32) error {
+func (sink *mockVddkDataSink) ZeroRange(offset int64, length int64) error {
 	buf := bytes.Repeat([]byte{0x00}, int(length))
-	_, err := sink.Pwrite(buf, offset)
+	_, err := sink.Pwrite(buf, uint64(offset))
 	return err
 }
 
