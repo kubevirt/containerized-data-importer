@@ -162,7 +162,6 @@ require (
 )
 
 replace (
-	github.com/aws/aws-sdk-go => github.com/aws/aws-sdk-go v1.15.77
 	github.com/chzyer/logex => github.com/chzyer/logex v1.2.1
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20240116035456-11ed2fbcb805
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20240109161853-2425b4b6d3b3
