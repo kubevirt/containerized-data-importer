@@ -18,7 +18,7 @@ type OvirtVolumePopulator struct {
 
 	Spec OvirtVolumePopulatorSpec `json:"spec"`
 	// +optional
-	Status OvirtVolumePopulatorStatus `json:"status"`
+	Status OvirtVolumePopulatorStatus `json:"status,omitempty"`
 }
 
 // OvirtVolumePopulatorSpec is the spec of the OvirtVolumePopulator CR
@@ -33,7 +33,7 @@ type OvirtVolumePopulatorSpec struct {
 // OvirtVolumePopulatorStatus is the status of the OvirtVolumePopulator CR
 type OvirtVolumePopulatorStatus struct {
 	// +optional
-	Progress string `json:"progress"`
+	Progress string `json:"progress,omitempty"`
 }
 
 // OvirtVolumePopulatorList contains a list of OvirtVolumePopulators
@@ -58,7 +58,7 @@ type OpenstackVolumePopulator struct {
 
 	Spec OpenstackVolumePopulatorSpec `json:"spec"`
 	// +optional
-	Status OpenstackVolumePopulatorStatus `json:"status"`
+	Status OpenstackVolumePopulatorStatus `json:"status,omitempty"`
 }
 
 // OpenstackVolumePopulatorSpec is the spec of the OpenstackVolumePopulator CR
@@ -73,7 +73,7 @@ type OpenstackVolumePopulatorSpec struct {
 // OpenstackVolumePopulatorStatus is the status of the OpenstackVolumePopulator CR
 type OpenstackVolumePopulatorStatus struct {
 	// +optional
-	Progress string `json:"progress"`
+	Progress string `json:"progress,omitempty"`
 }
 
 // OpenstackVolumePopulatorList contains a list of OpenstackVolumePopulators

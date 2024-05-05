@@ -117,7 +117,7 @@ func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, 
 
 	// Watch the populator Pod
 	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}), handler.EnqueueRequestsFromMapFunc(
-		func(_ context.Context, obj client.Object) []reconcile.Request {
+		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			pod := obj.(*corev1.Pod)
 			if pod.GetAnnotations()[cc.AnnPopulatorKind] != "forklift" {
 				return nil
@@ -130,7 +130,7 @@ func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, 
 			}
 
 			pvcPrime := &corev1.PersistentVolumeClaim{}
-			err := mgr.GetClient().Get(context.TODO(), types.NamespacedName{Namespace: pod.Namespace, Name: owner.Name}, pvcPrime)
+			err := mgr.GetClient().Get(ctx, types.NamespacedName{Namespace: pod.Namespace, Name: owner.Name}, pvcPrime)
 			if err != nil {
 				return nil
 			}
@@ -146,12 +146,12 @@ func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, 
 		return err
 	}
 
-	mapDataSourceRefToPVC := func(_ context.Context, obj client.Object) (reqs []reconcile.Request) {
+	mapDataSourceRefToPVC := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
 		var pvcs corev1.PersistentVolumeClaimList
 		matchingFields := client.MatchingFields{
 			dataSourceRefField: getPopulatorIndexKey(apiGroup, sourceKind, obj.GetNamespace(), obj.GetName()),
 		}
-		if err := mgr.GetClient().List(context.TODO(), &pvcs, matchingFields); err != nil {
+		if err := mgr.GetClient().List(ctx, &pvcs, matchingFields); err != nil {
 			log.Error(err, "Unable to list PVCs", "matchingFields", matchingFields)
 			return reqs
 		}
@@ -215,7 +215,6 @@ func (r *ForkliftPopulatorReconciler) reconcileCommon(pvc *corev1.PersistentVolu
 		return nil, nil
 	}
 
-	log.V(1).Info("reconciling PVC prime")
 	pvcPrime, err := r.getPVCPrime(pvc)
 	if err != nil {
 		return nil, err
@@ -276,7 +275,7 @@ func isPVCForkliftKind(pvc *corev1.PersistentVolumeClaim) bool {
 	}
 
 	if (dataSourceRef.APIGroup != nil && *dataSourceRef.APIGroup != apiGroup) ||
-		dataSourceRef.Name == "" {
+		dataSourceRef.Name == "" || dataSourceRef.Kind == "" {
 		return false
 	}
 
@@ -295,7 +294,6 @@ func isPVCPrimeForkliftKind(pvc *corev1.PersistentVolumeClaim) bool {
 }
 
 func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
-	pvcCopy := pvc.DeepCopy()
 	pvcPrimeCopy := pvcPrime.DeepCopy()
 
 	// Look for the populator pod
@@ -306,7 +304,7 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 	}
 
 	if pod == nil {
-		err = r.createPopulatorPod(pvcPrime, pvcCopy)
+		err = r.createPopulatorPod(pvcPrime, pvc)
 		if err != nil {
 			if errors.Is(err, errCrNotFound) {
 				return reconcile.Result{}, nil
@@ -324,7 +322,7 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 	phase := pvcPrimeCopy.Annotations[cc.AnnPodPhase]
 	switch phase {
 	case string(corev1.PodRunning):
-		if err := r.updatePVCPrime(pvcCopy, pvcPrimeCopy); err != nil {
+		if err := r.updatePVCPrime(pvc, pvcPrimeCopy); err != nil {
 			return reconcile.Result{}, err
 		}
 		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
@@ -341,7 +339,7 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 		return reconcile.Result{}, fmt.Errorf("unknown pod phase %s", phase)
 	}
 
-	if err := r.updatePVCPrime(pvcCopy, pvcPrimeCopy); err != nil {
+	if err := r.updatePVCPrime(pvc, pvcPrimeCopy); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -365,8 +363,7 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 }
 
 func (r *ForkliftPopulatorReconciler) updatePVCPrime(pvc, pvcPrime *corev1.PersistentVolumeClaim) error {
-	pvcCopy := pvc.DeepCopy()
-	_, err := r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateAnnotations)
+	_, err := r.updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime, r.updateAnnotations)
 	if err != nil {
 		return err
 	}
@@ -530,6 +527,8 @@ func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.P
 
 		Spec: makePopulatePodSpec(pvcPrime.Name, secretName),
 	}
+
+	cc.SetNodeNameIfPopulator(pvc, &pod.Spec)
 
 	con := &pod.Spec.Containers[0]
 	con.Image = containerImage

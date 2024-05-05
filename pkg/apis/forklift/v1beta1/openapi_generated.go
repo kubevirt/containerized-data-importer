@@ -14999,9 +14999,8 @@ func schema_pkg_apis_forklift_v1beta1_OpenstackVolumePopulatorStatus(ref common.
 				Properties: map[string]spec.Schema{
 					"progress": {
 						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
+							Type:   []string{"string"},
+							Format: "",
 						},
 					},
 				},
@@ -15158,9 +15157,8 @@ func schema_pkg_apis_forklift_v1beta1_OvirtVolumePopulatorStatus(ref common.Refe
 				Properties: map[string]spec.Schema{
 					"progress": {
 						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
+							Type:   []string{"string"},
+							Format: "",
 						},
 					},
 				},
