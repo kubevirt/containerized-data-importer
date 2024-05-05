@@ -197,7 +197,7 @@ func getAlertRules() []promv1.Rule {
 			},
 			map[string]string{
 				severityAlertLabelKey:     "info",
-				healthImpactAlertLabelKey: "warning",
+				healthImpactAlertLabelKey: "none",
 				partOfAlertLabelKey:       partOfAlertLabelValue,
 				componentAlertLabelKey:    componentAlertLabelValue,
 			},
