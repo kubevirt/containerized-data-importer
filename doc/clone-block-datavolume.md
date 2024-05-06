@@ -23,9 +23,6 @@ spec:
       name: "source-datavolume"
   storage:
     volumeMode: Block
-    resources:
-      requests:
-        storage: 1Gi
 ```
 
 Deploy the DataVolume manifest:

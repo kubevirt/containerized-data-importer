@@ -22,9 +22,6 @@ spec:
       namespace: source-ns
       name: source-datavolume
   storage:
-    resources:
-      requests:
-        storage: 500Mi
 ```
 
 Deploy the DataVolume manifest:
