@@ -5,10 +5,8 @@ metadata:
 spec:
   source:
       upload: {}
-  pvc:
+  storage:
     volumeMode: Block
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 500Mi
