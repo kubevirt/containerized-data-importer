@@ -55,8 +55,6 @@ spec:
          secretRef: "" # Optional
          certConfigMap: "" # Optional
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: "64Mi"
@@ -91,8 +89,6 @@ spec:
          secretRef: "" # Optional
    contentType: "archive"
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: "64Mi"
@@ -113,8 +109,6 @@ spec:
          - "X-First-Header: 12345"
          - "X-Another-Header: abcde"
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: "64Mi"
@@ -137,8 +131,6 @@ spec:
            - "first-secret"
            - "second-secret"
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: "64Mi"
@@ -173,8 +165,6 @@ spec:
         name: source-pvc
         namespace: example-ns
   storage:
-    accessModes:
-      - ReadWriteOnce
 ```
 
 However, when using the [pvc](#pvc) API, the user needs to specify the right amount of space to allocate for the new DV, or the clone will not be able to complete.
@@ -209,8 +199,6 @@ spec:
   source:
     upload: {}
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 1Gi
@@ -227,8 +215,6 @@ spec:
   source:
     blank: {}
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 1Gi
@@ -249,8 +235,6 @@ spec:
          certConfigMap: "tls-certs"
          diskId: "1"
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: "500Mi"
@@ -313,8 +297,6 @@ metadata:
     - previous: "1c44c27e-d2d8-49c4-841a-cc26c4b1e406"
       current: "c55bb7bb-20f2-46b5-a7f3-11fd6010b7d0"
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: "32Gi"
@@ -424,8 +406,6 @@ spec:
   source:
     blank: {}
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 1Gi
@@ -461,8 +441,6 @@ spec:
          certConfigMap: "" # Optional
   storage:
     volumeMode: Block
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: "64Mi"

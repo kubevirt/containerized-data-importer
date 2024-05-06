@@ -17,8 +17,6 @@ spec:
   source:
       blank: {}
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 500Mi

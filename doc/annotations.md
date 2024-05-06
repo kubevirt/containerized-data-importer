@@ -31,8 +31,6 @@ spec:
          url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img"
   contentType: kubevirt
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 500Mi
@@ -50,8 +48,6 @@ spec:
          url: "http://geolite.maxmind.com/download/geoip/database/GeoLite2-Country.tar.gz"
   contentType: archive
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 500Mi
@@ -67,8 +63,6 @@ spec:
   source:
       registry: "docker://kubevirt/fedora-cloud-registry-disk-demo"
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 5Gi
@@ -91,8 +85,6 @@ spec:
   source:
       blank: {}
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 500Mi

@@ -22,8 +22,6 @@ spec:
       http:
          url: "http://mirrors.nav.ro/fedora/linux/releases/33/Cloud/x86_64/images/Fedora-Cloud-Base-33-1.2.x86_64.qcow2"
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 1Gi

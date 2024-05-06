@@ -22,8 +22,6 @@ spec:
       namespace: source-ns
       name: source-datavolume
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 500Mi

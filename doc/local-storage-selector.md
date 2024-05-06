@@ -89,8 +89,6 @@ spec:
       http:
          url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img"
   storage:
-    accessModes:
-      - ReadWriteOnce
     selector:
       matchLabels:
         node: node01

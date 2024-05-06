@@ -66,8 +66,6 @@ spec:
          url: "http://distro.ibiblio.org/tinycorelinux/9.x/x86/release/Core-current.iso"
   storage:
     volumeMode: Block
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 1Gi

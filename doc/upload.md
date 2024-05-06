@@ -77,8 +77,6 @@ spec:
   source:
       upload: {}
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 500Mi

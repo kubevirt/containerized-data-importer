@@ -88,8 +88,6 @@ spec:
     registry:
       url: "docker://kubevirt/fedora-cloud-registry-disk-demo"
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 5Gi
@@ -169,8 +167,6 @@ spec:
       url: "docker://kubevirt/cirros-container-disk-demo:devel"
       pullMethod: node
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 5Gi
@@ -189,8 +185,6 @@ spec:
       imageStream: rhel8-guest-is
       pullMethod: node
   storage:
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 5Gi

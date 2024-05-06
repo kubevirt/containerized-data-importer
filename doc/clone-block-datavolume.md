@@ -23,8 +23,6 @@ spec:
       name: "source-datavolume"
   storage:
     volumeMode: Block
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 1Gi
