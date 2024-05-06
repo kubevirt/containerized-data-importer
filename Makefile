@@ -19,6 +19,7 @@
 		vet \
 		format \
 		goveralls \
+		coverage \
 		release-description \
 		bazel-generate bazel-build bazel-build-images bazel-push-images \
 		fossa \
@@ -102,7 +103,10 @@ manifests:
 	${DO_BAZ} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} CR_NAME=${CR_NAME} CDI_NAMESPACE=${CDI_NAMESPACE} ./hack/build/build-manifests.sh"
 
 goveralls: test-unit
-	${DO} "TRAVIS_JOB_ID=${TRAVIS_JOB_ID} TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST} TRAVIS_BRANCH=${TRAVIS_BRANCH} ./hack/build/goveralls.sh"
+	${DO_BAZ} "COVERALLS_TOKEN_FILE=${COVERALLS_TOKEN_FILE} COVERALLS_TOKEN=${COVERALLS_TOKEN} CI_NAME=prow CI_BRANCH=${PULL_BASE_REF} CI_PR_NUMBER=${PULL_NUMBER} GIT_ID=${PULL_PULL_SHA} PROW_JOB_ID=${PROW_JOB_ID} ./hack/build/goveralls.sh"
+
+coverage: test-unit
+	./hack/build/coverage.sh
 
 release-description:
 	./hack/build/release-description.sh ${RELREF} ${PREREF}
@@ -213,6 +217,8 @@ help:
 	@echo "  : Update vendored Go code in vendor/ subdirectory."
 	@echo " goveralls "
 	@echo "  : run code coverage tracking system."
+	@echo " coverage"
+	@echo "  : run code coverage report locally."
 	@echo " manifests "
 	@echo "  : generate a cdi-controller and operator manifests in '_out/manifests/'.  Accepts [make variables]\(#make-variables\) DOCKER_TAG, DOCKER_PREFIX, VERBOSITY, PULL_POLICY, CSV_VERSION, QUAY_REPOSITORY, QUAY_NAMESPACE"
 	@echo " openshift-ci-image-push "
