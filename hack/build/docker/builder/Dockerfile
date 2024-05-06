@@ -46,7 +46,7 @@ RUN \
 	go install github.com/mattn/goveralls@latest && \
 	go install golang.org/x/lint/golint@latest && \
 	go install github.com/rmohr/go-swagger-utils/swagger-doc@latest && \
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.13.0 && \
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0 && \
 	go install github.com/securego/gosec/v2/cmd/gosec@latest && \
 	rm -rf "${GOPATH}/pkg"
 
