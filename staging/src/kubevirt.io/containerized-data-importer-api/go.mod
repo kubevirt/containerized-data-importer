@@ -1,6 +1,6 @@
 module kubevirt.io/containerized-data-importer-api
 
-go 1.21
+go 1.22
 
 require (
 	k8s.io/api v0.28.3
