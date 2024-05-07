@@ -136,7 +136,7 @@ func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, 
 			}
 
 			// Check if the owner is a PVC prime
-			if !isPVCPrimeForkliftKind(pvcPrime) {
+			if !isPVCPrimeForkliftKind(pvcPrime) && pvcPrime.DeletionTimestamp == nil {
 				return nil
 			}
 
@@ -201,11 +201,16 @@ func (r *ForkliftPopulatorReconciler) reconcile(ctx context.Context, req reconci
 	r.log.V(1).Info("reconciling PVC prime", "pvc", pvcPrime.Name)
 
 	// Each populator reconciles the target PVC in a different way
-	if cc.IsUnbound(pvc) || !cc.IsPVCComplete(pvc) {
-		return populator.reconcileTargetPVC(pvc, pvcPrime)
+	res, err := populator.reconcileTargetPVC(pvc, pvcPrime)
+	if err != nil {
+		return res, err
 	}
 
-	return r.reconcileCleanup(pvcPrime)
+	if cc.IsPVCComplete(pvc) {
+		res, err = r.reconcileCleanup(pvcPrime)
+	}
+
+	return res, err
 }
 
 // TODO(benny) rename
@@ -306,18 +311,24 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 	if pod == nil {
 		err = r.createPopulatorPod(pvcPrime, pvc)
 		if err != nil {
-			if errors.Is(err, errCrNotFound) {
+			if errors.Is(err, errCrNotFound) || k8serrors.IsAlreadyExists(err) {
 				return reconcile.Result{}, nil
 			}
+
 			return reconcile.Result{}, err
 		}
 
 		return reconcile.Result{}, nil
 	}
 
+	if pod.Status.ContainerStatuses == nil || len(pod.Status.ContainerStatuses) == 0 {
+		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
+	}
+
 	anno := pvcPrimeCopy.Annotations
 	anno[cc.AnnPodPhase] = string(pod.Status.Phase)
 	anno[cc.AnnImportPod] = pod.Name
+	anno[cc.AnnPodRestarts] = strconv.Itoa(int(pod.Status.ContainerStatuses[0].RestartCount))
 
 	phase := pvcPrimeCopy.Annotations[cc.AnnPodPhase]
 	switch phase {
@@ -331,6 +342,11 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 	case string(corev1.PodPending):
 		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 	case string(corev1.PodSucceeded):
+		if cc.IsPVCComplete(pvcPrime) && cc.IsUnbound(pvc) {
+			// TODO(benny) use a different const?
+			r.recorder.Eventf(pvc, corev1.EventTypeNormal, importSucceeded, messageImportSucceeded, pvc.Name)
+		}
+
 		if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvc); err != nil {
 			return reconcile.Result{}, err
 		}
@@ -340,15 +356,14 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 	}
 
 	if err := r.updatePVCPrime(pvc, pvcPrimeCopy); err != nil {
-		return reconcile.Result{}, err
+		return reconcile.Result{}, nil
 	}
 
 	if cc.IsPVCComplete(pvcPrime) {
-		// TODO(benny) use a different const?
 		r.recorder.Eventf(pvc, corev1.EventTypeNormal, importSucceeded, messageImportSucceeded, pvc.Name)
 	}
 
-	if cc.ShouldDeletePod(pvcPrime) {
+	if pod.DeletionTimestamp == nil && cc.ShouldDeletePod(pvcPrime) {
 		if err := r.client.Delete(context.TODO(), &corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      podName,
@@ -392,11 +407,7 @@ func (r *ForkliftPopulatorReconciler) updateImportProgress(podPhase string, pvc,
 		return nil
 	}
 
-	importPodName, ok := pvcPrime.Annotations[cc.AnnImportPod]
-	if !ok {
-		return nil
-	}
-
+	importPodName := fmt.Sprintf("%s-%s", populatorPodPrefix, pvc.UID)
 	importPod, err := r.getImportPod(pvcPrime, importPodName)
 	if err != nil {
 		return err
@@ -588,7 +599,7 @@ func makePopulatePodSpec(pvcPrimeName, secretName string) corev1.PodSpec {
 				Type: corev1.SeccompProfileTypeRuntimeDefault,
 			},
 		},
-		RestartPolicy: corev1.RestartPolicyNever,
+		RestartPolicy: corev1.RestartPolicyOnFailure,
 		Volumes: []corev1.Volume{
 			{
 				Name: populatorPodVolumeName,

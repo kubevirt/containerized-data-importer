@@ -109,7 +109,20 @@ var _ = Describe("Forklift populator tests", func() {
 					}),
 				},
 			},
-			Spec: corev1.PodSpec{},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name:  "test-populate",
+						Image: "test-image",
+						Ports: []corev1.ContainerPort{
+							{
+								Name:          "metrics",
+								ContainerPort: 12345,
+							},
+						},
+					},
+				},
+			},
 		}
 	}
 
@@ -142,6 +155,11 @@ var _ = Describe("Forklift populator tests", func() {
 			populatorPod := getPopulatorPod(targetPvc, pvcPrime)
 
 			populatorPod.Status.Phase = corev1.PodSucceeded
+			populatorPod.Status.ContainerStatuses = []corev1.ContainerStatus{
+				{
+					RestartCount: 0,
+				},
+			}
 			populatorPod.Spec.Containers = []corev1.Container{
 				{Name: "test-populate"},
 			}
@@ -172,6 +190,11 @@ var _ = Describe("Forklift populator tests", func() {
 			pvcPrime.Annotations = map[string]string{AnnPodPhase: ""}
 			populatorPod := getPopulatorPod(targetPvc, pvcPrime)
 			populatorPod.Status.Phase = corev1.PodFailed
+			populatorPod.Status.ContainerStatuses = []corev1.ContainerStatus{
+				{
+					RestartCount: 0,
+				},
+			}
 
 			By("Reconcile")
 			reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, sc, ovirtCr, populatorPod)
@@ -308,11 +331,16 @@ var _ = Describe("Forklift populator tests", func() {
 		It("should return error if no metrics in pod", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
 			pvcPrime := getPVCPrime(targetPvc, nil)
-			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, pvcPrime.Name)
+			importPodName := fmt.Sprintf("%s-%s", populatorPodPrefix, targetPvc.UID)
 			pvcPrime.Annotations = map[string]string{AnnImportPod: importPodName}
-			pod := CreateImporterTestPod(pvcPrime, pvcPrime.Name, nil)
+			pod := getPopulatorPod(targetPvc, pvcPrime)
 			pod.Spec.Containers[0].Ports = nil
 			pod.Status.Phase = corev1.PodRunning
+			pod.Status.ContainerStatuses = []corev1.ContainerStatus{
+				{
+					RestartCount: 0,
+				},
+			}
 
 			reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, pod)
 			err := reconciler.updateImportProgress(string(corev1.PodRunning), targetPvc, pvcPrime)
@@ -322,10 +350,10 @@ var _ = Describe("Forklift populator tests", func() {
 
 		It("should not error if no endpoint exists", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
-			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, targetPvc.Name)
+			importPodName := fmt.Sprintf("%s-%s", populatorPodPrefix, targetPvc.UID)
 			targetPvc.Annotations = map[string]string{AnnImportPod: importPodName}
 			pvcPrime := getPVCPrime(targetPvc, nil)
-			pod := CreateImporterTestPod(targetPvc, pvcPrime.Name, nil)
+			pod := getPopulatorPod(targetPvc, pvcPrime)
 			pod.Spec.Containers[0].Ports[0].ContainerPort = 12345
 			pod.Status.PodIP = "127.0.0.1"
 			pod.Status.Phase = corev1.PodRunning
@@ -337,10 +365,10 @@ var _ = Describe("Forklift populator tests", func() {
 
 		It("should not error if pod is not running", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimBound)
-			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, targetPvc.Name)
+			importPodName := fmt.Sprintf("%s-%s", populatorPodPrefix, targetPvc.UID)
 			targetPvc.Annotations = map[string]string{AnnImportPod: importPodName}
 			pvcPrime := getPVCPrime(targetPvc, nil)
-			pod := CreateImporterTestPod(targetPvc, pvcPrime.Name, nil)
+			pod := getPopulatorPod(targetPvc, pvcPrime)
 
 			reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, pod)
 			err := reconciler.updateImportProgress(string(corev1.PodRunning), targetPvc, pvcPrime)
@@ -351,7 +379,7 @@ var _ = Describe("Forklift populator tests", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
 			pvcPrime := getPVCPrime(targetPvc, nil)
-			importPodName := fmt.Sprintf("%s-%s", common.ImporterPodName, pvcPrime.Name)
+			importPodName := fmt.Sprintf("%s-%s", populatorPodPrefix, targetPvc.UID)
 			pvcPrime.Annotations = map[string]string{AnnImportPod: importPodName}
 
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -364,7 +392,7 @@ var _ = Describe("Forklift populator tests", func() {
 			port, err := strconv.Atoi(ep.Port())
 			Expect(err).ToNot(HaveOccurred())
 
-			pod := CreateImporterTestPod(pvcPrime, pvcPrime.Name, nil)
+			pod := getPopulatorPod(targetPvc, pvcPrime)
 			pod.Spec.Containers[0].Ports[0].ContainerPort = int32(port)
 			pod.Status.PodIP = ep.Hostname()
 			pod.Status.Phase = corev1.PodRunning
