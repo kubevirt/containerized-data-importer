@@ -19,7 +19,7 @@ function install_cdi {
 function wait_cdi_crd_installed {
   timeout=$1
   crd_defined=0
-  while [ $crd_defined -eq 0 ] && [ $timeout > 0 ]; do
+  while [ $crd_defined -eq 0 ] && [ $timeout -gt 0 ]; do
       crd_defined=$(_kubectl get customresourcedefinition| grep cdis.cdi.kubevirt.io | wc -l)
       sleep 1
       timeout=$(($timeout-1))
