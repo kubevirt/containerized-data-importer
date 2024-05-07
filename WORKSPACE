@@ -3101,19 +3101,13 @@ rpm(
 rpm(
     name = "qemu-img-17__8.2.0-2.el9.aarch64",
     sha256 = "c493015f5b4bb5cdcad5968695f2166d207fa4e9b172a86f0ef781fd5529ad23",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/qemu-img-8.2.0-2.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/c493015f5b4bb5cdcad5968695f2166d207fa4e9b172a86f0ef781fd5529ad23",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/c493015f5b4bb5cdcad5968695f2166d207fa4e9b172a86f0ef781fd5529ad23"],
 )
 
 rpm(
     name = "qemu-img-17__8.2.0-2.el9.x86_64",
     sha256 = "243b83a8bf88824003f3cb5c0fcd4b95d36454fdf70784f502d5828909ab60cb",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/qemu-img-8.2.0-2.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/243b83a8bf88824003f3cb5c0fcd4b95d36454fdf70784f502d5828909ab60cb",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/243b83a8bf88824003f3cb5c0fcd4b95d36454fdf70784f502d5828909ab60cb"],
 )
 
 rpm(
