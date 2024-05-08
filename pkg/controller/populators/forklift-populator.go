@@ -140,7 +140,9 @@ func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, 
 				return nil
 			}
 
-			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}}}
+			// Should be safe because of previous check
+			pvc := pvcPrime.GetOwnerReferences()[0]
+			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: pvcPrime.Namespace, Name: pvc.Name}}}
 		}),
 	); err != nil {
 		return err
@@ -356,7 +358,7 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 	}
 
 	if err := r.updatePVCPrime(pvc, pvcPrimeCopy); err != nil {
-		return reconcile.Result{}, nil
+		return reconcile.Result{}, err
 	}
 
 	if cc.IsPVCComplete(pvcPrime) {
@@ -370,6 +372,10 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 				Namespace: pvc.GetNamespace(),
 			},
 		}); err != nil {
+			if k8serrors.IsNotFound(err) {
+				return reconcile.Result{}, nil
+			}
+
 			return reconcile.Result{}, err
 		}
 	}
@@ -489,7 +495,9 @@ func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.P
 		args = getOvirtPopulatorPodArgs(rawBlock, crInstance)
 		secretName = crInstance.Spec.SecretRef
 		containerImage = r.ovirtPopulatorImage
-		transferNetwork = crInstance.Spec.TransferNetwork
+		if crInstance.Spec.TransferNetwork != nil {
+			transferNetwork = *crInstance.Spec.TransferNetwork
+		}
 	case "OpenstackVolumePopulator":
 		crInstance := &v1beta1.OpenstackVolumePopulator{}
 		found, err := cc.GetResource(context.TODO(), r.client, pvc.Namespace, crName, crInstance)
@@ -503,7 +511,9 @@ func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.P
 		args = getOpenstackPopulatorPodArgs(rawBlock, crInstance)
 		secretName = crInstance.Spec.SecretRef
 		containerImage = r.importerImage
-		transferNetwork = crInstance.Spec.TransferNetwork
+		if crInstance.Spec.TransferNetwork != nil {
+			transferNetwork = *crInstance.Spec.TransferNetwork
+		}
 	default:
 		return fmt.Errorf("unknown populator type %T", crKind)
 	}

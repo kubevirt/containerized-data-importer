@@ -27,13 +27,13 @@ type OvirtVolumePopulatorSpec struct {
 	SecretRef string `json:"secretRef"`
 	DiskID    string `json:"diskId"`
 	// The network attachment definition that should be used for disk transfer.
-	TransferNetwork string `json:"transferNetwork,omitempty"`
+	TransferNetwork *string `json:"transferNetwork,omitempty"`
 }
 
 // OvirtVolumePopulatorStatus is the status of the OvirtVolumePopulator CR
 type OvirtVolumePopulatorStatus struct {
 	// +optional
-	Progress string `json:"progress,omitempty"`
+	Progress *string `json:"progress,omitempty"`
 }
 
 // OvirtVolumePopulatorList contains a list of OvirtVolumePopulators
@@ -67,13 +67,13 @@ type OpenstackVolumePopulatorSpec struct {
 	SecretRef   string `json:"secretRef"`
 	ImageID     string `json:"imageId"`
 	// The network attachment definition that should be used for disk transfer.
-	TransferNetwork string `json:"transferNetwork,omitempty"`
+	TransferNetwork *string `json:"transferNetwork,omitempty"`
 }
 
 // OpenstackVolumePopulatorStatus is the status of the OpenstackVolumePopulator CR
 type OpenstackVolumePopulatorStatus struct {
 	// +optional
-	Progress string `json:"progress,omitempty"`
+	Progress *string `json:"progress,omitempty"`
 }
 
 // OpenstackVolumePopulatorList contains a list of OpenstackVolumePopulators
