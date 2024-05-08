@@ -35,7 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
-
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -47,6 +47,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
@@ -65,8 +66,6 @@ const (
 	annCreatedByUpload = "cdi.kubevirt.io/storage.createdByUploadController"
 
 	uploadServerClientName = "client.upload-server.cdi.kubevirt.io"
-
-	uploadServerCertDuration = 365 * 24 * time.Hour
 
 	// UploadSucceededPVC provides a const to indicate an import to the PVC failed
 	UploadSucceededPVC = "UploadSucceeded"
@@ -110,6 +109,7 @@ type UploadPodArgs struct {
 	ServerCert, ServerKey, ClientCA []byte
 	Preallocation                   string
 	CryptoEnvVars                   CryptoEnvVars
+	Deadline                        *time.Time
 }
 
 // CryptoEnvVars holds the TLS crypto-related configurables for the upload server
@@ -198,7 +198,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		uploadClientName = uploadServerClientName
 	}
 
-	pod, err := r.findUploadPodForPvc(pvc, log)
+	pod, err := r.findUploadPodForPvc(pvc)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -216,7 +216,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 			}
 
 			for _, pod := range podsUsingPVC {
-				r.log.V(1).Info("can't create upload pod, pvc in use by other pod",
+				log.V(1).Info("can't create upload pod, pvc in use by other pod",
 					"namespace", pvc.Namespace, "name", pvc.Name, "pod", pod.Name)
 				r.recorder.Eventf(es, corev1.EventTypeWarning, UploadTargetInUse,
 					"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, pvc.Name)
@@ -225,7 +225,6 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		}
 
 		podName, ok := pvc.Annotations[AnnUploadPod]
-		scratchPVCName := createScratchPvcNameFromPvc(pvc, isCloneTarget)
 
 		if !ok {
 			podName = createUploadResourceName(pvc.Name)
@@ -234,7 +233,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 			}
 			return reconcile.Result{Requeue: true}, nil
 		}
-		pod, err = r.createUploadPodForPvc(pvc, podName, scratchPVCName, uploadClientName)
+		pod, err = r.createUploadPodForPvc(pvc, podName, uploadClientName, isCloneTarget)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -254,8 +253,28 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		return reconcile.Result{}, err
 	}
 
-	// Update the annotations in the PVC to reflect the current state of the upload
-	updateUploadAnnotations(anno, pod)
+	termMsg, err := parseTerminationMessage(pod)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	deadlinePassed := termMsg != nil && termMsg.DeadlinePassed != nil && *termMsg.DeadlinePassed
+	if deadlinePassed {
+		if pod.DeletionTimestamp == nil {
+			log.V(1).Info("Deleting pod because deadline exceeded")
+			if err := r.client.Delete(context.TODO(), pod); err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+
+		anno[cc.AnnPodPhase] = ""
+		anno[cc.AnnPodReady] = "false"
+	} else {
+		anno[cc.AnnPodPhase] = string(pod.Status.Phase)
+		anno[cc.AnnPodReady] = strconv.FormatBool(isPodReady(pod))
+	}
+
+	setAnnotationsFromPodWithPrefix(anno, pod, termMsg, cc.AnnRunningCondition)
 
 	if !reflect.DeepEqual(pvc, pvcCopy) {
 		if err := r.updatePVC(pvcCopy); err != nil {
@@ -347,7 +366,7 @@ func (r *UploadReconciler) cleanup(pvc *corev1.PersistentVolumeClaim) error {
 	}
 	return nil
 }
-func (r *UploadReconciler) findUploadPodForPvc(pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*corev1.Pod, error) {
+func (r *UploadReconciler) findUploadPodForPvc(pvc *corev1.PersistentVolumeClaim) (*corev1.Pod, error) {
 	podName := getUploadResourceNameFromPvc(pvc)
 	pod := &corev1.Pod{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: pvc.Namespace}, pod); err != nil {
@@ -364,8 +383,17 @@ func (r *UploadReconciler) findUploadPodForPvc(pvc *corev1.PersistentVolumeClaim
 	return pod, nil
 }
 
-func (r *UploadReconciler) createUploadPodForPvc(pvc *corev1.PersistentVolumeClaim, podName, scratchPVCName, clientName string) (*corev1.Pod, error) {
-	serverCert, serverKey, err := r.serverCertGenerator.MakeServerCert(pvc.Namespace, naming.GetServiceNameFromResourceName(podName), uploadServerCertDuration)
+func (r *UploadReconciler) createUploadPodForPvc(pvc *corev1.PersistentVolumeClaim, podName, clientName string, isCloneTarget bool) (*corev1.Pod, error) {
+	certConfig, err := operator.GetCertConfigWithDefaults(context.TODO(), r.client)
+	if err != nil {
+		return nil, err
+	}
+
+	serverCert, serverKey, err := r.serverCertGenerator.MakeServerCert(
+		pvc.Namespace,
+		naming.GetServiceNameFromResourceName(podName),
+		certConfig.Server.Duration.Duration,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +426,7 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *corev1.PersistentVolumeCla
 	args := UploadPodArgs{
 		Name:               podName,
 		PVC:                pvc,
-		ScratchPVCName:     scratchPVCName,
+		ScratchPVCName:     createScratchPvcNameFromPvc(pvc, isCloneTarget),
 		ClientName:         clientName,
 		FilesystemOverhead: string(fsOverhead),
 		ServerCert:         serverCert,
@@ -406,6 +434,12 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *corev1.PersistentVolumeCla
 		ClientCA:           clientCA,
 		Preallocation:      strconv.FormatBool(preallocationRequested),
 		CryptoEnvVars:      cryptoVars,
+	}
+
+	if !isCloneTarget {
+		serverRefresh := certConfig.Server.Duration.Duration - certConfig.Server.RenewBefore.Duration
+		clientRefresh := certConfig.Client.Duration.Duration - certConfig.Client.RenewBefore.Duration
+		args.Deadline = ptr.To(time.Now().Add(min(serverRefresh, clientRefresh)))
 	}
 
 	r.log.V(3).Info("Creating upload pod")
@@ -486,15 +520,6 @@ func (r *UploadReconciler) deleteService(namespace, serviceName string) error {
 	}
 
 	return nil
-}
-
-// updateUploadAnnotations updates annotations to reflect the current state of the upload
-func updateUploadAnnotations(anno map[string]string, pod *corev1.Pod) {
-	podPhase := pod.Status.Phase
-	anno[cc.AnnPodPhase] = string(podPhase)
-	anno[cc.AnnPodReady] = strconv.FormatBool(isPodReady(pod))
-
-	setAnnotationsFromPodWithPrefix(anno, pod, nil, cc.AnnRunningCondition)
 }
 
 func isPodReady(pod *corev1.Pod) bool {
@@ -846,6 +871,12 @@ func (r *UploadReconciler) makeUploadPodContainers(args UploadPodArgs, resourceR
 				},
 			},
 		},
+	}
+	if args.Deadline != nil {
+		containers[0].Env = append(containers[0].Env, corev1.EnvVar{
+			Name:  "DEADLINE",
+			Value: args.Deadline.Format(time.RFC3339),
+		})
 	}
 	if cc.GetVolumeMode(args.PVC) == corev1.PersistentVolumeBlock {
 		containers[0].VolumeDevices = append(containers[0].VolumeDevices, corev1.VolumeDevice{

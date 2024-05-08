@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -30,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -172,6 +172,46 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(serviceList.Items).To(BeEmpty())
 
+	})
+
+	It("Should return nil and delete pod if deadline exceeded", func() {
+		testPvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnUploadRequest: "", cc.AnnPodPhase: string(corev1.PodRunning)}, nil)
+		pod := createUploadPod(testPvc)
+		pod.Status.ContainerStatuses = []corev1.ContainerStatus{
+			{
+				State: corev1.ContainerState{
+					Terminated: &corev1.ContainerStateTerminated{
+						ExitCode: 0,
+						Message:  `{"deadlinePassed": true}`,
+					},
+				},
+			},
+		}
+		reconciler := createUploadReconciler(testPvc,
+			pod,
+			createUploadService(testPvc),
+		)
+
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying the pod no longer exists")
+		podList := &corev1.PodList{}
+		err = reconciler.client.List(context.TODO(), podList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(podList.Items).To(BeEmpty())
+
+		By("Verifying the service exists")
+		uploadService := &corev1.Service{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uploadService.Name).To(Equal(createUploadResourceName(testPvc.Name)))
+
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Annotations[cc.AnnPodPhase]).To(Equal(""))
+		Expect(pvc.Annotations[cc.AnnPodReady]).To(Equal("false"))
 	})
 
 	It("Should return nil and remove any service and pod if pvc marked for deletion", func() {
@@ -487,6 +527,38 @@ var _ = Describe("reconcilePVC loop", func() {
 			Entry("no profile set", nil),
 			Entry("'Old' profile set", &cdiv1.TLSSecurityProfile{Type: cdiv1.TLSProfileOldType, Old: &cdiv1.OldTLSProfile{}}),
 		)
+
+		DescribeTable("Should use proper cert duration", func(expectedDuration time.Duration, setCertConfig bool) {
+			testPvc := cc.CreatePvc(testPvcName, "default", map[string]string{cc.AnnUploadRequest: "", AnnUploadPod: uploadResourceName}, nil)
+			reconciler := createUploadReconciler(testPvc)
+			reconciler.serverCertGenerator = &fakeCertGenerator{expectedDuration: expectedDuration}
+			if setCertConfig {
+				cdi := &cdiv1.CDI{}
+				err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cdi)
+				Expect(err).ToNot(HaveOccurred())
+				cdi.Spec.CertConfig = &cdiv1.CDICertConfig{
+					Server: &cdiv1.CertConfig{
+						Duration:    &metav1.Duration{Duration: expectedDuration},
+						RenewBefore: &metav1.Duration{Duration: expectedDuration / 2},
+					},
+				}
+				err = reconciler.client.Update(context.Background(), cdi)
+				Expect(err).ToNot(HaveOccurred())
+			}
+
+			_, err := reconciler.reconcilePVC(reconciler.log, testPvc, isClone)
+			Expect(err).ToNot(HaveOccurred())
+
+			secret := &corev1.Secret{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, secret)
+			Expect(err).ToNot(HaveOccurred())
+
+			fcg := reconciler.serverCertGenerator.(*fakeCertGenerator)
+			Expect(fcg.calls).To(Equal(1))
+		},
+			Entry("default cert duration", 24*time.Hour, false),
+			Entry("configured cert duration", 12*time.Hour, true),
+		)
 	})
 })
 
@@ -592,7 +664,7 @@ var _ = Describe("updateUploadAnnotations", func() {
 
 		pvcCopy := testPvc.DeepCopy()
 
-		updateUploadAnnotations(pvcCopy.Annotations, pod)
+		setAnnotationsFromPodWithPrefix(pvcCopy.Annotations, pod, nil, cc.AnnRunningCondition)
 		Expect(pvcCopy.Annotations[cc.AnnPodRestarts]).To(Equal("1"))
 		Expect(pvcCopy.GetAnnotations()[cc.AnnRunningCondition]).To(Equal("true"))
 		Expect(pvcCopy.GetAnnotations()[cc.AnnRunningConditionMessage]).To(Equal(""))

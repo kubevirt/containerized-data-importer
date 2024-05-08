@@ -49,13 +49,23 @@ var (
 )
 
 type fakeCertGenerator struct {
+	expectedDuration time.Duration
+	calls            int
 }
 
 func (cg *fakeCertGenerator) MakeClientCert(name string, groups []string, duration time.Duration) ([]byte, []byte, error) {
+	if cg.expectedDuration != 0 {
+		Expect(duration).To(Equal(cg.expectedDuration))
+	}
+	cg.calls++
 	return []byte("foo"), []byte("bar"), nil
 }
 
 func (cg *fakeCertGenerator) MakeServerCert(namespace, service string, duration time.Duration) ([]byte, []byte, error) {
+	if cg.expectedDuration != 0 {
+		Expect(duration).To(Equal(cg.expectedDuration))
+	}
+	cg.calls++
 	return []byte("foo"), []byte("bar"), nil
 }
 

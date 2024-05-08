@@ -8,22 +8,18 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/pkg/errors"
-
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
-
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
-	"kubevirt.io/controller-lifecycle-operator-sdk/api"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
@@ -36,13 +32,13 @@ var _ = Describe("getVolumeMode", func() {
 	pvcVolumeModeFilesystem := CreatePvc("testPVCVolumeModeFS", "default", map[string]string{AnnSource: SourceHTTP}, nil)
 	pvcVolumeModeFilesystemDefault := CreatePvc("testPVCVolumeModeFS", "default", map[string]string{AnnSource: SourceHTTP}, nil)
 
-	DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult corev1.PersistentVolumeMode) {
+	DescribeTable("should", func(pvc *v1.PersistentVolumeClaim, expectedResult v1.PersistentVolumeMode) {
 		result := GetVolumeMode(pvc)
 		Expect(result).To(Equal(expectedResult))
 	},
-		Entry("return block if pvc has block volume mode", pvcVolumeModeBlock, corev1.PersistentVolumeBlock),
-		Entry("return file system if pvc has filesystem mode", pvcVolumeModeFilesystem, corev1.PersistentVolumeFilesystem),
-		Entry("return file system if pvc has no mode defined", pvcVolumeModeFilesystemDefault, corev1.PersistentVolumeFilesystem),
+		Entry("return block if pvc has block volume mode", pvcVolumeModeBlock, v1.PersistentVolumeBlock),
+		Entry("return file system if pvc has filesystem mode", pvcVolumeModeFilesystem, v1.PersistentVolumeFilesystem),
+		Entry("return file system if pvc has no mode defined", pvcVolumeModeFilesystemDefault, v1.PersistentVolumeFilesystem),
 	)
 })
 
@@ -50,7 +46,7 @@ var _ = Describe("CheckIfLabelExists", func() {
 	pvc := CreatePvc("testPVC", "default", nil, map[string]string{common.CDILabelKey: common.CDILabelValue})
 	pvcNoLbl := CreatePvc("testPVC2", "default", nil, nil)
 
-	DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, key, value string, expectedResult bool) {
+	DescribeTable("should", func(pvc *v1.PersistentVolumeClaim, key, value string, expectedResult bool) {
 		result := checkIfLabelExists(pvc, key, value)
 		Expect(result).To(Equal(expectedResult))
 	},
@@ -379,8 +375,8 @@ var _ = Describe("GetPreallocation", func() {
 
 var _ = Describe("ValidateClone", func() {
 	sourcePvc := CreatePvc("testPVC", "default", map[string]string{}, nil)
-	blockVM := corev1.PersistentVolumeBlock
-	fsVM := corev1.PersistentVolumeFilesystem
+	blockVM := v1.PersistentVolumeBlock
+	fsVM := v1.PersistentVolumeFilesystem
 
 	It("Should reject the clone if source and target have different content types", func() {
 		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
@@ -396,9 +392,9 @@ var _ = Describe("ValidateClone", func() {
 		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
 		sourcePvc.Spec.VolumeMode = &blockVM
 		storageSpec := &cdiv1.StorageSpec{
-			Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
+			Resources: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					v1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
 				},
 			},
 		}
@@ -413,9 +409,9 @@ var _ = Describe("ValidateClone", func() {
 		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
 		sourcePvc.Spec.VolumeMode = &fsVM
 		storageSpec := &cdiv1.StorageSpec{
-			Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
+			Resources: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					v1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
 				},
 			},
 		}
@@ -437,10 +433,10 @@ var _ = Describe("ValidateClone", func() {
 
 	It("Should reject the clone when the target has an incompatible size (PVC API)", func() {
 		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
-		pvcSpec := &corev1.PersistentVolumeClaimSpec{
-			Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
+		pvcSpec := &v1.PersistentVolumeClaimSpec{
+			Resources: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					v1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
 				},
 			},
 		}
@@ -454,10 +450,10 @@ var _ = Describe("ValidateClone", func() {
 
 	It("Should validate the clone when both sizes are compatible (PVC API)", func() {
 		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
-		pvcSpec := &corev1.PersistentVolumeClaimSpec{
-			Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse("1Gi"), // Same as the source's
+		pvcSpec := &v1.PersistentVolumeClaimSpec{
+			Resources: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					v1.ResourceStorage: resource.MustParse("1Gi"), // Same as the source's
 				},
 			},
 		}
@@ -511,7 +507,7 @@ var _ = Describe("check PVC", func() {
 	pvcWithEndPointAnno := CreatePvc("testPvcWithEndPointAnno", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
 	pvcWithCloneRequestAnno := CreatePvc("testPvcWithCloneRequestAnno", "default", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
 
-	DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, annotation string, expectedResult bool) {
+	DescribeTable("should", func(pvc *v1.PersistentVolumeClaim, annotation string, expectedResult bool) {
 		result := checkPVC(pvc, annotation, utilLog)
 		Expect(result).To(Equal(expectedResult))
 	},
@@ -529,7 +525,7 @@ func createDataVolumeWithStorageClass(name, ns, storageClassName string) *cdiv1.
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: &cdiv1.DataVolumeSource{},
-			PVC: &corev1.PersistentVolumeClaimSpec{
+			PVC: &v1.PersistentVolumeClaimSpec{
 				StorageClassName: &storageClassName,
 			},
 		},
@@ -558,7 +554,7 @@ func createDataVolumeWithStorageClassPreallocation(name, ns, storageClassName st
 		Spec: cdiv1.DataVolumeSpec{
 			Source:        &cdiv1.DataVolumeSource{},
 			Preallocation: &preallocation,
-			PVC: &corev1.PersistentVolumeClaimSpec{
+			PVC: &v1.PersistentVolumeClaimSpec{
 				StorageClassName: &storageClassName,
 			},
 		},
@@ -614,7 +610,7 @@ func createCDIWithWorkload(name, uid string) *cdiv1.CDI {
 			UID:  types.UID(uid),
 		},
 		Spec: cdiv1.CDISpec{
-			Workloads: api.NodePlacement{},
+			Workloads: sdkapi.NodePlacement{},
 		},
 		Status: cdiv1.CDIStatus{
 			Status: sdkapi.Status{
