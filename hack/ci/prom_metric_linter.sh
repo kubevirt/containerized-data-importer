@@ -23,12 +23,6 @@ set -e
 linter_image_tag="v0.0.1"
 
 PROJECT_ROOT="$(readlink -e "$(dirname "${BASH_SOURCE[0]}")"/../../)"
-export METRICS_COLLECTOR_PATH="${METRICS_COLLECTOR_PATH:-${PROJECT_ROOT}/tools/prom-metrics-collector}"
-
-if [[ ! -d "$METRICS_COLLECTOR_PATH" ]]; then
-    echo "Invalid METRICS_COLLECTOR_PATH: $METRICS_COLLECTOR_PATH is not a valid directory path"
-    exit 1
-fi
 
 # Parse command-line arguments
 while [[ $# -gt 0 ]]; do
@@ -49,7 +43,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Get the metrics list
-go build -o _out/prom-metrics-collector "$METRICS_COLLECTOR_PATH/..."
+./hack/build/bazel-docker.sh go build -o _out/prom-metrics-collector /root/go/src/kubevirt.io/containerized-data-importer/tools/prom-metrics-collector
 json_output=$(_out/prom-metrics-collector 2>/dev/null)
 
 # Select container runtime
