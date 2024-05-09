@@ -8,13 +8,13 @@ import (
 	"path"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
 
 	"k8s.io/client-go/util/cert"
 	"k8s.io/klog/v2"
 
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -22,20 +22,18 @@ import (
 type ProgressReader struct {
 	util.CountingReader
 	total    uint64
-	progress *prometheus.CounterVec
 	ownerUID string
 	final    bool
 }
 
 // NewProgressReader creates a new instance of a prometheus updating progress reader.
-func NewProgressReader(r io.ReadCloser, total uint64, progress *prometheus.CounterVec, ownerUID string) *ProgressReader {
+func NewProgressReader(r io.ReadCloser, total uint64, ownerUID string) *ProgressReader {
 	promReader := &ProgressReader{
 		CountingReader: util.CountingReader{
 			Reader:  r,
 			Current: 0,
 		},
 		total:    total,
-		progress: progress,
 		ownerUID: ownerUID,
 		final:    true,
 	}
@@ -66,12 +64,12 @@ func (r *ProgressReader) updateProgress() bool {
 			currentProgress = float64(r.Current) / float64(r.total) * 100.0
 		}
 		metric := &dto.Metric{}
-		if err := r.progress.WithLabelValues(r.ownerUID).Write(metric); err != nil {
+		if err := metrics.WriteCloneProgress(r.ownerUID, metric); err != nil {
 			klog.Errorf("updateProgress: failed to read metric; %v", err)
 			return true // true ==> to try again // todo - how to avoid endless loop in case it's a constant error?
 		}
 		if currentProgress > *metric.Counter.Value {
-			r.progress.WithLabelValues(r.ownerUID).Add(currentProgress - *metric.Counter.Value)
+			metrics.AddCloneProgress(r.ownerUID, currentProgress-*metric.Counter.Value)
 		}
 		klog.V(1).Infoln(fmt.Sprintf("%.2f", currentProgress))
 		return !finished

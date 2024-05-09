@@ -28,12 +28,12 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	"kubevirt.io/containerized-data-importer/pkg/system"
 )
 
@@ -287,39 +287,33 @@ var _ = Describe("Validate", func() {
 
 var _ = Describe("Report Progress", func() {
 	BeforeEach(func() {
-		progress = prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "import_progress",
-				Help: "The import progress in percentage",
-			},
-			[]string{"ownerUID"},
-		)
+		metrics.InitCloneProgressCounterVec()
 	})
 
 	It("Parse valid progress line", func() {
 		By("Verifying the initial value is 0")
-		progress.WithLabelValues(ownerUID).Add(0)
+		metrics.AddCloneProgress(ownerUID, 0)
 		metric := &dto.Metric{}
-		err := progress.WithLabelValues(ownerUID).Write(metric)
+		err := metrics.WriteCloneProgress(ownerUID, metric)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(*metric.Counter.Value).To(Equal(float64(0)))
 		By("Calling reportProgress with value")
 		reportProgress("(45.34/100%)")
-		err = progress.WithLabelValues(ownerUID).Write(metric)
+		err = metrics.WriteCloneProgress(ownerUID, metric)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(*metric.Counter.Value).To(Equal(45.34))
 	})
 
 	It("Parse invalid progress line", func() {
 		By("Verifying the initial value is 0")
-		progress.WithLabelValues(ownerUID).Add(0)
+		metrics.AddCloneProgress(ownerUID, 0)
 		metric := &dto.Metric{}
-		err := progress.WithLabelValues(ownerUID).Write(metric)
+		err := metrics.WriteCloneProgress(ownerUID, metric)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(*metric.Counter.Value).To(Equal(float64(0)))
 		By("Calling reportProgress with invalid value")
 		reportProgress("45.34")
-		err = progress.WithLabelValues(ownerUID).Write(metric)
+		err = metrics.WriteCloneProgress(ownerUID, metric)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(*metric.Counter.Value).To(Equal(float64(0)))
 	})
