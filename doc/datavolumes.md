@@ -38,6 +38,94 @@ The following statuses are possible.
 * Failed: The operation has failed.
 * Unknown: Unknown status.
 
+## Target Storage/PVC
+
+There are two ways to request a storage - by using either the `pvc` or the `storage` section in the DataVolume resource yaml.
+Both result in CDI creating a PVC resource, but there are some differences in how they work.
+
+### PVC
+The `pvc` type specifies the PersistentVolumeClaim resource that will be created by the CDI. 
+All the parameters of pvc have the semantics of PersistentVolumeClaim parameters, 
+e.g when the volumeMode is not specified the kubernetes default Filesystem is used. The example shows 
+  that a PVC with at least 1Gi of storage and ReadWriteOnce accessMode will be created. 
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: blank-dv-with-pvc
+spec:
+  source:
+    blank: {}
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1Gi
+```
+
+### Storage
+The `storage` type is similar to `pvc` but allows for some additional logic to be applied. 
+It was introduced in order to implement detection and automation of storage parameters.
+
+That kind
+of automation changes the way default values are computed e.g. when the volumeMode is not specified the CDI will search for
+  a default value in StorageProfile, and only if it is not found the PVC with empty volumeMode will be created. 
+  Check the [storage profile](storageprofile.md) documentation for more details about the `storage` and `StorageProfile`.
+
+Example shows a request for a PVC with at least 1Gi of storage and ReadWriteOnce accessMode using `storage` section of DataVolume. 
+  The only difference is that the `storage` being used instead of `pvc`.  
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: blank-dv-with-storage
+spec:
+  source:
+    blank: {}
+  storage:
+    resources:
+      requests:
+        storage: 1Gi
+```
+
+With `storage`, you can request a specific size the same way as with `pvc`. When requesting a storage with the fileSystem volumeMode CDI 
+takes into account the file system overhead and requests PVC big enough to fit an image and file system metadata. 
+This logic is only applied for the DataVolume.spec.storage. 
+
+The Storage API is also aware of a default virtualization storage class.  
+A default virtualization storage class is defined as preferrable for VM workloads (certain combination of storage class parameters that benefit VMs) and is annotated with `storageclass.kubevirt.io/is-default-virt-class` set to `"true"`.  
+For a DataVolume request that does not explicitly specify a storage class name, such a storage class takes precedence over the k8s default storage class.
+
+Lastly, it is worth mentioning that the detection and automation of  storage parameters can vary depending on the used `source`,
+for example, using [pvc](#pvc-source) allows to ommit the storage size, while for others is still mandatory. We encourage to check the docs for each individual source for more information.
+
+### Block Volume Mode
+You can import, clone and upload a disk image to a raw block persistent volume, though,  
+Some CRIs need manual configuration to allow our rootless workload pods to utilize block devices, see [Configure CRI ownership from security context](block_cri_ownership_config.md).  
+
+Block disk image operations are initiated by assigning the value 'Block' to the PVC volumeMode field in the DataVolume yaml.
+The following is an example to import disk image to a raw block volume:
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: "example-import-dv"
+spec:
+  source:
+      http:
+         url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img" # S3 or GCS
+         secretRef: "" # Optional
+         certConfigMap: "" # Optional
+  storage:
+    volumeMode: Block
+    resources:
+      requests:
+        storage: "64Mi"
+```
+
 ## Source 
 
 ### HTTP/S3/GCS/Registry source
@@ -358,93 +446,6 @@ checkpoints:
 ```
 
 This process can be repeated until the VM can be shut down for a final snapshot copy with `finalCheckpoint` set to `true`.
-
-## Target Storage/PVC
-
-There are two ways to request a storage - by using either the `pvc` or the `storage` section in the DataVolume resource yaml.
-Both result in CDI creating a PVC resource, but there are some differences in how they work.
-
-### PVC
-The `pvc` type specifies the PersistentVolumeClaim resource that will be created by the CDI. 
-All the parameters of pvc have the semantics of PersistentVolumeClaim parameters, 
-e.g when the volumeMode is not specified the kubernetes default Filesystem is used. The example shows 
-  that a PVC with at least 1Gi of storage and ReadWriteOnce accessMode will be created. 
-
-```yaml
-apiVersion: cdi.kubevirt.io/v1beta1
-kind: DataVolume
-metadata:
-  name: blank-dv-with-pvc
-spec:
-  source:
-    blank: {}
-  pvc:
-    accessModes:
-      - ReadWriteOnce
-    resources:
-      requests:
-        storage: 1Gi
-```
-### Storage
-The `storage` type is similar to `pvc` but allows for some additional logic to be applied. 
-It was introduced in order to implement detection and automation of storage parameters.
-
-That kind
-of automation changes the way default values are computed e.g. when the volumeMode is not specified the CDI will search for
-  a default value in StorageProfile, and only if it is not found the PVC with empty volumeMode will be created. 
-  Check the [storage profile](storageprofile.md) documentation for more details about the `storage` and `StorageProfile`.
-
-Example shows a request for a PVC with at least 1Gi of storage and ReadWriteOnce accessMode using `storage` section of DataVolume. 
-  The only difference is that the `storage` being used instead of `pvc`.  
-
-```yaml
-apiVersion: cdi.kubevirt.io/v1beta1
-kind: DataVolume
-metadata:
-  name: blank-dv-with-storage
-spec:
-  source:
-    blank: {}
-  storage:
-    resources:
-      requests:
-        storage: 1Gi
-```
-
-With `storage`, you can request a specific size the same way as with `pvc`. When requesting a storage with the fileSystem volumeMode CDI 
-takes into account the file system overhead and requests PVC big enough to fit an image and file system metadata. 
-This logic is only applied for the DataVolume.spec.storage. 
-
-The Storage API is also aware of a default virtualization storage class.  
-A default virtualization storage class is defined as preferrable for VM workloads (certain combination of storage class parameters that benefit VMs) and is annotated with `storageclass.kubevirt.io/is-default-virt-class` set to `"true"`.  
-For a DataVolume request that does not explicitly specify a storage class name, such a storage class takes precedence over the k8s default storage class.
-
-Lastly, it is worth mentioning that the detection and automation of  storage parameters can vary depending on the used `source`,
-for example, using [pvc](#pvc-source) allows to ommit the storage size, while for others is still mandatory. We encourage to check the docs for each individual source for more information.
-
-### Block Volume Mode
-You can import, clone and upload a disk image to a raw block persistent volume, though,  
-Some CRIs need manual configuration to allow our rootless workload pods to utilize block devices, see [Configure CRI ownership from security context](block_cri_ownership_config.md).  
-
-Block disk image operations are initiated by assigning the value 'Block' to the PVC volumeMode field in the DataVolume yaml.
-The following is an example to import disk image to a raw block volume:
-```yaml
-apiVersion: cdi.kubevirt.io/v1beta1
-kind: DataVolume
-metadata:
-  name: "example-import-dv"
-spec:
-  source:
-      http:
-         url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img" # S3 or GCS
-         secretRef: "" # Optional
-         certConfigMap: "" # Optional
-  storage:
-    volumeMode: Block
-    resources:
-      requests:
-        storage: "64Mi"
-```
 
 ## Conditions
 The DataVolume status object has conditions. There are 3 conditions available for DataVolumes
