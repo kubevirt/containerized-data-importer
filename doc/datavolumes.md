@@ -43,6 +43,9 @@ The following statuses are possible.
 There are two ways to request a storage - by using either the `pvc` or the `storage` section in the DataVolume resource yaml.
 Both result in CDI creating a PVC resource, but there are some differences in how they work.
 
+> [!NOTE] 
+> We recommend using the storage API as it has more convenience features.
+
 ### PVC
 The `pvc` type specifies the PersistentVolumeClaim resource that will be created by the CDI. 
 All the parameters of pvc have the semantics of PersistentVolumeClaim parameters, 
@@ -66,17 +69,26 @@ spec:
 ```
 
 ### Storage
-The `storage` type is similar to `pvc` but allows for some additional logic to be applied. 
-It was introduced in order to implement detection and automation of storage parameters.
+The `storage` type is similar to `pvc` but it allows you to ommit some parameters.
 
-That kind
-of automation changes the way default values are computed e.g. when the volumeMode is not specified the CDI will search for
-  a default value in StorageProfile, and only if it is not found the PVC with empty volumeMode will be created. 
-  Check the [storage profile](storageprofile.md) documentation for more details about the `storage` and `StorageProfile`.
+> [!TIP]
+> With the storage API, CDI computes virtualization-specific defaults for optional
+> fields, otherwise falling back to k8's.
 
-Example shows a request for a PVC with at least 1Gi of storage and ReadWriteOnce accessMode using `storage` section of DataVolume. 
-  The only difference is that the `storage` being used instead of `pvc`.  
+If you skip the `volumeMode` parameter, CDI will search for a default value in the
+StorageProfile. See also: [storage profile documentation](storageprofile.md).
 
+If you skip the `storageClassName` name parameter, CDI will prioritize the default
+virtualization storage class over k8s' default. You can define your default
+virtualization storage class by annotating it with
+`storageclass.kubevirt.io/is-default-virt-class` set to `"true"`.
+
+If you request storage with `volumeMode: fileSystem`, CDI will take the file system
+overhead into account and request a PVC big enough to fit both an image and the
+file system metadata. This logic only applies to the `DataVolume.spec.storage`.
+
+This example shows a request for a PVC with at least 1Gi of storage. Other fields are
+left for CDI to fill.
 ```yaml
 apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
@@ -90,21 +102,14 @@ spec:
       requests:
         storage: 1Gi
 ```
-
-With `storage`, you can request a specific size the same way as with `pvc`. When requesting a storage with the fileSystem volumeMode CDI 
-takes into account the file system overhead and requests PVC big enough to fit an image and file system metadata. 
-This logic is only applied for the DataVolume.spec.storage. 
-
-The Storage API is also aware of a default virtualization storage class.  
-A default virtualization storage class is defined as preferrable for VM workloads (certain combination of storage class parameters that benefit VMs) and is annotated with `storageclass.kubevirt.io/is-default-virt-class` set to `"true"`.  
-For a DataVolume request that does not explicitly specify a storage class name, such a storage class takes precedence over the k8s default storage class.
-
-Lastly, it is worth mentioning that the detection and automation of  storage parameters can vary depending on the used `source`,
-for example, using [pvc](#pvc-source) allows to ommit the storage size, while for others is still mandatory. We encourage to check the docs for each individual source for more information.
+> [!WARNING]
+> The detection and automation of storage parameters can vary depending on the `source`.
+> For example, cloning a PVC ([PVC source](#pvc-source)) allows for the ommission of storage size,
+> otherwise mandatory. Make sure you read the docs for each individual source for more information.
 
 ### Block Volume Mode
-You can import, clone and upload a disk image to a raw block persistent volume, though,  
-Some CRIs need manual configuration to allow our rootless workload pods to utilize block devices, see [Configure CRI ownership from security context](block_cri_ownership_config.md).  
+You can import, clone and upload a disk image to a raw block persistent volume, although  
+some CRIs need manual configuration to allow our rootless workload pods to utilize block devices, see [Configure CRI ownership from security context](block_cri_ownership_config.md).  
 
 Block disk image operations are initiated by assigning the value 'Block' to the PVC volumeMode field in the DataVolume yaml.
 The following is an example to import disk image to a raw block volume:
