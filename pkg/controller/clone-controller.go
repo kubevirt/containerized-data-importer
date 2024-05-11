@@ -32,6 +32,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
@@ -55,8 +56,6 @@ const (
 	cloneSourcePodFinalizer = "cdi.kubevirt.io/cloneSource"
 
 	hostAssistedCloneSource = "cdi.kubevirt.io/hostAssistedSourcePodCloneSource"
-
-	uploadClientCertDuration = 365 * 24 * time.Hour
 )
 
 // CloneReconciler members
@@ -211,7 +210,7 @@ func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 		return reconcile.Result{RequeueAfter: requeueAfter}, err
 	}
 
-	if err := r.ensureCertSecret(sourcePod, pvc, log); err != nil {
+	if err := r.ensureCertSecret(sourcePod, pvc); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -270,7 +269,7 @@ func (r *CloneReconciler) reconcileSourcePod(ctx context.Context, sourcePod *cor
 	return 0, nil
 }
 
-func (r *CloneReconciler) ensureCertSecret(sourcePod *corev1.Pod, targetPvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
+func (r *CloneReconciler) ensureCertSecret(sourcePod *corev1.Pod, targetPvc *corev1.PersistentVolumeClaim) error {
 	if sourcePod == nil {
 		return nil
 	}
@@ -284,7 +283,12 @@ func (r *CloneReconciler) ensureCertSecret(sourcePod *corev1.Pod, targetPvc *cor
 		return errors.Errorf("PVC %s/%s missing required %s annotation", targetPvc.Namespace, targetPvc.Name, AnnUploadClientName)
 	}
 
-	cert, key, err := r.clientCertGenerator.MakeClientCert(clientName, nil, uploadClientCertDuration)
+	certConfig, err := operator.GetCertConfigWithDefaults(context.TODO(), r.client)
+	if err != nil {
+		return err
+	}
+
+	cert, key, err := r.clientCertGenerator.MakeClientCert(clientName, nil, certConfig.Client.Duration.Duration)
 	if err != nil {
 		return err
 	}
