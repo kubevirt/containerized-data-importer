@@ -63,6 +63,6 @@ errors=$($CDI_CRI run -i "quay.io/kubevirt/prom-metrics-linter:$linter_image_tag
 
 # Check if there were any errors, if yes print and fail
 if [[ $errors != "" ]]; then
-  echo "$errors"
-  exit 1
+    echo "$errors"
+    exit 1
 fi
