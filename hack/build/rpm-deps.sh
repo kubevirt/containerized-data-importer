@@ -158,7 +158,7 @@ bazel run \
     --config=aarch64 \
     //:bazeldnf -- rpmtree \
     --public --nobest \
-    --name cdi_uploadserver_base_aarch64  --arch aarch64\
+    --name cdi_uploadserver_base_aarch64 --arch aarch64 \
     --basesystem centos-stream-release \
     ${bazeldnf_repos} \
     $centos_base \
