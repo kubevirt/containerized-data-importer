@@ -18,11 +18,10 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/imageservice/v2/imagedata"
 	"github.com/gophercloud/utils/openstack/clientconfig"
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 
 	"k8s.io/klog/v2"
 
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/openstack-populator"
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
 
@@ -127,8 +126,8 @@ func downloadAndSaveImage(config *appConfig, imageReader io.ReadCloser) {
 	file := openFile(config.volumePath)
 	defer file.Close()
 
-	progress := createProgressCounter()
-	writeData(imageReader, file, config, progress)
+	createProgressCounter()
+	writeData(imageReader, file, config)
 }
 
 func setupImageService(provider *gophercloud.ProviderClient, config *appConfig) (io.ReadCloser, error) {
@@ -157,11 +156,11 @@ func getEndpointOpts() gophercloud.EndpointOpts {
 	}
 }
 
-func writeData(reader io.ReadCloser, file *os.File, config *appConfig, progress *prometheus.CounterVec) {
+func writeData(reader io.ReadCloser, file *os.File, config *appConfig) {
 	countingReader := &countingReader{reader: reader, total: config.pvcSize, read: new(int64)}
 	done := make(chan bool)
 
-	go reportProgress(done, countingReader, progress, config)
+	go reportProgress(done, countingReader, config)
 
 	if _, err := io.Copy(file, countingReader); err != nil {
 		klog.Fatal(err)
@@ -169,68 +168,56 @@ func writeData(reader io.ReadCloser, file *os.File, config *appConfig, progress 
 	done <- true
 }
 
-func reportProgress(done chan bool, countingReader *countingReader, progress *prometheus.CounterVec, config *appConfig) {
+func reportProgress(done chan bool, countingReader *countingReader, config *appConfig) {
 	for {
 		select {
 		case <-done:
-			finalizeProgress(progress, config.ownerUID)
+			finalizeProgress(config.ownerUID)
 			return
 		default:
-			updateProgress(countingReader, progress, config.ownerUID)
+			updateProgress(countingReader, config.ownerUID)
 			time.Sleep(1 * time.Second)
 		}
 	}
 }
 
-func createProgressCounter() *prometheus.CounterVec {
-	progressVec := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "openstack_populator_progress",
-			Help: "Progress of volume population",
-		},
-		[]string{"ownerUID"},
-	)
-	if err := prometheus.Register(progressVec); err != nil {
+func createProgressCounter() {
+	if err := metrics.SetupMetrics(); err != nil {
 		klog.Error("Prometheus progress counter not registered:", err)
 	} else {
 		klog.Info("Prometheus progress counter registered.")
 	}
-	return progressVec
 }
 
-func finalizeProgress(progress *prometheus.CounterVec, ownerUID string) {
-	currentVal := progress.WithLabelValues(ownerUID)
-
-	var metric dto.Metric
-	if err := currentVal.Write(&metric); err != nil {
+func finalizeProgress(ownerUID string) {
+	progress, err := metrics.GetPopulatorProgress(ownerUID)
+	if err != nil {
 		klog.Error("Error reading current progress:", err)
 		return
 	}
 
-	if metric.Counter != nil {
-		remainingProgress := 100 - *metric.Counter.Value
-		if remainingProgress > 0 {
-			currentVal.Add(remainingProgress)
-		}
+	remainingProgress := 100 - progress
+	if remainingProgress > 0 {
+		metrics.AddPopulatorProgress(ownerUID, remainingProgress)
 	}
 
 	klog.Info("Finished populating the volume. Progress: 100%")
 }
 
-func updateProgress(countingReader *countingReader, progress *prometheus.CounterVec, ownerUID string) {
+func updateProgress(countingReader *countingReader, ownerUID string) {
 	if countingReader.total <= 0 {
 		return
 	}
 
-	metric := &dto.Metric{}
-	if err := progress.WithLabelValues(ownerUID).Write(metric); err != nil {
-		klog.Errorf("updateProgress: failed to write metric; %v", err)
+	progress, err := metrics.GetPopulatorProgress(ownerUID)
+	if err != nil {
+		klog.Errorf("updateProgress: failed to get metric; %v", err)
 	}
 
 	currentProgress := (float64(*countingReader.read) / float64(countingReader.total)) * 100
 
-	if currentProgress > *metric.Counter.Value {
-		progress.WithLabelValues(ownerUID).Add(currentProgress - *metric.Counter.Value)
+	if currentProgress > progress {
+		metrics.AddPopulatorProgress(ownerUID, currentProgress-progress)
 	}
 
 	klog.Info("Progress: ", int64(currentProgress), "%")
