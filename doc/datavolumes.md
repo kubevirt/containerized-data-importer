@@ -78,14 +78,15 @@ The `storage` type is similar to `pvc` but it allows you to ommit some parameter
 If you skip the `volumeMode` parameter, CDI will search for a default value in the
 StorageProfile. See also: [storage profile documentation](storageprofile.md).
 
+If the volume mode is set to `fileSystem` (either explicitly with `volumeMode: fileSystem`,
+or implicitly as explained in the previous paragraph), CDI will take the file system
+overhead into account and request a PVC big enough to fit both an image and the file
+system metadata. This logic only applies to the `DataVolume.spec.storage`.
+
 If you skip the `storageClassName` name parameter, CDI will prioritize the default
 virtualization storage class over k8s' default. You can define your default
 virtualization storage class by annotating it with
 `storageclass.kubevirt.io/is-default-virt-class` set to `"true"`.
-
-If you request storage with `volumeMode: fileSystem`, CDI will take the file system
-overhead into account and request a PVC big enough to fit both an image and the
-file system metadata. This logic only applies to the `DataVolume.spec.storage`.
 
 This example shows a request for a PVC with at least 1Gi of storage. Other fields are
 left for CDI to fill.
