@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	platform "github.com/containers/image/v5/internal/pkg/platform"
+	compression "github.com/containers/image/v5/pkg/compression/types"
 	"github.com/containers/image/v5/types"
 	"github.com/opencontainers/go-digest"
 	imgspec "github.com/opencontainers/image-spec/specs-go"
@@ -22,7 +23,8 @@ const (
 	// That also suggests that this instance benefits from
 	// Zstd compression, so it can be preferred by compatible consumers over instances that
 	// use gzip, depending on their local policy.
-	OCI1InstanceAnnotationCompressionZSTD = "io.github.containers.compression.zstd"
+	OCI1InstanceAnnotationCompressionZSTD      = "io.github.containers.compression.zstd"
+	OCI1InstanceAnnotationCompressionZSTDValue = "true"
 )
 
 // OCI1IndexPublic is just an alias for the OCI index type, but one which we can
@@ -51,11 +53,16 @@ func (index *OCI1IndexPublic) Instances() []digest.Digest {
 func (index *OCI1IndexPublic) Instance(instanceDigest digest.Digest) (ListUpdate, error) {
 	for _, manifest := range index.Manifests {
 		if manifest.Digest == instanceDigest {
-			return ListUpdate{
+			ret := ListUpdate{
 				Digest:    manifest.Digest,
 				Size:      manifest.Size,
 				MediaType: manifest.MediaType,
-			}, nil
+			}
+			ret.ReadOnly.Platform = manifest.Platform
+			ret.ReadOnly.Annotations = manifest.Annotations
+			ret.ReadOnly.CompressionAlgorithmNames = annotationsToCompressionAlgorithmNames(manifest.Annotations)
+			ret.ReadOnly.ArtifactType = manifest.ArtifactType
+			return ret, nil
 		}
 	}
 	return ListUpdate{}, fmt.Errorf("unable to find instance %s in OCI1Index", instanceDigest)
@@ -64,24 +71,130 @@ func (index *OCI1IndexPublic) Instance(instanceDigest digest.Digest) (ListUpdate
 // UpdateInstances updates the sizes, digests, and media types of the manifests
 // which the list catalogs.
 func (index *OCI1IndexPublic) UpdateInstances(updates []ListUpdate) error {
-	if len(updates) != len(index.Manifests) {
-		return fmt.Errorf("incorrect number of update entries passed to OCI1Index.UpdateInstances: expected %d, got %d", len(index.Manifests), len(updates))
+	editInstances := []ListEdit{}
+	for i, instance := range updates {
+		editInstances = append(editInstances, ListEdit{
+			UpdateOldDigest: index.Manifests[i].Digest,
+			UpdateDigest:    instance.Digest,
+			UpdateSize:      instance.Size,
+			UpdateMediaType: instance.MediaType,
+			ListOperation:   ListOpUpdate})
 	}
-	for i := range updates {
-		if err := updates[i].Digest.Validate(); err != nil {
-			return fmt.Errorf("update %d of %d passed to OCI1Index.UpdateInstances contained an invalid digest: %w", i+1, len(updates), err)
+	return index.editInstances(editInstances)
+}
+
+func annotationsToCompressionAlgorithmNames(annotations map[string]string) []string {
+	result := make([]string, 0, 1)
+	if annotations[OCI1InstanceAnnotationCompressionZSTD] == OCI1InstanceAnnotationCompressionZSTDValue {
+		result = append(result, compression.ZstdAlgorithmName)
+	}
+	// No compression was detected, hence assume instance has default compression `Gzip`
+	if len(result) == 0 {
+		result = append(result, compression.GzipAlgorithmName)
+	}
+	return result
+}
+
+func addCompressionAnnotations(compressionAlgorithms []compression.Algorithm, annotationsMap *map[string]string) {
+	// TODO: This should also delete the algorithm if map already contains an algorithm and compressionAlgorithm
+	// list has a different algorithm. To do that, we would need to modify the callers to always provide a reliable
+	// and full compressionAlghorithms list.
+	if *annotationsMap == nil && len(compressionAlgorithms) > 0 {
+		*annotationsMap = map[string]string{}
+	}
+	for _, algo := range compressionAlgorithms {
+		switch algo.BaseVariantName() {
+		case compression.ZstdAlgorithmName:
+			(*annotationsMap)[OCI1InstanceAnnotationCompressionZSTD] = OCI1InstanceAnnotationCompressionZSTDValue
+		default:
+			continue
 		}
-		index.Manifests[i].Digest = updates[i].Digest
-		if updates[i].Size < 0 {
-			return fmt.Errorf("update %d of %d passed to OCI1Index.UpdateInstances had an invalid size (%d)", i+1, len(updates), updates[i].Size)
+	}
+}
+
+func (index *OCI1IndexPublic) editInstances(editInstances []ListEdit) error {
+	addedEntries := []imgspecv1.Descriptor{}
+	updatedAnnotations := false
+	for i, editInstance := range editInstances {
+		switch editInstance.ListOperation {
+		case ListOpUpdate:
+			if err := editInstance.UpdateOldDigest.Validate(); err != nil {
+				return fmt.Errorf("OCI1Index.EditInstances: Attempting to update %s which is an invalid digest: %w", editInstance.UpdateOldDigest, err)
+			}
+			if err := editInstance.UpdateDigest.Validate(); err != nil {
+				return fmt.Errorf("OCI1Index.EditInstances: Modified digest %s is an invalid digest: %w", editInstance.UpdateDigest, err)
+			}
+			targetIndex := slices.IndexFunc(index.Manifests, func(m imgspecv1.Descriptor) bool {
+				return m.Digest == editInstance.UpdateOldDigest
+			})
+			if targetIndex == -1 {
+				return fmt.Errorf("OCI1Index.EditInstances: digest %s not found", editInstance.UpdateOldDigest)
+			}
+			index.Manifests[targetIndex].Digest = editInstance.UpdateDigest
+			if editInstance.UpdateSize < 0 {
+				return fmt.Errorf("update %d of %d passed to OCI1Index.UpdateInstances had an invalid size (%d)", i+1, len(editInstances), editInstance.UpdateSize)
+			}
+			index.Manifests[targetIndex].Size = editInstance.UpdateSize
+			if editInstance.UpdateMediaType == "" {
+				return fmt.Errorf("update %d of %d passed to OCI1Index.UpdateInstances had no media type (was %q)", i+1, len(editInstances), index.Manifests[i].MediaType)
+			}
+			index.Manifests[targetIndex].MediaType = editInstance.UpdateMediaType
+			if editInstance.UpdateAnnotations != nil {
+				updatedAnnotations = true
+				if editInstance.UpdateAffectAnnotations {
+					index.Manifests[targetIndex].Annotations = maps.Clone(editInstance.UpdateAnnotations)
+				} else {
+					if index.Manifests[targetIndex].Annotations == nil {
+						index.Manifests[targetIndex].Annotations = map[string]string{}
+					}
+					maps.Copy(index.Manifests[targetIndex].Annotations, editInstance.UpdateAnnotations)
+				}
+			}
+			addCompressionAnnotations(editInstance.UpdateCompressionAlgorithms, &index.Manifests[targetIndex].Annotations)
+		case ListOpAdd:
+			annotations := map[string]string{}
+			if editInstance.AddAnnotations != nil {
+				annotations = maps.Clone(editInstance.AddAnnotations)
+			}
+			addCompressionAnnotations(editInstance.AddCompressionAlgorithms, &annotations)
+			addedEntries = append(addedEntries, imgspecv1.Descriptor{
+				MediaType:    editInstance.AddMediaType,
+				ArtifactType: editInstance.AddArtifactType,
+				Size:         editInstance.AddSize,
+				Digest:       editInstance.AddDigest,
+				Platform:     editInstance.AddPlatform,
+				Annotations:  annotations,
+			})
+		default:
+			return fmt.Errorf("internal error: invalid operation: %d", editInstance.ListOperation)
 		}
-		index.Manifests[i].Size = updates[i].Size
-		if updates[i].MediaType == "" {
-			return fmt.Errorf("update %d of %d passed to OCI1Index.UpdateInstances had no media type (was %q)", i+1, len(updates), index.Manifests[i].MediaType)
-		}
-		index.Manifests[i].MediaType = updates[i].MediaType
+	}
+	if len(addedEntries) != 0 {
+		// slices.Clone() here to ensure the slice uses a private backing array;
+		// an external caller could have manually created OCI1IndexPublic with a slice with extra capacity.
+		index.Manifests = append(slices.Clone(index.Manifests), addedEntries...)
+	}
+	if len(addedEntries) != 0 || updatedAnnotations {
+		slices.SortStableFunc(index.Manifests, func(a, b imgspecv1.Descriptor) int {
+			// FIXME? With Go 1.21 and cmp.Compare available, turn instanceIsZstd into an integer score that can be compared, and generalizes
+			// into more algorithms?
+			aZstd := instanceIsZstd(a)
+			bZstd := instanceIsZstd(b)
+			switch {
+			case aZstd == bZstd:
+				return 0
+			case !aZstd: // Implies bZstd
+				return -1
+			default: // aZstd && !bZstd
+				return 1
+			}
+		})
 	}
 	return nil
+}
+
+func (index *OCI1Index) EditInstances(editInstances []ListEdit) error {
+	return index.editInstances(editInstances)
 }
 
 // instanceIsZstd returns true if instance is a zstd instance otherwise false.
@@ -112,7 +225,7 @@ func (ic instanceCandidate) isPreferredOver(other *instanceCandidate, preferGzip
 	case ic.manifestPosition != other.manifestPosition:
 		return ic.manifestPosition < other.manifestPosition
 	}
-	panic("internal error: invalid comparision between two candidates") // This should not be reachable because in all calls we make, the two candidates differ at least in manifestPosition.
+	panic("internal error: invalid comparison between two candidates") // This should not be reachable because in all calls we make, the two candidates differ at least in manifestPosition.
 }
 
 // chooseInstance is a private equivalent to ChooseInstanceByCompression,
@@ -131,24 +244,14 @@ func (index *OCI1IndexPublic) chooseInstance(ctx *types.SystemContext, preferGzi
 	for manifestIndex, d := range index.Manifests {
 		candidate := instanceCandidate{platformIndex: math.MaxInt, manifestPosition: manifestIndex, isZstd: instanceIsZstd(d), digest: d.Digest}
 		if d.Platform != nil {
-			foundPlatform := false
-			for platformIndex, wantedPlatform := range wantedPlatforms {
-				imagePlatform := imgspecv1.Platform{
-					Architecture: d.Platform.Architecture,
-					OS:           d.Platform.OS,
-					OSVersion:    d.Platform.OSVersion,
-					OSFeatures:   slices.Clone(d.Platform.OSFeatures),
-					Variant:      d.Platform.Variant,
-				}
-				if platform.MatchesPlatform(imagePlatform, wantedPlatform) {
-					foundPlatform = true
-					candidate.platformIndex = platformIndex
-					break
-				}
-			}
-			if !foundPlatform {
+			imagePlatform := ociPlatformClone(*d.Platform)
+			platformIndex := slices.IndexFunc(wantedPlatforms, func(wantedPlatform imgspecv1.Platform) bool {
+				return platform.MatchesPlatform(imagePlatform, wantedPlatform)
+			})
+			if platformIndex == -1 {
 				continue
 			}
+			candidate.platformIndex = platformIndex
 		}
 		if bestMatch == nil || candidate.isPreferredOver(bestMatch, didPreferGzip) {
 			bestMatch = &candidate
@@ -195,21 +298,17 @@ func OCI1IndexPublicFromComponents(components []imgspecv1.Descriptor, annotation
 	for i, component := range components {
 		var platform *imgspecv1.Platform
 		if component.Platform != nil {
-			platform = &imgspecv1.Platform{
-				Architecture: component.Platform.Architecture,
-				OS:           component.Platform.OS,
-				OSVersion:    component.Platform.OSVersion,
-				OSFeatures:   slices.Clone(component.Platform.OSFeatures),
-				Variant:      component.Platform.Variant,
-			}
+			platformCopy := ociPlatformClone(*component.Platform)
+			platform = &platformCopy
 		}
 		m := imgspecv1.Descriptor{
-			MediaType:   component.MediaType,
-			Size:        component.Size,
-			Digest:      component.Digest,
-			URLs:        slices.Clone(component.URLs),
-			Annotations: maps.Clone(component.Annotations),
-			Platform:    platform,
+			MediaType:    component.MediaType,
+			ArtifactType: component.ArtifactType,
+			Size:         component.Size,
+			Digest:       component.Digest,
+			URLs:         slices.Clone(component.URLs),
+			Annotations:  maps.Clone(component.Annotations),
+			Platform:     platform,
 		}
 		index.Manifests[i] = m
 	}
@@ -238,22 +337,15 @@ func (index *OCI1IndexPublic) ToSchema2List() (*Schema2ListPublic, error) {
 				Architecture: runtime.GOARCH,
 			}
 		}
-		converted := Schema2ManifestDescriptor{
+		components = append(components, Schema2ManifestDescriptor{
 			Schema2Descriptor{
 				MediaType: manifest.MediaType,
 				Size:      manifest.Size,
 				Digest:    manifest.Digest,
 				URLs:      slices.Clone(manifest.URLs),
 			},
-			Schema2PlatformSpec{
-				OS:           platform.OS,
-				Architecture: platform.Architecture,
-				OSFeatures:   slices.Clone(platform.OSFeatures),
-				OSVersion:    platform.OSVersion,
-				Variant:      platform.Variant,
-			},
-		}
-		components = append(components, converted)
+			schema2PlatformSpecFromOCIPlatform(*platform),
+		})
 	}
 	s2 := Schema2ListPublicFromComponents(components)
 	return s2, nil
@@ -326,4 +418,33 @@ func OCI1IndexFromManifest(manifest []byte) (*OCI1Index, error) {
 		return nil, err
 	}
 	return oci1IndexFromPublic(public), nil
+}
+
+// ociPlatformClone returns an independent copy of p.
+func ociPlatformClone(p imgspecv1.Platform) imgspecv1.Platform {
+	// The only practical way in Go to give read-only access to an array is to copy it.
+	// The only practical way in Go to copy a deep structure is to either do it manually field by field,
+	// or to use reflection (incl. a round-trip through JSON, which uses reflection).
+	//
+	// The combination of the two is just sad, and leads to code like this, which will
+	// need to be updated with every new Platform field.
+	return imgspecv1.Platform{
+		Architecture: p.Architecture,
+		OS:           p.OS,
+		OSVersion:    p.OSVersion,
+		OSFeatures:   slices.Clone(p.OSFeatures),
+		Variant:      p.Variant,
+	}
+}
+
+// schema2PlatformSpecFromOCIPlatform converts an OCI platform p to the schema2 structure.
+func schema2PlatformSpecFromOCIPlatform(p imgspecv1.Platform) Schema2PlatformSpec {
+	return Schema2PlatformSpec{
+		Architecture: p.Architecture,
+		OS:           p.OS,
+		OSVersion:    p.OSVersion,
+		OSFeatures:   slices.Clone(p.OSFeatures),
+		Variant:      p.Variant,
+		Features:     nil,
+	}
 }

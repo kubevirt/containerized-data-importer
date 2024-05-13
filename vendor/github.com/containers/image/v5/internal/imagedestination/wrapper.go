@@ -28,7 +28,7 @@ type wrapped struct {
 //
 // NOTE: The returned API MUST NOT be a public interface (it can be either just a struct
 // with public methods, or perhaps a private interface), so that we can add methods
-// without breaking any external implementors of a public interface.
+// without breaking any external implementers of a public interface.
 func FromPublic(dest types.ImageDestination) private.ImageDestination {
 	if dest2, ok := dest.(private.ImageDestination); ok {
 		return dest2
@@ -64,6 +64,9 @@ func (w *wrapped) PutBlobWithOptions(ctx context.Context, stream io.Reader, inpu
 // If the blob has been successfully reused, returns (true, info, nil).
 // If the transport can not reuse the requested blob, TryReusingBlob returns (false, {}, nil); it returns a non-nil error only on an unexpected failure.
 func (w *wrapped) TryReusingBlobWithOptions(ctx context.Context, info types.BlobInfo, options private.TryReusingBlobOptions) (bool, private.ReusedBlob, error) {
+	if options.RequiredCompression != nil {
+		return false, private.ReusedBlob{}, nil
+	}
 	reused, blob, err := w.TryReusingBlob(ctx, info, options.Cache, options.CanSubstitute)
 	if !reused || err != nil {
 		return reused, private.ReusedBlob{}, err
