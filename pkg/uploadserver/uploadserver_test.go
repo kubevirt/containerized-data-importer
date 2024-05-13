@@ -74,9 +74,9 @@ func newTLSServer(clientCertName, expectedName string) (*uploadServerApp, *tripl
 	serverKeyPair, err := triple.NewServerKeyPair(serverCA, "localhost", "localhost", "default", "local", []string{"127.0.0.1"}, []string{"localhost"})
 	Expect(err).ToNot(HaveOccurred())
 
-	os.WriteFile(filepath.Join(dir, "tls.key"), cert.EncodePrivateKeyPEM(serverKeyPair.Key), 0600)
-	os.WriteFile(filepath.Join(dir, "tls.crt"), cert.EncodeCertPEM(serverKeyPair.Cert), 0600)
-	os.WriteFile(filepath.Join(dir, "client.crt"), cert.EncodeCertPEM(clientCA.Cert), 0600)
+	_ = os.WriteFile(filepath.Join(dir, "tls.key"), cert.EncodePrivateKeyPEM(serverKeyPair.Key), 0600)
+	_ = os.WriteFile(filepath.Join(dir, "tls.crt"), cert.EncodeCertPEM(serverKeyPair.Cert), 0600)
+	_ = os.WriteFile(filepath.Join(dir, "client.crt"), cert.EncodeCertPEM(clientCA.Cert), 0600)
 
 	config := &Config{
 		BindAddress:        "127.0.0.1",
