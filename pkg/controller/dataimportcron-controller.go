@@ -267,7 +267,7 @@ func (r *DataImportCronReconciler) setNextCronTime(dataImportCron *cdiv1.DataImp
 		return reconcile.Result{}, err
 	}
 	nextTime := expr.Next(now)
-	requeueAfter := nextTime.Sub(now) + time.Second
+	requeueAfter := nextTime.Sub(now)
 	res := reconcile.Result{Requeue: true, RequeueAfter: requeueAfter}
 	cc.AddAnnotation(dataImportCron, AnnNextCronTime, nextTime.Format(time.RFC3339))
 	return res, err
