@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "compat.go",
+        "helpers.go",
         "properties.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/internal/imagedestination/impl",
@@ -11,9 +12,12 @@ go_library(
     visibility = ["//vendor/github.com/containers/image/v5:__subpackages__"],
     deps = [
         "//vendor/github.com/containers/image/v5/internal/blobinfocache:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/manifest:go_default_library",
         "//vendor/github.com/containers/image/v5/internal/private:go_default_library",
         "//vendor/github.com/containers/image/v5/internal/signature:go_default_library",
+        "//vendor/github.com/containers/image/v5/pkg/compression/types:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",
         "//vendor/github.com/opencontainers/go-digest:go_default_library",
+        "//vendor/golang.org/x/exp/slices:go_default_library",
     ],
 )

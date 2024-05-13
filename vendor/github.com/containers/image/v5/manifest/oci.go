@@ -42,7 +42,12 @@ type OCI1 struct {
 // useful for validation anyway.
 func SupportedOCI1MediaType(m string) error {
 	switch m {
-	case imgspecv1.MediaTypeDescriptor, imgspecv1.MediaTypeImageConfig, imgspecv1.MediaTypeImageLayer, imgspecv1.MediaTypeImageLayerGzip, imgspecv1.MediaTypeImageLayerNonDistributable, imgspecv1.MediaTypeImageLayerNonDistributableGzip, imgspecv1.MediaTypeImageLayerNonDistributableZstd, imgspecv1.MediaTypeImageLayerZstd, imgspecv1.MediaTypeImageManifest, imgspecv1.MediaTypeLayoutHeader, ociencspec.MediaTypeLayerEnc, ociencspec.MediaTypeLayerGzipEnc:
+	case imgspecv1.MediaTypeDescriptor, imgspecv1.MediaTypeImageConfig,
+		imgspecv1.MediaTypeImageLayer, imgspecv1.MediaTypeImageLayerGzip, imgspecv1.MediaTypeImageLayerZstd,
+		imgspecv1.MediaTypeImageLayerNonDistributable, imgspecv1.MediaTypeImageLayerNonDistributableGzip, imgspecv1.MediaTypeImageLayerNonDistributableZstd, //nolint:staticcheck // NonDistributable layers are deprecated, but we want to continue to support manipulating pre-existing images.
+		imgspecv1.MediaTypeImageManifest,
+		imgspecv1.MediaTypeLayoutHeader,
+		ociencspec.MediaTypeLayerEnc, ociencspec.MediaTypeLayerGzipEnc:
 		return nil
 	default:
 		return fmt.Errorf("unsupported OCIv1 media type: %q", m)
@@ -102,9 +107,9 @@ func (m *OCI1) LayerInfos() []LayerInfo {
 
 var oci1CompressionMIMETypeSets = []compressionMIMETypeSet{
 	{
-		mtsUncompressed:                    imgspecv1.MediaTypeImageLayerNonDistributable,
-		compressiontypes.GzipAlgorithmName: imgspecv1.MediaTypeImageLayerNonDistributableGzip,
-		compressiontypes.ZstdAlgorithmName: imgspecv1.MediaTypeImageLayerNonDistributableZstd,
+		mtsUncompressed:                    imgspecv1.MediaTypeImageLayerNonDistributable,     //nolint:staticcheck // NonDistributable layers are deprecated, but we want to continue to support manipulating pre-existing images.
+		compressiontypes.GzipAlgorithmName: imgspecv1.MediaTypeImageLayerNonDistributableGzip, //nolint:staticcheck // NonDistributable layers are deprecated, but we want to continue to support manipulating pre-existing images.
+		compressiontypes.ZstdAlgorithmName: imgspecv1.MediaTypeImageLayerNonDistributableZstd, //nolint:staticcheck // NonDistributable layers are deprecated, but we want to continue to support manipulating pre-existing images.
 	},
 	{
 		mtsUncompressed:                    imgspecv1.MediaTypeImageLayer,
@@ -166,7 +171,8 @@ func getEncryptedMediaType(mediatype string) (string, error) {
 	}
 	unsuffixedMediatype := strings.Split(mediatype, "+")[0]
 	switch unsuffixedMediatype {
-	case DockerV2Schema2LayerMediaType, imgspecv1.MediaTypeImageLayer, imgspecv1.MediaTypeImageLayerNonDistributable:
+	case DockerV2Schema2LayerMediaType, imgspecv1.MediaTypeImageLayer,
+		imgspecv1.MediaTypeImageLayerNonDistributable: //nolint:staticcheck // NonDistributable layers are deprecated, but we want to continue to support manipulating pre-existing images.
 		return mediatype + "+encrypted", nil
 	}
 
@@ -196,7 +202,7 @@ func (m *OCI1) Inspect(configGetter func(types.BlobInfo) ([]byte, error)) (*type
 		// Most software calling this without human intervention is going to expect the values to be realistic and relevant,
 		// and is probably better served by failing; we can always re-visit that later if we fail now, but
 		// if we started returning some data for OCI artifacts now, we couldn’t start failing in this function later.
-		return nil, manifest.NewNonImageArtifactError(m.Config.MediaType)
+		return nil, manifest.NewNonImageArtifactError(&m.Manifest)
 	}
 
 	config, err := configGetter(m.ConfigInfo())
@@ -229,7 +235,7 @@ func (m *OCI1) Inspect(configGetter func(types.BlobInfo) ([]byte, error)) (*type
 }
 
 // ImageID computes an ID which can uniquely identify this image by its contents.
-func (m *OCI1) ImageID([]digest.Digest) (string, error) {
+func (m *OCI1) ImageID(diffIDs []digest.Digest) (string, error) {
 	// The way m.Config.Digest “uniquely identifies” an image is
 	// by containing RootFS.DiffIDs, which identify the layers of the image.
 	// For non-image artifacts, the we can’t expect the config to change
@@ -247,7 +253,7 @@ func (m *OCI1) ImageID([]digest.Digest) (string, error) {
 	// (The only known caller of ImageID is storage/storageImageDestination.computeID,
 	// which can’t work with non-image artifacts.)
 	if m.Config.MediaType != imgspecv1.MediaTypeImageConfig {
-		return "", manifest.NewNonImageArtifactError(m.Config.MediaType)
+		return "", manifest.NewNonImageArtifactError(&m.Manifest)
 	}
 
 	if err := m.Config.Digest.Validate(); err != nil {
