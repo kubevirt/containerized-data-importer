@@ -69,7 +69,7 @@ spec:
 ```
 
 ### Storage
-The `storage` type is similar to `pvc` but it allows you to ommit some parameters.
+The `storage` type is similar to `pvc` but it allows you to omit some parameters.
 
 > [!TIP]
 > With the storage API, CDI computes virtualization-specific defaults for optional
@@ -83,13 +83,13 @@ or implicitly as explained in the previous paragraph), CDI will take the file sy
 overhead into account and request a PVC big enough to fit both an image and the file
 system metadata. This logic only applies to the `DataVolume.spec.storage`.
 
-If you skip the `storageClassName` name parameter, CDI will prioritize the default
+If you skip the `storageClassName` parameter, CDI will prioritize the default
 virtualization storage class over k8s' default. You can define your default
 virtualization storage class by annotating it with
 `storageclass.kubevirt.io/is-default-virt-class` set to `"true"`.
 
 This example shows a request for a PVC with at least 1Gi of storage. Other fields are
-left for CDI to fill.
+left for CDI to fill in.
 ```yaml
 apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
