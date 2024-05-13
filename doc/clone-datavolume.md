@@ -21,7 +21,7 @@ spec:
     pvc:
       namespace: source-ns
       name: source-datavolume
-  storage:
+  storage: {}
 ```
 
 Deploy the DataVolume manifest:
