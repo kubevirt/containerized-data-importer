@@ -1014,8 +1014,9 @@ var _ = Describe("ALL Operator tests", func() {
 			}
 
 			It("should allow update", func() {
-				caSecretNames := []string{"cdi-apiserver-signer", "cdi-uploadproxy-signer"}
+				caSecretNames := []string{"cdi-apiserver-signer", "cdi-uploadproxy-signer", "cdi-uploadserver-client-signer"}
 				serverSecretNames := []string{"cdi-apiserver-server-cert", "cdi-uploadproxy-server-cert"}
+				clientSecretNames := []string{"cdi-uploadserver-client-cert"}
 
 				ts := time.Now()
 				// Time comparison here is in seconds, so make sure there is an interval
@@ -1032,6 +1033,10 @@ var _ = Describe("ALL Operator tests", func() {
 							Duration:    &metav1.Duration{Duration: time.Minute * 5},
 							RenewBefore: &metav1.Duration{Duration: time.Minute * 2},
 						},
+						Client: &cdiv1.CertConfig{
+							Duration:    &metav1.Duration{Duration: time.Minute * 2},
+							RenewBefore: &metav1.Duration{Duration: time.Minute * 1},
+						},
 					}
 					newCR, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
 					if errors.IsConflict(err) {
@@ -1046,8 +1051,9 @@ var _ = Describe("ALL Operator tests", func() {
 				Eventually(func() bool {
 					caSecrets := getSecrets(caSecretNames)
 					serverSecrets := getSecrets(serverSecretNames)
+					clientSecrets := getSecrets(clientSecretNames)
 
-					for _, s := range append(caSecrets, serverSecrets...) {
+					for _, s := range append(caSecrets, append(serverSecrets, clientSecrets...)...) {
 						fmt.Fprintf(GinkgoWriter, "Comparing not-before to time.Now() for all\n")
 						nba := s.Annotations["auth.openshift.io/certificate-not-before"]
 						t, err := time.Parse(time.RFC3339, nba)
@@ -1096,6 +1102,26 @@ var _ = Describe("ALL Operator tests", func() {
 						}
 						// 5m - 2m = 3m
 						validateCertConfig(&s, "5m0s", "3m0s")
+					}
+
+					for _, s := range clientSecrets {
+						fmt.Fprintf(GinkgoWriter, "Comparing not-before/not-after for clientSecrets\n")
+						nba := s.Annotations["auth.openshift.io/certificate-not-before"]
+						t, err := time.Parse(time.RFC3339, nba)
+						Expect(err).ToNot(HaveOccurred())
+						naa := s.Annotations["auth.openshift.io/certificate-not-after"]
+						t2, err := time.Parse(time.RFC3339, naa)
+						Expect(err).ToNot(HaveOccurred())
+						if t2.Sub(t) < time.Minute*2 {
+							fmt.Fprintf(GinkgoWriter, "Not-Before (%s) should be 2 minutes before Not-After (%s)\n", nba, naa)
+							return false
+						}
+						if t2.Sub(t)-(time.Minute*2) > time.Second {
+							fmt.Fprintf(GinkgoWriter, "Not-Before (%s) should be 2 minutes before Not-After (%s) with 1 second toleration\n", nba, naa)
+							return false
+						}
+						// 2m - 1m = 1m
+						validateCertConfig(&s, "2m0s", "1m0s")
 					}
 
 					return true
