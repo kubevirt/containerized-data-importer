@@ -3,9 +3,10 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "go_default_library",
     srcs = [
+        "cmp.go",
         "slices.go",
         "sort.go",
-        "zsortfunc.go",
+        "zsortanyfunc.go",
         "zsortordered.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/golang.org/x/exp/slices",

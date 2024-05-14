@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	platform "github.com/containers/image/v5/internal/pkg/platform"
+	compression "github.com/containers/image/v5/pkg/compression/types"
 	"github.com/containers/image/v5/types"
 	"github.com/opencontainers/go-digest"
 	imgspecv1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -57,11 +58,15 @@ func (list *Schema2ListPublic) Instances() []digest.Digest {
 func (list *Schema2ListPublic) Instance(instanceDigest digest.Digest) (ListUpdate, error) {
 	for _, manifest := range list.Manifests {
 		if manifest.Digest == instanceDigest {
-			return ListUpdate{
+			ret := ListUpdate{
 				Digest:    manifest.Digest,
 				Size:      manifest.Size,
 				MediaType: manifest.MediaType,
-			}, nil
+			}
+			ret.ReadOnly.CompressionAlgorithmNames = []string{compression.GzipAlgorithmName}
+			platform := ociPlatformFromSchema2PlatformSpec(manifest.Platform)
+			ret.ReadOnly.Platform = &platform
+			return ret, nil
 		}
 	}
 	return ListUpdate{}, fmt.Errorf("unable to find instance %s passed to Schema2List.Instances", instanceDigest)
@@ -69,25 +74,74 @@ func (list *Schema2ListPublic) Instance(instanceDigest digest.Digest) (ListUpdat
 
 // UpdateInstances updates the sizes, digests, and media types of the manifests
 // which the list catalogs.
-func (list *Schema2ListPublic) UpdateInstances(updates []ListUpdate) error {
-	if len(updates) != len(list.Manifests) {
-		return fmt.Errorf("incorrect number of update entries passed to Schema2List.UpdateInstances: expected %d, got %d", len(list.Manifests), len(updates))
+func (index *Schema2ListPublic) UpdateInstances(updates []ListUpdate) error {
+	editInstances := []ListEdit{}
+	for i, instance := range updates {
+		editInstances = append(editInstances, ListEdit{
+			UpdateOldDigest: index.Manifests[i].Digest,
+			UpdateDigest:    instance.Digest,
+			UpdateSize:      instance.Size,
+			UpdateMediaType: instance.MediaType,
+			ListOperation:   ListOpUpdate})
 	}
-	for i := range updates {
-		if err := updates[i].Digest.Validate(); err != nil {
-			return fmt.Errorf("update %d of %d passed to Schema2List.UpdateInstances contained an invalid digest: %w", i+1, len(updates), err)
+	return index.editInstances(editInstances)
+}
+
+func (index *Schema2ListPublic) editInstances(editInstances []ListEdit) error {
+	addedEntries := []Schema2ManifestDescriptor{}
+	for i, editInstance := range editInstances {
+		switch editInstance.ListOperation {
+		case ListOpUpdate:
+			if err := editInstance.UpdateOldDigest.Validate(); err != nil {
+				return fmt.Errorf("Schema2List.EditInstances: Attempting to update %s which is an invalid digest: %w", editInstance.UpdateOldDigest, err)
+			}
+			if err := editInstance.UpdateDigest.Validate(); err != nil {
+				return fmt.Errorf("Schema2List.EditInstances: Modified digest %s is an invalid digest: %w", editInstance.UpdateDigest, err)
+			}
+			targetIndex := slices.IndexFunc(index.Manifests, func(m Schema2ManifestDescriptor) bool {
+				return m.Digest == editInstance.UpdateOldDigest
+			})
+			if targetIndex == -1 {
+				return fmt.Errorf("Schema2List.EditInstances: digest %s not found", editInstance.UpdateOldDigest)
+			}
+			index.Manifests[targetIndex].Digest = editInstance.UpdateDigest
+			if editInstance.UpdateSize < 0 {
+				return fmt.Errorf("update %d of %d passed to Schema2List.UpdateInstances had an invalid size (%d)", i+1, len(editInstances), editInstance.UpdateSize)
+			}
+			index.Manifests[targetIndex].Size = editInstance.UpdateSize
+			if editInstance.UpdateMediaType == "" {
+				return fmt.Errorf("update %d of %d passed to Schema2List.UpdateInstances had no media type (was %q)", i+1, len(editInstances), index.Manifests[i].MediaType)
+			}
+			index.Manifests[targetIndex].MediaType = editInstance.UpdateMediaType
+		case ListOpAdd:
+			if editInstance.AddPlatform == nil {
+				// Should we create a struct with empty fields instead?
+				// Right now ListOpAdd is only called when an instance with the same platform value
+				// already exists in the manifest, so this should not be reached in practice.
+				return fmt.Errorf("adding a schema2 list instance with no platform specified is not supported")
+			}
+			addedEntries = append(addedEntries, Schema2ManifestDescriptor{
+				Schema2Descriptor{
+					Digest:    editInstance.AddDigest,
+					Size:      editInstance.AddSize,
+					MediaType: editInstance.AddMediaType,
+				},
+				schema2PlatformSpecFromOCIPlatform(*editInstance.AddPlatform),
+			})
+		default:
+			return fmt.Errorf("internal error: invalid operation: %d", editInstance.ListOperation)
 		}
-		list.Manifests[i].Digest = updates[i].Digest
-		if updates[i].Size < 0 {
-			return fmt.Errorf("update %d of %d passed to Schema2List.UpdateInstances had an invalid size (%d)", i+1, len(updates), updates[i].Size)
-		}
-		list.Manifests[i].Size = updates[i].Size
-		if updates[i].MediaType == "" {
-			return fmt.Errorf("update %d of %d passed to Schema2List.UpdateInstances had no media type (was %q)", i+1, len(updates), list.Manifests[i].MediaType)
-		}
-		list.Manifests[i].MediaType = updates[i].MediaType
+	}
+	if len(addedEntries) != 0 {
+		// slices.Clone() here to ensure a private backing array;
+		// an external caller could have manually created Schema2ListPublic with a slice with extra capacity.
+		index.Manifests = append(slices.Clone(index.Manifests), addedEntries...)
 	}
 	return nil
+}
+
+func (index *Schema2List) EditInstances(editInstances []ListEdit) error {
+	return index.editInstances(editInstances)
 }
 
 func (list *Schema2ListPublic) ChooseInstanceByCompression(ctx *types.SystemContext, preferGzip types.OptionalBool) (digest.Digest, error) {
@@ -104,13 +158,7 @@ func (list *Schema2ListPublic) ChooseInstance(ctx *types.SystemContext) (digest.
 	}
 	for _, wantedPlatform := range wantedPlatforms {
 		for _, d := range list.Manifests {
-			imagePlatform := imgspecv1.Platform{
-				Architecture: d.Platform.Architecture,
-				OS:           d.Platform.OS,
-				OSVersion:    d.Platform.OSVersion,
-				OSFeatures:   slices.Clone(d.Platform.OSFeatures),
-				Variant:      d.Platform.Variant,
-			}
+			imagePlatform := ociPlatformFromSchema2PlatformSpec(d.Platform)
 			if platform.MatchesPlatform(imagePlatform, wantedPlatform) {
 				return d.Digest, nil
 			}
@@ -170,20 +218,14 @@ func Schema2ListPublicClone(list *Schema2ListPublic) *Schema2ListPublic {
 func (list *Schema2ListPublic) ToOCI1Index() (*OCI1IndexPublic, error) {
 	components := make([]imgspecv1.Descriptor, 0, len(list.Manifests))
 	for _, manifest := range list.Manifests {
-		converted := imgspecv1.Descriptor{
+		platform := ociPlatformFromSchema2PlatformSpec(manifest.Platform)
+		components = append(components, imgspecv1.Descriptor{
 			MediaType: manifest.MediaType,
 			Size:      manifest.Size,
 			Digest:    manifest.Digest,
 			URLs:      slices.Clone(manifest.URLs),
-			Platform: &imgspecv1.Platform{
-				OS:           manifest.Platform.OS,
-				Architecture: manifest.Platform.Architecture,
-				OSFeatures:   slices.Clone(manifest.Platform.OSFeatures),
-				OSVersion:    manifest.Platform.OSVersion,
-				Variant:      manifest.Platform.Variant,
-			},
-		}
-		components = append(components, converted)
+			Platform:  &platform,
+		})
 	}
 	oci := OCI1IndexPublicFromComponents(components, nil)
 	return oci, nil
@@ -257,4 +299,16 @@ func Schema2ListFromManifest(manifest []byte) (*Schema2List, error) {
 		return nil, err
 	}
 	return schema2ListFromPublic(public), nil
+}
+
+// ociPlatformFromSchema2PlatformSpec converts a schema2 platform p to the OCI struccture.
+func ociPlatformFromSchema2PlatformSpec(p Schema2PlatformSpec) imgspecv1.Platform {
+	return imgspecv1.Platform{
+		Architecture: p.Architecture,
+		OS:           p.OS,
+		OSVersion:    p.OSVersion,
+		OSFeatures:   slices.Clone(p.OSFeatures),
+		Variant:      p.Variant,
+		// Features is not supported in OCI, and discarded.
+	}
 }

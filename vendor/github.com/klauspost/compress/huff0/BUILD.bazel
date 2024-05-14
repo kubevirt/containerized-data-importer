@@ -5,7 +5,6 @@ go_library(
     srcs = [
         "bitreader.go",
         "bitwriter.go",
-        "bytereader.go",
         "compress.go",
         "decompress.go",
         "decompress_amd64.go",

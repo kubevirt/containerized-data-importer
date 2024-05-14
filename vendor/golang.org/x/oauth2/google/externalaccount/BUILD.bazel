@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "aws.go",
+        "basecredentials.go",
+        "executablecredsource.go",
+        "filecredsource.go",
+        "header.go",
+        "programmaticrefreshcredsource.go",
+        "urlcredsource.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/golang.org/x/oauth2/google/externalaccount",
+    importpath = "golang.org/x/oauth2/google/externalaccount",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/golang.org/x/oauth2:go_default_library",
+        "//vendor/golang.org/x/oauth2/google/internal/impersonate:go_default_library",
+        "//vendor/golang.org/x/oauth2/google/internal/stsexchange:go_default_library",
+    ],
+)

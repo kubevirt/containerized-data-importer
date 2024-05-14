@@ -11,7 +11,6 @@ go_library(
     importpath = "github.com/containers/image/v5/internal/imagedestination/stubs",
     visibility = ["//vendor/github.com/containers/image/v5:__subpackages__"],
     deps = [
-        "//vendor/github.com/containers/image/v5/internal/blobinfocache:go_default_library",
         "//vendor/github.com/containers/image/v5/internal/private:go_default_library",
         "//vendor/github.com/containers/image/v5/internal/signature:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",

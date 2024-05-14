@@ -7,7 +7,7 @@ go_library(
         "bytespipe.go",
         "fswriters.go",
         "fswriters_linux.go",
-        "fswriters_unsupported.go",
+        "fswriters_other.go",
         "readers.go",
         "temp_unix.go",
         "temp_windows.go",
