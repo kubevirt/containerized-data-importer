@@ -6983,6 +6983,156 @@ status:
   conditions: null
   storedVersions: null
 `,
+	"openstackvolumepopulator": `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  creationTimestamp: null
+  name: openstackvolumepopulators.forklift.konveyor.io
+spec:
+  group: forklift.konveyor.io
+  names:
+    kind: OpenstackVolumePopulator
+    listKind: OpenstackVolumePopulatorList
+    plural: openstackvolumepopulators
+    shortNames:
+    - osvp
+    - osvps
+    singular: openstackvolumepopulator
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: OpenstackVolumePopulator is the CR used to populator a volume
+          from an Openstack image
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: OpenstackVolumePopulatorSpec is the spec of the OpenstackVolumePopulator
+              CR
+            properties:
+              identityUrl:
+                type: string
+              imageId:
+                type: string
+              secretRef:
+                type: string
+              transferNetwork:
+                description: The network attachment definition that should be used
+                  for disk transfer.
+                type: string
+            required:
+            - identityUrl
+            - imageId
+            - secretRef
+            type: object
+          status:
+            description: OpenstackVolumePopulatorStatus is the status of the OpenstackVolumePopulator
+              CR
+            properties:
+              progress:
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null
+`,
+	"ovirtvolumepopulator": `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  creationTimestamp: null
+  name: ovirtvolumepopulators.forklift.konveyor.io
+spec:
+  group: forklift.konveyor.io
+  names:
+    kind: OvirtVolumePopulator
+    listKind: OvirtVolumePopulatorList
+    plural: ovirtvolumepopulators
+    shortNames:
+    - ovvp
+    - ovvps
+    singular: ovirtvolumepopulator
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: OvirtVolumePopulator is the CR used to populator a volume from
+          an oVirt disk
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: OvirtVolumePopulatorSpec is the spec of the OvirtVolumePopulator
+              CR
+            properties:
+              diskId:
+                type: string
+              engineUrl:
+                type: string
+              secretRef:
+                type: string
+              transferNetwork:
+                description: The network attachment definition that should be used
+                  for disk transfer.
+                type: string
+            required:
+            - diskId
+            - engineUrl
+            - secretRef
+            type: object
+          status:
+            description: OvirtVolumePopulatorStatus is the status of the OvirtVolumePopulator
+              CR
+            properties:
+              progress:
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null
+`,
 	"storageprofile": `apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:

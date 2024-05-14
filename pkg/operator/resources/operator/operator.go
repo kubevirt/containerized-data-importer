@@ -350,6 +350,7 @@ func createDeployment(args *FactoryArgs) []client.Object {
 			args.NamespacedArgs.ControllerImage,
 			args.NamespacedArgs.ImporterImage,
 			args.NamespacedArgs.ClonerImage,
+			args.NamespacedArgs.OvirtPopulatorImage,
 			args.NamespacedArgs.APIServerImage,
 			args.NamespacedArgs.UploadProxyImage,
 			args.NamespacedArgs.UploadServerImage,
@@ -370,7 +371,7 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 	return &crd
 }
 
-func createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy string) []corev1.EnvVar {
+func createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, ovirtPopulatorImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy string) []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{
 			Name:  "DEPLOY_CLUSTER_RESOURCES",
@@ -391,6 +392,10 @@ func createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage
 		{
 			Name:  "CLONER_IMAGE",
 			Value: clonerImage,
+		},
+		{
+			Name:  "OVIRT_POPULATOR_IMAGE",
+			Value: ovirtPopulatorImage,
 		},
 		{
 			Name:  "APISERVER_IMAGE",
@@ -419,7 +424,7 @@ func createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage
 	}
 }
 
-func createOperatorDeployment(operatorVersion, namespace, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference) *appsv1.Deployment {
+func createOperatorDeployment(operatorVersion, namespace, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, ovirtPopulatorImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference) *appsv1.Deployment {
 	deployment := utils.CreateOperatorDeployment("cdi-operator", namespace, "name", "cdi-operator", serviceAccountName, imagePullSecrets, int32(1))
 	container := utils.CreatePortsContainer("cdi-operator", operatorImage, pullPolicy, createPrometheusPorts())
 	container.Resources = corev1.ResourceRequirements{
@@ -428,7 +433,7 @@ func createOperatorDeployment(operatorVersion, namespace, deployClusterResources
 			corev1.ResourceMemory: resource.MustParse("150Mi"),
 		},
 	}
-	container.Env = createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy)
+	container.Env = createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, ovirtPopulatorImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy)
 	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
 	return deployment
 }
@@ -473,6 +478,7 @@ _The CDI Operator does not support updates yet._
 		data.ControllerImage,
 		data.ImporterImage,
 		data.ClonerImage,
+		data.OvirtPopulatorImage,
 		data.APIServerImage,
 		data.UplodaProxyImage,
 		data.UplodaServerImage,
