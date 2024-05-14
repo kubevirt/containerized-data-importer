@@ -8,8 +8,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//vendor/github.com/containers/image/v5/internal/rootless:go_default_library",
-        "//vendor/github.com/containers/image/v5/pkg/blobinfocache/boltdb:go_default_library",
         "//vendor/github.com/containers/image/v5/pkg/blobinfocache/memory:go_default_library",
+        "//vendor/github.com/containers/image/v5/pkg/blobinfocache/sqlite:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",
         "//vendor/github.com/sirupsen/logrus:go_default_library",
     ],

@@ -40,6 +40,7 @@ go_library(
         "//vendor/github.com/containers/image/v5/internal/useragent:go_default_library",
         "//vendor/github.com/containers/image/v5/manifest:go_default_library",
         "//vendor/github.com/containers/image/v5/pkg/blobinfocache/none:go_default_library",
+        "//vendor/github.com/containers/image/v5/pkg/compression/types:go_default_library",
         "//vendor/github.com/containers/image/v5/pkg/docker/config:go_default_library",
         "//vendor/github.com/containers/image/v5/pkg/sysregistriesv2:go_default_library",
         "//vendor/github.com/containers/image/v5/pkg/tlsclientconfig:go_default_library",

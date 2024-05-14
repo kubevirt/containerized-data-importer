@@ -16,6 +16,7 @@ go_library(
     visibility = ["//vendor/github.com/containers/image/v5:__subpackages__"],
     deps = [
         "//vendor/github.com/containers/image/v5/internal/pkg/platform:go_default_library",
+        "//vendor/github.com/containers/image/v5/pkg/compression/types:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",
         "//vendor/github.com/containers/libtrust:go_default_library",
         "//vendor/github.com/opencontainers/go-digest:go_default_library",
