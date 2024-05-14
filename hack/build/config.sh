@@ -61,6 +61,9 @@ QUAY_REPOSITORY=${QUAY_REPOSITORY:-cdi-operatorhub}
 QUAY_NAMESPACE=${QUAY_NAMESPACE:-kubevirt}
 CDI_LOGO_PATH=${CDI_LOGO_PATH:-"assets/cdi_logo.png"}
 
+# oVirt populator image, by default it is the same as the importer image
+OVIRT_POPULATOR_IMAGE_NAME=${OVIRT_POPULATOR_IMAGE_NAME:-cdi-importer}
+
 function allPkgs() {
     ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./pkg/... ./tools/... ./tests/... ./cmd/... | grep -v "pkg/client" | sort -u))
     echo "$ret"

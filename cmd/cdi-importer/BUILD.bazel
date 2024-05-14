@@ -46,6 +46,7 @@ container_image(
     files = [
         ":cdi-importer",
         "//cmd/openstack-populator",
+        "//cmd/ovirt-populator",
         "//tools/cdi-containerimage-server",
         "//tools/cdi-image-size-detection",
         "//tools/cdi-source-update-poller",

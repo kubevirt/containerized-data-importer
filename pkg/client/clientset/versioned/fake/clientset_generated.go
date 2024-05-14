@@ -29,6 +29,8 @@ import (
 	fakecdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/core/v1alpha1/fake"
 	cdiv1beta1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/core/v1beta1"
 	fakecdiv1beta1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/core/v1beta1/fake"
+	forkliftv1beta1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/forklift/v1beta1"
+	fakeforkliftv1beta1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/forklift/v1beta1/fake"
 	uploadv1beta1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/upload/v1beta1"
 	fakeuploadv1beta1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/upload/v1beta1/fake"
 )
@@ -91,6 +93,11 @@ func (c *Clientset) CdiV1alpha1() cdiv1alpha1.CdiV1alpha1Interface {
 // CdiV1beta1 retrieves the CdiV1beta1Client
 func (c *Clientset) CdiV1beta1() cdiv1beta1.CdiV1beta1Interface {
 	return &fakecdiv1beta1.FakeCdiV1beta1{Fake: &c.Fake}
+}
+
+// ForkliftV1beta1 retrieves the ForkliftV1beta1Client
+func (c *Clientset) ForkliftV1beta1() forkliftv1beta1.ForkliftV1beta1Interface {
+	return &fakeforkliftv1beta1.FakeForkliftV1beta1{Fake: &c.Fake}
 }
 
 // UploadV1beta1 retrieves the UploadV1beta1Client

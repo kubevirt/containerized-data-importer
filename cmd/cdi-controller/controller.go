@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	forklift "kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
@@ -60,6 +61,7 @@ var (
 	clonerImage            string
 	uploadServerImage      string
 	uploadProxyServiceName string
+	ovirtPopulatorImage    string
 	configName             string
 	pullPolicy             string
 	verbose                string
@@ -71,6 +73,7 @@ var (
 		cdiv1.AddToScheme,
 		extv1.AddToScheme,
 		snapshotv1.AddToScheme,
+		forklift.AddToScheme,
 		imagev1.Install,
 		ocpconfigv1.Install,
 		routev1.Install,
@@ -103,6 +106,7 @@ func init() {
 	importerImage = getRequiredEnvVar("IMPORTER_IMAGE")
 	clonerImage = getRequiredEnvVar("CLONER_IMAGE")
 	uploadServerImage = getRequiredEnvVar("UPLOADSERVER_IMAGE")
+	ovirtPopulatorImage = getRequiredEnvVar("OVIRT_POPULATOR_IMAGE")
 	uploadProxyServiceName = getRequiredEnvVar("UPLOADPROXY_SERVICE")
 	installerLabels = map[string]string{}
 
@@ -299,6 +303,10 @@ func start() {
 	}
 	if _, err := populators.NewClonePopulator(ctx, mgr, log, clonerImage, pullPolicy, installerLabels, getTokenPublicKey()); err != nil {
 		klog.Errorf("Unable to setup clone populator: %v", err)
+		os.Exit(1)
+	}
+	if _, err := populators.NewForkliftPopulator(ctx, mgr, log, importerImage, ovirtPopulatorImage, installerLabels); err != nil {
+		klog.Errorf("Unable to setup forklift populator: %v", err)
 		os.Exit(1)
 	}
 

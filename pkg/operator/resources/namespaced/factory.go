@@ -36,6 +36,7 @@ type FactoryArgs struct {
 	DeployClusterResources string `required:"true" split_words:"true"`
 	ImporterImage          string `required:"true" split_words:"true"`
 	ClonerImage            string `required:"true" split_words:"true"`
+	OvirtPopulatorImage    string `required:"true" split_words:"true"`
 	APIServerImage         string `required:"true" envconfig:"apiserver_image"`
 	UploadProxyImage       string `required:"true" split_words:"true"`
 	UploadServerImage      string `required:"true" split_words:"true"`
