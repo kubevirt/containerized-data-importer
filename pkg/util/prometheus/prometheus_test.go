@@ -8,20 +8,13 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	dto "github.com/prometheus/client_model/go"
-
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
-var (
-	ownerUID string
-)
-
-func init() {
-	metrics.InitCloneProgressCounterVec()
+const (
 	ownerUID = "1111-1111-111"
-}
+)
 
 var _ = Describe("Timed update", func() {
 
@@ -36,15 +29,20 @@ var _ = Describe("Timed update", func() {
 
 var _ = Describe("Update Progress", func() {
 	BeforeEach(func() {
-		metrics.InitCloneProgressCounterVec()
+		err := metrics.SetupMetrics()
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		metrics.DeleteCloneProgress(ownerUID)
 	})
 
 	It("Parse valid progress update", func() {
 		By("Verifying the initial value is 0")
 		metrics.AddCloneProgress(ownerUID, 0)
-		metric := &dto.Metric{}
-		Expect(metrics.WriteCloneProgress(ownerUID, metric)).To(Succeed())
-		Expect(*metric.Counter.Value).To(Equal(float64(0)))
+		progress, err := metrics.GetCloneProgress(ownerUID)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(progress).To(Equal(float64(0)))
 		By("Calling updateProgress with value")
 		promReader := &ProgressReader{
 			CountingReader: util.CountingReader{
@@ -56,12 +54,12 @@ var _ = Describe("Update Progress", func() {
 		}
 		result := promReader.updateProgress()
 		Expect(true).To(Equal(result))
-		Expect(metrics.WriteCloneProgress(ownerUID, metric)).To(Succeed())
-		Expect(*metric.Counter.Value).To(Equal(float64(45)))
+		progress, err = metrics.GetCloneProgress(ownerUID)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(progress).To(Equal(float64(45)))
 	})
 
 	It("0 total should return 0", func() {
-		metric := &dto.Metric{}
 		By("Calling updateProgress with value")
 		promReader := &ProgressReader{
 			CountingReader: util.CountingReader{
@@ -73,12 +71,12 @@ var _ = Describe("Update Progress", func() {
 		}
 		result := promReader.updateProgress()
 		Expect(false).To(Equal(result))
-		Expect(metrics.WriteCloneProgress(ownerUID, metric)).To(Succeed())
-		Expect(*metric.Counter.Value).To(Equal(float64(0)))
+		progress, err := metrics.GetCloneProgress(ownerUID)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(progress).To(Equal(float64(0)))
 	})
 
 	It("current and total equals should return false", func() {
-		metric := &dto.Metric{}
 		By("Calling updateProgress with value")
 		promReader := &ProgressReader{
 			CountingReader: util.CountingReader{
@@ -91,8 +89,9 @@ var _ = Describe("Update Progress", func() {
 		}
 		result := promReader.updateProgress()
 		Expect(false).To(Equal(result))
-		Expect(metrics.WriteCloneProgress(ownerUID, metric)).To(Succeed())
-		Expect(*metric.Counter.Value).To(Equal(float64(100)))
+		progress, err := metrics.GetCloneProgress(ownerUID)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(progress).To(Equal(float64(100)))
 	})
 
 	DescribeTable("update progress on non-final readers", func(readerDone, isFinal, expectedResult bool) {

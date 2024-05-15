@@ -28,7 +28,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/pkg/errors"
-	dto "github.com/prometheus/client_model/go"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -287,35 +286,38 @@ var _ = Describe("Validate", func() {
 
 var _ = Describe("Report Progress", func() {
 	BeforeEach(func() {
-		metrics.InitCloneProgressCounterVec()
+		err := metrics.SetupMetrics()
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		metrics.DeleteCloneProgress(ownerUID)
 	})
 
 	It("Parse valid progress line", func() {
 		By("Verifying the initial value is 0")
 		metrics.AddCloneProgress(ownerUID, 0)
-		metric := &dto.Metric{}
-		err := metrics.WriteCloneProgress(ownerUID, metric)
+		progress, err := metrics.GetCloneProgress(ownerUID)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(*metric.Counter.Value).To(Equal(float64(0)))
+		Expect(progress).To(Equal(float64(0)))
 		By("Calling reportProgress with value")
 		reportProgress("(45.34/100%)")
-		err = metrics.WriteCloneProgress(ownerUID, metric)
+		progress, err = metrics.GetCloneProgress(ownerUID)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(*metric.Counter.Value).To(Equal(45.34))
+		Expect(progress).To(Equal(45.34))
 	})
 
 	It("Parse invalid progress line", func() {
 		By("Verifying the initial value is 0")
 		metrics.AddCloneProgress(ownerUID, 0)
-		metric := &dto.Metric{}
-		err := metrics.WriteCloneProgress(ownerUID, metric)
+		progress, err := metrics.GetCloneProgress(ownerUID)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(*metric.Counter.Value).To(Equal(float64(0)))
+		Expect(progress).To(Equal(float64(0)))
 		By("Calling reportProgress with invalid value")
 		reportProgress("45.34")
-		err = metrics.WriteCloneProgress(ownerUID, metric)
+		progress, err = metrics.GetCloneProgress(ownerUID)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(*metric.Counter.Value).To(Equal(float64(0)))
+		Expect(progress).To(Equal(float64(0)))
 	})
 })
 

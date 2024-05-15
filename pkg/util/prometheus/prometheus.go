@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	dto "github.com/prometheus/client_model/go"
 
 	"k8s.io/client-go/util/cert"
 	"k8s.io/klog/v2"
@@ -63,13 +62,13 @@ func (r *ProgressReader) updateProgress() bool {
 		if !finished && r.Current < r.total {
 			currentProgress = float64(r.Current) / float64(r.total) * 100.0
 		}
-		metric := &dto.Metric{}
-		if err := metrics.WriteCloneProgress(r.ownerUID, metric); err != nil {
+		progress, err := metrics.GetCloneProgress(r.ownerUID)
+		if err != nil {
 			klog.Errorf("updateProgress: failed to read metric; %v", err)
 			return true // true ==> to try again // todo - how to avoid endless loop in case it's a constant error?
 		}
-		if currentProgress > *metric.Counter.Value {
-			metrics.AddCloneProgress(r.ownerUID, currentProgress-*metric.Counter.Value)
+		if currentProgress > progress {
+			metrics.AddCloneProgress(r.ownerUID, currentProgress-progress)
 		}
 		klog.V(1).Infoln(fmt.Sprintf("%.2f", currentProgress))
 		return !finished

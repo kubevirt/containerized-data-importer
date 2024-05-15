@@ -27,7 +27,6 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/pkg/errors"
-	dto "github.com/prometheus/client_model/go"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog/v2"
@@ -274,10 +273,9 @@ func reportProgress(line string) {
 		klog.V(1).Info(matches[1])
 		// Don't need to check for an error, the regex made sure its a number we can parse.
 		v, _ := strconv.ParseFloat(matches[1], 64)
-		metric := &dto.Metric{}
-		err := metrics.WriteCloneProgress(ownerUID, metric)
-		if err == nil && v > 0 && v > *metric.Counter.Value {
-			metrics.AddCloneProgress(ownerUID, v-*metric.Counter.Value)
+		progress, err := metrics.GetCloneProgress(ownerUID)
+		if err == nil && v > 0 && v > progress {
+			metrics.AddCloneProgress(ownerUID, v-progress)
 		}
 	}
 }

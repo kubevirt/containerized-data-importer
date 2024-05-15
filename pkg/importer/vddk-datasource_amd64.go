@@ -34,7 +34,6 @@ import (
 	"syscall"
 	"time"
 
-	dto "github.com/prometheus/client_model/go"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
@@ -1038,10 +1037,9 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 			previousProgressPercent = currentProgressPercent
 		}
 		v := float64(currentProgressPercent)
-		metric := &dto.Metric{}
-		err = metrics.WriteCloneProgress(ownerUID, metric)
-		if err == nil && v > 0 && v > *metric.Counter.Value {
-			metrics.AddCloneProgress(ownerUID, v-*metric.Counter.Value)
+		progress, err := metrics.GetCloneProgress(ownerUID)
+		if err == nil && v > 0 && v > progress {
+			metrics.AddCloneProgress(ownerUID, v-progress)
 		}
 	}
 

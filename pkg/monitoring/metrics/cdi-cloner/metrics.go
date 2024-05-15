@@ -9,6 +9,7 @@ import (
 // SetupMetrics register prometheus metrics
 func SetupMetrics() error {
 	operatormetrics.Register = runtimemetrics.Registry.Register
+	operatormetrics.Unregister = runtimemetrics.Registry.Unregister
 	return operatormetrics.RegisterMetrics(
 		clonerMetrics,
 	)
