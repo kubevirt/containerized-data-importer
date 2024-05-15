@@ -59,7 +59,7 @@ The standard workflow is performed inside a helper container to normalize the bu
 - `release-description`: generate a release announcement detailing changes between 2 commits (typically tags).  Expects 'RELREF' and 'PREREF' to be set
 - `test`: execute all tests (_NOTE:_ 'WHAT' is expected to match the go cli pattern for paths e.g. './pkg/...'.  This differs slightly from rest of the 'make' targets)
     - `test-unit`: Run unit tests.
-    - `test-lint`: Run gofmt and golint against src files
+    - `test-lint`: Run golangci-lint against src files
     - `test-functional`: Run functional tests (in tests/ subdirectory).
 - `vet`: lint all CDI packages
 

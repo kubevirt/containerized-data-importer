@@ -26,6 +26,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1"
 	cdiv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	forkliftv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
 	uploadv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 )
 
@@ -35,6 +36,7 @@ var ParameterCodec = runtime.NewParameterCodec(Scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
 	cdiv1alpha1.AddToScheme,
 	cdiv1beta1.AddToScheme,
+	forkliftv1beta1.AddToScheme,
 	uploadv1beta1.AddToScheme,
 }
 

@@ -1658,6 +1658,7 @@ func GetProgressReportFromURL(url string, regExp *regexp.Regexp, httpClient *htt
 	if err != nil {
 		return "", err
 	}
+
 	// Parse the progress from the body
 	progressReport := ""
 	match := regExp.FindStringSubmatch(string(body))
