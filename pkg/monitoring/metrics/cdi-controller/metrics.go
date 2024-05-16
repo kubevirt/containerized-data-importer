@@ -15,8 +15,3 @@ func SetupMetrics() error {
 		dataVolumeMetrics,
 	)
 }
-
-// ListMetrics registered prometheus metrics
-func ListMetrics() []operatormetrics.Metric {
-	return operatormetrics.ListMetrics()
-}

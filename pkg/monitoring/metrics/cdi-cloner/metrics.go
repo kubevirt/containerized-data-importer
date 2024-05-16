@@ -14,8 +14,3 @@ func SetupMetrics() error {
 		clonerMetrics,
 	)
 }
-
-// ListMetrics registered prometheus metrics
-func ListMetrics() []operatormetrics.Metric {
-	return operatormetrics.ListMetrics()
-}
