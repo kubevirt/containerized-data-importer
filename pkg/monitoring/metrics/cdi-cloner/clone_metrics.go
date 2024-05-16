@@ -12,7 +12,7 @@ var (
 
 	cloneProgress = operatormetrics.NewCounterVec(
 		operatormetrics.MetricOpts{
-			Name: "kubevirt_cdi_clone_progress",
+			Name: "kubevirt_cdi_clone_progress_total",
 			Help: "The clone progress in percentage",
 		},
 		[]string{"ownerUID"},

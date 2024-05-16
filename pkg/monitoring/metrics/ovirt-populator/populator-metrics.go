@@ -12,7 +12,7 @@ var (
 
 	populatorProgress = operatormetrics.NewCounterVec(
 		operatormetrics.MetricOpts{
-			Name: "ovirt_progress",
+			Name: "kubevirt_cdi_ovirt_progress_total",
 			Help: "Progress of volume population",
 		},
 		[]string{"ownerUID"},
