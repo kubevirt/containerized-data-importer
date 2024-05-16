@@ -6,9 +6,10 @@ import (
 	"strings"
 
 	"github.com/kubevirt/monitoring/pkg/metrics/parser"
+	"github.com/machadovilaca/operator-observability/pkg/operatormetrics"
 
 	cdiMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
-	operatorMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/operator-controller"
+	controllerMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/operator-controller"
 	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules"
 )
 
@@ -18,7 +19,7 @@ import (
 var excludedMetrics = map[string]struct{}{}
 
 func main() {
-	err := operatorMetrics.SetupMetrics()
+	err := controllerMetrics.SetupMetrics()
 	if err != nil {
 		panic(err)
 	}
@@ -34,7 +35,7 @@ func main() {
 
 	var metricFamilies []parser.Metric
 
-	metricsList := operatorMetrics.ListMetrics()
+	metricsList := operatormetrics.ListMetrics()
 	for _, m := range metricsList {
 		if _, isExcludedMetric := excludedMetrics[m.GetOpts().Name]; !isExcludedMetric {
 			metricFamilies = append(metricFamilies, parser.Metric{
