@@ -59,7 +59,7 @@ type ImgInfo struct {
 
 // QEMUOperations defines the interface for executing qemu subprocesses
 type QEMUOperations interface {
-	ConvertToRawStream(*url.URL, string, bool) error
+	ConvertToRawStream(*url.URL, string, bool, string) error
 	Resize(string, resource.Quantity, bool) error
 	Info(url *url.URL) (*ImgInfo, error)
 	Validate(*url.URL, int64) error
@@ -93,6 +93,7 @@ var (
 		{"--preallocation=falloc"},
 		{"--preallocation=full"},
 	}
+	odirectChecker = NewDirectIOChecker()
 )
 
 func init() {
@@ -113,9 +114,12 @@ func NewQEMUOperations() QEMUOperations {
 	return &qemuOperations{}
 }
 
-func convertToRaw(src, dest string, preallocate bool) error {
-	args := []string{"convert", "-t", "writeback", "-p", "-O", "raw", src, dest}
-	var err error
+func convertToRaw(src, dest string, preallocate bool, cacheMode string) error {
+	cacheMode, err := getCacheMode(dest, cacheMode)
+	if err != nil {
+		return err
+	}
+	args := []string{"convert", "-t", cacheMode, "-p", "-O", "raw", src, dest}
 
 	if preallocate {
 		err = addPreallocation(args, convertPreallocationMethods, func(args []string) ([]byte, error) {
@@ -137,11 +141,38 @@ func convertToRaw(src, dest string, preallocate bool) error {
 	return nil
 }
 
-func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string, preallocate bool) error {
+func getCacheMode(path string, cacheMode string) (string, error) {
+	if cacheMode != common.CacheModeTryNone {
+		return "writeback", nil
+	}
+
+	var supportDirectIO bool
+	isDevice, err := util.IsDevice(path)
+	if err != nil {
+		return "", err
+	}
+
+	if isDevice {
+		supportDirectIO, err = odirectChecker.CheckBlockDevice(path)
+	} else {
+		supportDirectIO, err = odirectChecker.CheckFile(path)
+	}
+	if err != nil {
+		return "", err
+	}
+
+	if supportDirectIO {
+		return "none", nil
+	}
+
+	return "writeback", nil
+}
+
+func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string, preallocate bool, cacheMode string) error {
 	if len(url.Scheme) > 0 && url.Scheme != "nbd+unix" {
 		return fmt.Errorf("not valid schema %s", url.Scheme)
 	}
-	return convertToRaw(url.String(), dest, preallocate)
+	return convertToRaw(url.String(), dest, preallocate, cacheMode)
 }
 
 // convertQuantityToQemuSize translates a quantity string into a Qemu compatible string.
@@ -240,8 +271,8 @@ func (o *qemuOperations) Validate(url *url.URL, availableSize int64) error {
 }
 
 // ConvertToRawStream converts an http accessible image to raw format without locally caching the image
-func ConvertToRawStream(url *url.URL, dest string, preallocate bool) error {
-	return qemuIterface.ConvertToRawStream(url, dest, preallocate)
+func ConvertToRawStream(url *url.URL, dest string, preallocate bool, cacheMode string) error {
+	return qemuIterface.ConvertToRawStream(url, dest, preallocate, cacheMode)
 }
 
 // Validate does basic validation of a qemu image
@@ -293,9 +324,17 @@ func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity, p
 	return nil
 }
 
-func execPreallocation(dest string, bs, count, offset int64) error {
-	args := []string{"if=/dev/zero", "of=" + dest, fmt.Sprintf("bs=%d", bs), fmt.Sprintf("count=%d", count), fmt.Sprintf("seek=%d", offset), "oflag=seek_bytes"}
-	_, err := qemuExecFunction(nil, nil, "dd", args...)
+func execPreallocationBlock(dest string, bs, count, offset int64) error {
+	oflag := "oflag=seek_bytes"
+	supportDirectIO, err := odirectChecker.CheckBlockDevice(dest)
+	if err != nil {
+		return err
+	}
+	if supportDirectIO {
+		oflag += ",direct"
+	}
+	args := []string{"if=/dev/zero", "of=" + dest, fmt.Sprintf("bs=%d", bs), fmt.Sprintf("count=%d", count), fmt.Sprintf("seek=%d", offset), oflag}
+	_, err = qemuExecFunction(nil, nil, "dd", args...)
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("Could not preallocate blank block volume at %s, running dd for size %d, offset %d", dest, bs*count, offset))
 	}
@@ -312,12 +351,12 @@ func PreallocateBlankBlock(dest string, size resource.Quantity) error {
 		return errors.Wrap(err, fmt.Sprintf("Could not parse size for preallocating blank block volume at %s with size %s", dest, size.String()))
 	}
 	countBlocks, remainder := qemuSize/units.MiB, qemuSize%units.MiB
-	err = execPreallocation(dest, units.MiB, countBlocks, 0)
+	err = execPreallocationBlock(dest, units.MiB, countBlocks, 0)
 	if err != nil {
 		return err
 	}
 	if remainder != 0 {
-		return execPreallocation(dest, remainder, 1, countBlocks*units.MiB)
+		return execPreallocationBlock(dest, remainder, 1, countBlocks*units.MiB)
 	}
 	return nil
 }
