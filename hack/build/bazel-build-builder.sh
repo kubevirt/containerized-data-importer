@@ -34,23 +34,23 @@ fi
 # we should re-build the builder. Separating out this logic from the test for clarity
 
 git diff-index --quiet HEAD~1 hack/build/docker
-POST_SUBMIT=$((1-$?))
+POST_SUBMIT=$((1 - $?))
 
 # The other circumstance in which we need to build the builder image is
-# in the course of test and development of the builder image itself. 
+# in the course of test and development of the builder image itself.
 # we'll signal this circumstance by setting the env variable ADHOC_BUILDER
 #
 # also instead of hard-coding the UNTAGGED_BUILDER_IMAGE, we're going
-# to use DOCKER_PREFIX as it is set in config.sh and used elsewhere in 
-# the build system, to introduce a little more consistency  
+# to use DOCKER_PREFIX as it is set in config.sh and used elsewhere in
+# the build system, to introduce a little more consistency
 
-if ((POST_SUBMIT)) || [ x"${ADHOC_BUILDER}" != "x" ] ; then
+if ((POST_SUBMIT)) || [ x"${ADHOC_BUILDER}" != "x" ]; then
     BUILDER_SPEC="${BUILD_DIR}/docker/builder"
     UNTAGGED_BUILDER_IMAGE=$(DOCKER_PREFIX)/kubevirt-cdi-bazel-builder
     BUILDER_TAG=$(date +"%y%m%d%H%M")-$(git rev-parse --short HEAD)
     BUILDER_MANIFEST=${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
     echo "export BUILDER_IMAGE=$BUILDER_MANIFEST"
-    
+
     #Build the encapsulated compile and test container
     if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
         (cd ${BUILDER_SPEC} && buildah build ${BUILDAH_PLATFORM_FLAG} --manifest ${BUILDER_MANIFEST} .)
