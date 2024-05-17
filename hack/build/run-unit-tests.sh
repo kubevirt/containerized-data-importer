@@ -26,3 +26,13 @@ export KUBEBUILDER_CONTROLPLANE_START_TIMEOUT=120s
 test_command="env OPERATOR_DIR=${CDI_DIR} go test -v -coverprofile=.coverprofile -test.timeout 180m ${pkgs} ${test_args:+-args $test_args}"
 echo "${test_command}"
 ${test_command}
+
+# Filter out generated files from coverage report
+# https://pkg.go.dev/cmd/go#hdr-Generate_Go_files_by_processing_source
+FILTER_PATTERN='^// Code generated .* DO NOT EDIT\.\?$'
+GENERATED=$(grep -l "${FILTER_PATTERN}" -r --include="*.go" --exclude-dir="vendor")
+for path in ${GENERATED}; do
+    grep -v "${path}" .coverprofile > .tmp \
+        && mv .tmp .coverprofile           \
+        || true
+done
