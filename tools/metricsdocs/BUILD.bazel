@@ -6,10 +6,14 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/tools/metricsdocs",
     visibility = ["//visibility:private"],
     deps = [
+        "//pkg/monitoring/metrics/cdi-cloner:go_default_library",
         "//pkg/monitoring/metrics/cdi-controller:go_default_library",
+        "//pkg/monitoring/metrics/openstack-populator:go_default_library",
         "//pkg/monitoring/metrics/operator-controller:go_default_library",
+        "//pkg/monitoring/metrics/ovirt-populator:go_default_library",
         "//pkg/monitoring/rules:go_default_library",
         "//vendor/github.com/machadovilaca/operator-observability/pkg/docs:go_default_library",
+        "//vendor/github.com/machadovilaca/operator-observability/pkg/operatormetrics:go_default_library",
     ],
 )
 

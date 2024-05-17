@@ -27,13 +27,12 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	"kubevirt.io/containerized-data-importer/pkg/system"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -76,13 +75,6 @@ var (
 	qemuIterface     = NewQEMUOperations()
 	re               = regexp.MustCompile(matcherString)
 
-	progress = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "clone_progress",
-			Help: "The clone progress in percentage",
-		},
-		[]string{"ownerUID"},
-	)
 	ownerUID                    string
 	convertPreallocationMethods = [][]string{
 		{"-o", "preallocation=falloc"},
@@ -97,14 +89,8 @@ var (
 )
 
 func init() {
-	if err := prometheus.Register(progress); err != nil {
-		if are := (prometheus.AlreadyRegisteredError{}); errors.As(err, &are) {
-			// A counter for that metric has been registered before.
-			// Use the old counter from now on.
-			progress = are.ExistingCollector.(*prometheus.CounterVec)
-		} else {
-			klog.Errorf("Unable to create prometheus progress counter")
-		}
+	if err := metrics.SetupMetrics(); err != nil {
+		klog.Errorf("Unable to create prometheus progress counter: %v", err)
 	}
 	ownerUID, _ = util.ParseEnvVar(common.OwnerUID, false)
 }
@@ -287,10 +273,9 @@ func reportProgress(line string) {
 		klog.V(1).Info(matches[1])
 		// Don't need to check for an error, the regex made sure its a number we can parse.
 		v, _ := strconv.ParseFloat(matches[1], 64)
-		metric := &dto.Metric{}
-		err := progress.WithLabelValues(ownerUID).Write(metric)
-		if err == nil && v > 0 && v > *metric.Counter.Value {
-			progress.WithLabelValues(ownerUID).Add(v - *metric.Counter.Value)
+		progress, err := metrics.GetCloneProgress(ownerUID)
+		if err == nil && v > 0 && v > progress {
+			metrics.AddCloneProgress(ownerUID, v-progress)
 		}
 	}
 }

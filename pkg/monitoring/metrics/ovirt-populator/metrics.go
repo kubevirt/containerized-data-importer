@@ -1,4 +1,4 @@
-package cdicontroller
+package ovirtpopulator
 
 import (
 	"github.com/machadovilaca/operator-observability/pkg/operatormetrics"
@@ -9,9 +9,8 @@ import (
 // SetupMetrics register prometheus metrics
 func SetupMetrics() error {
 	operatormetrics.Register = runtimemetrics.Registry.Register
+	operatormetrics.Unregister = runtimemetrics.Registry.Unregister
 	return operatormetrics.RegisterMetrics(
-		dataImportCronMetrics,
-		storageMetrics,
-		dataVolumeMetrics,
+		populatorMetrics,
 	)
 }

@@ -8,33 +8,19 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
-
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
-var (
-	progress *prometheus.CounterVec
-	ownerUID string
-)
-
-func init() {
-	progress = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "test_progress",
-			Help: "The test progress in percentage",
-		},
-		[]string{"ownerUID"},
-	)
+const (
 	ownerUID = "1111-1111-111"
-}
+)
 
 var _ = Describe("Timed update", func() {
 
 	It("Should start and stop when finished", func() {
 		r := io.NopCloser(bytes.NewReader([]byte("hello world")))
-		progressReader := NewProgressReader(r, uint64(11), progress, ownerUID)
+		progressReader := NewProgressReader(r, uint64(11), ownerUID)
 		progressReader.StartTimedUpdate()
 		_, err := io.ReadAll(r)
 		Expect(err).ToNot(HaveOccurred())
@@ -43,57 +29,54 @@ var _ = Describe("Timed update", func() {
 
 var _ = Describe("Update Progress", func() {
 	BeforeEach(func() {
-		progress = prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "test_progress",
-				Help: "The test progress in percentage",
-			},
-			[]string{"ownerUID"},
-		)
+		err := metrics.SetupMetrics()
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		metrics.DeleteCloneProgress(ownerUID)
 	})
 
 	It("Parse valid progress update", func() {
 		By("Verifying the initial value is 0")
-		progress.WithLabelValues(ownerUID).Add(0)
-		metric := &dto.Metric{}
-		Expect(progress.WithLabelValues(ownerUID).Write(metric)).To(Succeed())
-		Expect(*metric.Counter.Value).To(Equal(float64(0)))
+		metrics.AddCloneProgress(ownerUID, 0)
+		progress, err := metrics.GetCloneProgress(ownerUID)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(progress).To(Equal(float64(0)))
 		By("Calling updateProgress with value")
 		promReader := &ProgressReader{
 			CountingReader: util.CountingReader{
 				Current: uint64(45),
 			},
 			total:    uint64(100),
-			progress: progress,
 			ownerUID: ownerUID,
 			final:    true,
 		}
 		result := promReader.updateProgress()
 		Expect(true).To(Equal(result))
-		Expect(progress.WithLabelValues(ownerUID).Write(metric)).To(Succeed())
-		Expect(*metric.Counter.Value).To(Equal(float64(45)))
+		progress, err = metrics.GetCloneProgress(ownerUID)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(progress).To(Equal(float64(45)))
 	})
 
 	It("0 total should return 0", func() {
-		metric := &dto.Metric{}
 		By("Calling updateProgress with value")
 		promReader := &ProgressReader{
 			CountingReader: util.CountingReader{
 				Current: uint64(45),
 			},
 			total:    uint64(0),
-			progress: progress,
 			ownerUID: ownerUID,
 			final:    true,
 		}
 		result := promReader.updateProgress()
 		Expect(false).To(Equal(result))
-		Expect(progress.WithLabelValues(ownerUID).Write(metric)).Should(Succeed())
-		Expect(*metric.Counter.Value).To(Equal(float64(0)))
+		progress, err := metrics.GetCloneProgress(ownerUID)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(progress).To(Equal(float64(0)))
 	})
 
 	It("current and total equals should return false", func() {
-		metric := &dto.Metric{}
 		By("Calling updateProgress with value")
 		promReader := &ProgressReader{
 			CountingReader: util.CountingReader{
@@ -101,14 +84,14 @@ var _ = Describe("Update Progress", func() {
 				Done:    true,
 			},
 			total:    uint64(1000),
-			progress: progress,
 			ownerUID: ownerUID,
 			final:    true,
 		}
 		result := promReader.updateProgress()
 		Expect(false).To(Equal(result))
-		Expect(progress.WithLabelValues(ownerUID).Write(metric)).Should(Succeed())
-		Expect(*metric.Counter.Value).To(Equal(float64(100)))
+		progress, err := metrics.GetCloneProgress(ownerUID)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(progress).To(Equal(float64(100)))
 	})
 
 	DescribeTable("update progress on non-final readers", func(readerDone, isFinal, expectedResult bool) {
@@ -118,7 +101,6 @@ var _ = Describe("Update Progress", func() {
 				Done:    readerDone,
 			},
 			total:    uint64(1000),
-			progress: progress,
 			ownerUID: ownerUID,
 			final:    isFinal,
 		}
@@ -144,7 +126,6 @@ var _ = Describe("Update Progress", func() {
 		promReader := &ProgressReader{
 			CountingReader: firstReader,
 			total:          uint64(16),
-			progress:       progress,
 			ownerUID:       ownerUID,
 			final:          false,
 		}

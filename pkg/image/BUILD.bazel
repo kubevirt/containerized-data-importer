@@ -13,12 +13,11 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/common:go_default_library",
+        "//pkg/monitoring/metrics/cdi-cloner:go_default_library",
         "//pkg/system:go_default_library",
         "//pkg/util:go_default_library",
         "//vendor/github.com/docker/go-units:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
-        "//vendor/github.com/prometheus/client_golang/prometheus:go_default_library",
-        "//vendor/github.com/prometheus/client_model/go:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/api/resource:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
     ],
@@ -34,12 +33,11 @@ go_test(
     embed = [":go_default_library"],
     deps = [
         "//pkg/common:go_default_library",
+        "//pkg/monitoring/metrics/cdi-cloner:go_default_library",
         "//pkg/system:go_default_library",
         "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
-        "//vendor/github.com/prometheus/client_golang/prometheus:go_default_library",
-        "//vendor/github.com/prometheus/client_model/go:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/api/resource:go_default_library",
     ],
 )
