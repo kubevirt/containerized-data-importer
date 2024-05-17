@@ -712,8 +712,9 @@ spec:
                                     with the corresponding weight.
                                   properties:
                                     labelSelector:
-                                      description: A label query over a set of resources,
-                                        in this case pods.
+                                      description: |-
+                                        A label query over a set of resources, in this case pods.
+                                        If it's null, this PodAffinityTerm matches with no Pods.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -757,6 +758,36 @@ spec:
                                           type: object
                                       type: object
                                       x-kubernetes-map-type: atomic
+                                    matchLabelKeys:
+                                      description: |-
+                                        MatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                        Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                    mismatchLabelKeys:
+                                      description: |-
+                                        MismatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                        Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
                                     namespaceSelector:
                                       description: |-
                                         A label query over the set of namespaces that the term applies to.
@@ -857,8 +888,9 @@ spec:
                                 a pod of the set of pods is running
                               properties:
                                 labelSelector:
-                                  description: A label query over a set of resources,
-                                    in this case pods.
+                                  description: |-
+                                    A label query over a set of resources, in this case pods.
+                                    If it's null, this PodAffinityTerm matches with no Pods.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -902,6 +934,36 @@ spec:
                                       type: object
                                   type: object
                                   x-kubernetes-map-type: atomic
+                                matchLabelKeys:
+                                  description: |-
+                                    MatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                    Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                mismatchLabelKeys:
+                                  description: |-
+                                    MismatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                    Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
                                 namespaceSelector:
                                   description: |-
                                     A label query over the set of namespaces that the term applies to.
@@ -1000,8 +1062,9 @@ spec:
                                     with the corresponding weight.
                                   properties:
                                     labelSelector:
-                                      description: A label query over a set of resources,
-                                        in this case pods.
+                                      description: |-
+                                        A label query over a set of resources, in this case pods.
+                                        If it's null, this PodAffinityTerm matches with no Pods.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -1045,6 +1108,36 @@ spec:
                                           type: object
                                       type: object
                                       x-kubernetes-map-type: atomic
+                                    matchLabelKeys:
+                                      description: |-
+                                        MatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                        Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                    mismatchLabelKeys:
+                                      description: |-
+                                        MismatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                        Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
                                     namespaceSelector:
                                       description: |-
                                         A label query over the set of namespaces that the term applies to.
@@ -1145,8 +1238,9 @@ spec:
                                 a pod of the set of pods is running
                               properties:
                                 labelSelector:
-                                  description: A label query over a set of resources,
-                                    in this case pods.
+                                  description: |-
+                                    A label query over a set of resources, in this case pods.
+                                    If it's null, this PodAffinityTerm matches with no Pods.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -1190,6 +1284,36 @@ spec:
                                       type: object
                                   type: object
                                   x-kubernetes-map-type: atomic
+                                matchLabelKeys:
+                                  description: |-
+                                    MatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                    Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                mismatchLabelKeys:
+                                  description: |-
+                                    MismatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                    Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
                                 namespaceSelector:
                                   description: |-
                                     A label query over the set of namespaces that the term applies to.
@@ -1563,8 +1687,9 @@ spec:
                                     with the corresponding weight.
                                   properties:
                                     labelSelector:
-                                      description: A label query over a set of resources,
-                                        in this case pods.
+                                      description: |-
+                                        A label query over a set of resources, in this case pods.
+                                        If it's null, this PodAffinityTerm matches with no Pods.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -1608,6 +1733,36 @@ spec:
                                           type: object
                                       type: object
                                       x-kubernetes-map-type: atomic
+                                    matchLabelKeys:
+                                      description: |-
+                                        MatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                        Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                    mismatchLabelKeys:
+                                      description: |-
+                                        MismatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                        Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
                                     namespaceSelector:
                                       description: |-
                                         A label query over the set of namespaces that the term applies to.
@@ -1708,8 +1863,9 @@ spec:
                                 a pod of the set of pods is running
                               properties:
                                 labelSelector:
-                                  description: A label query over a set of resources,
-                                    in this case pods.
+                                  description: |-
+                                    A label query over a set of resources, in this case pods.
+                                    If it's null, this PodAffinityTerm matches with no Pods.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -1753,6 +1909,36 @@ spec:
                                       type: object
                                   type: object
                                   x-kubernetes-map-type: atomic
+                                matchLabelKeys:
+                                  description: |-
+                                    MatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                    Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                mismatchLabelKeys:
+                                  description: |-
+                                    MismatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                    Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
                                 namespaceSelector:
                                   description: |-
                                     A label query over the set of namespaces that the term applies to.
@@ -1851,8 +2037,9 @@ spec:
                                     with the corresponding weight.
                                   properties:
                                     labelSelector:
-                                      description: A label query over a set of resources,
-                                        in this case pods.
+                                      description: |-
+                                        A label query over a set of resources, in this case pods.
+                                        If it's null, this PodAffinityTerm matches with no Pods.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -1896,6 +2083,36 @@ spec:
                                           type: object
                                       type: object
                                       x-kubernetes-map-type: atomic
+                                    matchLabelKeys:
+                                      description: |-
+                                        MatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                        Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                    mismatchLabelKeys:
+                                      description: |-
+                                        MismatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                        Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
                                     namespaceSelector:
                                       description: |-
                                         A label query over the set of namespaces that the term applies to.
@@ -1996,8 +2213,9 @@ spec:
                                 a pod of the set of pods is running
                               properties:
                                 labelSelector:
-                                  description: A label query over a set of resources,
-                                    in this case pods.
+                                  description: |-
+                                    A label query over a set of resources, in this case pods.
+                                    If it's null, this PodAffinityTerm matches with no Pods.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -2041,6 +2259,36 @@ spec:
                                       type: object
                                   type: object
                                   x-kubernetes-map-type: atomic
+                                matchLabelKeys:
+                                  description: |-
+                                    MatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                    Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                mismatchLabelKeys:
+                                  description: |-
+                                    MismatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                    Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
                                 namespaceSelector:
                                   description: |-
                                     A label query over the set of namespaces that the term applies to.
@@ -2908,8 +3156,9 @@ spec:
                                     with the corresponding weight.
                                   properties:
                                     labelSelector:
-                                      description: A label query over a set of resources,
-                                        in this case pods.
+                                      description: |-
+                                        A label query over a set of resources, in this case pods.
+                                        If it's null, this PodAffinityTerm matches with no Pods.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -2953,6 +3202,36 @@ spec:
                                           type: object
                                       type: object
                                       x-kubernetes-map-type: atomic
+                                    matchLabelKeys:
+                                      description: |-
+                                        MatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                        Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                    mismatchLabelKeys:
+                                      description: |-
+                                        MismatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                        Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
                                     namespaceSelector:
                                       description: |-
                                         A label query over the set of namespaces that the term applies to.
@@ -3053,8 +3332,9 @@ spec:
                                 a pod of the set of pods is running
                               properties:
                                 labelSelector:
-                                  description: A label query over a set of resources,
-                                    in this case pods.
+                                  description: |-
+                                    A label query over a set of resources, in this case pods.
+                                    If it's null, this PodAffinityTerm matches with no Pods.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -3098,6 +3378,36 @@ spec:
                                       type: object
                                   type: object
                                   x-kubernetes-map-type: atomic
+                                matchLabelKeys:
+                                  description: |-
+                                    MatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                    Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                mismatchLabelKeys:
+                                  description: |-
+                                    MismatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                    Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
                                 namespaceSelector:
                                   description: |-
                                     A label query over the set of namespaces that the term applies to.
@@ -3196,8 +3506,9 @@ spec:
                                     with the corresponding weight.
                                   properties:
                                     labelSelector:
-                                      description: A label query over a set of resources,
-                                        in this case pods.
+                                      description: |-
+                                        A label query over a set of resources, in this case pods.
+                                        If it's null, this PodAffinityTerm matches with no Pods.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -3241,6 +3552,36 @@ spec:
                                           type: object
                                       type: object
                                       x-kubernetes-map-type: atomic
+                                    matchLabelKeys:
+                                      description: |-
+                                        MatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                        Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                    mismatchLabelKeys:
+                                      description: |-
+                                        MismatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                        Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
                                     namespaceSelector:
                                       description: |-
                                         A label query over the set of namespaces that the term applies to.
@@ -3341,8 +3682,9 @@ spec:
                                 a pod of the set of pods is running
                               properties:
                                 labelSelector:
-                                  description: A label query over a set of resources,
-                                    in this case pods.
+                                  description: |-
+                                    A label query over a set of resources, in this case pods.
+                                    If it's null, this PodAffinityTerm matches with no Pods.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -3386,6 +3728,36 @@ spec:
                                       type: object
                                   type: object
                                   x-kubernetes-map-type: atomic
+                                matchLabelKeys:
+                                  description: |-
+                                    MatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                    Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                mismatchLabelKeys:
+                                  description: |-
+                                    MismatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                    Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
                                 namespaceSelector:
                                   description: |-
                                     A label query over the set of namespaces that the term applies to.
@@ -3759,8 +4131,9 @@ spec:
                                     with the corresponding weight.
                                   properties:
                                     labelSelector:
-                                      description: A label query over a set of resources,
-                                        in this case pods.
+                                      description: |-
+                                        A label query over a set of resources, in this case pods.
+                                        If it's null, this PodAffinityTerm matches with no Pods.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -3804,6 +4177,36 @@ spec:
                                           type: object
                                       type: object
                                       x-kubernetes-map-type: atomic
+                                    matchLabelKeys:
+                                      description: |-
+                                        MatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                        Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                    mismatchLabelKeys:
+                                      description: |-
+                                        MismatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                        Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
                                     namespaceSelector:
                                       description: |-
                                         A label query over the set of namespaces that the term applies to.
@@ -3904,8 +4307,9 @@ spec:
                                 a pod of the set of pods is running
                               properties:
                                 labelSelector:
-                                  description: A label query over a set of resources,
-                                    in this case pods.
+                                  description: |-
+                                    A label query over a set of resources, in this case pods.
+                                    If it's null, this PodAffinityTerm matches with no Pods.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -3949,6 +4353,36 @@ spec:
                                       type: object
                                   type: object
                                   x-kubernetes-map-type: atomic
+                                matchLabelKeys:
+                                  description: |-
+                                    MatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                    Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                mismatchLabelKeys:
+                                  description: |-
+                                    MismatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                    Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
                                 namespaceSelector:
                                   description: |-
                                     A label query over the set of namespaces that the term applies to.
@@ -4047,8 +4481,9 @@ spec:
                                     with the corresponding weight.
                                   properties:
                                     labelSelector:
-                                      description: A label query over a set of resources,
-                                        in this case pods.
+                                      description: |-
+                                        A label query over a set of resources, in this case pods.
+                                        If it's null, this PodAffinityTerm matches with no Pods.
                                       properties:
                                         matchExpressions:
                                           description: matchExpressions is a list
@@ -4092,6 +4527,36 @@ spec:
                                           type: object
                                       type: object
                                       x-kubernetes-map-type: atomic
+                                    matchLabelKeys:
+                                      description: |-
+                                        MatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                        Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                    mismatchLabelKeys:
+                                      description: |-
+                                        MismatchLabelKeys is a set of pod label keys to select which pods will
+                                        be taken into consideration. The keys are used to lookup values from the
+                                        incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                        to select the group of existing pods which pods will be taken into consideration
+                                        for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                        pod labels will be ignored. The default value is empty.
+                                        The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                        Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
                                     namespaceSelector:
                                       description: |-
                                         A label query over the set of namespaces that the term applies to.
@@ -4192,8 +4657,9 @@ spec:
                                 a pod of the set of pods is running
                               properties:
                                 labelSelector:
-                                  description: A label query over a set of resources,
-                                    in this case pods.
+                                  description: |-
+                                    A label query over a set of resources, in this case pods.
+                                    If it's null, this PodAffinityTerm matches with no Pods.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -4237,6 +4703,36 @@ spec:
                                       type: object
                                   type: object
                                   x-kubernetes-map-type: atomic
+                                matchLabelKeys:
+                                  description: |-
+                                    MatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key in (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.
+                                    Also, MatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                mismatchLabelKeys:
+                                  description: |-
+                                    MismatchLabelKeys is a set of pod label keys to select which pods will
+                                    be taken into consideration. The keys are used to lookup values from the
+                                    incoming pod labels, those key-value labels are merged with ` + "`" + `LabelSelector` + "`" + ` as ` + "`" + `key notin (value)` + "`" + `
+                                    to select the group of existing pods which pods will be taken into consideration
+                                    for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming
+                                    pod labels will be ignored. The default value is empty.
+                                    The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector.
+                                    Also, MismatchLabelKeys cannot be set when LabelSelector isn't set.
+                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
                                 namespaceSelector:
                                   description: |-
                                     A label query over the set of namespaces that the term applies to.
@@ -5176,34 +5672,6 @@ spec:
                               status field of the claim.
                               More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
                             properties:
-                              claims:
-                                description: |-
-                                  Claims lists the names of resources, defined in spec.resourceClaims,
-                                  that are used by this container.
-
-
-                                  This is an alpha field and requires enabling the
-                                  DynamicResourceAllocation feature gate.
-
-
-                                  This field is immutable. It can only be set for containers.
-                                items:
-                                  description: ResourceClaim references one entry
-                                    in PodSpec.ResourceClaims.
-                                  properties:
-                                    name:
-                                      description: |-
-                                        Name must match the name of one entry in pod.spec.resourceClaims of
-                                        the Pod where this field is used. It makes that resource available
-                                        inside a container.
-                                      type: string
-                                  required:
-                                  - name
-                                  type: object
-                                type: array
-                                x-kubernetes-list-map-keys:
-                                - name
-                                x-kubernetes-list-type: map
                               limits:
                                 additionalProperties:
                                   anyOf:
@@ -5278,6 +5746,21 @@ spec:
                             description: |-
                               storageClassName is the name of the StorageClass required by the claim.
                               More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1
+                            type: string
+                          volumeAttributesClassName:
+                            description: |-
+                              volumeAttributesClassName may be used to set the VolumeAttributesClass used by this claim.
+                              If specified, the CSI driver will create or update the volume with the attributes defined
+                              in the corresponding VolumeAttributesClass. This has a different purpose than storageClassName,
+                              it can be changed after the claim is created. An empty string value means that no VolumeAttributesClass
+                              will be applied to the claim but it's not allowed to reset this field to empty string once it is set.
+                              If unspecified and the PersistentVolumeClaim is unbound, the default VolumeAttributesClass
+                              will be set by the persistentvolume controller if it exists.
+                              If the resource referred to by volumeAttributesClass does not exist, this PersistentVolumeClaim will be
+                              set to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource
+                              exists.
+                              More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#volumeattributesclass
+                              (Alpha) Using this field requires the VolumeAttributesClass feature gate to be enabled.
                             type: string
                           volumeMode:
                             description: |-
@@ -5563,34 +6046,6 @@ spec:
                               Resources represents the minimum resources the volume should have.
                               More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
                             properties:
-                              claims:
-                                description: |-
-                                  Claims lists the names of resources, defined in spec.resourceClaims,
-                                  that are used by this container.
-
-
-                                  This is an alpha field and requires enabling the
-                                  DynamicResourceAllocation feature gate.
-
-
-                                  This field is immutable. It can only be set for containers.
-                                items:
-                                  description: ResourceClaim references one entry
-                                    in PodSpec.ResourceClaims.
-                                  properties:
-                                    name:
-                                      description: |-
-                                        Name must match the name of one entry in pod.spec.resourceClaims of
-                                        the Pod where this field is used. It makes that resource available
-                                        inside a container.
-                                      type: string
-                                  required:
-                                  - name
-                                  type: object
-                                type: array
-                                x-kubernetes-list-map-keys:
-                                - name
-                                x-kubernetes-list-type: map
                               limits:
                                 additionalProperties:
                                   anyOf:
@@ -6170,33 +6625,6 @@ spec:
                       status field of the claim.
                       More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
                     properties:
-                      claims:
-                        description: |-
-                          Claims lists the names of resources, defined in spec.resourceClaims,
-                          that are used by this container.
-
-
-                          This is an alpha field and requires enabling the
-                          DynamicResourceAllocation feature gate.
-
-
-                          This field is immutable. It can only be set for containers.
-                        items:
-                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
-                          properties:
-                            name:
-                              description: |-
-                                Name must match the name of one entry in pod.spec.resourceClaims of
-                                the Pod where this field is used. It makes that resource available
-                                inside a container.
-                              type: string
-                          required:
-                          - name
-                          type: object
-                        type: array
-                        x-kubernetes-list-map-keys:
-                        - name
-                        x-kubernetes-list-type: map
                       limits:
                         additionalProperties:
                           anyOf:
@@ -6271,6 +6699,21 @@ spec:
                     description: |-
                       storageClassName is the name of the StorageClass required by the claim.
                       More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1
+                    type: string
+                  volumeAttributesClassName:
+                    description: |-
+                      volumeAttributesClassName may be used to set the VolumeAttributesClass used by this claim.
+                      If specified, the CSI driver will create or update the volume with the attributes defined
+                      in the corresponding VolumeAttributesClass. This has a different purpose than storageClassName,
+                      it can be changed after the claim is created. An empty string value means that no VolumeAttributesClass
+                      will be applied to the claim but it's not allowed to reset this field to empty string once it is set.
+                      If unspecified and the PersistentVolumeClaim is unbound, the default VolumeAttributesClass
+                      will be set by the persistentvolume controller if it exists.
+                      If the resource referred to by volumeAttributesClass does not exist, this PersistentVolumeClaim will be
+                      set to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource
+                      exists.
+                      More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#volumeattributesclass
+                      (Alpha) Using this field requires the VolumeAttributesClass feature gate to be enabled.
                     type: string
                   volumeMode:
                     description: |-
@@ -6552,33 +6995,6 @@ spec:
                       Resources represents the minimum resources the volume should have.
                       More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
                     properties:
-                      claims:
-                        description: |-
-                          Claims lists the names of resources, defined in spec.resourceClaims,
-                          that are used by this container.
-
-
-                          This is an alpha field and requires enabling the
-                          DynamicResourceAllocation feature gate.
-
-
-                          This field is immutable. It can only be set for containers.
-                        items:
-                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
-                          properties:
-                            name:
-                              description: |-
-                                Name must match the name of one entry in pod.spec.resourceClaims of
-                                the Pod where this field is used. It makes that resource available
-                                inside a container.
-                              type: string
-                          required:
-                          - name
-                          type: object
-                        type: array
-                        x-kubernetes-list-map-keys:
-                        - name
-                        x-kubernetes-list-type: map
                       limits:
                         additionalProperties:
                           anyOf:
