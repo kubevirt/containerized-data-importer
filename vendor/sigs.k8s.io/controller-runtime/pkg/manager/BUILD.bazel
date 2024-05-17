@@ -24,7 +24,7 @@ go_library(
         "//vendor/k8s.io/client-go/tools/leaderelection:go_default_library",
         "//vendor/k8s.io/client-go/tools/leaderelection/resourcelock:go_default_library",
         "//vendor/k8s.io/client-go/tools/record:go_default_library",
-        "//vendor/k8s.io/utils/pointer:go_default_library",
+        "//vendor/k8s.io/utils/ptr:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/cache:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/cluster:go_default_library",

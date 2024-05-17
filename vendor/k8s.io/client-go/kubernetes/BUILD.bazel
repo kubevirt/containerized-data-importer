@@ -41,7 +41,7 @@ go_library(
         "//vendor/k8s.io/client-go/kubernetes/typed/events/v1:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes/typed/events/v1beta1:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes/typed/extensions/v1beta1:go_default_library",
-        "//vendor/k8s.io/client-go/kubernetes/typed/flowcontrol/v1alpha1:go_default_library",
+        "//vendor/k8s.io/client-go/kubernetes/typed/flowcontrol/v1:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta1:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta2:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta3:go_default_library",

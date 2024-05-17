@@ -15,6 +15,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//vendor/k8s.io/gengo/args:go_default_library",
+        "//vendor/k8s.io/gengo/examples/defaulter-gen/generators:go_default_library",
         "//vendor/k8s.io/gengo/examples/set-gen/sets:go_default_library",
         "//vendor/k8s.io/gengo/generator:go_default_library",
         "//vendor/k8s.io/gengo/namer:go_default_library",

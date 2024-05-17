@@ -4,9 +4,9 @@ go_library(
     name = "go_default_library",
     srcs = [
         "doc.go",
-        "fake_clustercidr.go",
         "fake_ipaddress.go",
         "fake_networking_client.go",
+        "fake_servicecidr.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/k8s.io/client-go/kubernetes/typed/networking/v1alpha1/fake",
     importpath = "k8s.io/client-go/kubernetes/typed/networking/v1alpha1/fake",

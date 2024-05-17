@@ -15,6 +15,7 @@ go_library(
         "hook.go",
         "increase_level.go",
         "json_encoder.go",
+        "lazy_with.go",
         "level.go",
         "level_strings.go",
         "marshaler.go",
