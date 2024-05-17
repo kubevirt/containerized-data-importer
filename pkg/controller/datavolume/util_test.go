@@ -51,7 +51,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 		pvcSpec := &corev1.PersistentVolumeClaimSpec{
 			StorageClassName: &scName,
 			VolumeMode:       &volumeMode,
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: resource.MustParse("9"),
 				},
@@ -67,7 +67,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 		pvcSpec := &corev1.PersistentVolumeClaimSpec{
 			StorageClassName: &scName,
 			VolumeMode:       &volumeMode,
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: volumeSize,
 				},
@@ -86,7 +86,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 		pvcSpec := &corev1.PersistentVolumeClaimSpec{
 			StorageClassName: &scName,
 			VolumeMode:       &volumeMode,
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: volumeSize,
 				},

@@ -977,7 +977,7 @@ func validateContentTypes(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.D
 
 // ValidateClone compares a clone spec against its source PVC to validate its creation
 func ValidateClone(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) error {
-	var targetResources corev1.ResourceRequirements
+	var targetResources corev1.VolumeResourceRequirements
 
 	valid, sourceContentType, targetContentType := validateContentTypes(sourcePVC, spec)
 	if !valid {
@@ -1011,7 +1011,7 @@ func ValidateClone(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolu
 
 // ValidateSnapshotClone compares a snapshot clone spec against its source snapshot to validate its creation
 func ValidateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv1.DataVolumeSpec) error {
-	var sourceResources, targetResources corev1.ResourceRequirements
+	var sourceResources, targetResources corev1.VolumeResourceRequirements
 
 	if sourceSnapshot.Status == nil {
 		return fmt.Errorf("no status on source snapshot, not possible to proceed")
@@ -1142,7 +1142,7 @@ func AddImportVolumeMounts() []corev1.VolumeMount {
 }
 
 // ValidateRequestedCloneSize validates the clone size requirements on block
-func ValidateRequestedCloneSize(sourceResources corev1.ResourceRequirements, targetResources corev1.ResourceRequirements) error {
+func ValidateRequestedCloneSize(sourceResources corev1.VolumeResourceRequirements, targetResources corev1.VolumeResourceRequirements) error {
 	sourceRequest, hasSource := sourceResources.Requests[corev1.ResourceStorage]
 	targetRequest, hasTarget := targetResources.Requests[corev1.ResourceStorage]
 	if !hasSource || !hasTarget {
@@ -1240,7 +1240,7 @@ func CreatePvcInStorageClass(name, ns string, storageClassName *string, annotati
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany, corev1.ReadWriteOnce},
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: resource.MustParse("1G"),
 				},
