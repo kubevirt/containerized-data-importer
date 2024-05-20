@@ -321,6 +321,16 @@ var _ = Describe("reconcilePVC loop", func() {
 	testPvcName := "testPvc1"
 	uploadResourceName := "uploader" //createUploadResourceName(testPvcName)
 
+	expectDeadline := func(pod *corev1.Pod) {
+		Expect(pod.Spec.Containers).To(HaveLen(1))
+		for _, env := range pod.Spec.Containers[0].Env {
+			if env.Name == "DEADLINE" {
+				return
+			}
+		}
+		Fail("DEADLINE env var not found")
+	}
+
 	Context("Is clone", func() {
 		isClone := true
 
@@ -374,6 +384,7 @@ var _ = Describe("reconcilePVC loop", func() {
 			Expect(uploadPod.GetAnnotations()[cc.AnnPodNetwork]).To(Equal("net1"))
 			Expect(uploadPod.GetAnnotations()[cc.AnnPodSidecarInjectionIstio]).To(Equal(cc.AnnPodSidecarInjectionIstioDefault))
 			Expect(uploadPod.GetAnnotations()[cc.AnnPodSidecarInjectionLinkerd]).To(Equal(cc.AnnPodSidecarInjectionLinkerdDefault))
+			expectDeadline(uploadPod)
 
 			uploadService = &corev1.Service{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(uploadResourceName), Namespace: "default"}, uploadService)
@@ -471,6 +482,7 @@ var _ = Describe("reconcilePVC loop", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadPod)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(uploadPod.Name).To(Equal(uploadResourceName))
+			expectDeadline(uploadPod)
 
 			uploadService = &corev1.Service{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadService)

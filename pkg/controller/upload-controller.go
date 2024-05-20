@@ -424,6 +424,9 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *corev1.PersistentVolumeCla
 		MinTLSVersion: string(minTLSVersion),
 	}
 
+	serverRefresh := certConfig.Server.Duration.Duration - certConfig.Server.RenewBefore.Duration
+	clientRefresh := certConfig.Client.Duration.Duration - certConfig.Client.RenewBefore.Duration
+
 	args := UploadPodArgs{
 		Name:               podName,
 		PVC:                pvc,
@@ -435,12 +438,7 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *corev1.PersistentVolumeCla
 		ClientCA:           clientCA,
 		Preallocation:      strconv.FormatBool(preallocationRequested),
 		CryptoEnvVars:      cryptoVars,
-	}
-
-	if !isCloneTarget {
-		serverRefresh := certConfig.Server.Duration.Duration - certConfig.Server.RenewBefore.Duration
-		clientRefresh := certConfig.Client.Duration.Duration - certConfig.Client.RenewBefore.Duration
-		args.Deadline = ptr.To(time.Now().Add(min(serverRefresh, clientRefresh)))
+		Deadline:           ptr.To(time.Now().Add(min(serverRefresh, clientRefresh))),
 	}
 
 	r.log.V(3).Info("Creating upload pod")
