@@ -234,8 +234,9 @@ func WriteTerminationMessageToFile(file, message string) error {
 	message = strings.ReplaceAll(message, "\n", " ")
 	// Only write the first line of the message.
 	scanner := bufio.NewScanner(strings.NewReader(message))
+
 	if scanner.Scan() {
-		err := os.WriteFile(file, []byte(scanner.Text()), os.ModeAppend)
+		err := os.WriteFile(file, scanner.Bytes(), 0600)
 		if err != nil {
 			return errors.Wrap(err, "could not create termination message file")
 		}
