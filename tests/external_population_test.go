@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // This is not production code
 	"fmt"
 	"path/filepath"
 	"time"

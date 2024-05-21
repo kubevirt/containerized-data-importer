@@ -3,7 +3,7 @@ package util
 import (
 	"bufio"
 	"bytes"
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // This is not a security-sensitive use case
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
