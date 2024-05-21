@@ -61,8 +61,10 @@ import (
 
 const (
 	// APISigningKeySecretName is the selfsigned cert secret name
+	//nolint:gosec // This is not a real secret
 	APISigningKeySecretName = "cdi-api-signing-key"
 
+	//nolint:gosec // This is not a real token
 	uploadTokenGroup = "upload.cdi.kubevirt.io"
 
 	dvValidatePath = "/datavolume-validate"

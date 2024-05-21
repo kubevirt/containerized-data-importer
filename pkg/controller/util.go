@@ -49,6 +49,7 @@ const (
 	CertVolName = "cdi-cert-vol"
 
 	// SecretVolName is the name of the volume containing gcs key
+	//nolint:gosec // This is not a real secret
 	SecretVolName = "cdi-secret-vol"
 
 	// AnnOwnerRef is used when owner is in a different namespace

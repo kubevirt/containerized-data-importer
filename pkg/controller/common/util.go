@@ -325,6 +325,7 @@ const (
 	LabelDefaultPreferenceKind = "instancetype.kubevirt.io/default-preference-kind"
 
 	// LabelDynamicCredentialSupport specifies if the OS supports updating credentials at runtime.
+	//nolint:gosec // These are not credentials
 	LabelDynamicCredentialSupport = "kubevirt.io/dynamic-credentials-support"
 
 	// ProgressDone this means we are DONE
