@@ -33,6 +33,7 @@ func flaky(w http.ResponseWriter, r *http.Request) {
 func badContentType(w http.ResponseWriter, r *http.Request) {
 	actualFileURL := getEquivalentFileHostURL(r.URL.String())
 
+	//nolint:gosec // This is not production code.
 	resp, err := http.Get(actualFileURL)
 	if err != nil {
 		panic("Couldn't fetch URL")
@@ -49,6 +50,7 @@ func badContentType(w http.ResponseWriter, r *http.Request) {
 func noAcceptRanges(w http.ResponseWriter, r *http.Request) {
 	actualFileURL := getEquivalentFileHostURL(r.URL.String())
 
+	//nolint:gosec // This is not production code
 	resp, err := http.Get(actualFileURL)
 	if err != nil {
 		panic("Couldn't fetch URL")
