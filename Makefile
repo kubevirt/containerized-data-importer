@@ -45,6 +45,10 @@ help: ## Print this message and exit
 		FS = ":.*##";                                                      \
 		printf "USAGE\n\n    make \033[36m<target>\033[0m\n\nTARGETS\n"    \
 	}                                                                      \
+	/^##@/ {                                                               \
+		# Print section titles                                             \
+		printf "\n  \033[1m%s\033[0m\n", substr($$0, 5)                    \
+	}                                                                      \
 	/^[a-zA-Z_0-9-]+:.*?##/ {                                              \
 		# Print targets and descriptions                                   \
 		printf "    \033[36m%-25s\033[0m%s\n", $$1, $$2                    \
