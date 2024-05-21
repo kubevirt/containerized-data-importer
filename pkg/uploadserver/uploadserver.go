@@ -496,7 +496,7 @@ func untarToBlockdev(stream io.Reader, dest string) error {
 			if err != nil {
 				return err
 			}
-			written, err := io.Copy(f, tr)
+			written, err := io.CopyN(f, tr, header.Size)
 			if err != nil {
 				return err
 			}
