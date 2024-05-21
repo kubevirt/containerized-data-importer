@@ -24,7 +24,7 @@ Progress of volume population. Type: Counter.
 ### kubevirt_cdi_operator_up
 CDI operator status. Type: Gauge.
 
-### kubevirt_cdi_ovirt_progress_total
+### kubevirt_cdi_ovirt_populator_progress_total
 Progress of volume population. Type: Counter.
 
 ### kubevirt_cdi_storageprofile_info
