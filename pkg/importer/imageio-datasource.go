@@ -487,7 +487,7 @@ func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
 	expectedLength := end - start + 1
 	if length != expectedLength {
 		response.Body.Close()
-		return nil, errors.New(fmt.Sprintf("wrong length returned: %d vs expected %d", length, expectedLength))
+		return nil, errors.Errorf("wrong length returned: %d vs expected %d", length, expectedLength)
 	}
 
 	return response.Body, nil
@@ -513,13 +513,13 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 		if snapshot == nil { // Snapshot not found, check for a disk with a matching image ID
 			imageID, available := disk.ImageId()
 			if !available {
-				return nil, uint64(0), nil, conn, errors.Wrap(snapshotErr, "Could not get disk's image ID!")
+				return nil, uint64(0), nil, conn, errors.Wrap(snapshotErr, "could not get disk's image ID")
 			}
 			if imageID != currentCheckpoint {
-				return nil, uint64(0), nil, conn, errors.Wrapf(snapshotErr, "Snapshot %s not found!", currentCheckpoint)
+				return nil, uint64(0), nil, conn, errors.Wrapf(snapshotErr, "snapshot %s not found", currentCheckpoint)
 			}
 			// Matching ID: use disk as checkpoint
-			klog.Infof("Snapshot ID %s found on disk %s, transferring active disk as checkpoint.", currentCheckpoint, diskID)
+			klog.Infof("Snapshot ID %s found on disk %s, transferring active disk as checkpoint", currentCheckpoint, diskID)
 		}
 	}
 

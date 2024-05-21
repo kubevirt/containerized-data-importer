@@ -11,12 +11,20 @@ linters:
   - govet
   - misspell
   - nakedret
+  - revive
   - unconvert
   - whitespace
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+  exclude:
+    # Allow dot imports for test files
+    - 'dot-imports: should not use dot import'
+    # Allow unused contexts
+    - "unused-parameter: parameter 'ctx' seems to be unused"
+    # Allow unused variables (necessary sometimes to match interfaces)
+    - "unused-parameter: parameter '.*' seems to be unused, consider removing or renaming it as _"
 
 linters-settings:
   errorlint:

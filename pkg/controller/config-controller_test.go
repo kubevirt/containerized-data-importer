@@ -854,14 +854,14 @@ var _ = Describe("GetImportProxyConfig", func() {
 		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
 		cdiConfig.Status.ImportProxy = createImportProxy("", "", "", "")
 		_, err := GetImportProxyConfig(cdiConfig, "nonExistingField")
-		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("CDIConfig ImportProxy does not have the field: %s\n", "nonExistingField")))
+		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("CDIConfig ImportProxy does not have the field: %s", "nonExistingField")))
 	})
 
 	It("should return error if the ImportProxy field is nil", func() {
 		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
 		cdiConfig.Status.ImportProxy = nil
 		_, err := GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP)
-		Expect(err.Error()).To(ContainSubstring("failed to get field, the CDIConfig ImportProxy is nil\n"))
+		Expect(err.Error()).To(ContainSubstring("failed to get field, the CDIConfig ImportProxy is nil"))
 	})
 })
 

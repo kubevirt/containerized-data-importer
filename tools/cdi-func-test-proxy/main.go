@@ -2,11 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -33,8 +33,6 @@ const (
 	httpPortWithAuth  = "8081"
 	httpsPort         = "443"
 	httpsPortWithAuth = "444"
-	withBasicAuth     = true
-	noBasicAuth       = false
 	serviceName       = "cdi-test-proxy"
 	configMapName     = serviceName + "-certs"
 	certFile          = "tls.crt"
@@ -42,7 +40,7 @@ const (
 	certDir           = "/certs"
 )
 
-func startServer(port string, basicAuth bool, useTLS bool, wg *sync.WaitGroup) {
+func serve(ctx context.Context, port string, basicAuth bool, useTLS bool) error {
 	server := &http.Server{
 		Addr: ":" + port,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -59,19 +57,15 @@ func startServer(port string, basicAuth bool, useTLS bool, wg *sync.WaitGroup) {
 		// Disable HTTP/2.
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 	}
+
+	stop := context.AfterFunc(ctx, func() { _ = server.Close() })
+	defer stop()
+
+	klog.Infof("INFO: started proxy on port %s\n", port)
 	if useTLS {
-		go func() {
-			klog.Infof("INFO: started proxy on port %s\n", port)
-			log.Fatal(server.ListenAndServeTLS(filepath.Join(certDir, certFile), filepath.Join(certDir, keyFile)))
-			wg.Done()
-		}()
-	} else {
-		go func() {
-			klog.Infof("INFO: started proxy on port %s\n", port)
-			log.Fatal(server.ListenAndServe())
-			wg.Done()
-		}()
+		return server.ListenAndServeTLS(filepath.Join(certDir, certFile), filepath.Join(certDir, keyFile))
 	}
+	return server.ListenAndServe()
 }
 
 // Prepares the X-Forwarded-For header for another forwarding hop by appending the previous sender's
@@ -211,24 +205,41 @@ func copyHeader(dst, src http.Header) {
 		}
 	}
 }
+
 func main() {
 	if err := utils.CreateCertForTestService(util.GetNamespace(), serviceName, configMapName, certDir, certFile, keyFile); err != nil {
 		klog.Fatal(errors.Wrapf(err, "populate certificate directory %s' errored: ", certDir))
 	}
 
-	wg := new(sync.WaitGroup)
+	var wg sync.WaitGroup
 
-	wg.Add(1)
-	startServer(httpPort, noBasicAuth, false, wg)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	wg.Add(1)
-	startServer(httpPortWithAuth, withBasicAuth, false, wg)
+	params := []struct {
+		port string
+		auth bool
+		tls  bool
+	}{
+		{port: httpPort, auth: false, tls: false},
+		{port: httpPortWithAuth, auth: true, tls: false},
+		{port: httpsPort, auth: false, tls: true},
+		{port: httpsPortWithAuth, auth: true, tls: true},
+	}
 
-	wg.Add(1)
-	startServer(httpsPort, noBasicAuth, true, wg)
+	for _, p := range params {
+		wg.Add(1)
+		go func() {
+			defer cancel()
+			defer wg.Done()
 
-	wg.Add(1)
-	startServer(httpsPortWithAuth, withBasicAuth, true, wg)
+			if err := serve(ctx, p.port, p.auth, p.tls); err != nil {
+				klog.Infof("Error serving at address %s: %v", p.port, err)
+				return
+			}
+			klog.Infof("Stopped serving at address %s", p.port)
+		}()
+	}
 
 	wg.Wait()
 }

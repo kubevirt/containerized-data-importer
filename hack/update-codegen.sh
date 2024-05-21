@@ -53,7 +53,6 @@ swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-import
 
 swagger-doc -in ${SCRIPT_ROOT}/staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1/types.go
 
-
 (go install ${CODEGEN_PKG}/cmd/openapi-gen)
 
 (

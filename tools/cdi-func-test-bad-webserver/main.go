@@ -89,7 +89,7 @@ func incrementAndGetCounter() uint64 {
 	return a
 }
 
-var counter uint64 = 0
+var counter uint64
 
 func main() {
 	http.HandleFunc("/forbidden-HEAD/", failHEAD)

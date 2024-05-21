@@ -157,7 +157,7 @@ func NewCdiAPIServer(bindAddress string,
 
 	err = app.getKeysAndCerts()
 	if err != nil {
-		return nil, errors.Errorf("Unable to get self signed cert: %v\n", errors.WithStack(err))
+		return nil, errors.Errorf("unable to get self signed cert: %v", errors.WithStack(err))
 	}
 
 	app.composeUploadTokenAPI()
