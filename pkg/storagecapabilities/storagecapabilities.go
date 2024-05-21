@@ -108,6 +108,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// Infinidat
 	"infinibox-csi-driver/iscsiorfibrechannel": {{rwx, block}, {rwo, block}, {rwo, file}},
 	"infinibox-csi-driver/nfs":                 {{rwx, file}, {rwo, file}},
+	// vSphere
+	"csi.vsphere.vmware.com":     {{rwo, block}, {rwo, file}},
+	"csi.vsphere.vmware.com/nfs": {{rwx, file}, {rwo, block}, {rwo, file}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
@@ -277,6 +280,13 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		default:
 			return "UNKNOWN"
 		}
+	},
+	"csi.vsphere.vmware.com": func(sc *storagev1.StorageClass) string {
+		fsType := sc.Parameters["csi.storage.k8s.io/fstype"]
+		if strings.Contains(fsType, "nfs") {
+			return "csi.vsphere.vmware.com/nfs"
+		}
+		return "csi.vsphere.vmware.com"
 	},
 }
 
