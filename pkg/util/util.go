@@ -44,6 +44,9 @@ type CountingReader struct {
 }
 
 // RandAlphaNum provides an implementation to generate a random alpha numeric string of the specified length
+// This generator is not cryptographically secure.
+//
+//nolint:gosec // This is not a security-sensitive use case
 func RandAlphaNum(n int) string {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	var letter = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
