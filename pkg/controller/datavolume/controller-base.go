@@ -964,7 +964,8 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 				}
 			}
 		}
-		if i, err := strconv.Atoi(pvc.Annotations[cc.AnnPodRestarts]); err == nil && i >= 0 {
+
+		if i, err := strconv.ParseInt(pvc.Annotations[cc.AnnPodRestarts], 10, 32); err == nil && i >= 0 {
 			dataVolumeCopy.Status.RestartCount = int32(i)
 		}
 		if err := r.reconcileProgressUpdate(dataVolumeCopy, pvc, &result); err != nil {
