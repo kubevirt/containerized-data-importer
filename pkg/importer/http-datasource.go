@@ -286,7 +286,8 @@ func createHTTPClient(certDir string) (*http.Client, error) {
 	// the default transport contains Proxy configurations to use environment variables and default timeouts
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.TLSClientConfig = &tls.Config{
-		RootCAs: certPool,
+		RootCAs:    certPool,
+		MinVersion: tls.VersionTLS12,
 	}
 	transport.GetProxyConnectHeader = func(ctx context.Context, proxyURL *url.URL, target string) (http.Header, error) {
 		h := http.Header{}

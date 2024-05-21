@@ -81,6 +81,7 @@ func createHTTPClient(clientKey, clientCert, serverCert []byte) *http.Client {
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{clientKeyPair},
 		RootCAs:      caCertPool,
+		MinVersion:   tls.VersionTLS12,
 	}
 	tlsConfig.BuildNameToCertificate() //nolint:staticcheck  // todo: BuildNameToCertificate() is deprecated - check this
 

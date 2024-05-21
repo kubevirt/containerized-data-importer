@@ -1613,6 +1613,7 @@ func BuildHTTPClient(httpClient *http.Client) *http.Client {
 	if httpClient == nil {
 		defaultTransport := http.DefaultTransport.(*http.Transport)
 		// Create new Transport that ignores self-signed SSL
+		//nolint:gosec
 		tr := &http.Transport{
 			Proxy:                 defaultTransport.Proxy,
 			DialContext:           defaultTransport.DialContext,

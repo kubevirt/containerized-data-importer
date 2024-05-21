@@ -51,7 +51,7 @@ var _ = Describe("cdi-apiserver tests", Serial, func() {
 
 			client := &http.Client{
 				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint: gosec // It's not production codeº
 				},
 			}
 
@@ -123,7 +123,7 @@ var _ = Describe("cdi-apiserver tests", Serial, func() {
 			client := &http.Client{
 				Transport: &http.Transport{
 					TLSClientConfig: &tls.Config{
-						InsecureSkipVerify: true,
+						InsecureSkipVerify: true, //nolint: gosec // It's not production code
 						MinVersion:         tls.VersionTLS12,
 						MaxVersion:         tls.VersionTLS12,
 					},

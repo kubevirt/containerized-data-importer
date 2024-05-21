@@ -83,7 +83,7 @@ func (f *Framework) MakePrometheusHTTPRequest(endpoint string) *http.Response {
 
 	client := &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
 		},
 	}
 	gomega.Eventually(func() bool {

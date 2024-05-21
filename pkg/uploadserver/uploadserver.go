@@ -246,6 +246,7 @@ func (app *uploadServerApp) createUploadServer() (*http.Server, error) {
 			klog.Fatalf("Invalid ca cert file %s", app.clientCert)
 		}
 
+		//nolint:gosec // False positive: Min version is not known statically
 		server.TLSConfig = &tls.Config{
 			CipherSuites: app.cryptoConfig.CipherSuites,
 			ClientCAs:    caCertPool,

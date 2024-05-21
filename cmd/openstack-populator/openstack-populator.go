@@ -312,7 +312,7 @@ func getProviderClient(identityEndpoint string) (*gophercloud.ProviderClient, er
 	var TLSClientConfig *tls.Config
 	if identityURL.Scheme == "https" {
 		if getBoolFromSecret(insecureSkipVerify) {
-			TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+			TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
 		} else {
 			cacert := []byte(getStringFromSecret(caCert))
 			if len(cacert) == 0 {
@@ -325,7 +325,10 @@ func getProviderClient(identityEndpoint string) (*gophercloud.ProviderClient, er
 					klog.Fatal(err.Error())
 					return nil, err
 				}
-				TLSClientConfig = &tls.Config{RootCAs: roots}
+				TLSClientConfig = &tls.Config{
+					RootCAs:    roots,
+					MinVersion: tls.VersionTLS12,
+				}
 			}
 		}
 	}

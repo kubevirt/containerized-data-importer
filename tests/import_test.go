@@ -453,7 +453,7 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	var portForwardCmd *exec.Cmd
 	client := &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // It's not production code
 		},
 	}
 	f := framework.NewFramework(namespacePrefix)
