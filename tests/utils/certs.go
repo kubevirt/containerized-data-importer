@@ -70,7 +70,7 @@ func CreateCertForTestService(namespace, serviceName, configMapName, certDir, ce
 		}
 	}
 
-	if err = os.WriteFile(path.Join(certDir, certFileName), certBytes, 0644); err != nil {
+	if err = os.WriteFile(path.Join(certDir, certFileName), certBytes, 0600); err != nil {
 		return err
 	}
 

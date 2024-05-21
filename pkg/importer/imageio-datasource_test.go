@@ -881,7 +881,7 @@ func createCert() string {
 	certBytes := bytes.Buffer{}
 
 	Expect(pem.Encode(&certBytes, &pem.Block{Type: cert.CertificateBlockType, Bytes: keyPair.Cert.Raw})).To(Succeed())
-	Expect(os.WriteFile(path.Join(tempDir, "tls.crt"), certBytes.Bytes(), 0644)).To(Succeed())
+	Expect(os.WriteFile(path.Join(tempDir, "tls.crt"), certBytes.Bytes(), 0600)).To(Succeed())
 
 	return tempDir
 }

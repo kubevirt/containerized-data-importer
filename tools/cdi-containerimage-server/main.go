@@ -72,7 +72,7 @@ func main() {
 		log.Fatalf("Failed listening on %s err: %v", addr, err)
 	}
 
-	if err := os.WriteFile(*readyFile, []byte(imageFilename), 0666); err != nil {
+	if err := os.WriteFile(*readyFile, []byte(imageFilename), 0600); err != nil {
 		log.Fatalf("Failed creating \"ready\" file: %v", err)
 	}
 	defer os.Remove(*readyFile)

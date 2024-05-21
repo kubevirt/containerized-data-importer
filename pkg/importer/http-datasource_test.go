@@ -256,7 +256,7 @@ var _ = Describe("Http client", func() {
 
 		certBytes := cert.EncodeCertPEM(keyPair.Cert)
 
-		err = os.WriteFile(path.Join(tempDir, "tls.crt"), certBytes, 0644)
+		err = os.WriteFile(path.Join(tempDir, "tls.crt"), certBytes, 0600)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
