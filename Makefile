@@ -51,86 +51,84 @@ help: ## Print this message and exit
 	}                                                                      \
 	' $(MAKEFILE_LIST)
 
-all: manifests bazel-build-images
+all: manifests bazel-build-images ## Clean up previous build artifacts, compile all CDI packages and build containers
 
-clean:
+clean: ## Clean up previous build artifacts
 	${DO_BAZ} "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile release-announcement"
 	${DO_BAZ} bazel clean --expunge
 
-update-codegen:
+update-codegen: ## Re-create generated code
 	${DO_BAZ} "./hack/update-codegen.sh"
 
-generate: update-codegen bazel-generate generate-doc
+generate: update-codegen bazel-generate generate-doc ## Re-create all generated files
 
-generate-verify: generate bootstrap-ginkgo
+generate-verify: generate bootstrap-ginkgo ## Verify the generated files are up to date
 	git difftool -y --trust-exit-code --extcmd=./hack/diff-csv.sh
 
-gomod-update:
+gomod-update: ## Update vendored Go code in vendor/ subdirectory.
 	${DO_BAZ} "./hack/build/dep-update.sh"
 
-deps-update: gomod-update bazel-generate
+deps-update: gomod-update bazel-generate ## Runs 'go mod tidy' and 'go mod vendor'
 
-deps-verify: deps-update
+deps-verify: deps-update ## Verify dependencies are up to date
 	git difftool -y --trust-exit-code --extcmd=./hack/diff-csv.sh
 
-rpm-deps:
+rpm-deps: ## Update RPM dependencies
 	${DO_BAZ} "CUSTOM_REPO=${CUSTOM_REPO} ./hack/build/rpm-deps.sh"
 
-apidocs:
+apidocs: ## Generate client-go code (same as 'make generate') and swagger docs
 	${DO_BAZ} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1beta1 html"
 
-build-functest:
+build-functest: ## Build the functional tests (content of tests/ subdirectory)
 	${DO_BAZ} ./hack/build/build-functest.sh
 
-# WHAT must match go tool style package paths for test targets (e.g. ./path/to/my/package/...)
-test: test-unit test-functional test-lint
+test: test-unit test-functional test-lint ## execute all tests (_NOTE:_ 'WHAT' is expected to match the go cli pattern for paths e.g. './pkg/...'.  This differs slightly from rest of the 'make' targets)
 
 test-unit: WHAT = ./pkg/... ./cmd/...
-test-unit:
+test-unit: ## Run unit tests.
 	${DO_BAZ} "ACK_GINKGO_DEPRECATIONS=${ACK_GINKGO_DEPRECATIONS} ./hack/build/run-unit-tests.sh ${WHAT}"
 
-test-functional:  WHAT = ./tests/...
-test-functional: build-functest
+test-functional: WHAT = ./tests/...
+test-functional: build-functest ## Run functional tests (in tests/ subdirectory).
 	./hack/build/run-functional-tests.sh ${WHAT} "${TEST_ARGS}"
 
-# test-lint runs gofmt and golint tests against src files
-test-lint: lint-metrics
+test-lint: lint-metrics ## Run linter on source files
 	${DO_BAZ} "./hack/build/run-lint-checks.sh"
 	"./hack/ci/language.sh"
 
-docker-registry-cleanup:
+docker-registry-cleanup: ## Clean up all cached images from docker registry. Accepts [make variables](#make-variables) DOCKER_PREFIX. Removes all images of the specified repository. If not specified removes localhost repository of current cluster instance.
 	./hack/build/cleanup_docker.sh
 
-publish: manifests push
+publish: manifests push ## Generate a cdi-controller and operator manifests and push the built container images to the registry defined in DOCKER_PREFIX
 
-vet:
+vet: ## Lint all CDI packages
 	${DO_BAZ} "./hack/build/build-go.sh vet ${WHAT}"
 
-vulncheck:
+vulncheck: ## Scan Go dependencies for known vulnerabilities.
 	${DO_BAZ} ./hack/build/run-vulncheck.sh
 
-format:
+format: ## Format shell and go source files."
 	${DO_BAZ} "./hack/build/format.sh"
 
-manifests:
+manifests: ## Generate a cdi-controller and operator manifests in '_out/manifests/'.  Accepts [make variables]\(#make-variables\) DOCKER_TAG, DOCKER_PREFIX, VERBOSITY, PULL_POLICY, CSV_VERSION, QUAY_REPOSITORY, QUAY_NAMESPACE
 	${DO_BAZ} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} CR_NAME=${CR_NAME} CDI_NAMESPACE=${CDI_NAMESPACE} ./hack/build/build-manifests.sh"
 
-goveralls: test-unit
+goveralls: test-unit ## Run code coverage tracking system and upload it to coveralls
 	${DO_BAZ} "COVERALLS_TOKEN_FILE=${COVERALLS_TOKEN_FILE} COVERALLS_TOKEN=${COVERALLS_TOKEN} CI_NAME=prow CI_BRANCH=${PULL_BASE_REF} CI_PR_NUMBER=${PULL_NUMBER} GIT_ID=${PULL_PULL_SHA} PROW_JOB_ID=${PROW_JOB_ID} ./hack/build/goveralls.sh"
 
-coverage: test-unit
+coverage: test-unit ## Run code coverage report locally.
 	./hack/build/coverage.sh
 
-release-description:
+release-description: ## Generate a release announcement detailing changes between 2 commits (typically tags).  Expects 'RELREF' and 'PREREF' to be set
 	./hack/build/release-description.sh ${RELREF} ${PREREF}
 
-cluster-up:
+cluster-up: ## Start a default Kubernetes or Open Shift cluster. set KUBEVIRT_PROVIDER environment variable to either 'k8s-1.18' or 'os-3.11.0' to select the type of cluster. set KUBEVIRT_NUM_NODES to something higher than 1 to have more than one node.
 	./cluster-up/up.sh
 
-cluster-down:
+cluster-down: ## Stop the cluster, doing a make cluster-down && make cluster-up will basically restart the cluster into an empty fresh state.
 	./cluster-up/down.sh
 
-cluster-down-purge: docker-registry-cleanup cluster-down
+cluster-down-purge: docker-registry-cleanup cluster-down ## Cluster-down and clean up all cached images from docker registry. See docker-registry-cleanup target help.
 
 cluster-clean:
 	CDI_CLEAN="all" ./cluster-sync/clean.sh
@@ -147,46 +145,46 @@ cluster-sync-cdi: cluster-clean-cdi
 cluster-sync-test-infra: cluster-clean-test-infra
 	CDI_SYNC="test-infra" ./cluster-sync/sync.sh CDI_AVAILABLE_TIMEOUT=${CDI_AVAILABLE_TIMEOUT} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} PULL_POLICY=${PULL_POLICY} CDI_NAMESPACE=${CDI_NAMESPACE}
 
-cluster-sync: cluster-sync-cdi cluster-sync-test-infra
+cluster-sync: cluster-sync-cdi cluster-sync-test-infra ## Build the controller/importer/cloner, and push it into a running cluster. The cluster must be up before running a cluster sync. Also generates a manifest and applies it to the running cluster after pushing the images to it.
 
-bazel-generate:
+bazel-generate: ## Generate BUILD files for Bazel.
 	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-generate.sh -- staging/src pkg/ tools/ tests/ cmd/ vendor/"
 
 bazel-cdi-generate:
 	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-generate.sh -- staging/src pkg/ tools/ tests/ cmd/"
 
-bazel-build:
+bazel-build: ## Build all Go binaries.
 	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-build.sh"
 
 gosec:
 	${DO_BAZ} "GOSEC=${GOSEC} ./hack/build/gosec.sh"
 
-bazel-build-images:	bazel-cdi-generate bazel-build
+bazel-build-images:	bazel-cdi-generate bazel-build ## Build all the container images used (for both CDI and functional tests)
 	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} ./hack/build/bazel-build-images.sh"
 
-bazel-push-images: bazel-cdi-generate bazel-build
+bazel-push-images: bazel-cdi-generate bazel-build ## Push the built container images to the registry defined in DOCKER_PREFIX
 	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} DOCKER_CA_CERT_FILE=${DOCKER_CA_CERT_FILE} ./hack/build/bazel-push-images.sh"
 
-push: bazel-push-images
+push: bazel-push-images ## Same as bazel-push-images
 
-builder-push:
+builder-push: ## Build and push the builder container image, declared in docker/builder/Dockerfile.
 	./hack/build/bazel-build-builder.sh
 
-openshift-ci-image-push:
+openshift-ci-image-push: ## Build and push the OpenShift CI build+test container image, declared in hack/ci/Dockerfile.ci
 	./hack/build/osci-image-builder.sh
 
-generate-doc: build-docgen
+generate-doc: build-docgen ## Generate documentation
 	_out/tools/metricsdocs/metricsdocs > doc/metrics.md
 
-bootstrap-ginkgo:
+bootstrap-ginkgo: ## Generate Ginkigo testing boilerplate. See `ginkgo bootstrap --help`.
 	${DO_BAZ} ./hack/build/bootstrap-ginkgo.sh
 
-build-docgen:
+build-docgen: ## Build documentation generator
 	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-build-metricsdocs.sh"
 
-fossa:
+fossa: ## Run FOSSA security code scanning
 	${DO_BAZ} "FOSSA_TOKEN_FILE=${FOSSA_TOKEN_FILE} PULL_BASE_REF=${PULL_BASE_REF} CI=${CI} ./hack/fossa.sh"
 
-lint-metrics:
+lint-metrics: ## Run metrics name linter
 	./hack/ci/prom_metric_linter.sh --operator-name="kubevirt" --sub-operator-name="cdi"
 
