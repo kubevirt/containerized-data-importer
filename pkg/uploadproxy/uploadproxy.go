@@ -345,8 +345,9 @@ func (app *uploadProxyApp) startTLS() error {
 	bindAddr := fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort)
 
 	server := &http.Server{
-		Addr:    bindAddr,
-		Handler: app,
+		Addr:              bindAddr,
+		Handler:           app,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	if app.certWatcher != nil {

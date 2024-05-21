@@ -63,7 +63,8 @@ func main() {
 	})
 	mux.Handle("/", http.FileServer(http.Dir(*directory)))
 	server := &http.Server{
-		Handler: mux,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 	addr := fmt.Sprintf("localhost:%d", *port)
 	listener, err := net.Listen("tcp", addr)

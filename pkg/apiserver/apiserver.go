@@ -295,9 +295,10 @@ func (app *cdiAPIApp) startTLS(stopChan <-chan struct{}) error {
 	}
 
 	server := &http.Server{
-		Addr:      fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort),
-		TLSConfig: tlsConfig,
-		Handler:   app.container,
+		Addr:              fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort),
+		TLSConfig:         tlsConfig,
+		Handler:           app.container,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	go func() {
