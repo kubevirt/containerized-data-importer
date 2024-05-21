@@ -23,7 +23,8 @@
 		release-description \
 		bazel-generate bazel-build bazel-build-images bazel-push-images \
 		fossa \
-		lint-metrics
+		lint-metrics	\
+		help
 
 DOCKER?=1
 ifeq (${DOCKER}, 1)
@@ -37,6 +38,18 @@ else
 endif
 # x86_64 aarch64 crossbuild-aarch64
 BUILD_ARCH?=x86_64
+
+.DEFAULT_GOAL := help
+help: ## Print this message and exit
+	@awk 'BEGIN {                                                          \
+		FS = ":.*##";                                                      \
+		printf "USAGE\n\n    make \033[36m<target>\033[0m\n\nTARGETS\n"    \
+	}                                                                      \
+	/^[a-zA-Z_0-9-]+:.*?##/ {                                              \
+		# Print targets and descriptions                                   \
+		printf "    \033[36m%-25s\033[0m%s\n", $$1, $$2                    \
+	}                                                                      \
+	' $(MAKEFILE_LIST)
 
 all: manifests bazel-build-images
 
@@ -177,65 +190,3 @@ fossa:
 lint-metrics:
 	./hack/ci/prom_metric_linter.sh --operator-name="kubevirt" --sub-operator-name="cdi"
 
-help:
-	@echo "Usage: make [Targets ...]"
-	@echo " all "
-	@echo "  : cleans up previous build artifacts, compiles all CDI packages and builds containers"
-	@echo " apidocs "
-	@echo "  : generate client-go code (same as 'make generate') and swagger docs."
-	@echo " build-functest "
-	@echo "  : build the functional tests (content of tests/ subdirectory)."
-	@echo " bazel-build "
-	@echo "  : build all the Go binaries used."
-	@echo " bazel-build-images "
-	@echo "  : build all the container images used (for both CDI and functional tests)."
-	@echo " bazel-generate "
-	@echo "  : generate BUILD files for Bazel."
-	@echo " bazel-push-images "
-	@echo "  : push the built container images to the registry defined in DOCKER_PREFIX"
-	@echo " builder-push "
-	@echo "  : Build and push the builder container image, declared in docker/builder/Dockerfile."
-	@echo " clean "
-	@echo "  : cleans up previous build artifacts"
-	@echo " cluster-up "
-	@echo "  : start a default Kubernetes or Open Shift cluster. set KUBEVIRT_PROVIDER environment variable to either 'k8s-1.18' or 'os-3.11.0' to select the type of cluster. set KUBEVIRT_NUM_NODES to something higher than 1 to have more than one node."
-	@echo " cluster-down "
-	@echo "  : stop the cluster, doing a make cluster-down && make cluster-up will basically restart the cluster into an empty fresh state."
-	@echo " cluster-down-purge "
-	@echo "  : cluster-down and cleanup all cached images from docker registry. Accepts [make variables](#make-variables) DOCKER_PREFIX. Removes all images of the specified repository. If not specified removes localhost repository of current cluster instance."
-	@echo " cluster-sync "
-	@echo "  : builds the controller/importer/cloner, and pushes it into a running cluster. The cluster must be up before running a cluster sync. Also generates a manifest and applies it to the running cluster after pushing the images to it."
-	@echo " deps-update "
-	@echo "  : runs 'go mod tidy' and 'go mod vendor'"
-	@echo " format "
-	@echo "  : execute 'shfmt', 'goimports', and 'go vet' on all CDI packages.  Writes back to the source files."
-	@echo " generate "
-	@echo "  : generate client-go deepcopy functions, clientset, listers and informers."
-	@echo " generate-verify "
-	@echo "  : generate client-go deepcopy functions, clientset, listers and informers and validate codegen."
-	@echo " gomod-update "
-	@echo "  : Update vendored Go code in vendor/ subdirectory."
-	@echo " goveralls "
-	@echo "  : run code coverage tracking system."
-	@echo " coverage"
-	@echo "  : run code coverage report locally."
-	@echo " manifests "
-	@echo "  : generate a cdi-controller and operator manifests in '_out/manifests/'.  Accepts [make variables]\(#make-variables\) DOCKER_TAG, DOCKER_PREFIX, VERBOSITY, PULL_POLICY, CSV_VERSION, QUAY_REPOSITORY, QUAY_NAMESPACE"
-	@echo " openshift-ci-image-push "
-	@echo "  : Build and push the OpenShift CI build+test container image, declared in hack/ci/Dockerfile.ci"
-	@echo " push "
-	@echo "  : compiles, builds, and pushes to the repo passed in 'DOCKER_PREFIX=<my repo>'"
-	@echo " release-description "
-	@echo "  : generate a release announcement detailing changes between 2 commits (typically tags).  Expects 'RELREF' and 'PREREF' to be set"
-	@echo " test "
-	@echo "  : execute all tests (_NOTE:_ 'WHAT' is expected to match the go cli pattern for paths e.g. './pkg/...'.  This differs slightly from rest of the 'make' targets)"
-	@echo " test-unit "
-	@echo "  : Run unit tests."
-	@echo " test-lint "
-	@echo "  : Run gofmt and golint against src files"
-	@echo " test-functional "
-	@echo "  : Run functional tests (in tests/ subdirectory)."
-	@echo " vet	"
-	@echo "  : lint all CDI packages"
-
-.DEFAULT_GOAL := help
