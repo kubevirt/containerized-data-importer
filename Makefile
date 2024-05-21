@@ -12,19 +12,7 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-.PHONY: manifests \
-		cluster-up cluster-down cluster-sync \
-		test test-functional test-unit test-lint \
-		publish \
-		vet \
-		format \
-		goveralls \
-		coverage \
-		release-description \
-		bazel-generate bazel-build bazel-build-images bazel-push-images \
-		fossa \
-		lint-metrics	\
-		help
+.PHONY: help all clean update-codegen generate bootstrap-ginkgo generate-verify gomod-update apidocs deps-update deps-verify rpm-deps build-functest test test-unit test-unit test-functional test-functional goveralls coverage docker-registry-cleanup publish manifests release-description builder-push openshift-ci-image-push cluster-up cluster-down cluster-down-purge cluster-sync-cdi cluster-sync-test-infra cluster-sync bazel-generate bazel-build bazel-push-images push build-docgen generate-doc fossa lint-metrics test-lint vet vulncheck format
 
 DOCKER?=1
 ifeq (${DOCKER}, 1)
