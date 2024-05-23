@@ -149,7 +149,7 @@ var _ = Describe("Population tests", func() {
 			By("Verifying PVC's content")
 			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(dvc.ExternalPopulationSucceeded))
 			expectetHash := []byte(expectedContent)
-			expectedHashString := fmt.Sprintf("%x", md5.Sum(expectetHash))
+			expectedHashString := fmt.Sprintf("%x", md5.Sum(expectetHash)) //nolint:gosec // This is test code
 			filePath := fmt.Sprintf("%s/%s", utils.DefaultPvcMountPath, fileName)
 			md5, err := f.GetMD5(f.Namespace, pvc, filePath, int64(len(expectedContent)))
 			Expect(err).ToNot(HaveOccurred())

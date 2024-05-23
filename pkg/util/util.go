@@ -358,7 +358,10 @@ func SetRecommendedLabels(obj metav1.Object, installerLabels map[string]string, 
 	obj.SetLabels(mergedLabels)
 }
 
-// Md5sum calculates the md5sum of a given file
+// Md5sum calculates the md5sum of a given file.
+// Do not use this for security-sensitive use cases.
+//
+//nolint:gosec // This is not a security-sensitive use case
 func Md5sum(filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
