@@ -219,7 +219,7 @@ bazel run \
     --config=s390x \
     //:bazeldnf -- rpmtree \
     --public --nobest \
-    --name cdi_uploadserver_base_s390x  --arch s390x\
+    --name cdi_uploadserver_base_s390x --arch s390x \
     --basesystem centos-stream-release \
     ${bazeldnf_repos} \
     $centos_base \
@@ -230,5 +230,3 @@ bazel run \
 bazel run \
     --config=s390x \
     //:bazeldnf -- prune
-
-
