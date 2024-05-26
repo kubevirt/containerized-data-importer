@@ -115,6 +115,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// vSphere
 	"csi.vsphere.vmware.com":     {{rwo, block}, {rwo, file}},
 	"csi.vsphere.vmware.com/nfs": {{rwx, file}, {rwo, block}, {rwo, file}},
+	// Longhorn
+	"driver.longhorn.io":            {{rwo, block}},
+	"driver.longhorn.io/migratable": {{rwx, block}, {rwo, block}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
@@ -328,6 +331,13 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		default:
 			return "csi-powermax.dellemc.com"
 		}
+	},
+	"driver.longhorn.io": func(sc *storagev1.StorageClass) string {
+		migratable := sc.Parameters["migratable"]
+		if migratable == "true" {
+			return "driver.longhorn.io/migratable"
+		}
+		return "driver.longhorn.io"
 	},
 }
 
