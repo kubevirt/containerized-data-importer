@@ -179,3 +179,56 @@ bazel run \
 bazel run \
     --config=aarch64 \
     //:bazeldnf -- prune
+
+# s390x #####
+# XXX: passing --nobest otherwise we fail to solve the dependencies
+bazel run \
+    --config=s390x \
+    //:bazeldnf -- rpmtree \
+    --public \
+    --name testimage_s390x --arch s390x \
+    --nobest \
+    --basesystem centos-stream-release \
+    ${bazeldnf_repos} \
+    $centos_base \
+    $centos_extra \
+    $testimage
+
+bazel run \
+    --config=s390x \
+    //:bazeldnf -- rpmtree \
+    --public --nobest \
+    --name centos_base_s390x --arch s390x \
+    --basesystem centos-stream-release \
+    ${bazeldnf_repos} \
+    $centos_base \
+    $centos_extra
+
+bazel run \
+    --config=s390x \
+    //:bazeldnf -- rpmtree \
+    --public --nobest \
+    --name cdi_importer_base_s390x --arch s390x \
+    --basesystem centos-stream-release \
+    ${bazeldnf_repos} \
+    $centos_base \
+    $centos_extra \
+    $cdi_importer
+
+bazel run \
+    --config=s390x \
+    //:bazeldnf -- rpmtree \
+    --public --nobest \
+    --name cdi_uploadserver_base_s390x  --arch s390x\
+    --basesystem centos-stream-release \
+    ${bazeldnf_repos} \
+    $centos_base \
+    $centos_extra \
+    $cdi_uploadserver
+
+# remove all RPMs which are no longer referenced by a rpmtree
+bazel run \
+    --config=s390x \
+    //:bazeldnf -- prune
+
+

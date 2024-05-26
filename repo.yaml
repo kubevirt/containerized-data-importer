@@ -30,3 +30,11 @@ repositories:
 - arch: aarch64
   baseurl: https://download.copr.fedorainfracloud.org/results/ovirt/ovirt-master-snapshot/centos-stream-9-aarch64/
   name: ovirt-master-snapshot-aarch64
+- arch: s390x
+  baseurl: http://mirror.stream.centos.org/9-stream/BaseOS/s390x/os/
+  name: centos/stream9-baseos-s390x
+  gpgkey: https://www.stream.centos.org/keys/RPM-GPG-KEY-CentOS-Official
+- arch: s390x
+  baseurl: http://mirror.stream.centos.org/9-stream/AppStream/s390x/os/
+  name: centos/stream9-appstream-s390x
+  gpgkey: https://www.stream.centos.org/keys/RPM-GPG-KEY-CentOS-Official
