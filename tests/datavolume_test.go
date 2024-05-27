@@ -2604,10 +2604,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			updateFunc(pv)
-			Eventually(func() bool {
+			Eventually(func() error {
+				// We shouldn't make the test fail if there's a conflict with the update request.
+				// These errors are usually transient and should be fixed in subsequent retries.
 				_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-				return err == nil
-			}, timeout, pollingInterval).Should(BeTrue())
+				return err
+			}, timeout, pollingInterval).Should(Succeed())
 		}
 
 		createPV := func(scName string) {

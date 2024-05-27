@@ -88,23 +88,24 @@ var _ = Describe("checkStaticVolume tests", func() {
 			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
-			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-			// We shouldn't make the test fail if there's a conflict with the update request.
-			// These errors are usually transient and should be fixed in subsequent retries.
-			if !errors.IsConflict(err) {
-				Expect(err).ToNot(HaveOccurred())
-			}
+
+			Eventually(func() error {
+				_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
+				// We shouldn't make the test fail if there's a conflict with the update request.
+				// These errors are usually transient and should be fixed in subsequent retries.
+				return err
+			}, timeout, pollingInterval).Should(Succeed())
 
 			By("Deleting source DV")
 			err = utils.DeleteDataVolume(f.CdiClient, dv.Namespace, dv.Name)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Making PV available")
-			Eventually(func() bool {
+			Eventually(func(g Gomega) bool {
 				pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				Expect(pv.Spec.ClaimRef.Namespace).To(Equal(dv.Namespace))
-				Expect(pv.Spec.ClaimRef.Name).To(Equal(dv.Name))
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(pv.Spec.ClaimRef.Namespace).To(Equal(dv.Namespace))
+				g.Expect(pv.Spec.ClaimRef.Name).To(Equal(dv.Name))
 				if pv.Status.Phase == corev1.VolumeAvailable {
 					return true
 				}
@@ -113,9 +114,7 @@ var _ = Describe("checkStaticVolume tests", func() {
 				_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
 				// We shouldn't make the test fail if there's a conflict with the update request.
 				// These errors are usually transient and should be fixed in subsequent retries.
-				if !errors.IsConflict(err) {
-					Expect(err).ToNot(HaveOccurred())
-				}
+				g.Expect(err).ToNot(HaveOccurred())
 				return false
 			}, timeout, pollingInterval).Should(BeTrue())
 		})

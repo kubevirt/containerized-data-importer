@@ -114,10 +114,12 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(err).ToNot(HaveOccurred())
 		delete(pvc.Annotations, controller.AnnUploadRequest)
 
-		Eventually(func() bool {
+		Eventually(func() error {
+			// We shouldn't make the test fail if there's a conflict with the update request.
+			// These errors are usually transient and should be fixed in subsequent retries.
 			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
-			return err == nil
-		}, timeout, pollingInterval).Should(BeTrue())
+			return err
+		}, timeout, pollingInterval).Should(Succeed())
 
 		Eventually(func() bool {
 			_, err = f.K8sClient.CoreV1().Pods(uploadPod.Namespace).Get(context.TODO(), uploadPod.Name, metav1.GetOptions{})
@@ -258,10 +260,12 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(err).ToNot(HaveOccurred())
 			pvc.Annotations[controller.AnnContentType] = XSSAttempt
 
-			Eventually(func() bool {
+			Eventually(func() error {
+				// We shouldn't make the test fail if there's a conflict with the update request.
+				// These errors are usually transient and should be fixed in subsequent retries.
 				pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
-				return err == nil
-			}, timeout, pollingInterval).Should(BeTrue())
+				return err
+			}, timeout, pollingInterval).Should(Succeed())
 
 			var token string
 			By("Get an upload token")

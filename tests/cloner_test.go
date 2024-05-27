@@ -381,10 +381,12 @@ var _ = Describe("all clone tests", func() {
 								sourcePV.SetLabels(make(map[string]string))
 							}
 							sourcePV.GetLabels()["source-pv"] = "yes"
-							Eventually(func() bool {
+							Eventually(func() error {
+								// We shouldn't make the test fail if there's a conflict with the update request.
+								// These errors are usually transient and should be fixed in subsequent retries.
 								sourcePV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), sourcePV, metav1.UpdateOptions{})
-								return err == nil
-							}, timeout, pollingInterval).Should(BeTrue())
+								return err
+							}, timeout, pollingInterval).Should(Succeed())
 						}
 					} else if targetPV == nil {
 						pvNode := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Values[0]
@@ -397,10 +399,12 @@ var _ = Describe("all clone tests", func() {
 							}
 							targetPV.GetLabels()["target-pv"] = "yes"
 
-							Eventually(func() bool {
+							Eventually(func() error {
+								// We shouldn't make the test fail if there's a conflict with the update request.
+								// These errors are usually transient and should be fixed in subsequent retries.
 								targetPV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), targetPV, metav1.UpdateOptions{})
-								return err == nil
-							}, timeout, pollingInterval).Should(BeTrue())
+								return err
+							}, timeout, pollingInterval).Should(Succeed())
 							break
 						}
 					}
@@ -1380,10 +1384,12 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				sourcePvc.Annotations[dvc.AnnSourceCapacity] = "400Mi"
 
-				Eventually(func() bool {
+				Eventually(func() error {
+					// We shouldn't make the test fail if there's a conflict with the update request.
+					// These errors are usually transient and should be fixed in subsequent retries.
 					_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourcePvc.Namespace).Update(context.TODO(), sourcePvc, metav1.UpdateOptions{})
-					return err == nil
-				}, timeout, pollingInterval).Should(BeTrue())
+					return err
+				}, timeout, pollingInterval).Should(Succeed())
 
 				// We attempt to create the second, sizeless clone
 				By("Create second clone")
@@ -3318,20 +3324,22 @@ func EnableGcAndAnnotateLegacyDv(f *framework.Framework, dvName, dvNamespace str
 	By("Add empty DeleteAfterCompletion annotation to DV for reconcile")
 	controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "")
 
-	Eventually(func() bool {
+	Eventually(func() error {
+		// We shouldn't make the test fail if there's a conflict with the update request.
+		// These errors are usually transient and should be fixed in subsequent retries.
 		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
-		return err == nil
-	}, timeout, pollingInterval).Should(BeTrue())
+		return err
+	}, timeout, pollingInterval).Should(Succeed())
 
 	VerifyNoGC(f, dvName, dvNamespace)
 
 	By("Add true DeleteAfterCompletion annotation to DV")
 	controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "true")
 
-	Eventually(func() bool {
+	Eventually(func() error {
 		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
-		return err == nil
-	}, timeout, pollingInterval).Should(BeTrue())
+		return err
+	}, timeout, pollingInterval).Should(Succeed())
 
 	VerifyGC(f, dvName, dvNamespace, false, nil)
 }
