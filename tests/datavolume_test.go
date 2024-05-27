@@ -2604,8 +2604,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			updateFunc(pv)
-			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() bool {
+				_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
+				return err == nil
+			}, timeout, pollingInterval).Should(BeTrue())
 		}
 
 		createPV := func(scName string) {

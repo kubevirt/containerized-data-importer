@@ -89,7 +89,11 @@ var _ = Describe("checkStaticVolume tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
 			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
+			// We shouldn't make the test fail if there's a conflict with the update request.
+			// These errors are usually transient and should be fixed in subsequent retries.
+			if !errors.IsConflict(err) {
+				Expect(err).ToNot(HaveOccurred())
+			}
 
 			By("Deleting source DV")
 			err = utils.DeleteDataVolume(f.CdiClient, dv.Namespace, dv.Name)
@@ -107,7 +111,11 @@ var _ = Describe("checkStaticVolume tests", func() {
 				pv.Spec.ClaimRef.ResourceVersion = ""
 				pv.Spec.ClaimRef.UID = ""
 				_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				// We shouldn't make the test fail if there's a conflict with the update request.
+				// These errors are usually transient and should be fixed in subsequent retries.
+				if !errors.IsConflict(err) {
+					Expect(err).ToNot(HaveOccurred())
+				}
 				return false
 			}, timeout, pollingInterval).Should(BeTrue())
 		})

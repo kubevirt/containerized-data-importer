@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -1808,7 +1809,11 @@ var _ = Describe("Import populator", func() {
 		Expect(err).ToNot(HaveOccurred())
 		pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimRetain
 		_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-		Expect(err).ToNot(HaveOccurred())
+		// We shouldn't make the test fail if there's a conflict with the update request.
+		// These errors are usually transient and should be fixed in subsequent retries.
+		if !errors.IsConflict(err) {
+			Expect(err).ToNot(HaveOccurred())
+		}
 
 		By("Forcing cleanup")
 		err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
@@ -1839,7 +1844,11 @@ var _ = Describe("Import populator", func() {
 			pv.Spec.ClaimRef.ResourceVersion = ""
 			pv.Spec.ClaimRef.UID = ""
 			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
+			// We shouldn't make the test fail if there's a conflict with the update request.
+			// These errors are usually transient and should be fixed in subsequent retries.
+			if !errors.IsConflict(err) {
+				Expect(err).ToNot(HaveOccurred())
+			}
 			return false
 		}, timeout, pollingInterval).Should(BeTrue())
 

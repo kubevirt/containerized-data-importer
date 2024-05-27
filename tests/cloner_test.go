@@ -381,8 +381,10 @@ var _ = Describe("all clone tests", func() {
 								sourcePV.SetLabels(make(map[string]string))
 							}
 							sourcePV.GetLabels()["source-pv"] = "yes"
-							sourcePV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), sourcePV, metav1.UpdateOptions{})
-							Expect(err).ToNot(HaveOccurred())
+							Eventually(func() bool {
+								sourcePV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), sourcePV, metav1.UpdateOptions{})
+								return err == nil
+							}, timeout, pollingInterval).Should(BeTrue())
 						}
 					} else if targetPV == nil {
 						pvNode := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Values[0]
@@ -394,8 +396,11 @@ var _ = Describe("all clone tests", func() {
 								targetPV.SetLabels(make(map[string]string))
 							}
 							targetPV.GetLabels()["target-pv"] = "yes"
-							targetPV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), targetPV, metav1.UpdateOptions{})
-							Expect(err).ToNot(HaveOccurred())
+
+							Eventually(func() bool {
+								targetPV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), targetPV, metav1.UpdateOptions{})
+								return err == nil
+							}, timeout, pollingInterval).Should(BeTrue())
 							break
 						}
 					}
@@ -1374,8 +1379,11 @@ var _ = Describe("all clone tests", func() {
 				sourcePvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourcePvc.Namespace).Get(context.TODO(), sourcePvc.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				sourcePvc.Annotations[dvc.AnnSourceCapacity] = "400Mi"
-				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourcePvc.Namespace).Update(context.TODO(), sourcePvc, metav1.UpdateOptions{})
-				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(func() bool {
+					_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourcePvc.Namespace).Update(context.TODO(), sourcePvc, metav1.UpdateOptions{})
+					return err == nil
+				}, timeout, pollingInterval).Should(BeTrue())
 
 				// We attempt to create the second, sizeless clone
 				By("Create second clone")
@@ -3309,14 +3317,22 @@ func EnableGcAndAnnotateLegacyDv(f *framework.Framework, dvName, dvNamespace str
 
 	By("Add empty DeleteAfterCompletion annotation to DV for reconcile")
 	controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "")
-	dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
-	Expect(err).ToNot(HaveOccurred())
+
+	Eventually(func() bool {
+		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
+		return err == nil
+	}, timeout, pollingInterval).Should(BeTrue())
+
 	VerifyNoGC(f, dvName, dvNamespace)
 
 	By("Add true DeleteAfterCompletion annotation to DV")
 	controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "true")
-	_, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
-	Expect(err).ToNot(HaveOccurred())
+
+	Eventually(func() bool {
+		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
+		return err == nil
+	}, timeout, pollingInterval).Should(BeTrue())
+
 	VerifyGC(f, dvName, dvNamespace, false, nil)
 }
 

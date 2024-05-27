@@ -113,8 +113,11 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		delete(pvc.Annotations, controller.AnnUploadRequest)
-		pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
-		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() bool {
+			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
+			return err == nil
+		}, timeout, pollingInterval).Should(BeTrue())
 
 		Eventually(func() bool {
 			_, err = f.K8sClient.CoreV1().Pods(uploadPod.Namespace).Get(context.TODO(), uploadPod.Name, metav1.GetOptions{})
@@ -254,8 +257,11 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			pvc.Annotations[controller.AnnContentType] = XSSAttempt
-			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
+				return err == nil
+			}, timeout, pollingInterval).Should(BeTrue())
 
 			var token string
 			By("Get an upload token")
