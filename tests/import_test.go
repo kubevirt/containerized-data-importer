@@ -95,15 +95,17 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		// Make sure the PVC name is unique, we have no guarantee on order and we are not
 		// deleting the PVC at the end of the test, so if another runs first we will fail.
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition("no-import-ann", "1G", nil, nil))
+		Expect(err).ToNot(HaveOccurred())
+
 		By("Verifying PVC with no annotation remains empty")
 		matchString := fmt.Sprintf("PVC annotation not found, skipping pvc\t{\"PVC\": {\"name\":\"%s\",\"namespace\":\"%s\"}, \"annotation\": \"%s\"}", pvc.Name, ns, controller.AnnEndpoint)
-		fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
-		Eventually(func() string {
-			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-			Expect(err).NotTo(HaveOccurred())
-			return log
+		Eventually(func() ([]byte, error) {
+			return f.K8sClient.CoreV1().
+				Pods(f.CdiInstallNs).
+				GetLogs(f.ControllerPod.Name, &v1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+				DoRaw(context.Background())
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
-		Expect(err).ToNot(HaveOccurred())
+
 		// Wait a while to see if CDI puts anything in the PVC.
 		isEmpty, err := framework.VerifyPVCIsEmpty(f, pvc, "")
 		Expect(err).ToNot(HaveOccurred())
@@ -644,18 +646,14 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		}, timeout, pollingInterval).Should(BeTrue())
 
 		By("Verify fsync() syscall was made")
-		Eventually(func() bool {
-			log, err := f.RunKubectlCommand("logs", importer.Name, "-n", importer.Namespace)
-			if err != nil {
-				return false
-			}
-			for _, line := range strings.Split(strings.TrimSuffix(log, "\n"), "\n") {
-				if strings.Contains(line, fmt.Sprintf("Successfully completed fsync(%s) syscall", common.WriteBlockPath)) {
-					return true
-				}
-			}
-			return false
-		}, 3*time.Minute, pollingInterval).Should(BeTrue())
+		matchString := fmt.Sprintf("Successfully completed fsync(%s) syscall", common.WriteBlockPath)
+		Eventually(func() (string, error) {
+			out, err := f.K8sClient.CoreV1().
+				Pods(importer.Namespace).
+				GetLogs(importer.Name, &v1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+				DoRaw(context.Background())
+			return string(out), err
+		}, 3*time.Minute, pollingInterval).Should(ContainSubstring(matchString))
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))

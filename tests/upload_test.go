@@ -321,24 +321,18 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
 
 			By("Verify size error in logs")
-			Eventually(func() bool {
-				log, _ := f.RunKubectlCommand("logs", uploadPod.Name, "-n", uploadPod.Namespace)
-				if strings.Contains(log, "is larger than the reported available") {
-					return true
-				}
-				if strings.Contains(log, "no space left on device") {
-					return true
-				}
-				if strings.Contains(log, "qemu-img execution failed") {
-					return true
-				}
-				if strings.Contains(log, "calculated new size is < than current size, not resizing") {
-					return true
-				}
-				By("Failed to find error messages about a too large image in log:")
-				By(log)
-				return false
-			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
+			Eventually(func() (string, error) {
+				out, err := f.K8sClient.CoreV1().
+					Pods(uploadPod.Namespace).
+					GetLogs(uploadPod.Name, &v1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+					DoRaw(context.Background())
+				return string(out), err
+			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(Or(
+				ContainSubstring("is larger than the reported available"),
+				ContainSubstring("no space left on device"),
+				ContainSubstring("qemu-img execution failed"),
+				ContainSubstring("calculated new size is < than current size, not resizing"),
+			))
 		},
 			Entry("fail given a large virtual size RAW XZ file", utils.UploadFileLargeVirtualDiskXz),
 			Entry("fail given a large virtual size QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
@@ -1184,11 +1178,13 @@ var _ = Describe("CDIConfig manipulation upload tests", Serial, func() {
 		pvc = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 
 		By("Verify Quota was exceeded in logs")
-		matchString := "pods \\\"cdi-upload-upload-test\\\" is forbidden: exceeded quota: test-quota, requested"
-		Eventually(func() string {
-			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-			Expect(err).NotTo(HaveOccurred())
-			return log
+		matchString := `pods \"cdi-upload-upload-test\" is forbidden: exceeded quota: test-quota, requested`
+		Eventually(func() (string, error) {
+			out, err := f.K8sClient.CoreV1().
+				Pods(f.CdiInstallNs).
+				GetLogs(f.ControllerPod.Name, &v1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+				DoRaw(context.Background())
+			return string(out), err
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 
 		By("Check the expected event")
@@ -1206,11 +1202,13 @@ var _ = Describe("CDIConfig manipulation upload tests", Serial, func() {
 		pvc = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 
 		By("Verify Quota was exceeded in logs")
-		matchString := "pods \\\"cdi-upload-upload-test\\\" is forbidden: exceeded quota: test-quota, requested"
-		Eventually(func() string {
-			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-			Expect(err).NotTo(HaveOccurred())
-			return log
+		matchString := `pods \"cdi-upload-upload-test\" is forbidden: exceeded quota: test-quota, requested`
+		Eventually(func() (string, error) {
+			out, err := f.K8sClient.CoreV1().
+				Pods(f.CdiInstallNs).
+				GetLogs(f.ControllerPod.Name, &v1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+				DoRaw(context.Background())
+			return string(out), err
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 
 		By("Check the expected event")
