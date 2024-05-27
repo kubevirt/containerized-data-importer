@@ -344,16 +344,19 @@ var _ = Describe("[Istio] Namespace sidecar injection", Serial, func() {
 		}, timeout, pollingInterval).Should(BeTrue())
 
 		By("Verify HTTP request error in importer log")
-		Eventually(func() bool {
-			log, _ := f.RunKubectlCommand("logs", importer.Name, "-n", importer.Namespace)
-			if strings.Contains(log, "HTTP request errored") {
-				return true
-			}
-			if strings.Contains(log, "502 Bad Gateway") {
-				return true
-			}
-			return false
-		}, time.Minute, pollingInterval).Should(BeTrue())
+		Eventually(func() (string, error) {
+			out, err := f.K8sClient.CoreV1().
+				Pods(importer.Namespace).
+				GetLogs(importer.Name, &v1.PodLogOptions{
+					SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime},
+					Container: "importer",
+				}).
+				DoRaw(context.Background())
+			return string(out), err
+		}, time.Minute, pollingInterval).Should(Or(
+			ContainSubstring("HTTP request errored"),
+			ContainSubstring("502 Bad Gateway"),
+		))
 	})
 
 	It("[test_id:6492] Should successfully import with namespace sidecar injection enabled and default sidecar.istio.io/inject", func() {
