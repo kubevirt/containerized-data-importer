@@ -3,5 +3,5 @@
 // +k8s:deepcopy-gen=package,register
 // +k8s:conversion-gen=github.com/konveyor/forklift-controller/pkg/apis
 // +k8s:defaulter-gen=TypeMeta
-// +groupName=forklift.konveyor.io
+// +groupName=forklift.cdi.konveyor.io
 package v1beta1

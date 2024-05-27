@@ -32,7 +32,7 @@ type ForkliftV1beta1Interface interface {
 	OvirtVolumePopulatorsGetter
 }
 
-// ForkliftV1beta1Client is used to interact with features provided by the forklift.konveyor.io group.
+// ForkliftV1beta1Client is used to interact with features provided by the forklift.cdi.konveyor.io group.
 type ForkliftV1beta1Client struct {
 	restClient rest.Interface
 }

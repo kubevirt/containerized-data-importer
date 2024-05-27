@@ -6868,9 +6868,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
   creationTimestamp: null
-  name: openstackvolumepopulators.forklift.konveyor.io
+  name: openstackvolumepopulators.forklift.cdi.konveyor.io
 spec:
-  group: forklift.konveyor.io
+  group: forklift.cdi.konveyor.io
   names:
     kind: OpenstackVolumePopulator
     listKind: OpenstackVolumePopulatorList
@@ -6948,9 +6948,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
   creationTimestamp: null
-  name: ovirtvolumepopulators.forklift.konveyor.io
+  name: ovirtvolumepopulators.forklift.cdi.konveyor.io
 spec:
-  group: forklift.konveyor.io
+  group: forklift.cdi.konveyor.io
   names:
     kind: OvirtVolumePopulator
     listKind: OvirtVolumePopulatorList
