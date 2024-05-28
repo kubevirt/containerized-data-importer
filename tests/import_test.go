@@ -402,6 +402,9 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", Se
 	})
 
 	AfterEach(func() {
+		if cr == nil {
+			return
+		}
 		cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -414,6 +417,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", Se
 			Expect(err).ToNot(HaveOccurred())
 			return reflect.DeepEqual(cr.Spec, *oldSpec)
 		}, 30*time.Second, time.Second).Should(BeTrue())
+		cr = nil
 	})
 
 	It("[test_id:4783] Should create import pod with node placement", func() {
@@ -1011,7 +1015,6 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	f := framework.NewFramework(namespacePrefix)
 
 	var (
-		// pvc            *v1.PersistentVolumeClaim
 		dataVolume     *cdiv1.DataVolume
 		err            error
 		tinyCoreIsoURL = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
@@ -1137,14 +1140,17 @@ var _ = Describe("Preallocation", func() {
 	})
 
 	AfterEach(func() {
-		By("Delete DV")
-		err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
+		if dataVolume != nil {
+			By("Delete DV")
+			err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
 
-		Eventually(func() bool {
-			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			return k8serrors.IsNotFound(err)
-		}, timeout, pollingInterval).Should(BeTrue())
+			Eventually(func() bool {
+				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				return k8serrors.IsNotFound(err)
+			}, timeout, pollingInterval).Should(BeTrue())
+			dataVolume = nil
+		}
 
 		By("Restoring CDIConfig to original state")
 		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
@@ -1619,9 +1625,12 @@ var _ = Describe("Import populator", func() {
 			Expect(err).ToNot(HaveOccurred())
 		}
 
-		By("Delete import population PVC")
-		err = f.DeletePVC(pvc)
-		Expect(err).ToNot(HaveOccurred())
+		if pvc != nil {
+			By("Delete import population PVC")
+			err = f.DeletePVC(pvc)
+			Expect(err).ToNot(HaveOccurred())
+			pvc = nil
+		}
 
 		tests.DisableWebhookPvcRendering(f.CrClient)
 	})
