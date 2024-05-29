@@ -1109,7 +1109,8 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 		return nil
 	}
 
-	// Example value: import_progress{ownerUID="b856691e-1038-11e9-a5ab-525500d15501"} 13.45
+	// Used for both import and clone, so it should match both metric names
+	// Example value: kubevirt_cdi_clone_progress_total{ownerUID="b856691e-1038-11e9-a5ab-525500d15501"} 13.45
 	var importRegExp = regexp.MustCompile("progress_total\\{ownerUID\\=\"" + string(dataVolumeCopy.UID) + "\"\\} (\\d{1,3}\\.?\\d*)")
 	if progressReport, err := cc.GetProgressReportFromURL(url, importRegExp, httpClient); err != nil {
 		return err

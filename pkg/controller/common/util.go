@@ -1847,6 +1847,7 @@ func BulkDeleteResources(ctx context.Context, c client.Client, obj client.Object
 	return nil
 }
 
+// FIXME: move to host-clone, as nobody else is using it
 // ProgressFromClaimArgs are the args for ProgressFromClaim
 type ProgressFromClaimArgs struct {
 	Client       client.Client
@@ -1890,7 +1891,7 @@ func ProgressFromClaim(ctx context.Context, args *ProgressFromClaimArgs) (string
 	}
 
 	// We fetch the import progress from the import pod metrics
-	importRegExp := regexp.MustCompile("progress\\{ownerUID\\=\"" + args.OwnerUID + "\"\\} (\\d{1,3}\\.?\\d*)")
+	importRegExp := regexp.MustCompile("kubevirt_cdi_clone_progress_total\\{ownerUID\\=\"" + args.OwnerUID + "\"\\} (\\d{1,3}\\.?\\d*)")
 	progressReport, err := GetProgressReportFromURL(url, importRegExp, args.HTTPClient)
 	if err != nil {
 		return "", err

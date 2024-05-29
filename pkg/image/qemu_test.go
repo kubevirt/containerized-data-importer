@@ -32,7 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 	"kubevirt.io/containerized-data-importer/pkg/system"
 )
 
@@ -291,31 +291,31 @@ var _ = Describe("Report Progress", func() {
 	})
 
 	AfterEach(func() {
-		metrics.DeleteCloneProgress(ownerUID)
+		metrics.DeleteImportProgress(ownerUID)
 	})
 
 	It("Parse valid progress line", func() {
 		By("Verifying the initial value is 0")
-		metrics.AddCloneProgress(ownerUID, 0)
-		progress, err := metrics.GetCloneProgress(ownerUID)
+		metrics.AddImportProgress(ownerUID, 0)
+		progress, err := metrics.GetImportProgress(ownerUID)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(progress).To(Equal(float64(0)))
 		By("Calling reportProgress with value")
 		reportProgress("(45.34/100%)")
-		progress, err = metrics.GetCloneProgress(ownerUID)
+		progress, err = metrics.GetImportProgress(ownerUID)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(progress).To(Equal(45.34))
 	})
 
 	It("Parse invalid progress line", func() {
 		By("Verifying the initial value is 0")
-		metrics.AddCloneProgress(ownerUID, 0)
-		progress, err := metrics.GetCloneProgress(ownerUID)
+		metrics.AddImportProgress(ownerUID, 0)
+		progress, err := metrics.GetImportProgress(ownerUID)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(progress).To(Equal(float64(0)))
 		By("Calling reportProgress with invalid value")
 		reportProgress("45.34")
-		progress, err = metrics.GetCloneProgress(ownerUID)
+		progress, err = metrics.GetImportProgress(ownerUID)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(progress).To(Equal(float64(0)))
 	})

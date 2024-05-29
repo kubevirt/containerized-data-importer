@@ -49,7 +49,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
-	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -1037,9 +1037,9 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 			previousProgressPercent = currentProgressPercent
 		}
 		v := float64(currentProgressPercent)
-		progress, err := metrics.GetCloneProgress(ownerUID)
+		progress, err := metrics.GetImportProgress(ownerUID)
 		if err == nil && v > 0 && v > progress {
-			metrics.AddCloneProgress(ownerUID, v-progress)
+			metrics.AddImportProgress(ownerUID, v-progress)
 		}
 	}
 

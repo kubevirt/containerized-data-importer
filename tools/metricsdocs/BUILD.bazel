@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//pkg/monitoring/metrics/cdi-cloner:go_default_library",
         "//pkg/monitoring/metrics/cdi-controller:go_default_library",
+        "//pkg/monitoring/metrics/cdi-importer:go_default_library",
         "//pkg/monitoring/metrics/openstack-populator:go_default_library",
         "//pkg/monitoring/metrics/operator-controller:go_default_library",
         "//pkg/monitoring/metrics/ovirt-populator:go_default_library",

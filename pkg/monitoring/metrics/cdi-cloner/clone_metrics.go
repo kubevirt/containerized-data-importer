@@ -33,6 +33,7 @@ func GetCloneProgress(labelValue string) (float64, error) {
 	return dto.Counter.GetValue(), nil
 }
 
+// DeleteCloneProgress removes the cloneProgress metric with the passed label
 func DeleteCloneProgress(labelValue string) {
 	cloneProgress.DeleteLabelValues(labelValue)
 }
