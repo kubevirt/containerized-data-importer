@@ -6,4 +6,5 @@ go_library(
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/directory/explicitfilepath",
     importpath = "github.com/containers/image/v5/directory/explicitfilepath",
     visibility = ["//visibility:public"],
+    deps = ["//vendor/github.com/containers/storage/pkg/fileutils:go_default_library"],
 )

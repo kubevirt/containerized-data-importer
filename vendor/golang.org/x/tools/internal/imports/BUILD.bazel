@@ -8,7 +8,6 @@ go_library(
         "mod.go",
         "mod_cache.go",
         "sortimports.go",
-        "zstdlib.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/golang.org/x/tools/internal/imports",
     importpath = "golang.org/x/tools/internal/imports",
@@ -19,5 +18,6 @@ go_library(
         "//vendor/golang.org/x/tools/internal/event:go_default_library",
         "//vendor/golang.org/x/tools/internal/gocommand:go_default_library",
         "//vendor/golang.org/x/tools/internal/gopathwalk:go_default_library",
+        "//vendor/golang.org/x/tools/internal/stdlib:go_default_library",
     ],
 )

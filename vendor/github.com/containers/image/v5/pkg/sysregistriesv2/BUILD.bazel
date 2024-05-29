@@ -14,8 +14,10 @@ go_library(
     deps = [
         "//vendor/github.com/BurntSushi/toml:go_default_library",
         "//vendor/github.com/containers/image/v5/docker/reference:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/multierr:go_default_library",
         "//vendor/github.com/containers/image/v5/internal/rootless:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",
+        "//vendor/github.com/containers/storage/pkg/fileutils:go_default_library",
         "//vendor/github.com/containers/storage/pkg/homedir:go_default_library",
         "//vendor/github.com/containers/storage/pkg/lockfile:go_default_library",
         "//vendor/github.com/containers/storage/pkg/regexp:go_default_library",
