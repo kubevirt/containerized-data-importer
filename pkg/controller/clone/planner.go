@@ -821,7 +821,7 @@ func createTempSourceClaim(ctx context.Context, log logr.Logger, namespace strin
 				corev1.ReadWriteOnce,
 			},
 			VolumeMode: volumeMode,
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: *restoreSize,
 				},

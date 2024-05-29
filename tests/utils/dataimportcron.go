@@ -22,7 +22,7 @@ func NewDataImportCron(name, size, schedule, dataSource string, importsToKeep in
 					},
 					PVC: &corev1.PersistentVolumeClaimSpec{
 						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-						Resources: corev1.ResourceRequirements{
+						Resources: corev1.VolumeResourceRequirements{
 							Requests: corev1.ResourceList{
 								corev1.ResourceStorage: resource.MustParse(size),
 							},
@@ -50,7 +50,7 @@ func NewDataImportCronWithStorageSpec(name, size, schedule, dataSource string, i
 						Registry: &source,
 					},
 					Storage: &cdiv1.StorageSpec{
-						Resources: corev1.ResourceRequirements{
+						Resources: corev1.VolumeResourceRequirements{
 							Requests: corev1.ResourceList{
 								corev1.ResourceStorage: resource.MustParse(size),
 							},

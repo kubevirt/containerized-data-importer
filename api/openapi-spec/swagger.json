@@ -2846,11 +2846,9 @@
     ],
     "properties": {
      "lastHeartbeatTime": {
-      "default": {},
       "$ref": "#/definitions/v1.Time"
      },
      "lastTransitionTime": {
-      "default": {},
       "$ref": "#/definitions/v1.Time"
      },
      "message": {
@@ -3164,7 +3162,6 @@
      },
      "creationTimestamp": {
       "description": "CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC.\n\nPopulated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
-      "default": {},
       "$ref": "#/definitions/v1.Time"
      },
      "deletionGracePeriodSeconds": {
@@ -3310,7 +3307,7 @@
      "resources": {
       "description": "resources represents the minimum resources the volume should have. If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements that are lower than previous value but must still be higher than capacity recorded in the status field of the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources",
       "default": {},
-      "$ref": "#/definitions/v1.ResourceRequirements"
+      "$ref": "#/definitions/v1.VolumeResourceRequirements"
      },
      "selector": {
       "description": "selector is a label query over volumes to consider for binding.",
@@ -3318,6 +3315,10 @@
      },
      "storageClassName": {
       "description": "storageClassName is the name of the StorageClass required by the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1",
+      "type": "string"
+     },
+     "volumeAttributesClassName": {
+      "description": "volumeAttributesClassName may be used to set the VolumeAttributesClass used by this claim. If specified, the CSI driver will create or update the volume with the attributes defined in the corresponding VolumeAttributesClass. This has a different purpose than storageClassName, it can be changed after the claim is created. An empty string value means that no VolumeAttributesClass will be applied to the claim but it's not allowed to reset this field to empty string once it is set. If unspecified and the PersistentVolumeClaim is unbound, the default VolumeAttributesClass will be set by the persistentvolume controller if it exists. If the resource referred to by volumeAttributesClass does not exist, this PersistentVolumeClaim will be set to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource exists. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#volumeattributesclass (Alpha) Using this field requires the VolumeAttributesClass feature gate to be enabled.",
       "type": "string"
      },
      "volumeMode": {
@@ -3365,8 +3366,26 @@
     ],
     "properties": {
      "labelSelector": {
-      "description": "A label query over a set of resources, in this case pods.",
+      "description": "A label query over a set of resources, in this case pods. If it's null, this PodAffinityTerm matches with no Pods.",
       "$ref": "#/definitions/v1.LabelSelector"
+     },
+     "matchLabelKeys": {
+      "description": "MatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `LabelSelector` as `key in (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both MatchLabelKeys and LabelSelector. Also, MatchLabelKeys cannot be set when LabelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.",
+      "type": "array",
+      "items": {
+       "type": "string",
+       "default": ""
+      },
+      "x-kubernetes-list-type": "atomic"
+     },
+     "mismatchLabelKeys": {
+      "description": "MismatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `LabelSelector` as `key notin (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both MismatchLabelKeys and LabelSelector. Also, MismatchLabelKeys cannot be set when LabelSelector isn't set. This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.",
+      "type": "array",
+      "items": {
+       "type": "string",
+       "default": ""
+      },
+      "x-kubernetes-list-type": "atomic"
      },
      "namespaceSelector": {
       "description": "A label query over the set of namespaces that the term applies to. The term is applied to the union of the namespaces selected by this field and the ones listed in the namespaces field. null selector and null or empty namespaces list means \"this pod's namespace\". An empty selector ({}) matches all namespaces.",
@@ -3478,7 +3497,6 @@
       "description": "Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
       "type": "object",
       "additionalProperties": {
-       "default": {},
        "$ref": "#/definitions/resource.Quantity"
       }
      },
@@ -3486,7 +3504,6 @@
       "description": "Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. Requests cannot exceed Limits. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
       "type": "object",
       "additionalProperties": {
-       "default": {},
        "$ref": "#/definitions/resource.Quantity"
       }
      }
@@ -3715,6 +3732,26 @@
      }
     }
    },
+   "v1.VolumeResourceRequirements": {
+    "description": "VolumeResourceRequirements describes the storage resource requirements for a volume.",
+    "type": "object",
+    "properties": {
+     "limits": {
+      "description": "Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+      "type": "object",
+      "additionalProperties": {
+       "$ref": "#/definitions/resource.Quantity"
+      }
+     },
+     "requests": {
+      "description": "Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. Requests cannot exceed Limits. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+      "type": "object",
+      "additionalProperties": {
+       "$ref": "#/definitions/resource.Quantity"
+      }
+     }
+    }
+   },
    "v1.WatchEvent": {
     "description": "Event represents a single event to a watched resource.",
     "type": "object",
@@ -3725,7 +3762,6 @@
     "properties": {
      "object": {
       "description": "Object is:\n * If Type is Added or Modified: the new state of the object.\n * If Type is Deleted: the state of the object immediately before deletion.\n * If Type is Error: *Status is recommended; other types may make sense\n   depending on context.",
-      "default": {},
       "$ref": "#/definitions/runtime.RawExtension"
      },
      "type": {
@@ -4233,11 +4269,9 @@
     ],
     "properties": {
      "lastHeartbeatTime": {
-      "default": {},
       "$ref": "#/definitions/v1.Time"
      },
      "lastTransitionTime": {
-      "default": {},
       "$ref": "#/definitions/v1.Time"
      },
      "message": {
@@ -4400,11 +4434,9 @@
     ],
     "properties": {
      "lastHeartbeatTime": {
-      "default": {},
       "$ref": "#/definitions/v1.Time"
      },
      "lastTransitionTime": {
-      "default": {},
       "$ref": "#/definitions/v1.Time"
      },
      "message": {
@@ -4559,11 +4591,9 @@
     ],
     "properties": {
      "lastHeartbeatTime": {
-      "default": {},
       "$ref": "#/definitions/v1.Time"
      },
      "lastTransitionTime": {
-      "default": {},
       "$ref": "#/definitions/v1.Time"
      },
      "message": {
@@ -5075,7 +5105,7 @@
      "resources": {
       "description": "Resources represents the minimum resources the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources",
       "default": {},
-      "$ref": "#/definitions/v1.ResourceRequirements"
+      "$ref": "#/definitions/v1.VolumeResourceRequirements"
      },
      "selector": {
       "description": "A label query over volumes to consider for binding.",

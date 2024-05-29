@@ -86,7 +86,7 @@ var _ = Describe("PrepClaimPhase test", func() {
 				Name:      "desired",
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: defaultRequestSize,
 					},
@@ -144,7 +144,7 @@ var _ = Describe("PrepClaimPhase test", func() {
 					Name:      desiredName,
 				},
 				Spec: corev1.PersistentVolumeClaimSpec{
-					Resources: corev1.ResourceRequirements{
+					Resources: corev1.VolumeResourceRequirements{
 						Requests: corev1.ResourceList{},
 					},
 				},

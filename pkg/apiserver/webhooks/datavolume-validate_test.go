@@ -324,7 +324,7 @@ var _ = Describe("Validating Webhook", func() {
 				HTTP: &cdiv1.DataVolumeSourceHTTP{URL: "http://www.example.com"},
 			}
 			storage := &cdiv1.StorageSpec{
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("500Mi"),
 					},
@@ -555,10 +555,10 @@ var _ = Describe("Validating Webhook", func() {
 			Entry("should reject clones with both Storage and PVC spec", &cdiv1.StorageSpec{}, &corev1.PersistentVolumeClaimSpec{}, false),
 			Entry("should accept empty Storage spec when cloning PVC", &cdiv1.StorageSpec{}, nil, true),
 			Entry("should accept blank Resources when cloning using Storage API", &cdiv1.StorageSpec{
-				Resources: corev1.ResourceRequirements{},
+				Resources: corev1.VolumeResourceRequirements{},
 			}, nil, true),
 			Entry("should accept empty Requests when cloning using Storage API", &cdiv1.StorageSpec{
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: make(map[corev1.ResourceName]resource.Quantity),
 				},
 			}, nil, true),
@@ -566,7 +566,7 @@ var _ = Describe("Validating Webhook", func() {
 				AccessModes: []corev1.PersistentVolumeAccessMode{
 					corev1.ReadWriteOnce,
 				},
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: make(map[corev1.ResourceName]resource.Quantity),
 				},
 			}, false),
@@ -578,7 +578,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 			requests := make(map[corev1.ResourceName]resource.Quantity)
 			storage := &cdiv1.StorageSpec{
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: requests,
 				},
 			}
@@ -632,7 +632,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 			storage := &cdiv1.StorageSpec{
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("500Mi"),
 					},
@@ -1203,7 +1203,7 @@ func newPVCSpec(sizeValue int64) *corev1.PersistentVolumeClaimSpec {
 		AccessModes: []corev1.PersistentVolumeAccessMode{
 			corev1.ReadWriteOnce,
 		},
-		Resources: corev1.ResourceRequirements{
+		Resources: corev1.VolumeResourceRequirements{
 			Requests: requests,
 		},
 	}

@@ -4,7 +4,6 @@ go_library(
     name = "go_default_library",
     srcs = [
         "array.go",
-        "array_go118.go",
         "config.go",
         "doc.go",
         "encoder.go",
@@ -17,7 +16,6 @@ go_library(
         "logger.go",
         "options.go",
         "sink.go",
-        "stacktrace.go",
         "sugar.go",
         "time.go",
         "writer.go",
@@ -27,10 +25,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//vendor/go.uber.org/multierr:go_default_library",
-        "//vendor/go.uber.org/zap/buffer:go_default_library",
         "//vendor/go.uber.org/zap/internal:go_default_library",
         "//vendor/go.uber.org/zap/internal/bufferpool:go_default_library",
         "//vendor/go.uber.org/zap/internal/pool:go_default_library",
+        "//vendor/go.uber.org/zap/internal/stacktrace:go_default_library",
         "//vendor/go.uber.org/zap/zapcore:go_default_library",
     ],
 )

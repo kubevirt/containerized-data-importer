@@ -510,8 +510,6 @@ func pvcTransferRunning() *cdiv1.ObjectTransfer {
 func pvcTransferRunningWithBoundPVC() *cdiv1.ObjectTransfer {
 	t := pvcTransfer(cdiv1.ObjectTransferRunning)
 	pvc := createBoundPVC()
-	pvc.Kind = "PersistentVolumeClaim"
-	pvc.APIVersion = "v1"
 	pvc.ResourceVersion = "1000"
 	pvc.Annotations = map[string]string{
 		"cdi.kubevirt.io/objectTransferName": "pvcTransfer",

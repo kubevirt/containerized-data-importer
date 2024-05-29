@@ -393,7 +393,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 			// spec with accessMode/VolumeMode so storageprofile is not needed
 			importDataVolume.Spec.Storage = createStorageSpec()
-			importDataVolume.Spec.Storage.Resources = corev1.ResourceRequirements{}
+			importDataVolume.Spec.Storage.Resources = corev1.VolumeResourceRequirements{}
 			defaultStorageClass := CreateStorageClass("defaultSc", map[string]string{AnnDefaultStorageClass: "true"})
 			reconciler = createImportReconciler(defaultStorageClass, importDataVolume)
 
@@ -407,7 +407,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 			// spec with accessMode/VolumeMode so storageprofile is not needed
 			importDataVolume.Spec.Storage = createStorageSpec()
-			importDataVolume.Spec.Storage.Resources = corev1.ResourceRequirements{}
+			importDataVolume.Spec.Storage.Resources = corev1.VolumeResourceRequirements{}
 			importDataVolume.Spec.Storage.StorageClassName = &storageClassName
 			defaultStorageClass := CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"})
 			reconciler = createImportReconciler(defaultStorageClass, importDataVolume)
@@ -424,7 +424,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume.Spec.ContentType = contentType
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 				StorageClassName: &scName,
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},
@@ -467,7 +467,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 				StorageClassName: &scName,
 				VolumeMode:       &BlockMode,
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},
@@ -496,7 +496,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 				StorageClassName: &scName,
 				VolumeMode:       &FilesystemMode,
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},
@@ -529,7 +529,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 				StorageClassName: &scName,
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},
@@ -568,7 +568,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 				StorageClassName: &scName,
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},
@@ -601,7 +601,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 				StorageClassName: &scName,
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},
@@ -638,7 +638,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			scName := "testStorageClass"
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},
@@ -1956,7 +1956,7 @@ func createStorageSpec() *cdiv1.StorageSpec {
 	return &cdiv1.StorageSpec{
 		AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		VolumeMode:  &BlockMode,
-		Resources: corev1.ResourceRequirements{
+		Resources: corev1.VolumeResourceRequirements{
 			Requests: corev1.ResourceList{
 				corev1.ResourceStorage: resource.MustParse("1G"),
 			},

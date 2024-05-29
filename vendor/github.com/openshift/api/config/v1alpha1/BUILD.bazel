@@ -6,6 +6,8 @@ go_library(
         "doc.go",
         "register.go",
         "types_backup.go",
+        "types_cluster_image_policy.go",
+        "types_image_policy.go",
         "types_insights.go",
         "zz_generated.deepcopy.go",
         "zz_generated.swagger_doc_generated.go",

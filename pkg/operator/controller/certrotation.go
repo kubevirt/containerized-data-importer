@@ -238,7 +238,7 @@ func (cm *certManager) ensureSigner(cd cdicerts.CertificateDefinition) (*crypto.
 		EventRecorder: cm.eventRecorder,
 	}
 
-	ca, err := sr.EnsureSigningCertKeyPair(context.TODO())
+	ca, _, err := sr.EnsureSigningCertKeyPair(context.TODO())
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +319,7 @@ func (cm *certManager) ensureTarget(cd cdicerts.CertificateDefinition, ca *crypt
 		EventRecorder: cm.eventRecorder,
 	}
 
-	if err := tr.EnsureTargetCertKeyPair(context.TODO(), ca, bundle); err != nil {
+	if _, err := tr.EnsureTargetCertKeyPair(context.TODO(), ca, bundle); err != nil {
 		return err
 	}
 

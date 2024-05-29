@@ -2094,7 +2094,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			spec := cdiv1.StorageSpec{
 				AccessModes: nil,
 				VolumeMode:  nil,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2123,7 +2123,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			spec := cdiv1.StorageSpec{
 				AccessModes: expectedMode,
 				VolumeMode:  nil,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2152,7 +2152,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			spec := cdiv1.StorageSpec{
 				AccessModes: nil,
 				VolumeMode:  &expectedVolumeMode,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2193,7 +2193,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				AccessModes:      nil,
 				VolumeMode:       nil,
 				StorageClassName: &storageProfileName,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2233,7 +2233,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
 			requestedSize := resource.MustParse("100Mi")
 			spec := cdiv1.StorageSpec{
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2282,7 +2282,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				AccessModes:      nil,
 				VolumeMode:       nil,
 				StorageClassName: &storageProfileName,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2339,7 +2339,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 					VolumeMode:       &volumeMode,
 					StorageClassName: &defaultScName,
-					Resources: v1.ResourceRequirements{
+					Resources: v1.VolumeResourceRequirements{
 						Requests: v1.ResourceList{
 							v1.ResourceStorage: requestedSize,
 						},
@@ -2370,7 +2370,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				cdiv1.StorageSpec{
 					AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 					StorageClassName: &defaultScName,
-					Resources: v1.ResourceRequirements{
+					Resources: v1.VolumeResourceRequirements{
 						Requests: v1.ResourceList{
 							v1.ResourceStorage: requestedSize,
 						},
@@ -2397,7 +2397,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 					VolumeMode:       &volumeMode,
 					StorageClassName: &defaultScName,
-					Resources: v1.ResourceRequirements{
+					Resources: v1.VolumeResourceRequirements{
 						Requests: v1.ResourceList{
 							v1.ResourceStorage: requestedSize,
 						},
@@ -2425,7 +2425,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume := createDataVolumeForUpload(f, cdiv1.StorageSpec{
 				AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 				VolumeMode:  &volumeMode,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2453,7 +2453,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 				VolumeMode:       &volumeMode,
 				StorageClassName: &defaultScName,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2483,7 +2483,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume := createDataVolumeForUpload(f, cdiv1.StorageSpec{
 				AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 				StorageClassName: &defaultScName,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2512,7 +2512,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				cdiv1.StorageSpec{
 					AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 					VolumeMode:  &volumeMode,
-					Resources: v1.ResourceRequirements{
+					Resources: v1.VolumeResourceRequirements{
 						Requests: v1.ResourceList{
 							v1.ResourceStorage: requestedSize,
 						},
@@ -2547,7 +2547,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				cdiv1.StorageSpec{
 					AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 					StorageClassName: &defaultScName,
-					Resources: v1.ResourceRequirements{
+					Resources: v1.VolumeResourceRequirements{
 						Requests: v1.ResourceList{
 							v1.ResourceStorage: requestedSize,
 						},
@@ -2574,7 +2574,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 					VolumeMode:       &volumeMode,
 					StorageClassName: &defaultScName,
-					Resources: v1.ResourceRequirements{
+					Resources: v1.VolumeResourceRequirements{
 						Requests: v1.ResourceList{
 							v1.ResourceStorage: requestedSize,
 						},

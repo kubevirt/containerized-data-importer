@@ -441,7 +441,7 @@ func validateStorageClassName(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) 
 
 func validateStorageSize(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) (*metav1.StatusCause, bool) {
 	var name string
-	var resources v1.ResourceRequirements
+	var resources v1.VolumeResourceRequirements
 
 	if spec.PVC != nil {
 		resources = spec.PVC.Resources

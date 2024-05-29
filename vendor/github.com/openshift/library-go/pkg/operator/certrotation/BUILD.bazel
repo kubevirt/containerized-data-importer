@@ -8,6 +8,7 @@ go_library(
         "client_cert_rotation_controller.go",
         "config.go",
         "label.go",
+        "metadata.go",
         "signer.go",
         "target.go",
     ],

@@ -4,9 +4,11 @@ go_library(
     name = "go_default_library",
     srcs = [
         "backup.go",
+        "clusterimagepolicy.go",
         "config_client.go",
         "doc.go",
         "generated_expansion.go",
+        "imagepolicy.go",
         "insightsdatagather.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/openshift/client-go/config/clientset/versioned/typed/config/v1alpha1",
