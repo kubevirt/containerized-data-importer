@@ -3119,11 +3119,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			// here we want to have more than 0, to be sure it started
-			Eventually(func() string {
+			Eventually(func(g Gomega) string {
 				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).ToNot(HaveOccurred())
+				fmt.Fprintf(GinkgoWriter, "INFO: progress: %s\n", dv.Status.Progress)
 				return string(dv.Status.Progress)
-			}, timeout, pollingInterval).Should(Equal("N/A"))
+			}, timeout, pollingInterval).Should(MatchRegexp(`^([1-9]{1,2})(\.\d+)?%$`), "DataVolume is not reporting import progress")
 
 			By("Remove source image file & kill http container to force restart")
 			fileHostPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, utils.FileHostName, "name="+utils.FileHostName)
