@@ -16,8 +16,8 @@ require (
 	github.com/go-logr/logr v1.4.1
 	github.com/golang/snappy v0.0.4
 	github.com/google/uuid v1.6.0
-	github.com/gophercloud/gophercloud v1.7.0
-	github.com/gophercloud/utils v0.0.0-20231010081019-80377eca5d56
+	github.com/gophercloud/gophercloud/v2 v2.0.0-rc.1
+	github.com/gophercloud/utils/v2 v2.0.0-20240529145014-bdd9ea767dd2
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/klauspost/compress v1.17.8
 	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1
@@ -93,6 +93,7 @@ require (
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
+	github.com/gofrs/uuid/v5 v5.2.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
@@ -105,7 +106,6 @@ require (
 	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/grafana/regexp v0.0.0-20221122212121-6b5c0a4cb7fd // indirect
-	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect

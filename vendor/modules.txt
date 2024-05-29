@@ -237,6 +237,9 @@ github.com/go-openapi/swag
 # github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572
 ## explicit; go 1.13
 github.com/go-task/slim-sprig
+# github.com/gofrs/uuid/v5 v5.2.0
+## explicit; go 1.19
+github.com/gofrs/uuid/v5
 # github.com/gogo/protobuf v1.3.2
 ## explicit; go 1.15
 github.com/gogo/protobuf/proto
@@ -312,33 +315,30 @@ github.com/googleapis/gax-go/v2/apierror
 github.com/googleapis/gax-go/v2/apierror/internal/proto
 github.com/googleapis/gax-go/v2/callctx
 github.com/googleapis/gax-go/v2/internal
-# github.com/gophercloud/gophercloud v1.7.0
-## explicit; go 1.14
-github.com/gophercloud/gophercloud
-github.com/gophercloud/gophercloud/openstack
-github.com/gophercloud/gophercloud/openstack/identity/v2/tenants
-github.com/gophercloud/gophercloud/openstack/identity/v2/tokens
-github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/ec2tokens
-github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/oauth1
-github.com/gophercloud/gophercloud/openstack/identity/v3/tokens
-github.com/gophercloud/gophercloud/openstack/imageservice/v2/imagedata
-github.com/gophercloud/gophercloud/openstack/utils
-github.com/gophercloud/gophercloud/pagination
-# github.com/gophercloud/utils v0.0.0-20231010081019-80377eca5d56
-## explicit; go 1.15
-github.com/gophercloud/utils/env
-github.com/gophercloud/utils/gnocchi
-github.com/gophercloud/utils/internal
-github.com/gophercloud/utils/openstack/clientconfig
+# github.com/gophercloud/gophercloud/v2 v2.0.0-rc.1
+## explicit; go 1.22
+github.com/gophercloud/gophercloud/v2
+github.com/gophercloud/gophercloud/v2/openstack
+github.com/gophercloud/gophercloud/v2/openstack/identity/v2/tenants
+github.com/gophercloud/gophercloud/v2/openstack/identity/v2/tokens
+github.com/gophercloud/gophercloud/v2/openstack/identity/v3/ec2tokens
+github.com/gophercloud/gophercloud/v2/openstack/identity/v3/oauth1
+github.com/gophercloud/gophercloud/v2/openstack/identity/v3/tokens
+github.com/gophercloud/gophercloud/v2/openstack/image/v2/imagedata
+github.com/gophercloud/gophercloud/v2/openstack/utils
+github.com/gophercloud/gophercloud/v2/pagination
+# github.com/gophercloud/utils/v2 v2.0.0-20240529145014-bdd9ea767dd2
+## explicit; go 1.22
+github.com/gophercloud/utils/v2/env
+github.com/gophercloud/utils/v2/gnocchi
+github.com/gophercloud/utils/v2/internal
+github.com/gophercloud/utils/v2/openstack/clientconfig
 # github.com/gorilla/mux v1.8.1
 ## explicit; go 1.20
 github.com/gorilla/mux
 # github.com/grafana/regexp v0.0.0-20221122212121-6b5c0a4cb7fd
 ## explicit; go 1.17
 github.com/grafana/regexp
-# github.com/hashicorp/go-uuid v1.0.3
-## explicit
-github.com/hashicorp/go-uuid
 # github.com/imdario/mergo v0.3.16
 ## explicit; go 1.13
 github.com/imdario/mergo
