@@ -13,25 +13,31 @@ import (
 	"k8s.io/client-go/util/cert"
 	"k8s.io/klog/v2"
 
-	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 // ProgressReader is a counting reader that reports progress to prometheus.
 type ProgressReader struct {
 	util.CountingReader
+	metric   ProgressMetric
 	total    uint64
 	ownerUID string
 	final    bool
 }
 
+type ProgressMetric interface {
+	Add(labelValue string, value float64)
+	Get(labelValue string) (float64, error)
+}
+
 // NewProgressReader creates a new instance of a prometheus updating progress reader.
-func NewProgressReader(r io.ReadCloser, total uint64, ownerUID string) *ProgressReader {
+func NewProgressReader(r io.ReadCloser, metric ProgressMetric, total uint64, ownerUID string) *ProgressReader {
 	promReader := &ProgressReader{
 		CountingReader: util.CountingReader{
 			Reader:  r,
 			Current: 0,
 		},
+		metric:   metric,
 		total:    total,
 		ownerUID: ownerUID,
 		final:    true,
@@ -62,13 +68,13 @@ func (r *ProgressReader) updateProgress() bool {
 		if !finished && r.Current < r.total {
 			currentProgress = float64(r.Current) / float64(r.total) * 100.0
 		}
-		progress, err := metrics.GetCloneProgress(r.ownerUID)
+		progress, err := r.metric.Get(r.ownerUID)
 		if err != nil {
 			klog.Errorf("updateProgress: failed to read metric; %v", err)
 			return true // true ==> to try again // todo - how to avoid endless loop in case it's a constant error?
 		}
 		if currentProgress > progress {
-			metrics.AddCloneProgress(r.ownerUID, currentProgress-progress)
+			r.metric.Add(r.ownerUID, currentProgress-progress)
 		}
 		klog.V(1).Infoln(fmt.Sprintf("%.2f", currentProgress))
 		return !finished

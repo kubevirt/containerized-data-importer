@@ -85,7 +85,7 @@ func NewFormatReaders(stream io.ReadCloser, total uint64) (*FormatReaders, error
 		buf: make([]byte, image.MaxExpectedHdrSize),
 	}
 	if total > uint64(0) {
-		readers.progressReader = prometheusutil.NewProgressReader(stream, total, ownerUID)
+		readers.progressReader = prometheusutil.NewProgressReader(stream, metrics.GetImportProgressMetric(), total, ownerUID)
 		err = readers.constructReaders(readers.progressReader)
 	} else {
 		err = readers.constructReaders(stream)

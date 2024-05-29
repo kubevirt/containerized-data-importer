@@ -20,7 +20,7 @@ var _ = Describe("Timed update", func() {
 
 	It("Should start and stop when finished", func() {
 		r := io.NopCloser(bytes.NewReader([]byte("hello world")))
-		progressReader := NewProgressReader(r, uint64(11), ownerUID)
+		progressReader := NewProgressReader(r, metrics.GetCloneProgressMetric(), uint64(11), ownerUID)
 		progressReader.StartTimedUpdate()
 		_, err := io.ReadAll(r)
 		Expect(err).ToNot(HaveOccurred())
@@ -48,6 +48,7 @@ var _ = Describe("Update Progress", func() {
 			CountingReader: util.CountingReader{
 				Current: uint64(45),
 			},
+			metric:   metrics.GetCloneProgressMetric(),
 			total:    uint64(100),
 			ownerUID: ownerUID,
 			final:    true,
@@ -65,6 +66,7 @@ var _ = Describe("Update Progress", func() {
 			CountingReader: util.CountingReader{
 				Current: uint64(45),
 			},
+			metric:   metrics.GetCloneProgressMetric(),
 			total:    uint64(0),
 			ownerUID: ownerUID,
 			final:    true,
@@ -83,6 +85,7 @@ var _ = Describe("Update Progress", func() {
 				Current: uint64(1000),
 				Done:    true,
 			},
+			metric:   metrics.GetCloneProgressMetric(),
 			total:    uint64(1000),
 			ownerUID: ownerUID,
 			final:    true,
@@ -100,6 +103,7 @@ var _ = Describe("Update Progress", func() {
 				Current: uint64(1000),
 				Done:    readerDone,
 			},
+			metric:   metrics.GetCloneProgressMetric(),
 			total:    uint64(1000),
 			ownerUID: ownerUID,
 			final:    isFinal,
@@ -125,6 +129,7 @@ var _ = Describe("Update Progress", func() {
 		}
 		promReader := &ProgressReader{
 			CountingReader: firstReader,
+			metric:         metrics.GetCloneProgressMetric(),
 			total:          uint64(16),
 			ownerUID:       ownerUID,
 			final:          false,

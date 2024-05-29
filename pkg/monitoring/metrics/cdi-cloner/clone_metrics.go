@@ -37,3 +37,17 @@ func GetCloneProgress(labelValue string) (float64, error) {
 func DeleteCloneProgress(labelValue string) {
 	cloneProgress.DeleteLabelValues(labelValue)
 }
+
+type CloneProgress struct{}
+
+func GetCloneProgressMetric() *CloneProgress {
+	return &CloneProgress{}
+}
+
+func (cp *CloneProgress) Add(labelValue string, value float64) {
+	AddCloneProgress(labelValue, value)
+}
+
+func (cp *CloneProgress) Get(labelValue string) (float64, error) {
+	return GetCloneProgress(labelValue)
+}

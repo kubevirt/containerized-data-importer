@@ -37,3 +37,17 @@ func GetImportProgress(labelValue string) (float64, error) {
 func DeleteImportProgress(labelValue string) {
 	importProgress.DeleteLabelValues(labelValue)
 }
+
+type ImportProgress struct{}
+
+func GetImportProgressMetric() *ImportProgress {
+	return &ImportProgress{}
+}
+
+func (ip *ImportProgress) Add(labelValue string, value float64) {
+	AddImportProgress(labelValue, value)
+}
+
+func (ip *ImportProgress) Get(labelValue string) (float64, error) {
+	return GetImportProgress(labelValue)
+}
