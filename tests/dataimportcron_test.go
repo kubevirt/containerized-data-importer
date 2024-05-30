@@ -284,7 +284,7 @@ var _ = Describe("DataImportCron", Serial, func() {
 		}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "cronjob was not created")
 
 		var lastImportDv, currentImportDv string
-		for i := 0; i < repeat; i++ {
+		for i := range repeat {
 			By(fmt.Sprintf("Iter #%d", i))
 			if i > 0 {
 				if createErrorDv {
@@ -477,7 +477,7 @@ var _ = Describe("DataImportCron", Serial, func() {
 		configureStorageProfileResultingFormat(format)
 
 		garbageSources := 3
-		for i := 0; i < garbageSources; i++ {
+		for i := range garbageSources {
 			srcName := fmt.Sprintf("src-garbage-%d", i)
 			By(fmt.Sprintf("Create %s", srcName))
 			switch format {

@@ -218,7 +218,7 @@ func doSpinner(args []string) {
 func doHog(args []string) {
 	var arrays [][]byte
 
-	for i := 0; i < (1 << 20); i++ {
+	for range 1 << 20 {
 		bytes := make([]byte, 1024)
 		_, err := rand.Read(bytes)
 		if err != nil {

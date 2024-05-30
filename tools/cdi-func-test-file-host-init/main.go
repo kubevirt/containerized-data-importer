@@ -121,7 +121,7 @@ func (ft formatTable) initializeTestFiles(inFile, outDir string) error {
 			klog.Infof("Generated file %q\n", p)
 		}(inFile, outDir, fList)
 	}
-	for i := 0; i < cap(sem); i++ {
+	for range cap(sem) {
 		sem <- true
 	}
 	close(errChan)

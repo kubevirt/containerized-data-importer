@@ -46,7 +46,7 @@ func waitForReadyFile() {
 	if readyFile == "" {
 		return
 	}
-	for i := 0; i < readyFileTimeoutSeconds; i++ {
+	for range readyFileTimeoutSeconds {
 		if _, err := os.Stat(readyFile); err == nil {
 			return
 		}

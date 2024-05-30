@@ -34,7 +34,7 @@ var _ = Describe("TerminationMessage", func() {
 		termMsg := TerminationMessage{
 			Labels: map[string]string{},
 		}
-		for i := 0; i < length-serializationOffset; i++ {
+		for range length - serializationOffset {
 			termMsg.Labels["t"] += "c"
 		}
 

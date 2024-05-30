@@ -1832,7 +1832,7 @@ func BulkDeleteResources(ctx context.Context, c client.Client, obj client.Object
 	sv := reflect.ValueOf(obj).Elem()
 	iv := sv.FieldByName("Items")
 
-	for i := 0; i < iv.Len(); i++ {
+	for i := range iv.Len() {
 		obj := iv.Index(i).Addr().Interface().(client.Object)
 		if obj.GetDeletionTimestamp().IsZero() {
 			klog.V(3).Infof("Deleting type %+v %+v", reflect.TypeOf(obj), obj)

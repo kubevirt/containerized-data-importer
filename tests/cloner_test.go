@@ -2689,7 +2689,7 @@ var _ = Describe("all clone tests", func() {
 			size := "1Gi"
 			createSnapshot(size, &f.SnapshotSCName, volumeMode)
 
-			for i = 0; i < repeat; i++ {
+			for i := range repeat {
 				dataVolume := utils.NewDataVolumeForSnapshotCloningAndStorageSpec(fmt.Sprintf("clone-from-snap-%d", i), size, snapshot.Namespace, snapshot.Name, &f.SnapshotSCName, &volumeMode)
 				dataVolume.Labels = map[string]string{"test-label-1": "test-label-value-1"}
 				dataVolume.Annotations = map[string]string{"test-annotation-1": "test-annotation-value-1"}
@@ -2699,7 +2699,7 @@ var _ = Describe("all clone tests", func() {
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 			}
 
-			for i = 0; i < repeat; i++ {
+			for i := range repeat {
 				By("Waiting for clone to be completed")
 				dvName := fmt.Sprintf("clone-from-snap-%d", i)
 				err = utils.WaitForDataVolumePhase(f, targetNs.Name, cdiv1.Succeeded, dvName)
@@ -2765,7 +2765,7 @@ var _ = Describe("all clone tests", func() {
 				targetDvSize := "2Gi"
 				createSnapshot(snapSourceSize, &noExpansionStorageClass.Name, volumeMode)
 
-				for i = 0; i < repeat; i++ {
+				for i := range repeat {
 					dataVolume := utils.NewDataVolumeForSnapshotCloningAndStorageSpec(fmt.Sprintf("clone-from-snap-%d", i), targetDvSize, snapshot.Namespace, snapshot.Name, &noExpansionStorageClass.Name, &volumeMode)
 					By(fmt.Sprintf("Create new datavolume %s which will clone from volumesnapshot", dataVolume.Name))
 					dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, dataVolume)
@@ -2773,7 +2773,7 @@ var _ = Describe("all clone tests", func() {
 					f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 				}
 
-				for i = 0; i < repeat; i++ {
+				for i := range repeat {
 					dvName := fmt.Sprintf("clone-from-snap-%d", i)
 					By("Waiting for clone to be completed")
 					err = utils.WaitForDataVolumePhase(f, targetNs.Name, cdiv1.Succeeded, dvName)

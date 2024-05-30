@@ -609,7 +609,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			reconciler = createDataImportCronReconciler(cron)
 			verifyConditions("Before DesiredDigest is set", false, false, false, noImport, noDigest, "", &corev1.PersistentVolumeClaim{})
 
-			for i := 0; i < nPVCs; i++ {
+			for i := range nPVCs {
 				digest := strings.Repeat(strconv.Itoa(i), 12)
 				digests[i] = "sha256:" + digest
 				pvcs[i] = cc.CreatePvc(dataSourceName+"-"+digest, cron.Namespace, nil, nil)

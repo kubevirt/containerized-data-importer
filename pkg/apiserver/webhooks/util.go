@@ -33,7 +33,7 @@ import (
 func validateNumberOfSources(source interface{}, sourceKind string, field *field.Path) []metav1.StatusCause {
 	numberOfSources := 0
 	s := reflect.ValueOf(source).Elem()
-	for i := 0; i < s.NumField(); i++ {
+	for i := range s.NumField() {
 		if !reflect.ValueOf(s.Field(i).Interface()).IsNil() {
 			numberOfSources++
 		}

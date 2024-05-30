@@ -118,7 +118,7 @@ func (c *Customizer) GenericApplyPatches(objects interface{}) error {
 	switch reflect.TypeOf(objects).Kind() {
 	case reflect.Slice:
 		s := reflect.ValueOf(objects)
-		for i := 0; i < s.Len(); i++ {
+		for i := range s.Len() {
 			o := s.Index(i)
 			obj, ok := o.Interface().(runtime.Object)
 			if !ok {

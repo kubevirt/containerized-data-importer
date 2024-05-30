@@ -330,7 +330,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				repeat = args.repeat
 			}
 
-			for i := 0; i < repeat; i++ {
+			for range repeat {
 				By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())

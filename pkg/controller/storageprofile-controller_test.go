@@ -343,7 +343,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, nil, nil, cephProvisioner)
 		reconciler = createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			snapClass := createSnapshotClass(fmt.Sprintf("snapclass-%d", i), nil, cephProvisioner)
 			err := reconciler.client.Create(context.TODO(), snapClass)
 			Expect(err).ToNot(HaveOccurred())

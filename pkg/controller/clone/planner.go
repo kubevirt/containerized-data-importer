@@ -277,7 +277,7 @@ func (p *Planner) watchOwned(log logr.Logger, obj client.Object) error {
 			sv := reflect.ValueOf(objList).Elem()
 			iv := sv.FieldByName("Items")
 			var reqs []reconcile.Request
-			for i := 0; i < iv.Len(); i++ {
+			for i := range iv.Len() {
 				o := iv.Index(i).Addr().Interface().(client.Object)
 				reqs = append(reqs, reconcile.Request{
 					NamespacedName: types.NamespacedName{

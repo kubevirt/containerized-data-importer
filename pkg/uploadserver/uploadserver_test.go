@@ -354,7 +354,7 @@ var _ = Describe("Upload server tests", func() {
 				close(ch)
 			}()
 
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				if server.bindPort != 0 {
 					break
 				}

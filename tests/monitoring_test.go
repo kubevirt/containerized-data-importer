@@ -107,7 +107,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 
 	deleteUnknownStorageClasses := func() {
 		By("Delete unknown storage classes")
-		for i := 0; i < numAddedStorageClasses; i++ {
+		for i := range numAddedStorageClasses {
 			name := fmt.Sprintf("unknown-sc-%d", i)
 			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), name, metav1.GetOptions{})
 			if err != nil && errors.IsNotFound(err) {
@@ -243,7 +243,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			numAddedStorageClasses = 2
-			for i := 0; i < numAddedStorageClasses; i++ {
+			for i := range numAddedStorageClasses {
 				_, err = f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), createUnknownStorageClass(fmt.Sprintf("unknown-sc-%d", i), "kubernetes.io/non-existent-provisioner"), metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 			}
@@ -256,7 +256,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 			waitForPrometheusAlert(f, "CDIStorageProfilesIncomplete")
 
 			By("Fix profiles to be complete and test metric value equals original")
-			for i := 0; i < numAddedStorageClasses; i++ {
+			for i := range numAddedStorageClasses {
 				profile := &cdiv1.StorageProfile{}
 				err = f.CrClient.Get(context.TODO(), types.NamespacedName{Name: fmt.Sprintf("unknown-sc-%d", i)}, profile)
 				Expect(err).ToNot(HaveOccurred())
@@ -275,7 +275,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 			waitForNoPrometheusAlert(f, "CDIMultipleDefaultVirtStorageClasses")
 
 			numAddedStorageClasses = 2
-			for i := 0; i < numAddedStorageClasses; i++ {
+			for i := range numAddedStorageClasses {
 				sc := createUnknownStorageClass(fmt.Sprintf("unknown-sc-%d", i), "kubernetes.io/non-existent-provisioner")
 				cc.AddAnnotation(sc, cc.AnnDefaultVirtStorageClass, "true")
 				_, err := f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})

@@ -322,7 +322,7 @@ var _ = Describe("CDI ingress config tests, using manifests", Serial, func() {
 			}
 			return ""
 		}, time.Second*30, time.Second).Should(Equal(defaultURL))
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			// Check for 20 seconds if the deployment pod crashed.
 			time.Sleep(2 * time.Second)
 			controllerPod, err = utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)

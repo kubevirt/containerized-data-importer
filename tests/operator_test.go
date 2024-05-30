@@ -414,7 +414,7 @@ var _ = Describe("ALL Operator tests", func() {
 			})
 
 			It("[test_id:4986]should remove/install CDI a number of times successfully", func() {
-				for i := 0; i < 5; i++ {
+				for range 5 {
 					err := f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{})
 					Expect(err).ToNot(HaveOccurred())
 					ensureCDI()

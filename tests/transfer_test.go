@@ -296,7 +296,7 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", Serial, func() 
 			var wg sync.WaitGroup
 			n := 5
 
-			for i := 0; i < n; i++ {
+			for range n {
 				ns, err := f.CreateNamespace(f.NsPrefix, map[string]string{
 					framework.NsPrefixLabel: f.NsPrefix,
 				})
@@ -314,7 +314,7 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", Serial, func() 
 
 			wg.Wait()
 
-			for i := 0; i < n; i++ {
+			for i := range n {
 				var targetNamespace string
 
 				if createTargetNamespace {
