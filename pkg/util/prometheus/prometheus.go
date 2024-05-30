@@ -19,28 +19,27 @@ import (
 // ProgressReader is a counting reader that reports progress to prometheus.
 type ProgressReader struct {
 	util.CountingReader
-	metric   ProgressMetric
-	total    uint64
-	ownerUID string
-	final    bool
+	metric ProgressMetric
+	total  uint64
+	final  bool
 }
 
 type ProgressMetric interface {
-	Add(labelValue string, value float64)
-	Get(labelValue string) (float64, error)
+	Add(value float64)
+	Get() (float64, error)
+	Delete()
 }
 
 // NewProgressReader creates a new instance of a prometheus updating progress reader.
-func NewProgressReader(r io.ReadCloser, metric ProgressMetric, total uint64, ownerUID string) *ProgressReader {
+func NewProgressReader(r io.ReadCloser, metric ProgressMetric, total uint64) *ProgressReader {
 	promReader := &ProgressReader{
 		CountingReader: util.CountingReader{
 			Reader:  r,
 			Current: 0,
 		},
-		metric:   metric,
-		total:    total,
-		ownerUID: ownerUID,
-		final:    true,
+		metric: metric,
+		total:  total,
+		final:  true,
 	}
 
 	return promReader
@@ -68,13 +67,13 @@ func (r *ProgressReader) updateProgress() bool {
 		if !finished && r.Current < r.total {
 			currentProgress = float64(r.Current) / float64(r.total) * 100.0
 		}
-		progress, err := r.metric.Get(r.ownerUID)
+		progress, err := r.metric.Get()
 		if err != nil {
 			klog.Errorf("updateProgress: failed to read metric; %v", err)
 			return true // true ==> to try again // todo - how to avoid endless loop in case it's a constant error?
 		}
 		if currentProgress > progress {
-			r.metric.Add(r.ownerUID, currentProgress-progress)
+			r.metric.Add(currentProgress - progress)
 		}
 		klog.V(1).Infoln(fmt.Sprintf("%.2f", currentProgress))
 		return !finished

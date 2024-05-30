@@ -1037,9 +1037,9 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 			previousProgressPercent = currentProgressPercent
 		}
 		v := float64(currentProgressPercent)
-		progress, err := metrics.GetImportProgress(ownerUID)
+		progress, err := metrics.Progress(ownerUID).Get()
 		if err == nil && v > 0 && v > progress {
-			metrics.AddImportProgress(ownerUID, v-progress)
+			metrics.Progress(ownerUID).Add(v - progress)
 		}
 	}
 

@@ -19,35 +19,29 @@ var (
 	)
 )
 
-// AddImportProgress adds value to the importProgress metric
-func AddImportProgress(labelValue string, value float64) {
-	importProgress.WithLabelValues(labelValue).Add(value)
+type ImportProgress struct {
+	ownerUID string
 }
 
-// GetImportProgress returns the importProgress value
-func GetImportProgress(labelValue string) (float64, error) {
+func Progress(ownerUID string) *ImportProgress {
+	return &ImportProgress{ownerUID}
+}
+
+// Add adds value to the importProgress metric
+func (ip *ImportProgress) Add(value float64) {
+	importProgress.WithLabelValues(ip.ownerUID).Add(value)
+}
+
+// Get returns the importProgress value
+func (ip *ImportProgress) Get() (float64, error) {
 	dto := &ioprometheusclient.Metric{}
-	if err := importProgress.WithLabelValues(labelValue).Write(dto); err != nil {
+	if err := importProgress.WithLabelValues(ip.ownerUID).Write(dto); err != nil {
 		return 0, err
 	}
 	return dto.Counter.GetValue(), nil
 }
 
-// DeleteImportProgress removes the importProgress metric with the passed label
-func DeleteImportProgress(labelValue string) {
-	importProgress.DeleteLabelValues(labelValue)
-}
-
-type ImportProgress struct{}
-
-func GetImportProgressMetric() *ImportProgress {
-	return &ImportProgress{}
-}
-
-func (ip *ImportProgress) Add(labelValue string, value float64) {
-	AddImportProgress(labelValue, value)
-}
-
-func (ip *ImportProgress) Get(labelValue string) (float64, error) {
-	return GetImportProgress(labelValue)
+// Delete removes the importProgress metric with the passed label
+func (ip *ImportProgress) Delete() {
+	importProgress.DeleteLabelValues(ip.ownerUID)
 }
