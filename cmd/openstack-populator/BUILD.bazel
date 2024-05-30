@@ -8,10 +8,10 @@ go_library(
     deps = [
         "//pkg/monitoring/metrics/openstack-populator:go_default_library",
         "//pkg/util/prometheus:go_default_library",
-        "//vendor/github.com/gophercloud/gophercloud:go_default_library",
-        "//vendor/github.com/gophercloud/gophercloud/openstack:go_default_library",
-        "//vendor/github.com/gophercloud/gophercloud/openstack/imageservice/v2/imagedata:go_default_library",
-        "//vendor/github.com/gophercloud/utils/openstack/clientconfig:go_default_library",
+        "//vendor/github.com/gophercloud/gophercloud/v2:go_default_library",
+        "//vendor/github.com/gophercloud/gophercloud/v2/openstack:go_default_library",
+        "//vendor/github.com/gophercloud/gophercloud/v2/openstack/image/v2/imagedata:go_default_library",
+        "//vendor/github.com/gophercloud/utils/v2/openstack/clientconfig:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
     ],
 )

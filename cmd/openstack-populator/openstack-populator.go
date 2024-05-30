@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -14,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/imageservice/v2/imagedata"
-	"github.com/gophercloud/utils/openstack/clientconfig"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack"
+	"github.com/gophercloud/gophercloud/v2/openstack/image/v2/imagedata"
+	"github.com/gophercloud/utils/v2/openstack/clientconfig"
 
 	"k8s.io/klog/v2"
 
@@ -131,12 +132,12 @@ func downloadAndSaveImage(config *appConfig, imageReader io.ReadCloser) {
 }
 
 func setupImageService(provider *gophercloud.ProviderClient, config *appConfig) (io.ReadCloser, error) {
-	imageService, err := openstack.NewImageServiceV2(provider, getEndpointOpts())
+	imageService, err := openstack.NewImageV2(provider, getEndpointOpts())
 	if err != nil {
 		return nil, err
 	}
 
-	imageReader, err := imagedata.Download(imageService, config.imageID).Extract()
+	imageReader, err := imagedata.Download(context.Background(), imageService, config.imageID).Extract()
 	if err != nil {
 		return nil, err
 	}
@@ -359,7 +360,7 @@ func getProviderClient(identityEndpoint string) (*gophercloud.ProviderClient, er
 		return nil, err
 	}
 
-	err = openstack.Authenticate(provider, *opts)
+	err = openstack.Authenticate(context.Background(), provider, *opts)
 	if err != nil {
 		klog.Fatal(err.Error())
 		return nil, err
