@@ -797,7 +797,7 @@ func formRequestFunc(url, fileName string) (*http.Request, error) {
 	pipeReader, pipeWriter := io.Pipe()
 	multipartWriter := multipart.NewWriter(pipeWriter)
 
-	req, err := http.NewRequest("POST", url, pipeReader)
+	req, err := http.NewRequest(http.MethodPost, url, pipeReader)
 	if err != nil {
 		return nil, err
 	}
@@ -836,7 +836,7 @@ func binaryRequestFunc(url, fileName string) (*http.Request, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", url, f)
+	req, err := http.NewRequest(http.MethodPost, url, f)
 	if err != nil {
 		return nil, err
 	}
@@ -852,7 +852,7 @@ func testBadRequestFunc(url, fileName string) (*http.Request, error) {
 		return nil, err
 	}
 	lr := LimitThenErrorReader(f, 2048)
-	req, err := http.NewRequest("POST", url, lr)
+	req, err := http.NewRequest(http.MethodPost, url, lr)
 	if err != nil {
 		return nil, err
 	}

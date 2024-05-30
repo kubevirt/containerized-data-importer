@@ -75,7 +75,7 @@ func getHTTPClientConfig() *httpClientConfig {
 }
 
 func newProxyRequest(path, authHeaderValue string) *http.Request {
-	req, err := http.NewRequest("POST", path, strings.NewReader("data"))
+	req, err := http.NewRequest(http.MethodPost, path, strings.NewReader("data"))
 	Expect(err).ToNot(HaveOccurred())
 
 	if authHeaderValue != "" {
@@ -85,7 +85,7 @@ func newProxyRequest(path, authHeaderValue string) *http.Request {
 }
 
 func newProxyHeadRequest(authHeaderValue string) *http.Request {
-	req, err := http.NewRequest("HEAD", common.UploadPathSync, nil)
+	req, err := http.NewRequest(http.MethodHead, common.UploadPathSync, nil)
 	Expect(err).ToNot(HaveOccurred())
 
 	if authHeaderValue != "" {
@@ -245,7 +245,7 @@ var _ = Describe("submit request and check status", func() {
 		Entry("Malformed auth header: invalid prefix", "Beereer valid", http.StatusBadRequest),
 	)
 	It("Test healthz", func() {
-		req, err := http.NewRequest("GET", healthzPath, nil)
+		req, err := http.NewRequest(http.MethodGet, healthzPath, nil)
 		Expect(err).ToNot(HaveOccurred())
 		submitRequestAndCheckStatus(req, http.StatusOK, nil)
 	})
@@ -264,7 +264,7 @@ var _ = Describe("submit request and check status", func() {
 	)
 
 	It("Test healthz", func() {
-		req, err := http.NewRequest("GET", healthzPath, nil)
+		req, err := http.NewRequest(http.MethodGet, healthzPath, nil)
 		Expect(err).ToNot(HaveOccurred())
 		submitRequestAndCheckStatus(req, http.StatusOK, nil)
 	})

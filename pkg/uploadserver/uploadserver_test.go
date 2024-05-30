@@ -185,7 +185,7 @@ func replaceAsyncProcessorFunc(replacement func(io.ReadCloser, string, string, f
 var _ = Describe("Upload server tests", func() {
 	It("GET fails", func() {
 		withProcessorSuccess(func() {
-			req, err := http.NewRequest("GET", common.UploadPathSync, nil)
+			req, err := http.NewRequest(http.MethodGet, common.UploadPathSync, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -199,7 +199,7 @@ var _ = Describe("Upload server tests", func() {
 	})
 
 	It("healthz", func() {
-		req, err := http.NewRequest("GET", healthzPath, nil)
+		req, err := http.NewRequest(http.MethodGet, healthzPath, nil)
 		Expect(err).ToNot(HaveOccurred())
 
 		rr := httptest.NewRecorder()
@@ -215,7 +215,7 @@ var _ = Describe("Upload server tests", func() {
 
 	DescribeTable("Process unavailable", func(uploadPath string) {
 		withProcessorSuccess(func() {
-			req, err := http.NewRequest("POST", uploadPath, strings.NewReader("data"))
+			req, err := http.NewRequest(http.MethodPost, uploadPath, strings.NewReader("data"))
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -237,7 +237,7 @@ var _ = Describe("Upload server tests", func() {
 
 	DescribeTable("Completion conflict", func(uploadPath string) {
 		withAsyncProcessorSuccess(func() {
-			req, err := http.NewRequest("POST", uploadPath, strings.NewReader("data"))
+			req, err := http.NewRequest(http.MethodPost, uploadPath, strings.NewReader("data"))
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -259,7 +259,7 @@ var _ = Describe("Upload server tests", func() {
 
 	It("Success", func() {
 		withProcessorSuccess(func() {
-			req, err := http.NewRequest("POST", common.UploadPathSync, strings.NewReader("data"))
+			req, err := http.NewRequest(http.MethodPost, common.UploadPathSync, strings.NewReader("data"))
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -308,7 +308,7 @@ var _ = Describe("Upload server tests", func() {
 
 	DescribeTable("Stream fail", func(processorFunc func(func()), uploadPath string) {
 		processorFunc(func() {
-			req, err := http.NewRequest("POST", uploadPath, strings.NewReader("data"))
+			req, err := http.NewRequest(http.MethodPost, uploadPath, strings.NewReader("data"))
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -395,7 +395,7 @@ func newFormRequest(path string) *http.Request {
 	err = w.Close()
 	Expect(err).ToNot(HaveOccurred())
 
-	req, err := http.NewRequest("POST", path, &b)
+	req, err := http.NewRequest(http.MethodPost, path, &b)
 	Expect(err).ToNot(HaveOccurred())
 
 	req.Header.Set("Content-Type", w.FormDataContentType())

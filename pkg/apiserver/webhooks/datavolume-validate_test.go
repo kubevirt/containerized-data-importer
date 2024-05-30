@@ -1259,7 +1259,7 @@ func validateAdmissionReview(ar *admissionv1.AdmissionReview, objects ...runtime
 
 func serve(ar *admissionv1.AdmissionReview, handler http.Handler) *admissionv1.AdmissionResponse {
 	reqBytes, _ := json.Marshal(ar)
-	req, err := http.NewRequest("POST", "/foobar", bytes.NewReader(reqBytes))
+	req, err := http.NewRequest(http.MethodPost, "/foobar", bytes.NewReader(reqBytes))
 	Expect(err).ToNot(HaveOccurred())
 
 	req.Header.Set("Content-Type", "application/json")
