@@ -181,12 +181,8 @@ vet: ## Lint all CDI packages
 vulncheck: ## Scan Go dependencies for known vulnerabilities.
 	${DO_BAZ} ./hack/build/run-vulncheck.sh
 
-gosec:
-	${DO_BAZ} "GOSEC=${GOSEC} ./hack/build/gosec.sh"
-
 format: ## Format shell and go source files."
 	${DO_BAZ} "./hack/build/format.sh"
-
 
 .PHONY:	\
 	help all clean \
