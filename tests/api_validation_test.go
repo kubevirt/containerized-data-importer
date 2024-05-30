@@ -528,7 +528,7 @@ func structToYamlFile(fileName string, o interface{}) error {
 		return err
 	}
 
-	err = os.WriteFile(fileName, yamlOutput, 0644)
+	err = os.WriteFile(fileName, yamlOutput, 0600)
 	if err != nil {
 		return err
 	}

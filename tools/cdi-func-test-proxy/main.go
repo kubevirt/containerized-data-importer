@@ -55,7 +55,8 @@ func serve(ctx context.Context, port string, basicAuth bool, useTLS bool) error 
 				r.Method, r.URL, r.RemoteAddr, fmt.Sprint(time.Since(start)), r.UserAgent())
 		}),
 		// Disable HTTP/2.
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
+		TLSNextProto:      make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	stop := context.AfterFunc(ctx, func() { _ = server.Close() })

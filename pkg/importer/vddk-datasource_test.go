@@ -7,7 +7,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // This is test code
 	"errors"
 	"net/url"
 	"os"
@@ -176,8 +176,8 @@ var _ = Describe("VDDK data source", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseResize))
 
-		sourceSum := md5.Sum(sourceBytes)
-		destSum := md5.Sum(mockSinkBuffer)
+		sourceSum := md5.Sum(sourceBytes)  //nolint:gosec // This is test code
+		destSum := md5.Sum(mockSinkBuffer) //nolint:gosec // This is test code
 		Expect(sourceSum).To(Equal(destSum))
 	})
 
@@ -203,8 +203,8 @@ var _ = Describe("VDDK data source", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseResize))
 
-		sourceSum := md5.Sum(sourceBytes)
-		destSum := md5.Sum(mockSinkBuffer)
+		sourceSum := md5.Sum(sourceBytes)  //nolint:gosec // This is test code
+		destSum := md5.Sum(mockSinkBuffer) //nolint:gosec // This is test code
 		Expect(sourceSum).To(Equal(destSum))
 
 		// Write some data to the first snapshot, then copy the delta from difference between the two snapshots
@@ -220,13 +220,13 @@ var _ = Describe("VDDK data source", func() {
 				Length: 1024,
 			}},
 		}
-		changedSourceSum := md5.Sum(sourceBytes)
+		changedSourceSum := md5.Sum(sourceBytes) //nolint:gosec // This is test code
 
 		phase, err = snap2.TransferFile(".")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseResize))
 
-		deltaSum := md5.Sum(mockSinkBuffer)
+		deltaSum := md5.Sum(mockSinkBuffer) //nolint:gosec // This is test code
 		Expect(changedSourceSum).To(Equal(deltaSum))
 	})
 

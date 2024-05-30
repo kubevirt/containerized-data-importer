@@ -19,6 +19,7 @@ package importer
 import (
 	"archive/tar"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -149,14 +150,18 @@ func processLayer(ctx context.Context,
 
 		if hasPrefix(hdr.Name, pathPrefix) && !isWhiteout(hdr.Name) && !isDir(hdr) {
 			klog.Infof("File '%v' found in the layer", hdr.Name)
-			destFile := filepath.Join(destDir, hdr.Name)
+			destFile, err := safeJoinPaths(destDir, hdr.Name)
+			if err != nil {
+				klog.Errorf("Error sanitizing archive path: %v", err)
+				return false, errors.Wrap(err, "Error sanitizing archive path")
+			}
 
 			if err = os.MkdirAll(filepath.Dir(destFile), os.ModePerm); err != nil {
 				klog.Errorf("Error creating output file's directory: %v", err)
 				return false, errors.Wrap(err, "Error creating output file's directory")
 			}
 
-			if err := streamDataToFile(tarReader, filepath.Join(destDir, hdr.Name)); err != nil {
+			if err := streamDataToFile(tarReader, destFile); err != nil {
 				klog.Errorf("Error copying file: %v", err)
 				return false, errors.Wrap(err, "Error copying file")
 			}
@@ -169,6 +174,19 @@ func processLayer(ctx context.Context,
 	}
 
 	return found, nil
+}
+
+// Sanitize archive file pathing from "G305: Zip Slip vulnerability"
+// https://security.snyk.io/research/zip-slip-vulnerability
+func safeJoinPaths(dir, path string) (v string, err error) {
+	v = filepath.Join(dir, path)
+	wantPrefix := filepath.Clean(dir) + string(os.PathSeparator)
+
+	if strings.HasPrefix(v, wantPrefix) {
+		return v, nil
+	}
+
+	return "", fmt.Errorf("%s: %s", "content filepath is tainted", path)
 }
 
 func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry, stopAtFirst bool) (*types.ImageInspectInfo, error) {

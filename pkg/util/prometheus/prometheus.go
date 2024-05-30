@@ -110,8 +110,13 @@ func StartPrometheusEndpoint(certsDirectory string) {
 	}
 
 	go func() {
-		http.Handle("/metrics", promhttp.Handler())
-		if err := http.ListenAndServeTLS(":8443", certFile, keyFile, nil); err != nil {
+		server := &http.Server{
+			Addr:              ":8443",
+			ReadHeaderTimeout: 10 * time.Second,
+			Handler:           promhttp.Handler(),
+		}
+
+		if err := server.ListenAndServeTLS(certFile, keyFile); err != nil {
 			return
 		}
 	}()

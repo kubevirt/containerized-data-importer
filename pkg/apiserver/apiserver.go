@@ -61,8 +61,10 @@ import (
 
 const (
 	// APISigningKeySecretName is the selfsigned cert secret name
+	//nolint:gosec // This is not a real secret
 	APISigningKeySecretName = "cdi-api-signing-key"
 
+	//nolint:gosec // This is not a real token
 	uploadTokenGroup = "upload.cdi.kubevirt.io"
 
 	dvValidatePath = "/datavolume-validate"
@@ -252,6 +254,7 @@ func (app *cdiAPIApp) getTLSConfig() (*tls.Config, error) {
 		return nil, err
 	}
 
+	//nolint: gosec // False positive: cryptoConfig.MinVersion is set by the user
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{*cert},
 		CipherSuites: cryptoConfig.CipherSuites,
@@ -293,9 +296,10 @@ func (app *cdiAPIApp) startTLS(stopChan <-chan struct{}) error {
 	}
 
 	server := &http.Server{
-		Addr:      fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort),
-		TLSConfig: tlsConfig,
-		Handler:   app.container,
+		Addr:              fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort),
+		TLSConfig:         tlsConfig,
+		Handler:           app.container,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	go func() {

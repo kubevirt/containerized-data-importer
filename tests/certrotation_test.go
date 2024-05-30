@@ -44,7 +44,7 @@ var _ = Describe("Cert rotation tests", Serial, func() {
 
 			Eventually(func() error {
 				conn, err = tls.Dial("tcp", hostPort, &tls.Config{
-					InsecureSkipVerify: true,
+					InsecureSkipVerify: true, //nolint: gosec // It's not production code
 				})
 				return err
 			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
@@ -56,7 +56,7 @@ var _ = Describe("Cert rotation tests", Serial, func() {
 
 			Eventually(func() error {
 				conn, err = tls.Dial("tcp", hostPort, &tls.Config{
-					InsecureSkipVerify: true,
+					InsecureSkipVerify: true, //nolint: gosec // It's not production code
 				})
 
 				if err != nil {

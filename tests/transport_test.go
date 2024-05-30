@@ -18,7 +18,7 @@ import (
 var _ = Describe("Transport Tests", func() {
 
 	const (
-		secretPrefix            = "transport-e2e-sec"
+		secretPrefix            = "transport-e2e-sec" //nolint:gosec // This is not a secret
 		targetFile              = "tinyCore.iso"
 		targetQCOWFile          = "tinyCore.qcow2"
 		targetQCOWImage         = "tinycoreqcow2"

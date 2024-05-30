@@ -13,7 +13,7 @@ import (
 )
 
 func setupMockServer() (*httptest.Server, string, int, error) {
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return nil, "", 0, err
 	}

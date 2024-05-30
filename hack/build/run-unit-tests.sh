@@ -32,7 +32,7 @@ ${test_command}
 FILTER_PATTERN='^// Code generated .* DO NOT EDIT\.\?$'
 GENERATED=$(grep -l "${FILTER_PATTERN}" -r --include="*.go" --exclude-dir="vendor")
 for path in ${GENERATED}; do
-    grep -v "${path}" .coverprofile > .tmp \
-        && mv .tmp .coverprofile           \
-        || true
+    grep -v "${path}" .coverprofile >.tmp &&
+        mv .tmp .coverprofile ||
+        true
 done

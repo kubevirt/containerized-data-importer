@@ -40,6 +40,7 @@ import (
 
 const (
 	// TokenKeyDir is the path to the apiserver public key dir
+	//nolint:gosec // This is a path, not the key itself
 	TokenKeyDir = "/var/run/cdi/token/keys"
 
 	// TokenPublicKeyPath is the path to the apiserver public key

@@ -389,7 +389,7 @@ var _ = Describe("Forklift populator tests", func() {
 			defer ts.Close()
 			ep, err := url.Parse(ts.URL)
 			Expect(err).ToNot(HaveOccurred())
-			port, err := strconv.Atoi(ep.Port())
+			port, err := strconv.ParseInt(ep.Port(), 10, 32)
 			Expect(err).ToNot(HaveOccurred())
 
 			pod := getPopulatorPod(targetPvc, pvcPrime)

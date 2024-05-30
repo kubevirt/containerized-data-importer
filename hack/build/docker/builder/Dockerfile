@@ -45,7 +45,6 @@ RUN \
 	go install github.com/mattn/goveralls@latest && \
 	go install github.com/rmohr/go-swagger-utils/swagger-doc@latest && \
 	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0 && \
-	go install github.com/securego/gosec/v2/cmd/gosec@latest && \
 	rm -rf "${GOPATH}/pkg"
 
 ENV BAZEL_VERSION 5.4.1

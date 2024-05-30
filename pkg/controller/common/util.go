@@ -325,6 +325,7 @@ const (
 	LabelDefaultPreferenceKind = "instancetype.kubevirt.io/default-preference-kind"
 
 	// LabelDynamicCredentialSupport specifies if the OS supports updating credentials at runtime.
+	//nolint:gosec // These are not credentials
 	LabelDynamicCredentialSupport = "kubevirt.io/dynamic-credentials-support"
 
 	// ProgressDone this means we are DONE
@@ -1612,6 +1613,7 @@ func BuildHTTPClient(httpClient *http.Client) *http.Client {
 	if httpClient == nil {
 		defaultTransport := http.DefaultTransport.(*http.Transport)
 		// Create new Transport that ignores self-signed SSL
+		//nolint:gosec
 		tr := &http.Transport{
 			Proxy:                 defaultTransport.Proxy,
 			DialContext:           defaultTransport.DialContext,

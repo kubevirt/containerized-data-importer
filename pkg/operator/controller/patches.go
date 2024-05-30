@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // See #nosec directive
 	"encoding/hex"
 	"encoding/json"
 	"errors"

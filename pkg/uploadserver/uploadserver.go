@@ -33,6 +33,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/golang/snappy"
 	"github.com/pkg/errors"
@@ -215,7 +216,8 @@ func (app *uploadServerApp) Run() error {
 
 func (app *uploadServerApp) createUploadServer() (*http.Server, error) {
 	server := &http.Server{
-		Handler: app,
+		Handler:           app,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	if app.tlsKey != "" && app.tlsCert != "" {
@@ -244,6 +246,7 @@ func (app *uploadServerApp) createUploadServer() (*http.Server, error) {
 			klog.Fatalf("Invalid ca cert file %s", app.clientCert)
 		}
 
+		//nolint:gosec // False positive: Min version is not known statically
 		server.TLSConfig = &tls.Config{
 			CipherSuites: app.cryptoConfig.CipherSuites,
 			ClientCAs:    caCertPool,
@@ -258,7 +261,10 @@ func (app *uploadServerApp) createUploadServer() (*http.Server, error) {
 func (app *uploadServerApp) createHealthzServer() (*http.Server, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc(healthzPath, app.healthzHandler)
-	return &http.Server{Handler: mux}, nil
+	return &http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}, nil
 }
 
 func (app *uploadServerApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -496,7 +502,7 @@ func untarToBlockdev(stream io.Reader, dest string) error {
 			if err != nil {
 				return err
 			}
-			written, err := io.Copy(f, tr)
+			written, err := io.CopyN(f, tr, header.Size)
 			if err != nil {
 				return err
 			}

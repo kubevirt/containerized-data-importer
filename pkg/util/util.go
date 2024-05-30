@@ -3,7 +3,7 @@ package util
 import (
 	"bufio"
 	"bytes"
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // This is not a security-sensitive use case
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -44,6 +44,9 @@ type CountingReader struct {
 }
 
 // RandAlphaNum provides an implementation to generate a random alpha numeric string of the specified length
+// This generator is not cryptographically secure.
+//
+//nolint:gosec // This is not a security-sensitive use case
 func RandAlphaNum(n int) string {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	var letter = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
@@ -234,8 +237,9 @@ func WriteTerminationMessageToFile(file, message string) error {
 	message = strings.ReplaceAll(message, "\n", " ")
 	// Only write the first line of the message.
 	scanner := bufio.NewScanner(strings.NewReader(message))
+
 	if scanner.Scan() {
-		err := os.WriteFile(file, []byte(scanner.Text()), os.ModeAppend)
+		err := os.WriteFile(file, scanner.Bytes(), 0600)
 		if err != nil {
 			return errors.Wrap(err, "could not create termination message file")
 		}
@@ -357,7 +361,10 @@ func SetRecommendedLabels(obj metav1.Object, installerLabels map[string]string, 
 	obj.SetLabels(mergedLabels)
 }
 
-// Md5sum calculates the md5sum of a given file
+// Md5sum calculates the md5sum of a given file.
+// Do not use this for security-sensitive use cases.
+//
+//nolint:gosec // This is not a security-sensitive use case
 func Md5sum(filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {

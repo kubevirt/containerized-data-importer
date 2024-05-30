@@ -152,6 +152,7 @@ func (c *clientCreator) CreateClient() (*http.Client, error) {
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{clientCert},
 		RootCAs:      caCertPool,
+		MinVersion:   tls.VersionTLS12,
 	}
 	tlsConfig.BuildNameToCertificate() //nolint:staticcheck // todo: BuildNameToCertificate() is deprecated - check this
 
@@ -331,6 +332,7 @@ func (app *uploadProxyApp) Start() error {
 func (app *uploadProxyApp) getTLSConfig() *tls.Config {
 	cryptoConfig := app.cdiConfigTLSWatcher.GetCdiTLSConfig()
 
+	//nolint:gosec // False positive (MinVersion unknown at build time)
 	tlsConfig := &tls.Config{
 		GetCertificate: app.certWatcher.GetCertificate,
 		CipherSuites:   cryptoConfig.CipherSuites,
@@ -345,8 +347,9 @@ func (app *uploadProxyApp) startTLS() error {
 	bindAddr := fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort)
 
 	server := &http.Server{
-		Addr:    bindAddr,
-		Handler: app,
+		Addr:              bindAddr,
+		Handler:           app,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	if app.certWatcher != nil {

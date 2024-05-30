@@ -63,7 +63,8 @@ func main() {
 	})
 	mux.Handle("/", http.FileServer(http.Dir(*directory)))
 	server := &http.Server{
-		Handler: mux,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 	addr := fmt.Sprintf("localhost:%d", *port)
 	listener, err := net.Listen("tcp", addr)
@@ -71,7 +72,7 @@ func main() {
 		log.Fatalf("Failed listening on %s err: %v", addr, err)
 	}
 
-	if err := os.WriteFile(*readyFile, []byte(imageFilename), 0666); err != nil {
+	if err := os.WriteFile(*readyFile, []byte(imageFilename), 0600); err != nil {
 		log.Fatalf("Failed creating \"ready\" file: %v", err)
 	}
 	defer os.Remove(*readyFile)

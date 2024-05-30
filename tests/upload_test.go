@@ -899,7 +899,7 @@ func uploadFileNameToPath(requestFunc uploadFileNameRequestCreator, fileName, po
 
 	client := &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // It's not production code
 		},
 	}
 
@@ -933,7 +933,7 @@ func getUploadToPathResponse(requestFunc uploadFileNameRequestCreator, fileName,
 
 	client := &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // It's not production code
 		},
 	}
 
@@ -1287,6 +1287,7 @@ var _ = Describe("CDIConfig manipulation upload tests", Serial, func() {
 		Expect(token).ToNot(BeEmpty())
 		client := &http.Client{
 			Transport: &http.Transport{
+				//nolint:gosec // It's not production code
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: true,
 					MinVersion:         tls.VersionTLS12,
