@@ -2597,7 +2597,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			annValue, preallocationAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetDataVolume.Namespace, targetPvc, controller.AnnPreallocationRequested)
 			if err != nil {
-				f.PrintControllerLog()
+				fmt.Fprintf(GinkgoWriter, "Failed to wait for PVC annotation: %v", err)
 			}
 			Expect(err).ToNot(HaveOccurred())
 			Expect(preallocationAnnotationFound).To(BeTrue())
@@ -2607,7 +2607,7 @@ var _ = Describe("all clone tests", func() {
 
 			annValue, preallocationAnnotationFound, err = utils.WaitForPVCAnnotation(f.K8sClient, targetDataVolume.Namespace, targetPvc, controller.AnnPreallocationApplied)
 			if err != nil {
-				f.PrintControllerLog()
+				fmt.Fprintf(GinkgoWriter, "Failed to wait for PVC annotation: %v", err)
 			}
 			Expect(err).ToNot(HaveOccurred())
 			Expect(preallocationAnnotationFound).To(BeTrue())
@@ -3043,7 +3043,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 		By("Verify the clone annotation is on the target PVC")
 		_, cloneAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnCloneOf)
 		if err != nil {
-			f.PrintControllerLog()
+			fmt.Fprintf(GinkgoWriter, "Failed to wait for PVC annotation: %v", err)
 		}
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cloneAnnotationFound).To(BeTrue())
@@ -3141,6 +3141,8 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 }
 
 func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string) {
+	beforeClone := time.Now()
+
 	// Create targetPvc
 	By(fmt.Sprintf("Creating target pvc: %s/target-pvc", targetNamespaceName))
 	pvcName := "target-pvc"
@@ -3157,22 +3159,16 @@ func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string
 	f.ForceBindIfWaitForFirstConsumer(targetPvc)
 
 	By("Checking no cloning pods were created")
-
-	matchString := fmt.Sprintf("{\"PVC\": {\"name\":\"%s\",\"namespace\":\"%s\"}, \"isUpload\": false, \"isCloneTarget\": true, \"isBound\": true, \"podSucceededFromPVC\": true, \"deletionTimeStamp set?\": false}", pvcName, f.Namespace.Name)
-	Eventually(func() bool {
-		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-		Expect(err).NotTo(HaveOccurred())
-		return strings.Contains(log, matchString)
-	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
-	Expect(err).ToNot(HaveOccurred())
-
-	By("Checking logs explicitly skips PVC")
-	Eventually(func() bool {
-		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-		Expect(err).NotTo(HaveOccurred())
-		return strings.Contains(log, fmt.Sprintf("{\"PVC\": {\"name\":\"%s\",\"namespace\":\"%s\"}, \"checkPVC(AnnCloneRequest)\": true, \"NOT has annotation(AnnCloneOf)\": false, \"isBound\": true, \"has finalizer?\": false}", pvcName, targetNamespaceName))
-	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
-	Expect(err).ToNot(HaveOccurred())
+	Eventually(func() (string, error) {
+		out, err := f.K8sClient.CoreV1().
+			Pods(f.CdiInstallNs).
+			GetLogs(f.ControllerPod.Name, &corev1.PodLogOptions{SinceTime: &metav1.Time{Time: beforeClone}}).
+			DoRaw(context.Background())
+		return string(out), err
+	}, time.Minute, time.Second).Should(And(
+		ContainSubstring(fmt.Sprintf(`{"PVC": {"name":%q,"namespace":%q}, "isUpload": false, "isCloneTarget": true, "isBound": true, "podSucceededFromPVC": true, "deletionTimeStamp set?": false}`, pvcName, f.Namespace.Name)),
+		ContainSubstring(fmt.Sprintf(`{"PVC": {"name":%q,"namespace":%q}, "checkPVC(AnnCloneRequest)": true, "NOT has annotation(AnnCloneOf)": false, "isBound": true, "has finalizer?": false}`, pvcName, targetNamespaceName)),
+	))
 }
 
 func cleanDv(f *framework.Framework, dv *cdiv1.DataVolume) {
@@ -3272,12 +3268,14 @@ func VerifyGC(f *framework.Framework, dvName, dvNamespace string, checkOwnerRefs
 func VerifyNoGC(f *framework.Framework, dvName, dvNamespace string) {
 	By("Verify DV is not garbage collected")
 	matchString := fmt.Sprintf("DataVolume is not annotated to be garbage collected\t{\"DataVolume\": {\"name\":\"%s\",\"namespace\":\"%s\"}}", dvName, dvNamespace)
-	fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
-	Eventually(func() string {
-		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-		Expect(err).NotTo(HaveOccurred())
-		return log
+	Eventually(func() (string, error) {
+		out, err := f.K8sClient.CoreV1().
+			Pods(f.CdiInstallNs).
+			GetLogs(f.ControllerPod.Name, &corev1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+			DoRaw(context.Background())
+		return string(out), err
 	}, timeout, pollingInterval).Should(ContainSubstring(matchString))
+
 	dv, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(dv.Annotations[controller.AnnDeleteAfterCompletion]).ToNot(Equal("true"))
@@ -3286,13 +3284,15 @@ func VerifyNoGC(f *framework.Framework, dvName, dvNamespace string) {
 // VerifyDisabledGC verifies DV is not deleted when garbage collection is disabled
 func VerifyDisabledGC(f *framework.Framework, dvName, dvNamespace string) {
 	By("Verify DV is not deleted when garbage collection is disabled")
-	matchString := fmt.Sprintf("Garbage Collection is disabled\t{\"DataVolume\": {\"name\":\"%s\",\"namespace\":\"%s\"}}", dvName, dvNamespace)
-	fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
-	Eventually(func() string {
-		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-		Expect(err).NotTo(HaveOccurred())
-		return log
+	matchString := fmt.Sprintf("Garbage Collection is disabled\t{\"DataVolume\": {\"name\":%q,\"namespace\":%q}}", dvName, dvNamespace)
+	Eventually(func() (string, error) {
+		out, err := f.K8sClient.CoreV1().
+			Pods(f.CdiInstallNs).
+			GetLogs(f.ControllerPod.Name, &corev1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+			DoRaw(context.Background())
+		return string(out), err
 	}, timeout, pollingInterval).Should(ContainSubstring(matchString))
+
 	_, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 }

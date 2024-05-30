@@ -1,12 +1,15 @@
 package tests
 
 import (
+	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	core "k8s.io/api/core/v1"
+	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -54,10 +57,13 @@ var _ = Describe("Problematic server responses", func() {
 		Expect(importer.DeletionTimestamp).To(BeNil())
 
 		By("Verify HTTP request error in importer log")
-		Eventually(func() bool {
-			log, _ := f.RunKubectlCommand("logs", importer.Name, "-n", importer.Namespace)
-			return strings.Contains(log, "Unexpected content type 'text/html'. Content might not be a KubeVirt image.")
-		}, time.Minute, pollingInterval).Should(BeTrue())
+		Eventually(func() (string, error) {
+			out, err := f.K8sClient.CoreV1().
+				Pods(importer.Namespace).
+				GetLogs(importer.Name, &core.PodLogOptions{SinceTime: &meta.Time{Time: CurrentSpecReport().StartTime}}).
+				DoRaw(context.Background())
+			return string(out), err
+		}, time.Minute, pollingInterval).Should(ContainSubstring("Unexpected content type 'text/html'. Content might not be a KubeVirt image."))
 	})
 
 	AfterEach(func() {

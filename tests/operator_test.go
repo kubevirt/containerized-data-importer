@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"regexp"
 	"strings"
 	"time"
 
@@ -40,10 +39,6 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
-)
-
-var (
-	logIsLeaderRegex = regexp.MustCompile("successfully acquired lease")
 )
 
 var _ = Describe("ALL Operator tests", func() {
@@ -1172,13 +1167,18 @@ var _ = Describe("ALL Operator tests", func() {
 					_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
 					return err
 				}, 2*time.Minute, 1*time.Second).Should(BeNil())
+
+				pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
+				Expect(err).ToNot(HaveOccurred())
+
 				By("Ensuring this pod is the leader")
-				Eventually(func() bool {
-					controllerPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
-					Expect(err).ToNot(HaveOccurred())
-					log := getLog(f, controllerPod.Name)
-					return checkLogForRegEx(logIsLeaderRegex, log)
-				}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+				Eventually(func() (string, error) {
+					out, err := f.K8sClient.CoreV1().
+						Pods(f.CdiInstallNs).
+						GetLogs(pod.Name, &corev1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+						DoRaw(context.Background())
+					return string(out), err
+				}, 2*time.Minute, time.Second).Should(ContainSubstring("successfully acquired lease"))
 
 				waitCDI(f, cr, cdiPods)
 			})
@@ -1420,11 +1420,6 @@ func scaleDeployment(f *framework.Framework, deploymentName string, replicas int
 	return originalReplicas
 }
 
-func checkLogForRegEx(regEx *regexp.Regexp, log string) bool {
-	matches := regEx.FindAllStringIndex(log, -1)
-	return len(matches) >= 1
-}
-
 func checkAntiAffinity(name string, deploymentAffinity *corev1.Affinity) {
 	affinityTampleValue := &corev1.PodAntiAffinity{
 		PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
@@ -1449,11 +1444,6 @@ func checkAntiAffinity(name string, deploymentAffinity *corev1.Affinity) {
 	Expect(reflect.DeepEqual(deploymentAffinity, affCopy)).To(BeTrue())
 }
 
-func getLog(f *framework.Framework, name string) string {
-	log, err := f.RunKubectlCommand("logs", "--since=0", name, "-n", f.CdiInstallNs)
-	Expect(err).ToNot(HaveOccurred())
-	return log
-}
 func getPodNumByPrefix(f *framework.Framework, deploymentName string) int {
 	labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{common.CDIComponentLabel: deploymentName}}
 
