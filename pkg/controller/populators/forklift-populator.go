@@ -3,7 +3,6 @@ package populators
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strconv"
 	"time"
 
@@ -423,9 +422,9 @@ func (r *ForkliftPopulatorReconciler) updateImportProgress(podPhase string, pvc,
 	}
 
 	// We fetch the import progress from the import pod metrics
-	importRegExp := regexp.MustCompile("progress_total\\{ownerUID\\=\"" + string(pvc.UID) + "\"\\} (\\d{1,3}\\.?\\d*)")
 	httpClient = cc.BuildHTTPClient(httpClient)
-	progressReport, err := cc.GetProgressReportFromURL(url, importRegExp, httpClient)
+	progressReport, err := cc.GetProgressReportFromURL(url, httpClient,
+		cc.OpenStackPopulatorProgressMetricName+"|"+cc.OvirtPopulatorProgressMetricName, string(pvc.UID))
 	if err != nil {
 		return err
 	}

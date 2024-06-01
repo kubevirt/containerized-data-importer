@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strconv"
 	"time"
 
@@ -281,9 +280,8 @@ func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, p
 	}
 
 	// We fetch the import progress from the import pod metrics
-	importRegExp := regexp.MustCompile("kubevirt_cdi_import_progress_total\\{ownerUID\\=\"" + string(pvc.UID) + "\"\\} (\\d{1,3}\\.?\\d*)")
 	httpClient = cc.BuildHTTPClient(httpClient)
-	progressReport, err := cc.GetProgressReportFromURL(url, importRegExp, httpClient)
+	progressReport, err := cc.GetProgressReportFromURL(url, httpClient, cc.ImportProgressMetricName, string(pvc.UID))
 	if err != nil {
 		return err
 	}

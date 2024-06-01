@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strconv"
 	"time"
 
@@ -124,7 +123,7 @@ func progressFromClaim(ctx context.Context, args *progressFromClaimArgs) (string
 		return "", err
 	}
 
-	// This will only work when the import pod is running
+	// This will only work when the clone source pod is running
 	if pod.Status.Phase != corev1.PodRunning {
 		return "", nil
 	}
@@ -136,9 +135,8 @@ func progressFromClaim(ctx context.Context, args *progressFromClaimArgs) (string
 		return "", nil
 	}
 
-	// We fetch the import progress from the import pod metrics
-	importRegExp := regexp.MustCompile("kubevirt_cdi_clone_progress_total\\{ownerUID\\=\"" + args.OwnerUID + "\"\\} (\\d{1,3}\\.?\\d*)")
-	progressReport, err := cc.GetProgressReportFromURL(url, importRegExp, args.HTTPClient)
+	// We fetch the clone progress from the clone source pod metrics
+	progressReport, err := cc.GetProgressReportFromURL(url, args.HTTPClient, cc.CloneProgressMetricName, args.OwnerUID)
 	if err != nil {
 		return "", err
 	}

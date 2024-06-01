@@ -328,6 +328,15 @@ const (
 	//nolint:gosec // These are not credentials
 	LabelDynamicCredentialSupport = "kubevirt.io/dynamic-credentials-support"
 
+	// ImportProgressMetricName is the name of the import progress metric
+	ImportProgressMetricName = "kubevirt_cdi_import_progress_total"
+	// CloneProgressMetricName is the name of the clone progress metric
+	CloneProgressMetricName = "kubevirt_cdi_clone_progress_total"
+	// OpenStackPopulatorProgressMetricName is the name of the OpenStack populator progress metric
+	OpenStackPopulatorProgressMetricName = "kubevirt_cdi_openstack_populator_progress_total"
+	// OvirtPopulatorProgressMetricName is the name of the oVirt populator progress metric
+	OvirtPopulatorProgressMetricName = "kubevirt_cdi_ovirt_progress_total"
+
 	// ProgressDone this means we are DONE
 	ProgressDone = "100.0%"
 
@@ -1661,8 +1670,9 @@ func GetMetricsURL(pod *corev1.Pod) (string, error) {
 	return url, nil
 }
 
-// GetProgressReportFromURL fetches the progress report from the passed URL according to an specific regular expression
-func GetProgressReportFromURL(url string, regExp *regexp.Regexp, httpClient *http.Client) (string, error) {
+// GetProgressReportFromURL fetches the progress report from the passed URL according to an specific metric expression and ownerUID
+func GetProgressReportFromURL(url string, httpClient *http.Client, metricExp, ownerUID string) (string, error) {
+	regExp := regexp.MustCompile(fmt.Sprintf("(%s)\\{ownerUID\\=%q\\} (\\d{1,3}\\.?\\d*)", metricExp, ownerUID))
 	resp, err := httpClient.Get(url)
 	if err != nil {
 		if ErrConnectionRefused(err) {
@@ -1680,7 +1690,7 @@ func GetProgressReportFromURL(url string, regExp *regexp.Regexp, httpClient *htt
 	progressReport := ""
 	match := regExp.FindStringSubmatch(string(body))
 	if match != nil {
-		progressReport = match[1]
+		progressReport = match[len(match)-1]
 	}
 	return progressReport, nil
 }
