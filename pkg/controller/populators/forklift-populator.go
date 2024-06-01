@@ -136,7 +136,7 @@ func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, 
 			}
 
 			// Check if the owner is a PVC prime
-			if !isPVCPrimeForkliftKind(pvcPrime) && pvcPrime.DeletionTimestamp == nil {
+			if !isPVCPrimeForkliftKind(pvcPrime) || pvcPrime.DeletionTimestamp != nil {
 				return nil
 			}
 
@@ -188,11 +188,6 @@ func (r *ForkliftPopulatorReconciler) reconcile(ctx context.Context, req reconci
 		return reconcile.Result{}, err
 	}
 
-	if pvc.Status.Phase == corev1.ClaimBound {
-		r.log.Info("PVC is bound, skipping...", "pvc", pvc.Name)
-		return reconcile.Result{}, nil
-	}
-
 	// We first perform the common reconcile steps.
 	// We should only continue if we get a valid PVC'
 	pvcPrime, err := r.reconcileCommon(pvc, populator, log)
@@ -210,6 +205,10 @@ func (r *ForkliftPopulatorReconciler) reconcile(ctx context.Context, req reconci
 
 	if cc.IsPVCComplete(pvc) {
 		res, err = r.reconcileCleanup(pvcPrime)
+	}
+
+	if pvcPrime.DeletionTimestamp != nil {
+		res, err = r.deletePopulatorPod(fmt.Sprintf("%s-%s", populatorPodPrefix, pvc.UID), pvc, pvcPrime)
 	}
 
 	return res, err
@@ -363,21 +362,6 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 
 	if cc.IsPVCComplete(pvcPrime) {
 		r.recorder.Eventf(pvc, corev1.EventTypeNormal, importSucceeded, messageImportSucceeded, pvc.Name)
-	}
-
-	if pod.DeletionTimestamp == nil && cc.ShouldDeletePod(pvcPrime) {
-		if err := r.client.Delete(context.TODO(), &corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      podName,
-				Namespace: pvc.GetNamespace(),
-			},
-		}); err != nil {
-			if k8serrors.IsNotFound(err) {
-				return reconcile.Result{}, nil
-			}
-
-			return reconcile.Result{}, err
-		}
 	}
 
 	return reconcile.Result{}, nil
@@ -576,6 +560,34 @@ func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.P
 	}
 
 	return nil
+}
+
+func (r *ForkliftPopulatorReconciler) deletePopulatorPod(podName string, pvc *corev1.PersistentVolumeClaim, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
+	if !cc.ShouldDeletePod(pvcPrime) {
+		r.log.V(3).Info("Skipping populator pod deletion", "pod", podName)
+		return reconcile.Result{}, nil
+	}
+
+	pod := &corev1.Pod{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: pvc.GetNamespace()}, pod); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return reconcile.Result{}, nil
+		}
+	}
+
+	if pod.DeletionTimestamp == nil {
+		r.log.V(3).Info("Deleting populator pod", "pod", pod.Name)
+		if err := r.client.Delete(context.TODO(), &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      podName,
+				Namespace: pvc.GetNamespace(),
+			},
+		}); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
+	return reconcile.Result{}, nil
 }
 
 func makePopulatePodSpec(pvcPrimeName, secretName string) corev1.PodSpec {

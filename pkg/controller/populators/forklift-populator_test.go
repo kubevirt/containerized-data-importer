@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -16,6 +17,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -42,19 +44,24 @@ var (
 var _ = Describe("Forklift populator tests", func() {
 	var (
 		reconciler *ForkliftPopulatorReconciler
+		recorder   *record.FakeRecorder
 	)
+
+	BeforeEach(func() {
+		recorder = nil
+	})
+
+	AfterEach(func() {
+		if recorder != nil {
+			close(recorder.Events)
+		}
+	})
 
 	const (
 		samplePopulatorName = "forklift-populator-test"
 		targetPvcName       = "test-forklift-populator-pvc"
 		scName              = "testsc"
 	)
-
-	AfterEach(func() {
-		if reconciler != nil && reconciler.recorder != nil {
-			close(reconciler.recorder.(*record.FakeRecorder).Events)
-		}
-	})
 
 	sc := CreateStorageClassWithProvisioner(scName, map[string]string{
 		AnnDefaultStorageClass: "true",
@@ -66,6 +73,7 @@ var _ = Describe("Forklift populator tests", func() {
 				Name:        PVCPrimeName(pvc),
 				Namespace:   pvc.Namespace,
 				Annotations: annotations,
+				Finalizers:  []string{"test/finalizer"},
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
 				AccessModes:      pvc.Spec.AccessModes,
@@ -401,6 +409,111 @@ var _ = Describe("Forklift populator tests", func() {
 			err = reconciler.updateImportProgress(string(corev1.PodRunning), targetPvc, pvcPrime)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(targetPvc.Annotations[AnnPopulatorProgress]).To(BeEquivalentTo("13.45%"))
+		})
+
+		It("should remove the populator pod after pvcPrime is marked for deletion", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			pvcPrime := getPVCPrime(targetPvc, make(map[string]string))
+			pvcPrime.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+
+			populatorPod := getPopulatorPod(targetPvc, pvcPrime)
+
+			By("Reconcile")
+			reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, sc, populatorPod)
+
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Checking if the populator pod is deleted")
+			pod := &corev1.Pod{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: populatorPod.Name, Namespace: populatorPod.Namespace}, pod)
+			Expect(err).To(HaveOccurred())
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+		})
+
+		It("should create the populator pod with expected specifications", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			pvcPrime := getPVCPrime(targetPvc, make(map[string]string))
+
+			By("Reconcile")
+			reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, sc, ovirtCr)
+
+			// Call createPopulatorPod directly
+			err := reconciler.createPopulatorPod(pvcPrime, targetPvc)
+			Expect(err).To(Not(HaveOccurred()))
+
+			By("Checking if the populator pod is created with the expected specifications")
+			pod := &corev1.Pod{}
+			podName := fmt.Sprintf("%s-%s", populatorPodPrefix, targetPvc.UID)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: targetPvc.Namespace}, pod)
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(pod.Name).To(Equal(podName))
+			Expect(pod.Namespace).To(Equal(targetPvc.Namespace))
+			Expect(pod.Spec.Containers).To(HaveLen(1))
+			container := pod.Spec.Containers[0]
+			Expect(container.Name).To(Equal("populate"))
+			Expect(container.Image).To(Equal(reconciler.ovirtPopulatorImage))
+			Expect(container.Command).To(Equal([]string{"ovirt-populator"}))
+			Expect(container.Args).To(ContainElements(
+				fmt.Sprintf("--owner-uid=%s", string(targetPvc.UID)),
+				fmt.Sprintf("--pvc-size=%d", targetPvc.Spec.Resources.Requests.Storage().Value()),
+				"--volume-path=/mnt/disk.img",
+				"--secret-name=ovirt-engine-secret",
+				"--disk-id=12345678-1234-1234-1234-123456789012",
+				"--engine-url=https://ovirt-engine.example.com",
+			))
+		})
+
+		It("should correctly identify a PVC as Forklift kind", func() {
+			validPVC := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "valid-pvc",
+					Namespace: metav1.NamespaceDefault,
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					DataSourceRef: &corev1.TypedObjectReference{
+						APIGroup: &apiGroup,
+						Kind:     "OvirtVolumePopulator",
+						Name:     "sample-populator",
+					},
+				},
+			}
+
+			invalidPVC := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "invalid-pvc",
+					Namespace: metav1.NamespaceDefault,
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					DataSourceRef: &corev1.TypedObjectReference{
+						APIGroup: &apiGroup,
+						Kind:     "UnknownPopulator",
+						Name:     "sample-populator",
+					},
+				},
+			}
+
+			noDataSourceRefPVC := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "no-datasource-pvc",
+					Namespace: metav1.NamespaceDefault,
+				},
+			}
+
+			By("Validating PVC with correct DataSourceRef")
+			isValid := isPVCForkliftKind(validPVC)
+			Expect(isValid).To(BeTrue())
+
+			By("Validating PVC with incorrect DataSourceRef kind")
+			isInvalid := isPVCForkliftKind(invalidPVC)
+			Expect(isInvalid).To(BeFalse())
+
+			By("Validating PVC with no DataSourceRef")
+			isNoDataSourceRef := isPVCForkliftKind(noDataSourceRefPVC)
+			Expect(isNoDataSourceRef).To(BeFalse())
 		})
 	})
 })
