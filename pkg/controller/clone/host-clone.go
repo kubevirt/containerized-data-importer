@@ -19,6 +19,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 )
 
 // HostClonePhaseName is the name of the host clone phase
@@ -136,7 +137,7 @@ func progressFromClaim(ctx context.Context, args *progressFromClaimArgs) (string
 	}
 
 	// We fetch the clone progress from the clone source pod metrics
-	progressReport, err := cc.GetProgressReportFromURL(url, args.HTTPClient, cc.CloneProgressMetricName, args.OwnerUID)
+	progressReport, err := cc.GetProgressReportFromURL(url, args.HTTPClient, metrics.CloneProgressMetricName, args.OwnerUID)
 	if err != nil {
 		return "", err
 	}

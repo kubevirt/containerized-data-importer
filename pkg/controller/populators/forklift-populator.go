@@ -25,6 +25,8 @@ import (
 	"kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	openstackMetric "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/openstack-populator"
+	ovirtMetric "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/ovirt-populator"
 )
 
 const (
@@ -424,7 +426,8 @@ func (r *ForkliftPopulatorReconciler) updateImportProgress(podPhase string, pvc,
 	// We fetch the import progress from the import pod metrics
 	httpClient = cc.BuildHTTPClient(httpClient)
 	progressReport, err := cc.GetProgressReportFromURL(url, httpClient,
-		cc.OpenStackPopulatorProgressMetricName+"|"+cc.OvirtPopulatorProgressMetricName, string(pvc.UID))
+		fmt.Sprintf("%s|%s", openstackMetric.OpenStackPopulatorProgressMetricName, ovirtMetric.OvirtPopulatorProgressMetricName),
+		string(pvc.UID))
 	if err != nil {
 		return err
 	}

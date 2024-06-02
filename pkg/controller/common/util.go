@@ -328,15 +328,6 @@ const (
 	//nolint:gosec // These are not credentials
 	LabelDynamicCredentialSupport = "kubevirt.io/dynamic-credentials-support"
 
-	// ImportProgressMetricName is the name of the import progress metric
-	ImportProgressMetricName = "kubevirt_cdi_import_progress_total"
-	// CloneProgressMetricName is the name of the clone progress metric
-	CloneProgressMetricName = "kubevirt_cdi_clone_progress_total"
-	// OpenStackPopulatorProgressMetricName is the name of the OpenStack populator progress metric
-	OpenStackPopulatorProgressMetricName = "kubevirt_cdi_openstack_populator_progress_total"
-	// OvirtPopulatorProgressMetricName is the name of the oVirt populator progress metric
-	OvirtPopulatorProgressMetricName = "kubevirt_cdi_ovirt_progress_total"
-
 	// ProgressDone this means we are DONE
 	ProgressDone = "100.0%"
 

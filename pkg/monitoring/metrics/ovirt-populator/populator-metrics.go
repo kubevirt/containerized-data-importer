@@ -5,6 +5,11 @@ import (
 	ioprometheusclient "github.com/prometheus/client_model/go"
 )
 
+const (
+	// OvirtPopulatorProgressMetricName is the name of the oVirt populator progress metric
+	OvirtPopulatorProgressMetricName = "kubevirt_cdi_ovirt_progress_total"
+)
+
 var (
 	populatorMetrics = []operatormetrics.Metric{
 		populatorProgress,
@@ -12,7 +17,7 @@ var (
 
 	populatorProgress = operatormetrics.NewCounterVec(
 		operatormetrics.MetricOpts{
-			Name: "kubevirt_cdi_ovirt_progress_total",
+			Name: OvirtPopulatorProgressMetricName,
 			Help: "Progress of volume population",
 		},
 		[]string{"ownerUID"},

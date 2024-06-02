@@ -51,7 +51,9 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	cloneMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
+	importMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -1110,7 +1112,8 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 
 	// Used for both import and clone, so it should match both metric names
 	progressReport, err := cc.GetProgressReportFromURL(url, httpClient,
-		cc.ImportProgressMetricName+"|"+cc.CloneProgressMetricName, string(dataVolumeCopy.UID))
+		fmt.Sprintf("%s|%s", importMetrics.ImportProgressMetricName, cloneMetrics.CloneProgressMetricName),
+		string(dataVolumeCopy.UID))
 	if err != nil {
 		return err
 	}

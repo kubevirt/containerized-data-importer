@@ -5,6 +5,11 @@ import (
 	ioprometheusclient "github.com/prometheus/client_model/go"
 )
 
+const (
+	// CloneProgressMetricName is the name of the clone progress metric
+	CloneProgressMetricName = "kubevirt_cdi_clone_progress_total"
+)
+
 var (
 	clonerMetrics = []operatormetrics.Metric{
 		cloneProgress,
@@ -12,7 +17,7 @@ var (
 
 	cloneProgress = operatormetrics.NewCounterVec(
 		operatormetrics.MetricOpts{
-			Name: "kubevirt_cdi_clone_progress_total",
+			Name: CloneProgressMetricName,
 			Help: "The clone progress in percentage",
 		},
 		[]string{"ownerUID"},

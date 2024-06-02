@@ -5,6 +5,11 @@ import (
 	ioprometheusclient "github.com/prometheus/client_model/go"
 )
 
+const (
+	// ImportProgressMetricName is the name of the import progress metric
+	ImportProgressMetricName = "kubevirt_cdi_import_progress_total"
+)
+
 var (
 	importerMetrics = []operatormetrics.Metric{
 		importProgress,
@@ -12,7 +17,7 @@ var (
 
 	importProgress = operatormetrics.NewCounterVec(
 		operatormetrics.MetricOpts{
-			Name: "kubevirt_cdi_import_progress_total",
+			Name: ImportProgressMetricName,
 			Help: "The import progress in percentage",
 		},
 		[]string{"ownerUID"},

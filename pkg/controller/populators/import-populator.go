@@ -39,6 +39,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	importMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 )
 
 const (
@@ -281,7 +282,7 @@ func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, p
 
 	// We fetch the import progress from the import pod metrics
 	httpClient = cc.BuildHTTPClient(httpClient)
-	progressReport, err := cc.GetProgressReportFromURL(url, httpClient, cc.ImportProgressMetricName, string(pvc.UID))
+	progressReport, err := cc.GetProgressReportFromURL(url, httpClient, importMetrics.ImportProgressMetricName, string(pvc.UID))
 	if err != nil {
 		return err
 	}
