@@ -1041,6 +1041,17 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 
+	if err := c.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}},
+		handler.EnqueueRequestsFromMapFunc(mapSourceObjectToCron),
+		predicate.Funcs{
+			CreateFunc: func(event.CreateEvent) bool { return false },
+			UpdateFunc: func(event.UpdateEvent) bool { return false },
+			DeleteFunc: func(e event.DeleteEvent) bool { return getCronName(e.Object) != "" },
+		},
+	); err != nil {
+		return err
+	}
+
 	if err := c.Watch(&source.Kind{Type: &cdiv1.StorageProfile{}},
 		handler.EnqueueRequestsFromMapFunc(mapStorageProfileToCron),
 		predicate.Funcs{
