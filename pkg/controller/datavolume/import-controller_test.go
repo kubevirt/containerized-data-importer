@@ -1660,7 +1660,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				_, _ = fmt.Fprintf(w, "import_progress{ownerUID=\"%v\"} 13.45", dv.GetUID()) // ignore error here
-				w.WriteHeader(200)
+				w.WriteHeader(http.StatusOK)
 			}))
 			defer ts.Close()
 			ep, err := url.Parse(ts.URL)
@@ -1679,7 +1679,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.Status.Progress = cdiv1.DataVolumeProgress("2.3%")
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", "b856691e-1038-11e9-a5ab-55500d15501")))
-				w.WriteHeader(200)
+				w.WriteHeader(http.StatusOK)
 			}))
 			defer ts.Close()
 			ep, err := url.Parse(ts.URL)

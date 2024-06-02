@@ -465,7 +465,7 @@ func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
 		klog.Infof("Range request extends past end of image, trimming to %d", end)
 	}
 
-	request, err := http.NewRequest("GET", reader.transferURL, nil)
+	request, err := http.NewRequest(http.MethodGet, reader.transferURL, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create range request")
 	}
@@ -562,7 +562,7 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 
 	var reader io.ReadCloser
 	if extentsFeature {
-		req, err := http.NewRequest("GET", transferURL+"/extents", nil)
+		req, err := http.NewRequest(http.MethodGet, transferURL+"/extents", nil)
 		if err != nil {
 			return nil, uint64(0), it, conn, err
 		}
@@ -598,7 +598,7 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 			size:        int64(total),
 		}
 	} else {
-		req, err := http.NewRequest("GET", transferURL, nil)
+		req, err := http.NewRequest(http.MethodGet, transferURL, nil)
 		if err != nil {
 			return nil, uint64(0), it, conn, errors.Wrap(err, "Sending request failed")
 		}

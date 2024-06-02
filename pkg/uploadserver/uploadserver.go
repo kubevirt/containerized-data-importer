@@ -278,7 +278,7 @@ func (app *uploadServerApp) healthzHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (app *uploadServerApp) validateShouldHandleRequest(w http.ResponseWriter, r *http.Request) bool {
-	if r.Method != "POST" {
+	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusNotFound)
 		return false
 	}
@@ -323,7 +323,7 @@ func (app *uploadServerApp) validateShouldHandleRequest(w http.ResponseWriter, r
 
 func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "HEAD" {
+		if r.Method == http.MethodHead {
 			w.WriteHeader(http.StatusOK)
 			return
 		}

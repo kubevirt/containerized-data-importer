@@ -331,7 +331,7 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 		brokenForQemuImg = true
 	}
 	// http.NewRequest can only return error on invalid METHOD, or invalid url. Here the METHOD is always GET, and the url is always valid, thus error cannot happen.
-	req, _ := http.NewRequest("GET", ep.String(), nil)
+	req, _ := http.NewRequest(http.MethodGet, ep.String(), nil)
 
 	addExtraheaders(req, allExtraHeaders)
 
@@ -344,9 +344,9 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 	if err != nil {
 		return nil, uint64(0), true, errors.Wrap(err, "HTTP request errored")
 	}
-	if resp.StatusCode != 200 {
-		klog.Errorf("http: expected status code 200, got %d", resp.StatusCode)
-		return nil, uint64(0), true, errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
+	if want := http.StatusOK; resp.StatusCode != want {
+		klog.Errorf("http: expected status code %d, got %d", want, resp.StatusCode)
+		return nil, uint64(0), true, errors.Errorf("expected status code %d, got %d. Status: %s", want, resp.StatusCode, resp.Status)
 	}
 
 	if contentType == cdiv1.DataVolumeKubeVirt {
@@ -404,7 +404,7 @@ func (hs *HTTPDataSource) pollProgress(reader *util.CountingReader, idleTime, po
 }
 
 func getContentLength(client *http.Client, ep *url.URL, accessKey, secKey string, extraHeaders []string) (uint64, error) {
-	req, err := http.NewRequest("HEAD", ep.String(), nil)
+	req, err := http.NewRequest(http.MethodHead, ep.String(), nil)
 	if err != nil {
 		return uint64(0), errors.Wrap(err, "could not create HTTP request")
 	}
@@ -420,9 +420,9 @@ func getContentLength(client *http.Client, ep *url.URL, accessKey, secKey string
 		return uint64(0), errors.Wrap(err, "HTTP request errored")
 	}
 
-	if resp.StatusCode != 200 {
-		klog.Errorf("http: expected status code 200, got %d", resp.StatusCode)
-		return uint64(0), errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
+	if want := http.StatusOK; resp.StatusCode != want {
+		klog.Errorf("http: expected status code %d, got %d", want, resp.StatusCode)
+		return uint64(0), errors.Errorf("expected status code %d, got %d. Status: %s", want, resp.StatusCode, resp.Status)
 	}
 
 	for k, v := range resp.Header {
@@ -512,7 +512,7 @@ func getExtraHeadersFromSecrets() ([]string, error) {
 }
 
 func getServerInfo(ctx context.Context, infoURL string) (*common.ServerInfo, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", infoURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, infoURL, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to construct request for containerimage-server info")
 	}

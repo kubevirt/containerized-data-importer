@@ -12,7 +12,7 @@ import (
 )
 
 func failHEAD(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "HEAD" {
+	if r.Method == http.MethodHead {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -20,7 +20,7 @@ func failHEAD(w http.ResponseWriter, r *http.Request) {
 }
 
 func flaky(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "GET" && incrementAndGetCounter()%4 == 3 {
+	if r.Method == http.MethodGet && incrementAndGetCounter()%4 == 3 {
 		fmt.Printf("Method: %s, Redirecting\n", r.Method)
 		redirect(w, r)
 
@@ -74,7 +74,7 @@ func noAcceptRanges(w http.ResponseWriter, r *http.Request) {
 
 func redirect(w http.ResponseWriter, r *http.Request) {
 	redirectURL := getEquivalentFileHostURL(r.URL.String())
-	http.Redirect(w, r, redirectURL, 301)
+	http.Redirect(w, r, redirectURL, http.StatusMovedPermanently)
 }
 
 func getEquivalentFileHostURL(url string) string {

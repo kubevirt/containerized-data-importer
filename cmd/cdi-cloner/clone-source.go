@@ -252,7 +252,7 @@ func main() {
 
 	client := createHTTPClient(clientKey, clientCert, serverCert)
 
-	req, _ := http.NewRequest("POST", url, reader)
+	req, _ := http.NewRequest(http.MethodPost, url, reader)
 
 	if contentType != "" {
 		req.Header.Set("x-cdi-content-type", contentType)

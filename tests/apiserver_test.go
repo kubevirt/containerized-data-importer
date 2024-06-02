@@ -56,7 +56,7 @@ var _ = Describe("cdi-apiserver tests", Serial, func() {
 			}
 
 			Eventually(func() error {
-				req, err := http.NewRequest("GET", url, nil)
+				req, err := http.NewRequest(http.MethodGet, url, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				resp, err := client.Do(req)
@@ -130,7 +130,7 @@ var _ = Describe("cdi-apiserver tests", Serial, func() {
 				},
 			}
 			requestFunc := func() string {
-				req, err := http.NewRequest("GET", url, nil)
+				req, err := http.NewRequest(http.MethodGet, url, nil)
 				if err != nil {
 					return err.Error()
 				}

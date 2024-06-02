@@ -143,7 +143,7 @@ var _ = Describe("Auth config tests", func() {
 		Expect(secret.Labels[common.AppKubernetesComponentLabel]).To(Equal("storage"))
 		Expect(secret.Labels[common.AppKubernetesVersionLabel]).To(Equal(installerLabels[common.AppKubernetesVersionLabel]))
 
-		req, err := http.NewRequest("GET", "/apis", nil)
+		req, err := http.NewRequest(http.MethodGet, "/apis", nil)
 		Expect(err).ToNot(HaveOccurred())
 		rr := httptest.NewRecorder()
 

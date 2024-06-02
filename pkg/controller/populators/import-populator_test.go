@@ -571,7 +571,7 @@ var _ = Describe("Import populator tests", func() {
 
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", targetPvc.GetUID())))
-				w.WriteHeader(200)
+				w.WriteHeader(http.StatusOK)
 			}))
 			defer ts.Close()
 			ep, err := url.Parse(ts.URL)

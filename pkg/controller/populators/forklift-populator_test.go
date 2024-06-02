@@ -392,7 +392,7 @@ var _ = Describe("Forklift populator tests", func() {
 
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte(fmt.Sprintf("kubevirt_cdi_openstack_populator_progress_total{ownerUID=\"%v\"} 13.45", targetPvc.GetUID())))
-				w.WriteHeader(200)
+				w.WriteHeader(http.StatusOK)
 			}))
 			defer ts.Close()
 			ep, err := url.Parse(ts.URL)
