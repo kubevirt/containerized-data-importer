@@ -38,7 +38,7 @@ const (
 	devicePath             = "/dev/block"
 )
 
-const apiGroup = "forklift.cdi.konveyor.io"
+const apiGroup = "forklift.cdi.kubevirt.io"
 
 var (
 	supportedPopulators = map[string]client.Object{

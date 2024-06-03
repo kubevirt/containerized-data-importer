@@ -154,12 +154,12 @@ spec:
   dataSourceRef:
     name: ovirt-pop
     kind: OvirtVolumePopulator
-    apiGroup: forklift.cdi.konveyor.io
+    apiGroup: forklift.cdi.kubevirt.io
   resources:
     requests:
       storage: 13G
 ---
-apiVersion: forklift.cdi.konveyor.io/v1beta1
+apiVersion: forklift.cdi.kubevirt.io/v1beta1
 kind: OvirtVolumePopulator
 metadata:
   name: ovirt-pop
@@ -194,15 +194,15 @@ spec:
       storage: 1Gi
   volumeMode: Filesystem
   dataSource:
-    apiGroup: forklift.cdi.konveyor.io
+    apiGroup: forklift.cdi.kubevirt.io
     kind: OpenstackVolumePopulator
     name: openstack-image-cr
   dataSourceRef:
-    apiGroup: forklift.cdi.konveyor.io
+    apiGroup: forklift.cdi.kubevirt.io
     kind: OpenstackVolumePopulator
     name: openstack-image-cr
 ---
-apiVersion: "forklift.cdi.konveyor.io/v1beta1"
+apiVersion: "forklift.cdi.kubevirt.io/v1beta1"
 kind: OpenstackVolumePopulator
 metadata:
   name: openstack-image-cr

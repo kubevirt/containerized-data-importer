@@ -145,7 +145,7 @@ var _ = Describe("Forklift populator tests", func() {
 	}
 
 	// Forklift populator's DataSourceRef
-	apiGroup := "forklift.cdi.konveyor.io"
+	apiGroup := "forklift.cdi.kubevirt.io"
 	dataSourceRef := &corev1.TypedObjectReference{
 		APIGroup: &apiGroup,
 		Kind:     v1beta1.OvirtVolumePopulatorKind,
@@ -258,7 +258,7 @@ var _ = Describe("Forklift populator tests", func() {
 			badCr := &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"kind":       "BadPopulator",
-					"apiVersion": "forklift.cdi.konveyor.io",
+					"apiVersion": "forklift.cdi.kubevirt.io",
 					"metadata": map[string]interface{}{
 						"name":      "bad-pop",
 						"namespace": metav1.NamespaceDefault,
