@@ -31,7 +31,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
-	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
@@ -85,7 +85,7 @@ func NewFormatReaders(stream io.ReadCloser, total uint64) (*FormatReaders, error
 		buf: make([]byte, image.MaxExpectedHdrSize),
 	}
 	if total > uint64(0) {
-		readers.progressReader = prometheusutil.NewProgressReader(stream, total, ownerUID)
+		readers.progressReader = prometheusutil.NewProgressReader(stream, metrics.Progress(ownerUID), total)
 		err = readers.constructReaders(readers.progressReader)
 	} else {
 		err = readers.constructReaders(stream)

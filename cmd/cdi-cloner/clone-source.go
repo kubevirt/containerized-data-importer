@@ -104,7 +104,7 @@ func createProgressReader(readCloser io.ReadCloser, ownerUID string, totalBytes 
 	if err := metrics.SetupMetrics(); err != nil {
 		return nil, err
 	}
-	promReader := prometheusutil.NewProgressReader(readCloser, totalBytes, ownerUID)
+	promReader := prometheusutil.NewProgressReader(readCloser, metrics.Progress(ownerUID), totalBytes)
 	promReader.StartTimedUpdate()
 
 	return promReader, nil

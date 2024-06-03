@@ -32,7 +32,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 	"kubevirt.io/containerized-data-importer/pkg/system"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -273,9 +273,9 @@ func reportProgress(line string) {
 		klog.V(1).Info(matches[1])
 		// Don't need to check for an error, the regex made sure its a number we can parse.
 		v, _ := strconv.ParseFloat(matches[1], 64)
-		progress, err := metrics.GetCloneProgress(ownerUID)
+		progress, err := metrics.Progress(ownerUID).Get()
 		if err == nil && v > 0 && v > progress {
-			metrics.AddCloneProgress(ownerUID, v-progress)
+			metrics.Progress(ownerUID).Add(v - progress)
 		}
 	}
 }

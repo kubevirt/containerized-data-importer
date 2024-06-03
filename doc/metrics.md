@@ -18,6 +18,9 @@ Number of DataVolumes pending for default storage class to be configured. Type: 
 ### kubevirt_cdi_import_pods_high_restart
 The number of CDI import pods with high restart count. Type: Gauge.
 
+### kubevirt_cdi_import_progress_total
+The import progress in percentage. Type: Counter.
+
 ### kubevirt_cdi_openstack_populator_progress_total
 Progress of volume population. Type: Counter.
 

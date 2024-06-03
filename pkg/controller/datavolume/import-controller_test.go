@@ -1659,7 +1659,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		It("Should properly update progress if http endpoint returns matching data", func() {
 			dv.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				_, _ = fmt.Fprintf(w, "import_progress{ownerUID=\"%v\"} 13.45", dv.GetUID()) // ignore error here
+				_, _ = fmt.Fprintf(w, "kubevirt_cdi_import_progress_total{ownerUID=\"%v\"} 13.45", dv.GetUID()) // ignore error here
 				w.WriteHeader(http.StatusOK)
 			}))
 			defer ts.Close()
