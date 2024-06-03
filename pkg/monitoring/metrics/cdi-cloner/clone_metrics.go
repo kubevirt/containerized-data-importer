@@ -5,6 +5,11 @@ import (
 	ioprometheusclient "github.com/prometheus/client_model/go"
 )
 
+const (
+	// CloneProgressMetricName is the name of the clone progress metric
+	CloneProgressMetricName = "kubevirt_cdi_clone_progress_total"
+)
+
 var (
 	clonerMetrics = []operatormetrics.Metric{
 		cloneProgress,
@@ -12,27 +17,36 @@ var (
 
 	cloneProgress = operatormetrics.NewCounterVec(
 		operatormetrics.MetricOpts{
-			Name: "kubevirt_cdi_clone_progress_total",
+			Name: CloneProgressMetricName,
 			Help: "The clone progress in percentage",
 		},
 		[]string{"ownerUID"},
 	)
 )
 
-// AddCloneProgress adds value to the cloneProgress metric
-func AddCloneProgress(labelValue string, value float64) {
-	cloneProgress.WithLabelValues(labelValue).Add(value)
+type CloneProgress struct {
+	ownerUID string
 }
 
-// GetCloneProgress returns the cloneProgress value
-func GetCloneProgress(labelValue string) (float64, error) {
+func Progress(ownerUID string) *CloneProgress {
+	return &CloneProgress{ownerUID}
+}
+
+// Add adds value to the cloneProgress metric
+func (cp *CloneProgress) Add(value float64) {
+	cloneProgress.WithLabelValues(cp.ownerUID).Add(value)
+}
+
+// Get returns the cloneProgress value
+func (cp *CloneProgress) Get() (float64, error) {
 	dto := &ioprometheusclient.Metric{}
-	if err := cloneProgress.WithLabelValues(labelValue).Write(dto); err != nil {
+	if err := cloneProgress.WithLabelValues(cp.ownerUID).Write(dto); err != nil {
 		return 0, err
 	}
 	return dto.Counter.GetValue(), nil
 }
 
-func DeleteCloneProgress(labelValue string) {
-	cloneProgress.DeleteLabelValues(labelValue)
+// Delete removes the cloneProgress metric with the passed label
+func (cp *CloneProgress) Delete() {
+	cloneProgress.DeleteLabelValues(cp.ownerUID)
 }

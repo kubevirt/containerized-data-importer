@@ -6,7 +6,6 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/pkg/util/prometheus",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/monitoring/metrics/cdi-cloner:go_default_library",
         "//pkg/util:go_default_library",
         "//vendor/github.com/prometheus/client_golang/prometheus/promhttp:go_default_library",
         "//vendor/k8s.io/client-go/util/cert:go_default_library",

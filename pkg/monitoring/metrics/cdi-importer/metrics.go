@@ -1,4 +1,4 @@
-package cdicloner
+package cdiimporter
 
 import (
 	"github.com/machadovilaca/operator-observability/pkg/operatormetrics"
@@ -7,6 +7,6 @@ import (
 // SetupMetrics register prometheus metrics
 func SetupMetrics() error {
 	return operatormetrics.RegisterMetrics(
-		clonerMetrics,
+		importerMetrics,
 	)
 }
