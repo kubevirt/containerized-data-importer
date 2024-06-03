@@ -28,6 +28,9 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -82,6 +85,42 @@ func SetConfigAsOwner(configMap *corev1.ConfigMap, object metav1.Object) error {
 	object.SetOwnerReferences(append(object.GetOwnerReferences(), *configMapOwner))
 
 	return nil
+}
+
+// GetCertConfigWithDefaults returns the CDI cert config with default values when not set
+func GetCertConfigWithDefaults(ctx context.Context, c client.Client) (*cdiv1.CDICertConfig, error) {
+	cdi, err := cc.GetActiveCDI(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+
+	certConfig := cdi.Spec.CertConfig
+	if certConfig == nil {
+		certConfig = &cdiv1.CDICertConfig{}
+	}
+
+	if certConfig.CA == nil || certConfig.CA.Duration == nil || certConfig.CA.RenewBefore == nil {
+		certConfig.CA = &cdiv1.CertConfig{
+			Duration:    &metav1.Duration{Duration: cert.SignerLifetime},
+			RenewBefore: &metav1.Duration{Duration: cert.SignerLifetime - cert.SignerRefresh},
+		}
+	}
+
+	if certConfig.Server == nil || certConfig.Server.Duration == nil || certConfig.Server.RenewBefore == nil {
+		certConfig.Server = &cdiv1.CertConfig{
+			Duration:    &metav1.Duration{Duration: cert.ServerLifetime},
+			RenewBefore: &metav1.Duration{Duration: cert.ServerLifetime - cert.ServerRefresh},
+		}
+	}
+
+	if certConfig.Client == nil || certConfig.Client.Duration == nil || certConfig.Client.RenewBefore == nil {
+		certConfig.Client = &cdiv1.CertConfig{
+			Duration:    &metav1.Duration{Duration: cert.ClientLifetime},
+			RenewBefore: &metav1.Duration{Duration: cert.ClientLifetime - cert.ClientRefresh},
+		}
+	}
+
+	return certConfig, nil
 }
 
 func getController(owners []metav1.OwnerReference) *metav1.OwnerReference {

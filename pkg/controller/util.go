@@ -28,7 +28,6 @@ import (
 	"github.com/pkg/errors"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -85,7 +84,7 @@ const (
 	ClusterWideProxyConfigMapKey = "ca-bundle.crt"
 )
 
-func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string, log logr.Logger) bool {
+func checkPVC(pvc *corev1.PersistentVolumeClaim, annotation string, log logr.Logger) bool {
 	// check if we have proper annotation
 	if !metav1.HasAnnotation(pvc.ObjectMeta, annotation) {
 		log.V(1).Info("PVC annotation not found, skipping pvc", "annotation", annotation)
@@ -97,15 +96,15 @@ func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string, log logr.Logger)
 
 // - when the SkipWFFCVolumesEnabled is true, the CDI controller will only handle BOUND the PVC
 // - when the SkipWFFCVolumesEnabled is false, the CDI controller will can handle it - it will create worker pods for the PVC (this will bind it)
-func shouldHandlePvc(pvc *v1.PersistentVolumeClaim, honorWaitForFirstConsumerEnabled bool, log logr.Logger) bool {
+func shouldHandlePvc(pvc *corev1.PersistentVolumeClaim, honorWaitForFirstConsumerEnabled bool, log logr.Logger) bool {
 	if honorWaitForFirstConsumerEnabled {
 		return isBound(pvc, log)
 	}
 	return true
 }
 
-func isBound(pvc *v1.PersistentVolumeClaim, log logr.Logger) bool {
-	if pvc.Status.Phase != v1.ClaimBound {
+func isBound(pvc *corev1.PersistentVolumeClaim, log logr.Logger) bool {
+	if pvc.Status.Phase != corev1.ClaimBound {
 		log.V(1).Info("PVC not bound, skipping pvc", "Phase", pvc.Status.Phase)
 		return false
 	}
@@ -114,7 +113,7 @@ func isBound(pvc *v1.PersistentVolumeClaim, log logr.Logger) bool {
 }
 
 // checks if particular label exists in pvc
-func checkIfLabelExists(pvc *v1.PersistentVolumeClaim, lbl string, val string) bool {
+func checkIfLabelExists(pvc *corev1.PersistentVolumeClaim, lbl string, val string) bool {
 	value, exists := pvc.ObjectMeta.Labels[lbl]
 	if exists && value == val {
 		return true
@@ -125,7 +124,7 @@ func checkIfLabelExists(pvc *v1.PersistentVolumeClaim, lbl string, val string) b
 // newScratchPersistentVolumeClaimSpec creates a new PVC based on the size of the passed in PVC.
 // It also sets the appropriate OwnerReferences on the resource
 // which allows handleObject to discover the pod resource that 'owns' it, and clean up when needed.
-func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, name, storageClassName string) *v1.PersistentVolumeClaim {
+func newScratchPersistentVolumeClaimSpec(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, name, storageClassName string) *corev1.PersistentVolumeClaim {
 	labels := map[string]string{
 		"app": "containerized-data-importer",
 	}
@@ -147,7 +146,7 @@ func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.
 		annotations[cc.AnnSelectedNode] = selectedNode
 	}
 
-	pvcDef := &v1.PersistentVolumeClaim{
+	pvcDef := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Namespace:   pvc.Namespace,
@@ -157,8 +156,8 @@ func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.
 				MakePodOwnerReference(pod),
 			},
 		},
-		Spec: v1.PersistentVolumeClaimSpec{
-			AccessModes: []v1.PersistentVolumeAccessMode{"ReadWriteOnce"},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{"ReadWriteOnce"},
 			Resources:   pvc.Spec.Resources,
 		},
 	}
@@ -169,18 +168,18 @@ func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.
 }
 
 // createScratchPersistentVolumeClaim creates and returns a pointer to a scratch PVC which is created based on the passed-in pvc and storage class name.
-func createScratchPersistentVolumeClaim(client client.Client, pvc *v1.PersistentVolumeClaim, pod *v1.Pod, name, storageClassName string, installerLabels map[string]string, recorder record.EventRecorder) (*v1.PersistentVolumeClaim, error) {
+func createScratchPersistentVolumeClaim(client client.Client, pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, name, storageClassName string, installerLabels map[string]string, recorder record.EventRecorder) (*corev1.PersistentVolumeClaim, error) {
 	scratchPvcSpec := newScratchPersistentVolumeClaimSpec(pvc, pod, name, storageClassName)
 	util.SetRecommendedLabels(scratchPvcSpec, installerLabels, "cdi-controller")
 	if err := client.Create(context.TODO(), scratchPvcSpec); err != nil {
 		if cc.ErrQuotaExceeded(err) {
-			recorder.Event(pvc, v1.EventTypeWarning, cc.ErrExceededQuota, err.Error())
+			recorder.Event(pvc, corev1.EventTypeWarning, cc.ErrExceededQuota, err.Error())
 		}
 		if !k8serrors.IsAlreadyExists(err) {
 			return nil, errors.Wrap(err, "scratch PVC API create errored")
 		}
 	}
-	scratchPvc := &v1.PersistentVolumeClaim{}
+	scratchPvc := &corev1.PersistentVolumeClaim{}
 	if err := client.Get(context.TODO(), types.NamespacedName{Name: scratchPvcSpec.Name, Namespace: pvc.Namespace}, scratchPvc); err != nil {
 		klog.Errorf("Unable to get scratch space pvc, %v\n", err)
 		return nil, err
@@ -190,8 +189,8 @@ func createScratchPersistentVolumeClaim(client client.Client, pvc *v1.Persistent
 }
 
 // GetFilesystemOverhead determines the filesystem overhead defined in CDIConfig for this PVC's volumeMode and storageClass.
-func GetFilesystemOverhead(ctx context.Context, client client.Client, pvc *v1.PersistentVolumeClaim) (cdiv1.Percent, error) {
-	if cc.GetVolumeMode(pvc) != v1.PersistentVolumeFilesystem {
+func GetFilesystemOverhead(ctx context.Context, client client.Client, pvc *corev1.PersistentVolumeClaim) (cdiv1.Percent, error) {
+	if cc.GetVolumeMode(pvc) != corev1.PersistentVolumeFilesystem {
 		return "0", nil
 	}
 
@@ -203,7 +202,7 @@ func GetFilesystemOverhead(ctx context.Context, client client.Client, pvc *v1.Pe
 // 1. Defined value in CDI Config field scratchSpaceStorageClass.
 // 2. If 1 is not available, use the storage class name of the original pvc that will own the scratch pvc.
 // 3. If none of those are available, return blank.
-func GetScratchPvcStorageClass(client client.Client, pvc *v1.PersistentVolumeClaim) string {
+func GetScratchPvcStorageClass(client client.Client, pvc *corev1.PersistentVolumeClaim) string {
 	config := &cdiv1.CDIConfig{}
 	if err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, config); err != nil {
 		return ""
@@ -243,7 +242,7 @@ func DecodePublicKey(keyBytes []byte) (*rsa.PublicKey, error) {
 }
 
 // MakePVCOwnerReference makes owner reference from a PVC
-func MakePVCOwnerReference(pvc *v1.PersistentVolumeClaim) metav1.OwnerReference {
+func MakePVCOwnerReference(pvc *corev1.PersistentVolumeClaim) metav1.OwnerReference {
 	blockOwnerDeletion := true
 	isController := true
 	return metav1.OwnerReference{
@@ -257,7 +256,7 @@ func MakePVCOwnerReference(pvc *v1.PersistentVolumeClaim) metav1.OwnerReference 
 }
 
 // MakePodOwnerReference makes owner reference from a Pod
-func MakePodOwnerReference(pod *v1.Pod) metav1.OwnerReference {
+func MakePodOwnerReference(pod *corev1.Pod) metav1.OwnerReference {
 	blockOwnerDeletion := true
 	isController := true
 	return metav1.OwnerReference{
@@ -270,16 +269,16 @@ func MakePodOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 	}
 }
 
-func podPhaseFromPVC(pvc *v1.PersistentVolumeClaim) v1.PodPhase {
+func podPhaseFromPVC(pvc *corev1.PersistentVolumeClaim) corev1.PodPhase {
 	phase := pvc.ObjectMeta.Annotations[cc.AnnPodPhase]
-	return v1.PodPhase(phase)
+	return corev1.PodPhase(phase)
 }
 
-func podSucceededFromPVC(pvc *v1.PersistentVolumeClaim) bool {
-	return podPhaseFromPVC(pvc) == v1.PodSucceeded
+func podSucceededFromPVC(pvc *corev1.PersistentVolumeClaim) bool {
+	return podPhaseFromPVC(pvc) == corev1.PodSucceeded
 }
 
-func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, termMsg *common.TerminationMessage, prefix string) {
+func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *corev1.Pod, termMsg *common.TerminationMessage, prefix string) {
 	if pod == nil || pod.Status.ContainerStatuses == nil {
 		return
 	}
@@ -325,7 +324,9 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, termMs
 				return
 			}
 			// Handle extended termination message
-			anno[prefix+".message"] = ImportCompleteMessage
+			if termMsg.Message != nil {
+				anno[prefix+".message"] = *termMsg.Message
+			}
 			if termMsg.VddkInfo != nil {
 				if termMsg.VddkInfo.Host != "" {
 					anno[cc.AnnVddkHostConnection] = termMsg.VddkInfo.Host
@@ -378,7 +379,7 @@ func simplifyKnownMessage(msg string) string {
 	return msg
 }
 
-func parseTerminationMessage(pod *v1.Pod) (*common.TerminationMessage, error) {
+func parseTerminationMessage(pod *corev1.Pod) (*common.TerminationMessage, error) {
 	if pod == nil || pod.Status.ContainerStatuses == nil {
 		return nil, nil
 	}
@@ -396,17 +397,17 @@ func parseTerminationMessage(pod *v1.Pod) (*common.TerminationMessage, error) {
 	return termMsg, nil
 }
 
-func setBoundConditionFromPVC(anno map[string]string, prefix string, pvc *v1.PersistentVolumeClaim) {
+func setBoundConditionFromPVC(anno map[string]string, prefix string, pvc *corev1.PersistentVolumeClaim) {
 	switch pvc.Status.Phase {
-	case v1.ClaimBound:
+	case corev1.ClaimBound:
 		anno[prefix] = "true"
 		anno[prefix+".message"] = ""
 		anno[prefix+".reason"] = ""
-	case v1.ClaimPending:
+	case corev1.ClaimPending:
 		anno[prefix] = "false"
 		anno[prefix+".message"] = "Claim Pending"
 		anno[prefix+".reason"] = "Claim Pending"
-	case v1.ClaimLost:
+	case corev1.ClaimLost:
 		anno[prefix] = "false"
 		anno[prefix+".message"] = cc.ClaimLost
 		anno[prefix+".reason"] = cc.ClaimLost
@@ -417,7 +418,7 @@ func setBoundConditionFromPVC(anno map[string]string, prefix string, pvc *v1.Per
 	}
 }
 
-func getScratchNameFromPod(pod *v1.Pod) (string, bool) {
+func getScratchNameFromPod(pod *corev1.Pod) (string, bool) {
 	for _, vol := range pod.Spec.Volumes {
 		if vol.Name == cc.ScratchVolName {
 			return vol.PersistentVolumeClaim.ClaimName, true
@@ -459,9 +460,9 @@ func podUsingPVC(pvc *corev1.PersistentVolumeClaim, readOnly bool) *corev1.Pod {
 	}
 }
 
-func createBlockPvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
-	pvcDef := cc.CreatePvcInStorageClass(name, ns, nil, annotations, labels, v1.ClaimBound)
-	volumeMode := v1.PersistentVolumeBlock
+func createBlockPvc(name, ns string, annotations, labels map[string]string) *corev1.PersistentVolumeClaim {
+	pvcDef := cc.CreatePvcInStorageClass(name, ns, nil, annotations, labels, corev1.ClaimBound)
+	volumeMode := corev1.PersistentVolumeBlock
 	pvcDef.Spec.VolumeMode = &volumeMode
 	return pvcDef
 }

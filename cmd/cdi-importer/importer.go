@@ -35,6 +35,10 @@ import (
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
 
+const (
+	completeMessage = "Import Complete"
+)
+
 func init() {
 	klog.InitFlags(nil)
 	flag.Parse()
@@ -159,7 +163,12 @@ func handleEmptyImage(contentType string, imageSize string, availableDestSpace i
 		errorEmptyDiskWithContentTypeArchive()
 	}
 
-	err := writeTerminationMessage(&common.TerminationMessage{PreallocationApplied: ptr.To(preallocation)})
+	msg := &common.TerminationMessage{
+		PreallocationApplied: ptr.To(preallocation),
+		Message:              ptr.To(completeMessage),
+	}
+
+	err := writeTerminationMessage(msg)
 	return err
 }
 
@@ -193,6 +202,7 @@ func handleImport(
 	}
 	termMsg.ScratchSpaceRequired = &scratchSpaceRequired
 	termMsg.PreallocationApplied = ptr.To(processor.PreallocationApplied())
+	termMsg.Message = ptr.To(completeMessage)
 
 	touchDoneFile()
 	if err := writeTerminationMessage(termMsg); err != nil {

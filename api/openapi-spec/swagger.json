@@ -3792,6 +3792,10 @@
       "description": "CA configuration CA certs are kept in the CA bundle as long as they are valid",
       "$ref": "#/definitions/v1beta1.CertConfig"
      },
+     "client": {
+      "description": "Client configuration Certs are rotated and discarded",
+      "$ref": "#/definitions/v1beta1.CertConfig"
+     },
      "server": {
       "description": "Server configuration Certs are rotated and discarded",
       "$ref": "#/definitions/v1beta1.CertConfig"

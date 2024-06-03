@@ -104,7 +104,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 	shouldRender := !isWebhookRenderingEnabled || dv.Labels[common.PvcApplyStorageProfileLabel] != "true"
 
 	if pvc == nil {
-		pvcSpec = copyStorageAsPvc(log, dv.Spec.Storage)
+		pvcSpec = copyStorageAsPvc(dv.Spec.Storage)
 		if shouldRender {
 			if err := renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client, recorder, &log, dv, pvcSpec, dv.Spec.ContentType); err != nil {
 				return nil, err
@@ -316,7 +316,7 @@ func getName(storageClass *storagev1.StorageClass) string {
 	return ""
 }
 
-func copyStorageAsPvc(log logr.Logger, storage *cdiv1.StorageSpec) *v1.PersistentVolumeClaimSpec {
+func copyStorageAsPvc(storage *cdiv1.StorageSpec) *v1.PersistentVolumeClaimSpec {
 	input := storage.DeepCopy()
 	pvcSpec := &v1.PersistentVolumeClaimSpec{
 		AccessModes:      input.AccessModes,

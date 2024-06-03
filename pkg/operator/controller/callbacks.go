@@ -194,6 +194,9 @@ func deleteWorkerResources(l logr.Logger, c client.Client) error {
 		lo := &client.ListOptions{
 			LabelSelector: ls,
 		}
+
+		l.V(1).Info("Deleting worker resources", "type", reflect.TypeOf(lt).Elem().Name())
+
 		if err := cc.BulkDeleteResources(context.TODO(), c, lt, lo); err != nil {
 			return err
 		}

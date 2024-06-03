@@ -30,7 +30,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -52,31 +51,44 @@ const (
 	healthzPath = "/healthz"
 )
 
+type Config struct {
+	BindAddress string
+	BindPort    int
+
+	Destination string
+
+	ServerKeyFile, ServerCertFile string
+	ClientCertFile, ClientName    string
+
+	ImageSize          string
+	FilesystemOverhead float64
+	Preallocation      bool
+
+	Deadline *time.Time
+
+	CryptoConfig cryptowatch.CryptoConfig
+}
+
+// RunResult is the result of the upload server run
+type RunResult struct {
+	CloneTarget          bool
+	PreallocationApplied bool
+	DeadlinePassed       bool
+}
+
 // UploadServer is the interface to uploadServerApp
 type UploadServer interface {
-	Run() error
-	PreallocationApplied() bool
+	Run() (*RunResult, error)
 }
 
 type uploadServerApp struct {
-	bindAddress          string
-	bindPort             int
-	destination          string
-	tlsKey               string
-	tlsCert              string
-	clientCert           string
-	clientName           string
-	cryptoConfig         cryptowatch.CryptoConfig
-	keyFile              string
-	certFile             string
-	imageSize            string
-	filesystemOverhead   float64
-	preallocation        bool
+	config               *Config
 	mux                  *http.ServeMux
 	uploading            bool
 	processing           bool
 	done                 bool
 	preallocationApplied bool
+	cloneTarget          bool
 	doneChan             chan struct{}
 	errChan              chan error
 	mutex                sync.Mutex
@@ -116,25 +128,19 @@ func formReadCloser(r *http.Request) (io.ReadCloser, error) {
 	return filePart, nil
 }
 
+func isCloneTraget(contentType string) bool {
+	return contentType == common.BlockdeviceClone || contentType == common.FilesystemCloneContentType
+}
+
 // NewUploadServer returns a new instance of uploadServerApp
-func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsCert, clientCert, clientName, imageSize string, filesystemOverhead float64, preallocation bool, cryptoConfig cryptowatch.CryptoConfig) UploadServer {
+func NewUploadServer(config *Config) UploadServer {
 	server := &uploadServerApp{
-		bindAddress:        bindAddress,
-		bindPort:           bindPort,
-		destination:        destination,
-		tlsKey:             tlsKey,
-		tlsCert:            tlsCert,
-		clientCert:         clientCert,
-		clientName:         clientName,
-		cryptoConfig:       cryptoConfig,
-		filesystemOverhead: filesystemOverhead,
-		preallocation:      preallocation,
-		imageSize:          imageSize,
-		mux:                http.NewServeMux(),
-		uploading:          false,
-		done:               false,
-		doneChan:           make(chan struct{}),
-		errChan:            make(chan error),
+		config:    config,
+		mux:       http.NewServeMux(),
+		uploading: false,
+		done:      false,
+		doneChan:  make(chan struct{}),
+		errChan:   make(chan error),
 	}
 
 	for _, path := range common.SyncUploadPaths {
@@ -156,35 +162,41 @@ func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsC
 	return server
 }
 
-func (app *uploadServerApp) Run() error {
-	uploadServer, err := app.createUploadServer()
-	if err != nil {
-		return errors.Wrap(err, "Error creating upload http server")
+func (app *uploadServerApp) Run() (*RunResult, error) {
+	uploadServer := http.Server{
+		Handler:           app,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	healthzServer, err := app.createHealthzServer()
 	if err != nil {
-		return errors.Wrap(err, "Error creating healthz http server")
+		return nil, errors.Wrap(err, "Error creating healthz http server")
 	}
 
-	uploadListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort))
+	uploadListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", app.config.BindAddress, app.config.BindPort))
 	if err != nil {
-		return errors.Wrap(err, "Error creating upload listerner")
+		return nil, errors.Wrap(err, "Error creating upload listerner")
 	}
 
 	healthzListener, err := net.Listen("tcp", fmt.Sprintf(":%d", healthzPort))
 	if err != nil {
-		return errors.Wrap(err, "Error creating healthz listerner")
+		return nil, errors.Wrap(err, "Error creating healthz listerner")
+	}
+
+	tlsConfig, err := app.getTLSConfig()
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting TLS config")
 	}
 
 	go func() {
 		defer uploadListener.Close()
 
 		// maybe bind port was 0 (unit tests) assign port here
-		app.bindPort = uploadListener.Addr().(*net.TCPAddr).Port
+		app.config.BindPort = uploadListener.Addr().(*net.TCPAddr).Port
 
-		if app.keyFile != "" && app.certFile != "" {
-			app.errChan <- uploadServer.ServeTLS(uploadListener, app.certFile, app.keyFile)
+		if tlsConfig != nil {
+			uploadServer.TLSConfig = tlsConfig
+			app.errChan <- uploadServer.ServeTLS(uploadListener, "", "")
 			return
 		}
 
@@ -198,9 +210,22 @@ func (app *uploadServerApp) Run() error {
 		app.errChan <- healthzServer.Serve(healthzListener)
 	}()
 
+	var timeChan <-chan time.Time
+
+	if app.config.Deadline != nil {
+		timeChan = time.After(time.Until(*app.config.Deadline))
+	} else {
+		tc := make(chan time.Time)
+		defer close(tc)
+		timeChan = tc
+	}
+
 	select {
 	case err = <-app.errChan:
-		klog.Errorf("HTTP server returned error %s", err.Error())
+		if err != nil {
+			klog.Errorf("HTTP server returned error %s", err.Error())
+			return nil, err
+		}
 	case <-app.doneChan:
 		klog.Info("Shutting down http server after successful upload")
 		if err := healthzServer.Shutdown(context.Background()); err != nil {
@@ -209,53 +234,68 @@ func (app *uploadServerApp) Run() error {
 		if err := uploadServer.Shutdown(context.Background()); err != nil {
 			klog.Errorf("failed to shutdown uploadServer; %v", err)
 		}
+	case <-timeChan:
+		klog.Info("deadline exceeded, shutting down")
+		app.mutex.Lock()
+		defer app.mutex.Unlock()
+		for {
+			if app.uploading || app.processing {
+				klog.Info("waiting for upload to finish")
+				app.mutex.Unlock()
+				time.Sleep(2 * time.Second)
+				app.mutex.Lock()
+			} else {
+				break
+			}
+		}
+		if !app.done {
+			klog.Info("upload not done, process exiting")
+			return &RunResult{DeadlinePassed: true}, nil
+		}
 	}
 
-	return err
+	result := &RunResult{
+		CloneTarget:          app.cloneTarget,
+		PreallocationApplied: app.preallocationApplied,
+	}
+
+	return result, nil
 }
 
-func (app *uploadServerApp) createUploadServer() (*http.Server, error) {
-	server := &http.Server{
-		Handler:           app,
-		ReadHeaderTimeout: 10 * time.Second,
+func (app *uploadServerApp) getTLSConfig() (*tls.Config, error) {
+	if app.config.ServerCertFile == "" || app.config.ServerKeyFile == "" {
+		return nil, nil
 	}
 
-	if app.tlsKey != "" && app.tlsCert != "" {
-		certDir, err := os.MkdirTemp("", "uploadserver-tls")
-		if err != nil {
-			return nil, errors.Wrap(err, "Error creating cert dir")
-		}
-
-		app.keyFile = filepath.Join(certDir, "tls.key")
-		app.certFile = filepath.Join(certDir, "tls.crt")
-
-		err = os.WriteFile(app.keyFile, []byte(app.tlsKey), 0600)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error creating key file")
-		}
-
-		err = os.WriteFile(app.certFile, []byte(app.tlsCert), 0600)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error creating cert file")
-		}
+	//nolint:gosec // False positive: Min version is not known statically
+	config := &tls.Config{
+		CipherSuites: app.config.CryptoConfig.CipherSuites,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		MinVersion:   app.config.CryptoConfig.MinVersion,
 	}
 
-	if app.clientCert != "" {
+	if app.config.ClientCertFile != "" {
+		bs, err := os.ReadFile(app.config.ClientCertFile)
+		if err != nil {
+			return nil, err
+		}
+
 		caCertPool := x509.NewCertPool()
-		if ok := caCertPool.AppendCertsFromPEM([]byte(app.clientCert)); !ok {
-			klog.Fatalf("Invalid ca cert file %s", app.clientCert)
+		if ok := caCertPool.AppendCertsFromPEM(bs); !ok {
+			return nil, err
 		}
 
-		//nolint:gosec // False positive: Min version is not known statically
-		server.TLSConfig = &tls.Config{
-			CipherSuites: app.cryptoConfig.CipherSuites,
-			ClientCAs:    caCertPool,
-			ClientAuth:   tls.RequireAndVerifyClientCert,
-			MinVersion:   app.cryptoConfig.MinVersion,
-		}
+		config.ClientCAs = caCertPool
 	}
 
-	return server, nil
+	cert, err := tls.LoadX509KeyPair(app.config.ServerCertFile, app.config.ServerKeyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	config.Certificates = []tls.Certificate{cert}
+
+	return config, nil
 }
 
 func (app *uploadServerApp) createHealthzServer() (*http.Server, error) {
@@ -287,7 +327,7 @@ func (app *uploadServerApp) validateShouldHandleRequest(w http.ResponseWriter, r
 		found := false
 
 		for _, cert := range r.TLS.PeerCertificates {
-			if cert.Subject.CommonName == app.clientName {
+			if cert.Subject.CommonName == app.config.ClientName {
 				found = true
 				break
 			}
@@ -341,9 +381,10 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 			w.WriteHeader(http.StatusBadRequest)
 		}
 
-		processor, err := uploadProcessorFuncAsync(readCloser, app.destination, app.imageSize, app.filesystemOverhead, app.preallocation, cdiContentType)
+		processor, err := uploadProcessorFuncAsync(readCloser, app.config.Destination, app.config.ImageSize, app.config.FilesystemOverhead, app.config.Preallocation, cdiContentType)
 
 		app.mutex.Lock()
+		defer app.mutex.Unlock()
 
 		if err != nil {
 			klog.Errorf("Saving stream failed: %s", err)
@@ -359,27 +400,28 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 			}
 
 			app.uploading = false
-			app.mutex.Unlock()
 			return
 		}
-		defer app.mutex.Unlock()
 
 		app.uploading = false
 		app.processing = true
 
 		// Start processing.
 		go func() {
-			defer close(app.doneChan)
-			if err := processor.ProcessDataResume(); err != nil {
-				klog.Errorf("Error during resumed processing: %v", err)
-				app.errChan <- err
-			}
+			err := processor.ProcessDataResume()
 			app.mutex.Lock()
 			defer app.mutex.Unlock()
 			app.processing = false
+			if err != nil {
+				klog.Errorf("Error during resumed processing: %v", err)
+				app.errChan <- err
+				return
+			}
+			defer close(app.doneChan)
 			app.done = true
 			app.preallocationApplied = processor.PreallocationApplied()
-			klog.Infof("Wrote data to %s", app.destination)
+			app.cloneTarget = isCloneTraget(cdiContentType)
+			klog.Infof("Wrote data to %s", app.config.Destination)
 		}()
 
 		klog.Info("Returning success to caller, continue processing in background")
@@ -400,27 +442,27 @@ func (app *uploadServerApp) processUpload(irc imageReadCloser, w http.ResponseWr
 		w.WriteHeader(http.StatusBadRequest)
 	}
 
-	app.preallocationApplied, err = uploadProcessorFunc(readCloser, app.destination, app.imageSize, app.filesystemOverhead, app.preallocation, cdiContentType, dvContentType)
+	preallocationApplied, err := uploadProcessorFunc(readCloser, app.config.Destination, app.config.ImageSize, app.config.FilesystemOverhead, app.config.Preallocation, cdiContentType, dvContentType)
 
 	app.mutex.Lock()
 	defer app.mutex.Unlock()
+	app.uploading = false
 
 	if err != nil {
 		klog.Errorf("Saving stream failed: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		app.uploading = false
 		return
 	}
 
-	app.uploading = false
 	app.done = true
-
+	app.preallocationApplied = preallocationApplied
+	app.cloneTarget = isCloneTraget(cdiContentType)
 	close(app.doneChan)
 
 	if dvContentType == cdiv1.DataVolumeArchive {
 		klog.Infof("Wrote archive data")
 	} else {
-		klog.Infof("Wrote data to %s", app.destination)
+		klog.Infof("Wrote data to %s", app.config.Destination)
 	}
 }
 
@@ -434,10 +476,6 @@ func (app *uploadServerApp) uploadArchiveHandler(irc imageReadCloser) http.Handl
 	return func(w http.ResponseWriter, r *http.Request) {
 		app.processUpload(irc, w, r, cdiv1.DataVolumeArchive)
 	}
-}
-
-func (app *uploadServerApp) PreallocationApplied() bool {
-	return app.preallocationApplied
 }
 
 func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string) (*importer.DataProcessor, error) {

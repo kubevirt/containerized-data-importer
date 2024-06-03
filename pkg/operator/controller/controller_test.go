@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -1459,6 +1460,61 @@ var _ = Describe("Controller", func() {
 				}),
 		)
 
+	})
+
+	Describe("getCertificateDefinitions function", func() {
+		const (
+			defaultSignerLifetime = 48 * time.Hour
+			defaultSignerRefresh  = 24 * time.Hour
+			defaultServerLifetime = 24 * time.Hour
+			defaultServerRefresh  = 12 * time.Hour
+			defaultClientLifetime = 24 * time.Hour
+			defaultClientRefresh  = 12 * time.Hour
+		)
+
+		DescribeTable("should use supplied cert config", func(certConfig *cdiv1.CDICertConfig, signerLifetime, signerRefresh, serverLifetime, serverRefresh, clientLifetime, clientRefresh time.Duration) {
+			cdi := createCDI("", "")
+			cdi.Spec.CertConfig = certConfig
+			reconciler := createReconciler(createClient())
+
+			cds := reconciler.getCertificateDefinitions(cdi)
+			Expect(cds).To(HaveLen(4))
+			for _, cd := range cds {
+				Expect(cd.SignerConfig.Lifetime).To(Equal(signerLifetime))
+				Expect(cd.SignerConfig.Refresh).To(Equal(signerRefresh))
+
+				if cd.TargetService != nil {
+					Expect(cd.TargetConfig.Lifetime).To(Equal(serverLifetime))
+					Expect(cd.TargetConfig.Refresh).To(Equal(serverRefresh))
+				}
+
+				if cd.TargetUser != nil {
+					Expect(cd.TargetConfig.Lifetime).To(Equal(clientLifetime))
+					Expect(cd.TargetConfig.Refresh).To(Equal(clientRefresh))
+				}
+			}
+		},
+			Entry("with empty cert config", &cdiv1.CDICertConfig{},
+				defaultSignerLifetime, defaultSignerRefresh, defaultServerLifetime, defaultServerRefresh, defaultClientLifetime, defaultClientRefresh),
+			Entry("with CA cert config", &cdiv1.CDICertConfig{
+				CA: &cdiv1.CertConfig{
+					Duration:    &metav1.Duration{Duration: 100 * time.Hour},
+					RenewBefore: &metav1.Duration{Duration: 10 * time.Hour},
+				},
+			}, 100*time.Hour, 90*time.Hour, defaultServerLifetime, defaultServerRefresh, defaultClientLifetime, defaultClientRefresh),
+			Entry("with Server cert config", &cdiv1.CDICertConfig{
+				Server: &cdiv1.CertConfig{
+					Duration:    &metav1.Duration{Duration: 12 * time.Hour},
+					RenewBefore: &metav1.Duration{Duration: 2 * time.Hour},
+				},
+			}, defaultSignerLifetime, defaultSignerRefresh, 12*time.Hour, 10*time.Hour, defaultClientLifetime, defaultClientRefresh),
+			Entry("with Client cert config", &cdiv1.CDICertConfig{
+				Client: &cdiv1.CertConfig{
+					Duration:    &metav1.Duration{Duration: 12 * time.Hour},
+					RenewBefore: &metav1.Duration{Duration: 2 * time.Hour},
+				},
+			}, defaultSignerLifetime, defaultSignerRefresh, defaultServerLifetime, defaultServerRefresh, 12*time.Hour, 10*time.Hour),
+		)
 	})
 })
 

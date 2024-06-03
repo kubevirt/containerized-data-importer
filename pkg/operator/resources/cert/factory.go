@@ -21,11 +21,27 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
-const day = 24 * time.Hour
+const (
+	// SignerLifetime is the default lifetime for the signer cert
+	SignerLifetime = 48 * time.Hour
+	// SignerRefresh is the default refresh time for the signer cert
+	SignerRefresh = 24 * time.Hour
+
+	// ServerLifetime is the default lifetime for the server cert
+	ServerLifetime = 24 * time.Hour
+	// ServerRefresh is the default refresh time for the server cert
+	ServerRefresh = 12 * time.Hour
+
+	// ClientLifetime is the default lifetime for the client cert
+	ClientLifetime = 24 * time.Hour
+	// ClientRefresh is the default refresh time for the client cert
+	ClientRefresh = 12 * time.Hour
+)
 
 // FactoryArgs contains the required parameters to generate certs
 type FactoryArgs struct {
@@ -35,9 +51,13 @@ type FactoryArgs struct {
 	// Duration to subtract from cert NotAfter value
 	SignerRenewBefore *time.Duration
 
-	TargetDuration *time.Duration
+	ServerDuration *time.Duration
 	// Duration to subtract from cert NotAfter value
-	TargetRenewBefore *time.Duration
+	ServerRenewBefore *time.Duration
+
+	ClientDuration *time.Duration
+	// Duration to subtract from cert NotAfter value
+	ClientRenewBefore *time.Duration
 }
 
 // CertificateConfig contains cert configuration data
@@ -87,23 +107,38 @@ func CreateCertificateDefinitions(args *FactoryArgs) []CertificateDefinition {
 			addNamespace(args.Namespace, def.TargetSecret)
 		}
 
-		if def.Configurable {
-			if args.SignerDuration != nil {
-				def.SignerConfig.Lifetime = *args.SignerDuration
+		if !def.Configurable {
+			continue
+		}
+
+		if args.SignerDuration != nil {
+			def.SignerConfig.Lifetime = *args.SignerDuration
+		}
+
+		if args.SignerRenewBefore != nil {
+			// convert to time from cert NotBefore
+			def.SignerConfig.Refresh = def.SignerConfig.Lifetime - *args.SignerRenewBefore
+		}
+
+		if def.TargetService != nil {
+			if args.ServerDuration != nil {
+				def.TargetConfig.Lifetime = *args.ServerDuration
 			}
 
-			if args.SignerRenewBefore != nil {
+			if args.ServerRenewBefore != nil {
 				// convert to time from cert NotBefore
-				def.SignerConfig.Refresh = def.SignerConfig.Lifetime - *args.SignerRenewBefore
+				def.TargetConfig.Refresh = def.TargetConfig.Lifetime - *args.ServerRenewBefore
+			}
+		}
+
+		if def.TargetUser != nil {
+			if args.ClientDuration != nil {
+				def.TargetConfig.Lifetime = *args.ClientDuration
 			}
 
-			if args.TargetDuration != nil {
-				def.TargetConfig.Lifetime = *args.TargetDuration
-			}
-
-			if args.TargetRenewBefore != nil {
+			if args.ClientRenewBefore != nil {
 				// convert to time from cert NotBefore
-				def.TargetConfig.Refresh = def.TargetConfig.Lifetime - *args.TargetRenewBefore
+				def.TargetConfig.Refresh = def.TargetConfig.Lifetime - *args.ClientRenewBefore
 			}
 		}
 	}
@@ -123,53 +158,55 @@ func createCertificateDefinitions() []CertificateDefinition {
 			Configurable: true,
 			SignerSecret: createSecret("cdi-apiserver-signer"),
 			SignerConfig: CertificateConfig{
-				Lifetime: 48 * time.Hour,
-				Refresh:  24 * time.Hour,
+				Lifetime: SignerLifetime,
+				Refresh:  SignerRefresh,
 			},
 			CertBundleConfigmap: createConfigMap("cdi-apiserver-signer-bundle"),
 			TargetSecret:        createSecret("cdi-apiserver-server-cert"),
 			TargetConfig: CertificateConfig{
-				Lifetime: 24 * time.Hour,
-				Refresh:  12 * time.Hour,
+				Lifetime: ServerLifetime,
+				Refresh:  ServerRefresh,
 			},
-			TargetService: &[]string{"cdi-api"}[0],
+			TargetService: ptr.To("cdi-api"),
 		},
 		{
 			Configurable: true,
 			SignerSecret: createSecret("cdi-uploadproxy-signer"),
 			SignerConfig: CertificateConfig{
-				Lifetime: 48 * day,
-				Refresh:  24 * day,
+				Lifetime: SignerLifetime,
+				Refresh:  SignerRefresh,
 			},
 			CertBundleConfigmap: createConfigMap("cdi-uploadproxy-signer-bundle"),
 			TargetSecret:        createSecret("cdi-uploadproxy-server-cert"),
 			TargetConfig: CertificateConfig{
-				Lifetime: 24 * time.Hour,
-				Refresh:  12 * time.Hour,
+				Lifetime: ServerLifetime,
+				Refresh:  ServerRefresh,
 			},
-			TargetService: &[]string{"cdi-uploadproxy"}[0],
+			TargetService: ptr.To("cdi-uploadproxy"),
 		},
 		{
+			Configurable: true,
 			SignerSecret: createSecret("cdi-uploadserver-signer"),
 			SignerConfig: CertificateConfig{
-				Lifetime: 10 * 365 * day,
-				Refresh:  8 * 365 * day,
+				Lifetime: SignerLifetime,
+				Refresh:  SignerRefresh,
 			},
 			CertBundleConfigmap: createConfigMap("cdi-uploadserver-signer-bundle"),
 		},
 		{
+			Configurable: true,
 			SignerSecret: createSecret("cdi-uploadserver-client-signer"),
 			SignerConfig: CertificateConfig{
-				Lifetime: 10 * 365 * day,
-				Refresh:  8 * 365 * day,
+				Lifetime: SignerLifetime,
+				Refresh:  SignerRefresh,
 			},
 			CertBundleConfigmap: createConfigMap("cdi-uploadserver-client-signer-bundle"),
 			TargetSecret:        createSecret("cdi-uploadserver-client-cert"),
 			TargetConfig: CertificateConfig{
-				Lifetime: 24 * time.Hour,
-				Refresh:  12 * time.Hour,
+				Lifetime: ClientLifetime,
+				Refresh:  ClientRefresh,
 			},
-			TargetUser: &[]string{"client.upload-server.cdi.kubevirt.io"}[0],
+			TargetUser: ptr.To("client.upload-server.cdi.kubevirt.io"),
 		},
 	}
 }

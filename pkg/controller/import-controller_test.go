@@ -437,7 +437,7 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()).To(HaveKeyWithValue(cc.AnnRunningCondition, "false"))
 		Expect(resPvc.GetAnnotations()).To(HaveKeyWithValue(cc.AnnRunningConditionMessage, conditionMessage))
 	},
-		Entry("Message which can be unmarshalled", `{"preAllocationApplied": true}`, ImportCompleteMessage),
+		Entry("Message which can be unmarshalled", `{"preAllocationApplied": true, "message": "Import Complete"}`, "Import Complete"),
 		Entry("Message which cannot be unmarshalled", "somemessage", "somemessage"),
 	)
 

@@ -68,6 +68,11 @@ func (in *CDICertConfig) DeepCopyInto(out *CDICertConfig) {
 		*out = new(CertConfig)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.Client != nil {
+		in, out := &in.Client, &out.Client
+		*out = new(CertConfig)
+		(*in).DeepCopyInto(*out)
+	}
 	return
 }
 

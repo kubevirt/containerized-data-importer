@@ -15176,6 +15176,12 @@ func schema_pkg_apis_core_v1beta1_CDICertConfig(ref common.ReferenceCallback) co
 							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CertConfig"),
 						},
 					},
+					"client": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Client configuration Certs are rotated and discarded",
+							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CertConfig"),
+						},
+					},
 				},
 			},
 		},

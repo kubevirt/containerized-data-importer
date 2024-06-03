@@ -819,6 +819,10 @@ type CDICertConfig struct {
 	// Server configuration
 	// Certs are rotated and discarded
 	Server *CertConfig `json:"server,omitempty"`
+
+	// Client configuration
+	// Certs are rotated and discarded
+	Client *CertConfig `json:"client,omitempty"`
 }
 
 // CDISpec defines our specification for the CDI installation
