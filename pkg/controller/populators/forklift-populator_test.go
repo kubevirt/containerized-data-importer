@@ -63,6 +63,16 @@ var _ = Describe("Forklift populator tests", func() {
 		scName              = "testsc"
 	)
 
+	BeforeEach(func() {
+		recorder = nil
+	})
+
+	AfterEach(func() {
+		if recorder != nil {
+			close(recorder.Events)
+		}
+	})
+
 	sc := CreateStorageClassWithProvisioner(scName, map[string]string{
 		AnnDefaultStorageClass: "true",
 	}, map[string]string{}, "csi-plugin")
@@ -135,7 +145,7 @@ var _ = Describe("Forklift populator tests", func() {
 	}
 
 	// Forklift populator's DataSourceRef
-	apiGroup := "forklift.konveyor.io"
+	apiGroup := "forklift.cdi.kubevirt.io"
 	dataSourceRef := &corev1.TypedObjectReference{
 		APIGroup: &apiGroup,
 		Kind:     v1beta1.OvirtVolumePopulatorKind,
@@ -248,7 +258,7 @@ var _ = Describe("Forklift populator tests", func() {
 			badCr := &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"kind":       "BadPopulator",
-					"apiVersion": "forklift.konveyor.io",
+					"apiVersion": "forklift.cdi.kubevirt.io",
 					"metadata": map[string]interface{}{
 						"name":      "bad-pop",
 						"namespace": metav1.NamespaceDefault,
@@ -514,6 +524,17 @@ var _ = Describe("Forklift populator tests", func() {
 			By("Validating PVC with no DataSourceRef")
 			isNoDataSourceRef := isPVCForkliftKind(noDataSourceRefPVC)
 			Expect(isNoDataSourceRef).To(BeFalse())
+		})
+		It("Should not reconcile APIGroup forklift.konveyor.io", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			apiGroup := "forklift.konveyor.io"
+			dataSourceRef := &corev1.TypedObjectReference{
+				APIGroup: &apiGroup,
+				Kind:     v1beta1.OvirtVolumePopulatorKind,
+				Name:     samplePopulatorName,
+			}
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			Expect(isPVCForkliftKind(targetPvc)).To(BeFalse())
 		})
 	})
 })
