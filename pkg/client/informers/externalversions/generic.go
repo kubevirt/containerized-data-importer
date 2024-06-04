@@ -81,7 +81,7 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	case v1beta1.SchemeGroupVersion.WithResource("volumeuploadsources"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1beta1().VolumeUploadSources().Informer()}, nil
 
-		// Group=forklift.konveyor.io, Version=v1beta1
+		// Group=forklift.cdi.kubevirt.io, Version=v1beta1
 	case forkliftv1beta1.SchemeGroupVersion.WithResource("openstackvolumepopulators"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Forklift().V1beta1().OpenstackVolumePopulators().Informer()}, nil
 	case forkliftv1beta1.SchemeGroupVersion.WithResource("ovirtvolumepopulators"):
