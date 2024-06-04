@@ -110,11 +110,10 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		uploadPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
 
-		pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		delete(pvc.Annotations, controller.AnnUploadRequest)
-
 		Eventually(func() error {
+			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			delete(pvc.Annotations, controller.AnnUploadRequest)
 			// We shouldn't make the test fail if there's a conflict with the update request.
 			// These errors are usually transient and should be fixed in subsequent retries.
 			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
@@ -256,11 +255,11 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(found).To(BeTrue())
-			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			pvc.Annotations[controller.AnnContentType] = XSSAttempt
 
 			Eventually(func() error {
+				pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				pvc.Annotations[controller.AnnContentType] = XSSAttempt
 				// We shouldn't make the test fail if there's a conflict with the update request.
 				// These errors are usually transient and should be fixed in subsequent retries.
 				pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})

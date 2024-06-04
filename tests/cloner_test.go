@@ -376,12 +376,13 @@ var _ = Describe("all clone tests", func() {
 						if ok, val := nodeMap[pvNode]; ok && val {
 							nodeMap[pvNode] = false
 							By("Labeling PV " + pv.Name + " as source")
-							sourcePV = &pv
-							if sourcePV.GetLabels() == nil {
-								sourcePV.SetLabels(make(map[string]string))
-							}
-							sourcePV.GetLabels()["source-pv"] = "yes"
 							Eventually(func() error {
+								sourcePV, err = f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pv.Name, metav1.GetOptions{})
+								Expect(err).ToNot(HaveOccurred())
+								if sourcePV.GetLabels() == nil {
+									sourcePV.SetLabels(make(map[string]string))
+								}
+								sourcePV.GetLabels()["source-pv"] = "yes"
 								// We shouldn't make the test fail if there's a conflict with the update request.
 								// These errors are usually transient and should be fixed in subsequent retries.
 								sourcePV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), sourcePV, metav1.UpdateOptions{})
@@ -392,14 +393,15 @@ var _ = Describe("all clone tests", func() {
 						pvNode := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Values[0]
 						if ok, val := nodeMap[pvNode]; ok && val {
 							nodeMap[pvNode] = false
-							By("Labeling PV " + pv.Name + " as target")
-							targetPV = &pv
-							if targetPV.GetLabels() == nil {
-								targetPV.SetLabels(make(map[string]string))
-							}
-							targetPV.GetLabels()["target-pv"] = "yes"
 
+							By("Labeling PV " + pv.Name + " as target")
 							Eventually(func() error {
+								targetPV, err = f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pv.Name, metav1.GetOptions{})
+								Expect(err).ToNot(HaveOccurred())
+								if targetPV.GetLabels() == nil {
+									targetPV.SetLabels(make(map[string]string))
+								}
+								targetPV.GetLabels()["target-pv"] = "yes"
 								// We shouldn't make the test fail if there's a conflict with the update request.
 								// These errors are usually transient and should be fixed in subsequent retries.
 								targetPV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), targetPV, metav1.UpdateOptions{})
@@ -1380,11 +1382,10 @@ var _ = Describe("all clone tests", func() {
 				// Since modifying the original PVC's capacity would require restarting several pods,
 				// we just modify the 'AnnSourceCapacity' to mock that behavior
 				By("Modify source PVC's capacity")
-				sourcePvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourcePvc.Namespace).Get(context.TODO(), sourcePvc.Name, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				sourcePvc.Annotations[dvc.AnnSourceCapacity] = "400Mi"
-
 				Eventually(func() error {
+					sourcePvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourcePvc.Namespace).Get(context.TODO(), sourcePvc.Name, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					sourcePvc.Annotations[dvc.AnnSourceCapacity] = "400Mi"
 					// We shouldn't make the test fail if there's a conflict with the update request.
 					// These errors are usually transient and should be fixed in subsequent retries.
 					_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourcePvc.Namespace).Update(context.TODO(), sourcePvc, metav1.UpdateOptions{})
@@ -3322,9 +3323,10 @@ func EnableGcAndAnnotateLegacyDv(f *framework.Framework, dvName, dvNamespace str
 	Expect(ok).To(BeFalse())
 
 	By("Add empty DeleteAfterCompletion annotation to DV for reconcile")
-	controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "")
-
 	Eventually(func() error {
+		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "")
 		// We shouldn't make the test fail if there's a conflict with the update request.
 		// These errors are usually transient and should be fixed in subsequent retries.
 		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
@@ -3334,9 +3336,10 @@ func EnableGcAndAnnotateLegacyDv(f *framework.Framework, dvName, dvNamespace str
 	VerifyNoGC(f, dvName, dvNamespace)
 
 	By("Add true DeleteAfterCompletion annotation to DV")
-	controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "true")
-
 	Eventually(func() error {
+		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "true")
 		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
 		return err
 	}, timeout, pollingInterval).Should(Succeed())

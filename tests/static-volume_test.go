@@ -85,11 +85,10 @@ var _ = Describe("checkStaticVolume tests", func() {
 			sourceMD5 = md5
 
 			By("Retaining PV")
-			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
-
 			Eventually(func() error {
+				pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
 				_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
 				// We shouldn't make the test fail if there's a conflict with the update request.
 				// These errors are usually transient and should be fixed in subsequent retries.

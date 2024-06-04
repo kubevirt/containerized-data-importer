@@ -1804,14 +1804,13 @@ var _ = Describe("Import populator", func() {
 		sourceMD5 := md5
 
 		By("Retaining PV")
-		pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimRetain
-
 		Eventually(func() error {
-			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
+			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimRetain
 			// We shouldn't make the test fail if there's a conflict with the update request.
 			// These errors are usually transient and should be fixed in subsequent retries.
+			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
 			return err
 		}, timeout, pollingInterval).Should(Succeed())
 
@@ -1864,7 +1863,7 @@ var _ = Describe("Import populator", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(pvc.Spec.VolumeName).To(Equal(pvName))
 
-		pv, err = f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+		pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(controller.IsPVBoundToPVC(pv, pvc)).To(BeTrue())
 		Expect(pv.CreationTimestamp.Before(&pvc.CreationTimestamp)).To(BeTrue())
