@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -115,6 +116,17 @@ func submitRequestAndCheckStatusAndCORS(request *http.Request, expectedCode int,
 	Expect(rr.Header().Get("Access-Control-Allow-Origin")).To(Equal("*"))
 }
 
+func submitRequestAndCheckStatusAndBody(request *http.Request, expectedCode int, expectedBody *regexp.Regexp, app *uploadProxyApp) {
+	rr := httptest.NewRecorder()
+	if app == nil {
+		app = createApp()
+	}
+
+	app.ServeHTTP(rr, request)
+	Expect(rr.Code).To(Equal(expectedCode))
+	Expect(rr.Body.String()).To(MatchRegexp(expectedBody.String()))
+}
+
 func createApp() *uploadProxyApp {
 	app := &uploadProxyApp{}
 	app.initHandler()
@@ -150,7 +162,7 @@ func (fcc *fakeClientCreator) CreateClient() (*http.Client, error) {
 	return fcc.client, nil
 }
 
-func setupProxyTests(handler http.HandlerFunc) *uploadProxyApp {
+func setupProxyTests(handler http.HandlerFunc) (*uploadProxyApp, *httptest.Server) {
 	server := httptest.NewServer(handler)
 
 	urlResolver := func(string, string, string) string {
@@ -176,12 +188,12 @@ func setupProxyTests(handler http.HandlerFunc) *uploadProxyApp {
 	app.urlResolver = urlResolver
 	app.clientCreator = &fakeClientCreator{client: server.Client()}
 
-	return app
+	return app, server
 }
 
 var _ = Describe("submit request and check status", func() {
 	DescribeTable("Test proxy status code", func(path string, statusCode int) {
-		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		app, _ := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(statusCode)
 		}))
 		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
@@ -199,7 +211,7 @@ var _ = Describe("submit request and check status", func() {
 		Entry("Test Form Async error", common.UploadFormAsync, http.StatusInternalServerError),
 	)
 	DescribeTable("Test proxy status code with CORS", func(path string, statusCode int) {
-		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		app, _ := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(statusCode)
 		}))
 		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
@@ -218,7 +230,7 @@ var _ = Describe("submit request and check status", func() {
 		Entry("Test Form Async error", common.UploadFormAsync, http.StatusInternalServerError),
 	)
 	DescribeTable("Test head proxy status code", func(statusCode int) {
-		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		app, _ := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(statusCode)
 		}))
 		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
@@ -251,7 +263,7 @@ var _ = Describe("submit request and check status", func() {
 	})
 
 	DescribeTable("Test proxy upload possible", func(uploadPossible uploadPossibleFunc, statusCode int) {
-		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		app, _ := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(statusCode)
 		}))
 		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
@@ -267,5 +279,19 @@ var _ = Describe("submit request and check status", func() {
 		req, err := http.NewRequest(http.MethodGet, healthzPath, nil)
 		Expect(err).ToNot(HaveOccurred())
 		submitRequestAndCheckStatus(req, http.StatusOK, nil)
+	})
+
+	It("Upload server is unavailable", func() {
+		app, server := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			panic("Server is down, this should not be called")
+		}))
+		server.Close()
+		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
+
+		req := newProxyRequest(common.UploadPathSync, "Bearer valid")
+		submitRequestAndCheckStatusAndBody(req,
+			http.StatusBadGateway,
+			regexp.MustCompile(`error in upload-proxy: http: proxy error: dial tcp [0-9\.]+:[0-9]+: connect: connection refused`),
+			app)
 	})
 })
