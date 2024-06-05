@@ -112,8 +112,6 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 	"rook-ceph.rbd.csi.ceph.com":         cdiv1.DataImportCronSourceFormatSnapshot,
 	"openshift-storage.rbd.csi.ceph.com": cdiv1.DataImportCronSourceFormatSnapshot,
-	"topolvm.cybozu.com":                 cdiv1.DataImportCronSourceFormatSnapshot,
-	"topolvm.io":                         cdiv1.DataImportCronSourceFormatSnapshot,
 	"csi.trident.netapp.io/ontap-nas":    cdiv1.DataImportCronSourceFormatSnapshot,
 	"csi.trident.netapp.io/ontap-san":    cdiv1.DataImportCronSourceFormatSnapshot,
 }
@@ -135,8 +133,8 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"pxd.openstorage.org":                   cdiv1.CloneStrategyCsiClone,
 	"pxd.portworx.com/shared":               cdiv1.CloneStrategyCsiClone,
 	"pxd.portworx.com":                      cdiv1.CloneStrategyCsiClone,
-	"topolvm.cybozu.com":                    cdiv1.CloneStrategyCsiClone,
-	"topolvm.io":                            cdiv1.CloneStrategyCsiClone,
+	"topolvm.cybozu.com":                    cdiv1.CloneStrategyHostAssisted,
+	"topolvm.io":                            cdiv1.CloneStrategyHostAssisted,
 	"csi.trident.netapp.io/ontap-nas":       cdiv1.CloneStrategySnapshot,
 	"csi.trident.netapp.io/ontap-san":       cdiv1.CloneStrategySnapshot,
 }
