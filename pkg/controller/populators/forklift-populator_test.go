@@ -42,6 +42,7 @@ var (
 var _ = Describe("Forklift populator tests", func() {
 	var (
 		reconciler *ForkliftPopulatorReconciler
+		recorder   *record.FakeRecorder
 	)
 
 	const (
@@ -50,9 +51,13 @@ var _ = Describe("Forklift populator tests", func() {
 		scName              = "testsc"
 	)
 
+	BeforeEach(func() {
+		recorder = nil
+	})
+
 	AfterEach(func() {
-		if reconciler != nil && reconciler.recorder != nil {
-			close(reconciler.recorder.(*record.FakeRecorder).Events)
+		if recorder != nil {
+			close(recorder.Events)
 		}
 	})
 
@@ -127,7 +132,7 @@ var _ = Describe("Forklift populator tests", func() {
 	}
 
 	// Forklift populator's DataSourceRef
-	apiGroup := "forklift.konveyor.io"
+	apiGroup := "forklift.cdi.kubevirt.io"
 	dataSourceRef := &corev1.TypedObjectReference{
 		APIGroup: &apiGroup,
 		Kind:     v1beta1.OvirtVolumePopulatorKind,
@@ -240,7 +245,7 @@ var _ = Describe("Forklift populator tests", func() {
 			badCr := &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"kind":       "BadPopulator",
-					"apiVersion": "forklift.konveyor.io",
+					"apiVersion": "forklift.cdi.kubevirt.io",
 					"metadata": map[string]interface{}{
 						"name":      "bad-pop",
 						"namespace": metav1.NamespaceDefault,
@@ -401,6 +406,17 @@ var _ = Describe("Forklift populator tests", func() {
 			err = reconciler.updateImportProgress(string(corev1.PodRunning), targetPvc, pvcPrime)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(targetPvc.Annotations[AnnPopulatorProgress]).To(BeEquivalentTo("13.45%"))
+		})
+		It("Should not reconcile APIGroup forklift.konveyor.io", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			apiGroup := "forklift.konveyor.io"
+			dataSourceRef := &corev1.TypedObjectReference{
+				APIGroup: &apiGroup,
+				Kind:     v1beta1.OvirtVolumePopulatorKind,
+				Name:     samplePopulatorName,
+			}
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			Expect(isPVCForkliftKind(targetPvc)).To(BeFalse())
 		})
 	})
 })
