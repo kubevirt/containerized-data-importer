@@ -1467,6 +1467,7 @@ var _ = Describe("all clone tests", func() {
 
 			BeforeEach(func() {
 				if !f.IsCSIVolumeCloneStorageClassAvailable() {
+					cloneStorageClassName = ""
 					Skip("CSI Volume Clone is not applicable")
 				}
 				cloneStorageClassName = f.CsiCloneSCName
@@ -1497,6 +1498,9 @@ var _ = Describe("all clone tests", func() {
 			})
 
 			AfterEach(func() {
+				if cloneStorageClassName == "" {
+					return
+				}
 				By("[AfterEach] Restore the storage class - remove annotation ")
 				storageclass, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -1510,6 +1514,7 @@ var _ = Describe("all clone tests", func() {
 					Expect(err).ToNot(HaveOccurred())
 					return storageProfile.Status.CloneStrategy
 				}, time.Minute, time.Second).Should(Equal(originalStrategy))
+				cloneStorageClassName = ""
 			})
 
 			It("Should clone  with correct strategy from storageclass annotation ", func() {
@@ -2652,11 +2657,14 @@ var _ = Describe("all clone tests", func() {
 		})
 
 		AfterEach(func() {
-			By(fmt.Sprintf("[AfterEach] Removing snapshot %s/%s", snapshot.Namespace, snapshot.Name))
-			Eventually(func() bool {
-				err := f.CrClient.Delete(context.TODO(), snapshot)
-				return err != nil && k8serrors.IsNotFound(err)
-			}, time.Minute, time.Second).Should(BeTrue())
+			if snapshot != nil {
+				By(fmt.Sprintf("[AfterEach] Removing snapshot %s/%s", snapshot.Namespace, snapshot.Name))
+				Eventually(func() bool {
+					err := f.CrClient.Delete(context.TODO(), snapshot)
+					return err != nil && k8serrors.IsNotFound(err)
+				}, time.Minute, time.Second).Should(BeTrue())
+				snapshot = nil
+			}
 
 			if targetNamespace != nil {
 				err := f.K8sClient.CoreV1().Namespaces().Delete(context.TODO(), targetNamespace.Name, metav1.DeleteOptions{})

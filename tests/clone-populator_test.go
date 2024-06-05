@@ -366,7 +366,7 @@ var _ = Describe("Clone Populator tests", func() {
 		})
 
 		AfterEach(func() {
-			if snapshot != nil {
+			if snapshot == nil {
 				return
 			}
 			By(fmt.Sprintf("[AfterEach] Removing snapshot %s/%s", snapshot.Namespace, snapshot.Name))

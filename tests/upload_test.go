@@ -453,10 +453,11 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				Expect(err).ToNot(HaveOccurred())
 			}
 
-			By("Delete upload population PVC")
-			err = f.DeletePVC(pvc)
-			Expect(err).ToNot(HaveOccurred())
-
+			if pvc != nil {
+				By("Delete upload population PVC")
+				err = f.DeletePVC(pvc)
+				Expect(err).ToNot(HaveOccurred())
+			}
 		})
 		Context("standard", func() {
 			BeforeEach(func() {
@@ -1049,13 +1050,16 @@ var _ = Describe("Block PV upload Test", Serial, func() {
 			portForwardCmd = nil
 		}
 
-		By("Delete upload PVC")
-		err = f.DeletePVC(pvc)
-		Expect(err).ToNot(HaveOccurred())
-		By("Wait for upload pod to be deleted")
-		deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(deleted).To(BeTrue())
+		if pvc != nil {
+			By("Delete upload PVC")
+			err = f.DeletePVC(pvc)
+			Expect(err).ToNot(HaveOccurred())
+			By("Wait for upload pod to be deleted")
+			deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(deleted).To(BeTrue())
+			pvc = nil
+		}
 	})
 
 	DescribeTable("should", func(validToken bool, expectedStatus int) {
