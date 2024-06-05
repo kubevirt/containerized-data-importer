@@ -97,7 +97,7 @@ function wait_cdi_available {
 
 function configure_uploadproxy_override {
   host_port=$(./cluster-up/cli.sh ports uploadproxy | xargs)
-  override="127.0.0.1:$host_port"
+  override="https://127.0.0.1:$host_port"
   _kubectl patch cdi ${CR_NAME} --type=merge -p '{"spec": {"config": {"uploadProxyURLOverride": "'"$override"'"}}}'
 }
 
