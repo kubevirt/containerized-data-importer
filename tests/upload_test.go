@@ -980,7 +980,7 @@ func findProxyURLCdiConfig(f *framework.Framework) string {
 	config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	if config.Status.UploadProxyURL != nil {
-		return fmt.Sprintf("https://%s", *config.Status.UploadProxyURL)
+		return *config.Status.UploadProxyURL
 	}
 	return ""
 }
