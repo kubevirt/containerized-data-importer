@@ -74,7 +74,7 @@ Several variables are provided to alter the targets of the above `Makefile` reci
 These may be passed to a target as `$ make VARIABLE=value target`
 
 - `KUBEVIRTCI_RUNTIME`: The runtime to use for the cluster. Default is `docker' i` installed, otherwise 'podman'.
-- `DOCKER_PREFIX`: Set repo globally for image and manifest creation. Default is `qua`.io/kubevirt'.
+- `DOCKER_PREFIX`: Set repo globally for image and manifest creation. Default is `quay.io/kubevirt`.
 - `CONTROLLER_IMAGE_NAME`: The name of the controller image. Default is `cdi-controller`.
 - `IMPORTER_IMAGE_NAME`: The name of the importer image. Default is `cdi-importer`.
 - `CLONER_IMAGE_NAME`: The name of the cloner image. Default is `cdi-cloner`.
@@ -104,8 +104,8 @@ These may be passed to a target as `$ make VARIABLE=value target`
     >
     > Set `KUBECTL` rather than using `-kubectl-path`
 - `WHAT`: Path to the package to test. Default is `./pkg/... ./cmd/...` for unit tests and `./test/...` for functional tests.
-- `RELREF`: Required by release-description. Must be a commit or tag. Should be newer than .
-- `PREREF`: Required by release-description. Must also be a commit or tag. Should be older than .
+- `RELREF`: Required by release-description. Must be a commit or tag. Should be newer than `PREREF`.
+- `PREREF`: Required by release-description. Must also be a commit or tag. Should be older than `RELREF`.
 
 #### Execute Standard Environment Functional Tests
 
