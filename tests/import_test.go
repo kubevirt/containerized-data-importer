@@ -1814,11 +1814,15 @@ var _ = Describe("Import populator", func() {
 		sourceMD5 := md5
 
 		By("Retaining PV")
-		pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimRetain
-		_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimRetain
+			// We shouldn't make the test fail if there's a conflict with the update request.
+			// These errors are usually transient and should be fixed in subsequent retries.
+			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
+			return err
+		}, timeout, pollingInterval).Should(Succeed())
 
 		By("Forcing cleanup")
 		err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
@@ -1838,18 +1842,20 @@ var _ = Describe("Import populator", func() {
 		verifyCleanup(pvc)
 
 		By("Making PV available")
-		Eventually(func() bool {
+		Eventually(func(g Gomega) bool {
 			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			Expect(pv.Spec.ClaimRef.Namespace).To(Equal(pvc.Namespace))
-			Expect(pv.Spec.ClaimRef.Name).To(Equal(pvc.Name))
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(pv.Spec.ClaimRef.Namespace).To(Equal(pvc.Namespace))
+			g.Expect(pv.Spec.ClaimRef.Name).To(Equal(pvc.Name))
 			if pv.Status.Phase == v1.VolumeAvailable {
 				return true
 			}
 			pv.Spec.ClaimRef.ResourceVersion = ""
 			pv.Spec.ClaimRef.UID = ""
 			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
+			// We shouldn't make the test fail if there's a conflict with the update request.
+			// These errors are usually transient and should be fixed in subsequent retries.
+			g.Expect(err).ToNot(HaveOccurred())
 			return false
 		}, timeout, pollingInterval).Should(BeTrue())
 
@@ -1867,7 +1873,7 @@ var _ = Describe("Import populator", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(pvc.Spec.VolumeName).To(Equal(pvName))
 
-		pv, err = f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+		pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(controller.IsPVBoundToPVC(pv, pvc)).To(BeTrue())
 		Expect(pv.CreationTimestamp.Before(&pvc.CreationTimestamp)).To(BeTrue())
