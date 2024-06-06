@@ -40,7 +40,7 @@ The following statuses are possible.
 
 ## Target Storage/PVC
 
-There are two ways to request a storage - by using either the `pvc` or the `storage` section in the DataVolume resource yaml.
+There are two ways to request storage - by using either the `pvc` or the `storage` section in the DataVolume resource yaml.
 Both result in CDI creating a PVC resource, but there are some differences in how they work.
 
 > [!NOTE] 
