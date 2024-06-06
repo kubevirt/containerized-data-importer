@@ -146,6 +146,7 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 			},
 			Resources: []string{
 				"proxies",
+				"infrastructures",
 			},
 			Verbs: []string{
 				"get",

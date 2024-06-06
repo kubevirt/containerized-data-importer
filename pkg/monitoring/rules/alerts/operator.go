@@ -96,8 +96,8 @@ var operatorAlerts = []promv1.Rule{
 	},
 	{
 		Alert: "CDIDefaultStorageClassDegraded",
-		Expr: intstr.FromString(`sum(kubevirt_cdi_storageprofile_info{default="true",rwx="true",smartclone="true"} or on() vector(0)) +
-								 sum(kubevirt_cdi_storageprofile_info{virtdefault="true",rwx="true",smartclone="true"} or on() vector(0)) +
+		Expr: intstr.FromString(`sum(kubevirt_cdi_storageprofile_info{default="true",degraded="false"} or on() vector(0)) +
+								 sum(kubevirt_cdi_storageprofile_info{virtdefault="true",degraded="false"} or on() vector(0)) +
 								 on () (0*(sum(kubevirt_cdi_storageprofile_info{default="true"}) or sum(kubevirt_cdi_storageprofile_info{virtdefault="true"}))) == 0`),
 		For: (*promv1.Duration)(ptr.To("5m")),
 		Annotations: map[string]string{

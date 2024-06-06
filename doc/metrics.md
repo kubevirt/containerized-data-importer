@@ -31,7 +31,7 @@ CDI operator status. Type: Gauge.
 Progress of volume population. Type: Counter.
 
 ### kubevirt_cdi_storageprofile_info
-`StorageProfiles` info labels: `storageclass`, `provisioner`, `complete` indicates if all storage profiles recommended PVC settings are complete, `default` indicates if it's the Kubernetes default storage class, `virtdefault` indicates if it's the default virtualization storage class, `rwx` indicates if the storage class supports `ReadWriteMany`, `smartclone` indicates if it supports snapshot or CSI based clone. Type: Gauge.
+`StorageProfiles` info labels: `storageclass`, `provisioner`, `complete` indicates if all storage profiles recommended PVC settings are complete, `default` indicates if it's the Kubernetes default storage class, `virtdefault` indicates if it's the default virtualization storage class, `rwx` indicates if the storage class supports `ReadWriteMany`, `smartclone` indicates if it supports snapshot or CSI based clone, `degraded` indicates it is not optimal for virtualization. Type: Gauge.
 
 ### kubevirt_cdi_upload_pods_high_restart
 The number of CDI upload server pods with high restart count. Type: Gauge.
