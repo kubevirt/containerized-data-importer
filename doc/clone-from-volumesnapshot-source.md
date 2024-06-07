@@ -77,8 +77,6 @@ spec:
       name: golden-volumesnapshot
   storage:
     storageClassName: rook-ceph-block
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 9Gi

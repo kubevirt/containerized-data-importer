@@ -76,9 +76,7 @@ metadata:
 spec:
   source:
       upload: {}
-  pvc:
-    accessModes:
-      - ReadWriteOnce
+  storage:
     resources:
       requests:
         storage: 500Mi

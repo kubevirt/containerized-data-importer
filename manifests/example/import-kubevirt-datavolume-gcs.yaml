@@ -8,9 +8,7 @@ spec:
       gcs:
          url: "gs://bucket/file.img"
          secretRef: "gcs-secret"
-  pvc:
-    accessModes:
-      - ReadWriteOnce
+  storage:
     resources:
       requests:
         storage: 500Mi

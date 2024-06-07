@@ -21,12 +21,7 @@ spec:
     pvc:
       namespace: source-ns
       name: source-datavolume
-  pvc:
-    accessModes:
-      - ReadWriteOnce
-    resources:
-      requests:
-        storage: 500Mi
+  storage: {}
 ```
 
 Deploy the DataVolume manifest:

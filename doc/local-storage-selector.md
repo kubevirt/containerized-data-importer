@@ -88,9 +88,7 @@ spec:
   source:
       http:
          url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img"
-  pvc:
-    accessModes:
-      - ReadWriteOnce
+  storage:
     selector:
       matchLabels:
         node: node01

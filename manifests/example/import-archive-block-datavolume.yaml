@@ -8,10 +8,8 @@ spec:
       http:
          url: "http://geolite.maxmind.com/download/geoip/database/GeoLite2-Country.tar.gz" #This url is just an example. You should change this to your destination url
   contentType: archive
-  pvc:
+  storage:
     volumeMode: Block
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 500Mi
