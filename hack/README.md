@@ -1,17 +1,20 @@
 ## Getting Started For Developers
 
-- [Download CDI](#download-cdi)
-- [Lint, Test, Build](#lint-test-build)
-  - [Make Targets](#make-targets)
-  - [Make Variables](#make-variables)
-  - [Execute Standard Environment Functional Tests](#execute-standard-environment-functional-tests)
-  - [Execute Alternative Environment Functional Tests](#execute-alternative-environment-functional-tests)
-- [Submit PRs](#submit-prs)
-- [Releases](#releases)
-- [Vendoring Dependencies](#vendoring-dependencies)
-- [S3-compatible client setup:](#s3-compatible-client-setup)
-  - [AWS S3 cli](#aws-s3-cli)
-  - [Minio cli](#minio-cli)
+- [Getting Started For Developers](#getting-started-for-developers)
+  - [Download CDI](#download-cdi)
+  - [Lint, Test, Build](#lint-test-build)
+    - [Make Targets](#make-targets)
+    - [Make Variables](#make-variables)
+    - [Execute Standard Environment Functional Tests](#execute-standard-environment-functional-tests)
+    - [Execute Alternative Environment Functional Tests](#execute-alternative-environment-functional-tests)
+      - [Direct deployment](#direct-deployment)
+      - [Deployment via operator](#deployment-via-operator)
+  - [Submit PRs](#submit-prs)
+  - [Releases](#releases)
+  - [Vendoring Dependencies](#vendoring-dependencies)
+  - [S3-compatible client setup:](#s3-compatible-client-setup)
+    - [AWS S3 cli](#aws-s3-cli)
+    - [Minio cli](#minio-cli)
 
 ### Download CDI
 
@@ -70,20 +73,39 @@ Several variables are provided to alter the targets of the above `Makefile` reci
 
 These may be passed to a target as `$ make VARIABLE=value target`
 
-- `WHAT`:  The path from the repository root to a target directory (e.g. `make test WHAT=pkg/importer`)
-- `DOCKER_PREFIX`: (default: kubevirt) Set repo globally for image and manifest creation
-- `DOCKER_TAG`: (default: latest) Set global version tags for image and manifest creation
-- `VERBOSITY`: (default: 1) Set global log level verbosity
-- `PULL_POLICY`: (default: IfNotPresent) Set global CDI pull policy
-- `TEST_ARGS`: A variable containing a list of additional ginkgo flags to be passed to functional tests. The string "--test-args=" must prefix the variable value. For example:
-
-             `make TEST_ARGS="--test-args=-ginkgo.no-color=true" test-functional >& foo`.
-
-  Note: the following extra flags are not supported in TEST_ARGS: -kubeurl, -cdi-namespace, -kubeconfig, -kubectl-path
-since these flags are overridden by the _hack/build/run-functional-tests.sh_ script.
-To change the default settings for these values the KUBE_URL, CDI_NAMESPACE, KUBECONFIG, and KUBECTL variables, respectively, must be set.
-- `RELREF`: Required by `release-description`. Must be a commit or tag.  Should be the more recent than `PREREF`
-- `PREREF`: Required by `release-description`. Must also be a commit or tag.  Should be the later than `RELREF`
+- `KUBEVIRTCI_RUNTIME`: The runtime to use for the cluster. Default is `docker' i` installed, otherwise 'podman'.
+- `DOCKER_PREFIX`: Set repo globally for image and manifest creation. Default is `quay.io/kubevirt`.
+- `CONTROLLER_IMAGE_NAME`: The name of the controller image. Default is `cdi-controller`.
+- `IMPORTER_IMAGE_NAME`: The name of the importer image. Default is `cdi-importer`.
+- `CLONER_IMAGE_NAME`: The name of the cloner image. Default is `cdi-cloner`.
+- `APISERVER_IMAGE_NAME`: The name of the apiserver image. Default is `cdi-apiserver`.
+- `UPLOADPROXY_IMAGE_NAME`: The name of the uploadproxy image. Default is `cdi-uploadproxy`.
+- `UPLOADSERVER_IMAGE_NAME`: The name of the upload server image. Default is `cdi-uploadserver`.
+- `DOCKER_TAG`: Set global version tags for image and manifest creation. Default is `latest`.
+- `VERBOSITY`: Set global log level verbosity. Default is `1`.
+- `PULL_POLICY`: Set global CDI pull policy. Default is `IfNotPresent`.
+- `CR_NAME`: Name of the CDI custom resource. Default is `cdi`.
+- `CDI_NAMESPACE`: Namespace for CDI resources. Default is `cdi`.
+- `CSV_VERSION`: Version of CSV generated files. Default is `0.0.0`.
+- `QUAY_REPOSITORY`: Quay repository. Default is `cdi-operatorhub`.
+- `QUAY_NAMESPACE`: Quay namespace. Default is `kubevirt`.
+- `TEST_ARGS`: List of additional ginkgo flags to be passed to functional tests. String `--test-args=` must prefix the variable value. For example:
+    ```
+    make TEST_ARGS="--test-args=-ginkgo.no-color=true" test-functional >& foo
+    ```
+    > [!NOTE]
+    > The following flags are not supported in `TEST_ARGS`, set their values with environment variables instead:
+    >
+    > Set `KUBE_URL` rather than using `-kubeurl`
+    >
+    > Set  `CDI_NAMESPACE` rather than using `-cdi-namespace`
+    >
+    > Set `KUBECONFIG` rather than using `-kubeconfig`
+    >
+    > Set `KUBECTL` rather than using `-kubectl-path`
+- `WHAT`: Path to the package to test. Default is `./pkg/... ./cmd/...` for unit tests and `./test/...` for functional tests.
+- `RELREF`: Required by release-description. Must be a commit or tag. Should be newer than `PREREF`.
+- `PREREF`: Required by release-description. Must also be a commit or tag. Should be older than `RELREF`.
 
 #### Execute Standard Environment Functional Tests
 

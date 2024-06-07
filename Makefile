@@ -41,6 +41,29 @@ help: ## Print this message and exit
 		printf "    \033[36m%-25s\033[0m%s\n", $$1, $$2                    \
 	}                                                                      \
 	' $(MAKEFILE_LIST)
+	@echo
+	@echo $(shell printf "\n  \033[1m%s\033[0m\n" "Environment variables")
+	@echo "    KUBEVIRTCI_RUNTIME          The runtime to use for the cluster. Default is 'docker' if installed, otherwise 'podman'."
+	@echo "    DOCKER_PREFIX               Set repo globally for image and manifest creation. Default is 'quay.io/kubevirt'."
+	@echo "    CONTROLLER_IMAGE_NAME       The name of the controller image. Default is 'cdi-controller'."
+	@echo "    IMPORTER_IMAGE_NAME         The name of the importer image. Default is 'cdi-importer'."
+	@echo "    CLONER_IMAGE_NAME           The name of the cloner image. Default is 'cdi-cloner'."
+	@echo "    APISERVER_IMAGE_NAME        The name of the apiserver image. Default is 'cdi-apiserver'."
+	@echo "    UPLOADPROXY_IMAGE_NAME      The name of the uploadproxy image. Default is 'cdi-uploadproxy'."
+	@echo "    UPLOADSERVER_IMAGE_NAME     The name of the upload server image. Default is 'cdi-uploadserver'."
+	@echo "    OPERATOR_IMAGE_NAME         The name of the operator image. Default is 'cdi-operator'."
+	@echo "    DOCKER_TAG                  Set global version tags for image and manifest creation. Default is 'latest'."
+	@echo "    VERBOSITY                   Set global log level verbosity. Default is '1'."
+	@echo "    PULL_POLICY                 Set global CDI pull policy. Default is 'IfNotPresent'."
+	@echo "    CR_NAME                     Name of the CDI custom resource. Default is 'cdi'."
+	@echo "    CDI_NAMESPACE               Namespace for CDI resources. Default is 'cdi'."
+	@echo "    CSV_VERSION                 Version of CSV generated files. Default is '0.0.0'."
+	@echo "    QUAY_REPOSITORY             Quay repository. Default is 'cdi-operatorhub'."
+	@echo "    QUAY_NAMESPACE              Quay namespace. Default is 'kubevirt'."
+	@echo "    TEST_ARGS                   List of additional ginkgo flags to be passed to functional tests. The string "--test-args=" must prefix the variable value."
+	@echo "    WHAT                        Path to the package to test. Default is './pkg/... ./cmd/...' for unit tests and './test/...' for functional tests."
+	@echo "    RELREF                      Required by release-description. Must be a commit or tag. Should be newer than $$PREREF."
+	@echo "    PREREF                      Required by release-description. Must also be a commit or tag. Should be older than $$RELREF."
 
 all: manifests bazel-build-images ## Clean up previous build artifacts, compile all CDI packages and build containers
 
