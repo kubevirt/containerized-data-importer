@@ -979,10 +979,16 @@ func uploadFileNameToPathWithClient(client *http.Client, requestFunc uploadFileN
 func findProxyURLCdiConfig(f *framework.Framework) string {
 	config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
-	if config.Status.UploadProxyURL != nil {
+	if config.Status.UploadProxyURL == nil {
+		return ""
+	}
+	if strings.HasPrefix(*config.Status.UploadProxyURL, "http://") {
 		return *config.Status.UploadProxyURL
 	}
-	return ""
+	if strings.HasPrefix(*config.Status.UploadProxyURL, "https://") {
+		return *config.Status.UploadProxyURL
+	}
+	return "https://" + *config.Status.UploadProxyURL
 }
 
 func HasEnvironmentVariableFromSecret(pod *v1.Pod, name string, secret *v1.Secret) bool {
