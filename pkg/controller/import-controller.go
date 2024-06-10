@@ -99,6 +99,7 @@ type importPodEnvVar struct {
 	certConfigMapProxy string
 	extraHeaders       []string
 	secretExtraHeaders []string
+	cacheMode          string
 }
 
 type importerPodArgs struct {
@@ -374,16 +375,22 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	setAnnotationsFromPodWithPrefix(anno, pod, cc.AnnRunningCondition)
 
 	scratchExitCode := false
-	if pod.Status.ContainerStatuses != nil &&
-		pod.Status.ContainerStatuses[0].LastTerminationState.Terminated != nil &&
-		pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode > 0 {
-		log.Info("Pod termination code", "pod.Name", pod.Name, "ExitCode", pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode)
-		if pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode == common.ScratchSpaceNeededExitCode {
-			log.V(1).Info("Pod requires scratch space, terminating pod, and restarting with scratch space", "pod.Name", pod.Name)
-			scratchExitCode = true
-			anno[cc.AnnRequiresScratch] = "true"
-		} else {
-			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message)
+	podModificationsNeeded := scratchExitCode
+	if statuses := pod.Status.ContainerStatuses; len(statuses) > 0 {
+		if isOOMKilled(statuses[0]) {
+			log.V(1).Info("Pod died of an OOM, deleting pod, and restarting with qemu cache mode=none if storage supports it", "pod.Name", pod.Name)
+			podModificationsNeeded = true
+			anno[cc.AnnRequiresDirectIO] = "true"
+		}
+		if terminated := statuses[0].LastTerminationState.Terminated; terminated != nil && terminated.ExitCode > 0 {
+			if terminated.ExitCode == common.ScratchSpaceNeededExitCode {
+				log.V(1).Info("Pod requires scratch space, terminating pod, and restarting with scratch space", "pod.Name", pod.Name)
+				podModificationsNeeded = true
+				anno[cc.AnnRequiresScratch] = "true"
+			} else {
+				log.Info("Pod termination code", "pod.Name", pod.Name, "ExitCode", terminated.ExitCode)
+				r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, terminated.Message)
+			}
 		}
 	}
 
@@ -392,10 +399,16 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	}
 
 	anno[cc.AnnImportPod] = string(pod.Name)
-	if !scratchExitCode {
+	if !podModificationsNeeded {
 		// No scratch exit code, update the phase based on the pod. If we do have scratch exit code we don't want to update the
 		// phase, because the pod might terminate cleanly and mistakenly mark the import complete.
 		anno[cc.AnnPodPhase] = string(pod.Status.Phase)
+	}
+
+	for _, ev := range pod.Spec.Containers[0].Env {
+		if ev.Name == common.CacheMode && ev.Value == common.CacheModeTryNone {
+			anno[cc.AnnRequiresDirectIO] = "false"
+		}
 	}
 
 	// Check if the POD is waiting for scratch space, if so create some.
@@ -426,8 +439,8 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		log.V(1).Info("Updated PVC", "pvc.anno.Phase", anno[cc.AnnPodPhase], "pvc.anno.Restarts", anno[cc.AnnPodRestarts])
 	}
 
-	if cc.IsPVCComplete(pvc) || scratchExitCode {
-		if !scratchExitCode {
+	if cc.IsPVCComplete(pvc) || podModificationsNeeded {
+		if !podModificationsNeeded {
 			r.recorder.Event(pvc, corev1.EventTypeNormal, ImportSucceededPVC, "Import Successful")
 			log.V(1).Info("Import completed successfully")
 		}
@@ -621,6 +634,11 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 	if err != nil {
 		return nil, err
 	}
+
+	if v, ok := pvc.Annotations[cc.AnnRequiresDirectIO]; ok && v == "true" {
+		podEnvVar.cacheMode = common.CacheModeTryNone
+	}
+
 	return podEnvVar, nil
 }
 
@@ -1299,6 +1317,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 			Name:  common.Preallocation,
 			Value: strconv.FormatBool(podEnvVar.preallocation),
 		},
+		{
+			Name:  common.CacheMode,
+			Value: podEnvVar.cacheMode,
+		},
 	}
 	if podEnvVar.secretName != "" && podEnvVar.source != cc.SourceGCS {
 		env = append(env, corev1.EnvVar{
@@ -1349,4 +1371,19 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		})
 	}
 	return env
+}
+
+func isOOMKilled(status v1.ContainerStatus) bool {
+	if terminated := status.State.Terminated; terminated != nil {
+		if terminated.Reason == cc.OOMKilledReason {
+			return true
+		}
+	}
+	if terminated := status.LastTerminationState.Terminated; terminated != nil {
+		if terminated.Reason == cc.OOMKilledReason {
+			return true
+		}
+	}
+
+	return false
 }
