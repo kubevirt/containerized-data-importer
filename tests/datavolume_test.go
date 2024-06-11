@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"reflect"
-	"regexp"
 	"strings"
 	"time"
 
@@ -2840,13 +2839,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				}
 			}
 			Expect(err).ToNot(HaveOccurred())
-			progressRegExp := regexp.MustCompile(`\d{1,3}\.?\d{1,2}%`)
-			Eventually(func() bool {
+			Eventually(func(g Gomega) string {
 				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				progress := dv.Status.Progress
-				return progressRegExp.MatchString(string(progress))
-			}, timeout, pollingInterval).Should(BeTrue())
+				g.Expect(err).ToNot(HaveOccurred())
+				fmt.Fprintf(GinkgoWriter, "INFO: progress: %s\n", dv.Status.Progress)
+				return string(dv.Status.Progress)
+			}, timeout, pollingInterval).Should(MatchRegexp(`^([1-9]{1,2})(\.\d+)?%$`), "DataVolume is not reporting import progress")
 		},
 			Entry("[test_id:3934]when image is qcow2", utils.TinyCoreQcow2URLRateLimit),
 			Entry("[test_id:6902]when image is qcow2.gz", utils.TinyCoreQcow2GzURLRateLimit),
@@ -3125,11 +3123,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			// here we want to have more than 0, to be sure it started
-			Eventually(func() string {
+			Eventually(func(g Gomega) string {
 				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).ToNot(HaveOccurred())
+				fmt.Fprintf(GinkgoWriter, "INFO: progress: %s\n", dv.Status.Progress)
 				return string(dv.Status.Progress)
-			}, timeout, pollingInterval).Should(Equal("N/A"))
+			}, timeout, pollingInterval).Should(MatchRegexp(`^([1-9]{1,2})(\.\d+)?%$`), "DataVolume is not reporting import progress")
 
 			By("Remove source image file & kill http container to force restart")
 			fileHostPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, utils.FileHostName, "name="+utils.FileHostName)
