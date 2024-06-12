@@ -49,6 +49,8 @@ const (
 	defaultMemLimit   = "600M"
 	defaultCPURequest = "100m"
 	defaultMemRequest = "60M"
+
+	rootCertificateConfigMap = "kube-root-ca.crt"
 )
 
 // CDIConfigReconciler members
@@ -514,6 +516,9 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 	if err := watchClusterProxy(mgr, configController, configName); err != nil {
 		return err
 	}
+	if err := watchUploadProxyCA(mgr, configController, configName); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -611,6 +616,28 @@ func watchClusterProxy(mgr manager.Manager, configController controller.Controll
 			))
 		}
 		return err
+	}
+	return nil
+}
+
+// watchUploadProxyCA watches the kube-root-ca.crt ConfigMap for changes
+// to the CA certificate used by the upload proxy.
+//
+// A change in the UploadProxyURL may invalidate the CA certificate, but
+// watchCDIConfig will handle that.
+func watchUploadProxyCA(mgr manager.Manager, configcontroller controller.Controller, configName string) error {
+	kind := source.Kind(mgr.GetCache(), &v1.ConfigMap{})
+
+	handler := handler.EnqueueRequestsFromMapFunc(func(context.Context, client.Object) []reconcile.Request {
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: configName}}}
+	})
+
+	predicate := predicate.NewPredicateFuncs(func(o client.Object) bool {
+		return o.(*v1.ConfigMap).Name == rootCertificateConfigMap
+	})
+
+	if err := configcontroller.Watch(kind, handler, predicate); err != nil {
+		return fmt.Errorf("could not watch UploadProxyCA ConfigMap: %w", err)
 	}
 	return nil
 }
