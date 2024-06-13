@@ -1288,6 +1288,58 @@ var _ = Describe("untagURL", func() {
 	})
 })
 
+var _ = Describe("deleteOutdatedPendingPvcs", func() {
+	var (
+		dicLabels = map[string]string{common.DataImportCronLabel: "dic"}
+		oldScName = "old-sc"
+		newScName = "new-sc"
+	)
+
+	DescribeTable("should delete DIC-created PVCs Pending for old default/default virt storage class",
+		func(dvScName *string, pvcScName string, labels map[string]string, phase corev1.PersistentVolumeClaimPhase, shouldDelete bool) {
+			reconciler := createDataImportCronReconciler()
+
+			sc := cc.CreateStorageClass(storageClassName, map[string]string{cc.AnnDefaultVirtStorageClass: "true"})
+			err := reconciler.client.Create(context.TODO(), sc)
+			Expect(err).ToNot(HaveOccurred())
+
+			dv := &cdiv1.DataVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "testPvc",
+					Namespace: metav1.NamespaceDefault,
+				},
+				Spec: cdiv1.DataVolumeSpec{
+					Storage: &cdiv1.StorageSpec{
+						StorageClassName: dvScName,
+					},
+				},
+			}
+			err = reconciler.client.Create(context.TODO(), dv)
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc := cc.CreatePvcInStorageClass(dv.Name, dv.Namespace, &pvcScName, nil, labels, phase)
+			err = reconciler.client.Create(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = deleteOutdatedPendingPvcs(context.TODO(), reconciler.client, reconciler.log)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), client.ObjectKeyFromObject(pvc), pvc)
+			if shouldDelete {
+				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+			} else {
+				Expect(err).ToNot(HaveOccurred())
+			}
+		},
+		Entry("DV with default SC, Pending PVC with DIC-label and outdated SC - is deleted", nil, oldScName, dicLabels, corev1.ClaimPending, true),
+		Entry("DV with default SC, Pending PVC without DIC-label and outdated SC - is not deleted", nil, oldScName, nil, corev1.ClaimPending, false),
+		Entry("DV with default SC, Pending PVC with DIC-label and default SC - is not deleted", nil, storageClassName, dicLabels, corev1.ClaimPending, false),
+		Entry("DV with default SC, Bound PVC with DIC-label and outdated SC - is not deleted", nil, oldScName, dicLabels, corev1.ClaimBound, false),
+		Entry("DV with default SC, Bound PVC without DIC-label and outdated SC - is not deleted", nil, oldScName, nil, corev1.ClaimBound, false),
+		Entry("DV with specific SC, Pending PVC with DIC-label and outdated SC - is not deleted", &newScName, oldScName, nil, corev1.ClaimPending, false),
+	)
+})
+
 func createDataImportCronReconciler(objects ...runtime.Object) *DataImportCronReconciler {
 	cdiConfig := cc.MakeEmptyCDIConfigSpec(common.ConfigName)
 	objs := []runtime.Object{cdiConfig}
