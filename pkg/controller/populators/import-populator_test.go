@@ -399,11 +399,13 @@ var _ = Describe("Import populator tests", func() {
 
 		It("should update target pvc with desired labels from succeeded pvc prime", func() {
 			const (
-				testKubevirtIoKey           = "test.kubevirt.io/test"
-				testKubevirtIoValue         = "testvalue"
-				testKubevirtIoKeyExisting   = "test.kubevirt.io/existing"
-				testKubevirtIoValueExisting = "existing"
-				testUndesiredKey            = "undesired.key"
+				testKubevirtIoKey               = "test.kubevirt.io/test"
+				testKubevirtIoValue             = "testvalue"
+				testInstancetypeKubevirtIoKey   = "instancetype.kubevirt.io/default-preference"
+				testInstancetypeKubevirtIoValue = "testpreference"
+				testKubevirtIoKeyExisting       = "test.kubevirt.io/existing"
+				testKubevirtIoValueExisting     = "existing"
+				testUndesiredKey                = "undesired.key"
 			)
 
 			// The existing key should not be overwritten
@@ -415,6 +417,7 @@ var _ = Describe("Import populator tests", func() {
 			AddAnnotation(pvcPrime, AnnPodPhase, string(corev1.PodSucceeded))
 
 			AddLabel(pvcPrime, testKubevirtIoKey, testKubevirtIoValue)
+			AddLabel(pvcPrime, testInstancetypeKubevirtIoKey, testInstancetypeKubevirtIoValue)
 			AddLabel(pvcPrime, testKubevirtIoKeyExisting, "somethingelse")
 			AddLabel(pvcPrime, testUndesiredKey, testKubevirtIoValue)
 
@@ -443,6 +446,7 @@ var _ = Describe("Import populator tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(updatedPVC.Labels).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
+			Expect(updatedPVC.Labels).To(HaveKeyWithValue(testInstancetypeKubevirtIoKey, testInstancetypeKubevirtIoValue))
 			Expect(updatedPVC.Labels).To(HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoValueExisting))
 			Expect(updatedPVC.Labels).ToNot(HaveKey(testUndesiredKey))
 		})
