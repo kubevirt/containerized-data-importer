@@ -275,9 +275,7 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"openstackvolumepopulators",
 			},
 			Verbs: []string{
-				"get",
-				"list",
-				"watch",
+				"*",
 			},
 		},
 	}
