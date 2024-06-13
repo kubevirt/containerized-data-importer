@@ -30,8 +30,13 @@ func createAggregateClusterRoles(_ *FactoryArgs) []client.Object {
 		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.kubevirt.io:admin", "admin", getAdminPolicyRules()),
 		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.kubevirt.io:edit", "edit", getEditPolicyRules()),
 		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.kubevirt.io:view", "view", getViewPolicyRules()),
+		utils.ResourceBuilder.CreateAggregateClusterRole("forklift.cdi.kubevirt.io:admin", "admin", getAdminPolicyRules()),
+		utils.ResourceBuilder.CreateAggregateClusterRole("forklift.cdi.kubevirt.io:edit", "edit", getEditPolicyRules()),
+		utils.ResourceBuilder.CreateAggregateClusterRole("forklift.cdi.kubevirt.io:view", "view", getViewPolicyRules()),
 		createConfigReaderClusterRole("cdi.kubevirt.io:config-reader"),
+		createConfigReaderClusterRole("forklift.cdi.kubevirt.io:config-reader"),
 		createConfigReaderClusterRoleBinding("cdi.kubevirt.io:config-reader"),
+		createConfigReaderClusterRoleBinding("forklift.cdi.kubevirt.io:config-reader"),
 	}
 }
 
@@ -75,6 +80,18 @@ func getAdminPolicyRules() []rbacv1.PolicyRule {
 				"*",
 			},
 		},
+		{
+			APIGroups: []string{
+				"forklift.cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"ovirtvolumepopulators",
+				"openstackvolumepopulators",
+			},
+			Verbs: []string{
+				"*",
+			},
+		},
 	}
 }
 
@@ -109,6 +126,20 @@ func getViewPolicyRules() []rbacv1.PolicyRule {
 		},
 		{
 			APIGroups: []string{
+				"forklift.cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"ovirtvolumepopulators",
+				"openstackvolumepopulators",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
 				"cdi.kubevirt.io",
 			},
 			Resources: []string{
@@ -130,6 +161,20 @@ func createConfigReaderClusterRole(name string) *rbacv1.ClusterRole {
 			Resources: []string{
 				"cdiconfigs",
 				"storageprofiles",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
+				"forklift.cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"ovirtvolumepopulators",
+				"openstackvolumepopulators",
 			},
 			Verbs: []string{
 				"get",
