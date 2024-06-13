@@ -1,12 +1,14 @@
 package uploadproxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"html"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -301,6 +303,7 @@ func (app *uploadProxyApp) proxyUploadRequest(uploadPath string, w http.Response
 		return
 	}
 
+	var buff bytes.Buffer
 	p := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
 			req.URL, _ = url.Parse(uploadPath)
@@ -310,9 +313,16 @@ func (app *uploadProxyApp) proxyUploadRequest(uploadPath string, w http.Response
 			}
 		},
 		Transport: client.Transport,
+		ErrorLog:  log.New(&buff, "", 0),
 	}
 
 	p.ServeHTTP(w, r)
+
+	if buff.Len() > 0 {
+		msg := buff.String()
+		klog.Errorf("Error in reverse proxy: %s", msg)
+		fmt.Fprintf(w, "error in upload-proxy: %s", msg)
+	}
 }
 
 func (app *uploadProxyApp) getSigningKey(publicKeyPEM string) error {
