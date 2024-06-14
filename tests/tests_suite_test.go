@@ -157,6 +157,9 @@ func BuildTestSuite() {
 
 	SynchronizedAfterSuite(func() {}, func() {
 		client := framework.ClientsInstance.K8sClient
+		if client == nil {
+			return
+		}
 
 		Eventually(func() []corev1.Namespace {
 			nsList, _ := utils.GetTestNamespaceList(client, framework.NsPrefixLabel)
