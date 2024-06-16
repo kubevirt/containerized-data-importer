@@ -2008,5 +2008,13 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.Secret cdi-uploadserver-client-cert"] = false
 	match[normalCreateSuccess+" *v1.Service cdi-prometheus-metrics"] = false
 	match[normalCreateEnsured+" SecurityContextConstraint exists"] = false
+
+	// Forklift
+	match[normalCreateSuccess+" *v1.ClusterRole forklift.cdi.kubevirt.io:admin"] = false
+	match[normalCreateSuccess+" *v1.ClusterRole forklift.cdi.kubevirt.io:edit"] = false
+	match[normalCreateSuccess+" *v1.ClusterRole forklift.cdi.kubevirt.io:view"] = false
+	match[normalCreateSuccess+" *v1.ClusterRole forklift.cdi.kubevirt.io:config-reader"] = false
+	match[normalCreateSuccess+" *v1.ClusterRoleBinding forklift.cdi.kubevirt.io:config-reader"] = false
+
 	return match
 }
