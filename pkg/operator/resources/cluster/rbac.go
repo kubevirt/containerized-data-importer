@@ -168,20 +168,6 @@ func createConfigReaderClusterRole(name string) *rbacv1.ClusterRole {
 				"watch",
 			},
 		},
-		{
-			APIGroups: []string{
-				"forklift.cdi.kubevirt.io",
-			},
-			Resources: []string{
-				"ovirtvolumepopulators",
-				"openstackvolumepopulators",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-			},
-		},
 	}
 
 	return utils.ResourceBuilder.CreateClusterRole(name, rules)
