@@ -474,7 +474,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Entry("provisioner that is known to prefer csi clone", "csi-powermax.dellemc.com", cdiv1.CloneStrategyCsiClone, false),
 	)
 
-	DescribeTable("Should set the StorageProfileStatus metric correctly", func(provisioner string, isComplete bool, count int) {
+	DescribeTable("Should set the StorageProfileStatus metric correctly", func(provisioner string, isComplete bool) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
 		reconciler = createStorageProfileReconciler(storageClass)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
@@ -488,12 +488,12 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(sp.Status.ClaimPropertySets).To(BeEmpty())
 
 		labels := createLabels(storageClassName, provisioner, isComplete, true, false, false, false, true)
-		Expect(int(metrics.GetStorageProfileStatus(labels))).To(Equal(count))
+		Expect(int(metrics.GetStorageProfileStatus(labels))).To(Equal(1))
+		labels = createLabels(storageClassName, provisioner, !isComplete, true, false, false, false, true)
+		Expect(int(metrics.GetStorageProfileStatus(labels))).To(Equal(0))
 	},
-		Entry("Noobaa (not supported)", storagecapabilities.ProvisionerNoobaa, false, 0),
-		Entry("Noobaa (not supported)", storagecapabilities.ProvisionerNoobaa, true, 1),
-		Entry("Unknown provisioner", "unknown-provisioner", false, 1),
-		Entry("Unknown provisioner", "unknown-provisioner", true, 0),
+		Entry("Noobaa (not supported)", storagecapabilities.ProvisionerNoobaa, true),
+		Entry("Unknown provisioner", "unknown-provisioner", false),
 	)
 
 	DescribeTable("Should set the StorageProfileStatus degraded state correctly", func(accessMode v1.PersistentVolumeAccessMode, isSNO, isDegraded bool) {
