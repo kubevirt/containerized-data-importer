@@ -65,7 +65,6 @@ go_test(
         "//pkg/controller/common:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/appscode/jsonpatch:go_default_library",
-        "//vendor/github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake:go_default_library",
         "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
