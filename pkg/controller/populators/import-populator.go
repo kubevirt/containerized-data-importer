@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -254,6 +255,10 @@ func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, p
 		return err
 	}
 	if progressReport != "" {
+		if strings.HasPrefix(progressReport, "100") {
+			// Hold on with reporting 100% since that may not be accounting for resize/convert etc
+			return nil
+		}
 		if f, err := strconv.ParseFloat(progressReport, 64); err == nil {
 			cc.AddAnnotation(pvc, cc.AnnPopulatorProgress, fmt.Sprintf("%.2f%%", f))
 		}
