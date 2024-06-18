@@ -14,6 +14,7 @@ const (
 	counterLabelVirtDefault  = "virtdefault"
 	counterLabelRWX          = "rwx"
 	counterLabelSmartClone   = "smartclone"
+	counterLabelDegraded     = "degraded"
 )
 
 var (
@@ -30,7 +31,8 @@ var (
 				"`default` indicates if it's the Kubernetes default storage class, " +
 				"`virtdefault` indicates if it's the default virtualization storage class, " +
 				"`rwx` indicates if the storage class supports `ReadWriteMany`, " +
-				"`smartclone` indicates if it supports snapshot or CSI based clone",
+				"`smartclone` indicates if it supports snapshot or CSI based clone, " +
+				"`degraded` indicates it is not optimal for virtualization",
 		},
 		[]string{
 			counterLabelStorageClass,
@@ -40,6 +42,7 @@ var (
 			counterLabelVirtDefault,
 			counterLabelRWX,
 			counterLabelSmartClone,
+			counterLabelDegraded,
 		},
 	)
 )

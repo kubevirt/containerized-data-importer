@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	ocpconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/prometheus/client_golang/prometheus"
 
 	v1 "k8s.io/api/core/v1"
@@ -48,6 +49,7 @@ const (
 	counterLabelVirtDefault      = "virtdefault"
 	counterLabelRWX              = "rwx"
 	counterLabelSmartClone       = "smartclone"
+	counterLabelDegraded         = "degraded"
 )
 
 // StorageProfileReconciler members
@@ -296,13 +298,26 @@ func (r *StorageProfileReconciler) computeMetrics(profile *cdiv1.StorageProfile,
 		return err
 	}
 
+	isSNO := false
+	clusterInfra := &ocpconfigv1.Infrastructure{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: "cluster"}, clusterInfra); err != nil {
+		if !meta.IsNoMatchError(err) && !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else {
+		isSNO = clusterInfra.Status.ControlPlaneTopology == ocpconfigv1.SingleReplicaTopologyMode &&
+			clusterInfra.Status.InfrastructureTopology == ocpconfigv1.SingleReplicaTopologyMode
+	}
+
+	isDegraded := (!isSNO && !isRWX) || !isSmartClone
+
 	// Setting the labeled Gauge to 1 will not delete older metric, so we need to explicitly delete them
 	scLabels := prometheus.Labels{counterLabelStorageClass: storageClass, counterLabelProvisioner: provisioner}
 	metricsDeleted := metrics.DeleteStorageProfileStatus(scLabels)
-	scLabels = createLabels(storageClass, provisioner, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone)
+	scLabels = createLabels(storageClass, provisioner, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone, isDegraded)
 	metrics.SetStorageProfileStatus(scLabels, 1)
-	r.log.Info(fmt.Sprintf("Set metric:%s complete:%t default:%t vdefault:%t rwx:%t smartclone:%t (deleted %d)",
-		storageClass, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone, metricsDeleted))
+	r.log.Info(fmt.Sprintf("Set metric:%s complete:%t default:%t vdefault:%t rwx:%t smartclone:%t degraded:%t (deleted %d)",
+		storageClass, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone, isDegraded, metricsDeleted))
 
 	return nil
 }
@@ -335,7 +350,7 @@ func (r *StorageProfileReconciler) hasSmartClone(sp *cdiv1.StorageProfile) (bool
 	return false, nil
 }
 
-func createLabels(storageClass, provisioner string, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone bool) prometheus.Labels {
+func createLabels(storageClass, provisioner string, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone, isDegraded bool) prometheus.Labels {
 	return prometheus.Labels{
 		counterLabelStorageClass: storageClass,
 		counterLabelProvisioner:  provisioner,
@@ -344,6 +359,7 @@ func createLabels(storageClass, provisioner string, isComplete, isDefault, isVir
 		counterLabelVirtDefault:  strconv.FormatBool(isVirtDefault),
 		counterLabelRWX:          strconv.FormatBool(isRWX),
 		counterLabelSmartClone:   strconv.FormatBool(isSmartClone),
+		counterLabelDegraded:     strconv.FormatBool(isDegraded),
 	}
 }
 
