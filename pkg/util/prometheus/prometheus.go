@@ -8,9 +8,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	dto "github.com/prometheus/client_model/go"
 
 	"k8s.io/client-go/util/cert"
 	"k8s.io/klog/v2"
@@ -21,23 +19,27 @@ import (
 // ProgressReader is a counting reader that reports progress to prometheus.
 type ProgressReader struct {
 	util.CountingReader
-	total    uint64
-	progress *prometheus.CounterVec
-	ownerUID string
-	final    bool
+	metric ProgressMetric
+	total  uint64
+	final  bool
+}
+
+type ProgressMetric interface {
+	Add(value float64)
+	Get() (float64, error)
+	Delete()
 }
 
 // NewProgressReader creates a new instance of a prometheus updating progress reader.
-func NewProgressReader(r io.ReadCloser, total uint64, progress *prometheus.CounterVec, ownerUID string) *ProgressReader {
+func NewProgressReader(r io.ReadCloser, metric ProgressMetric, total uint64) *ProgressReader {
 	promReader := &ProgressReader{
 		CountingReader: util.CountingReader{
 			Reader:  r,
 			Current: 0,
 		},
-		total:    total,
-		progress: progress,
-		ownerUID: ownerUID,
-		final:    true,
+		metric: metric,
+		total:  total,
+		final:  true,
 	}
 
 	return promReader
@@ -65,13 +67,13 @@ func (r *ProgressReader) updateProgress() bool {
 		if !finished && r.Current < r.total {
 			currentProgress = float64(r.Current) / float64(r.total) * 100.0
 		}
-		metric := &dto.Metric{}
-		if err := r.progress.WithLabelValues(r.ownerUID).Write(metric); err != nil {
+		progress, err := r.metric.Get()
+		if err != nil {
 			klog.Errorf("updateProgress: failed to read metric; %v", err)
 			return true // true ==> to try again // todo - how to avoid endless loop in case it's a constant error?
 		}
-		if currentProgress > *metric.Counter.Value {
-			r.progress.WithLabelValues(r.ownerUID).Add(currentProgress - *metric.Counter.Value)
+		if currentProgress > progress {
+			r.metric.Add(currentProgress - progress)
 		}
 		klog.V(1).Infoln(fmt.Sprintf("%.2f", currentProgress))
 		return !finished

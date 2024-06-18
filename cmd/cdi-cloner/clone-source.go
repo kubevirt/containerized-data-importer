@@ -13,11 +13,11 @@ import (
 	"strconv"
 
 	"github.com/golang/snappy"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
@@ -99,20 +99,14 @@ func startPrometheus() {
 	prometheusutil.StartPrometheusEndpoint(certsDirectory)
 }
 
-func createProgressReader(readCloser io.ReadCloser, ownerUID string, totalBytes uint64) io.ReadCloser {
-	progress := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "clone_progress",
-			Help: "The clone progress in percentage",
-		},
-		[]string{"ownerUID"},
-	)
-	prometheus.MustRegister(progress)
-
-	promReader := prometheusutil.NewProgressReader(readCloser, totalBytes, progress, ownerUID)
+func createProgressReader(readCloser io.ReadCloser, ownerUID string, totalBytes uint64) (io.ReadCloser, error) {
+	if err := metrics.SetupMetrics(); err != nil {
+		return nil, err
+	}
+	promReader := prometheusutil.NewProgressReader(readCloser, metrics.Progress(ownerUID), totalBytes)
 	promReader.StartTimedUpdate()
 
-	return promReader
+	return promReader, nil
 }
 
 func pipeToSnappy(reader io.ReadCloser) io.ReadCloser {
@@ -246,7 +240,11 @@ func main() {
 
 	klog.V(1).Infoln("Starting cloner target")
 
-	reader := pipeToSnappy(createProgressReader(getInputStream(preallocation), ownerUID, uploadBytes))
+	progressReader, err := createProgressReader(getInputStream(preallocation), ownerUID, uploadBytes)
+	if err != nil {
+		klog.Fatalf("Error creating progress reader: %v", err)
+	}
+	reader := pipeToSnappy(progressReader)
 
 	startPrometheus()
 

@@ -27,12 +27,12 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 	"kubevirt.io/containerized-data-importer/pkg/system"
+	"kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
 
 const goodValidateJSON = `
@@ -239,42 +239,42 @@ var _ = Describe("Validate", func() {
 })
 
 var _ = Describe("Report Progress", func() {
+	var progressMetric prometheus.ProgressMetric
+
 	BeforeEach(func() {
-		progress = prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "import_progress",
-				Help: "The import progress in percentage",
-			},
-			[]string{"ownerUID"},
-		)
+		err := metrics.SetupMetrics()
+		Expect(err).NotTo(HaveOccurred())
+		progressMetric = metrics.Progress(ownerUID)
+	})
+
+	AfterEach(func() {
+		progressMetric.Delete()
 	})
 
 	It("Parse valid progress line", func() {
 		By("Verifying the initial value is 0")
-		progress.WithLabelValues(ownerUID).Add(0)
-		metric := &dto.Metric{}
-		err := progress.WithLabelValues(ownerUID).Write(metric)
+		progressMetric.Add(0)
+		progress, err := progressMetric.Get()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(*metric.Counter.Value).To(Equal(float64(0)))
+		Expect(progress).To(Equal(float64(0)))
 		By("Calling reportProgress with value")
 		reportProgress("(45.34/100%)")
-		err = progress.WithLabelValues(ownerUID).Write(metric)
+		progress, err = progressMetric.Get()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(*metric.Counter.Value).To(Equal(45.34))
+		Expect(progress).To(Equal(45.34))
 	})
 
 	It("Parse invalid progress line", func() {
 		By("Verifying the initial value is 0")
-		progress.WithLabelValues(ownerUID).Add(0)
-		metric := &dto.Metric{}
-		err := progress.WithLabelValues(ownerUID).Write(metric)
+		progressMetric.Add(0)
+		progress, err := progressMetric.Get()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(*metric.Counter.Value).To(Equal(float64(0)))
+		Expect(progress).To(Equal(float64(0)))
 		By("Calling reportProgress with invalid value")
 		reportProgress("45.34")
-		err = progress.WithLabelValues(ownerUID).Write(metric)
+		progress, err = progressMetric.Get()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(*metric.Counter.Value).To(Equal(float64(0)))
+		Expect(progress).To(Equal(float64(0)))
 	})
 })
 

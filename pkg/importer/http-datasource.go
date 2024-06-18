@@ -154,6 +154,7 @@ func (hs *HTTPDataSource) Transfer(path string) (ProcessingPhase, error) {
 		if err != nil || size <= 0 {
 			return ProcessingPhaseError, ErrInvalidPath
 		}
+		hs.readers.StartProgressUpdate()
 		err = streamDataToFile(hs.readers.TopReader(), file)
 		if err != nil {
 			return ProcessingPhaseError, err
