@@ -1037,6 +1037,10 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 
+	if err := addDefaultStorageClassUpdateWatch(mgr, c); err != nil {
+		return err
+	}
+
 	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.StorageProfile{}),
 		handler.EnqueueRequestsFromMapFunc(mapStorageProfileToCron),
 		predicate.Funcs{
@@ -1084,10 +1088,6 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 			DeleteFunc: func(e event.DeleteEvent) bool { return getCronName(e.Object) != "" },
 		},
 	); err != nil {
-		return err
-	}
-
-	if err := addDefaultStorageClassUpdateWatch(mgr, c); err != nil {
 		return err
 	}
 
