@@ -310,6 +310,9 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		return res, err
 	}
 	if desiredStorageClass != nil {
+		if deleted, err := r.deleteOutdatedPendingPvc(ctx, pvc, desiredStorageClass.Name, dataImportCron.Name); deleted || err != nil {
+			return res, err
+		}
 		cc.AddAnnotation(dataImportCron, AnnStorageClass, desiredStorageClass.Name)
 	}
 	format, err := r.getSourceFormat(ctx, desiredStorageClass)
@@ -978,6 +981,7 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		}
 		return nil
 	}
+
 	mapStorageProfileToCron := func(ctx context.Context, obj client.Object) []reconcile.Request {
 		// TODO: Get rid of this after at least one version; use indexer on storage class annotation instead
 		// Otherwise we risk losing the storage profile event
@@ -1099,12 +1103,15 @@ func addDefaultStorageClassUpdateWatch(mgr manager.Manager, c controller.Control
 	if err := c.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}),
 		handler.EnqueueRequestsFromMapFunc(
 			func(ctx context.Context, obj client.Object) []reconcile.Request {
-				log := c.GetLogger().WithName("StorageClassWatch")
-				log.Info("Default/default virt SC updated", "scName", obj.GetName())
-				if err := deleteOutdatedPendingPvcs(ctx, mgr.GetClient(), log); err != nil {
-					log.Error(err, "Failed deleting outdated pending PVCs")
+				log := c.GetLogger().WithName("DefaultStorageClassUpdateWatch")
+				log.Info("Update", "sc", obj.GetName(),
+					"default", obj.GetAnnotations()[cc.AnnDefaultStorageClass] == "true",
+					"defaultVirt", obj.GetAnnotations()[cc.AnnDefaultVirtStorageClass] == "true")
+				reqs, err := getReconcileRequestsForDicsWithPendingPvc(ctx, mgr.GetClient())
+				if err != nil {
+					log.Error(err, "Failed getting DataImportCrons with pending PVCs")
 				}
-				return nil
+				return reqs
 			},
 		),
 		predicate.Funcs{
@@ -1113,8 +1120,8 @@ func addDefaultStorageClassUpdateWatch(mgr manager.Manager, c controller.Control
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				scOld := e.ObjectOld.(*storagev1.StorageClass)
 				scNew := e.ObjectNew.(*storagev1.StorageClass)
-				return (scOld.Annotations[cc.AnnDefaultStorageClass] != "true" && scNew.Annotations[cc.AnnDefaultStorageClass] == "true") ||
-					(scOld.Annotations[cc.AnnDefaultVirtStorageClass] != "true" && scNew.Annotations[cc.AnnDefaultVirtStorageClass] == "true")
+				return (scNew.Annotations[cc.AnnDefaultStorageClass] != scOld.Annotations[cc.AnnDefaultStorageClass]) ||
+					(scNew.Annotations[cc.AnnDefaultVirtStorageClass] != scOld.Annotations[cc.AnnDefaultVirtStorageClass])
 			},
 		},
 	); err != nil {
@@ -1124,59 +1131,55 @@ func addDefaultStorageClassUpdateWatch(mgr manager.Manager, c controller.Control
 	return nil
 }
 
-// deleteOutdatedPendingPvcs deletes the DIC-created PVCs Pending for old default/default virt storage class
-func deleteOutdatedPendingPvcs(ctx context.Context, c client.Client, log logr.Logger) error {
-	selector, err := metav1.LabelSelectorAsSelector(
-		&metav1.LabelSelector{
-			MatchExpressions: []metav1.LabelSelectorRequirement{
-				{
-					Key:      common.DataImportCronLabel,
-					Operator: metav1.LabelSelectorOpExists,
-				},
-			},
-		},
-	)
-	if err != nil {
-		return err
+func getReconcileRequestsForDicsWithPendingPvc(ctx context.Context, c client.Client) ([]reconcile.Request, error) {
+	dicList := &cdiv1.DataImportCronList{}
+	if err := c.List(ctx, dicList); err != nil {
+		return nil, err
 	}
-
-	pvcList := &corev1.PersistentVolumeClaimList{}
-	if err := c.List(ctx, pvcList, &client.ListOptions{LabelSelector: selector}); err != nil {
-		return err
-	}
-
-	for _, pvc := range pvcList.Items {
-		sc := pvc.Spec.StorageClassName
-		if sc == nil || pvc.Status.Phase != corev1.ClaimPending || pvc.DeletionTimestamp != nil {
+	reqs := []reconcile.Request{}
+	for _, dic := range dicList.Items {
+		if cc.GetStorageClassFromDVSpec(&dic.Spec.Template) != nil {
 			continue
 		}
 
-		dv := &cdiv1.DataVolume{}
-		if err := c.Get(ctx, client.ObjectKeyFromObject(&pvc), dv); err != nil {
+		imports := dic.Status.CurrentImports
+		if len(imports) == 0 {
+			continue
+		}
+
+		pvcName := imports[0].DataVolumeName
+		pvc := &corev1.PersistentVolumeClaim{}
+		if err := c.Get(ctx, types.NamespacedName{Namespace: dic.Namespace, Name: pvcName}, pvc); err != nil {
 			if k8serrors.IsNotFound(err) {
 				continue
 			}
-			return err
-		}
-		// If the DV has specific SC (not the default), we shouldn't consider deleting the PVC
-		if cc.GetStorageClassFromDVSpec(dv) != nil {
-			continue
-		}
-		desiredStorageClass, err := cc.GetStorageClassByNameWithVirtFallback(ctx, c, nil, dv.Spec.ContentType)
-		if err != nil {
-			return err
-		}
-		if *sc == desiredStorageClass.Name {
-			continue
+			return nil, err
 		}
 
-		log.Info("Delete pending pvc", "name", pvc.Name, "ns", pvc.Namespace, "sc", *sc)
-		if err := c.Delete(ctx, &pvc); cc.IgnoreNotFound(err) != nil {
-			return err
+		if pvc.Status.Phase == corev1.ClaimPending {
+			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dic.Name, Namespace: dic.Namespace}})
 		}
 	}
 
-	return nil
+	return reqs, nil
+}
+
+func (r *DataImportCronReconciler) deleteOutdatedPendingPvc(ctx context.Context, pvc *corev1.PersistentVolumeClaim, desiredStorageClass, cronName string) (bool, error) {
+	if pvc == nil || pvc.Status.Phase != corev1.ClaimPending || pvc.Labels[common.DataImportCronLabel] != cronName {
+		return false, nil
+	}
+
+	sc := pvc.Spec.StorageClassName
+	if sc == nil || *sc == desiredStorageClass {
+		return false, nil
+	}
+
+	r.log.Info("Delete pending pvc", "name", pvc.Name, "ns", pvc.Namespace, "sc", *sc)
+	if err := r.client.Delete(ctx, pvc); cc.IgnoreNotFound(err) != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (r *DataImportCronReconciler) cronJobExistsAndUpdated(ctx context.Context, cron *cdiv1.DataImportCron) (bool, error) {
