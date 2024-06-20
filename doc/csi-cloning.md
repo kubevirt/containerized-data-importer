@@ -12,10 +12,9 @@ See [volume-cloning](https://kubernetes-csi.github.io/docs/volume-cloning.html) 
 ### Prerequisites
   1) The csi driver backing the storage class of the PVC supports volume cloning, and corresponding StorageProfile has
      the cloneStrategy set to CSI Volume Cloning (see [here](./csi-cloning.md#Prerequisites) for more details)
-  2) The source and target PVC share the same Storage Class (see [here](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#class) for details)
-  3) The source and target PVC share the same Volume Mode (see [here](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#volume-mode) for details)
-  4) The user creating the DataVolume has permission to create the `datavolumes/source` resource in the source namespace
-  5) The source volume is not in use
+  2) The source and target PVC share the same Volume Mode (see [here](https://kubernetes.io/docs/concepts/storage/volume-pvc-datasource/#introduction) for details)
+  3) The user creating the DataVolume has permission to create the `datavolumes/source` resource in the source namespace
+  4) The source volume is not in use
 
 ### Flow Description
 - DataVolume is created with a PVC source
