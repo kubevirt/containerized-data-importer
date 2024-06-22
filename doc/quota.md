@@ -25,7 +25,7 @@ spec:
 
 ```
 
-Once the CDIConfig object is updated, the status section of the object will reflect that values that will be used to pass to the pods. [limits and requests](https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-default-namespace/#motivation-for-default-memory-limits-and-requests) are explained in the kubernetes documentation.
+Once the CDIConfig object is updated, the status section of the object will reflect that values that will be used to pass to the pods. [limits and requests](https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-default-namespace/#motivation-for-default-memory-limits-and-requests) are explained in the kubernetes documentation.  The CDIConfig object is updated by editing the `spec.config` section of the CDI resource.
 
 ## Modify CDI directly
 ```
