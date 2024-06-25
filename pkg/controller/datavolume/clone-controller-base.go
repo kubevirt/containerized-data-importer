@@ -104,7 +104,7 @@ const (
 	// CloneValidationFailed reports that a clone wasn't admitted by our validation mechanism (reason)
 	CloneValidationFailed = "CloneValidationFailed"
 	// MessageCloneValidationFailed reports that a clone wasn't admitted by our validation mechanism (message)
-	MessageCloneValidationFailed = "The clone doesn't meet the validation requirements"
+	MessageCloneValidationFailed = "The clone doesn't meet the validation requirements: %s"
 	// CloneWithoutSource reports that the source of a clone doesn't exists (reason)
 	CloneWithoutSource = "CloneWithoutSource"
 	// MessageCloneWithoutSource reports that the source of a clone doesn't exists (message)
@@ -576,7 +576,7 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 		predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool { return true },
 			DeleteFunc: func(e event.DeleteEvent) bool { return false },
-			UpdateFunc: func(e event.UpdateEvent) bool { return false },
+			UpdateFunc: func(e event.UpdateEvent) bool { return true },
 		})); err != nil {
 		return err
 	}

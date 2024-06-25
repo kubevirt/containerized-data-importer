@@ -424,8 +424,16 @@ func (r *PvcCloneReconciler) validateCloneAndSourcePVC(syncState *dvSyncState, l
 
 	err = validateClone(sourcePvc, &datavolume.Spec)
 	if err != nil {
-		r.recorder.Event(datavolume, corev1.EventTypeWarning, CloneValidationFailed, MessageCloneValidationFailed)
-		return false, err
+		syncErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, datavolume.Status.Phase, nil,
+			Event{
+				eventType: corev1.EventTypeWarning,
+				reason:    CloneValidationFailed,
+				message:   fmt.Sprintf(MessageCloneValidationFailed, err.Error()),
+			})
+		if syncErr != nil {
+			log.Error(syncErr, "failed to sync DataVolume status with event")
+		}
+		return false, nil
 	}
 
 	return true, nil

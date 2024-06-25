@@ -570,12 +570,14 @@ var _ = Describe("All DataVolume Tests", func() {
 				err = reconciler.client.Create(context.TODO(), pvc)
 				Expect(err).ToNot(HaveOccurred())
 
-				done, err = reconciler.validateCloneAndSourcePVC(syncState(dv), reconciler.log)
+				syncRes := syncState(dv)
+				done, err = reconciler.validateCloneAndSourcePVC(syncRes, reconciler.log)
 				Expect(done).To(Equal(expectedResult))
+				Expect(err).ToNot(HaveOccurred())
 				if expectedResult == false {
-					Expect(err).To(HaveOccurred())
+					Expect(syncRes.phaseSync.event.reason).To(Equal(CloneValidationFailed))
 				} else {
-					Expect(err).ToNot(HaveOccurred())
+					Expect(syncRes.phaseSync).To(BeNil())
 				}
 			},
 			Entry("Archive in source and target", string(cdiv1.DataVolumeArchive), string(cdiv1.DataVolumeArchive), true),
@@ -588,6 +590,65 @@ var _ = Describe("All DataVolume Tests", func() {
 			Entry("Empty (kubeVirt by default) in source and archive in target", "", string(cdiv1.DataVolumeArchive), false),
 			Entry("Archive in source and empty (KubeVirt by default) in target", string(cdiv1.DataVolumeArchive), "", false),
 		)
+
+		DescribeTable("Validation mechanism rejects or accepts the clone depending on the source and target size combination",
+			func(sourceSize, targetSize, expectedEvent string, explicitPvcRequest bool) {
+				dv := newCloneDataVolume("test-dv")
+				if !explicitPvcRequest {
+					dv.Spec.Storage = &cdiv1.StorageSpec{}
+					if targetSize != "" {
+						dv.Spec.Storage.Resources = corev1.VolumeResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceStorage: resource.MustParse(targetSize),
+							},
+						}
+					}
+					dv.Spec.PVC = nil
+				} else {
+					dv.Spec.PVC.Resources.Requests[corev1.ResourceStorage] = resource.MustParse(targetSize)
+				}
+
+				srcPvc := CreatePvcInStorageClass("test", "default", &scName, nil, nil, corev1.ClaimBound)
+				srcPvc.Spec.VolumeMode = &BlockMode
+				srcPvc.Spec.Resources.Requests[corev1.ResourceStorage] = resource.MustParse(sourceSize)
+				storageProfile := createStorageProfile(scName, nil, FilesystemMode)
+				reconciler = createCloneReconciler(dv, srcPvc, storageProfile, sc)
+
+				syncRes := syncState(dv)
+				done, err := reconciler.validateCloneAndSourcePVC(syncRes, reconciler.log)
+				Expect(err).ToNot(HaveOccurred())
+				if expectedEvent != "" {
+					Expect(syncRes.phaseSync.event.message).To(ContainSubstring(expectedEvent))
+					Expect(done).To(BeFalse())
+				} else {
+					Expect(syncRes.phaseSync).To(BeNil())
+					Expect(done).To(BeTrue())
+				}
+			},
+			Entry("Explicit PVC request, target equal to source size should accept", "1Gi", "1Gi", "", true),
+			Entry("Explicit PVC request, target bigger then source size should accept", "1Gi", "2Gi", "", true),
+			Entry("Explicit PVC request, target smaller then source size should reject", "2Gi", "1Gi", "is smaller than the source", true),
+			Entry("Storage request, target equal to source size should accept", "1Gi", "1Gi", "", false),
+			Entry("Storage request, target bigger then source size should accept", "1Gi", "2Gi", "", false),
+			Entry("Storage request, target smaller then source size should reject", "2Gi", "1Gi", "is smaller than the source", false),
+			Entry("Storage request, no target size should accept", "1Gi", "", "", false),
+		)
+
+		It("should get event when target size is lower than source size", func() {
+			dv := newCloneDataVolume("test-dv")
+			storageProfile := createStorageProfile(scName, nil, FilesystemMode)
+			srcPvc := CreatePvcInStorageClass("test", "default", &scName, nil, nil, corev1.ClaimBound)
+			srcPvc.Spec.Resources.Requests[corev1.ResourceStorage] = resource.MustParse("2Gi")
+			reconciler = createCloneReconciler(dv, srcPvc, storageProfile, sc)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			event := <-reconciler.recorder.(*record.FakeRecorder).Events
+			Expect(event).To(ContainSubstring(CloneValidationFailed))
+		})
+
 	})
 
 	var _ = Describe("Clone without source", func() {
