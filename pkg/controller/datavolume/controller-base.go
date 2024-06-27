@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
 
 	corev1 "k8s.io/api/core/v1"
@@ -111,6 +112,7 @@ type dvSyncState struct {
 	dvMutated *cdiv1.DataVolume
 	pvc       *corev1.PersistentVolumeClaim
 	pvcSpec   *corev1.PersistentVolumeClaimSpec
+	snapshot  *snapshotv1.VolumeSnapshot
 	dvSyncResult
 	usePopulator bool
 }

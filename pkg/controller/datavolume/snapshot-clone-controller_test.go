@@ -306,6 +306,120 @@ var _ = Describe("All DataVolume Tests", func() {
 					Entry("with different namespace", "source-ns"),
 				)
 
+				var _ = Describe("validateSnapshotClone", func() {
+					type snapshotModifierFunc func(*snapshotv1.VolumeSnapshot)
+
+					DescribeTable("Validation mechanism rejects or accepts the clone depending snapshot state",
+						func(expectedErr string, snapshotModifier snapshotModifierFunc) {
+							dv := newCloneFromSnapshotDataVolume("test-dv")
+
+							snapshot := createSnapshotInVolumeSnapshotClass("test-snap", dv.Namespace, &expectedSnapshotClass, nil, nil, true)
+							snapshotModifier(snapshot)
+
+							err := validateSnapshotClone(snapshot, &dv.Spec)
+							if expectedErr != "" {
+								Expect(err).To(HaveOccurred())
+								Expect(err.Error()).To(ContainSubstring(expectedErr))
+							} else {
+								Expect(err).ToNot(HaveOccurred())
+							}
+						},
+						Entry("No snapshot status should reject", "no status", func(volumesnapshot *snapshotv1.VolumeSnapshot) {
+							volumesnapshot.Status = nil
+						}),
+						Entry("Snapshot not ready should accept", "", func(volumesnapshot *snapshotv1.VolumeSnapshot) {
+							volumesnapshot.Status.ReadyToUse = ptr.To[bool](false)
+						}),
+						Entry("Snapshot has Error should reject", "snapshot in error", func(volumesnapshot *snapshotv1.VolumeSnapshot) {
+							volumesnapshot.Status.Error = &snapshotv1.VolumeSnapshotError{}
+						}),
+						Entry("Snapshot has no volumesnapshotclassname should reject", "does not have volume snap class", func(volumesnapshot *snapshotv1.VolumeSnapshot) {
+							volumesnapshot.Spec.VolumeSnapshotClassName = nil
+						}),
+						Entry("Snapshot has empty volumesnapshotclassname should reject", "does not have volume snap class", func(volumesnapshot *snapshotv1.VolumeSnapshot) {
+							volumesnapshot.Spec.VolumeSnapshotClassName = ptr.To[string]("")
+						}),
+						Entry("valid snapshot should accept", "", func(volumesnapshot *snapshotv1.VolumeSnapshot) {}),
+					)
+
+					DescribeTable("Validation mechanism rejects or accepts the clone depending on the restoresize and target size combination",
+						func(restoreSize, targetSize, expectedErr string, explicitPvcRequest bool) {
+							dv := newCloneFromSnapshotDataVolume("test-dv")
+							if !explicitPvcRequest {
+								dv.Spec.Storage = &cdiv1.StorageSpec{}
+								if targetSize != "" {
+									dv.Spec.Storage.Resources = corev1.VolumeResourceRequirements{
+										Requests: corev1.ResourceList{
+											corev1.ResourceStorage: resource.MustParse(targetSize),
+										},
+									}
+								}
+								dv.Spec.PVC = nil
+							} else {
+								dv.Spec.PVC.Resources.Requests[corev1.ResourceStorage] = resource.MustParse(targetSize)
+							}
+
+							snapshot := createSnapshotInVolumeSnapshotClass("test-snap", dv.Namespace, &expectedSnapshotClass, nil, nil, true)
+							restoreSizeParsed := resource.MustParse(restoreSize)
+							snapshot.Status.RestoreSize = &restoreSizeParsed
+
+							err := validateSnapshotClone(snapshot, &dv.Spec)
+							if expectedErr != "" {
+								Expect(err).To(HaveOccurred())
+								Expect(err.Error()).To(ContainSubstring(expectedErr))
+							} else {
+								Expect(err).ToNot(HaveOccurred())
+							}
+						},
+						Entry("Explicit PVC request, target equal to restoreSize should accept", "1Gi", "1Gi", "", true),
+						Entry("Explicit PVC request, target bigger then restoreSize should accept", "1Gi", "2Gi", "", true),
+						Entry("Explicit PVC request, target smaller then restoreSize should reject", "2Gi", "1Gi", "is smaller than the source", true),
+						Entry("Storage request, target equal to restoreSize should accept", "1Gi", "1Gi", "", false),
+						Entry("Storage request, target bigger then restoreSize should accept", "1Gi", "2Gi", "", false),
+						Entry("Storage request, target smaller then restoreSize should reject", "2Gi", "1Gi", "is smaller than the source", false),
+						Entry("Storage request, no target size should accept", "1Gi", "", "", false),
+						Entry("Storage request, no target size no restoreSize should reject", "0", "", "size not specified", false),
+						Entry("Storage request, have target size and zero restoreSize should accept", "0", "1Gi", "", false),
+						Entry("Storage request, have target size negative restoreSize should reject", "-1", "1Gi", "no restore size", false),
+					)
+				})
+
+				It("should get event when input size is lower than recommended restore size", func() {
+					dv := newCloneFromSnapshotDataVolume("test-dv")
+					snapshot := createSnapshotInVolumeSnapshotClass("test-snap", dv.Namespace, &expectedSnapshotClass, nil, nil, true)
+					bigRestoreSize := resource.MustParse("2G")
+					snapshot.Status.RestoreSize = &bigRestoreSize
+					reconciler = createSnapshotCloneReconciler(storageClass, csiDriver, dv, snapshot)
+					result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(result.Requeue).To(BeFalse())
+					Expect(result.RequeueAfter).To(BeZero())
+					dv = &cdiv1.DataVolume{}
+					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+					Expect(err).ToNot(HaveOccurred())
+					event := <-reconciler.recorder.(*record.FakeRecorder).Events
+					Expect(event).To(ContainSubstring(CloneValidationFailed))
+				})
+
+				It("should handle zero restore size when requested size exists", func() {
+					dv := newCloneFromSnapshotDataVolume("test-dv")
+					snapshot := createSnapshotInVolumeSnapshotClass("test-snap", dv.Namespace, &expectedSnapshotClass, nil, nil, true)
+					zeroRestoreSize := resource.MustParse("0")
+					snapshot.Status.RestoreSize = &zeroRestoreSize
+					reconciler = createSnapshotCloneReconciler(storageClass, csiDriver, dv, snapshot)
+					result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(result.Requeue).To(BeFalse())
+					Expect(result.RequeueAfter).To(BeZero())
+					dv = &cdiv1.DataVolume{}
+					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+					Expect(err).ToNot(HaveOccurred())
+					pvc := &corev1.PersistentVolumeClaim{}
+					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(pvc.Spec.Resources.Requests[corev1.ResourceStorage]).To(Equal(dv.Spec.PVC.Resources.Requests[corev1.ResourceStorage]))
+				})
+
 				It("should handle size omitted", func() {
 					dv := newCloneFromSnapshotDataVolume("test-dv")
 					vm := corev1.PersistentVolumeFilesystem

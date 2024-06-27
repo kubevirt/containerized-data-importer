@@ -206,18 +206,15 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 	}
 
 	if pvc == nil {
+		// Check if source snapshot exists and do proper validation before attempting to clone
+		if done, err := r.validateCloneAndSourceSnapshot(&syncRes); err != nil || !done {
+			return syncRes, err
+		}
+
 		if datavolume.Spec.Storage != nil {
-			done, err := r.detectCloneSize(log, &syncRes)
+			err := r.detectCloneSize(log, &syncRes)
 			if err != nil {
 				return syncRes, err
-			}
-			if !done {
-				if syncRes.result == nil {
-					syncRes.result = &reconcile.Result{}
-				}
-				syncRes.result.RequeueAfter = sourceInUseRequeueDuration
-				// I think pending is more accurate but doing scheduled to be consistent with PVC controller
-				return syncRes, r.syncCloneStatusPhase(&syncRes, cdiv1.CloneScheduled, nil)
 			}
 		}
 
@@ -231,10 +228,8 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 			}
 			pvcModifier = r.updatePVCForPopulation
 		} else {
-			if done, err := r.validateAndInitLegacyClone(&syncRes); err != nil {
+			if err := r.initLegacyClone(&syncRes); err != nil {
 				return syncRes, err
-			} else if !done {
-				return syncRes, nil
 			}
 		}
 
@@ -279,67 +274,42 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 	return syncRes, syncErr
 }
 
-func (r *SnapshotCloneReconciler) detectCloneSize(log logr.Logger, syncState *dvSyncState) (bool, error) {
+func (r *SnapshotCloneReconciler) detectCloneSize(log logr.Logger, syncState *dvSyncState) error {
 	pvcSpec := syncState.pvcSpec
 	requestedSize := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 	if !requestedSize.IsZero() {
 		log.V(3).Info("requested size is set, skipping size detection", "size", requestedSize)
-		return true, nil
+		return nil
 	}
-
-	datavolume := syncState.dvMutated
-	nn := types.NamespacedName{Namespace: datavolume.Spec.Source.Snapshot.Namespace, Name: datavolume.Spec.Source.Snapshot.Name}
-	snapshot := &snapshotv1.VolumeSnapshot{}
-	if err := r.client.Get(context.TODO(), nn, snapshot); err != nil {
-		if k8serrors.IsNotFound(err) {
-			log.V(3).Info("snapshot source does not exist", "namespace", nn.Namespace, "name", nn.Name)
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	if snapshot.Status == nil || snapshot.Status.RestoreSize == nil {
-		log.V(3).Info("snapshot source does not have restoreSize", "namespace", nn.Namespace, "name", nn.Name)
-		return false, nil
+	// shouldn't happen after validation of clone source exist
+	if syncState.snapshot == nil {
+		return fmt.Errorf("snapshot source does not exist")
 	}
 
 	if pvcSpec.Resources.Requests == nil {
 		pvcSpec.Resources.Requests = corev1.ResourceList{}
 	}
-	pvcSpec.Resources.Requests[corev1.ResourceStorage] = *snapshot.Status.RestoreSize
+	pvcSpec.Resources.Requests[corev1.ResourceStorage] = *syncState.snapshot.Status.RestoreSize
 
 	log.V(3).Info("set pvc request size", "size", pvcSpec.Resources.Requests[corev1.ResourceStorage])
 
-	return true, nil
+	return nil
 }
 
-func (r *SnapshotCloneReconciler) validateAndInitLegacyClone(syncState *dvSyncState) (bool, error) {
-	// Check if source snapshot exists and do proper validation before attempting to clone
-	if done, err := r.validateCloneAndSourceSnapshot(syncState); err != nil {
-		return false, err
-	} else if !done {
-		return false, nil
-	}
-
+func (r *SnapshotCloneReconciler) initLegacyClone(syncState *dvSyncState) error {
 	datavolume := syncState.dvMutated
 	pvcSpec := syncState.pvcSpec
 	nn := types.NamespacedName{Namespace: datavolume.Spec.Source.Snapshot.Namespace, Name: datavolume.Spec.Source.Snapshot.Name}
 	snapshot := &snapshotv1.VolumeSnapshot{}
 	if err := r.client.Get(context.TODO(), nn, snapshot); err != nil {
-		return false, err
-	}
-
-	valid, err := r.isSnapshotValidForClone(snapshot)
-	if err != nil || !valid {
-		return false, err
+		return err
 	}
 
 	if err := r.createTempHostAssistedSourcePvc(datavolume, snapshot, pvcSpec, syncState); err != nil {
-		return false, err
+		return err
 	}
 
-	return true, nil
+	return nil
 }
 
 // validateCloneAndSourceSnapshot checks if the source snapshot of a clone exists and does proper validation
@@ -364,14 +334,64 @@ func (r *SnapshotCloneReconciler) validateCloneAndSourceSnapshot(syncState *dvSy
 		}
 		return false, err
 	}
+	syncState.snapshot = snapshot
 
-	err = cc.ValidateSnapshotClone(snapshot, &datavolume.Spec)
+	err = validateSnapshotClone(snapshot, &datavolume.Spec)
 	if err != nil {
-		r.recorder.Event(datavolume, corev1.EventTypeWarning, CloneValidationFailed, MessageCloneValidationFailed)
-		return false, err
+		syncEventErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, datavolume.Status.Phase, nil,
+			Event{
+				eventType: corev1.EventTypeWarning,
+				reason:    CloneValidationFailed,
+				message:   fmt.Sprintf(MessageCloneValidationFailed, err.Error()),
+			})
+		if syncEventErr != nil {
+			r.log.Error(syncEventErr, "failed sync status phase")
+		}
+		return false, nil
 	}
 
 	return true, nil
+}
+
+// validateSnapshotClone compares a snapshot clone spec against its source snapshot to validate its creation
+func validateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv1.DataVolumeSpec) error {
+	err := cc.IsSnapshotValidForClone(sourceSnapshot)
+	if err != nil {
+		return err
+	}
+
+	var sourceResources, targetResources corev1.VolumeResourceRequirements
+	size := sourceSnapshot.Status.RestoreSize
+	if size == nil || size.Sign() < 0 {
+		return fmt.Errorf("snapshot has no restore size")
+	}
+	// We allow restoresize to be 0 in case target has a reqested size
+	restoreSizeAvailable := size != nil && size.Sign() > 0
+	if restoreSizeAvailable {
+		sourceResources.Requests = corev1.ResourceList{corev1.ResourceStorage: *size}
+	}
+
+	isSizelessClone := false
+	explicitPvcRequest := spec.PVC != nil
+	if explicitPvcRequest {
+		targetResources = spec.PVC.Resources
+	} else {
+		targetResources = spec.Storage.Resources
+		if _, ok := targetResources.Requests["storage"]; !ok {
+			isSizelessClone = true
+		}
+	}
+
+	if !isSizelessClone && restoreSizeAvailable {
+		// Sizes available, make sure user picked something bigger than minimal
+		if err := cc.ValidateRequestedCloneSize(sourceResources, targetResources); err != nil {
+			return err
+		}
+	} else if isSizelessClone && !restoreSizeAvailable {
+		return fmt.Errorf("size not specified by user/provisioner, can't tell how much needed for restore")
+	}
+
+	return nil
 }
 
 func (r *SnapshotCloneReconciler) createTempHostAssistedSourcePvc(dv *cdiv1.DataVolume, snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec, syncState *dvSyncState) error {
@@ -543,28 +563,6 @@ func (r *SnapshotCloneReconciler) cleanupHostAssistedSnapshotClone(dv *cdiv1.Dat
 	}
 
 	return nil
-}
-
-// isSnapshotValidForClone returns true if the passed snapshot is valid for cloning
-func (r *SnapshotCloneReconciler) isSnapshotValidForClone(snapshot *snapshotv1.VolumeSnapshot) (bool, error) {
-	if snapshot.Status == nil {
-		r.log.V(3).Info("Snapshot does not have status populated yet")
-		return false, nil
-	}
-	if !cc.IsSnapshotReady(snapshot) {
-		r.log.V(3).Info("snapshot not ReadyToUse, while we allow this, probably going to be an issue going forward", "namespace", snapshot.Namespace, "name", snapshot.Name)
-	}
-	if snapshot.Status.Error != nil {
-		errMessage := "no details"
-		if msg := snapshot.Status.Error.Message; msg != nil {
-			errMessage = *msg
-		}
-		return false, fmt.Errorf("snapshot in error state with msg: %s", errMessage)
-	}
-	if snapshot.Spec.VolumeSnapshotClassName == nil || *snapshot.Spec.VolumeSnapshotClassName == "" {
-		return false, fmt.Errorf("snapshot %s/%s does not have volume snap class populated, can't clone", snapshot.Name, snapshot.Namespace)
-	}
-	return true, nil
 }
 
 func newPvcFromSnapshot(obj metav1.Object, name string, snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
