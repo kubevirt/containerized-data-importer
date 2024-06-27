@@ -310,6 +310,9 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		return res, err
 	}
 	if desiredStorageClass != nil {
+		if deleted, err := r.deleteOutdatedPendingPvc(ctx, pvc, desiredStorageClass.Name, dataImportCron.Name); deleted || err != nil {
+			return res, err
+		}
 		cc.AddAnnotation(dataImportCron, AnnStorageClass, desiredStorageClass.Name)
 	}
 	format, err := r.getSourceFormat(ctx, desiredStorageClass)
@@ -1038,6 +1041,10 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 
+	if err := addDefaultStorageClassUpdateWatch(mgr, c); err != nil {
+		return err
+	}
+
 	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.StorageProfile{}),
 		handler.EnqueueRequestsFromMapFunc(mapStorageProfileToCron),
 		predicate.Funcs{
@@ -1089,6 +1096,90 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 	}
 
 	return nil
+}
+
+// addDefaultStorageClassUpdateWatch watches for default/virt default storage class updates
+func addDefaultStorageClassUpdateWatch(mgr manager.Manager, c controller.Controller) error {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}),
+		handler.EnqueueRequestsFromMapFunc(
+			func(ctx context.Context, obj client.Object) []reconcile.Request {
+				log := c.GetLogger().WithName("DefaultStorageClassUpdateWatch")
+				log.Info("Update", "sc", obj.GetName(),
+					"default", obj.GetAnnotations()[cc.AnnDefaultStorageClass] == "true",
+					"defaultVirt", obj.GetAnnotations()[cc.AnnDefaultVirtStorageClass] == "true")
+				reqs, err := getReconcileRequestsForDicsWithPendingPvc(ctx, mgr.GetClient())
+				if err != nil {
+					log.Error(err, "Failed getting DataImportCrons with pending PVCs")
+				}
+				return reqs
+			},
+		),
+		predicate.Funcs{
+			CreateFunc: func(event.CreateEvent) bool { return false },
+			DeleteFunc: func(event.DeleteEvent) bool { return false },
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				scOld := e.ObjectOld.(*storagev1.StorageClass)
+				scNew := e.ObjectNew.(*storagev1.StorageClass)
+				return (scNew.Annotations[cc.AnnDefaultStorageClass] != scOld.Annotations[cc.AnnDefaultStorageClass]) ||
+					(scNew.Annotations[cc.AnnDefaultVirtStorageClass] != scOld.Annotations[cc.AnnDefaultVirtStorageClass])
+			},
+		},
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func getReconcileRequestsForDicsWithPendingPvc(ctx context.Context, c client.Client) ([]reconcile.Request, error) {
+	dicList := &cdiv1.DataImportCronList{}
+	if err := c.List(ctx, dicList); err != nil {
+		return nil, err
+	}
+	reqs := []reconcile.Request{}
+	for _, dic := range dicList.Items {
+		if cc.GetStorageClassFromDVSpec(&dic.Spec.Template) != nil {
+			continue
+		}
+
+		imports := dic.Status.CurrentImports
+		if len(imports) == 0 {
+			continue
+		}
+
+		pvcName := imports[0].DataVolumeName
+		pvc := &corev1.PersistentVolumeClaim{}
+		if err := c.Get(ctx, types.NamespacedName{Namespace: dic.Namespace, Name: pvcName}, pvc); err != nil {
+			if k8serrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+
+		if pvc.Status.Phase == corev1.ClaimPending {
+			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dic.Name, Namespace: dic.Namespace}})
+		}
+	}
+
+	return reqs, nil
+}
+
+func (r *DataImportCronReconciler) deleteOutdatedPendingPvc(ctx context.Context, pvc *corev1.PersistentVolumeClaim, desiredStorageClass, cronName string) (bool, error) {
+	if pvc == nil || pvc.Status.Phase != corev1.ClaimPending || pvc.Labels[common.DataImportCronLabel] != cronName {
+		return false, nil
+	}
+
+	sc := pvc.Spec.StorageClassName
+	if sc == nil || *sc == desiredStorageClass {
+		return false, nil
+	}
+
+	r.log.Info("Delete pending pvc", "name", pvc.Name, "ns", pvc.Namespace, "sc", *sc)
+	if err := r.client.Delete(ctx, pvc); cc.IgnoreNotFound(err) != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (r *DataImportCronReconciler) cronJobExistsAndUpdated(ctx context.Context, cron *cdiv1.DataImportCron) (bool, error) {
