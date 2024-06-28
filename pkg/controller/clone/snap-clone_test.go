@@ -86,7 +86,7 @@ var _ = Describe("SnapshotClonePhase test", func() {
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
 				StorageClassName: &storageClassName,
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("20Gi"),
 					},

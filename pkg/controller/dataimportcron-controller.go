@@ -1505,7 +1505,7 @@ func inferVolumeModeForSnapshot(ctx context.Context, client client.Client, cron 
 			StorageClassName: cc.GetStorageClassFromDVSpec(dv),
 			AccessModes:      accessModes,
 			VolumeMode:       ptr.To(cdiv1.PersistentVolumeFromStorageProfile),
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					// Doesn't matter
 					corev1.ResourceStorage: resource.MustParse("1Gi"),
