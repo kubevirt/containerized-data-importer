@@ -160,8 +160,8 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 		Entry("not authority", false),
 	)
 
-	It("Should set UploadProxyCA to the right value", func() {
-		// Create the reconciler such that the upload proxy URL is set
+	It("Should set the Ingress UploadProxyCA to the right value", func() {
+		// Create the reconciler such that the ingressupload proxy URL is set
 		reconciler, cdiConfig := createConfigReconciler(createRouteList(
 			*createRoute("test-ingress", testNamespace, testServiceName),
 		))
@@ -198,14 +198,57 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 		Expect(certs).NotTo(BeEmpty(), "Expected at least one certificate in the chain")
 		Expect(certs[0].VerifyHostname(*cdiConfig.Status.UploadProxyURL)).ToNot(HaveOccurred(), "Certificate does not match the upload proxy URL")
 	})
+
+	It("Should set the Route UploadProxyCA to the right value", func() {
+		const secretName = "test-secret-route-ca"
+
+		ingress := createIngress("test-ingress", testNamespace, testServiceName, testURL)
+		ingress.Spec.TLS = []networkingv1.IngressTLS{{
+			Hosts:      []string{testURL},
+			SecretName: secretName,
+		}}
+
+		// Create the reconciler such that the ingressupload proxy URL is set
+		reconciler, _ := createConfigReconciler(createIngressList(*ingress))
+
+		// Put the certificate in the secret referenced by the ingress
+		root, certificate := generateCertificate(testURL)
+		err := reconciler.client.Create(context.TODO(), &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      secretName,
+				Namespace: testNamespace,
+			},
+			Data: map[string][]byte{
+				"tls.crt": []byte(fmt.Sprintf("%s\n%s", root, certificate)),
+			},
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Reconcile
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Ensure the upload proxy CA is set
+		var c cdiv1.CDIConfig
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, &c)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(c.Status.UploadProxyCA).ToNot(BeNil())
+
+		// Ensure the certificate is valid (cannot compare directly due to the certificate chain being rebuilt)
+		certs, err := cert.ParseCertsPEM([]byte(*c.Status.UploadProxyCA))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(certs).NotTo(BeEmpty(), "Expected at least one certificate in the chain")
+		Expect(certs[0].VerifyHostname(testURL)).ToNot(HaveOccurred(), "Certificate does not match the upload proxy URL")
+	})
 })
 
 var _ = Describe("Controller ingress reconcile loop", func() {
 	It("Should set uploadProxyUrl to nil if no Ingress exists", func() {
 		reconciler, cdiConfig := createConfigReconciler()
-		err := reconciler.reconcileIngress(cdiConfig)
+		ing, err := reconciler.reconcileIngress(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cdiConfig.Status.UploadProxyURL).To(BeNil())
+		Expect(ing).To(BeNil())
 	})
 
 	It("Should set uploadProxyUrl correctly if ingress with correct serviceName exists", func() {
@@ -213,9 +256,10 @@ var _ = Describe("Controller ingress reconcile loop", func() {
 			*createIngress("test-ingress", testNamespace, testServiceName, testURL),
 		))
 		reconciler.uploadProxyServiceName = testServiceName
-		err := reconciler.reconcileIngress(cdiConfig)
+		ing, err := reconciler.reconcileIngress(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(*cdiConfig.Status.UploadProxyURL).To(Equal(testURL))
+		Expect(ing).ToNot(BeNil())
 	})
 
 	It("Should not set uploadProxyUrl if ingress with incorrect serviceName exists", func() {
@@ -223,9 +267,10 @@ var _ = Describe("Controller ingress reconcile loop", func() {
 			*createIngress("test-ingress", testNamespace, "incorrect", testURL),
 		))
 		reconciler.uploadProxyServiceName = testServiceName
-		err := reconciler.reconcileIngress(cdiConfig)
+		ing, err := reconciler.reconcileIngress(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cdiConfig.Status.UploadProxyURL).To(BeNil())
+		Expect(ing).To(BeNil())
 	})
 
 	It("Should set uploadProxyUrl correctly if multiple ingresses exist with one correct serviceName exists", func() {
@@ -236,9 +281,10 @@ var _ = Describe("Controller ingress reconcile loop", func() {
 			*createIngress("test-ingress4", testNamespace, "service3", "invalidurl3"),
 		))
 		reconciler.uploadProxyServiceName = testServiceName
-		err := reconciler.reconcileIngress(cdiConfig)
+		ing, err := reconciler.reconcileIngress(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(*cdiConfig.Status.UploadProxyURL).To(Equal(testURL))
+		Expect(ing).ToNot(BeNil())
 	})
 
 	DescribeTable("Should not set proxyURL if invalid ingress exists", func(createIngress func(name, ns, service, url string) *networkingv1.Ingress) {
@@ -246,11 +292,12 @@ var _ = Describe("Controller ingress reconcile loop", func() {
 			*createIngress("test-ingress", testNamespace, "service", testURL),
 		))
 		reconciler.uploadProxyServiceName = testServiceName
-		err := reconciler.reconcileIngress(cdiConfig)
+		ing, err := reconciler.reconcileIngress(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cdiConfig).ToNot(BeNil())
 		Expect(cdiConfig.Status).ToNot(BeNil())
 		Expect(cdiConfig.Status.UploadProxyURL).To(BeNil())
+		Expect(ing).To(BeNil())
 	},
 		Entry("No default backend", createNoDefaultBackendIngress),
 		Entry("No service", createNoServiceIngress),
@@ -1146,7 +1193,7 @@ func generateCertificate(hostnames ...string) (caCert string, signedCert string)
 	key, err := cert.NewPrivateKey()
 	Expect(err).ToNot(HaveOccurred())
 
-	ca, err := cert.NewSelfSignedCACert(cert.Config{CommonName: testURL}, key)
+	ca, err := cert.NewSelfSignedCACert(cert.Config{CommonName: "www.test-root-ca.com"}, key)
 	Expect(err).ToNot(HaveOccurred())
 	ca.DNSNames = append(ca.DNSNames, ca.Subject.CommonName)
 
