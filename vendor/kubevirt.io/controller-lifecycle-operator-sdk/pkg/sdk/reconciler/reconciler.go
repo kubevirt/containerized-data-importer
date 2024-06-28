@@ -544,7 +544,7 @@ func (r *Reconciler) GetAllDeployments(cr client.Object) ([]*appsv1.Deployment, 
 // WatchCR registers watch for the managed CR
 func (r *Reconciler) WatchCR() error {
 	// Watch for changes to managed CR
-	return r.controller.Watch(source.Kind(r.getCache(), r.crManager.Create()), &handler.EnqueueRequestForObject{})
+	return r.controller.Watch(source.Kind(r.getCache(), r.crManager.Create(), &handler.EnqueueRequestForObject{}))
 }
 
 // InvokeCallbacks executes callbacks registered
@@ -566,7 +566,7 @@ func (r *Reconciler) WatchResourceTypes(resources ...client.Object) error {
 
 		predicates := []predicate.Predicate{sdk.NewIgnoreLeaderElectionPredicate()}
 
-		if err := r.controller.Watch(source.Kind(r.getCache(), resource), eventHandler, predicates...); err != nil {
+		if err := r.controller.Watch(source.Kind(r.getCache(), resource, eventHandler, predicates...)); err != nil {
 			if meta.IsNoMatchError(err) || strings.Contains(err.Error(), "failed to find API group") {
 				r.log.Info("No match for type, NOT WATCHING", "type", t)
 				continue

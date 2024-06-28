@@ -12,7 +12,8 @@ go_library(
     importpath = "k8s.io/kube-openapi/pkg/generators/rules",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/k8s.io/gengo/types:go_default_library",
+        "//vendor/k8s.io/gengo/v2:go_default_library",
+        "//vendor/k8s.io/gengo/v2/types:go_default_library",
         "//vendor/k8s.io/kube-openapi/pkg/util/sets:go_default_library",
     ],
 )

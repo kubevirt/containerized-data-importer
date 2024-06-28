@@ -9,5 +9,5 @@ go_library(
     importmap = "kubevirt.io/containerized-data-importer/vendor/k8s.io/code-generator/cmd/client-gen/generators/util",
     importpath = "k8s.io/code-generator/cmd/client-gen/generators/util",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/k8s.io/gengo/types:go_default_library"],
+    deps = ["//vendor/k8s.io/gengo/v2:go_default_library"],
 )

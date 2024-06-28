@@ -6,9 +6,5 @@ go_library(
     importmap = "kubevirt.io/containerized-data-importer/vendor/k8s.io/code-generator/cmd/informer-gen/args",
     importpath = "k8s.io/code-generator/cmd/informer-gen/args",
     visibility = ["//visibility:public"],
-    deps = [
-        "//vendor/github.com/spf13/pflag:go_default_library",
-        "//vendor/k8s.io/code-generator/pkg/util:go_default_library",
-        "//vendor/k8s.io/gengo/args:go_default_library",
-    ],
+    deps = ["//vendor/github.com/spf13/pflag:go_default_library"],
 )

@@ -16,6 +16,7 @@ go_library(
         "customresourcevalidation.go",
         "externaldocumentation.go",
         "jsonschemaprops.go",
+        "selectablefield.go",
         "servicereference.go",
         "validationrule.go",
         "webhookclientconfig.go",
