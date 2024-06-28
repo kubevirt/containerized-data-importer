@@ -14,14 +14,44 @@ metadata:
     app: containerized-data-importer
     cdi.kubevirt.io: ""
   name: config
-spec: {
+spec:
     podResourceRequirements:
-    limits:
-      cpu: "4"
-      memory: "1Gi"
-    requests:
-      cpu: "1"
-      memory: "250Mi"
-}
+      limits:
+        cpu: "4"
+        memory: "1Gi"
+      requests:
+        cpu: "1"
+        memory: "250Mi"
+
 ```
-Once the CDIConfig object is updated, the status section of the object will reflect that values that will be used to pass to the pods. [limits and requests](https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-default-namespace/#motivation-for-default-memory-limits-and-requests) are explained in the kubernetes documentation.
+
+Once the CDIConfig object is updated, the status section of the object will reflect that values that will be used to pass to the pods. [limits and requests](https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-default-namespace/#motivation-for-default-memory-limits-and-requests) are explained in the kubernetes documentation.  The CDIConfig object is updated by editing the `spec.config` section of the CDI resource.
+
+## Modify CDI directly
+```
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: CDI
+metadata:
+  name: cdi
+spec:
+  config:
+    featureGates:
+    - HonorWaitForFirstConsumer
+    podResourceRequirements:
+      limits:
+        cpu: "4"
+        memory: "1Gi"
+      requests:
+        cpu: "1"
+        memory: "250Mi"
+  imagePullPolicy: IfNotPresent
+  infra:
+    nodeSelector:
+      kubernetes.io/os: linux
+    tolerations:
+    - key: CriticalAddonsOnly
+      operator: Exists
+  workload:
+    nodeSelector:
+      kubernetes.io/os: linux
+```
