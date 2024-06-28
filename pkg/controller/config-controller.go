@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -93,11 +94,7 @@ func (r *CDIConfigReconciler) Reconcile(_ context.Context, req reconcile.Request
 		return reconcile.Result{}, err
 	}
 
-	if err := r.reconcileUploadProxyURL(config); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	if err := r.reconcileUploadProxyCA(config); err != nil {
+	if err := r.reconcileUploadProxy(config); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -157,14 +154,22 @@ func (r *CDIConfigReconciler) setOperatorParams(config *cdiv1.CDIConfig) error {
 	return nil
 }
 
-func (r *CDIConfigReconciler) reconcileUploadProxyURL(config *cdiv1.CDIConfig) error {
-	log := r.log.WithName("CDIconfig").WithName("UploadProxyURLReconcile")
+func (r *CDIConfigReconciler) reconcileUploadProxy(config *cdiv1.CDIConfig) error {
+	log := r.log.WithName("CDIconfig").WithName("UploadProxyReconcile")
 	config.Status.UploadProxyURL = config.Spec.UploadProxyURLOverride
 	// No override, try Ingress
 	if config.Status.UploadProxyURL == nil {
-		if err := r.reconcileIngress(config); err != nil {
+		ingress, err := r.reconcileIngress(config)
+		if err != nil {
 			log.Error(err, "Unable to reconcile Ingress")
 			return err
+		}
+
+		if ingress != nil {
+			if err := r.reconcileUploadProxyIngressCA(config, *ingress); err != nil {
+				log.Error(err, "Unable to reconcile Ingress CA")
+				return fmt.Errorf("unable to reconcile Ingress CA: %w", err)
+			}
 		}
 	}
 	// No override or Ingress, try Route
@@ -173,14 +178,68 @@ func (r *CDIConfigReconciler) reconcileUploadProxyURL(config *cdiv1.CDIConfig) e
 			log.Error(err, "Unable to reconcile Routes")
 			return err
 		}
+
+		if err := r.reconcileUploadProxyRouteCA(config); err != nil {
+			log.Error(err, "Unable to reconcile Route CA")
+			return fmt.Errorf("unable to reconcile Route CA: %w", err)
+		}
 	}
 	return nil
 }
 
-func (r *CDIConfigReconciler) reconcileUploadProxyCA(config *cdiv1.CDIConfig) error {
-	log := r.log.WithName("CDIconfig").WithName("UploadProxyCAReconcile")
+func (r *CDIConfigReconciler) reconcileUploadProxyIngressCA(config *cdiv1.CDIConfig, ingress networkingv1.Ingress) error {
+	log := r.log.WithName("CDIconfig").WithName("UploadProxyIngressCAReconcile")
 
-	if config.Status.UploadProxyURL == nil {
+	url := config.Status.UploadProxyURL
+	if url == nil || *url == "" {
+		return nil
+	}
+
+	var secretName string
+	i := slices.IndexFunc(ingress.Spec.TLS, func(tls networkingv1.IngressTLS) bool { return tls.SecretName != "" })
+	if i == -1 {
+		log.Info("Secret name not found in Ingress")
+		config.Status.UploadProxyCA = nil
+		return nil
+	}
+	secretName = ingress.Spec.TLS[i].SecretName
+
+	var secret corev1.Secret
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: r.cdiNamespace}, &secret)
+	if err != nil {
+		return fmt.Errorf("unable to get secret %q: %v", secretName, err)
+	}
+
+	certBytes, ok := secret.Data["tls.crt"]
+	if !ok {
+		log.Info(fmt.Sprintf("Secret %q does not contain %q", secretName, "tls.crt"))
+		config.Status.UploadProxyCA = nil
+		return nil
+	}
+
+	certs, err := cert.ParseCertsPEM(certBytes)
+	if err != nil {
+		return fmt.Errorf("unable to parse tls.crt: %v", err)
+	}
+
+	s, err := findCertByHostName(*config.Status.UploadProxyURL, certs)
+	if err != nil {
+		return err
+	} else if s == "" {
+		log.Info("No matching valid certificate found for upload proxy URL", "UploadProxyURL", *config.Status.UploadProxyURL)
+		config.Status.UploadProxyCA = nil
+		return nil
+	}
+
+	log.Info("Setting upload proxy CA", "UploadProxyCA", s)
+	config.Status.UploadProxyCA = &s
+	return nil
+}
+
+func (r *CDIConfigReconciler) reconcileUploadProxyRouteCA(config *cdiv1.CDIConfig) error {
+	log := r.log.WithName("CDIconfig").WithName("UploadProxyRouteCAReconcile")
+
+	if config.Status.UploadProxyURL == nil || *config.Status.UploadProxyURL == "" {
 		log.Info("No upload proxy URL found, setting upload proxy CA to blank")
 		config.Status.UploadProxyCA = nil
 		return nil
@@ -203,12 +262,12 @@ func (r *CDIConfigReconciler) reconcileUploadProxyCA(config *cdiv1.CDIConfig) er
 
 	certs, err := cert.ParseCertsPEM([]byte(rawCert))
 	if err != nil {
-		return fmt.Errorf("upload proxy CA reconcile: unable to parse ca-bundle.crt: %v", err)
+		return fmt.Errorf("unable to parse ca.crt: %v", err)
 	}
 
 	s, err := findCertByHostName(*config.Status.UploadProxyURL, certs)
 	if err != nil {
-		return fmt.Errorf("upload proxy CA reconcile: %v", err)
+		return err
 	} else if s == "" {
 		log.Info("No matching valid certificate found for upload proxy URL", "UploadProxyURL", *config.Status.UploadProxyURL)
 		config.Status.UploadProxyCA = nil
@@ -299,23 +358,23 @@ func buildPemFromAllCerts(allCerts []*x509.Certificate) (string, error) {
 	return strings.TrimSpace(pemOut.String()), nil
 }
 
-func (r *CDIConfigReconciler) reconcileIngress(config *cdiv1.CDIConfig) error {
+func (r *CDIConfigReconciler) reconcileIngress(config *cdiv1.CDIConfig) (*networkingv1.Ingress, error) {
 	log := r.log.WithName("CDIconfig").WithName("IngressReconcile")
 	ingressList := &networkingv1.IngressList{}
 	if err := r.client.List(context.TODO(), ingressList, &client.ListOptions{Namespace: r.cdiNamespace}); cc.IgnoreIsNoMatchError(err) != nil {
-		return err
+		return nil, err
 	}
 	for _, ingress := range ingressList.Items {
 		ingressURL := getURLFromIngress(&ingress, r.uploadProxyServiceName)
 		if ingressURL != "" {
 			log.Info("Setting upload proxy url", "IngressURL", ingressURL)
 			config.Status.UploadProxyURL = &ingressURL
-			return nil
+			return &ingress, nil
 		}
 	}
 	log.Info("No ingress found, setting to blank", "IngressURL", "")
 	config.Status.UploadProxyURL = nil
-	return nil
+	return nil, nil
 }
 
 func (r *CDIConfigReconciler) reconcileRoute(config *cdiv1.CDIConfig) error {
