@@ -1,3 +1,14 @@
+# standard bazel bins
+bazel-bin
+bazel-containerized-data-importer
+bazel-out
+bazel-testlogs
+
+# user bazel configurations
+.user.bazelrc
+.ci.bazelrc
+
+# other
 .idea
 _out/*
 bin/*
