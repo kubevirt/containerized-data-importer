@@ -4959,6 +4959,10 @@ spec:
               scratchSpaceStorageClass:
                 description: The calculated storage class to be used for scratch space
                 type: string
+              uploadProxyCA:
+                description: UploadProxyCA is the certificate authority of the upload
+                  proxy
+                type: string
               uploadProxyURL:
                 description: The calculated upload proxy URL
                 type: string

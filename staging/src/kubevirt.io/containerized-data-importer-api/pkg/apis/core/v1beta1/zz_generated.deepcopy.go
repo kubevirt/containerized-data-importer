@@ -231,6 +231,11 @@ func (in *CDIConfigStatus) DeepCopyInto(out *CDIConfigStatus) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.UploadProxyCA != nil {
+		in, out := &in.UploadProxyCA, &out.UploadProxyCA
+		*out = new(string)
+		**out = **in
+	}
 	if in.ImportProxy != nil {
 		in, out := &in.ImportProxy, &out.ImportProxy
 		*out = new(ImportProxy)

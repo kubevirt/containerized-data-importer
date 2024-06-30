@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	batchv1 "k8s.io/api/batch/v1"
+	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -407,6 +408,9 @@ func getCacheOptions(apiClient client.Client, cdiNamespace string) cache.Options
 				Field: namespaceSelector,
 			},
 			&batchv1.Job{}: {
+				Field: namespaceSelector,
+			},
+			&v1.ConfigMap{}: {
 				Field: namespaceSelector,
 			},
 		},

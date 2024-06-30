@@ -2,15 +2,21 @@ package controller
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
+	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/pkg/errors"
 
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -36,6 +42,7 @@ import (
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 )
 
 // AnnConfigAuthority is the annotation specifying a resource as the CDIConfig authority
@@ -49,6 +56,8 @@ const (
 	defaultMemLimit   = "600M"
 	defaultCPURequest = "100m"
 	defaultMemRequest = "60M"
+
+	rootCertificateConfigMap = "kube-root-ca.crt"
 )
 
 // CDIConfigReconciler members
@@ -85,7 +94,7 @@ func (r *CDIConfigReconciler) Reconcile(_ context.Context, req reconcile.Request
 		return reconcile.Result{}, err
 	}
 
-	if err := r.reconcileUploadProxyURL(config); err != nil {
+	if err := r.reconcileUploadProxy(config); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -145,14 +154,22 @@ func (r *CDIConfigReconciler) setOperatorParams(config *cdiv1.CDIConfig) error {
 	return nil
 }
 
-func (r *CDIConfigReconciler) reconcileUploadProxyURL(config *cdiv1.CDIConfig) error {
+func (r *CDIConfigReconciler) reconcileUploadProxy(config *cdiv1.CDIConfig) error {
 	log := r.log.WithName("CDIconfig").WithName("UploadProxyReconcile")
 	config.Status.UploadProxyURL = config.Spec.UploadProxyURLOverride
 	// No override, try Ingress
 	if config.Status.UploadProxyURL == nil {
-		if err := r.reconcileIngress(config); err != nil {
+		ingress, err := r.reconcileIngress(config)
+		if err != nil {
 			log.Error(err, "Unable to reconcile Ingress")
 			return err
+		}
+
+		if ingress != nil {
+			if err := r.reconcileUploadProxyIngressCA(config, *ingress); err != nil {
+				log.Error(err, "Unable to reconcile Ingress CA")
+				return fmt.Errorf("unable to reconcile Ingress CA: %w", err)
+			}
 		}
 	}
 	// No override or Ingress, try Route
@@ -161,27 +178,203 @@ func (r *CDIConfigReconciler) reconcileUploadProxyURL(config *cdiv1.CDIConfig) e
 			log.Error(err, "Unable to reconcile Routes")
 			return err
 		}
+
+		if err := r.reconcileUploadProxyRouteCA(config); err != nil {
+			log.Error(err, "Unable to reconcile Route CA")
+			return fmt.Errorf("unable to reconcile Route CA: %w", err)
+		}
 	}
 	return nil
 }
 
-func (r *CDIConfigReconciler) reconcileIngress(config *cdiv1.CDIConfig) error {
+func (r *CDIConfigReconciler) reconcileUploadProxyIngressCA(config *cdiv1.CDIConfig, ingress networkingv1.Ingress) error {
+	log := r.log.WithName("CDIconfig").WithName("UploadProxyIngressCAReconcile")
+
+	url := config.Status.UploadProxyURL
+	if url == nil || *url == "" {
+		return nil
+	}
+
+	var secretName string
+	i := slices.IndexFunc(ingress.Spec.TLS, func(tls networkingv1.IngressTLS) bool { return tls.SecretName != "" })
+	if i == -1 {
+		log.Info("Secret name not found in Ingress")
+		config.Status.UploadProxyCA = nil
+		return nil
+	}
+	secretName = ingress.Spec.TLS[i].SecretName
+
+	var secret corev1.Secret
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: r.cdiNamespace}, &secret)
+	if err != nil {
+		return fmt.Errorf("unable to get secret %q: %v", secretName, err)
+	}
+
+	certBytes, ok := secret.Data["tls.crt"]
+	if !ok {
+		log.Info(fmt.Sprintf("Secret %q does not contain %q", secretName, "tls.crt"))
+		config.Status.UploadProxyCA = nil
+		return nil
+	}
+
+	certs, err := cert.ParseCertsPEM(certBytes)
+	if err != nil {
+		return fmt.Errorf("unable to parse tls.crt: %v", err)
+	}
+
+	s, err := findCertByHostName(*config.Status.UploadProxyURL, certs)
+	if err != nil {
+		return err
+	} else if s == "" {
+		log.Info("No matching valid certificate found for upload proxy URL", "UploadProxyURL", *config.Status.UploadProxyURL)
+		config.Status.UploadProxyCA = nil
+		return nil
+	}
+
+	log.Info("Setting upload proxy CA", "UploadProxyCA", s)
+	config.Status.UploadProxyCA = &s
+	return nil
+}
+
+func (r *CDIConfigReconciler) reconcileUploadProxyRouteCA(config *cdiv1.CDIConfig) error {
+	log := r.log.WithName("CDIconfig").WithName("UploadProxyRouteCAReconcile")
+
+	if config.Status.UploadProxyURL == nil || *config.Status.UploadProxyURL == "" {
+		log.Info("No upload proxy URL found, setting upload proxy CA to blank")
+		config.Status.UploadProxyCA = nil
+		return nil
+	}
+
+	var cm corev1.ConfigMap
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: rootCertificateConfigMap, Namespace: r.cdiNamespace}, &cm)
+	if err != nil {
+		log.Info(fmt.Sprintf("Could not get certificates: %v", err))
+		config.Status.UploadProxyCA = nil
+		return nil
+	}
+
+	rawCert, ok := cm.Data["ca.crt"]
+	if !ok {
+		log.Info(fmt.Sprintf("Config map %q does not contain %q", rootCertificateConfigMap, "ca.crt"))
+		config.Status.UploadProxyCA = nil
+		return nil
+	}
+
+	certs, err := cert.ParseCertsPEM([]byte(rawCert))
+	if err != nil {
+		return fmt.Errorf("unable to parse ca.crt: %v", err)
+	}
+
+	s, err := findCertByHostName(*config.Status.UploadProxyURL, certs)
+	if err != nil {
+		return err
+	} else if s == "" {
+		log.Info("No matching valid certificate found for upload proxy URL", "UploadProxyURL", *config.Status.UploadProxyURL)
+		config.Status.UploadProxyCA = nil
+		return nil
+	}
+
+	log.Info("Setting upload proxy CA", "UploadProxyCA", s)
+	config.Status.UploadProxyCA = &s
+	return nil
+}
+
+func findCertByHostName(hostName string, certs []*x509.Certificate) (string, error) {
+	now := time.Now()
+	var latestValidCert *x509.Certificate
+	for _, cert := range certs {
+		// Check validity
+		if now.After(cert.NotAfter) {
+			continue
+		}
+		if now.Before(cert.NotBefore) {
+			continue
+		}
+		if err := cert.VerifyHostname(hostName); err != nil {
+			continue
+		}
+
+		// Check if this is the cert with the latest expiration date
+		if latestValidCert == nil {
+			latestValidCert = cert
+			continue
+		}
+		if latestValidCert.NotAfter.After(cert.NotAfter) {
+			continue
+		}
+		latestValidCert = cert
+	}
+
+	if latestValidCert != nil {
+		return buildPemFromCert(latestValidCert, certs)
+	}
+
+	if len(certs) > 0 {
+		return buildPemFromAllCerts(certs)
+	}
+
+	return "", nil
+}
+
+func buildPemFromCert(matchingCert *x509.Certificate, allCerts []*x509.Certificate) (string, error) {
+	pemOut := strings.Builder{}
+
+	if err := pem.Encode(&pemOut, &pem.Block{Type: "CERTIFICATE", Bytes: matchingCert.Raw}); err != nil {
+		return "", fmt.Errorf("could not encode certificate: %w", err)
+	}
+
+	if matchingCert.Issuer.CommonName != matchingCert.Subject.CommonName && !matchingCert.IsCA {
+		//lookup issuer recursively, if not found a blank is returned.
+		chain, err := findCertByHostName(matchingCert.Issuer.CommonName, allCerts)
+		if err != nil {
+			return "", err
+		}
+
+		if _, err := pemOut.WriteString(chain); err != nil {
+			return "", fmt.Errorf("could not write issuer certificate: %w", err)
+		}
+	}
+
+	return strings.TrimSpace(pemOut.String()), nil
+}
+
+func buildPemFromAllCerts(allCerts []*x509.Certificate) (string, error) {
+	now := time.Now()
+	pemOut := strings.Builder{}
+	for _, cert := range allCerts {
+		if now.After(cert.NotAfter) {
+			continue
+		}
+
+		if now.Before(cert.NotBefore) {
+			continue
+		}
+
+		if err := pem.Encode(&pemOut, &pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw}); err != nil {
+			return "", fmt.Errorf("could not encode certificate: %w", err)
+		}
+	}
+
+	return strings.TrimSpace(pemOut.String()), nil
+}
+
+func (r *CDIConfigReconciler) reconcileIngress(config *cdiv1.CDIConfig) (*networkingv1.Ingress, error) {
 	log := r.log.WithName("CDIconfig").WithName("IngressReconcile")
 	ingressList := &networkingv1.IngressList{}
 	if err := r.client.List(context.TODO(), ingressList, &client.ListOptions{Namespace: r.cdiNamespace}); cc.IgnoreIsNoMatchError(err) != nil {
-		return err
+		return nil, err
 	}
 	for _, ingress := range ingressList.Items {
 		ingressURL := getURLFromIngress(&ingress, r.uploadProxyServiceName)
 		if ingressURL != "" {
 			log.Info("Setting upload proxy url", "IngressURL", ingressURL)
 			config.Status.UploadProxyURL = &ingressURL
-			return nil
+			return &ingress, nil
 		}
 	}
 	log.Info("No ingress found, setting to blank", "IngressURL", "")
 	config.Status.UploadProxyURL = nil
-	return nil
+	return nil, nil
 }
 
 func (r *CDIConfigReconciler) reconcileRoute(config *cdiv1.CDIConfig) error {
@@ -514,6 +707,9 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 	if err := watchClusterProxy(mgr, configController, configName); err != nil {
 		return err
 	}
+	if err := watchUploadProxyCA(mgr, configController, configName); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -611,6 +807,28 @@ func watchClusterProxy(mgr manager.Manager, configController controller.Controll
 			))
 		}
 		return err
+	}
+	return nil
+}
+
+// watchUploadProxyCA watches the kube-root-ca.crt ConfigMap for changes
+// to the CA certificate used by the upload proxy.
+//
+// A change in the UploadProxyURL may invalidate the CA certificate, but
+// watchCDIConfig will handle that.
+func watchUploadProxyCA(mgr manager.Manager, configcontroller controller.Controller, configName string) error {
+	kind := source.Kind(mgr.GetCache(), &v1.ConfigMap{})
+
+	handler := handler.EnqueueRequestsFromMapFunc(func(context.Context, client.Object) []reconcile.Request {
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: configName}}}
+	})
+
+	predicate := predicate.NewPredicateFuncs(func(o client.Object) bool {
+		return o.(*v1.ConfigMap).Name == rootCertificateConfigMap
+	})
+
+	if err := configcontroller.Watch(kind, handler, predicate); err != nil {
+		return fmt.Errorf("could not watch UploadProxyCA ConfigMap: %w", err)
 	}
 	return nil
 }

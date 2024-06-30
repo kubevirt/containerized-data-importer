@@ -15420,6 +15420,13 @@ func schema_pkg_apis_core_v1beta1_CDIConfigStatus(ref common.ReferenceCallback) 
 							Format:      "",
 						},
 					},
+					"uploadProxyCA": {
+						SchemaProps: spec.SchemaProps{
+							Description: "UploadProxyCA is the certificate authority of the upload proxy",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"importProxy": {
 						SchemaProps: spec.SchemaProps{
 							Description: "ImportProxy contains importer pod proxy configuration.",

@@ -1025,6 +1025,8 @@ type CDIConfigSpec struct {
 type CDIConfigStatus struct {
 	// The calculated upload proxy URL
 	UploadProxyURL *string `json:"uploadProxyURL,omitempty"`
+	// UploadProxyCA is the certificate authority of the upload proxy
+	UploadProxyCA *string `json:"uploadProxyCA,omitempty"`
 	// ImportProxy contains importer pod proxy configuration.
 	// +optional
 	ImportProxy *ImportProxy `json:"importProxy,omitempty"`
