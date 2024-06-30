@@ -30,36 +30,6 @@ var _ = Describe("GetRequestedImageSize", func() {
 	})
 })
 
-var _ = Describe("validateContentTypes", func() {
-	getContentType := func(contentType string) cdiv1.DataVolumeContentType {
-		if contentType == "" {
-			return cdiv1.DataVolumeKubeVirt
-		}
-		return cdiv1.DataVolumeContentType(contentType)
-	}
-
-	DescribeTable("should return", func(sourceContentType, targetContentType string, expectedResult bool) {
-		sourcePvc := CreatePvc("testPVC", "default", map[string]string{AnnContentType: sourceContentType}, nil)
-		dvSpec := &cdiv1.DataVolumeSpec{}
-		dvSpec.ContentType = cdiv1.DataVolumeContentType(targetContentType)
-
-		validated, sourceContent, targetContent := validateContentTypes(sourcePvc, dvSpec)
-		Expect(validated).To(Equal(expectedResult))
-		Expect(sourceContent).To(Equal(getContentType(sourceContentType)))
-		Expect(targetContent).To(Equal(getContentType(targetContentType)))
-	},
-		Entry("true when using archive in source and target", string(cdiv1.DataVolumeArchive), string(cdiv1.DataVolumeArchive), true),
-		Entry("false when using archive in source and KubeVirt in target", string(cdiv1.DataVolumeArchive), string(cdiv1.DataVolumeKubeVirt), false),
-		Entry("false when using KubeVirt in source and archive in target", string(cdiv1.DataVolumeKubeVirt), string(cdiv1.DataVolumeArchive), false),
-		Entry("true when using KubeVirt in source and target", string(cdiv1.DataVolumeKubeVirt), string(cdiv1.DataVolumeKubeVirt), true),
-		Entry("true when using default in source and target", "", "", true),
-		Entry("true when using default in source and KubeVirt (explicit) in target", "", string(cdiv1.DataVolumeKubeVirt), true),
-		Entry("true when using KubeVirt (explicit) in source and default in target", string(cdiv1.DataVolumeKubeVirt), "", true),
-		Entry("false when using default in source and archive in target", "", string(cdiv1.DataVolumeArchive), false),
-		Entry("false when using archive in source and default in target", string(cdiv1.DataVolumeArchive), "", false),
-	)
-})
-
 var _ = Describe("GetStorageClassByName", func() {
 	It("Should return the default storage class name", func() {
 		client := CreateClient(
