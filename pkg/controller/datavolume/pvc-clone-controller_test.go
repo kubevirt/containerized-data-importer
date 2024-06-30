@@ -18,6 +18,7 @@ package datavolume
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -418,6 +419,127 @@ var _ = Describe("All DataVolume Tests", func() {
 			res, err := reconciler.isSourcePVCPopulated(targetDv)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(res).To(BeTrue())
+		})
+	})
+
+	var _ = Describe("validateContentTypes", func() {
+		getContentType := func(contentType string) cdiv1.DataVolumeContentType {
+			if contentType == "" {
+				return cdiv1.DataVolumeKubeVirt
+			}
+			return cdiv1.DataVolumeContentType(contentType)
+		}
+
+		DescribeTable("should return", func(sourceContentType, targetContentType string, expectedResult bool) {
+			sourcePvc := CreatePvc("testPVC", "default", map[string]string{AnnContentType: sourceContentType}, nil)
+			dvSpec := &cdiv1.DataVolumeSpec{}
+			dvSpec.ContentType = cdiv1.DataVolumeContentType(targetContentType)
+
+			validated, sourceContent, targetContent := validateContentTypes(sourcePvc, dvSpec)
+			Expect(validated).To(Equal(expectedResult))
+			Expect(sourceContent).To(Equal(getContentType(sourceContentType)))
+			Expect(targetContent).To(Equal(getContentType(targetContentType)))
+		},
+			Entry("true when using archive in source and target", string(cdiv1.DataVolumeArchive), string(cdiv1.DataVolumeArchive), true),
+			Entry("false when using archive in source and KubeVirt in target", string(cdiv1.DataVolumeArchive), string(cdiv1.DataVolumeKubeVirt), false),
+			Entry("false when using KubeVirt in source and archive in target", string(cdiv1.DataVolumeKubeVirt), string(cdiv1.DataVolumeArchive), false),
+			Entry("true when using KubeVirt in source and target", string(cdiv1.DataVolumeKubeVirt), string(cdiv1.DataVolumeKubeVirt), true),
+			Entry("true when using default in source and target", "", "", true),
+			Entry("true when using default in source and KubeVirt (explicit) in target", "", string(cdiv1.DataVolumeKubeVirt), true),
+			Entry("true when using KubeVirt (explicit) in source and default in target", string(cdiv1.DataVolumeKubeVirt), "", true),
+			Entry("false when using default in source and archive in target", "", string(cdiv1.DataVolumeArchive), false),
+			Entry("false when using archive in source and default in target", string(cdiv1.DataVolumeArchive), "", false),
+		)
+	})
+
+	var _ = Describe("validateClone", func() {
+		sourcePvc := CreatePvc("testPVC", "default", map[string]string{}, nil)
+		blockVM := corev1.PersistentVolumeBlock
+		fsVM := corev1.PersistentVolumeFilesystem
+
+		It("Should reject the clone if source and target have different content types", func() {
+			sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
+			dvSpec := &cdiv1.DataVolumeSpec{ContentType: cdiv1.DataVolumeArchive}
+
+			err := validateClone(sourcePvc, dvSpec)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(
+				fmt.Sprintf("Source contentType (%s) and target contentType (%s) do not match", cdiv1.DataVolumeKubeVirt, cdiv1.DataVolumeArchive)))
+		})
+
+		It("Should reject the clone if the target has an incompatible size and the source PVC is using block volumeMode (Storage API)", func() {
+			sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
+			sourcePvc.Spec.VolumeMode = &blockVM
+			storageSpec := &cdiv1.StorageSpec{
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
+					},
+				},
+			}
+			dvSpec := &cdiv1.DataVolumeSpec{Storage: storageSpec}
+
+			err := validateClone(sourcePvc, dvSpec)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("target resources requests storage size is smaller than the source"))
+		})
+
+		It("Should validate the clone when source PVC is using fs volumeMode, even if the target has an incompatible size (Storage API)", func() {
+			sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
+			sourcePvc.Spec.VolumeMode = &fsVM
+			storageSpec := &cdiv1.StorageSpec{
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
+					},
+				},
+			}
+			dvSpec := &cdiv1.DataVolumeSpec{Storage: storageSpec}
+
+			err := validateClone(sourcePvc, dvSpec)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should validate the clone if target's size is empty, even when the source uses block volumeMode (Storage API)", func() {
+			sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
+			sourcePvc.Spec.VolumeMode = &blockVM
+			storageSpec := &cdiv1.StorageSpec{}
+			dvSpec := &cdiv1.DataVolumeSpec{Storage: storageSpec}
+
+			err := validateClone(sourcePvc, dvSpec)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should reject the clone when the target has an incompatible size (PVC API)", func() {
+			sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
+			pvcSpec := &corev1.PersistentVolumeClaimSpec{
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
+					},
+				},
+			}
+			dvSpec := &cdiv1.DataVolumeSpec{PVC: pvcSpec}
+
+			err := validateClone(sourcePvc, dvSpec)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("target resources requests storage size is smaller than the source"))
+
+		})
+
+		It("Should validate the clone when both sizes are compatible (PVC API)", func() {
+			sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
+			pvcSpec := &corev1.PersistentVolumeClaimSpec{
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("1Gi"), // Same as the source's
+					},
+				},
+			}
+			dvSpec := &cdiv1.DataVolumeSpec{PVC: pvcSpec}
+
+			err := validateClone(sourcePvc, dvSpec)
+			Expect(err).ToNot(HaveOccurred())
 		})
 	})
 

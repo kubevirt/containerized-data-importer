@@ -10,7 +10,6 @@ import (
 	"github.com/pkg/errors"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -372,97 +371,6 @@ var _ = Describe("GetPreallocation", func() {
 		dv := createDataVolumeWithStorageClass("test-dv", "test-ns", "test-class")
 		preallocation := GetPreallocation(context.Background(), client, dv.Spec.Preallocation)
 		Expect(preallocation).To(BeFalse())
-	})
-})
-
-var _ = Describe("ValidateClone", func() {
-	sourcePvc := CreatePvc("testPVC", "default", map[string]string{}, nil)
-	blockVM := v1.PersistentVolumeBlock
-	fsVM := v1.PersistentVolumeFilesystem
-
-	It("Should reject the clone if source and target have different content types", func() {
-		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
-		dvSpec := &cdiv1.DataVolumeSpec{ContentType: cdiv1.DataVolumeArchive}
-
-		err := ValidateClone(sourcePvc, dvSpec)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring(
-			fmt.Sprintf("Source contentType (%s) and target contentType (%s) do not match", cdiv1.DataVolumeKubeVirt, cdiv1.DataVolumeArchive)))
-	})
-
-	It("Should reject the clone if the target has an incompatible size and the source PVC is using block volumeMode (Storage API)", func() {
-		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
-		sourcePvc.Spec.VolumeMode = &blockVM
-		storageSpec := &cdiv1.StorageSpec{
-			Resources: v1.VolumeResourceRequirements{
-				Requests: v1.ResourceList{
-					v1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
-				},
-			},
-		}
-		dvSpec := &cdiv1.DataVolumeSpec{Storage: storageSpec}
-
-		err := ValidateClone(sourcePvc, dvSpec)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("target resources requests storage size is smaller than the source"))
-	})
-
-	It("Should validate the clone when source PVC is using fs volumeMode, even if the target has an incompatible size (Storage API)", func() {
-		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
-		sourcePvc.Spec.VolumeMode = &fsVM
-		storageSpec := &cdiv1.StorageSpec{
-			Resources: v1.VolumeResourceRequirements{
-				Requests: v1.ResourceList{
-					v1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
-				},
-			},
-		}
-		dvSpec := &cdiv1.DataVolumeSpec{Storage: storageSpec}
-
-		err := ValidateClone(sourcePvc, dvSpec)
-		Expect(err).ToNot(HaveOccurred())
-	})
-
-	It("Should validate the clone if target's size is empty, even when the source uses block volumeMode (Storage API)", func() {
-		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
-		sourcePvc.Spec.VolumeMode = &blockVM
-		storageSpec := &cdiv1.StorageSpec{}
-		dvSpec := &cdiv1.DataVolumeSpec{Storage: storageSpec}
-
-		err := ValidateClone(sourcePvc, dvSpec)
-		Expect(err).ToNot(HaveOccurred())
-	})
-
-	It("Should reject the clone when the target has an incompatible size (PVC API)", func() {
-		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
-		pvcSpec := &v1.PersistentVolumeClaimSpec{
-			Resources: v1.VolumeResourceRequirements{
-				Requests: v1.ResourceList{
-					v1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
-				},
-			},
-		}
-		dvSpec := &cdiv1.DataVolumeSpec{PVC: pvcSpec}
-
-		err := ValidateClone(sourcePvc, dvSpec)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("target resources requests storage size is smaller than the source"))
-
-	})
-
-	It("Should validate the clone when both sizes are compatible (PVC API)", func() {
-		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
-		pvcSpec := &v1.PersistentVolumeClaimSpec{
-			Resources: v1.VolumeResourceRequirements{
-				Requests: v1.ResourceList{
-					v1.ResourceStorage: resource.MustParse("1Gi"), // Same as the source's
-				},
-			},
-		}
-		dvSpec := &cdiv1.DataVolumeSpec{PVC: pvcSpec}
-
-		err := ValidateClone(sourcePvc, dvSpec)
-		Expect(err).ToNot(HaveOccurred())
 	})
 })
 

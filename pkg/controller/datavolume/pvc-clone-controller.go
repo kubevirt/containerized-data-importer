@@ -422,13 +422,57 @@ func (r *PvcCloneReconciler) validateCloneAndSourcePVC(syncState *dvSyncState, l
 		return false, err
 	}
 
-	err = cc.ValidateClone(sourcePvc, &datavolume.Spec)
+	err = validateClone(sourcePvc, &datavolume.Spec)
 	if err != nil {
 		r.recorder.Event(datavolume, corev1.EventTypeWarning, CloneValidationFailed, MessageCloneValidationFailed)
 		return false, err
 	}
 
 	return true, nil
+}
+
+// validateClone compares a clone spec against its source PVC to validate its creation
+func validateClone(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) error {
+	var targetResources corev1.VolumeResourceRequirements
+
+	valid, sourceContentType, targetContentType := validateContentTypes(sourcePVC, spec)
+	if !valid {
+		msg := fmt.Sprintf("Source contentType (%s) and target contentType (%s) do not match", sourceContentType, targetContentType)
+		return errors.New(msg)
+	}
+
+	isSizelessClone := false
+	explicitPvcRequest := spec.PVC != nil
+	if explicitPvcRequest {
+		targetResources = spec.PVC.Resources
+	} else {
+		targetResources = spec.Storage.Resources
+		// The storage size in the target DV can be empty
+		// when cloning using the 'Storage' API
+		if _, ok := targetResources.Requests[corev1.ResourceStorage]; !ok {
+			isSizelessClone = true
+		}
+	}
+
+	// TODO: Spec.Storage API needs a better more complex check to validate clone size - to account for fsOverhead
+	// simple size comparison will not work here
+	if (!isSizelessClone && cc.GetVolumeMode(sourcePVC) == corev1.PersistentVolumeBlock) || explicitPvcRequest {
+		if err := cc.ValidateRequestedCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateContentTypes compares the content type of a clone DV against its source PVC's one
+func validateContentTypes(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
+	sourceContentType := cc.GetPVCContentType(sourcePVC)
+	targetContentType := spec.ContentType
+	if targetContentType == "" {
+		targetContentType = cdiv1.DataVolumeKubeVirt
+	}
+	return sourceContentType == targetContentType, sourceContentType, targetContentType
 }
 
 // isSourceReadyToClone handles the reconciling process of a clone when the source PVC is not ready
