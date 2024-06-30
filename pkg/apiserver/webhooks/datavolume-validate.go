@@ -218,12 +218,6 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 			})
 			return causes
 		}
-		if request.Operation == admissionv1.Create {
-			cause := wh.validateDataVolumeSourcePVC(spec.Source.PVC, field.Child("source", "PVC"), spec)
-			if cause != nil {
-				causes = append(causes, *cause)
-			}
-		}
 	}
 	if spec.Source.Snapshot != nil {
 		if spec.Source.Snapshot.Namespace == "" || spec.Source.Snapshot.Name == "" {
@@ -233,12 +227,6 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 				Field:   field.Child("source", "Snapshot").String(),
 			})
 			return causes
-		}
-		if request.Operation == admissionv1.Create {
-			cause := wh.validateDataVolumeSourceSnapshot(spec.Source.Snapshot, field.Child("source", "Snapshot"), spec)
-			if cause != nil {
-				causes = append(causes, *cause)
-			}
 		}
 	}
 
@@ -265,61 +253,6 @@ func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.Ad
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: "Missing sourceRef name",
 			Field:   field.Child("sourceRef", "Name").String(),
-		}
-	}
-	if request.Operation != admissionv1.Create {
-		return nil
-	}
-	ns := namespace
-	if spec.SourceRef.Namespace != nil && *spec.SourceRef.Namespace != "" {
-		ns = spec.SourceRef.Namespace
-	}
-	dataSource, err := wh.cdiClient.CdiV1beta1().DataSources(*ns).Get(context.TODO(), spec.SourceRef.Name, metav1.GetOptions{})
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			return &metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueNotFound,
-				Message: fmt.Sprintf("SourceRef %s/%s/%s not found", spec.SourceRef.Kind, *ns, spec.SourceRef.Name),
-				Field:   field.Child("sourceRef").String(),
-			}
-		}
-		return &metav1.StatusCause{
-			Message: err.Error(),
-			Field:   field.Child("sourceRef").String(),
-		}
-	}
-	switch {
-	case dataSource.Spec.Source.PVC != nil:
-		return wh.validateDataVolumeSourcePVC(dataSource.Spec.Source.PVC, field.Child("sourceRef"), spec)
-	case dataSource.Spec.Source.Snapshot != nil:
-		return wh.validateDataVolumeSourceSnapshot(dataSource.Spec.Source.Snapshot, field.Child("sourceRef"), spec)
-	}
-
-	return &metav1.StatusCause{
-		Message: fmt.Sprintf("Empty source field in '%s'. DataSource may not be ready yet", dataSource.Name),
-		Field:   field.Child("sourceRef").String(),
-	}
-}
-
-func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.DataVolumeSourcePVC, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) *metav1.StatusCause {
-	sourcePVC, err := wh.k8sClient.CoreV1().PersistentVolumeClaims(PVC.Namespace).Get(context.TODO(), PVC.Name, metav1.GetOptions{})
-	if err != nil {
-		// We allow the creation of a clone DV even if the source PVC doesn't exist.
-		// The validation will be completed once the source PVC is created.
-		if k8serrors.IsNotFound(err) {
-			return nil
-		}
-		return &metav1.StatusCause{
-			Message: err.Error(),
-			Field:   field.String(),
-		}
-	}
-
-	if err := cc.ValidateClone(sourcePVC, spec); err != nil {
-		return &metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: err.Error(),
-			Field:   field.String(),
 		}
 	}
 
@@ -398,29 +331,6 @@ func validateDataSourceRef(dataSource *v1.TypedObjectReference, field *k8sfield.
 	}
 
 	return causes
-}
-
-func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourceSnapshot(snapshot *cdiv1.DataVolumeSourceSnapshot, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) *metav1.StatusCause {
-	sourceSnapshot, err := wh.snapClient.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Get(context.TODO(), snapshot.Name, metav1.GetOptions{})
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			return nil
-		}
-		return &metav1.StatusCause{
-			Message: err.Error(),
-			Field:   field.String(),
-		}
-	}
-
-	if err := cc.ValidateSnapshotClone(sourceSnapshot, spec); err != nil {
-		return &metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: err.Error(),
-			Field:   field.String(),
-		}
-	}
-
-	return nil
 }
 
 func validateStorageClassName(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) *metav1.StatusCause {
