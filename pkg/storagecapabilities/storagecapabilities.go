@@ -49,9 +49,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"cephfs.csi.ceph.com":                   {{rwx, file}},
 	"openshift-storage.cephfs.csi.ceph.com": {{rwx, file}},
 	// LINSTOR
-	"linstor.csi.linbit.com": createLinstorCapabilities(),
+	"linstor.csi.linbit.com": createAllButRWXFileCapabilities(),
 	// DELL Unity XT
-	"csi-unity.dellemc.com":     createDellUnityCapabilities(),
+	"csi-unity.dellemc.com":     createAllButRWXFileCapabilities(),
 	"csi-unity.dellemc.com/nfs": createAllFSCapabilities(),
 	// DELL PowerFlex
 	"csi-vxflexos.dellemc.com":     createDellPowerFlexCapabilities(),
@@ -115,6 +115,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// vSphere
 	"csi.vsphere.vmware.com":     {{rwo, block}, {rwo, file}},
 	"csi.vsphere.vmware.com/nfs": {{rwx, file}, {rwo, block}, {rwo, file}},
+	// huawei
+	"csi.huawei.com":     createAllButRWXFileCapabilities(),
+	"csi.huawei.com/nfs": createAllFSCapabilities(),
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
@@ -328,6 +331,14 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 			return "csi-powermax.dellemc.com"
 		}
 	},
+	"csi.huawei.com": func(sc *storagev1.StorageClass) string {
+		switch sc.Parameters["protocol"] {
+		case "nfs":
+			return "csi.huawei.com/nfs"
+		default:
+			return "csi.huawei.com"
+		}
+	},
 }
 
 func getFSType(sc *storagev1.StorageClass) string {
@@ -342,17 +353,7 @@ func createRbdCapabilities() []StorageCapabilities {
 	}
 }
 
-func createLinstorCapabilities() []StorageCapabilities {
-	return []StorageCapabilities{
-		{rwx, block},
-		{rwo, block},
-		{rwo, file},
-		{rox, block},
-		{rox, file},
-	}
-}
-
-func createDellUnityCapabilities() []StorageCapabilities {
+func createAllButRWXFileCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
 		{rwx, block},
 		{rwo, block},
