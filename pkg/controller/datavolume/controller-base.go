@@ -253,20 +253,19 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 	}
 
 	// Setup watches
-	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
-			dv := obj.(*cdiv1.DataVolume)
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{}, handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.DataVolume](
+		func(ctx context.Context, dv *cdiv1.DataVolume) []reconcile.Request {
 			if getDataVolumeOp(ctx, mgr.GetLogger(), dv, mgr.GetClient()) != op {
 				return nil
 			}
 			updatePendingDataVolumesGauge(ctx, mgr.GetLogger(), dv, mgr.GetClient())
 			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}}}
 		}),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
-	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.PersistentVolumeClaim](
+		func(ctx context.Context, obj *corev1.PersistentVolumeClaim) []reconcile.Request {
 			var result []reconcile.Request
 			owner := metav1.GetControllerOf(obj)
 			if owner != nil && owner.Kind == "DataVolume" {
@@ -279,22 +278,22 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 			// it is okay if result contains the same entry twice, will be deduplicated by caller
 			return result
 		}),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
-	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.Pod](
+		func(ctx context.Context, obj *corev1.Pod) []reconcile.Request {
 			owner := metav1.GetControllerOf(obj)
 			if owner == nil || owner.Kind != "DataVolume" {
 				return nil
 			}
 			return appendMatchingDataVolumeRequest(ctx, nil, mgr, obj.GetNamespace(), owner.Name)
 		}),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 	for _, k := range []client.Object{&corev1.PersistentVolumeClaim{}, &corev1.Pod{}, &cdiv1.ObjectTransfer{}} {
-		if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), k), handler.EnqueueRequestsFromMapFunc(
+		if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), k, handler.EnqueueRequestsFromMapFunc(
 			func(ctx context.Context, obj client.Object) []reconcile.Request {
 				if !hasAnnOwnedByDataVolume(obj) {
 					return nil
@@ -305,15 +304,15 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 				}
 				return appendMatchingDataVolumeRequest(ctx, nil, mgr, namespace, name)
 			}),
-		); err != nil {
+		)); err != nil {
 			return err
 		}
 	}
 
 	// Watch for SC updates and reconcile the DVs waiting for default SC
 	// Relevant only when the DV StorageSpec has no AccessModes set and no matching StorageClass yet, so PVC cannot be created (test_id:9922)
-	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}, handler.TypedEnqueueRequestsFromMapFunc[*storagev1.StorageClass](
+		func(ctx context.Context, obj *storagev1.StorageClass) []reconcile.Request {
 			dvList := &cdiv1.DataVolumeList{}
 			if err := mgr.GetClient().List(ctx, dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
 				return nil
@@ -327,15 +326,14 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 			return reqs
 		},
 	),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
 	// Watch for PV updates to reconcile the DVs waiting for available PV
 	// Relevant only when the DV StorageSpec has no AccessModes set and no matching StorageClass yet, so PVC cannot be created (test_id:9924,9925)
-	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolume{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
-			pv := obj.(*corev1.PersistentVolume)
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolume{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.PersistentVolume](
+		func(ctx context.Context, pv *corev1.PersistentVolume) []reconcile.Request {
 			dvList := &cdiv1.DataVolumeList{}
 			if err := mgr.GetClient().List(ctx, dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
 				return nil
@@ -354,7 +352,7 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 			return reqs
 		},
 	),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 

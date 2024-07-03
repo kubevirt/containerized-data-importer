@@ -261,7 +261,7 @@ func (p *Planner) watchSnapshots(ctx context.Context, log logr.Logger) error {
 
 func (p *Planner) watchOwned(log logr.Logger, obj client.Object) error {
 	objList := p.RootObjectType.DeepCopyObject().(client.ObjectList)
-	if err := p.Controller.Watch(source.Kind(p.GetCache(), obj), handler.EnqueueRequestsFromMapFunc(
+	if err := p.Controller.Watch(source.Kind(p.GetCache(), obj, handler.EnqueueRequestsFromMapFunc(
 		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			uid, ok := obj.GetLabels()[p.OwnershipLabel]
 			if !ok {
@@ -288,7 +288,7 @@ func (p *Planner) watchOwned(log logr.Logger, obj client.Object) error {
 			}
 			return reqs
 		}),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 	return nil

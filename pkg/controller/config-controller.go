@@ -715,49 +715,49 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 }
 
 func watchCDIConfig(mgr manager.Manager, configController controller.Controller, configName string) error {
-	if err := configController.Watch(source.Kind(mgr.GetCache(), &cdiv1.CDIConfig{}), &handler.EnqueueRequestForObject{}); err != nil {
+	if err := configController.Watch(source.Kind(mgr.GetCache(), &cdiv1.CDIConfig{}, &handler.TypedEnqueueRequestForObject[*cdiv1.CDIConfig]{})); err != nil {
 		return err
 	}
-	return configController.Watch(source.Kind(mgr.GetCache(), &cdiv1.CDI{}), handler.EnqueueRequestsFromMapFunc(
-		func(_ context.Context, _ client.Object) []reconcile.Request {
+	return configController.Watch(source.Kind(mgr.GetCache(), &cdiv1.CDI{}, handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.CDI](
+		func(_ context.Context, _ *cdiv1.CDI) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: configName},
 			}}
 		},
-	))
+	)))
 }
 
 func watchStorageClass(mgr manager.Manager, configController controller.Controller, configName string) error {
-	return configController.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}), handler.EnqueueRequestsFromMapFunc(
-		func(_ context.Context, _ client.Object) []reconcile.Request {
+	return configController.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}, handler.TypedEnqueueRequestsFromMapFunc[*storagev1.StorageClass](
+		func(_ context.Context, _ *storagev1.StorageClass) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: configName},
 			}}
 		},
-	))
+	)))
 }
 
 func watchIngress(mgr manager.Manager, configController controller.Controller, cdiNamespace, configName, uploadProxyServiceName string) error {
-	err := configController.Watch(source.Kind(mgr.GetCache(), &networkingv1.Ingress{}), handler.EnqueueRequestsFromMapFunc(
-		func(_ context.Context, _ client.Object) []reconcile.Request {
+	err := configController.Watch(source.Kind(mgr.GetCache(), &networkingv1.Ingress{}, handler.TypedEnqueueRequestsFromMapFunc[*networkingv1.Ingress](
+		func(_ context.Context, _ *networkingv1.Ingress) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: configName},
 			}}
 		}),
-		predicate.Funcs{
-			CreateFunc: func(e event.CreateEvent) bool {
-				return "" != getURLFromIngress(e.Object.(*networkingv1.Ingress), uploadProxyServiceName) &&
-					e.Object.(*networkingv1.Ingress).GetNamespace() == cdiNamespace
+		predicate.TypedFuncs[*networkingv1.Ingress]{
+			CreateFunc: func(e event.TypedCreateEvent[*networkingv1.Ingress]) bool {
+				return "" != getURLFromIngress(e.Object, uploadProxyServiceName) &&
+					e.Object.GetNamespace() == cdiNamespace
 			},
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				return "" != getURLFromIngress(e.ObjectNew.(*networkingv1.Ingress), uploadProxyServiceName) &&
-					e.ObjectNew.(*networkingv1.Ingress).GetNamespace() == cdiNamespace
+			UpdateFunc: func(e event.TypedUpdateEvent[*networkingv1.Ingress]) bool {
+				return "" != getURLFromIngress(e.ObjectNew, uploadProxyServiceName) &&
+					e.ObjectNew.GetNamespace() == cdiNamespace
 			},
-			DeleteFunc: func(e event.DeleteEvent) bool {
-				return "" != getURLFromIngress(e.Object.(*networkingv1.Ingress), uploadProxyServiceName) &&
-					e.Object.(*networkingv1.Ingress).GetNamespace() == cdiNamespace
+			DeleteFunc: func(e event.TypedDeleteEvent[*networkingv1.Ingress]) bool {
+				return "" != getURLFromIngress(e.Object, uploadProxyServiceName) &&
+					e.Object.GetNamespace() == cdiNamespace
 			},
-		})
+		}))
 	return err
 }
 
@@ -766,26 +766,26 @@ func watchRoutes(mgr manager.Manager, configController controller.Controller, cd
 	err := mgr.GetClient().List(context.TODO(), &routev1.RouteList{}, &client.ListOptions{Namespace: cdiNamespace})
 	if !meta.IsNoMatchError(err) {
 		if err == nil || cc.IsErrCacheNotStarted(err) {
-			err := configController.Watch(source.Kind(mgr.GetCache(), &routev1.Route{}), handler.EnqueueRequestsFromMapFunc(
-				func(_ context.Context, _ client.Object) []reconcile.Request {
+			err := configController.Watch(source.Kind(mgr.GetCache(), &routev1.Route{}, handler.TypedEnqueueRequestsFromMapFunc[*routev1.Route](
+				func(_ context.Context, _ *routev1.Route) []reconcile.Request {
 					return []reconcile.Request{{
 						NamespacedName: types.NamespacedName{Name: configName},
 					}}
 				}),
-				predicate.Funcs{
-					CreateFunc: func(e event.CreateEvent) bool {
-						return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
-							e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
+				predicate.TypedFuncs[*routev1.Route]{
+					CreateFunc: func(e event.TypedCreateEvent[*routev1.Route]) bool {
+						return "" != getURLFromRoute(e.Object, uploadProxyServiceName) &&
+							e.Object.GetNamespace() == cdiNamespace
 					},
-					UpdateFunc: func(e event.UpdateEvent) bool {
-						return "" != getURLFromRoute(e.ObjectNew.(*routev1.Route), uploadProxyServiceName) &&
-							e.ObjectNew.(*routev1.Route).GetNamespace() == cdiNamespace
+					UpdateFunc: func(e event.TypedUpdateEvent[*routev1.Route]) bool {
+						return "" != getURLFromRoute(e.ObjectNew, uploadProxyServiceName) &&
+							e.ObjectNew.GetNamespace() == cdiNamespace
 					},
-					DeleteFunc: func(e event.DeleteEvent) bool {
-						return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
-							e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
+					DeleteFunc: func(e event.TypedDeleteEvent[*routev1.Route]) bool {
+						return "" != getURLFromRoute(e.Object, uploadProxyServiceName) &&
+							e.Object.GetNamespace() == cdiNamespace
 					},
-				})
+				}))
 			return err
 		}
 		return err
@@ -798,13 +798,13 @@ func watchClusterProxy(mgr manager.Manager, configController controller.Controll
 	err := mgr.GetClient().List(context.TODO(), &ocpconfigv1.ProxyList{})
 	if !meta.IsNoMatchError(err) {
 		if err == nil || cc.IsErrCacheNotStarted(err) {
-			return configController.Watch(source.Kind(mgr.GetCache(), &ocpconfigv1.Proxy{}), handler.EnqueueRequestsFromMapFunc(
-				func(_ context.Context, _ client.Object) []reconcile.Request {
+			return configController.Watch(source.Kind(mgr.GetCache(), &ocpconfigv1.Proxy{}, handler.TypedEnqueueRequestsFromMapFunc[*ocpconfigv1.Proxy](
+				func(_ context.Context, _ *ocpconfigv1.Proxy) []reconcile.Request {
 					return []reconcile.Request{{
 						NamespacedName: types.NamespacedName{Name: configName},
 					}}
 				},
-			))
+			)))
 		}
 		return err
 	}
@@ -817,17 +817,15 @@ func watchClusterProxy(mgr manager.Manager, configController controller.Controll
 // A change in the UploadProxyURL may invalidate the CA certificate, but
 // watchCDIConfig will handle that.
 func watchUploadProxyCA(mgr manager.Manager, configcontroller controller.Controller, configName string) error {
-	kind := source.Kind(mgr.GetCache(), &v1.ConfigMap{})
-
-	handler := handler.EnqueueRequestsFromMapFunc(func(context.Context, client.Object) []reconcile.Request {
+	handler := handler.TypedEnqueueRequestsFromMapFunc[*v1.ConfigMap](func(context.Context, *v1.ConfigMap) []reconcile.Request {
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: configName}}}
 	})
 
-	predicate := predicate.NewPredicateFuncs(func(o client.Object) bool {
-		return o.(*v1.ConfigMap).Name == rootCertificateConfigMap
+	predicate := predicate.NewTypedPredicateFuncs[*v1.ConfigMap](func(o *v1.ConfigMap) bool {
+		return o.Name == rootCertificateConfigMap
 	})
 
-	if err := configcontroller.Watch(kind, handler, predicate); err != nil {
+	if err := configcontroller.Watch(source.Kind(mgr.GetCache(), &v1.ConfigMap{}, handler, predicate)); err != nil {
 		return fmt.Errorf("could not watch UploadProxyCA ConfigMap: %w", err)
 	}
 	return nil

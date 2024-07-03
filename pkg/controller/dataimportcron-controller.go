@@ -964,25 +964,27 @@ func NewDataImportCronController(mgr manager.Manager, log logr.Logger, importerI
 	return dataImportCronController, nil
 }
 
+func getCronName(obj client.Object) string {
+	return obj.GetLabels()[common.DataImportCronLabel]
+}
+
+func getCronNs(obj client.Object) string {
+	return obj.GetLabels()[common.DataImportCronNsLabel]
+}
+
+func mapSourceObjectToCron[T client.Object](_ context.Context, obj T) []reconcile.Request {
+	if cronName := getCronName(obj); cronName != "" {
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: cronName, Namespace: obj.GetNamespace()}}}
+	}
+	return nil
+}
+
 func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Controller) error {
-	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataImportCron{}), &handler.EnqueueRequestForObject{}); err != nil {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataImportCron{}, &handler.TypedEnqueueRequestForObject[*cdiv1.DataImportCron]{})); err != nil {
 		return err
 	}
 
-	getCronName := func(obj client.Object) string {
-		return obj.GetLabels()[common.DataImportCronLabel]
-	}
-	getCronNs := func(obj client.Object) string {
-		return obj.GetLabels()[common.DataImportCronNsLabel]
-	}
-	mapSourceObjectToCron := func(_ context.Context, obj client.Object) []reconcile.Request {
-		if cronName := getCronName(obj); cronName != "" {
-			return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: cronName, Namespace: obj.GetNamespace()}}}
-		}
-		return nil
-	}
-
-	mapStorageProfileToCron := func(ctx context.Context, obj client.Object) []reconcile.Request {
+	mapStorageProfileToCron := func(ctx context.Context, obj *cdiv1.StorageProfile) []reconcile.Request {
 		// TODO: Get rid of this after at least one version; use indexer on storage class annotation instead
 		// Otherwise we risk losing the storage profile event
 		var crons cdiv1.DataImportCronList
@@ -1008,36 +1010,36 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return reqs
 	}
 
-	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{}),
-		handler.EnqueueRequestsFromMapFunc(mapSourceObjectToCron),
-		predicate.Funcs{
-			CreateFunc: func(event.CreateEvent) bool { return false },
-			UpdateFunc: func(e event.UpdateEvent) bool { return getCronName(e.ObjectNew) != "" },
-			DeleteFunc: func(e event.DeleteEvent) bool { return getCronName(e.Object) != "" },
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{},
+		handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.DataVolume](mapSourceObjectToCron),
+		predicate.TypedFuncs[*cdiv1.DataVolume]{
+			CreateFunc: func(event.TypedCreateEvent[*cdiv1.DataVolume]) bool { return false },
+			UpdateFunc: func(e event.TypedUpdateEvent[*cdiv1.DataVolume]) bool { return getCronName(e.ObjectNew) != "" },
+			DeleteFunc: func(e event.TypedDeleteEvent[*cdiv1.DataVolume]) bool { return getCronName(e.Object) != "" },
 		},
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
-	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{}),
-		handler.EnqueueRequestsFromMapFunc(mapSourceObjectToCron),
-		predicate.Funcs{
-			CreateFunc: func(event.CreateEvent) bool { return false },
-			UpdateFunc: func(e event.UpdateEvent) bool { return getCronName(e.ObjectNew) != "" },
-			DeleteFunc: func(e event.DeleteEvent) bool { return getCronName(e.Object) != "" },
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{},
+		handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.DataSource](mapSourceObjectToCron),
+		predicate.TypedFuncs[*cdiv1.DataSource]{
+			CreateFunc: func(event.TypedCreateEvent[*cdiv1.DataSource]) bool { return false },
+			UpdateFunc: func(e event.TypedUpdateEvent[*cdiv1.DataSource]) bool { return getCronName(e.ObjectNew) != "" },
+			DeleteFunc: func(e event.TypedDeleteEvent[*cdiv1.DataSource]) bool { return getCronName(e.Object) != "" },
 		},
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
-	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}),
-		handler.EnqueueRequestsFromMapFunc(mapSourceObjectToCron),
-		predicate.Funcs{
-			CreateFunc: func(event.CreateEvent) bool { return false },
-			UpdateFunc: func(event.UpdateEvent) bool { return false },
-			DeleteFunc: func(e event.DeleteEvent) bool { return getCronName(e.Object) != "" },
+	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{},
+		handler.TypedEnqueueRequestsFromMapFunc[*corev1.PersistentVolumeClaim](mapSourceObjectToCron),
+		predicate.TypedFuncs[*corev1.PersistentVolumeClaim]{
+			CreateFunc: func(event.TypedCreateEvent[*corev1.PersistentVolumeClaim]) bool { return false },
+			UpdateFunc: func(event.TypedUpdateEvent[*corev1.PersistentVolumeClaim]) bool { return false },
+			DeleteFunc: func(e event.TypedDeleteEvent[*corev1.PersistentVolumeClaim]) bool { return getCronName(e.Object) != "" },
 		},
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
@@ -1045,33 +1047,33 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 		return err
 	}
 
-	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.StorageProfile{}),
-		handler.EnqueueRequestsFromMapFunc(mapStorageProfileToCron),
-		predicate.Funcs{
-			CreateFunc: func(event.CreateEvent) bool { return true },
-			DeleteFunc: func(event.DeleteEvent) bool { return false },
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				profileOld, okOld := e.ObjectOld.(*cdiv1.StorageProfile)
-				profileNew, okNew := e.ObjectNew.(*cdiv1.StorageProfile)
-				return okOld && okNew && profileOld.Status.DataImportCronSourceFormat != profileNew.Status.DataImportCronSourceFormat
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.StorageProfile{},
+		handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.StorageProfile](mapStorageProfileToCron),
+		predicate.TypedFuncs[*cdiv1.StorageProfile]{
+			CreateFunc: func(event.TypedCreateEvent[*cdiv1.StorageProfile]) bool { return true },
+			DeleteFunc: func(event.TypedDeleteEvent[*cdiv1.StorageProfile]) bool { return false },
+			UpdateFunc: func(e event.TypedUpdateEvent[*cdiv1.StorageProfile]) bool {
+				return e.ObjectOld.Status.DataImportCronSourceFormat != e.ObjectNew.Status.DataImportCronSourceFormat
 			},
 		},
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
-	mapCronJobToCron := func(_ context.Context, obj client.Object) []reconcile.Request {
+	mapCronJobToCron := func(_ context.Context, obj *batchv1.CronJob) []reconcile.Request {
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: getCronNs(obj), Name: getCronName(obj)}}}
 	}
 
-	if err := c.Watch(source.Kind(mgr.GetCache(), &batchv1.CronJob{}),
-		handler.EnqueueRequestsFromMapFunc(mapCronJobToCron),
-		predicate.Funcs{
-			CreateFunc: func(e event.CreateEvent) bool { return getCronName(e.Object) != "" && getCronNs(e.Object) != "" },
-			DeleteFunc: func(event.DeleteEvent) bool { return false },
-			UpdateFunc: func(event.UpdateEvent) bool { return false },
+	if err := c.Watch(source.Kind(mgr.GetCache(), &batchv1.CronJob{},
+		handler.TypedEnqueueRequestsFromMapFunc[*batchv1.CronJob](mapCronJobToCron),
+		predicate.TypedFuncs[*batchv1.CronJob]{
+			CreateFunc: func(e event.TypedCreateEvent[*batchv1.CronJob]) bool {
+				return getCronName(e.Object) != "" && getCronNs(e.Object) != ""
+			},
+			DeleteFunc: func(event.TypedDeleteEvent[*batchv1.CronJob]) bool { return false },
+			UpdateFunc: func(event.TypedUpdateEvent[*batchv1.CronJob]) bool { return false },
 		},
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
@@ -1084,14 +1086,14 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 			return err
 		}
 	}
-	if err := c.Watch(source.Kind(mgr.GetCache(), &snapshotv1.VolumeSnapshot{}),
-		handler.EnqueueRequestsFromMapFunc(mapSourceObjectToCron),
-		predicate.Funcs{
-			CreateFunc: func(event.CreateEvent) bool { return false },
-			UpdateFunc: func(event.UpdateEvent) bool { return false },
-			DeleteFunc: func(e event.DeleteEvent) bool { return getCronName(e.Object) != "" },
+	if err := c.Watch(source.Kind(mgr.GetCache(), &snapshotv1.VolumeSnapshot{},
+		handler.TypedEnqueueRequestsFromMapFunc[*snapshotv1.VolumeSnapshot](mapSourceObjectToCron),
+		predicate.TypedFuncs[*snapshotv1.VolumeSnapshot]{
+			CreateFunc: func(event.TypedCreateEvent[*snapshotv1.VolumeSnapshot]) bool { return false },
+			UpdateFunc: func(event.TypedUpdateEvent[*snapshotv1.VolumeSnapshot]) bool { return false },
+			DeleteFunc: func(e event.TypedDeleteEvent[*snapshotv1.VolumeSnapshot]) bool { return getCronName(e.Object) != "" },
 		},
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
@@ -1100,9 +1102,9 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 
 // addDefaultStorageClassUpdateWatch watches for default/virt default storage class updates
 func addDefaultStorageClassUpdateWatch(mgr manager.Manager, c controller.Controller) error {
-	if err := c.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}),
-		handler.EnqueueRequestsFromMapFunc(
-			func(ctx context.Context, obj client.Object) []reconcile.Request {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{},
+		handler.TypedEnqueueRequestsFromMapFunc[*storagev1.StorageClass](
+			func(ctx context.Context, obj *storagev1.StorageClass) []reconcile.Request {
 				log := c.GetLogger().WithName("DefaultStorageClassUpdateWatch")
 				log.Info("Update", "sc", obj.GetName(),
 					"default", obj.GetAnnotations()[cc.AnnDefaultStorageClass] == "true",
@@ -1114,17 +1116,15 @@ func addDefaultStorageClassUpdateWatch(mgr manager.Manager, c controller.Control
 				return reqs
 			},
 		),
-		predicate.Funcs{
-			CreateFunc: func(event.CreateEvent) bool { return false },
-			DeleteFunc: func(event.DeleteEvent) bool { return false },
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				scOld := e.ObjectOld.(*storagev1.StorageClass)
-				scNew := e.ObjectNew.(*storagev1.StorageClass)
-				return (scNew.Annotations[cc.AnnDefaultStorageClass] != scOld.Annotations[cc.AnnDefaultStorageClass]) ||
-					(scNew.Annotations[cc.AnnDefaultVirtStorageClass] != scOld.Annotations[cc.AnnDefaultVirtStorageClass])
+		predicate.TypedFuncs[*storagev1.StorageClass]{
+			CreateFunc: func(event.TypedCreateEvent[*storagev1.StorageClass]) bool { return false },
+			DeleteFunc: func(event.TypedDeleteEvent[*storagev1.StorageClass]) bool { return false },
+			UpdateFunc: func(e event.TypedUpdateEvent[*storagev1.StorageClass]) bool {
+				return (e.ObjectNew.Annotations[cc.AnnDefaultStorageClass] != e.ObjectOld.Annotations[cc.AnnDefaultStorageClass]) ||
+					(e.ObjectNew.Annotations[cc.AnnDefaultVirtStorageClass] != e.ObjectOld.Annotations[cc.AnnDefaultVirtStorageClass])
 			},
 		},
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 

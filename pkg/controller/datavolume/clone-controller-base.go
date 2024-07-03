@@ -148,8 +148,8 @@ type CloneReconcilerBase struct {
 }
 
 func (r *CloneReconcilerBase) addVolumeCloneSourceWatch(mgr manager.Manager, datavolumeController controller.Controller) error {
-	return datavolumeController.Watch(source.Kind(mgr.GetCache(), &cdiv1.VolumeCloneSource{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
+	return datavolumeController.Watch(source.Kind(mgr.GetCache(), &cdiv1.VolumeCloneSource{}, handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.VolumeCloneSource](
+		func(ctx context.Context, obj *cdiv1.VolumeCloneSource) []reconcile.Request {
 			var err error
 			var hasDataVolumeOwner bool
 			var ownerNamespace, ownerName string
@@ -188,7 +188,7 @@ func (r *CloneReconcilerBase) addVolumeCloneSourceWatch(mgr manager.Manager, dat
 			}
 			return nil
 		}),
-	)
+	))
 }
 
 func (r *CloneReconcilerBase) updatePVCForPopulation(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
@@ -567,13 +567,13 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 		return reqs
 	}
 
-	if err := datavolumeController.Watch(source.Kind(mgr.GetCache(), typeToWatch),
+	if err := datavolumeController.Watch(source.Kind(mgr.GetCache(), typeToWatch,
 		handler.EnqueueRequestsFromMapFunc(dataVolumeMapper),
 		predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool { return true },
 			DeleteFunc: func(e event.DeleteEvent) bool { return false },
 			UpdateFunc: func(e event.UpdateEvent) bool { return false },
-		}); err != nil {
+		})); err != nil {
 		return err
 	}
 

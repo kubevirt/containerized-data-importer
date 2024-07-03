@@ -138,7 +138,8 @@ func (r *ReconcileCDI) watchRoutes() error {
 		Limit:     1,
 	})
 	if err == nil {
-		return r.controller.Watch(source.Kind(r.getCache(), &routev1.Route{}), enqueueCDI(r.client))
+		var route client.Object = &routev1.Route{}
+		return r.controller.Watch(source.Kind(r.getCache(), route, enqueueCDI(r.client)))
 	}
 	if meta.IsNoMatchError(err) {
 		log.Info("Not watching Routes")

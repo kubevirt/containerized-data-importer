@@ -121,9 +121,8 @@ func CreateCommonPopulatorIndexes(mgr manager.Manager) error {
 
 func addCommonPopulatorsWatches(mgr manager.Manager, c controller.Controller, log logr.Logger, sourceKind string, sourceType client.Object) error {
 	// Setup watches
-	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}), handler.EnqueueRequestsFromMapFunc(
-		func(_ context.Context, obj client.Object) []reconcile.Request {
-			pvc := obj.(*corev1.PersistentVolumeClaim)
+	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.PersistentVolumeClaim](
+		func(_ context.Context, pvc *corev1.PersistentVolumeClaim) []reconcile.Request {
 			if IsPVCDataSourceRefKind(pvc, sourceKind) {
 				pvcKey := types.NamespacedName{Namespace: pvc.Namespace, Name: pvc.Name}
 				return []reconcile.Request{{NamespacedName: pvcKey}}
@@ -135,7 +134,7 @@ func addCommonPopulatorsWatches(mgr manager.Manager, c controller.Controller, lo
 			}
 			return nil
 		}),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
@@ -154,9 +153,9 @@ func addCommonPopulatorsWatches(mgr manager.Manager, c controller.Controller, lo
 		return reqs
 	}
 
-	if err := c.Watch(source.Kind(mgr.GetCache(), sourceType),
+	if err := c.Watch(source.Kind(mgr.GetCache(), sourceType,
 		handler.EnqueueRequestsFromMapFunc(mapDataSourceRefToPVC),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
