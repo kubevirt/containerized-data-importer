@@ -2,10 +2,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "go_default_library",
-    srcs = [
-        "clientset.go",
-        "doc.go",
-    ],
+    srcs = ["clientset.go"],
     importpath = "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned",
     visibility = ["//visibility:public"],
     deps = [
