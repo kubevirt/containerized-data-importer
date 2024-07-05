@@ -291,8 +291,6 @@ func dvTransferRunning() *cdiv1.ObjectTransfer {
 func dvTransferRunningWithSucceededDV() *cdiv1.ObjectTransfer {
 	t := dvTransfer(cdiv1.ObjectTransferRunning)
 	dv := createPopulatedDV()
-	dv.Kind = "DataVolume"
-	dv.APIVersion = "cdi.kubevirt.io/v1beta1"
 	dv.ResourceVersion = "1000"
 	dv.Annotations = map[string]string{
 		"cdi.kubevirt.io/objectTransferName": "dvTransfer",
