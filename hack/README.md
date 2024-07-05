@@ -58,14 +58,13 @@ The standard workflow is performed inside a helper container to normalize the bu
 - `goveralls`: run code coverage tracking system.
 - `manifests`: generate a cdi-controller and operator manifests in '_out/manifests/'.  Accepts [make variables]\(#make-variables\) DOCKER_TAG, DOCKER_PREFIX, VERBOSITY, PULL_POLICY, CSV_VERSION, QUAY_REPOSITORY, QUAY_NAMESPACE
 - `openshift-ci-image-push`: Build and push the OpenShift CI build+test container image, declared in hack/ci/Dockerfile.ci
-- `push`: compiles, builds, and pushes to the repo passed in 'DOCKER_PREFIX=<my repo>'
+- `push`: compiles, builds, and pushes to the repo passed in 'DOCKER_PREFIX=`<my repo>`'
 - `release-description`: generate a release announcement detailing changes between 2 commits (typically tags).  Expects 'RELREF' and 'PREREF' to be set
 - `test`: execute all tests (_NOTE:_ 'WHAT' is expected to match the go cli pattern for paths e.g. './pkg/...'.  This differs slightly from rest of the 'make' targets)
-    - `test-unit`: Run unit tests.
-    - `test-lint`: Run golangci-lint against src files
-    - `test-functional`: Run functional tests (in tests/ subdirectory).
+  - `test-unit`: Run unit tests.
+  - `test-lint`: Run golangci-lint against src files
+  - `test-functional`: Run functional tests (in tests/ subdirectory).
 - `vet`: lint all CDI packages
-
 
 #### Make Variables
 
@@ -90,19 +89,21 @@ These may be passed to a target as `$ make VARIABLE=value target`
 - `QUAY_REPOSITORY`: Quay repository. Default is `cdi-operatorhub`.
 - `QUAY_NAMESPACE`: Quay namespace. Default is `kubevirt`.
 - `TEST_ARGS`: List of additional ginkgo flags to be passed to functional tests. String `--test-args=` must prefix the variable value. For example:
-    ```
-    make TEST_ARGS="--test-args=-ginkgo.no-color=true" test-functional >& foo
-    ```
-    > [!NOTE]
-    > The following flags are not supported in `TEST_ARGS`, set their values with environment variables instead:
-    >
-    > Set `KUBE_URL` rather than using `-kubeurl`
-    >
-    > Set  `CDI_NAMESPACE` rather than using `-cdi-namespace`
-    >
-    > Set `KUBECONFIG` rather than using `-kubeconfig`
-    >
-    > Set `KUBECTL` rather than using `-kubectl-path`
+  ```
+  make TEST_ARGS="--test-args=-ginkgo.no-color=true" test-functional >& foo
+  ```
+
+  > [!NOTE]
+  > The following flags are not supported in `TEST_ARGS`, set their values with environment variables instead:
+  >
+  > Set `KUBE_URL` rather than using `-kubeurl`
+  >
+  > Set  `CDI_NAMESPACE` rather than using `-cdi-namespace`
+  >
+  > Set `KUBECONFIG` rather than using `-kubeconfig`
+  >
+  > Set `KUBECTL` rather than using `-kubectl-path`
+  >
 - `WHAT`: Path to the package to test. Default is `./pkg/... ./cmd/...` for unit tests and `./test/...` for functional tests.
 - `RELREF`: Required by release-description. Must be a commit or tag. Should be newer than `PREREF`.
 - `PREREF`: Required by release-description. Must also be a commit or tag. Should be older than `RELREF`.
@@ -114,14 +115,15 @@ virtualization is supported then the standard *kubevirtci framework* can be used
 
 Environment Variables and Supported Values
 
-| Env Variable       | Default       | Additional Values           |
-|--------------------|---------------|-----------------------------|
-|KUBEVIRT_PROVIDER   | k8s-1.18      | k8s-1.17, os-3.11.0-crio,   |
-|KUBEVIRT_STORAGE*   | none          | ceph, hpp, nfs              |
-|KUBEVIRT_PROVIDER_EXTRA_ARGS |      |                             |
-|NUM_NODES           | 1             | 2-5                         |
+| Env Variable                 | Default  | Additional Values         |
+| ---------------------------- | -------- | ------------------------- |
+| KUBEVIRT_PROVIDER            | k8s-1.18 | k8s-1.17, os-3.11.0-crio, |
+| KUBEVIRT_STORAGE*            | none     | ceph, hpp, nfs            |
+| KUBEVIRT_PROVIDER_EXTRA_ARGS |          |                           |
+| NUM_NODES                    | 1        | 2-5                       |
 
 To Run Standard *cluster-up/kubevirtci* Tests
+
 ```
  # make cluster-up
  # make cluster-sync
@@ -129,47 +131,56 @@ To Run Standard *cluster-up/kubevirtci* Tests
 ```
 
 To run specific functional tests, you can leverage ginkgo command line options as follows:
+
 ```
 # make TEST_ARGS="--test-args=-ginkgo.focus=<test_suite_name>" test-functional
 ```
+
 E.g. to run the tests in transport_test.go:
+
 ```
 # make TEST_ARGS="--test-args=-ginkgo.focus=Transport" test-functional
 ```
 
 Clean Up
+
 ```
  # make cluster-down
 ```
 
 Clean Up with docker container cache cleanup
-To cleanup all container images from local registry and to free a considerable amount of disk space. Note: caveat - cluser-sync will take longer since will have to fetch all the data again 
+To cleanup all container images from local registry and to free a considerable amount of disk space. Note: caveat - cluser-sync will take longer since will have to fetch all the data again
+
 ```
  # make cluster-down-purge
-``` 
+```
+
 #### Execute Alternative Environment Functional Tests
 
 If running in a non-standard environment such as Mac or Cloud where the *kubevirtci framework* is
 not supported, then you can use the following example to run Functional Tests.
 
 1. Stand-up a Kubernetes cluster (local-up-cluster.sh/kubeadm/minikube/etc...)
-
 2. Clone or get the kubevirt/containerized-data-importer repo
-
 3. Run the CDI controller manifests
 
    - To generate latest manifests
+
    ```
    # make manifests 
    ```
+
    *To customize environment variables see [make targets](#make-targets)*
 
    - Run the generated latest manifests
      There are two options to deploy cdi directly via cdi-controller.yaml or to deploy it via operator
+
    ##### Direct deployment
+
+
    ```
      #kubectl create -f ./_out/manifests/cdi-controller.yaml
-     
+
      namespace/cdi created
      customresourcedefinition.apiextensions.k8s.io/datavolumes.cdi.kubevirt.io created
      customresourcedefinition.apiextensions.k8s.io/cdiconfigs.cdi.kubevirt.io created
@@ -191,7 +202,9 @@ not supported, then you can use the following example to run Functional Tests.
      deployment.apps/cdi-uploadproxy created
 
    ```
+
    ##### Deployment via operator
+
    ```
      #./cluster-up/kubectl.sh apply -f "./_out/manifests/release/cdi-operator.yaml" 
      namespace/cdi created
@@ -207,25 +220,29 @@ not supported, then you can use the following example to run Functional Tests.
      cdi.cdi.kubevirt.io/cdi created
 
    ```
-
 4. Build and run the func test servers
-   In order to run fucntional tests the below servers have to be run
+   In order to run functional tests the below servers have to be run
+
    - *host-file-server* is required by the functional tests and provides an
      endpoint server for image files and s3 buckets
-   - *registry-server* is required by the functional tests and provides an endpoint server for container images. 
-     Note: for this server to run the follwoing setting is required in each cluster node 
-     ``` systemctl -w user.max_user_namespaces=1024 ```
+   - *registry-server* is required by the functional tests and provides an endpoint server for container images.
+     Note: for this server to run the follwoing setting is required in each cluster node
+     ``systemctl -w user.max_user_namespaces=1024``
 
+   Build and Push to registry
 
-   Build and Push to registry 
    ```
    # DOCKER_PREFIX=<repo> DOCKER_TAG=<tag> make docker-functest-images
    ```
+
    Generate manifests
+
    ```
    # DOCKER_PREFIX=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY=<verbosity> make manifests 
    ```
+
    Run servers
+
    ```
    # ./cluster-up/kubectl.sh apply -f ./_out/manifests/bad-webserver.yaml
    # ./cluster-up/kubectl.sh apply -f ./_out/manifests/test-proxy.yaml
@@ -233,16 +250,18 @@ not supported, then you can use the following example to run Functional Tests.
    # ./cluster-up/kubectl.sh apply -f ./_out/manifests/registry-host.yaml
    # ./cluster-up/kubectl.sh apply -f ./_out/manifests/imageio.yaml
    ```
-
 5. Run the tests
+
 ```
  # make test-functional
 ```
 
 6. If you encounter test errors and are following the above steps try:
+
 ```
  # make clean && make docker
 ```
+
 redeploy the manifests above, and re-run the tests.
 
 ### Submit PRs
@@ -262,7 +281,9 @@ This project uses `go modules` as it's dependency manager.  At present, all proj
 ### S3-compatible client setup:
 
 #### AWS S3 cli
+
 $HOME/.aws/credentials
+
 ```
 [default]
 aws_access_key_id = <your-access-key>
@@ -272,6 +293,7 @@ aws_secret_access_key = <your-secret>
 #### Minio cli
 
 $HOME/.mc/config.json:
+
 ```
 {
         "version": "8",
