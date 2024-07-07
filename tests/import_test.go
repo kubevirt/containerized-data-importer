@@ -960,7 +960,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
 	})
 
-	It("[test_id:3996] Import datavolume with bad url will increase dv retry count", func() {
+	It("[test_id:3996] Import datavolume with bad url will increase dv retry count", Serial, func() {
 		if f.IsPrometheusAvailable() {
 			dataVolumeNoUnusualRestartTest(f)
 		}
