@@ -14,10 +14,12 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-set -euo pipefail
+set -exuo pipefail
 
 source hack/build/config.sh
 source hack/build/common.sh
+
+date
 
 # parsetTestOpts sets 'pkgs' and test_args
 parseTestOpts "${@}"

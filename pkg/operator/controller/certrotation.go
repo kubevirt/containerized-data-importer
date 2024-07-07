@@ -185,7 +185,7 @@ func (cm *certManager) ensureCertConfig(secret *corev1.Secret, certConfig cdicer
 
 	// force refresh
 	if _, ok := secretCpy.Annotations[certrotation.CertificateNotAfterAnnotation]; ok {
-		secretCpy.Annotations[certrotation.CertificateNotAfterAnnotation] = time.Now().UTC().Format(time.RFC3339)
+		secretCpy.Annotations[certrotation.CertificateNotAfterAnnotation] = time.Now().Format(time.RFC3339)
 	}
 	secretCpy.Annotations[annCertConfig] = configString
 
