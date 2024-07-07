@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	testclocks "k8s.io/utils/clock/testing"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -48,7 +49,10 @@ func newFakeCertManager(crClient client.Client, namespace string) CertManager {
 }
 
 func newCertManagerForTest(client kubernetes.Interface, namespace string) CertManager {
-	return newCertManager(client, namespace)
+	t, err := time.Parse(time.RFC3339, "2005-11-05T00:00:00.000000Z")
+	Expect(err).ToNot(HaveOccurred())
+	clock := &testclocks.SimpleIntervalClock{Time: t, Duration: time.Second}
+	return newCertManager(client, namespace, clock)
 }
 
 func toSerializedCertConfig(l, r time.Duration) string {
@@ -177,7 +181,7 @@ var _ = Describe("Cert rotation tests", func() {
 			uploadClientCAConfig := getCertConfigAnno(client, namespace, "cdi-uploadserver-client-signer")
 			uploadClientConfig := getCertConfigAnno(client, namespace, "cdi-uploadserver-client-cert")
 
-			timeBeforeSync := time.Now().Truncate(time.Second)
+			timeBeforeSync := cm.(*certManager).clock.Now().Truncate(time.Second)
 
 			args := &cert.FactoryArgs{
 				Namespace:         namespace,

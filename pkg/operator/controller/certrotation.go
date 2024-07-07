@@ -62,7 +62,18 @@ type certManager struct {
 	k8sClient     kubernetes.Interface
 	informers     v1helpers.KubeInformersForNamespaces
 	eventRecorder events.Recorder
+	clock         Clock
 }
+
+// Clock defines an interface for obtaining the current time
+type Clock interface {
+	Now() time.Time
+}
+
+// realClock implements the Clock interface by calling time.Now()
+type realClock struct{}
+
+func (realClock) Now() time.Time { return time.Now() }
 
 type serializedCertConfig struct {
 	Lifetime string `json:"lifetime,omitempty"`
@@ -76,7 +87,7 @@ func NewCertManager(mgr manager.Manager, installNamespace string, additionalName
 		return nil, err
 	}
 
-	cm := newCertManager(k8sClient, installNamespace, additionalNamespaces...)
+	cm := newCertManager(k8sClient, installNamespace, realClock{}, additionalNamespaces...)
 
 	// so we can start caches
 	if err = mgr.Add(cm); err != nil {
@@ -86,7 +97,7 @@ func NewCertManager(mgr manager.Manager, installNamespace string, additionalName
 	return cm, nil
 }
 
-func newCertManager(client kubernetes.Interface, installNamespace string, additionalNamespaces ...string) *certManager {
+func newCertManager(client kubernetes.Interface, installNamespace string, clock Clock, additionalNamespaces ...string) *certManager {
 	namespaces := append(additionalNamespaces, installNamespace)
 	informers := v1helpers.NewKubeInformersForNamespaces(client, namespaces...)
 
@@ -102,6 +113,7 @@ func newCertManager(client kubernetes.Interface, installNamespace string, additi
 		k8sClient:     client,
 		informers:     informers,
 		eventRecorder: eventRecorder,
+		clock:         clock,
 	}
 }
 
@@ -185,7 +197,7 @@ func (cm *certManager) ensureCertConfig(secret *corev1.Secret, certConfig cdicer
 
 	// force refresh
 	if _, ok := secretCpy.Annotations[certrotation.CertificateNotAfterAnnotation]; ok {
-		secretCpy.Annotations[certrotation.CertificateNotAfterAnnotation] = time.Now().UTC().Format(time.RFC3339)
+		secretCpy.Annotations[certrotation.CertificateNotAfterAnnotation] = cm.clock.Now().UTC().Format(time.RFC3339)
 	}
 	secretCpy.Annotations[annCertConfig] = configString
 
