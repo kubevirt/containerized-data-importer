@@ -98,7 +98,7 @@ fi
     ginkgo_args="--trace --timeout=8h --v"
 
     if [[ -n "$CDI_E2E_SKIP" ]]; then
-        ginkgo_args="${ginkgo_args} --ginkgo.skip=${CDI_E2E_SKIP}"
+        ginkgo_args="${ginkgo_args} --skip=${CDI_E2E_SKIP}"
     fi
 
     if [[ -n "$CDI_E2E_FOCUS" || -n "$CDI_E2E_SKIP" ]]; then
