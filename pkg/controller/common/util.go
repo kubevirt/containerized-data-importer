@@ -1644,8 +1644,9 @@ func GetMetricsURL(pod *corev1.Pod) (string, error) {
 	return url, nil
 }
 
-// GetProgressReportFromURL fetches the progress report from the passed URL according to an specific regular expression
-func GetProgressReportFromURL(url string, regExp *regexp.Regexp, httpClient *http.Client) (string, error) {
+// GetProgressReportFromURL fetches the progress report from the passed URL according to an specific metric expression and ownerUID
+func GetProgressReportFromURL(url string, httpClient *http.Client, metricExp, ownerUID string) (string, error) {
+	regExp := regexp.MustCompile(fmt.Sprintf("(%s)\\{ownerUID\\=%q\\} (\\d{1,3}\\.?\\d*)", metricExp, ownerUID))
 	resp, err := httpClient.Get(url)
 	if err != nil {
 		if ErrConnectionRefused(err) {
@@ -1663,7 +1664,7 @@ func GetProgressReportFromURL(url string, regExp *regexp.Regexp, httpClient *htt
 	progressReport := ""
 	match := regExp.FindStringSubmatch(string(body))
 	if match != nil {
-		progressReport = match[1]
+		progressReport = match[len(match)-1]
 	}
 	return progressReport, nil
 }
@@ -1828,63 +1829,6 @@ func BulkDeleteResources(ctx context.Context, c client.Client, obj client.Object
 	}
 
 	return nil
-}
-
-// ProgressFromClaimArgs are the args for ProgressFromClaim
-type ProgressFromClaimArgs struct {
-	Client       client.Client
-	HTTPClient   *http.Client
-	Claim        *corev1.PersistentVolumeClaim
-	OwnerUID     string
-	PodNamespace string
-	PodName      string
-}
-
-// ProgressFromClaim returns the progres
-func ProgressFromClaim(ctx context.Context, args *ProgressFromClaimArgs) (string, error) {
-	// Just set 100.0% if pod is succeeded
-	if args.Claim.Annotations[AnnPodPhase] == string(corev1.PodSucceeded) {
-		return ProgressDone, nil
-	}
-
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: args.PodNamespace,
-			Name:      args.PodName,
-		},
-	}
-	if err := args.Client.Get(ctx, client.ObjectKeyFromObject(pod), pod); err != nil {
-		if k8serrors.IsNotFound(err) {
-			return "", nil
-		}
-		return "", err
-	}
-
-	// This will only work when the import pod is running
-	if pod.Status.Phase != corev1.PodRunning {
-		return "", nil
-	}
-	url, err := GetMetricsURL(pod)
-	if err != nil {
-		return "", err
-	}
-	if url == "" {
-		return "", nil
-	}
-
-	// We fetch the import progress from the import pod metrics
-	importRegExp := regexp.MustCompile("progress\\{ownerUID\\=\"" + args.OwnerUID + "\"\\} (\\d{1,3}\\.?\\d*)")
-	progressReport, err := GetProgressReportFromURL(url, importRegExp, args.HTTPClient)
-	if err != nil {
-		return "", err
-	}
-	if progressReport != "" {
-		if f, err := strconv.ParseFloat(progressReport, 64); err == nil {
-			return fmt.Sprintf("%.2f%%", f), nil
-		}
-	}
-
-	return "", nil
 }
 
 // ValidateSnapshotCloneSize does proper size validation when doing a clone from snapshot operation

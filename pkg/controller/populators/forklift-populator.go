@@ -3,7 +3,6 @@ package populators
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strconv"
 	"time"
 
@@ -26,6 +25,8 @@ import (
 	"kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	openstackMetric "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/openstack-populator"
+	ovirtMetric "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/ovirt-populator"
 )
 
 const (
@@ -439,9 +440,10 @@ func (r *ForkliftPopulatorReconciler) updateImportProgress(podPhase string, pvc,
 	}
 
 	// We fetch the import progress from the import pod metrics
-	importRegExp := regexp.MustCompile("progress\\{ownerUID\\=\"" + string(pvc.UID) + "\"\\} (\\d{1,3}\\.?\\d*)")
 	httpClient = cc.BuildHTTPClient(httpClient)
-	progressReport, err := cc.GetProgressReportFromURL(url, importRegExp, httpClient)
+	progressReport, err := cc.GetProgressReportFromURL(url, httpClient,
+		fmt.Sprintf("%s|%s", openstackMetric.OpenStackPopulatorProgressMetricName, ovirtMetric.OvirtPopulatorProgressMetricName),
+		string(pvc.UID))
 	if err != nil {
 		return err
 	}

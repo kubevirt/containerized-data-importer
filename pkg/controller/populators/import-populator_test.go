@@ -574,8 +574,8 @@ var _ = Describe("Import populator tests", func() {
 			pvcPrime.Annotations = map[string]string{AnnImportPod: importPodName}
 
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				_, _ = w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", targetPvc.GetUID())))
-				w.WriteHeader(200)
+				_, _ = w.Write([]byte(fmt.Sprintf("kubevirt_cdi_import_progress_total{ownerUID=\"%v\"} 13.45", targetPvc.GetUID())))
+				w.WriteHeader(http.StatusOK)
 			}))
 			defer ts.Close()
 			ep, err := url.Parse(ts.URL)

@@ -10,11 +10,9 @@ import (
 	"os/exec"
 	"strconv"
 
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
-
 	"k8s.io/klog/v2"
 
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/ovirt-populator"
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
 
@@ -109,21 +107,13 @@ func executePopulationProcess(config *engineConfig, diskID, volPath, ownerUID st
 }
 
 func monitorProgress(scanner *bufio.Scanner, ownerUID string, pvcSize int64, done chan struct{}) {
-	progress := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "ovirt_progress",
-			Help: "Progress of volume population",
-		},
-		[]string{"ownerUID"},
-	)
-	if err := prometheus.Register(progress); err != nil {
+	if err := metrics.SetupMetrics(); err != nil {
 		klog.Error("Prometheus progress gauge not registered:", err)
 		return
 	}
 
 	var currentProgress float64
 	total := pvcSize
-	metric := &dto.Metric{}
 
 	for scanner.Scan() {
 		progressOutput := transferProgress{}
@@ -137,21 +127,22 @@ func monitorProgress(scanner *bufio.Scanner, ownerUID string, pvcSize int64, don
 		}
 		if total > 0 {
 			currentProgress = (float64(progressOutput.Transferred) / float64(total)) * 100
-			if err := progress.WithLabelValues(ownerUID).Write(metric); err != nil {
+			if progress, err := metrics.GetPopulatorProgress(ownerUID); err != nil {
 				klog.Error(err)
-			} else if currentProgress > metric.Counter.GetValue() {
-				progress.WithLabelValues(ownerUID).Add(currentProgress - metric.Counter.GetValue())
+			} else if currentProgress > progress {
+				metrics.AddPopulatorProgress(ownerUID, currentProgress-progress)
 			}
 		}
 	}
 
-	if err := progress.WithLabelValues(ownerUID).Write(metric); err != nil {
+	progress, err := metrics.GetPopulatorProgress(ownerUID)
+	if err != nil {
 		klog.Error(err)
 	}
 
-	remaining := 100 - int64(metric.Counter.GetValue())
+	remaining := 100 - int64(progress)
 	if remaining > 0 {
-		progress.WithLabelValues(ownerUID).Add(float64(remaining))
+		metrics.AddPopulatorProgress(ownerUID, float64(remaining))
 	}
 
 	done <- struct{}{}

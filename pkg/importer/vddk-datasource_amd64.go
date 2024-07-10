@@ -33,8 +33,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
@@ -50,6 +48,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -789,14 +788,8 @@ type VDDKDataSource struct {
 }
 
 func init() {
-	if err := prometheus.Register(progress); err != nil {
-		if are := (prometheus.AlreadyRegisteredError{}); errors.Is(err, &are) {
-			// A counter for that metric has been registered before.
-			// Use the old counter from now on.
-			progress = are.ExistingCollector.(*prometheus.CounterVec)
-		} else {
-			klog.Errorf("Unable to create prometheus progress counter")
-		}
+	if err := metrics.SetupMetrics(); err != nil {
+		klog.Errorf("Unable to create prometheus progress counter: %v", err)
 	}
 	ownerUID, _ = util.ParseEnvVar(common.OwnerUID, false)
 }
@@ -1033,10 +1026,9 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 			previousProgressPercent = currentProgressPercent
 		}
 		v := float64(currentProgressPercent)
-		metric := &dto.Metric{}
-		err = progress.WithLabelValues(ownerUID).Write(metric)
-		if err == nil && v > 0 && v > *metric.Counter.Value {
-			progress.WithLabelValues(ownerUID).Add(v - *metric.Counter.Value)
+		progress, err := metrics.Progress(ownerUID).Get()
+		if err == nil && v > 0 && v > progress {
+			metrics.Progress(ownerUID).Add(v - progress)
 		}
 	}
 
