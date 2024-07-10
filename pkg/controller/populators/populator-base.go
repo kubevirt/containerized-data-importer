@@ -64,7 +64,7 @@ const (
 )
 
 var (
-	validLabelsMatch = regexp.MustCompile(`^([\w.]+\.kubevirt.io|kubevirt.io)/\w+$`)
+	validLabelsMatch = regexp.MustCompile(`^([\w.]+\.kubevirt.io|kubevirt.io)/[\w-]+$`)
 )
 
 // Interface to store populator-specific methods
