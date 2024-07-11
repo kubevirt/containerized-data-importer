@@ -118,6 +118,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// huawei
 	"csi.huawei.com":     createAllButRWXFileCapabilities(),
 	"csi.huawei.com/nfs": createAllFSCapabilities(),
+	// KubeSAN
+	"kubesan.gitlab.io": {{rwx, block}, {rox, block}, {rwo, block}, {rwo, file}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
@@ -152,6 +154,7 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"infinibox-csi-driver/nfs":                 cdiv1.CloneStrategyCsiClone,
 	"csi.trident.netapp.io/ontap-nas":          cdiv1.CloneStrategySnapshot,
 	"csi.trident.netapp.io/ontap-san":          cdiv1.CloneStrategySnapshot,
+	"kubesan.gitlab.io":                        cdiv1.CloneStrategyCsiClone,
 }
 
 const (
