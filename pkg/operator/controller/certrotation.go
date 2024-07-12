@@ -196,14 +196,27 @@ func (cm *certManager) ensureCertConfig(secret *corev1.Secret, certConfig cdicer
 	return secret, nil
 }
 
-func (cm *certManager) createSecret(namespace, name string) (*corev1.Secret, error) {
+func (cm *certManager) createOrGetSecret(namespace, name string) (*corev1.Secret, error) {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 	}
 
-	return cm.k8sClient.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
+	secret, err := cm.k8sClient.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
+	if err != nil {
+		if !errors.IsAlreadyExists(err) {
+			return nil, err
+		}
+
+		// skip the cache
+		secret, err = cm.k8sClient.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return secret, nil
 }
 
 func (cm *certManager) ensureSigner(cd cdicerts.CertificateDefinition) (*crypto.CA, error) {
@@ -218,7 +231,7 @@ func (cm *certManager) ensureSigner(cd cdicerts.CertificateDefinition) (*crypto.
 			return nil, err
 		}
 
-		secret, err = cm.createSecret(cd.SignerSecret.Namespace, cd.SignerSecret.Name)
+		secret, err = cm.createOrGetSecret(cd.SignerSecret.Namespace, cd.SignerSecret.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -281,7 +294,7 @@ func (cm *certManager) ensureTarget(cd cdicerts.CertificateDefinition, ca *crypt
 			return err
 		}
 
-		secret, err = cm.createSecret(cd.TargetSecret.Namespace, cd.TargetSecret.Name)
+		secret, err = cm.createOrGetSecret(cd.TargetSecret.Namespace, cd.TargetSecret.Name)
 		if err != nil {
 			return err
 		}
