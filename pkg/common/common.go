@@ -141,6 +141,10 @@ const (
 	ImporterPreviousCheckpoint = "IMPORTER_PREVIOUS_CHECKPOINT"
 	// ImporterFinalCheckpoint provides a constant to capture our env variable "IMPORTER_FINAL_CHECKPOINT"
 	ImporterFinalCheckpoint = "IMPORTER_FINAL_CHECKPOINT"
+	// CacheMode provides a constant to capture our env variable "CACHE_MODE"
+	CacheMode = "CACHE_MODE"
+	// CacheModeTryNone provides a constant to capture our env variable value for "CACHE_MODE" that tries O_DIRECT writing if target supports it
+	CacheModeTryNone = "TRYNONE"
 	// Preallocation provides a constant to capture out env variable "PREALLOCATION"
 	Preallocation = "PREALLOCATION"
 	// ImportProxyHTTP provides a constant to capture our env variable "http_proxy"

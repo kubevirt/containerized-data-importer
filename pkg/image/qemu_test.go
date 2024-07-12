@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -30,6 +31,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 	"kubevirt.io/containerized-data-importer/pkg/system"
 	"kubevirt.io/containerized-data-importer/pkg/util/prometheus"
@@ -130,7 +132,9 @@ var _ = Describe("Convert to Raw", func() {
 	var tmpDir, destPath string
 
 	BeforeEach(func() {
-		tmpDir, err := os.MkdirTemp(os.TempDir(), "qemutestdest")
+		var err error
+		// dest is usually not tmpfs, stay honest in unit tests as well
+		tmpDir, err = os.MkdirTemp("/var/tmp", "qemutestdest")
 		Expect(err).NotTo(HaveOccurred())
 		By("tmpDir: " + tmpDir)
 		destPath = filepath.Join(tmpDir, "dest")
@@ -144,14 +148,14 @@ var _ = Describe("Convert to Raw", func() {
 
 	It("should return no error if exec function returns no error", func() {
 		replaceExecFunction(mockExecFunction("", "", nil, "convert", "-p", "-O", "raw", "source", destPath), func() {
-			err := convertToRaw("source", destPath, false)
+			err := convertToRaw("source", destPath, false, "")
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	It("should return conversion error if exec function returns error", func() {
 		replaceExecFunction(mockExecFunction("", "exit 1", nil, "convert", "-p", "-O", "raw", "source", destPath), func() {
-			err := convertToRaw("source", destPath, false)
+			err := convertToRaw("source", destPath, false, "")
 			Expect(err).To(HaveOccurred())
 			Expect(strings.Contains(err.Error(), "could not convert image to raw")).To(BeTrue())
 		})
@@ -161,7 +165,7 @@ var _ = Describe("Convert to Raw", func() {
 		replaceExecFunction(mockExecFunction("", "", nil, "convert", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
 			ep, err := url.Parse("/somefile/somewhere")
 			Expect(err).NotTo(HaveOccurred())
-			err = ConvertToRawStream(ep, destPath, false)
+			err = ConvertToRawStream(ep, destPath, false, "")
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -170,7 +174,7 @@ var _ = Describe("Convert to Raw", func() {
 		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-o", "preallocation=falloc", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
 			ep, err := url.Parse("/somefile/somewhere")
 			Expect(err).NotTo(HaveOccurred())
-			err = ConvertToRawStream(ep, destPath, true)
+			err = ConvertToRawStream(ep, destPath, true, "")
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -179,8 +183,51 @@ var _ = Describe("Convert to Raw", func() {
 		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
 			ep, err := url.Parse("/somefile/somewhere")
 			Expect(err).NotTo(HaveOccurred())
-			err = ConvertToRawStream(ep, destPath, false)
+			err = ConvertToRawStream(ep, destPath, false, "")
 			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("cache mode adjusted according to O_DIRECT support", func() {
+		var tmpFsDir string
+
+		BeforeEach(func() {
+			var err error
+
+			tmpFsDir, err = os.MkdirTemp("/mnt/cditmpfs", "qemutestdestontmpfs")
+			Expect(err).NotTo(HaveOccurred())
+			By("tmpFsDir: " + tmpFsDir)
+		})
+
+		AfterEach(func() {
+			os.RemoveAll(tmpFsDir)
+		})
+
+		It("should use cache=none when destination supports O_DIRECT", func() {
+			replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "none", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
+				ep, err := url.Parse("/somefile/somewhere")
+				Expect(err).NotTo(HaveOccurred())
+				err = ConvertToRawStream(ep, destPath, false, common.CacheModeTryNone)
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+
+		It("should use cache=writeback when destination does not support O_DIRECT", func() {
+			// ensure tmpfs destination
+			out, err := exec.Command("/usr/bin/findmnt", "-T", tmpFsDir, "-o", "FSTYPE").CombinedOutput()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(out)).To(ContainSubstring("tmpfs"))
+
+			tmpFsDestPath := filepath.Join(tmpFsDir, "dest")
+			_, err = os.Create(tmpFsDestPath)
+			Expect(err).NotTo(HaveOccurred())
+
+			replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", tmpFsDestPath), func() {
+				ep, err := url.Parse("/somefile/somewhere")
+				Expect(err).NotTo(HaveOccurred())
+				err = ConvertToRawStream(ep, tmpFsDestPath, false, common.CacheModeTryNone)
+				Expect(err).NotTo(HaveOccurred())
+			})
 		})
 	})
 })
@@ -295,7 +342,8 @@ var _ = Describe("Create blank image", func() {
 	var tmpDir, destPath string
 
 	BeforeEach(func() {
-		tmpDir, err := os.MkdirTemp(os.TempDir(), "qemutestdest")
+		var err error
+		tmpDir, err = os.MkdirTemp(os.TempDir(), "qemutestdest")
 		Expect(err).NotTo(HaveOccurred())
 		By("tmpDir: " + tmpDir)
 		destPath = filepath.Join(tmpDir, "dest")
@@ -350,12 +398,45 @@ var _ = Describe("Create blank image", func() {
 })
 
 var _ = Describe("Create preallocated blank block", func() {
+	var tmpDir, tmpFsDir, destPath string
+
+	BeforeEach(func() {
+		var err error
+		// dest is usually not tmpfs, stay honest in unit tests as well
+		tmpDir, err = os.MkdirTemp("/var/tmp", "qemutestdest")
+		Expect(err).NotTo(HaveOccurred())
+		By("tmpDir: " + tmpDir)
+		destPath = filepath.Join(tmpDir, "dest")
+		_, err = os.Create(destPath)
+		Expect(err).NotTo(HaveOccurred())
+
+		tmpFsDir, err = os.MkdirTemp("/mnt/cditmpfs", "qemutestdestontmpfs")
+		Expect(err).NotTo(HaveOccurred())
+		By("tmpFsDir: " + tmpFsDir)
+	})
+
+	AfterEach(func() {
+		os.RemoveAll(tmpDir)
+		os.RemoveAll(tmpFsDir)
+	})
+
 	It("Should complete successfully if preallocation succeeds", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
-		dest := "cdi-block-volume"
-		replaceExecFunction(mockExecFunction("", "", nil, "if=/dev/zero", "of="+dest, "bs=1048576", "count=10240", "seek=0", "oflag=seek_bytes"), func() {
-			err = PreallocateBlankBlock(dest, quantity)
+		replaceExecFunction(mockExecFunction("", "", nil, "if=/dev/zero", "of="+destPath, "bs=1048576", "count=10240", "seek=0", "oflag=seek_bytes,direct"), func() {
+			err = PreallocateBlankBlock(destPath, quantity)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	It("Should complete successfully with tmpfs dest without O_DIRECT if preallocation succeeds", func() {
+		tmpFsDestPath := filepath.Join(tmpFsDir, "dest")
+		_, err := os.Create(tmpFsDestPath)
+		Expect(err).NotTo(HaveOccurred())
+		quantity, err := resource.ParseQuantity("10Gi")
+		Expect(err).NotTo(HaveOccurred())
+		replaceExecFunction(mockExecFunction("", "", nil, "if=/dev/zero", "of="+tmpFsDestPath, "bs=1048576", "count=10240", "seek=0", "oflag=seek_bytes"), func() {
+			err = PreallocateBlankBlock(tmpFsDestPath, quantity)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -363,11 +444,10 @@ var _ = Describe("Create preallocated blank block", func() {
 	It("Should complete successfully with value not aligned to 1MiB", func() {
 		quantity, err := resource.ParseQuantity("5243392Ki")
 		Expect(err).NotTo(HaveOccurred())
-		dest := "cdi-block-volume"
-		firstCallArgs := []string{"if=/dev/zero", "of=" + dest, "bs=1048576", "count=5120", "seek=0", "oflag=seek_bytes"}
-		secondCallArgs := []string{"if=/dev/zero", "of=" + dest, "bs=524288", "count=1", "seek=5368709120", "oflag=seek_bytes"}
+		firstCallArgs := []string{"if=/dev/zero", "of=" + destPath, "bs=1048576", "count=5120", "seek=0", "oflag=seek_bytes,direct"}
+		secondCallArgs := []string{"if=/dev/zero", "of=" + destPath, "bs=524288", "count=1", "seek=5368709120", "oflag=seek_bytes,direct"}
 		replaceExecFunction(mockExecFunctionTwoCalls("", "", nil, firstCallArgs, secondCallArgs), func() {
-			err = PreallocateBlankBlock(dest, quantity)
+			err = PreallocateBlankBlock(destPath, quantity)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -375,9 +455,8 @@ var _ = Describe("Create preallocated blank block", func() {
 	It("Should fail if preallocation fails", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
-		dest := "cdi-block-volume"
-		replaceExecFunction(mockExecFunction("", "exit 1", nil, "if=/dev/zero", "of="+dest, "bs=1048576", "count=10240", "seek=0", "oflag=seek_bytes"), func() {
-			err = PreallocateBlankBlock(dest, quantity)
+		replaceExecFunction(mockExecFunction("", "exit 1", nil, "if=/dev/zero", "of="+destPath, "bs=1048576", "count=10240", "seek=0", "oflag=seek_bytes,direct"), func() {
+			err = PreallocateBlankBlock(destPath, quantity)
 			Expect(strings.Contains(err.Error(), "Could not preallocate blank block volume at")).To(BeTrue())
 		})
 	})
