@@ -708,15 +708,15 @@ func NewUploadController(mgr manager.Manager, log logr.Logger, uploadImage, pull
 
 func addUploadControllerWatches(mgr manager.Manager, uploadController controller.Controller) error {
 	// Setup watches
-	if err := uploadController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}), &handler.EnqueueRequestForObject{}); err != nil {
+	if err := uploadController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}, &handler.TypedEnqueueRequestForObject[*corev1.PersistentVolumeClaim]{})); err != nil {
 		return err
 	}
-	if err := uploadController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}), handler.EnqueueRequestForOwner(
-		mgr.GetScheme(), mgr.GetClient().RESTMapper(), &corev1.PersistentVolumeClaim{}, handler.OnlyControllerOwner())); err != nil {
+	if err := uploadController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}, handler.TypedEnqueueRequestForOwner[*corev1.Pod](
+		mgr.GetScheme(), mgr.GetClient().RESTMapper(), &corev1.PersistentVolumeClaim{}, handler.OnlyControllerOwner()))); err != nil {
 		return err
 	}
-	if err := uploadController.Watch(source.Kind(mgr.GetCache(), &corev1.Service{}), handler.EnqueueRequestForOwner(
-		mgr.GetScheme(), mgr.GetClient().RESTMapper(), &corev1.PersistentVolumeClaim{}, handler.OnlyControllerOwner())); err != nil {
+	if err := uploadController.Watch(source.Kind(mgr.GetCache(), &corev1.Service{}, handler.TypedEnqueueRequestForOwner[*corev1.Service](
+		mgr.GetScheme(), mgr.GetClient().RESTMapper(), &corev1.PersistentVolumeClaim{}, handler.OnlyControllerOwner()))); err != nil {
 		return err
 	}
 

@@ -111,15 +111,15 @@ func NewCloneController(mgr manager.Manager,
 // addCloneControllerWatches sets up the watches used by the clone controller.
 func addCloneControllerWatches(mgr manager.Manager, cloneController controller.Controller) error {
 	// Setup watches
-	if err := cloneController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}), &handler.EnqueueRequestForObject{}); err != nil {
+	if err := cloneController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}, &handler.TypedEnqueueRequestForObject[*corev1.PersistentVolumeClaim]{})); err != nil {
 		return err
 	}
-	if err := cloneController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}), handler.EnqueueRequestForOwner(
-		mgr.GetScheme(), mgr.GetClient().RESTMapper(), &corev1.PersistentVolumeClaim{}, handler.OnlyControllerOwner())); err != nil {
+	if err := cloneController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}, handler.TypedEnqueueRequestForOwner[*corev1.Pod](
+		mgr.GetScheme(), mgr.GetClient().RESTMapper(), &corev1.PersistentVolumeClaim{}, handler.OnlyControllerOwner()))); err != nil {
 		return err
 	}
-	if err := cloneController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
+	if err := cloneController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.Pod](
+		func(ctx context.Context, obj *corev1.Pod) []reconcile.Request {
 			target, ok := obj.GetAnnotations()[AnnOwnerRef]
 			if !ok {
 				return nil
@@ -137,7 +137,7 @@ func addCloneControllerWatches(mgr manager.Manager, cloneController controller.C
 				},
 			}
 		},
-	)); err != nil {
+	))); err != nil {
 		return err
 	}
 	return nil

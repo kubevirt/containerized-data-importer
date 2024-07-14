@@ -93,7 +93,7 @@ var _ = Describe("Clone populator tests", func() {
 					Kind:     cdiv1.VolumeCloneSourceRef,
 					Name:     dataSourceName,
 				},
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("10Gi"),
 					},

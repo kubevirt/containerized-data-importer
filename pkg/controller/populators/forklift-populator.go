@@ -97,9 +97,8 @@ func NewForkliftPopulator(
 
 func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, sourceKind string, sourceType client.Object) error {
 	// Setup watches
-	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}), handler.EnqueueRequestsFromMapFunc(
-		func(_ context.Context, obj client.Object) []reconcile.Request {
-			pvc := obj.(*corev1.PersistentVolumeClaim)
+	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.PersistentVolumeClaim](
+		func(_ context.Context, pvc *corev1.PersistentVolumeClaim) []reconcile.Request {
 			if isPVCForkliftKind(pvc) {
 				pvcKey := types.NamespacedName{Namespace: pvc.Namespace, Name: pvc.Name}
 				return []reconcile.Request{{NamespacedName: pvcKey}}
@@ -112,14 +111,13 @@ func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, 
 			}
 			return nil
 		}),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
 	// Watch the populator Pod
-	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
-			pod := obj.(*corev1.Pod)
+	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.Pod](
+		func(ctx context.Context, pod *corev1.Pod) []reconcile.Request {
 			if pod.GetAnnotations()[cc.AnnPopulatorKind] != "forklift" {
 				return nil
 			}
@@ -145,7 +143,7 @@ func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, 
 			pvc := pvcPrime.GetOwnerReferences()[0]
 			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: pvcPrime.Namespace, Name: pvc.Name}}}
 		}),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
@@ -164,9 +162,9 @@ func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, 
 		return reqs
 	}
 
-	if err := c.Watch(source.Kind(mgr.GetCache(), sourceType),
+	if err := c.Watch(source.Kind(mgr.GetCache(), sourceType,
 		handler.EnqueueRequestsFromMapFunc(mapDataSourceRefToPVC),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 

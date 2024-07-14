@@ -41,12 +41,12 @@ func indexAndWatch(mgr manager.Manager, ctrl controller.Controller, obj client.O
 		return err
 	}
 
-	if err := ctrl.Watch(source.Kind(mgr.GetCache(), obj), handler.EnqueueRequestsFromMapFunc(
+	if err := ctrl.Watch(source.Kind(mgr.GetCache(), obj, handler.EnqueueRequestsFromMapFunc(
 		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			value := indexKeyFunc(obj.GetNamespace(), obj.GetName())
 			return indexLookup(ctx, mgr.GetClient(), field, value)
 		},
-	)); err != nil {
+	))); err != nil {
 		return err
 	}
 
@@ -75,9 +75,8 @@ func indexLookup(ctx context.Context, c client.Client, field, value string) []re
 }
 
 func watchObjectTransfers(mgr manager.Manager, ctrl controller.Controller) error {
-	return ctrl.Watch(source.Kind(mgr.GetCache(), &cdiv1.ObjectTransfer{}), handler.EnqueueRequestsFromMapFunc(
-		func(_ context.Context, obj client.Object) []reconcile.Request {
-			ot := obj.(*cdiv1.ObjectTransfer)
+	return ctrl.Watch(source.Kind(mgr.GetCache(), &cdiv1.ObjectTransfer{}, handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.ObjectTransfer](
+		func(_ context.Context, ot *cdiv1.ObjectTransfer) []reconcile.Request {
 			result := []reconcile.Request{
 				{
 					NamespacedName: types.NamespacedName{
@@ -96,20 +95,19 @@ func watchObjectTransfers(mgr manager.Manager, ctrl controller.Controller) error
 
 			return result
 		},
-	))
+	)))
 }
 
 func watchPVs(mgr manager.Manager, ctrl controller.Controller) error {
-	return ctrl.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolume{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
-			pv := obj.(*corev1.PersistentVolume)
+	return ctrl.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolume{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.PersistentVolume](
+		func(ctx context.Context, pv *corev1.PersistentVolume) []reconcile.Request {
 			if pv.Spec.ClaimRef == nil {
 				return nil
 			}
 			value := indexKeyFunc(pv.Spec.ClaimRef.Namespace, pv.Spec.ClaimRef.Name)
 			return indexLookup(ctx, mgr.GetClient(), "persistentvolumeclaim", value)
 		},
-	))
+	)))
 }
 
 func addObjectTransferControllerWatches(mgr manager.Manager, ctrl controller.Controller) error {

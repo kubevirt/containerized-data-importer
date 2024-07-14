@@ -154,7 +154,7 @@ func addDataSourceWatch(mgr manager.Manager, c controller.Controller) error {
 		return err
 	}
 
-	mapToDataVolume := func(ctx context.Context, obj client.Object) []reconcile.Request {
+	mapToDataVolume := func(ctx context.Context, obj *cdiv1.DataSource) []reconcile.Request {
 		var dvs cdiv1.DataVolumeList
 		matchingFields := client.MatchingFields{dvDataSourceField: getKey(obj.GetNamespace(), obj.GetName())}
 		if err := mgr.GetClient().List(ctx, &dvs, matchingFields); err != nil {
@@ -168,9 +168,9 @@ func addDataSourceWatch(mgr manager.Manager, c controller.Controller) error {
 		return reqs
 	}
 
-	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{}),
-		handler.EnqueueRequestsFromMapFunc(mapToDataVolume),
-	); err != nil {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{},
+		handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.DataSource](mapToDataVolume),
+	)); err != nil {
 		return err
 	}
 

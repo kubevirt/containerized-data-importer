@@ -394,7 +394,7 @@ var _ = Describe("ValidateClone", func() {
 		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
 		sourcePvc.Spec.VolumeMode = &blockVM
 		storageSpec := &cdiv1.StorageSpec{
-			Resources: v1.ResourceRequirements{
+			Resources: v1.VolumeResourceRequirements{
 				Requests: v1.ResourceList{
 					v1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
 				},
@@ -411,7 +411,7 @@ var _ = Describe("ValidateClone", func() {
 		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
 		sourcePvc.Spec.VolumeMode = &fsVM
 		storageSpec := &cdiv1.StorageSpec{
-			Resources: v1.ResourceRequirements{
+			Resources: v1.VolumeResourceRequirements{
 				Requests: v1.ResourceList{
 					v1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
 				},
@@ -436,7 +436,7 @@ var _ = Describe("ValidateClone", func() {
 	It("Should reject the clone when the target has an incompatible size (PVC API)", func() {
 		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
 		pvcSpec := &v1.PersistentVolumeClaimSpec{
-			Resources: v1.ResourceRequirements{
+			Resources: v1.VolumeResourceRequirements{
 				Requests: v1.ResourceList{
 					v1.ResourceStorage: resource.MustParse("1Mi"), // Less than the source's one (1Gi)
 				},
@@ -453,7 +453,7 @@ var _ = Describe("ValidateClone", func() {
 	It("Should validate the clone when both sizes are compatible (PVC API)", func() {
 		sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
 		pvcSpec := &v1.PersistentVolumeClaimSpec{
-			Resources: v1.ResourceRequirements{
+			Resources: v1.VolumeResourceRequirements{
 				Requests: v1.ResourceList{
 					v1.ResourceStorage: resource.MustParse("1Gi"), // Same as the source's
 				},

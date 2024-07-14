@@ -10,6 +10,8 @@ go_library(
         "//vendor/github.com/spf13/pflag:go_default_library",
         "//vendor/k8s.io/code-generator/cmd/register-gen/args:go_default_library",
         "//vendor/k8s.io/code-generator/cmd/register-gen/generators:go_default_library",
+        "//vendor/k8s.io/gengo/v2:go_default_library",
+        "//vendor/k8s.io/gengo/v2/generator:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
     ],
 )

@@ -110,8 +110,8 @@ func addDataVolumeImportControllerWatches(mgr manager.Manager, datavolumeControl
 	if err := addDataVolumeControllerCommonWatches(mgr, datavolumeController, dataVolumeImport); err != nil {
 		return err
 	}
-	if err := datavolumeController.Watch(source.Kind(mgr.GetCache(), &cdiv1.VolumeImportSource{}), handler.EnqueueRequestForOwner(
-		mgr.GetScheme(), mgr.GetClient().RESTMapper(), &cdiv1.DataVolume{}, handler.OnlyControllerOwner())); err != nil {
+	if err := datavolumeController.Watch(source.Kind(mgr.GetCache(), &cdiv1.VolumeImportSource{}, handler.TypedEnqueueRequestForOwner[*cdiv1.VolumeImportSource](
+		mgr.GetScheme(), mgr.GetClient().RESTMapper(), &cdiv1.DataVolume{}, handler.OnlyControllerOwner()))); err != nil {
 		return err
 	}
 	return nil

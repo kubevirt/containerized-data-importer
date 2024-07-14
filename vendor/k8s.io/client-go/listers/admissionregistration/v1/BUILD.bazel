@@ -5,6 +5,8 @@ go_library(
     srcs = [
         "expansion_generated.go",
         "mutatingwebhookconfiguration.go",
+        "validatingadmissionpolicy.go",
+        "validatingadmissionpolicybinding.go",
         "validatingwebhookconfiguration.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/k8s.io/client-go/listers/admissionregistration/v1",

@@ -415,36 +415,41 @@ func NewStorageProfileController(mgr manager.Manager, log logr.Logger, installer
 }
 
 func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
-	if err := c.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}), &handler.EnqueueRequestForObject{}); err != nil {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}, &handler.TypedEnqueueRequestForObject[*storagev1.StorageClass]{})); err != nil {
 		return err
 	}
 
-	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.StorageProfile{}), &handler.EnqueueRequestForObject{}); err != nil {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.StorageProfile{}, &handler.TypedEnqueueRequestForObject[*cdiv1.StorageProfile]{})); err != nil {
 		return err
 	}
 
-	if err := c.Watch(source.Kind(mgr.GetCache(), &v1.PersistentVolume{}), handler.EnqueueRequestsFromMapFunc(
-		func(_ context.Context, obj client.Object) []reconcile.Request {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &v1.PersistentVolume{}, handler.TypedEnqueueRequestsFromMapFunc[*v1.PersistentVolume](
+		func(_ context.Context, obj *v1.PersistentVolume) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: scName(obj)},
 			}}
 		},
 	),
-		predicate.Funcs{
-			CreateFunc: func(e event.CreateEvent) bool { return isNoProvisioner(scName(e.Object), mgr.GetClient()) },
-			UpdateFunc: func(e event.UpdateEvent) bool { return isNoProvisioner(scName(e.ObjectNew), mgr.GetClient()) },
-			DeleteFunc: func(e event.DeleteEvent) bool { return isNoProvisioner(scName(e.Object), mgr.GetClient()) },
-		}); err != nil {
+		predicate.TypedFuncs[*v1.PersistentVolume]{
+			CreateFunc: func(e event.TypedCreateEvent[*v1.PersistentVolume]) bool {
+				return isNoProvisioner(scName(e.Object), mgr.GetClient())
+			},
+			UpdateFunc: func(e event.TypedUpdateEvent[*v1.PersistentVolume]) bool {
+				return isNoProvisioner(scName(e.ObjectNew), mgr.GetClient())
+			},
+			DeleteFunc: func(e event.TypedDeleteEvent[*v1.PersistentVolume]) bool {
+				return isNoProvisioner(scName(e.Object), mgr.GetClient())
+			},
+		})); err != nil {
 		return err
 	}
 
-	mapSnapshotClassToProfile := func(ctx context.Context, obj client.Object) []reconcile.Request {
+	mapSnapshotClassToProfile := func(ctx context.Context, vsc *snapshotv1.VolumeSnapshotClass) []reconcile.Request {
 		var scList storagev1.StorageClassList
 		if err := mgr.GetClient().List(ctx, &scList); err != nil {
 			c.GetLogger().Error(err, "Unable to list StorageClasses")
 			return nil
 		}
-		vsc := obj.(*snapshotv1.VolumeSnapshotClass)
 		var reqs []reconcile.Request
 		for _, sc := range scList.Items {
 			if sc.Provisioner == vsc.Driver {
@@ -462,9 +467,9 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 			return err
 		}
 	}
-	if err := c.Watch(source.Kind(mgr.GetCache(), &snapshotv1.VolumeSnapshotClass{}),
-		handler.EnqueueRequestsFromMapFunc(mapSnapshotClassToProfile),
-	); err != nil {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &snapshotv1.VolumeSnapshotClass{},
+		handler.TypedEnqueueRequestsFromMapFunc[*snapshotv1.VolumeSnapshotClass](mapSnapshotClassToProfile),
+	)); err != nil {
 		return err
 	}
 

@@ -4,7 +4,6 @@ go_library(
     name = "go_default_library",
     srcs = [
         "doc.go",
-        "feature_gates.go",
         "register.go",
         "stringsource.go",
         "types.go",
@@ -29,6 +28,7 @@ go_library(
         "types_project.go",
         "types_proxy.go",
         "types_scheduling.go",
+        "types_testreporting.go",
         "types_tlssecurityprofile.go",
         "zz_generated.deepcopy.go",
         "zz_generated.swagger_doc_generated.go",
