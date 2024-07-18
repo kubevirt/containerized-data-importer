@@ -3372,11 +3372,11 @@ rpm(
 )
 
 rpm(
-    name = "tar-2__1.34-6.el9.x86_64",
-    sha256 = "9f6adb2da035d5123587a2bb401487521bd6543497003ffc6e66386d898133f3",
+    name = "tar-1.35-3.el10.x86_64",
+    sha256 = "9b28de3608607b9219ab1e93db24e421ebf2acd60efc221a6ef2eb2eb9ae6dd1",
     urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/tar-1.34-6.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/9f6adb2da035d5123587a2bb401487521bd6543497003ffc6e66386d898133f3",
+        "https://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/tar-1.35-3.el10.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/9b28de3608607b9219ab1e93db24e421ebf2acd60efc221a6ef2eb2eb9ae6dd1",
     ],
 )
 
