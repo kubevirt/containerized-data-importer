@@ -490,8 +490,8 @@ func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string,
 
 func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string, dvContentType cdiv1.DataVolumeContentType) (bool, error) {
 	stream = newContentReader(stream, sourceContentType)
-	if sourceContentType == common.FilesystemCloneContentType {
-		return filesystemCloneProcessor(stream, dest)
+	if isCloneTarget(sourceContentType) {
+		return cloneProcessor(stream, sourceContentType, dest)
 	}
 
 	// Clone block device to block device or file system
@@ -501,35 +501,38 @@ func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, file
 	return processor.PreallocationApplied(), err
 }
 
-// Clone file system to block device or file system
-func filesystemCloneProcessor(stream io.ReadCloser, dest string) (bool, error) {
-	// Clone to block device
-	if dest == common.WriteBlockPath {
+func cloneProcessor(stream io.ReadCloser, contentType, dest string) (bool, error) {
+	if contentType == common.FilesystemCloneContentType {
+		if dest != common.WriteBlockPath {
+			return fileToFileCloneProcessor(stream)
+		}
+
 		tarImageReader, err := newTarDiskImageReader(stream)
 		if err != nil {
 			stream.Close()
 			return false, err
 		}
-		defer tarImageReader.Close()
-
-		if err := writeToBlockdev(tarImageReader, dest); err != nil {
-			return false, errors.Wrapf(err, "error unarchiving to %s", dest)
-		}
-		return false, nil
+		stream = tarImageReader
 	}
 
 	defer stream.Close()
+	if err := writeToFile(stream, dest); err != nil {
+		return false, err
+	}
 
-	// Clone to file system
-	destDir := common.ImporterVolumePath
-	if err := util.UnArchiveTar(stream, destDir); err != nil {
-		return false, errors.Wrapf(err, "error unarchiving to %s", destDir)
+	return false, nil
+}
+
+func fileToFileCloneProcessor(stream io.ReadCloser) (bool, error) {
+	defer stream.Close()
+	if err := util.UnArchiveTar(stream, common.ImporterVolumePath); err != nil {
+		return false, errors.Wrapf(err, "error unarchiving to %s", common.ImporterVolumePath)
 	}
 	return true, nil
 }
 
-func writeToBlockdev(stream io.ReadCloser, dest string) error {
-	f, err := os.OpenFile(dest, os.O_APPEND|os.O_WRONLY, os.ModeDevice|os.ModePerm)
+func writeToFile(stream io.ReadCloser, dest string) error {
+	f, err := util.OpenFileOrBlockDevice(dest)
 	if err != nil {
 		return err
 	}
