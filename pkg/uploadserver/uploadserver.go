@@ -491,7 +491,7 @@ func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string,
 func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string, dvContentType cdiv1.DataVolumeContentType) (bool, error) {
 	stream = newContentReader(stream, sourceContentType)
 	if isCloneTarget(sourceContentType) {
-		return cloneProcessor(stream, sourceContentType, dest)
+		return cloneProcessor(stream, sourceContentType, dest, preallocation)
 	}
 
 	// Clone block device to block device or file system
@@ -501,7 +501,7 @@ func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, file
 	return processor.PreallocationApplied(), err
 }
 
-func cloneProcessor(stream io.ReadCloser, contentType, dest string) (bool, error) {
+func cloneProcessor(stream io.ReadCloser, contentType, dest string, preallocate bool) (bool, error) {
 	if contentType == common.FilesystemCloneContentType {
 		if dest != common.WriteBlockPath {
 			return fileToFileCloneProcessor(stream)
@@ -516,9 +516,12 @@ func cloneProcessor(stream io.ReadCloser, contentType, dest string) (bool, error
 	}
 
 	defer stream.Close()
-	if err := writeToFile(stream, dest); err != nil {
+	bytesRead, bytesWrittenn, err := util.StreamDataToFile(stream, dest, preallocate)
+	if err != nil {
 		return false, err
 	}
+
+	klog.Infof("Read %d bytes, wrote %d bytes to %s", bytesRead, bytesWrittenn, dest)
 
 	return false, nil
 }
@@ -529,20 +532,6 @@ func fileToFileCloneProcessor(stream io.ReadCloser) (bool, error) {
 		return false, errors.Wrapf(err, "error unarchiving to %s", common.ImporterVolumePath)
 	}
 	return true, nil
-}
-
-func writeToFile(stream io.ReadCloser, dest string) error {
-	f, err := util.OpenFileOrBlockDevice(dest)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	written, err := io.Copy(f, stream)
-	if err != nil {
-		return err
-	}
-	klog.Infof("Written %d", written)
-	return nil
 }
 
 type closeWrapper struct {
