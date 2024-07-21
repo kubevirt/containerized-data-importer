@@ -933,6 +933,15 @@ rpm(
 )
 
 rpm(
+    name = "glibc-2.39-15.el10.x86_64",
+    sha256 = "eadc295398fbe7d00aeede3cd3e820dc4464053dfec25665db2951f0a4b6a2a7",
+    urls = [
+        "https://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/glibc-2.39-15.el10.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/eadc295398fbe7d00aeede3cd3e820dc4464053dfec25665db2951f0a4b6a2a7"
+    ],
+)
+
+rpm(
     name = "glibc-0__2.34-105.el9.aarch64",
     sha256 = "336c6903e04a6a3c1aefb45ac24c42606142978ebd42fcb7aa6280b9aca7a42b",
     urls = [
