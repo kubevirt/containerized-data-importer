@@ -34,6 +34,7 @@ load(
 container_image(
     name = "cdi-importer-image",
     architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
@@ -57,6 +58,10 @@ container_image(
 container_image(
     name = "importer_base",
     tars = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": [
+            "//rpm:cdi_importer_base_s390x",
+            "//:ca_anchors_tar",
+        ],
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             "//rpm:cdi_importer_base_aarch64",
             "//:ca_anchors_tar",

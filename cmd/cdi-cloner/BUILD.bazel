@@ -40,6 +40,7 @@ go_test(
 container_image(
     name = "cdi-cloner-image",
     architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
