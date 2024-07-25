@@ -935,19 +935,13 @@ rpm(
 rpm(
     name = "glibc-0__2.34-105.el9.aarch64",
     sha256 = "336c6903e04a6a3c1aefb45ac24c42606142978ebd42fcb7aa6280b9aca7a42b",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/glibc-2.34-105.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/336c6903e04a6a3c1aefb45ac24c42606142978ebd42fcb7aa6280b9aca7a42b",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/336c6903e04a6a3c1aefb45ac24c42606142978ebd42fcb7aa6280b9aca7a42b"],
 )
 
 rpm(
     name = "glibc-0__2.34-105.el9.x86_64",
     sha256 = "6661469038eeb013719ef193e8d7fa6e550b9cc3a16807add13ba80e8d759fce",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/glibc-2.34-105.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/6661469038eeb013719ef193e8d7fa6e550b9cc3a16807add13ba80e8d759fce",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/6661469038eeb013719ef193e8d7fa6e550b9cc3a16807add13ba80e8d759fce"],
 )
 
 rpm(
@@ -965,19 +959,13 @@ rpm(
 rpm(
     name = "glibc-common-0__2.34-105.el9.aarch64",
     sha256 = "ee73d0f50167351f238ca5bc1599733f96b81428193d962aefa44def1ae76049",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/glibc-common-2.34-105.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/ee73d0f50167351f238ca5bc1599733f96b81428193d962aefa44def1ae76049",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/ee73d0f50167351f238ca5bc1599733f96b81428193d962aefa44def1ae76049"],
 )
 
 rpm(
     name = "glibc-common-0__2.34-105.el9.x86_64",
     sha256 = "f1969f9d9036b19214932c879fec6a4aa824926dab9b4e7e702c6c8593230589",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/glibc-common-2.34-105.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/f1969f9d9036b19214932c879fec6a4aa824926dab9b4e7e702c6c8593230589",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/f1969f9d9036b19214932c879fec6a4aa824926dab9b4e7e702c6c8593230589"],
 )
 
 rpm(
@@ -995,19 +983,13 @@ rpm(
 rpm(
     name = "glibc-minimal-langpack-0__2.34-105.el9.aarch64",
     sha256 = "66bf86619a4700e3741d162f9e1c814dcab2bf85794ed6dde57303282bb50a01",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/glibc-minimal-langpack-2.34-105.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/66bf86619a4700e3741d162f9e1c814dcab2bf85794ed6dde57303282bb50a01",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/66bf86619a4700e3741d162f9e1c814dcab2bf85794ed6dde57303282bb50a01"],
 )
 
 rpm(
     name = "glibc-minimal-langpack-0__2.34-105.el9.x86_64",
     sha256 = "9f008fc5acfefd01bdc51580f5bca61d49a2e22c7db7fa2b403742fda9cb946f",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/glibc-minimal-langpack-2.34-105.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/9f008fc5acfefd01bdc51580f5bca61d49a2e22c7db7fa2b403742fda9cb946f",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/9f008fc5acfefd01bdc51580f5bca61d49a2e22c7db7fa2b403742fda9cb946f"],
 )
 
 rpm(
