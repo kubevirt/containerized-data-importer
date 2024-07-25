@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/emicklei/go-restful/v3"
@@ -63,13 +64,25 @@ func (a *authorizor) matchHeaders(headers http.Header, toMatch []string) ([]stri
 	return nil, fmt.Errorf("one of these headers required for authorization: %+v", toMatch)
 }
 
+func hasPrefixIgnoreCase(s, prefix string) bool {
+	return len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix)
+}
+
+func unescapeExtraKey(encodedKey string) string {
+	key, err := url.PathUnescape(encodedKey) // Decode %-encoded bytes.
+	if err != nil {
+		return encodedKey // Always record extra strings, even if malformed/unencoded.
+	}
+	return key
+}
+
 func (a *authorizor) getUserExtras(headers http.Header, toMatch []string) map[string]authorization.ExtraValue {
 	extras := map[string]authorization.ExtraValue{}
 
 	for _, prefix := range toMatch {
 		for k, v := range headers {
-			if strings.HasPrefix(k, prefix) {
-				extraKey := strings.TrimPrefix(k, prefix)
+			if hasPrefixIgnoreCase(k, prefix) {
+				extraKey := unescapeExtraKey(strings.ToLower(k[len(prefix):]))
 				extras[extraKey] = v
 			}
 		}
@@ -145,6 +158,10 @@ func (a *authorizor) generateAccessReview(req *restful.Request) (*authorization.
 		Groups: userGroups,
 		Extra:  userExtras,
 	}
+
+	klog.V(3).Infof("Generating access review for user %s", r.Spec.User)
+	klog.V(3).Infof("Generating access review for groups %v", r.Spec.Groups)
+	klog.V(3).Infof("Generating access review for user extras %v", r.Spec.Extra)
 
 	r.Spec.ResourceAttributes = &authorization.ResourceAttributes{
 		Namespace: namespace,
