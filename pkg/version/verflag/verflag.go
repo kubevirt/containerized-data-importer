@@ -45,7 +45,7 @@ func (v *versionValue) IsBoolFlag() bool {
 }
 
 func (v *versionValue) Get() interface{} {
-	return versionValue(*v)
+	return *v
 }
 
 func (v *versionValue) Set(s string) error {

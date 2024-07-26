@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["ovirt-populator.go"],
+    importpath = "kubevirt.io/containerized-data-importer/cmd/ovirt-populator",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/monitoring/metrics/ovirt-populator:go_default_library",
+        "//pkg/util/prometheus:go_default_library",
+        "//vendor/k8s.io/klog/v2:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "ovirt-populator",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)

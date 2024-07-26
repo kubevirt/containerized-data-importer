@@ -22,11 +22,12 @@ import (
 	"reflect"
 
 	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"kubevirt.io/containerized-data-importer/pkg/token"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -41,6 +42,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
+	"kubevirt.io/containerized-data-importer/pkg/token"
 )
 
 const (
@@ -91,9 +93,9 @@ const (
 	SizeDetectionPodCreated = "SizeDetectionPodCreated"
 	// MessageSizeDetectionPodCreated provides a const to indicate that the size-detection pod has been created (message)
 	MessageSizeDetectionPodCreated = "Size-detection pod created"
-	// SizeDetectionPodNotReady reports that the size-detection pod has not finished its exectuion (reason)
+	// SizeDetectionPodNotReady reports that the size-detection pod has not finished its execution (reason)
 	SizeDetectionPodNotReady = "SizeDetectionPodNotReady"
-	// MessageSizeDetectionPodNotReady reports that the size-detection pod has not finished its exectuion (message)
+	// MessageSizeDetectionPodNotReady reports that the size-detection pod has not finished its execution (message)
 	MessageSizeDetectionPodNotReady = "The size detection pod is not finished yet"
 	// ImportPVCNotReady reports that it's not yet possible to access the source PVC (reason)
 	ImportPVCNotReady = "ImportPVCNotReady"
@@ -146,8 +148,8 @@ type CloneReconcilerBase struct {
 }
 
 func (r *CloneReconcilerBase) addVolumeCloneSourceWatch(mgr manager.Manager, datavolumeController controller.Controller) error {
-	return datavolumeController.Watch(source.Kind(mgr.GetCache(), &cdiv1.VolumeCloneSource{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
+	return datavolumeController.Watch(source.Kind(mgr.GetCache(), &cdiv1.VolumeCloneSource{}, handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.VolumeCloneSource](
+		func(ctx context.Context, obj *cdiv1.VolumeCloneSource) []reconcile.Request {
 			var err error
 			var hasDataVolumeOwner bool
 			var ownerNamespace, ownerName string
@@ -186,7 +188,7 @@ func (r *CloneReconcilerBase) addVolumeCloneSourceWatch(mgr manager.Manager, dat
 			}
 			return nil
 		}),
-	)
+	))
 }
 
 func (r *CloneReconcilerBase) updatePVCForPopulation(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
@@ -426,7 +428,7 @@ var populatorPhaseMap = map[string]cdiv1.DataVolumePhase{
 	clone.RebindPhaseName:        cdiv1.RebindInProgress,
 	clone.SnapshotClonePhaseName: cdiv1.CloneFromSnapshotSourceInProgress,
 	clone.SnapshotPhaseName:      cdiv1.SnapshotForSmartCloneInProgress,
-	//clone.ErrorPhaseName:         cdiv1.Error, // Want to hold off on this for now
+	clone.ErrorPhaseName:         cdiv1.Failed,
 }
 
 func (r *CloneReconcilerBase) updateStatusPhaseForPopulator(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
@@ -437,7 +439,10 @@ func (r *CloneReconcilerBase) updateStatusPhaseForPopulator(pvc *corev1.Persiste
 		//dataVolumeCopy.Status.Phase = cdiv1.Unknown // hold off on this for now
 		return nil
 	}
-	dataVolumeCopy.Status.Phase = dvPhase
+	// Avoid setting DV to failed for consistency with non-populator flow
+	if dvPhase != cdiv1.Failed {
+		dataVolumeCopy.Status.Phase = dvPhase
+	}
 	r.setEventForPhase(dataVolumeCopy, dvPhase, event)
 	return nil
 }
@@ -548,26 +553,27 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 	}
 
 	// Function to reconcile DVs that match the selected fields
-	dataVolumeMapper := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+	dataVolumeMapper := func(ctx context.Context, obj client.Object) []reconcile.Request {
 		dvList := &cdiv1.DataVolumeList{}
 		namespacedName := types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}
 		matchingFields := client.MatchingFields{indexingKey: namespacedName.String()}
 		if err := mgr.GetClient().List(ctx, dvList, matchingFields); err != nil {
-			return
+			return nil
 		}
+		var reqs []reconcile.Request
 		for _, dv := range dvList.Items {
 			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
 		}
-		return
+		return reqs
 	}
 
-	if err := datavolumeController.Watch(source.Kind(mgr.GetCache(), typeToWatch),
+	if err := datavolumeController.Watch(source.Kind(mgr.GetCache(), typeToWatch,
 		handler.EnqueueRequestsFromMapFunc(dataVolumeMapper),
 		predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool { return true },
 			DeleteFunc: func(e event.DeleteEvent) bool { return false },
 			UpdateFunc: func(e event.UpdateEvent) bool { return false },
-		}); err != nil {
+		})); err != nil {
 		return err
 	}
 

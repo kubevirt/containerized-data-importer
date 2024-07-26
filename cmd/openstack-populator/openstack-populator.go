@@ -1,11 +1,11 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"flag"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -15,14 +15,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/imageservice/v2/imagedata"
-	"github.com/gophercloud/utils/openstack/clientconfig"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack"
+	"github.com/gophercloud/gophercloud/v2/openstack/image/v2/imagedata"
+	"github.com/gophercloud/utils/v2/openstack/clientconfig"
 
 	"k8s.io/klog/v2"
+
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/openstack-populator"
+	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
 
 const (
@@ -61,148 +62,198 @@ var supportedAuthTypes = map[string]clientconfig.AuthType{
 	"applicationcredential": clientconfig.AuthV3ApplicationCredential,
 }
 
-func main() {
-	var (
-		identityEndpoint string
-		imageID          string
-		secretName       string
-
-		volumePath string
-	)
-
-	klog.InitFlags(nil)
-
-	// Main arg
-	flag.StringVar(&identityEndpoint, "endpoint", "", "endpoint URL (https://openstack.example.com:5000/v2.0)")
-	flag.StringVar(&secretName, "secret-name", "", "secret containing OpenStack credentials")
-	flag.StringVar(&imageID, "image-id", "", "Openstack image ID")
-	flag.StringVar(&volumePath, "volume-path", "", "Path to populate")
-
-	flag.Parse()
-
-	populate(volumePath, identityEndpoint, secretName, imageID)
-}
-
-func populate(fileName, identityEndpoint, secretName, imageID string) {
-	http.Handle("/metrics", promhttp.Handler())
-	go func() {
-		if err := http.ListenAndServe(":2112", nil); err != nil {
-			klog.Error(err)
-		}
-	}()
-	progressGague := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Subsystem: "volume_populators",
-			Name:      "openstack_volume_populator",
-			Help:      "Amount of data transferred",
-		},
-		[]string{"image_id"},
-	)
-
-	if err := prometheus.Register(progressGague); err != nil {
-		klog.Error("Prometheus progress counter not registered:", err)
-	} else {
-		klog.Info("Prometheus progress counter registered.")
-	}
-
-	availability := gophercloud.AvailabilityPublic
-	if a := getStringFromSecret(endpointAvailability); a != "" {
-		availability = gophercloud.Availability(a)
-	}
-	endpointOpts := gophercloud.EndpointOpts{
-		Region:       getStringFromSecret(regionName),
-		Availability: availability,
-	}
-	provider, err := getProviderClient(identityEndpoint)
-	if err != nil {
-		klog.Fatal(err)
-	}
-	imageService, err := openstack.NewImageServiceV2(provider, endpointOpts)
-	if err != nil {
-		klog.Fatal(err)
-	}
-	image, err := imagedata.Download(imageService, imageID).Extract()
-	if err != nil {
-		klog.Fatal(err)
-	}
-	defer image.Close()
-
-	if err != nil {
-		klog.Fatal(err)
-	}
-	flags := os.O_RDWR
-	if strings.HasSuffix(fileName, "disk.img") {
-		flags |= os.O_CREATE
-	}
-	f, err := os.OpenFile(fileName, flags, 0650)
-	if err != nil {
-		klog.Fatal(err)
-	}
-	defer f.Close()
-
-	err = writeData(image, f, imageID, progressGague)
-	if err != nil {
-		klog.Fatal(err)
-	}
+type appConfig struct {
+	identityEndpoint string
+	imageID          string
+	secretName       string
+	ownerUID         string
+	pvcSize          int64
+	volumePath       string
 }
 
 type countingReader struct {
 	reader io.ReadCloser
-	total  *int64
+	total  int64
+	read   *int64
 }
 
 func (cr *countingReader) Read(p []byte) (int, error) {
 	n, err := cr.reader.Read(p)
-	*cr.total += int64(n)
+	cr.total += int64(n)
 	return n, err
 }
 
-func writeData(reader io.ReadCloser, file *os.File, imageID string, progress *prometheus.GaugeVec) error {
-	total := new(int64)
-	countingReader := countingReader{reader, total}
+func main() {
+	klog.InitFlags(nil)
 
+	config := &appConfig{}
+	flag.StringVar(&config.identityEndpoint, "endpoint", "", "endpoint URL (https://openstack.example.com:5000/v2.0)")
+	flag.StringVar(&config.secretName, "secret-name", "", "secret containing OpenStack credentials")
+	flag.StringVar(&config.imageID, "image-id", "", "Openstack image ID")
+	flag.StringVar(&config.volumePath, "volume-path", "", "Path to populate")
+	flag.StringVar(&config.ownerUID, "owner-uid", "", "Owner UID (usually PVC UID)")
+	flag.Int64Var(&config.pvcSize, "pvc-size", 0, "Size of pvc (in bytes)")
+	flag.Parse()
+
+	certsDirectory, err := os.MkdirTemp("", "certsdir")
+	if err != nil {
+		panic(err)
+	}
+
+	defer os.RemoveAll(certsDirectory)
+
+	prometheusutil.StartPrometheusEndpoint("/certsdir")
+
+	populate(config)
+}
+
+func populate(config *appConfig) {
+	provider, err := getProviderClient(config.identityEndpoint)
+	if err != nil {
+		klog.Fatal(err)
+	}
+
+	imageReader, err := setupImageService(provider, config)
+	if err != nil {
+		klog.Fatal(err)
+	}
+	defer imageReader.Close()
+
+	downloadAndSaveImage(config, imageReader)
+}
+
+func downloadAndSaveImage(config *appConfig, imageReader io.ReadCloser) {
+	klog.Info("Downloading the image: ", config.imageID)
+	file := openFile(config.volumePath)
+	defer file.Close()
+
+	createProgressCounter()
+	writeData(imageReader, file, config)
+}
+
+func setupImageService(provider *gophercloud.ProviderClient, config *appConfig) (io.ReadCloser, error) {
+	imageService, err := openstack.NewImageV2(provider, getEndpointOpts())
+	if err != nil {
+		return nil, err
+	}
+
+	imageReader, err := imagedata.Download(context.Background(), imageService, config.imageID).Extract()
+	if err != nil {
+		return nil, err
+	}
+
+	return imageReader, nil
+}
+
+func getEndpointOpts() gophercloud.EndpointOpts {
+	availability := gophercloud.AvailabilityPublic
+	if a := getStringFromSecret(endpointAvailability); a != "" {
+		availability = gophercloud.Availability(a)
+	}
+
+	return gophercloud.EndpointOpts{
+		Region:       getStringFromSecret(regionName),
+		Availability: availability,
+	}
+}
+
+func writeData(reader io.ReadCloser, file *os.File, config *appConfig) {
+	countingReader := &countingReader{reader: reader, total: config.pvcSize, read: new(int64)}
 	done := make(chan bool)
-	go func() {
-		for {
-			select {
-			case <-done:
-				return
-			default:
-				progress.WithLabelValues(imageID).Set(float64(*total))
-				klog.Info("Transferred: ", *total)
-				time.Sleep(3 * time.Second)
-			}
-		}
-	}()
 
-	if _, err := io.Copy(file, &countingReader); err != nil {
+	go reportProgress(done, countingReader, config)
+
+	if _, err := io.Copy(file, countingReader); err != nil {
 		klog.Fatal(err)
 	}
 	done <- true
-	progress.WithLabelValues(imageID).Set(float64(*total))
-
-	return nil
 }
 
-func getAuthType() (authType clientconfig.AuthType, err error) {
-	if configuredAuthType := getStringFromSecret(authTypeString); configuredAuthType == "" {
-		authType = clientconfig.AuthPassword
-	} else if supportedAuthType, found := supportedAuthTypes[configuredAuthType]; found {
-		authType = supportedAuthType
-	} else {
-		err = errors.New(unsupportedAuthTypeErrStr)
-		klog.Fatal(err.Error(), "authType", configuredAuthType)
+func reportProgress(done chan bool, countingReader *countingReader, config *appConfig) {
+	for {
+		select {
+		case <-done:
+			finalizeProgress(config.ownerUID)
+			return
+		default:
+			updateProgress(countingReader, config.ownerUID)
+			time.Sleep(1 * time.Second)
+		}
 	}
-	return
+}
+
+func createProgressCounter() {
+	if err := metrics.SetupMetrics(); err != nil {
+		klog.Error("Prometheus progress counter not registered:", err)
+	} else {
+		klog.Info("Prometheus progress counter registered.")
+	}
+}
+
+func finalizeProgress(ownerUID string) {
+	progress, err := metrics.GetPopulatorProgress(ownerUID)
+	if err != nil {
+		klog.Error("Error reading current progress:", err)
+		return
+	}
+
+	remainingProgress := 100 - progress
+	if remainingProgress > 0 {
+		metrics.AddPopulatorProgress(ownerUID, remainingProgress)
+	}
+
+	klog.Info("Finished populating the volume. Progress: 100%")
+}
+
+func updateProgress(countingReader *countingReader, ownerUID string) {
+	if countingReader.total <= 0 {
+		return
+	}
+
+	progress, err := metrics.GetPopulatorProgress(ownerUID)
+	if err != nil {
+		klog.Errorf("updateProgress: failed to get metric; %v", err)
+	}
+
+	currentProgress := (float64(*countingReader.read) / float64(countingReader.total)) * 100
+
+	if currentProgress > progress {
+		metrics.AddPopulatorProgress(ownerUID, currentProgress-progress)
+	}
+
+	klog.Info("Progress: ", int64(currentProgress), "%")
+}
+
+func openFile(volumePath string) *os.File {
+	flags := os.O_RDWR
+	if strings.HasSuffix(volumePath, "disk.img") {
+		flags |= os.O_CREATE
+	}
+	file, err := os.OpenFile(volumePath, flags, 0650)
+	if err != nil {
+		klog.Fatal(err)
+	}
+	return file
+}
+
+func getAuthType() (clientconfig.AuthType, error) {
+	configuredAuthType := getStringFromSecret(authTypeString)
+	if configuredAuthType == "" {
+		return clientconfig.AuthPassword, nil
+	}
+
+	if supportedAuthType, found := supportedAuthTypes[configuredAuthType]; found {
+		return supportedAuthType, nil
+	}
+
+	err := errors.New(unsupportedAuthTypeErrStr)
+	klog.Fatal(err.Error(), "authType", configuredAuthType)
+	return clientconfig.AuthType(""), err
 }
 
 func getStringFromSecret(key string) string {
-	value, err := os.ReadFile(fmt.Sprintf("/etc/secret-volume/%s", key))
-	if err != nil {
-		klog.Info(err.Error())
-		return ""
-	}
-	return string(value)
+	value := os.Getenv(key)
+	return value
 }
 
 func getBoolFromSecret(key string) bool {
@@ -216,8 +267,7 @@ func getBoolFromSecret(key string) bool {
 	return false
 }
 
-func getProviderClient(identityEndpoint string) (provider *gophercloud.ProviderClient, err error) {
-
+func getProviderClient(identityEndpoint string) (*gophercloud.ProviderClient, error) {
 	authInfo := &clientconfig.AuthInfo{
 		AuthURL:           identityEndpoint,
 		ProjectName:       getStringFromSecret(projectName),
@@ -233,10 +283,10 @@ func getProviderClient(identityEndpoint string) (provider *gophercloud.ProviderC
 	}
 
 	var authType clientconfig.AuthType
-	authType, err = getAuthType()
+	authType, err := getAuthType()
 	if err != nil {
 		klog.Fatal(err.Error())
-		return
+		return nil, err
 	}
 
 	switch authType {
@@ -256,13 +306,13 @@ func getProviderClient(identityEndpoint string) (provider *gophercloud.ProviderC
 	identityURL, err := url.Parse(identityEndpoint)
 	if err != nil {
 		klog.Fatal(err.Error())
-		return
+		return nil, err
 	}
 
 	var TLSClientConfig *tls.Config
 	if identityURL.Scheme == "https" {
 		if getBoolFromSecret(insecureSkipVerify) {
-			TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+			TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
 		} else {
 			cacert := []byte(getStringFromSecret(caCert))
 			if len(cacert) == 0 {
@@ -273,18 +323,20 @@ func getProviderClient(identityEndpoint string) (provider *gophercloud.ProviderC
 				if !ok {
 					err = errors.New(malformedCAErrStr)
 					klog.Fatal(err.Error())
-					return
+					return nil, err
 				}
-				TLSClientConfig = &tls.Config{RootCAs: roots}
+				TLSClientConfig = &tls.Config{
+					RootCAs:    roots,
+					MinVersion: tls.VersionTLS12,
+				}
 			}
-
 		}
 	}
 
-	provider, err = openstack.NewClient(identityEndpoint)
+	provider, err := openstack.NewClient(identityEndpoint)
 	if err != nil {
 		klog.Fatal(err.Error())
-		return
+		return nil, err
 	}
 
 	provider.HTTPClient.Transport = &http.Transport{
@@ -308,13 +360,13 @@ func getProviderClient(identityEndpoint string) (provider *gophercloud.ProviderC
 	opts, err := clientconfig.AuthOptions(clientOpts)
 	if err != nil {
 		klog.Fatal(err.Error())
-		return
+		return nil, err
 	}
 
-	err = openstack.Authenticate(provider, *opts)
+	err = openstack.Authenticate(context.Background(), provider, *opts)
 	if err != nil {
 		klog.Fatal(err.Error())
-		return
+		return nil, err
 	}
-	return
+	return provider, nil
 }

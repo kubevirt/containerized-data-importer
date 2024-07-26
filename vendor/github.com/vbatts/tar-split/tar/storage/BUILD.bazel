@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "doc.go",
+        "entry.go",
+        "getter.go",
+        "packer.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/vbatts/tar-split/tar/storage",
+    importpath = "github.com/vbatts/tar-split/tar/storage",
+    visibility = ["//visibility:public"],
+)

@@ -135,3 +135,94 @@ For more information of using datavolumes for population check the [datavolume d
 In some cases, CDI will fall back to legacy population methods, and thus skip using volume populators when:
 * Storage provisioner is non-CSI
 * Annotation `cdi.kubevirt.io/storage.usePopulator` set to `"false"`
+
+### Forklift Populators
+
+Forklift populators have been introduced to support remote cluster migration using [Forklift](https://github.com/kubev2v/forklift). The provide support for import from oVirt and OpenStack. This flow is tested as part of forklift's e2e tests.
+
+Example for importing a disk from oVirt:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ovirt-pvc
+spec:
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  dataSourceRef:
+    name: ovirt-pop
+    kind: OvirtVolumePopulator
+    apiGroup: forklift.cdi.kubevirt.io
+  resources:
+    requests:
+      storage: 13G
+---
+apiVersion: forklift.cdi.kubevirt.io/v1beta1
+kind: OvirtVolumePopulator
+metadata:
+  name: ovirt-pop
+spec:
+  engineUrl: https://ovirt.example.com/ovirt-engine/api
+  secretRef: ovirt-secret
+  diskId: 4e831a80-1ade-4cb0-8f3c-bedb34d726be
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: ovirt-secret
+stringData:
+  password: pass
+  url: https://ovirt.example.com/ovirt-engine/api
+  user: admin@internal
+type: Opaque
+```
+
+Example for importing an image from OpenStack:
+
+```yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: openstack-image
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  volumeMode: Filesystem
+  dataSource:
+    apiGroup: forklift.cdi.kubevirt.io
+    kind: OpenstackVolumePopulator
+    name: openstack-image-cr
+  dataSourceRef:
+    apiGroup: forklift.cdi.kubevirt.io
+    kind: OpenstackVolumePopulator
+    name: openstack-image-cr
+---
+apiVersion: "forklift.cdi.kubevirt.io/v1beta1"
+kind: OpenstackVolumePopulator
+metadata:
+  name: openstack-image-cr
+spec:
+  identityUrl: "http://keystone.fqdn:5000/v3"
+  secretRef: "os-secret"
+  imageId: "32368b34-54ca-49eb-9768-e36ff5c2d20f"
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: os-secret
+  namespace: default
+stringData:
+  authType: "password"
+  domainName: "Default"
+  username: "admin"
+  password: "pass"
+  projectName: "admin"
+  regionName: "RegionOne"
+  url: "http://keystone.fqdn:5000/v3"
+type: Opaque
+```

@@ -31,9 +31,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
 
-	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
-
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 )
 
 var (
@@ -363,7 +362,7 @@ func newVolumeUploadSource(contentType cdiv1.DataVolumeContentType) *cdiv1.Volum
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: cdiv1.VolumeUploadSourceSpec{
-			ContentType: cdiv1.DataVolumeContentType(contentType),
+			ContentType: contentType,
 		},
 	}
 }
@@ -375,7 +374,7 @@ func newVolumeImportSource(contentType cdiv1.DataVolumeContentType, source *cdiv
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: cdiv1.VolumeImportSourceSpec{
-			ContentType: cdiv1.DataVolumeContentType(contentType),
+			ContentType: contentType,
 			Source:      source,
 		},
 	}

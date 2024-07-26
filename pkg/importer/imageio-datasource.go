@@ -36,6 +36,7 @@ import (
 	ovirtclient "github.com/ovirt/go-ovirt-client"
 	ovirtclientlog "github.com/ovirt/go-ovirt-client-log-klog"
 	"github.com/pkg/errors"
+
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -136,7 +137,7 @@ func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, ErrInvalidPath
 	}
 	is.readers.StartProgressUpdate()
-	err = util.StreamDataToFile(is.readers.TopReader(), file)
+	err = streamDataToFile(is.readers.TopReader(), file)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -181,7 +182,7 @@ func (is *ImageioDataSource) TransferFile(fileName string) (ProcessingPhase, err
 			return ProcessingPhaseError, err
 		}
 	} else {
-		err := util.StreamDataToFile(is.readers.TopReader(), fileName)
+		err := streamDataToFile(is.readers.TopReader(), fileName)
 		if err != nil {
 			return ProcessingPhaseError, err
 		}
@@ -428,7 +429,7 @@ func (reader *extentReader) Read(p []byte) (int, error) {
 	length := end - start + 1
 
 	responseBody, err := reader.GetRange(start, end)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return 0, errors.Wrap(err, "failed to read from range")
 	}
 	if responseBody != nil {
@@ -436,7 +437,7 @@ func (reader *extentReader) Read(p []byte) (int, error) {
 	}
 
 	var written int
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		written, err = io.ReadFull(responseBody, p[:length])
 	}
 
@@ -464,7 +465,7 @@ func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
 		klog.Infof("Range request extends past end of image, trimming to %d", end)
 	}
 
-	request, err := http.NewRequest("GET", reader.transferURL, nil)
+	request, err := http.NewRequest(http.MethodGet, reader.transferURL, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create range request")
 	}
@@ -486,7 +487,7 @@ func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
 	expectedLength := end - start + 1
 	if length != expectedLength {
 		response.Body.Close()
-		return nil, errors.New(fmt.Sprintf("wrong length returned: %d vs expected %d", length, expectedLength))
+		return nil, errors.Errorf("wrong length returned: %d vs expected %d", length, expectedLength)
 	}
 
 	return response.Body, nil
@@ -512,13 +513,13 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 		if snapshot == nil { // Snapshot not found, check for a disk with a matching image ID
 			imageID, available := disk.ImageId()
 			if !available {
-				return nil, uint64(0), nil, conn, errors.Wrap(snapshotErr, "Could not get disk's image ID!")
+				return nil, uint64(0), nil, conn, errors.Wrap(snapshotErr, "could not get disk's image ID")
 			}
 			if imageID != currentCheckpoint {
-				return nil, uint64(0), nil, conn, errors.Wrapf(snapshotErr, "Snapshot %s not found!", currentCheckpoint)
+				return nil, uint64(0), nil, conn, errors.Wrapf(snapshotErr, "snapshot %s not found", currentCheckpoint)
 			}
 			// Matching ID: use disk as checkpoint
-			klog.Infof("Snapshot ID %s found on disk %s, transferring active disk as checkpoint.", currentCheckpoint, diskID)
+			klog.Infof("Snapshot ID %s found on disk %s, transferring active disk as checkpoint", currentCheckpoint, diskID)
 		}
 	}
 
@@ -561,7 +562,7 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 
 	var reader io.ReadCloser
 	if extentsFeature {
-		req, err := http.NewRequest("GET", transferURL+"/extents", nil)
+		req, err := http.NewRequest(http.MethodGet, transferURL+"/extents", nil)
 		if err != nil {
 			return nil, uint64(0), it, conn, err
 		}
@@ -597,7 +598,7 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 			size:        int64(total),
 		}
 	} else {
-		req, err := http.NewRequest("GET", transferURL, nil)
+		req, err := http.NewRequest(http.MethodGet, transferURL, nil)
 		if err != nil {
 			return nil, uint64(0), it, conn, errors.Wrap(err, "Sending request failed")
 		}
@@ -1378,7 +1379,7 @@ type DiskSnapshotsServiceListRequest struct {
 	srv *ovirtsdk4.DiskSnapshotsServiceListRequest
 }
 
-// Send returns a reponse from listing disk snapshots
+// Send returns a response from listing disk snapshots
 func (service *DiskSnapshotsServiceListRequest) Send() (DiskSnapshotsServiceListResponseInterface, error) {
 	resp, err := service.srv.Send()
 	return &DiskSnapshotsServiceListResponse{

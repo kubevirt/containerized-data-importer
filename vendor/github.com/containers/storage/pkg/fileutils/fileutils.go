@@ -183,7 +183,6 @@ func (p *Pattern) Exclusion() bool {
 }
 
 func (p *Pattern) match(path string) (bool, error) {
-
 	if p.regexp == nil {
 		if err := p.compile(); err != nil {
 			return false, filepath.ErrBadPattern
@@ -345,7 +344,7 @@ func ReadSymlinkedPath(path string) (realPath string, err error) {
 	if realPath, err = filepath.EvalSymlinks(realPath); err != nil {
 		return "", fmt.Errorf("failed to canonicalise path for %q: %w", path, err)
 	}
-	if _, err := os.Stat(realPath); err != nil {
+	if err := Exists(realPath); err != nil {
 		return "", fmt.Errorf("failed to stat target %q of %q: %w", realPath, path, err)
 	}
 	return realPath, nil
@@ -353,15 +352,15 @@ func ReadSymlinkedPath(path string) (realPath string, err error) {
 
 // CreateIfNotExists creates a file or a directory only if it does not already exist.
 func CreateIfNotExists(path string, isDir bool) error {
-	if _, err := os.Stat(path); err != nil {
+	if err := Exists(path); err != nil {
 		if os.IsNotExist(err) {
 			if isDir {
-				return os.MkdirAll(path, 0755)
+				return os.MkdirAll(path, 0o755)
 			}
-			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				return err
 			}
-			f, err := os.OpenFile(path, os.O_CREATE, 0755)
+			f, err := os.OpenFile(path, os.O_CREATE, 0o755)
 			if err != nil {
 				return err
 			}

@@ -3,18 +3,19 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "go_default_library",
     srcs = [
-        "packages.go",
         "register_external.go",
+        "targets.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/k8s.io/code-generator/cmd/register-gen/generators",
     importpath = "k8s.io/code-generator/cmd/register-gen/generators",
     visibility = ["//visibility:public"],
     deps = [
         "//vendor/k8s.io/code-generator/cmd/client-gen/types:go_default_library",
-        "//vendor/k8s.io/gengo/args:go_default_library",
-        "//vendor/k8s.io/gengo/generator:go_default_library",
-        "//vendor/k8s.io/gengo/namer:go_default_library",
-        "//vendor/k8s.io/gengo/types:go_default_library",
+        "//vendor/k8s.io/code-generator/cmd/register-gen/args:go_default_library",
+        "//vendor/k8s.io/gengo/v2:go_default_library",
+        "//vendor/k8s.io/gengo/v2/generator:go_default_library",
+        "//vendor/k8s.io/gengo/v2/namer:go_default_library",
+        "//vendor/k8s.io/gengo/v2/types:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
     ],
 )

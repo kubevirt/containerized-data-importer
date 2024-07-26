@@ -129,7 +129,7 @@ func (c *Cmd) Start() error {
 	if err != nil {
 		pidRead.Close()
 		pidWrite.Close()
-		return fmt.Errorf("creating pid pipe: %w", err)
+		return fmt.Errorf("creating continue read/write pipe: %w", err)
 	}
 	c.Env = append(c.Env, fmt.Sprintf("_Containers-continue-pipe=%d", len(c.ExtraFiles)+3))
 	c.ExtraFiles = append(c.ExtraFiles, continueRead)
@@ -439,6 +439,16 @@ func GetRootlessUID() int {
 		return u
 	}
 	return os.Getuid()
+}
+
+// GetRootlessGID returns the GID of the user in the parent userNS
+func GetRootlessGID() int {
+	gidEnv := getenv("_CONTAINERS_ROOTLESS_GID")
+	if gidEnv != "" {
+		u, _ := strconv.Atoi(gidEnv)
+		return u
+	}
+	return os.Getgid()
 }
 
 // RootlessEnv returns the environment settings for the rootless containers

@@ -17,7 +17,6 @@ limitations under the License.
 package importer
 
 import (
-	"fmt"
 	"net/url"
 	"os"
 
@@ -61,19 +60,6 @@ const (
 	// ProcessingPhaseMergeDelta is the phase in a multi-stage import where a delta image downloaded to scratch is applied to the base image
 	ProcessingPhaseMergeDelta ProcessingPhase = "MergeDelta"
 )
-
-// ValidationSizeError is an error indication size validation failure.
-type ValidationSizeError struct {
-	err error
-}
-
-func (e ValidationSizeError) Error() string { return e.err.Error() }
-
-// ErrRequiresScratchSpace indicates that we require scratch space.
-var ErrRequiresScratchSpace = fmt.Errorf(common.ScratchSpaceRequired)
-
-// ErrInvalidPath indicates that the path is invalid.
-var ErrInvalidPath = fmt.Errorf("invalid transfer path")
 
 // may be overridden in tests
 var getAvailableSpaceBlockFunc = util.GetAvailableSpaceBlock
@@ -125,10 +111,13 @@ type DataProcessor struct {
 	preallocationApplied bool
 	// phaseExecutors is a mapping from the given processing phase to its execution function. The function returns the next processing phase or error.
 	phaseExecutors map[ProcessingPhase]func() (ProcessingPhase, error)
+	// cacheMode is the mode in which we choose the qemu-img cache mode:
+	// TRY_NONE = bypass page cache if the target supports it, otherwise, fall back to using page cache
+	cacheMode string
 }
 
 // NewDataProcessor create a new instance of a data processor using the passed in data provider.
-func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratchDataDir, requestImageSize string, filesystemOverhead float64, preallocation bool) *DataProcessor {
+func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratchDataDir, requestImageSize string, filesystemOverhead float64, preallocation bool, cacheMode string) *DataProcessor {
 	dp := &DataProcessor{
 		currentPhase:       ProcessingPhaseInfo,
 		source:             dataSource,
@@ -138,6 +127,7 @@ func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratch
 		requestImageSize:   requestImageSize,
 		filesystemOverhead: filesystemOverhead,
 		preallocation:      preallocation,
+		cacheMode:          cacheMode,
 	}
 	// Calculate available space before doing anything.
 	dp.availableSpace = dp.calculateTargetSize()
@@ -181,7 +171,7 @@ func (dp *DataProcessor) initDefaultPhases() {
 	})
 	dp.RegisterPhaseExecutor(ProcessingPhaseTransferScratch, func() (ProcessingPhase, error) {
 		pp, err := dp.source.Transfer(dp.scratchDataDir)
-		if err == ErrInvalidPath {
+		if errors.Is(err, ErrInvalidPath) {
 			// Passed in invalid scratch space path, return scratch space needed error.
 			err = ErrRequiresScratchSpace
 		} else if err != nil {
@@ -279,7 +269,7 @@ func (dp *DataProcessor) convert(url *url.URL) (ProcessingPhase, error) {
 		return ProcessingPhaseError, err
 	}
 	klog.V(3).Infoln("Converting to Raw")
-	err = qemuOperations.ConvertToRawStream(url, dp.dataFile, dp.preallocation)
+	err = qemuOperations.ConvertToRawStream(url, dp.dataFile, dp.preallocation, dp.cacheMode)
 	if err != nil {
 		return ProcessingPhaseError, errors.Wrap(err, "Conversion to Raw failed")
 	}

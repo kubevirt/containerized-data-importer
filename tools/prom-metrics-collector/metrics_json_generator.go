@@ -6,8 +6,14 @@ import (
 	"strings"
 
 	"github.com/kubevirt/monitoring/pkg/metrics/parser"
+	om "github.com/machadovilaca/operator-observability/pkg/operatormetrics"
+
+	cdiClonerMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	cdiMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
+	cdiImporterMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
+	openstackPopulatorMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/openstack-populator"
 	operatorMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/operator-controller"
+	ovirtPopulatorMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/ovirt-populator"
 	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules"
 )
 
@@ -27,13 +33,33 @@ func main() {
 		panic(err)
 	}
 
+	err = cdiImporterMetrics.SetupMetrics()
+	if err != nil {
+		panic(err)
+	}
+
+	err = cdiClonerMetrics.SetupMetrics()
+	if err != nil {
+		panic(err)
+	}
+
+	err = openstackPopulatorMetrics.SetupMetrics()
+	if err != nil {
+		panic(err)
+	}
+
+	err = ovirtPopulatorMetrics.SetupMetrics()
+	if err != nil {
+		panic(err)
+	}
+
 	if err := rules.SetupRules("test"); err != nil {
 		panic(err)
 	}
 
 	var metricFamilies []parser.Metric
 
-	metricsList := operatorMetrics.ListMetrics()
+	metricsList := om.ListMetrics()
 	for _, m := range metricsList {
 		if _, isExcludedMetric := excludedMetrics[m.GetOpts().Name]; !isExcludedMetric {
 			metricFamilies = append(metricFamilies, parser.Metric{

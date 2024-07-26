@@ -9,20 +9,19 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -33,13 +32,16 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
 const (
 	// TokenKeyDir is the path to the apiserver public key dir
+	//nolint:gosec // This is a path, not the key itself
 	TokenKeyDir = "/var/run/cdi/token/keys"
 
 	// TokenPublicKeyPath is the path to the apiserver public key
@@ -54,8 +56,6 @@ const (
 	cloneSourcePodFinalizer = "cdi.kubevirt.io/cloneSource"
 
 	hostAssistedCloneSource = "cdi.kubevirt.io/hostAssistedSourcePodCloneSource"
-
-	uploadClientCertDuration = 365 * 24 * time.Hour
 )
 
 // CloneReconciler members
@@ -111,15 +111,15 @@ func NewCloneController(mgr manager.Manager,
 // addCloneControllerWatches sets up the watches used by the clone controller.
 func addCloneControllerWatches(mgr manager.Manager, cloneController controller.Controller) error {
 	// Setup watches
-	if err := cloneController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}), &handler.EnqueueRequestForObject{}); err != nil {
+	if err := cloneController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}, &handler.TypedEnqueueRequestForObject[*corev1.PersistentVolumeClaim]{})); err != nil {
 		return err
 	}
-	if err := cloneController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}), handler.EnqueueRequestForOwner(
-		mgr.GetScheme(), mgr.GetClient().RESTMapper(), &corev1.PersistentVolumeClaim{}, handler.OnlyControllerOwner())); err != nil {
+	if err := cloneController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}, handler.TypedEnqueueRequestForOwner[*corev1.Pod](
+		mgr.GetScheme(), mgr.GetClient().RESTMapper(), &corev1.PersistentVolumeClaim{}, handler.OnlyControllerOwner()))); err != nil {
 		return err
 	}
-	if err := cloneController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
+	if err := cloneController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.Pod](
+		func(ctx context.Context, obj *corev1.Pod) []reconcile.Request {
 			target, ok := obj.GetAnnotations()[AnnOwnerRef]
 			if !ok {
 				return nil
@@ -137,7 +137,7 @@ func addCloneControllerWatches(mgr manager.Manager, cloneController controller.C
 				},
 			}
 		},
-	)); err != nil {
+	))); err != nil {
 		return err
 	}
 	return nil
@@ -210,7 +210,7 @@ func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 		return reconcile.Result{RequeueAfter: requeueAfter}, err
 	}
 
-	if err := r.ensureCertSecret(sourcePod, pvc, log); err != nil {
+	if err := r.ensureCertSecret(sourcePod, pvc); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -269,7 +269,7 @@ func (r *CloneReconciler) reconcileSourcePod(ctx context.Context, sourcePod *cor
 	return 0, nil
 }
 
-func (r *CloneReconciler) ensureCertSecret(sourcePod *corev1.Pod, targetPvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
+func (r *CloneReconciler) ensureCertSecret(sourcePod *corev1.Pod, targetPvc *corev1.PersistentVolumeClaim) error {
 	if sourcePod == nil {
 		return nil
 	}
@@ -283,7 +283,12 @@ func (r *CloneReconciler) ensureCertSecret(sourcePod *corev1.Pod, targetPvc *cor
 		return errors.Errorf("PVC %s/%s missing required %s annotation", targetPvc.Namespace, targetPvc.Name, AnnUploadClientName)
 	}
 
-	cert, key, err := r.clientCertGenerator.MakeClientCert(clientName, nil, uploadClientCertDuration)
+	certConfig, err := operator.GetCertConfigWithDefaults(context.TODO(), r.client)
+	if err != nil {
+		return err
+	}
+
+	cert, key, err := r.clientCertGenerator.MakeClientCert(clientName, nil, certConfig.Client.Duration.Duration)
 	if err != nil {
 		return err
 	}
@@ -523,7 +528,6 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image, pullPolicy, ownerRefAnno string, imagePullSecrets []corev1.LocalObjectReference,
 	serverCACert []byte, targetPvc, sourcePvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements,
 	workloadNodePlacement *sdkapi.NodePlacement) *corev1.Pod {
-
 	sourcePvcName := sourcePvc.GetName()
 	sourcePvcNamespace := sourcePvc.GetNamespace()
 	sourcePvcUID := string(sourcePvc.GetUID())
@@ -720,7 +724,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 	}
 
 	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, addVars...)
-	cc.SetPvcAllowedAnnotations(pod, targetPvc)
+	cc.CopyAllowedAnnotations(targetPvc, pod)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
 	return pod
 }
@@ -730,17 +734,15 @@ func ParseCloneRequestAnnotation(pvc *corev1.PersistentVolumeClaim) (exists bool
 	var ann string
 	ann, exists = pvc.Annotations[cc.AnnCloneRequest]
 	if !exists {
-		return
+		return false, "", ""
 	}
 
 	sp := strings.Split(ann, "/")
 	if len(sp) != 2 {
-		exists = false
-		return
+		return false, "", ""
 	}
 
-	namespace, name = sp[0], sp[1]
-	return
+	return true, sp[0], sp[1]
 }
 
 // ValidateCanCloneSourceAndTargetContentType validates the pvcs passed has the same content type.

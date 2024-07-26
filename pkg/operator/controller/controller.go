@@ -25,11 +25,13 @@ import (
 
 	"github.com/kelseyhightower/envconfig"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -279,11 +281,21 @@ func (r *ReconcileCDI) getCertificateDefinitions(cdi *cdiv1.CDI) []cdicerts.Cert
 
 		if cdi.Spec.CertConfig.Server != nil {
 			if cdi.Spec.CertConfig.Server.Duration != nil {
-				args.TargetDuration = &cdi.Spec.CertConfig.Server.Duration.Duration
+				args.ServerDuration = &cdi.Spec.CertConfig.Server.Duration.Duration
 			}
 
 			if cdi.Spec.CertConfig.Server.RenewBefore != nil {
-				args.TargetRenewBefore = &cdi.Spec.CertConfig.Server.RenewBefore.Duration
+				args.ServerRenewBefore = &cdi.Spec.CertConfig.Server.RenewBefore.Duration
+			}
+		}
+
+		if cdi.Spec.CertConfig.Client != nil {
+			if cdi.Spec.CertConfig.Client.Duration != nil {
+				args.ClientDuration = &cdi.Spec.CertConfig.Client.Duration.Duration
+			}
+
+			if cdi.Spec.CertConfig.Client.RenewBefore != nil {
+				args.ClientRenewBefore = &cdi.Spec.CertConfig.Client.RenewBefore.Duration
 			}
 		}
 	}

@@ -32,6 +32,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	restful "github.com/emicklei/go-restful/v3"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -129,7 +130,7 @@ func doGetRequest(url string) *httptest.ResponseRecorder {
 	app := &cdiAPIApp{}
 	app.composeUploadTokenAPI()
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	Expect(err).ToNot(HaveOccurred())
 	rr := httptest.NewRecorder()
 
@@ -350,7 +351,7 @@ var _ = Describe("API server tests", func() {
 			tokenGenerator:    newUploadTokenGenerator(signingKey)}
 		app.composeUploadTokenAPI()
 
-		req, err := http.NewRequest("POST",
+		req, err := http.NewRequest(http.MethodPost,
 			"/apis/upload.cdi.kubevirt.io/v1beta1/namespaces/default/uploadtokenrequests",
 			bytes.NewReader(serializedRequest))
 		Expect(err).ToNot(HaveOccurred())

@@ -25,36 +25,24 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ulikunitz/xz"
+
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
 
 var (
-	progress = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "clone_progress",
-			Help: "The clone progress in percentage",
-		},
-		[]string{"ownerUID"},
-	)
 	ownerUID string
 )
 
 func init() {
-	if err := prometheus.Register(progress); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
-			// A counter for that metric has been registered before.
-			// Use the old counter from now on.
-			progress = are.ExistingCollector.(*prometheus.CounterVec)
-		} else {
-			klog.Errorf("Unable to create prometheus progress counter")
-		}
+	if err := metrics.SetupMetrics(); err != nil {
+		klog.Errorf("Unable to create prometheus progress counter: %v", err)
 	}
 	ownerUID, _ = util.ParseEnvVar(common.OwnerUID, false)
 }
@@ -97,7 +85,7 @@ func NewFormatReaders(stream io.ReadCloser, total uint64) (*FormatReaders, error
 		buf: make([]byte, image.MaxExpectedHdrSize),
 	}
 	if total > uint64(0) {
-		readers.progressReader = prometheusutil.NewProgressReader(stream, total, progress, ownerUID)
+		readers.progressReader = prometheusutil.NewProgressReader(stream, metrics.Progress(ownerUID), total)
 		err = readers.constructReaders(readers.progressReader)
 	} else {
 		err = readers.constructReaders(stream)
@@ -174,15 +162,15 @@ func (fr *FormatReaders) fileFormatSelector(hdr *image.Header) {
 			fr.Archived = true
 			fr.ArchiveZstd = true
 		}
-	case "qcow2":
-		r, err = fr.qcow2NopReader(hdr)
-		fr.Convert = true
 	case "xz":
 		r, err = fr.xzReader()
 		if err == nil {
 			fr.Archived = true
 			fr.ArchiveXz = true
 		}
+	case "qcow2":
+		r, err = fr.qcow2NopReader(hdr)
+		fr.Convert = true
 	case "vmdk":
 		r = nil
 		fr.Convert = true

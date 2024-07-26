@@ -7,6 +7,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -84,29 +85,35 @@ var _ = Describe("checkStaticVolume tests", func() {
 			sourceMD5 = md5
 
 			By("Retaining PV")
-			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
-			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() error {
+				pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
+				_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
+				// We shouldn't make the test fail if there's a conflict with the update request.
+				// These errors are usually transient and should be fixed in subsequent retries.
+				return err
+			}, timeout, pollingInterval).Should(Succeed())
 
 			By("Deleting source DV")
 			err = utils.DeleteDataVolume(f.CdiClient, dv.Namespace, dv.Name)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Making PV available")
-			Eventually(func() bool {
+			Eventually(func(g Gomega) bool {
 				pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				Expect(pv.Spec.ClaimRef.Namespace).To(Equal(dv.Namespace))
-				Expect(pv.Spec.ClaimRef.Name).To(Equal(dv.Name))
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(pv.Spec.ClaimRef.Namespace).To(Equal(dv.Namespace))
+				g.Expect(pv.Spec.ClaimRef.Name).To(Equal(dv.Name))
 				if pv.Status.Phase == corev1.VolumeAvailable {
 					return true
 				}
 				pv.Spec.ClaimRef.ResourceVersion = ""
 				pv.Spec.ClaimRef.UID = ""
 				_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				// We shouldn't make the test fail if there's a conflict with the update request.
+				// These errors are usually transient and should be fixed in subsequent retries.
+				g.Expect(err).ToNot(HaveOccurred())
 				return false
 			}, timeout, pollingInterval).Should(BeTrue())
 		})

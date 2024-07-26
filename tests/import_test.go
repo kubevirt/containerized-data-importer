@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	"github.com/google/uuid"
 
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -28,6 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/ptr"
+
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -93,15 +95,17 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		// Make sure the PVC name is unique, we have no guarantee on order and we are not
 		// deleting the PVC at the end of the test, so if another runs first we will fail.
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition("no-import-ann", "1G", nil, nil))
+		Expect(err).ToNot(HaveOccurred())
+
 		By("Verifying PVC with no annotation remains empty")
 		matchString := fmt.Sprintf("PVC annotation not found, skipping pvc\t{\"PVC\": {\"name\":\"%s\",\"namespace\":\"%s\"}, \"annotation\": \"%s\"}", pvc.Name, ns, controller.AnnEndpoint)
-		fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
-		Eventually(func() string {
-			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-			Expect(err).NotTo(HaveOccurred())
-			return log
+		Eventually(func() ([]byte, error) {
+			return f.K8sClient.CoreV1().
+				Pods(f.CdiInstallNs).
+				GetLogs(f.ControllerPod.Name, &v1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+				DoRaw(context.Background())
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
-		Expect(err).ToNot(HaveOccurred())
+
 		// Wait a while to see if CDI puts anything in the PVC.
 		isEmpty, err := framework.VerifyPVCIsEmpty(f, pvc, "")
 		Expect(err).ToNot(HaveOccurred())
@@ -328,7 +332,7 @@ var _ = Describe("[Istio] Namespace sidecar injection", Serial, func() {
 		dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
 		// A single service mesh provider is deployed so either Istio or Linkerd, not both.
 		dataVolume.Annotations[controller.AnnPodSidecarInjectionIstio] = "true"
-		dataVolume.Annotations[controller.AnnPodSidecarInjectionLinkerd] = "true"
+		dataVolume.Annotations[controller.AnnPodSidecarInjectionLinkerd] = "enabled"
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -340,16 +344,19 @@ var _ = Describe("[Istio] Namespace sidecar injection", Serial, func() {
 		}, timeout, pollingInterval).Should(BeTrue())
 
 		By("Verify HTTP request error in importer log")
-		Eventually(func() bool {
-			log, _ := f.RunKubectlCommand("logs", importer.Name, "-n", importer.Namespace)
-			if strings.Contains(log, "HTTP request errored") {
-				return true
-			}
-			if strings.Contains(log, "502 Bad Gateway") {
-				return true
-			}
-			return false
-		}, time.Minute, pollingInterval).Should(BeTrue())
+		Eventually(func() (string, error) {
+			out, err := f.K8sClient.CoreV1().
+				Pods(importer.Namespace).
+				GetLogs(importer.Name, &v1.PodLogOptions{
+					SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime},
+					Container: "importer",
+				}).
+				DoRaw(context.Background())
+			return string(out), err
+		}, time.Minute, pollingInterval).Should(Or(
+			ContainSubstring("HTTP request errored"),
+			ContainSubstring("502 Bad Gateway"),
+		))
 	})
 
 	It("[test_id:6492] Should successfully import with namespace sidecar injection enabled and default sidecar.istio.io/inject", func() {
@@ -400,6 +407,9 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", Se
 	})
 
 	AfterEach(func() {
+		if cr == nil {
+			return
+		}
 		cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -412,6 +422,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", Se
 			Expect(err).ToNot(HaveOccurred())
 			return reflect.DeepEqual(cr.Spec, *oldSpec)
 		}, 30*time.Second, time.Second).Should(BeTrue())
+		cr = nil
 	})
 
 	It("[test_id:4783] Should create import pod with node placement", func() {
@@ -451,7 +462,7 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	var portForwardCmd *exec.Cmd
 	client := &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // It's not production code
 		},
 	}
 	f := framework.NewFramework(namespacePrefix)
@@ -642,18 +653,14 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		}, timeout, pollingInterval).Should(BeTrue())
 
 		By("Verify fsync() syscall was made")
-		Eventually(func() bool {
-			log, err := f.RunKubectlCommand("logs", importer.Name, "-n", importer.Namespace)
-			if err != nil {
-				return false
-			}
-			for _, line := range strings.Split(strings.TrimSuffix(log, "\n"), "\n") {
-				if strings.Contains(line, fmt.Sprintf("Successfully completed fsync(%s) syscall", common.WriteBlockPath)) {
-					return true
-				}
-			}
-			return false
-		}, 3*time.Minute, pollingInterval).Should(BeTrue())
+		matchString := fmt.Sprintf("Successfully completed fsync(%s) syscall", common.WriteBlockPath)
+		Eventually(func() (string, error) {
+			out, err := f.K8sClient.CoreV1().
+				Pods(importer.Namespace).
+				GetLogs(importer.Name, &v1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+				DoRaw(context.Background())
+			return string(out), err
+		}, 3*time.Minute, pollingInterval).Should(ContainSubstring(matchString))
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -953,7 +960,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
 	})
 
-	It("[test_id:3996] Import datavolume with bad url will increase dv retry count", func() {
+	It("[test_id:3996] Import datavolume with bad url will increase dv retry count", Serial, func() {
 		if f.IsPrometheusAvailable() {
 			dataVolumeNoUnusualRestartTest(f)
 		}
@@ -1009,7 +1016,6 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	f := framework.NewFramework(namespacePrefix)
 
 	var (
-		// pvc            *v1.PersistentVolumeClaim
 		dataVolume     *cdiv1.DataVolume
 		err            error
 		tinyCoreIsoURL = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
@@ -1135,14 +1141,17 @@ var _ = Describe("Preallocation", func() {
 	})
 
 	AfterEach(func() {
-		By("Delete DV")
-		err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
+		if dataVolume != nil {
+			By("Delete DV")
+			err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
 
-		Eventually(func() bool {
-			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			return k8serrors.IsNotFound(err)
-		}, timeout, pollingInterval).Should(BeTrue())
+			Eventually(func() bool {
+				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				return k8serrors.IsNotFound(err)
+			}, timeout, pollingInterval).Should(BeTrue())
+			dataVolume = nil
+		}
 
 		By("Restoring CDIConfig to original state")
 		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
@@ -1617,9 +1626,12 @@ var _ = Describe("Import populator", func() {
 			Expect(err).ToNot(HaveOccurred())
 		}
 
-		By("Delete import population PVC")
-		err = f.DeletePVC(pvc)
-		Expect(err).ToNot(HaveOccurred())
+		if pvc != nil {
+			By("Delete import population PVC")
+			err = f.DeletePVC(pvc)
+			Expect(err).ToNot(HaveOccurred())
+			pvc = nil
+		}
 
 		tests.DisableWebhookPvcRendering(f.CrClient)
 	})
@@ -1802,11 +1814,15 @@ var _ = Describe("Import populator", func() {
 		sourceMD5 := md5
 
 		By("Retaining PV")
-		pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimRetain
-		_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			pv.Spec.PersistentVolumeReclaimPolicy = v1.PersistentVolumeReclaimRetain
+			// We shouldn't make the test fail if there's a conflict with the update request.
+			// These errors are usually transient and should be fixed in subsequent retries.
+			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
+			return err
+		}, timeout, pollingInterval).Should(Succeed())
 
 		By("Forcing cleanup")
 		err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
@@ -1826,18 +1842,20 @@ var _ = Describe("Import populator", func() {
 		verifyCleanup(pvc)
 
 		By("Making PV available")
-		Eventually(func() bool {
+		Eventually(func(g Gomega) bool {
 			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			Expect(pv.Spec.ClaimRef.Namespace).To(Equal(pvc.Namespace))
-			Expect(pv.Spec.ClaimRef.Name).To(Equal(pvc.Name))
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(pv.Spec.ClaimRef.Namespace).To(Equal(pvc.Namespace))
+			g.Expect(pv.Spec.ClaimRef.Name).To(Equal(pvc.Name))
 			if pv.Status.Phase == v1.VolumeAvailable {
 				return true
 			}
 			pv.Spec.ClaimRef.ResourceVersion = ""
 			pv.Spec.ClaimRef.UID = ""
 			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
+			// We shouldn't make the test fail if there's a conflict with the update request.
+			// These errors are usually transient and should be fixed in subsequent retries.
+			g.Expect(err).ToNot(HaveOccurred())
 			return false
 		}, timeout, pollingInterval).Should(BeTrue())
 
@@ -1855,7 +1873,7 @@ var _ = Describe("Import populator", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(pvc.Spec.VolumeName).To(Equal(pvName))
 
-		pv, err = f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+		pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(controller.IsPVBoundToPVC(pv, pvc)).To(BeTrue())
 		Expect(pv.CreationTimestamp.Before(&pvc.CreationTimestamp)).To(BeTrue())
@@ -2185,17 +2203,53 @@ var _ = Describe("Containerdisk envs to PVC labels", func() {
 		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
 
-		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
-
-		Eventually(func(g Gomega) {
-			g.Expect(pvc.GetLabels()).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
-			g.Expect(pvc.GetLabels()).To(HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoValueExisting))
-		}, timeout, pollingInterval).Should(Succeed())
+		Eventually(func(g Gomega) map[string]string {
+			pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			g.Expect(err).ToNot(HaveOccurred())
+			return pvc.GetLabels()
+		}, timeout, pollingInterval).Should(And(
+			HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue),
+			HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoValueExisting),
+		))
 	},
 		Entry("with pullMethod pod", cdiv1.RegistryPullPod, tinyCoreRegistryURL, false),
 		Entry("with pullMethod node", cdiv1.RegistryPullNode, trustedRegistryURL, false),
 		Entry("with pullMethod node", cdiv1.RegistryPullNode, trustedRegistryIS, true),
+	)
+})
+
+var _ = Describe("pull image failure", func() {
+	var (
+		f = framework.NewFramework(namespacePrefix)
+	)
+
+	DescribeTable(`Should fail with "ImagePullFailed" reason if failed to pull image`, func(url string, pullMethod cdiv1.RegistryPullMethod) {
+		dv := utils.NewDataVolumeWithRegistryImport("failed-to-pull-image", "10Gi", "docker://"+url)
+		if dv.Annotations == nil {
+			dv.Annotations = make(map[string]string)
+		}
+		dv.Annotations[controller.AnnImmediateBinding] = "true"
+		dv.Spec.Source.Registry.PullMethod = &pullMethod
+
+		var err error
+		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify ImagePullFailed running condition")
+		runningCondition := &cdiv1.DataVolumeCondition{
+			Type:    cdiv1.DataVolumeRunning,
+			Status:  v1.ConditionFalse,
+			Message: common.ImagePullFailureText,
+			Reason:  "ImagePullFailed",
+		}
+		utils.WaitForConditions(f, dv.Name, f.Namespace.Name, controllerSkipPVCCompleteTimeout, assertionPollInterval, runningCondition)
+
+	},
+		Entry("pull method = pod", "myregistry/myorg/myimage:wrongtag", cdiv1.RegistryPullPod),
+		Entry("pull method = node", "myregistry/myorg/myimage:wrongtag", cdiv1.RegistryPullNode),
 	)
 })
 

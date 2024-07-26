@@ -7,9 +7,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/ghodss/yaml"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -320,7 +322,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
 			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.ImportInProgress, dataVolumeName)
 			if err != nil {
-				f.PrintControllerLog()
+				fmt.Fprintf(GinkgoWriter, "Failed to wait for DataVolume phase: %v", err)
 				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
 				Expect(dverr).ToNot(HaveOccurred(), "datavolume %s phase %s", dv.Name, dv.Status.Phase)
 			}
@@ -518,7 +520,6 @@ func yamlFiletoStruct(fileName string, o *map[string]interface{}) error {
 		return err
 	}
 	return nil
-
 }
 
 func structToYamlFile(fileName string, o interface{}) error {
@@ -527,7 +528,7 @@ func structToYamlFile(fileName string, o interface{}) error {
 		return err
 	}
 
-	err = os.WriteFile(fileName, yamlOutput, 0644)
+	err = os.WriteFile(fileName, yamlOutput, 0600)
 	if err != nil {
 		return err
 	}

@@ -7,9 +7,7 @@ spec:
   source:
     registry:
       url: "docker://kubevirt/fedora-cloud-registry-disk-demo"
-  pvc:
-    accessModes:
-      - ReadWriteOnce
+  storage:
     resources:
       requests:
         storage: 5Gi

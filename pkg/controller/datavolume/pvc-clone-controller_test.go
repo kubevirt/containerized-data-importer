@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -36,6 +37,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -804,7 +806,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			// Prepare the source PVC with the required annotations
 			pvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, annKubevirt, nil, corev1.ClaimBound)
 			pvc.Annotations[AnnVirtualImageSize] = "100" // Mock value
-			pvc.Annotations[AnnSourceCapacity] = string(pvc.Status.Capacity.Storage().String())
+			pvc.Annotations[AnnSourceCapacity] = pvc.Status.Capacity.Storage().String()
 			reconciler := createCloneReconciler(dv, pvc, storageProfile, sc)
 
 			// Get the expected value
@@ -954,7 +956,7 @@ func newCloneDataVolumeWithPVCNS(name string, pvcNamespace string) *cdiv1.DataVo
 			PriorityClassName: "p0-clone",
 			PVC: &corev1.PersistentVolumeClaimSpec{
 				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},

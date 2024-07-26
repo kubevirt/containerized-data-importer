@@ -20,9 +20,11 @@ import (
 	"fmt"
 
 	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
@@ -67,13 +69,14 @@ type ClusterServiceVersionData struct {
 
 	OperatorVersion string
 
-	ControllerImage   string
-	ImporterImage     string
-	ClonerImage       string
-	APIServerImage    string
-	UplodaProxyImage  string
-	UplodaServerImage string
-	OperatorImage     string
+	ControllerImage     string
+	ImporterImage       string
+	ClonerImage         string
+	OvirtPopulatorImage string
+	APIServerImage      string
+	UplodaProxyImage    string
+	UplodaServerImage   string
+	OperatorImage       string
 }
 
 // CreateAllOperatorResources creates all cluster-wide resources

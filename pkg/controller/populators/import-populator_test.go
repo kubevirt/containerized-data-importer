@@ -30,6 +30,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -40,6 +41,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -392,16 +394,18 @@ var _ = Describe("Import populator tests", func() {
 		},
 			Entry("with pod running phase", string(corev1.PodRunning)),
 			Entry("with pod failed phase", string(corev1.PodFailed)),
-			Entry("with pod succeded phase", string(corev1.PodSucceeded)),
+			Entry("with pod succeeded phase", string(corev1.PodSucceeded)),
 		)
 
 		It("should update target pvc with desired labels from succeeded pvc prime", func() {
 			const (
-				testKubevirtIoKey           = "test.kubevirt.io/test"
-				testKubevirtIoValue         = "testvalue"
-				testKubevirtIoKeyExisting   = "test.kubevirt.io/existing"
-				testKubevirtIoValueExisting = "existing"
-				testUndesiredKey            = "undesired.key"
+				testKubevirtIoKey               = "test.kubevirt.io/test"
+				testKubevirtIoValue             = "testvalue"
+				testInstancetypeKubevirtIoKey   = "instancetype.kubevirt.io/default-preference"
+				testInstancetypeKubevirtIoValue = "testpreference"
+				testKubevirtIoKeyExisting       = "test.kubevirt.io/existing"
+				testKubevirtIoValueExisting     = "existing"
+				testUndesiredKey                = "undesired.key"
 			)
 
 			// The existing key should not be overwritten
@@ -413,6 +417,7 @@ var _ = Describe("Import populator tests", func() {
 			AddAnnotation(pvcPrime, AnnPodPhase, string(corev1.PodSucceeded))
 
 			AddLabel(pvcPrime, testKubevirtIoKey, testKubevirtIoValue)
+			AddLabel(pvcPrime, testInstancetypeKubevirtIoKey, testInstancetypeKubevirtIoValue)
 			AddLabel(pvcPrime, testKubevirtIoKeyExisting, "somethingelse")
 			AddLabel(pvcPrime, testUndesiredKey, testKubevirtIoValue)
 
@@ -441,6 +446,7 @@ var _ = Describe("Import populator tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(updatedPVC.Labels).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
+			Expect(updatedPVC.Labels).To(HaveKeyWithValue(testInstancetypeKubevirtIoKey, testInstancetypeKubevirtIoValue))
 			Expect(updatedPVC.Labels).To(HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoValueExisting))
 			Expect(updatedPVC.Labels).ToNot(HaveKey(testUndesiredKey))
 		})
@@ -568,13 +574,13 @@ var _ = Describe("Import populator tests", func() {
 			pvcPrime.Annotations = map[string]string{AnnImportPod: importPodName}
 
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				_, _ = w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", targetPvc.GetUID())))
-				w.WriteHeader(200)
+				_, _ = w.Write([]byte(fmt.Sprintf("kubevirt_cdi_import_progress_total{ownerUID=\"%v\"} 13.45", targetPvc.GetUID())))
+				w.WriteHeader(http.StatusOK)
 			}))
 			defer ts.Close()
 			ep, err := url.Parse(ts.URL)
 			Expect(err).ToNot(HaveOccurred())
-			port, err := strconv.Atoi(ep.Port())
+			port, err := strconv.ParseInt(ep.Port(), 10, 32)
 			Expect(err).ToNot(HaveOccurred())
 
 			pod := CreateImporterTestPod(pvcPrime, pvcPrime.Name, nil)

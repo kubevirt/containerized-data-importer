@@ -20,8 +20,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -31,13 +31,16 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	importMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 )
 
 const (
@@ -279,13 +282,16 @@ func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, p
 	}
 
 	// We fetch the import progress from the import pod metrics
-	importRegExp := regexp.MustCompile("progress\\{ownerUID\\=\"" + string(pvc.UID) + "\"\\} (\\d{1,3}\\.?\\d*)")
 	httpClient = cc.BuildHTTPClient(httpClient)
-	progressReport, err := cc.GetProgressReportFromURL(url, importRegExp, httpClient)
+	progressReport, err := cc.GetProgressReportFromURL(url, httpClient, importMetrics.ImportProgressMetricName, string(pvc.UID))
 	if err != nil {
 		return err
 	}
 	if progressReport != "" {
+		if strings.HasPrefix(progressReport, "100") {
+			// Hold on with reporting 100% since that may not be accounting for resize/convert etc
+			return nil
+		}
 		if f, err := strconv.ParseFloat(progressReport, 64); err == nil {
 			cc.AddAnnotation(pvc, cc.AnnPopulatorProgress, fmt.Sprintf("%.2f%%", f))
 		}

@@ -13,7 +13,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	ginkgo_reporters "github.com/onsi/ginkgo/v2/reporters"
 	. "github.com/onsi/gomega"
-	qe_reporters "kubevirt.io/qe-tools/pkg/ginkgo-reporters"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +21,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/reporter"
 	"kubevirt.io/containerized-data-importer/tests/utils"
+	qe_reporters "kubevirt.io/qe-tools/pkg/ginkgo-reporters"
 )
 
 const (
@@ -157,6 +157,9 @@ func BuildTestSuite() {
 
 	SynchronizedAfterSuite(func() {}, func() {
 		client := framework.ClientsInstance.K8sClient
+		if client == nil {
+			return
+		}
 
 		Eventually(func() []corev1.Namespace {
 			nsList, _ := utils.GetTestNamespaceList(client, framework.NsPrefixLabel)

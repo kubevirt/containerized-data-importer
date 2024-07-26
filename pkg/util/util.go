@@ -3,7 +3,7 @@ package util
 import (
 	"bufio"
 	"bytes"
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // This is not a security-sensitive use case
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -20,6 +20,7 @@ import (
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,6 +44,9 @@ type CountingReader struct {
 }
 
 // RandAlphaNum provides an implementation to generate a random alpha numeric string of the specified length
+// This generator is not cryptographically secure.
+//
+//nolint:gosec // This is not a security-sensitive use case
 func RandAlphaNum(n int) string {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	var letter = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
@@ -84,7 +88,7 @@ func ParseEnvVar(envVarName string, decode bool) (string, error) {
 func (r *CountingReader) Read(p []byte) (n int, err error) {
 	n, err = r.Reader.Read(p)
 	r.Current += uint64(n)
-	r.Done = err == io.EOF
+	r.Done = errors.Is(err, io.EOF)
 	return n, err
 }
 
@@ -109,7 +113,7 @@ func GetAvailableSpace(path string) (int64, error) {
 	if err != nil {
 		return int64(-1), err
 	}
-	return int64(stat.Bavail) * int64(stat.Bsize), nil
+	return int64(stat.Bavail) * stat.Bsize, nil
 }
 
 // GetAvailableSpaceBlock gets the amount of available space at the block device path specified.
@@ -178,23 +182,6 @@ func OpenFileOrBlockDevice(fileName string) (*os.File, error) {
 	return outFile, nil
 }
 
-// StreamDataToFile provides a function to stream the specified io.Reader to the specified local file
-func StreamDataToFile(r io.Reader, fileName string) error {
-	outFile, err := OpenFileOrBlockDevice(fileName)
-	if err != nil {
-		return err
-	}
-	defer outFile.Close()
-	klog.V(1).Infof("Writing data...\n")
-	if _, err = io.Copy(outFile, r); err != nil {
-		klog.Errorf("Unable to write file from dataReader: %v\n", err)
-		os.Remove(outFile.Name())
-		return errors.Wrapf(err, "unable to write to file")
-	}
-	err = outFile.Sync()
-	return err
-}
-
 // UnArchiveTar unarchives a tar file and streams its files
 // using the specified io.Reader to the specified destination.
 func UnArchiveTar(reader io.Reader, destDir string) error {
@@ -250,8 +237,9 @@ func WriteTerminationMessageToFile(file, message string) error {
 	message = strings.ReplaceAll(message, "\n", " ")
 	// Only write the first line of the message.
 	scanner := bufio.NewScanner(strings.NewReader(message))
+
 	if scanner.Scan() {
-		err := os.WriteFile(file, []byte(scanner.Text()), os.ModeAppend)
+		err := os.WriteFile(file, scanner.Bytes(), 0600)
 		if err != nil {
 			return errors.Wrap(err, "could not create termination message file")
 		}
@@ -260,7 +248,7 @@ func WriteTerminationMessageToFile(file, message string) error {
 }
 
 // CopyDir copies a dir from one location to another.
-func CopyDir(source string, dest string) (err error) {
+func CopyDir(source string, dest string) error {
 	// get properties of source dir
 	sourceinfo, err := os.Stat(source)
 	if err != nil {
@@ -294,7 +282,7 @@ func CopyDir(source string, dest string) (err error) {
 			}
 		}
 	}
-	return
+	return err
 }
 
 // LinkFile symlinks the source to the target
@@ -373,7 +361,10 @@ func SetRecommendedLabels(obj metav1.Object, installerLabels map[string]string, 
 	obj.SetLabels(mergedLabels)
 }
 
-// Md5sum calculates the md5sum of a given file
+// Md5sum calculates the md5sum of a given file.
+// Do not use this for security-sensitive use cases.
+//
+//nolint:gosec // This is not a security-sensitive use case
 func Md5sum(filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {

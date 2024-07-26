@@ -24,14 +24,14 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
 func createControllerResources(args *FactoryArgs) []client.Object {
@@ -42,6 +42,7 @@ func createControllerResources(args *FactoryArgs) []client.Object {
 		createControllerDeployment(args.ControllerImage,
 			args.ImporterImage,
 			args.ClonerImage,
+			args.OvirtPopulatorImage,
 			args.UploadServerImage,
 			args.Verbosity,
 			args.PullPolicy,
@@ -169,7 +170,7 @@ func createControllerServiceAccount() *corev1.ServiceAccount {
 	return utils.ResourceBuilder.CreateServiceAccount(common.ControllerServiceAccountName)
 }
 
-func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement, replicas int32) *appsv1.Deployment {
+func createControllerDeployment(controllerImage, importerImage, clonerImage, ovirtPopulatorImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement, replicas int32) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
 	// The match selector is immutable. that's why we should always use the same labels.
 	deployment := utils.CreateDeployment(common.CDIControllerResourceName, common.CDILabelKey, common.CDILabelValue, common.ControllerServiceAccountName, imagePullSecrets, int32(1), infraNodePlacement)
@@ -208,6 +209,10 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 		{
 			Name:  "UPLOADPROXY_SERVICE",
 			Value: common.CDIUploadProxyResourceName,
+		},
+		{
+			Name:  "OVIRT_POPULATOR_IMAGE",
+			Value: ovirtPopulatorImage,
 		},
 		{
 			Name:  "PULL_POLICY",

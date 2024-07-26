@@ -7,8 +7,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	ocpconfigv1 "github.com/openshift/api/config/v1"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -17,10 +16,11 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/ptr"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
-
-	ocpconfigv1 "github.com/openshift/api/config/v1"
 )
 
 var _ = Describe("renderPvcSpecVolumeSize", func() {
@@ -46,12 +46,28 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 		Expect(found).To(BeFalse())
 	})
 
+	It("Should return error on PVC with storage size smaller than 1MiB", func() {
+		volumeMode := corev1.PersistentVolumeBlock
+		pvcSpec := &corev1.PersistentVolumeClaimSpec{
+			StorageClassName: &scName,
+			VolumeMode:       &volumeMode,
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("9"),
+				},
+			},
+		}
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("PVC Spec is not valid - storage size should be at least 1MiB"))
+	})
+
 	It("Should return the same volume size (block volume mode)", func() {
 		volumeMode := corev1.PersistentVolumeBlock
 		pvcSpec := &corev1.PersistentVolumeClaimSpec{
 			StorageClassName: &scName,
 			VolumeMode:       &volumeMode,
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: volumeSize,
 				},
@@ -70,7 +86,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 		pvcSpec := &corev1.PersistentVolumeClaimSpec{
 			StorageClassName: &scName,
 			VolumeMode:       &volumeMode,
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: volumeSize,
 				},

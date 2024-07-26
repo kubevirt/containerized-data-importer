@@ -2,6 +2,7 @@ package alerts
 
 import (
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 )
@@ -52,12 +53,12 @@ var operatorAlerts = []promv1.Rule{
 		},
 		Labels: map[string]string{
 			severityAlertLabelKey:        "info",
-			operatorHealthImpactLabelKey: "warning",
+			operatorHealthImpactLabelKey: "none",
 		},
 	},
 	{
 		Alert: "CDIDataImportCronOutdated",
-		Expr:  intstr.FromString("sum by(ns,cron_name) (kubevirt_cdi_dataimportcron_outdated) > 0"),
+		Expr:  intstr.FromString(`sum by(ns,cron_name) (kubevirt_cdi_dataimportcron_outdated{pending="false"}) > 0`),
 		For:   (*promv1.Duration)(ptr.To("15m")),
 		Annotations: map[string]string{
 			"summary": "DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule",
@@ -95,8 +96,9 @@ var operatorAlerts = []promv1.Rule{
 	},
 	{
 		Alert: "CDIDefaultStorageClassDegraded",
-		Expr: intstr.FromString(`sum(kubevirt_cdi_storageprofile_info{default="true",rwx="true",smartclone="true"} or on() vector(0)) +
-								 sum(kubevirt_cdi_storageprofile_info{virtdefault="true",rwx="true",smartclone="true"} or on() vector(0)) == 0`),
+		Expr: intstr.FromString(`sum(kubevirt_cdi_storageprofile_info{default="true",degraded="false"} or on() vector(0)) +
+								 sum(kubevirt_cdi_storageprofile_info{virtdefault="true",degraded="false"} or on() vector(0)) +
+								 on () (0*(sum(kubevirt_cdi_storageprofile_info{default="true"}) or sum(kubevirt_cdi_storageprofile_info{virtdefault="true"}))) == 0`),
 		For: (*promv1.Duration)(ptr.To("5m")),
 		Annotations: map[string]string{
 			"summary": "Default storage class has no smart clone or ReadWriteMany",

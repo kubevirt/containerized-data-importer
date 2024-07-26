@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/openshift/library-go/pkg/crypto"
+
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/authentication/user"
 
@@ -45,7 +46,7 @@ func (cg *FetchCertGenerator) MakeServerCert(namespace, service string, duration
 		return nil, nil, err
 	}
 
-	hostnames := sets.NewString(serviceToHostnames(namespace, service)...)
+	hostnames := sets.New(serviceToHostnames(namespace, service)...)
 	certKeyPair, err := ca.MakeServerCertForDuration(hostnames, duration)
 	if err != nil {
 		return nil, nil, err

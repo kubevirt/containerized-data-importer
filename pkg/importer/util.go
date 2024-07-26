@@ -1,6 +1,7 @@
 package importer
 
 import (
+	"io"
 	"net/url"
 	"os"
 	"os/signal"
@@ -8,6 +9,8 @@ import (
 	"syscall"
 
 	"github.com/pkg/errors"
+
+	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -55,7 +58,7 @@ func GetTerminationChannel() <-chan os.Signal {
 	return terminationChannel
 }
 
-// newTerminationChannel should be overriden for unit tests
+// newTerminationChannel should be overridden for unit tests
 var newTerminationChannel = GetTerminationChannel
 
 func envsToLabels(envs []string) map[string]string {
@@ -81,4 +84,24 @@ func envToLabel(env string) string {
 	label += strings.Join(strings.Split(after, "_"), "-")
 
 	return strings.ToLower(label)
+}
+
+// streamDataToFile provides a function to stream the specified io.Reader to the specified local file
+func streamDataToFile(r io.Reader, fileName string) error {
+	outFile, err := util.OpenFileOrBlockDevice(fileName)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+	klog.V(1).Infof("Writing data...\n")
+	if _, err = io.Copy(outFile, r); err != nil {
+		klog.Errorf("Unable to write file from dataReader: %v\n", err)
+		os.Remove(outFile.Name())
+		if strings.Contains(err.Error(), "no space left on device") {
+			return errors.Wrapf(err, "unable to write to file")
+		}
+		return NewImagePullFailedError(err)
+	}
+	err = outFile.Sync()
+	return err
 }

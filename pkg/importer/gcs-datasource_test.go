@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"cloud.google.com/go/storage"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"cloud.google.com/go/storage"
 )
 
 var _ = Describe("Google Cloud Storage data source", func() {

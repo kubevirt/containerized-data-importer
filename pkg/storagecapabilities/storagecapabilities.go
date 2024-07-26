@@ -9,10 +9,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
-	"kubevirt.io/containerized-data-importer/pkg/util"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 // StorageCapabilities is a simple holder of storage capabilities (accessMode etc.)
@@ -48,29 +49,33 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"cephfs.csi.ceph.com":                   {{rwx, file}},
 	"openshift-storage.cephfs.csi.ceph.com": {{rwx, file}},
 	// LINSTOR
-	"linstor.csi.linbit.com": createLinstorCapabilities(),
-	// dell-unity-csi
-	"csi-unity.dellemc.com": createDellUnityCapabilities(),
-	// PowerFlex
-	"csi-vxflexos.dellemc.com": createDellPowerCapabilities(),
-	// PowerScale
-	"csi-isilon.dellemc.com": createDellPowerCapabilities(),
-	// PowerMax
-	"csi-powermax.dellemc.com": createDellPowerCapabilities(),
-	// PowerStore
-	"csi-powerstore.dellemc.com": createDellPowerCapabilities(),
+	"linstor.csi.linbit.com": createAllButRWXFileCapabilities(),
+	// DELL Unity XT
+	"csi-unity.dellemc.com":     createAllButRWXFileCapabilities(),
+	"csi-unity.dellemc.com/nfs": createAllFSCapabilities(),
+	// DELL PowerFlex
+	"csi-vxflexos.dellemc.com":     createDellPowerFlexCapabilities(),
+	"csi-vxflexos.dellemc.com/nfs": createAllFSCapabilities(),
+	// DELL PowerScale
+	"csi-isilon.dellemc.com": createAllFSCapabilities(),
+	// DELL PowerMax
+	"csi-powermax.dellemc.com":     createDellPowerMaxCapabilities(),
+	"csi-powermax.dellemc.com/nfs": createAllFSCapabilities(),
+	// DELL PowerStore
+	"csi-powerstore.dellemc.com":     createDellPowerStoreCapabilities(),
+	"csi-powerstore.dellemc.com/nfs": createAllFSCapabilities(),
 	// storageos
 	"kubernetes.io/storageos": {{rwo, file}},
 	"storageos":               {{rwo, file}},
-	//AWSElasticBlockStore
+	// AWSElasticBlockStore
 	"kubernetes.io/aws-ebs": {{rwo, block}},
 	"ebs.csi.aws.com":       {{rwo, block}},
-	//AWSElasticFileSystem
+	// AWSElasticFileSystem
 	"efs.csi.aws.com": {{rwx, file}, {rwo, file}},
-	//Azure disk
+	// Azure disk
 	"kubernetes.io/azure-disk": {{rwo, block}},
 	"disk.csi.azure.com":       {{rwo, block}},
-	//Azure file
+	// Azure file
 	"kubernetes.io/azure-file": {{rwx, file}},
 	"file.csi.azure.com":       {{rwx, file}},
 	// GCE Persistent Disk
@@ -104,6 +109,17 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"manila.csi.openstack.org": {{rwx, file}},
 	// ovirt csi
 	"csi.ovirt.org": createRWOBlockAndFilesystemCapabilities(),
+	// Infinidat
+	"infinibox-csi-driver/iscsiorfibrechannel": {{rwx, block}, {rwo, block}, {rwo, file}},
+	"infinibox-csi-driver/nfs":                 {{rwx, file}, {rwo, file}},
+	// vSphere
+	"csi.vsphere.vmware.com":     {{rwo, block}, {rwo, file}},
+	"csi.vsphere.vmware.com/nfs": {{rwx, file}, {rwo, block}, {rwo, file}},
+	// huawei
+	"csi.huawei.com":     createAllButRWXFileCapabilities(),
+	"csi.huawei.com/nfs": createAllFSCapabilities(),
+	// KubeSAN
+	"kubesan.gitlab.io": {{rwx, block}, {rox, block}, {rwo, block}, {rwo, file}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
@@ -111,37 +127,54 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 	"rook-ceph.rbd.csi.ceph.com":         cdiv1.DataImportCronSourceFormatSnapshot,
 	"openshift-storage.rbd.csi.ceph.com": cdiv1.DataImportCronSourceFormatSnapshot,
+	"csi.trident.netapp.io/ontap-nas":    cdiv1.DataImportCronSourceFormatSnapshot,
+	"csi.trident.netapp.io/ontap-san":    cdiv1.DataImportCronSourceFormatSnapshot,
 }
 
 // CloneStrategyByProvisionerKey defines the advised clone strategy for a provisioner
 var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
-	"csi-vxflexos.dellemc.com":              cdiv1.CloneStrategyCsiClone,
-	"csi-isilon.dellemc.com":                cdiv1.CloneStrategyCsiClone,
-	"csi-powermax.dellemc.com":              cdiv1.CloneStrategyCsiClone,
-	"csi-powerstore.dellemc.com":            cdiv1.CloneStrategyCsiClone,
-	"hspc.csi.hitachi.com":                  cdiv1.CloneStrategyCsiClone,
-	"csi.hpe.com":                           cdiv1.CloneStrategyCsiClone,
-	"spectrumscale.csi.ibm.com":             cdiv1.CloneStrategyCsiClone,
-	"rook-ceph.rbd.csi.ceph.com":            cdiv1.CloneStrategyCsiClone,
-	"openshift-storage.rbd.csi.ceph.com":    cdiv1.CloneStrategyCsiClone,
-	"cephfs.csi.ceph.com":                   cdiv1.CloneStrategyCsiClone,
-	"openshift-storage.cephfs.csi.ceph.com": cdiv1.CloneStrategyCsiClone,
-	"csi.trident.netapp.io/ontap-nas":       cdiv1.CloneStrategyCsiClone,
-	"csi.trident.netapp.io/ontap-san":       cdiv1.CloneStrategyCsiClone,
-	"pxd.openstorage.org/shared":            cdiv1.CloneStrategyCsiClone,
-	"pxd.openstorage.org":                   cdiv1.CloneStrategyCsiClone,
-	"pxd.portworx.com/shared":               cdiv1.CloneStrategyCsiClone,
-	"pxd.portworx.com":                      cdiv1.CloneStrategyCsiClone,
+	"csi-vxflexos.dellemc.com":                 cdiv1.CloneStrategyCsiClone,
+	"csi-isilon.dellemc.com":                   cdiv1.CloneStrategyCsiClone,
+	"csi-powermax.dellemc.com":                 cdiv1.CloneStrategyCsiClone,
+	"csi-powerstore.dellemc.com":               cdiv1.CloneStrategyCsiClone,
+	"hspc.csi.hitachi.com":                     cdiv1.CloneStrategyCsiClone,
+	"csi.hpe.com":                              cdiv1.CloneStrategyCsiClone,
+	"spectrumscale.csi.ibm.com":                cdiv1.CloneStrategyCsiClone,
+	"rook-ceph.rbd.csi.ceph.com":               cdiv1.CloneStrategyCsiClone,
+	"openshift-storage.rbd.csi.ceph.com":       cdiv1.CloneStrategyCsiClone,
+	"cephfs.csi.ceph.com":                      cdiv1.CloneStrategyCsiClone,
+	"openshift-storage.cephfs.csi.ceph.com":    cdiv1.CloneStrategyCsiClone,
+	"pxd.openstorage.org/shared":               cdiv1.CloneStrategyCsiClone,
+	"pxd.openstorage.org":                      cdiv1.CloneStrategyCsiClone,
+	"pxd.portworx.com/shared":                  cdiv1.CloneStrategyCsiClone,
+	"pxd.portworx.com":                         cdiv1.CloneStrategyCsiClone,
+	"topolvm.cybozu.com":                       cdiv1.CloneStrategyHostAssisted,
+	"topolvm.io":                               cdiv1.CloneStrategyHostAssisted,
+	"infinibox-csi-driver/iscsiorfibrechannel": cdiv1.CloneStrategyCsiClone,
+	"infinibox-csi-driver/nfs":                 cdiv1.CloneStrategyCsiClone,
+	"csi.trident.netapp.io/ontap-nas":          cdiv1.CloneStrategySnapshot,
+	"csi.trident.netapp.io/ontap-san":          cdiv1.CloneStrategySnapshot,
+	"kubesan.gitlab.io":                        cdiv1.CloneStrategyCsiClone,
 }
 
-// ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
-const ProvisionerNoobaa = "openshift-storage.noobaa.io/obc"
+const (
+	// ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
+	ProvisionerNoobaa = "openshift-storage.noobaa.io/obc"
+	// ProvisionerOCSBucket is the provisioner string for the downstream ODF/OCS provisoner for buckets which does not work with CDI
+	ProvisionerOCSBucket = "openshift-storage.ceph.rook.io/bucket"
+	// ProvisionerRookCephBucket is the provisioner string for the upstream Rook Ceph provisoner for buckets which does not work with CDI
+	ProvisionerRookCephBucket = "rook-ceph.ceph.rook.io/bucket"
+	// ProvisionerStorkSnapshot is the provisioner string for the Stork snapshot provisoner which does not work with CDI
+	ProvisionerStorkSnapshot = "stork-snapshot"
+)
 
 // UnsupportedProvisioners is a hash of provisioners which are known not to work with CDI
 var UnsupportedProvisioners = map[string]struct{}{
 	// The following provisioners may be found in Rook/Ceph deployments and are related to object storage
-	"openshift-storage.ceph.rook.io/bucket": {},
-	ProvisionerNoobaa:                       {},
+	ProvisionerOCSBucket:      {},
+	ProvisionerRookCephBucket: {},
+	ProvisionerNoobaa:         {},
+	ProvisionerStorkSnapshot:  {},
 }
 
 // GetCapabilities finds and returns a predefined StorageCapabilities for a given StorageClass
@@ -212,7 +245,7 @@ func storageProvisionerKey(sc *storagev1.StorageClass) string {
 
 var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageClass) string{
 	"pxd.openstorage.org": func(sc *storagev1.StorageClass) string {
-		//https://docs.portworx.com/portworx-install-with-kubernetes/storage-operations/create-pvcs/create-shared-pvcs/
+		// https://docs.portworx.com/portworx-install-with-kubernetes/storage-operations/create-pvcs/create-shared-pvcs/
 		val := sc.Parameters["shared"]
 		if val == "true" {
 			return "pxd.openstorage.org/shared"
@@ -227,7 +260,7 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		return "kubernetes.io/portworx-volume"
 	},
 	"pxd.portworx.com": func(sc *storagev1.StorageClass) string {
-		//https://docs.portworx.com/portworx-install-with-kubernetes/storage-operations/csi/volumelifecycle/#create-shared-csi-enabled-volumes
+		// https://docs.portworx.com/portworx-install-with-kubernetes/storage-operations/csi/volumelifecycle/#create-shared-csi-enabled-volumes
 		val := sc.Parameters["shared"]
 		if val == "true" {
 			return "pxd.portworx.com/shared"
@@ -235,7 +268,7 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		return "pxd.portworx.com"
 	},
 	"csi.trident.netapp.io": func(sc *storagev1.StorageClass) string {
-		//https://netapp-trident.readthedocs.io/en/stable-v20.04/kubernetes/concepts/objects.html#kubernetes-storageclass-objects
+		// https://netapp-trident.readthedocs.io/en/stable-v20.04/kubernetes/concepts/objects.html#kubernetes-storageclass-objects
 		val := sc.Parameters["backendType"]
 		if strings.HasPrefix(val, "ontap-nas") {
 			return "csi.trident.netapp.io/ontap-nas"
@@ -245,6 +278,75 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		}
 		return "UNKNOWN"
 	},
+	"infinibox-csi-driver": func(sc *storagev1.StorageClass) string {
+		// https://github.com/Infinidat/infinibox-csi-driver/tree/develop/deploy/examples
+		switch sc.Parameters["storage_protocol"] {
+		case "iscsi", "fc":
+			return "infinibox-csi-driver/iscsiorfibrechannel"
+		case "nfs", "nfs_treeq":
+			return "infinibox-csi-driver/nfs"
+		default:
+			return "UNKNOWN"
+		}
+	},
+	"csi.vsphere.vmware.com": func(sc *storagev1.StorageClass) string {
+		fsType := getFSType(sc)
+		if strings.Contains(fsType, "nfs") {
+			return "csi.vsphere.vmware.com/nfs"
+		}
+		return "csi.vsphere.vmware.com"
+	},
+	"csi-unity.dellemc.com": func(sc *storagev1.StorageClass) string {
+		// https://github.com/dell/csi-unity/blob/1f42af327f4130df65c5532f6029559e4ab579b5/samples/storageclass
+		switch strings.ToLower(sc.Parameters["protocol"]) {
+		case "nfs":
+			return "csi-unity.dellemc.com/nfs"
+		default:
+			return "csi-unity.dellemc.com"
+		}
+	},
+	"csi-powerstore.dellemc.com": func(sc *storagev1.StorageClass) string {
+		// https://github.com/dell/csi-powerstore/blob/76e2cb671bd3cb28aa860e9057649d1d911e1deb/samples/storageclass
+		fsType := getFSType(sc)
+		switch fsType {
+		case "nfs":
+			return "csi-powerstore.dellemc.com/nfs"
+		default:
+			return "csi-powerstore.dellemc.com"
+		}
+	},
+	"csi-vxflexos.dellemc.com": func(sc *storagev1.StorageClass) string {
+		// https://github.com/dell/csi-powerflex/tree/main/samples/storageclass
+		fsType := getFSType(sc)
+		switch fsType {
+		case "nfs":
+			return "csi-vxflexos.dellemc.com/nfs"
+		default:
+			return "csi-vxflexos.dellemc.com"
+		}
+	},
+	"csi-powermax.dellemc.com": func(sc *storagev1.StorageClass) string {
+		// https://github.com/dell/csi-powermax/tree/main/samples/storageclass
+		fsType := getFSType(sc)
+		switch fsType {
+		case "nfs":
+			return "csi-powermax.dellemc.com/nfs"
+		default:
+			return "csi-powermax.dellemc.com"
+		}
+	},
+	"csi.huawei.com": func(sc *storagev1.StorageClass) string {
+		switch sc.Parameters["protocol"] {
+		case "nfs":
+			return "csi.huawei.com/nfs"
+		default:
+			return "csi.huawei.com"
+		}
+	},
+}
+
+func getFSType(sc *storagev1.StorageClass) string {
+	return strings.ToLower(sc.Parameters["csi.storage.k8s.io/fstype"])
 }
 
 func createRbdCapabilities() []StorageCapabilities {
@@ -255,7 +357,7 @@ func createRbdCapabilities() []StorageCapabilities {
 	}
 }
 
-func createLinstorCapabilities() []StorageCapabilities {
+func createAllButRWXFileCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
 		{rwx, block},
 		{rwo, block},
@@ -265,7 +367,16 @@ func createLinstorCapabilities() []StorageCapabilities {
 	}
 }
 
-func createDellUnityCapabilities() []StorageCapabilities {
+func createDellPowerMaxCapabilities() []StorageCapabilities {
+	return []StorageCapabilities{
+		{rwx, block},
+		{rwo, block},
+		{rwo, file},
+		{rox, block},
+	}
+}
+
+func createDellPowerFlexCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
 		{rwx, block},
 		{rwo, block},
@@ -275,11 +386,20 @@ func createDellUnityCapabilities() []StorageCapabilities {
 	}
 }
 
-func createDellPowerCapabilities() []StorageCapabilities {
+func createAllFSCapabilities() []StorageCapabilities {
+	return []StorageCapabilities{
+		{rwx, file},
+		{rwo, file},
+		{rox, file},
+	}
+}
+
+func createDellPowerStoreCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
 		{rwx, block},
 		{rwo, block},
 		{rwo, file},
+		{rox, block},
 	}
 }
 

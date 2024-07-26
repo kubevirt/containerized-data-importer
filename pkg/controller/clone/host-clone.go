@@ -4,16 +4,22 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-logr/logr"
+
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 )
 
 // HostClonePhaseName is the name of the host clone phase
@@ -69,7 +75,7 @@ func (p *HostClonePhase) Status(ctx context.Context) (*PhaseStatus, error) {
 		return result, nil
 	}
 
-	args := &cc.ProgressFromClaimArgs{
+	args := &progressFromClaimArgs{
 		Client:       p.Client,
 		HTTPClient:   httpClient,
 		Claim:        pvc,
@@ -78,7 +84,7 @@ func (p *HostClonePhase) Status(ctx context.Context) (*PhaseStatus, error) {
 		OwnerUID:     string(p.Owner.GetUID()),
 	}
 
-	progress, err := cc.ProgressFromClaim(ctx, args)
+	progress, err := progressFromClaim(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -86,6 +92,62 @@ func (p *HostClonePhase) Status(ctx context.Context) (*PhaseStatus, error) {
 	result.Progress = progress
 
 	return result, nil
+}
+
+// progressFromClaimArgs are the args for ProgressFromClaim
+type progressFromClaimArgs struct {
+	Client       client.Client
+	HTTPClient   *http.Client
+	Claim        *corev1.PersistentVolumeClaim
+	OwnerUID     string
+	PodNamespace string
+	PodName      string
+}
+
+// progressFromClaim returns the progres
+func progressFromClaim(ctx context.Context, args *progressFromClaimArgs) (string, error) {
+	// Just set 100.0% if pod is succeeded
+	if args.Claim.Annotations[cc.AnnPodPhase] == string(corev1.PodSucceeded) {
+		return cc.ProgressDone, nil
+	}
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: args.PodNamespace,
+			Name:      args.PodName,
+		},
+	}
+	if err := args.Client.Get(ctx, client.ObjectKeyFromObject(pod), pod); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+
+	// This will only work when the clone source pod is running
+	if pod.Status.Phase != corev1.PodRunning {
+		return "", nil
+	}
+	url, err := cc.GetMetricsURL(pod)
+	if err != nil {
+		return "", err
+	}
+	if url == "" {
+		return "", nil
+	}
+
+	// We fetch the clone progress from the clone source pod metrics
+	progressReport, err := cc.GetProgressReportFromURL(url, args.HTTPClient, metrics.CloneProgressMetricName, args.OwnerUID)
+	if err != nil {
+		return "", err
+	}
+	if progressReport != "" {
+		if f, err := strconv.ParseFloat(progressReport, 64); err == nil {
+			return fmt.Sprintf("%.2f%%", f), nil
+		}
+	}
+
+	return "", nil
 }
 
 // Reconcile creates the desired pvc and waits for the operation to complete

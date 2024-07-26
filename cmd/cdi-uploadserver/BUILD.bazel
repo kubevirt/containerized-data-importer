@@ -12,6 +12,7 @@ go_library(
         "//pkg/util/tls-crypto-watch:go_default_library",
         "//vendor/github.com/openshift/library-go/pkg/crypto:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
+        "//vendor/k8s.io/utils/ptr:go_default_library",
     ],
 )
 

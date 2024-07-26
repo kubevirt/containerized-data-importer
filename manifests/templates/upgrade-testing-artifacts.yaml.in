@@ -16,7 +16,7 @@ spec:
   source:
       http:
          url: "http://cdi-file-host.{{ .Namespace }}/tinyCore.iso"
-  pvc:
+  storage:
     accessModes:
       - ReadWriteOnce
     resources:

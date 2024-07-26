@@ -23,16 +23,20 @@ import (
 	"strconv"
 	"strings"
 
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-	"kubevirt.io/containerized-data-importer/pkg/util/naming"
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-
-	"k8s.io/apimachinery/pkg/runtime"
-	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	kvalidation "k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
+	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -40,15 +44,10 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-
-	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	kvalidation "k8s.io/apimachinery/pkg/util/validation"
-	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/tools/record"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
 const (
@@ -438,7 +437,7 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()).To(HaveKeyWithValue(cc.AnnRunningCondition, "false"))
 		Expect(resPvc.GetAnnotations()).To(HaveKeyWithValue(cc.AnnRunningConditionMessage, conditionMessage))
 	},
-		Entry("Message which can be unmarshalled", `{"preAllocationApplied": true}`, ImportCompleteMessage),
+		Entry("Message which can be unmarshalled", `{"preAllocationApplied": true, "message": "Import Complete"}`, "Import Complete"),
 		Entry("Message which cannot be unmarshalled", "somemessage", "somemessage"),
 	)
 
@@ -532,10 +531,10 @@ var _ = Describe("Update PVC from POD", func() {
 	})
 
 	It("Should create scratch PVC, if pod is pending and PVC is marked with scratch", func() {
-		scratchPvcName := &corev1.PersistentVolumeClaim{}
-		scratchPvcName.Name = "testPvc1-scratch"
+		scratchPvc := &corev1.PersistentVolumeClaim{}
+		scratchPvc.Name = "testPvc1-scratch"
 		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending), cc.AnnRequiresScratch: "true"}, nil, corev1.ClaimBound)
-		pod := cc.CreateImporterTestPod(pvc, "testPvc1", scratchPvcName)
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", scratchPvc)
 		pod.Status = corev1.PodStatus{
 			Phase: corev1.PodPending,
 			ContainerStatuses: []v1.ContainerStatus{
@@ -553,7 +552,6 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking scratch PVC has been created")
 		// Once all controllers are converted, we will use the runtime lib client instead of client-go and retrieval needs to change here.
-		scratchPvc := &v1.PersistentVolumeClaim{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1-scratch", Namespace: "default"}, scratchPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(scratchPvc.Spec.Resources).To(Equal(pvc.Spec.Resources))
@@ -618,9 +616,9 @@ var _ = Describe("Update PVC from POD", func() {
 
 	It("Should NOT update phase on PVC, if pod exited with termination message stating scratch space is required", func() {
 		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodRunning)}, nil, corev1.ClaimBound)
-		scratchPvcName := &corev1.PersistentVolumeClaim{}
-		scratchPvcName.Name = "testPvc1-scratch"
-		pod := cc.CreateImporterTestPod(pvc, "testPvc1", scratchPvcName)
+		scratchPvc := &corev1.PersistentVolumeClaim{}
+		scratchPvc.Name = "testPvc1-scratch"
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", scratchPvc)
 		pod.Status = corev1.PodStatus{
 			Phase: corev1.PodPending,
 			ContainerStatuses: []corev1.ContainerStatus{
@@ -709,9 +707,9 @@ var _ = Describe("Update PVC from POD", func() {
 
 	It("Should copy VDDK connection information to annotations on PVC", func() {
 		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodRunning), cc.AnnSource: cc.SourceVDDK}, nil, corev1.ClaimBound)
-		scratchPvcName := &corev1.PersistentVolumeClaim{}
-		scratchPvcName.Name = "testPvc1-scratch"
-		pod := cc.CreateImporterTestPod(pvc, "testPvc1", scratchPvcName)
+		scratchPvc := &corev1.PersistentVolumeClaim{}
+		scratchPvc.Name = "testPvc1-scratch"
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", scratchPvc)
 		pod.Status = corev1.PodStatus{
 			Phase: corev1.PodSucceeded,
 			ContainerStatuses: []corev1.ContainerStatus{
@@ -744,9 +742,10 @@ var _ = Describe("Update PVC from POD", func() {
 
 	It("Should delete pod for scratch space even if retainAfterCompletion is set", func() {
 		annotations := map[string]string{
-			cc.AnnEndpoint:                 testEndPoint,
-			cc.AnnImportPod:                "testpod",
-			cc.AnnRequiresScratch:          "true",
+			cc.AnnEndpoint:  testEndPoint,
+			cc.AnnImportPod: "testpod",
+			// gets added by controller
+			// cc.AnnRequiresScratch:          "true",
 			cc.AnnSource:                   cc.SourceVDDK,
 			cc.AnnPodRetainAfterCompletion: "true",
 		}
@@ -756,8 +755,11 @@ var _ = Describe("Update PVC from POD", func() {
 			Phase: corev1.PodSucceeded,
 			ContainerStatuses: []corev1.ContainerStatus{
 				{
-					LastTerminationState: corev1.ContainerState{
-						Terminated: &corev1.ContainerStateTerminated{},
+					State: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{
+							ExitCode: 0,
+							Message:  `{"scratchSpaceRequired": true}`,
+						},
 					},
 				},
 			},
@@ -778,6 +780,60 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(err.Error()).To(ContainSubstring("\"importer-testPvc1\" not found"))
 	})
 
+	It("Should delete pod in favor of recreating with cache=trynone in case of OOMKilled", func() {
+		annotations := map[string]string{
+			cc.AnnEndpoint:             testEndPoint,
+			cc.AnnSource:               cc.SourceRegistry,
+			cc.AnnRegistryImportMethod: string(cdiv1.RegistryPullNode),
+		}
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, annotations, nil, corev1.ClaimPending)
+		reconciler = createImportReconciler(pvc)
+
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		// First reconcile decides pods name, second creates it
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Simulate OOMKilled on pod
+		resPod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
+		Expect(err).ToNot(HaveOccurred())
+		resPod.Status = corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{
+							ExitCode: 137,
+							// This is an API
+							// https://github.com/kubernetes/kubernetes/blob/e38531e9a2359c2ba1505cb04d62d6810edc616e/staging/src/k8s.io/cri-api/pkg/apis/runtime/v1/api.pb.go#L5822-L5823
+							Reason: cc.OOMKilledReason,
+						},
+					},
+				},
+			},
+		}
+		err = reconciler.client.Status().Update(context.TODO(), resPod)
+		Expect(err).ToNot(HaveOccurred())
+		// Reconcile picks OOMKilled and deletes pod
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("\"importer-testPvc1\" not found"))
+		// Next reconcile recreates pod with cache=trynone
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resPod.Spec.Containers[0].Env).To(ContainElement(
+			corev1.EnvVar{
+				Name:  common.CacheMode,
+				Value: common.CacheModeTryNone,
+			},
+		))
+	})
 })
 
 var _ = Describe("Create Importer Pod", func() {
@@ -1117,7 +1173,7 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 		},
 		{
 			Name:  common.OwnerUID,
-			Value: string(uid),
+			Value: uid,
 		},
 		{
 			Name:  common.FilesystemOverheadVar,
@@ -1182,6 +1238,10 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 		{
 			Name:  common.Preallocation,
 			Value: strconv.FormatBool(podEnvVar.preallocation),
+		},
+		{
+			Name:  common.CacheMode,
+			Value: podEnvVar.cacheMode,
 		},
 	}
 

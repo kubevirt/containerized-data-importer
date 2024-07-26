@@ -5,13 +5,13 @@ import (
 	"os"
 	"strings"
 
+	populatormachinery "github.com/kubernetes-csi/lib-volume-populator/populator-machinery"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog/v2"
-
-	populatormachinery "github.com/kubernetes-csi/lib-volume-populator/populator-machinery"
 )
 
 const (
@@ -135,5 +135,5 @@ func main() {
 		klog.Fatalf("Invalid mode: %s", mode)
 	}
 
-	klog.Infof("CDI sample populator finished succesfully in '%s' mode", mode)
+	klog.Infof("CDI sample populator finished successfully in '%s' mode", mode)
 }

@@ -12,7 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-
 	"github.com/pkg/errors"
 
 	"k8s.io/klog/v2"
@@ -100,7 +99,7 @@ func (sd *S3DataSource) Transfer(path string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, ErrInvalidPath
 	}
 
-	err := util.StreamDataToFile(sd.readers.TopReader(), file)
+	err := streamDataToFile(sd.readers.TopReader(), file)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -115,7 +114,7 @@ func (sd *S3DataSource) TransferFile(fileName string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, err
 	}
 
-	err := util.StreamDataToFile(sd.readers.TopReader(), fileName)
+	err := streamDataToFile(sd.readers.TopReader(), fileName)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}

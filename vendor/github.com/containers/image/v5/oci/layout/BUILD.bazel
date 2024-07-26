@@ -3,6 +3,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "go_default_library",
     srcs = [
+        "oci_delete.go",
         "oci_dest.go",
         "oci_src.go",
         "oci_transport.go",
@@ -21,13 +22,16 @@ go_library(
         "//vendor/github.com/containers/image/v5/internal/manifest:go_default_library",
         "//vendor/github.com/containers/image/v5/internal/private:go_default_library",
         "//vendor/github.com/containers/image/v5/internal/putblobdigest:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/set:go_default_library",
         "//vendor/github.com/containers/image/v5/oci/internal:go_default_library",
         "//vendor/github.com/containers/image/v5/pkg/tlsclientconfig:go_default_library",
         "//vendor/github.com/containers/image/v5/transports:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",
+        "//vendor/github.com/containers/storage/pkg/fileutils:go_default_library",
         "//vendor/github.com/docker/go-connections/tlsconfig:go_default_library",
         "//vendor/github.com/opencontainers/go-digest:go_default_library",
         "//vendor/github.com/opencontainers/image-spec/specs-go:go_default_library",
         "//vendor/github.com/opencontainers/image-spec/specs-go/v1:go_default_library",
+        "//vendor/github.com/sirupsen/logrus:go_default_library",
     ],
 )

@@ -7,10 +7,5 @@ spec:
     pvc:
       namespace: default
       name: import-kubevirt-block-datavolume
-  pvc:
+  storage:
     volumeMode: Block
-    accessModes:
-      - ReadWriteOnce
-    resources:
-      requests:
-        storage: 1Gi

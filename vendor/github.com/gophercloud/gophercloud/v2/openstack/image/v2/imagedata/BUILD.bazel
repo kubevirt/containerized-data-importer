@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "doc.go",
+        "requests.go",
+        "results.go",
+        "urls.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/gophercloud/gophercloud/v2/openstack/image/v2/imagedata",
+    importpath = "github.com/gophercloud/gophercloud/v2/openstack/image/v2/imagedata",
+    visibility = ["//visibility:public"],
+    deps = ["//vendor/github.com/gophercloud/gophercloud/v2:go_default_library"],
+)

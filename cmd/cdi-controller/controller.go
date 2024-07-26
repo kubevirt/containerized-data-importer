@@ -15,7 +15,9 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
+
 	batchv1 "k8s.io/api/batch/v1"
+	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -26,6 +28,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
+
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -35,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	forklift "kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
@@ -58,6 +62,7 @@ var (
 	clonerImage            string
 	uploadServerImage      string
 	uploadProxyServiceName string
+	ovirtPopulatorImage    string
 	configName             string
 	pullPolicy             string
 	verbose                string
@@ -69,6 +74,7 @@ var (
 		cdiv1.AddToScheme,
 		extv1.AddToScheme,
 		snapshotv1.AddToScheme,
+		forklift.AddToScheme,
 		imagev1.Install,
 		ocpconfigv1.Install,
 		routev1.Install,
@@ -101,6 +107,7 @@ func init() {
 	importerImage = getRequiredEnvVar("IMPORTER_IMAGE")
 	clonerImage = getRequiredEnvVar("CLONER_IMAGE")
 	uploadServerImage = getRequiredEnvVar("UPLOADSERVER_IMAGE")
+	ovirtPopulatorImage = getRequiredEnvVar("OVIRT_POPULATOR_IMAGE")
 	uploadProxyServiceName = getRequiredEnvVar("UPLOADPROXY_SERVICE")
 	installerLabels = map[string]string{}
 
@@ -299,6 +306,10 @@ func start() {
 		klog.Errorf("Unable to setup clone populator: %v", err)
 		os.Exit(1)
 	}
+	if _, err := populators.NewForkliftPopulator(ctx, mgr, log, importerImage, ovirtPopulatorImage, installerLabels); err != nil {
+		klog.Errorf("Unable to setup forklift populator: %v", err)
+		os.Exit(1)
+	}
 
 	klog.V(1).Infoln("created cdi controllers")
 
@@ -397,6 +408,9 @@ func getCacheOptions(apiClient client.Client, cdiNamespace string) cache.Options
 				Field: namespaceSelector,
 			},
 			&batchv1.Job{}: {
+				Field: namespaceSelector,
+			},
+			&v1.ConfigMap{}: {
 				Field: namespaceSelector,
 			},
 		},

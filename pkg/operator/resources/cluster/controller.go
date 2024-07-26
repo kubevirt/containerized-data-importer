@@ -18,6 +18,7 @@ package cluster
 
 import (
 	rbacv1 "k8s.io/api/rbac/v1"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
@@ -145,6 +146,7 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 			},
 			Resources: []string{
 				"proxies",
+				"infrastructures",
 			},
 			Verbs: []string{
 				"get",
@@ -262,6 +264,20 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 			},
 			Verbs: []string{
 				"update",
+			},
+		},
+		{
+			APIGroups: []string{
+				"forklift.cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"ovirtvolumepopulators",
+				"openstackvolumepopulators",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
 			},
 		},
 	}

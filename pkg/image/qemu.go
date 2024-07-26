@@ -27,12 +27,12 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
+
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 	"kubevirt.io/containerized-data-importer/pkg/system"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -58,7 +58,7 @@ type ImgInfo struct {
 
 // QEMUOperations defines the interface for executing qemu subprocesses
 type QEMUOperations interface {
-	ConvertToRawStream(*url.URL, string, bool) error
+	ConvertToRawStream(*url.URL, string, bool, string) error
 	Resize(string, resource.Quantity, bool) error
 	Info(url *url.URL) (*ImgInfo, error)
 	Validate(*url.URL, int64) error
@@ -75,13 +75,6 @@ var (
 	qemuIterface     = NewQEMUOperations()
 	re               = regexp.MustCompile(matcherString)
 
-	progress = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "clone_progress",
-			Help: "The clone progress in percentage",
-		},
-		[]string{"ownerUID"},
-	)
 	ownerUID                    string
 	convertPreallocationMethods = [][]string{
 		{"-o", "preallocation=falloc"},
@@ -92,17 +85,12 @@ var (
 		{"--preallocation=falloc"},
 		{"--preallocation=full"},
 	}
+	odirectChecker = NewDirectIOChecker(RealOS{})
 )
 
 func init() {
-	if err := prometheus.Register(progress); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
-			// A counter for that metric has been registered before.
-			// Use the old counter from now on.
-			progress = are.ExistingCollector.(*prometheus.CounterVec)
-		} else {
-			klog.Errorf("Unable to create prometheus progress counter")
-		}
+	if err := metrics.SetupMetrics(); err != nil {
+		klog.Errorf("Unable to create prometheus progress counter: %v", err)
 	}
 	ownerUID, _ = util.ParseEnvVar(common.OwnerUID, false)
 }
@@ -112,9 +100,12 @@ func NewQEMUOperations() QEMUOperations {
 	return &qemuOperations{}
 }
 
-func convertToRaw(src, dest string, preallocate bool) error {
-	args := []string{"convert", "-t", "writeback", "-p", "-O", "raw", src, dest}
-	var err error
+func convertToRaw(src, dest string, preallocate bool, cacheMode string) error {
+	cacheMode, err := getCacheMode(dest, cacheMode)
+	if err != nil {
+		return err
+	}
+	args := []string{"convert", "-t", cacheMode, "-p", "-O", "raw", src, dest}
 
 	if preallocate {
 		err = addPreallocation(args, convertPreallocationMethods, func(args []string) ([]byte, error) {
@@ -136,11 +127,38 @@ func convertToRaw(src, dest string, preallocate bool) error {
 	return nil
 }
 
-func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string, preallocate bool) error {
+func getCacheMode(path string, cacheMode string) (string, error) {
+	if cacheMode != common.CacheModeTryNone {
+		return "writeback", nil
+	}
+
+	var supportDirectIO bool
+	isDevice, err := util.IsDevice(path)
+	if err != nil {
+		return "", err
+	}
+
+	if isDevice {
+		supportDirectIO, err = odirectChecker.CheckBlockDevice(path)
+	} else {
+		supportDirectIO, err = odirectChecker.CheckFile(path)
+	}
+	if err != nil {
+		return "", err
+	}
+
+	if supportDirectIO {
+		return "none", nil
+	}
+
+	return "writeback", nil
+}
+
+func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string, preallocate bool, cacheMode string) error {
 	if len(url.Scheme) > 0 && url.Scheme != "nbd+unix" {
 		return fmt.Errorf("not valid schema %s", url.Scheme)
 	}
-	return convertToRaw(url.String(), dest, preallocate)
+	return convertToRaw(url.String(), dest, preallocate, cacheMode)
 }
 
 // convertQuantityToQemuSize translates a quantity string into a Qemu compatible string.
@@ -182,7 +200,6 @@ func checkOutputQemuImgInfo(output []byte, image string) (*ImgInfo, error) {
 		return nil, errors.Wrapf(err, "Invalid json for image %s", image)
 	}
 	return &info, nil
-
 }
 
 // Info returns information about the image from the url
@@ -226,7 +243,7 @@ func checkIfURLIsValid(info *ImgInfo, availableSize int64, image string) error {
 	}
 
 	if availableSize < info.VirtualSize {
-		return errors.Errorf("Virtual image size %d is larger than the reported available storage %d. A larger PVC is required.", info.VirtualSize, availableSize)
+		return errors.Errorf("virtual image size %d is larger than the reported available storage %d. A larger PVC is required", info.VirtualSize, availableSize)
 	}
 	return nil
 }
@@ -240,8 +257,8 @@ func (o *qemuOperations) Validate(url *url.URL, availableSize int64) error {
 }
 
 // ConvertToRawStream converts an http accessible image to raw format without locally caching the image
-func ConvertToRawStream(url *url.URL, dest string, preallocate bool) error {
-	return qemuIterface.ConvertToRawStream(url, dest, preallocate)
+func ConvertToRawStream(url *url.URL, dest string, preallocate bool, cacheMode string) error {
+	return qemuIterface.ConvertToRawStream(url, dest, preallocate, cacheMode)
 }
 
 // Validate does basic validation of a qemu image
@@ -256,10 +273,9 @@ func reportProgress(line string) {
 		klog.V(1).Info(matches[1])
 		// Don't need to check for an error, the regex made sure its a number we can parse.
 		v, _ := strconv.ParseFloat(matches[1], 64)
-		metric := &dto.Metric{}
-		err := progress.WithLabelValues(ownerUID).Write(metric)
-		if err == nil && v > 0 && v > *metric.Counter.Value {
-			progress.WithLabelValues(ownerUID).Add(v - *metric.Counter.Value)
+		progress, err := metrics.Progress(ownerUID).Get()
+		if err == nil && v > 0 && v > progress {
+			metrics.Progress(ownerUID).Add(v - progress)
 		}
 	}
 }
@@ -293,9 +309,17 @@ func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity, p
 	return nil
 }
 
-func execPreallocation(dest string, bs, count, offset int64) error {
-	args := []string{"if=/dev/zero", "of=" + dest, fmt.Sprintf("bs=%d", bs), fmt.Sprintf("count=%d", count), fmt.Sprintf("seek=%d", offset), "oflag=seek_bytes"}
-	_, err := qemuExecFunction(nil, nil, "dd", args...)
+func execPreallocationBlock(dest string, bs, count, offset int64) error {
+	oflag := "oflag=seek_bytes"
+	supportDirectIO, err := odirectChecker.CheckBlockDevice(dest)
+	if err != nil {
+		return err
+	}
+	if supportDirectIO {
+		oflag += ",direct"
+	}
+	args := []string{"if=/dev/zero", "of=" + dest, fmt.Sprintf("bs=%d", bs), fmt.Sprintf("count=%d", count), fmt.Sprintf("seek=%d", offset), oflag}
+	_, err = qemuExecFunction(nil, nil, "dd", args...)
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("Could not preallocate blank block volume at %s, running dd for size %d, offset %d", dest, bs*count, offset))
 	}
@@ -312,12 +336,12 @@ func PreallocateBlankBlock(dest string, size resource.Quantity) error {
 		return errors.Wrap(err, fmt.Sprintf("Could not parse size for preallocating blank block volume at %s with size %s", dest, size.String()))
 	}
 	countBlocks, remainder := qemuSize/units.MiB, qemuSize%units.MiB
-	err = execPreallocation(dest, units.MiB, countBlocks, 0)
+	err = execPreallocationBlock(dest, units.MiB, countBlocks, 0)
 	if err != nil {
 		return err
 	}
 	if remainder != 0 {
-		return execPreallocation(dest, remainder, 1, countBlocks*units.MiB)
+		return execPreallocationBlock(dest, remainder, 1, countBlocks*units.MiB)
 	}
 	return nil
 }

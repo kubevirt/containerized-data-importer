@@ -19,6 +19,7 @@ package importer
 import (
 	"archive/tar"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -31,10 +32,10 @@ import (
 	"github.com/containers/image/v5/pkg/blobinfocache"
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
+
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -76,7 +77,7 @@ func readImageSource(ctx context.Context, sys *types.SystemContext, img string) 
 	src, err := ref.NewImageSource(ctx, sys)
 	if err != nil {
 		klog.Errorf("Could not create image reference: %v", err)
-		return nil, errors.Wrap(err, "Could not create image reference")
+		return nil, NewImagePullFailedError(err)
 	}
 
 	return src, nil
@@ -123,7 +124,6 @@ func processLayer(ctx context.Context,
 	pathPrefix string,
 	cache types.BlobInfoCache,
 	stopAtFirst bool) (bool, error) {
-
 	var reader io.ReadCloser
 	reader, _, err := src.GetBlob(ctx, layer, cache)
 	if err != nil {
@@ -140,7 +140,7 @@ func processLayer(ctx context.Context,
 	found := false
 	for {
 		hdr, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break // End of archive
 		}
 		if err != nil {
@@ -150,14 +150,18 @@ func processLayer(ctx context.Context,
 
 		if hasPrefix(hdr.Name, pathPrefix) && !isWhiteout(hdr.Name) && !isDir(hdr) {
 			klog.Infof("File '%v' found in the layer", hdr.Name)
-			destFile := filepath.Join(destDir, hdr.Name)
+			destFile, err := safeJoinPaths(destDir, hdr.Name)
+			if err != nil {
+				klog.Errorf("Error sanitizing archive path: %v", err)
+				return false, errors.Wrap(err, "Error sanitizing archive path")
+			}
 
 			if err = os.MkdirAll(filepath.Dir(destFile), os.ModePerm); err != nil {
 				klog.Errorf("Error creating output file's directory: %v", err)
 				return false, errors.Wrap(err, "Error creating output file's directory")
 			}
 
-			if err := util.StreamDataToFile(tarReader, filepath.Join(destDir, hdr.Name)); err != nil {
+			if err := streamDataToFile(tarReader, destFile); err != nil {
 				klog.Errorf("Error copying file: %v", err)
 				return false, errors.Wrap(err, "Error copying file")
 			}
@@ -170,6 +174,19 @@ func processLayer(ctx context.Context,
 	}
 
 	return found, nil
+}
+
+// Sanitize archive file pathing from "G305: Zip Slip vulnerability"
+// https://security.snyk.io/research/zip-slip-vulnerability
+func safeJoinPaths(dir, path string) (v string, err error) {
+	v = filepath.Join(dir, path)
+	wantPrefix := filepath.Clean(dir) + string(os.PathSeparator)
+
+	if strings.HasPrefix(v, wantPrefix) {
+		return v, nil
+	}
+
+	return "", fmt.Errorf("%s: %s", "content filepath is tainted", path)
 }
 
 func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry, stopAtFirst bool) (*types.ImageInspectInfo, error) {

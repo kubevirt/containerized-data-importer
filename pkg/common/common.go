@@ -141,6 +141,10 @@ const (
 	ImporterPreviousCheckpoint = "IMPORTER_PREVIOUS_CHECKPOINT"
 	// ImporterFinalCheckpoint provides a constant to capture our env variable "IMPORTER_FINAL_CHECKPOINT"
 	ImporterFinalCheckpoint = "IMPORTER_FINAL_CHECKPOINT"
+	// CacheMode provides a constant to capture our env variable "CACHE_MODE"
+	CacheMode = "CACHE_MODE"
+	// CacheModeTryNone provides a constant to capture our env variable value for "CACHE_MODE" that tries O_DIRECT writing if target supports it
+	CacheModeTryNone = "TRYNONE"
 	// Preallocation provides a constant to capture out env variable "PREALLOCATION"
 	Preallocation = "PREALLOCATION"
 	// ImportProxyHTTP provides a constant to capture our env variable "http_proxy"
@@ -161,10 +165,12 @@ const (
 	ImporterSecretExtraHeadersDir = "/extraheaders"
 
 	// ImporterGoogleCredentialFileVar provides a constant to capture our env variable "GOOGLE_APPLICATION_CREDENTIALS"
+	//nolint:gosec // This is not a real credential
 	ImporterGoogleCredentialFileVar = "GOOGLE_APPLICATION_CREDENTIALS"
 	// ImporterGoogleCredentialDir provides a constant to capture our secret mount Dir
 	ImporterGoogleCredentialDir = "/google"
 	// ImporterGoogleCredentialFile provides a constant to capture our credentials.json file
+	//nolint:gosec // This is not the credential itself
 	ImporterGoogleCredentialFile = "/google/credentials.json"
 
 	// CloningLabelValue provides a constant to use as a label value for pod affinity (controller pkg only)
@@ -293,6 +299,10 @@ const (
 
 	// CDIControllerLeaderElectionHelperName is the name of the configmap that is used as a helper for controller leader election
 	CDIControllerLeaderElectionHelperName = "cdi-controller-leader-election-helper"
+
+	// ImagePullFailureText is the text of the ErrImagePullFailed error. We need it as a common constant because we're using
+	// both to create and to later check the error in the termination text of the importer pod.
+	ImagePullFailureText = "failed to pull image"
 )
 
 // ProxyPaths are all supported paths
@@ -341,8 +351,10 @@ type VddkInfo struct {
 type TerminationMessage struct {
 	ScratchSpaceRequired *bool             `json:"scratchSpaceRequired,omitempty"`
 	PreallocationApplied *bool             `json:"preallocationApplied,omitempty"`
+	DeadlinePassed       *bool             `json:"deadlinePassed,omitempty"`
 	VddkInfo             *VddkInfo         `json:"vddkInfo,omitempty"`
 	Labels               map[string]string `json:"labels,omitempty"`
+	Message              *string           `json:"message,omitempty"`
 }
 
 func (it *TerminationMessage) String() (string, error) {

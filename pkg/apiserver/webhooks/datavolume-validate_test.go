@@ -29,9 +29,10 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	snapclientfake "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake"
+
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
@@ -41,10 +42,10 @@ import (
 	fakeclient "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/utils/ptr"
 
-	snapclientfake "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake"
-	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 )
 
 var (
@@ -323,7 +324,7 @@ var _ = Describe("Validating Webhook", func() {
 				HTTP: &cdiv1.DataVolumeSourceHTTP{URL: "http://www.example.com"},
 			}
 			storage := &cdiv1.StorageSpec{
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("500Mi"),
 					},
@@ -374,11 +375,19 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(BeFalse())
 		})
 
+		It("should reject DataVolume with size smaller than 1MiB", func() {
+			dataVolume := newBlankDataVolume("blank")
+			quantity, err := resource.ParseQuantity("9")
+			Expect(err).ToNot(HaveOccurred())
+			dataVolume.Spec.PVC.Resources.Requests["storage"] = quantity
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(BeFalse())
+		})
+
 		It("should accept DataVolume with Blank source and no content type", func() {
 			dataVolume := newBlankDataVolume("blank")
 			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(BeTrue())
-
 		})
 
 		It("should accept DataVolume with Blank source and kubevirt contentType", func() {
@@ -546,10 +555,10 @@ var _ = Describe("Validating Webhook", func() {
 			Entry("should reject clones with both Storage and PVC spec", &cdiv1.StorageSpec{}, &corev1.PersistentVolumeClaimSpec{}, false),
 			Entry("should accept empty Storage spec when cloning PVC", &cdiv1.StorageSpec{}, nil, true),
 			Entry("should accept blank Resources when cloning using Storage API", &cdiv1.StorageSpec{
-				Resources: corev1.ResourceRequirements{},
+				Resources: corev1.VolumeResourceRequirements{},
 			}, nil, true),
 			Entry("should accept empty Requests when cloning using Storage API", &cdiv1.StorageSpec{
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: make(map[corev1.ResourceName]resource.Quantity),
 				},
 			}, nil, true),
@@ -557,7 +566,7 @@ var _ = Describe("Validating Webhook", func() {
 				AccessModes: []corev1.PersistentVolumeAccessMode{
 					corev1.ReadWriteOnce,
 				},
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: make(map[corev1.ResourceName]resource.Quantity),
 				},
 			}, false),
@@ -569,7 +578,7 @@ var _ = Describe("Validating Webhook", func() {
 			}
 			requests := make(map[corev1.ResourceName]resource.Quantity)
 			storage := &cdiv1.StorageSpec{
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: requests,
 				},
 			}
@@ -623,7 +632,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 			storage := &cdiv1.StorageSpec{
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("500Mi"),
 					},
@@ -1027,7 +1036,6 @@ func newPVCDataVolume(name, pvcNamespace, pvcName string) *cdiv1.DataVolume {
 }
 
 func newDataVolumeWithEmptyPVCSpec(name, url string) *cdiv1.DataVolume {
-
 	httpSource := cdiv1.DataVolumeSource{
 		HTTP: &cdiv1.DataVolumeSourceHTTP{URL: url},
 	}
@@ -1195,7 +1203,7 @@ func newPVCSpec(sizeValue int64) *corev1.PersistentVolumeClaimSpec {
 		AccessModes: []corev1.PersistentVolumeAccessMode{
 			corev1.ReadWriteOnce,
 		},
-		Resources: corev1.ResourceRequirements{
+		Resources: corev1.VolumeResourceRequirements{
 			Requests: requests,
 		},
 	}
@@ -1251,7 +1259,7 @@ func validateAdmissionReview(ar *admissionv1.AdmissionReview, objects ...runtime
 
 func serve(ar *admissionv1.AdmissionReview, handler http.Handler) *admissionv1.AdmissionResponse {
 	reqBytes, _ := json.Marshal(ar)
-	req, err := http.NewRequest("POST", "/foobar", bytes.NewReader(reqBytes))
+	req, err := http.NewRequest(http.MethodPost, "/foobar", bytes.NewReader(reqBytes))
 	Expect(err).ToNot(HaveOccurred())
 
 	req.Header.Set("Content-Type", "application/json")

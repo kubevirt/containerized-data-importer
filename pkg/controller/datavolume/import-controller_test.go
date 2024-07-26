@@ -29,6 +29,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -40,6 +41,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -391,7 +393,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 			// spec with accessMode/VolumeMode so storageprofile is not needed
 			importDataVolume.Spec.Storage = createStorageSpec()
-			importDataVolume.Spec.Storage.Resources = corev1.ResourceRequirements{}
+			importDataVolume.Spec.Storage.Resources = corev1.VolumeResourceRequirements{}
 			defaultStorageClass := CreateStorageClass("defaultSc", map[string]string{AnnDefaultStorageClass: "true"})
 			reconciler = createImportReconciler(defaultStorageClass, importDataVolume)
 
@@ -405,7 +407,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 			// spec with accessMode/VolumeMode so storageprofile is not needed
 			importDataVolume.Spec.Storage = createStorageSpec()
-			importDataVolume.Spec.Storage.Resources = corev1.ResourceRequirements{}
+			importDataVolume.Spec.Storage.Resources = corev1.VolumeResourceRequirements{}
 			importDataVolume.Spec.Storage.StorageClassName = &storageClassName
 			defaultStorageClass := CreateStorageClass(storageClassName, map[string]string{AnnDefaultStorageClass: "true"})
 			reconciler = createImportReconciler(defaultStorageClass, importDataVolume)
@@ -422,7 +424,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume.Spec.ContentType = contentType
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 				StorageClassName: &scName,
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},
@@ -465,7 +467,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 				StorageClassName: &scName,
 				VolumeMode:       &BlockMode,
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},
@@ -494,7 +496,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 				StorageClassName: &scName,
 				VolumeMode:       &FilesystemMode,
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},
@@ -527,7 +529,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 				StorageClassName: &scName,
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},
@@ -566,7 +568,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 				StorageClassName: &scName,
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},
@@ -599,7 +601,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 				StorageClassName: &scName,
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},
@@ -636,7 +638,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			scName := "testStorageClass"
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: resource.MustParse("1G"),
 					},
@@ -1657,13 +1659,13 @@ var _ = Describe("All DataVolume Tests", func() {
 		It("Should properly update progress if http endpoint returns matching data", func() {
 			dv.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				_, _ = fmt.Fprintf(w, "import_progress{ownerUID=\"%v\"} 13.45", dv.GetUID()) // ignore error here
-				w.WriteHeader(200)
+				_, _ = fmt.Fprintf(w, "kubevirt_cdi_import_progress_total{ownerUID=\"%v\"} 13.45", dv.GetUID()) // ignore error here
+				w.WriteHeader(http.StatusOK)
 			}))
 			defer ts.Close()
 			ep, err := url.Parse(ts.URL)
 			Expect(err).ToNot(HaveOccurred())
-			port, err := strconv.Atoi(ep.Port())
+			port, err := strconv.ParseInt(ep.Port(), 10, 32)
 			Expect(err).ToNot(HaveOccurred())
 			pod.Spec.Containers[0].Ports[0].ContainerPort = int32(port)
 			pod.Status.PodIP = ep.Hostname()
@@ -1677,12 +1679,12 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.Status.Progress = cdiv1.DataVolumeProgress("2.3%")
 			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", "b856691e-1038-11e9-a5ab-55500d15501")))
-				w.WriteHeader(200)
+				w.WriteHeader(http.StatusOK)
 			}))
 			defer ts.Close()
 			ep, err := url.Parse(ts.URL)
 			Expect(err).ToNot(HaveOccurred())
-			port, err := strconv.Atoi(ep.Port())
+			port, err := strconv.ParseInt(ep.Port(), 10, 32)
 			Expect(err).ToNot(HaveOccurred())
 			pod.Spec.Containers[0].Ports[0].ContainerPort = int32(port)
 			pod.Status.PodIP = ep.Hostname()
@@ -1700,7 +1702,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		largeOverhead   = float64(0.75)
 	)
 	DescribeTable("GetRequiredSpace should return properly enlarged sizes,", func(imageSize int64, overhead float64) {
-		for testedSize := int64(imageSize - 1024); testedSize < imageSize+1024; testedSize++ {
+		for testedSize := imageSize - 1024; testedSize < imageSize+1024; testedSize++ {
 			alignedImageSpace := imageSize
 			if testedSize > imageSize {
 				alignedImageSpace = imageSize + Mi
@@ -1954,7 +1956,7 @@ func createStorageSpec() *cdiv1.StorageSpec {
 	return &cdiv1.StorageSpec{
 		AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		VolumeMode:  &BlockMode,
-		Resources: corev1.ResourceRequirements{
+		Resources: corev1.VolumeResourceRequirements{
 			Requests: corev1.ResourceList{
 				corev1.ResourceStorage: resource.MustParse("1G"),
 			},

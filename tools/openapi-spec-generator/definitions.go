@@ -25,6 +25,7 @@ import (
 	"reflect"
 
 	restful "github.com/emicklei/go-restful/v3"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -115,7 +116,6 @@ func groupVersionProxyBase(gv schema.GroupVersion) (*restful.WebService, error) 
 }
 
 func genericResourceProxy(ws *restful.WebService, gvr schema.GroupVersionResource, objPointer runtime.Object, objKind string, objListPointer runtime.Object) (*restful.WebService, error) {
-
 	objExample := reflect.ValueOf(objPointer).Elem().Interface()
 	listExample := reflect.ValueOf(objListPointer).Elem().Interface()
 

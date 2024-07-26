@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"flag"
 	"io"
 	"net/http"
@@ -12,10 +13,11 @@ import (
 	"strconv"
 
 	"github.com/golang/snappy"
-	"github.com/prometheus/client_golang/prometheus"
+
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
@@ -32,15 +34,20 @@ type execReader struct {
 	stderr io.ReadCloser
 }
 
-func (er *execReader) Read(p []byte) (n int, err error) {
-	n, err = er.stdout.Read(p)
-	if err == io.EOF {
-		if err2 := er.cmd.Wait(); err2 != nil {
-			errBytes, _ := io.ReadAll(er.stderr)
-			klog.Fatalf("Subprocess did not execute successfully, result is: %q\n%s", er.cmd.ProcessState.ExitCode(), string(errBytes))
-		}
+func (er *execReader) Read(p []byte) (int, error) {
+	n, err := er.stdout.Read(p)
+	if err == nil {
+		return n, nil
+	} else if !errors.Is(err, io.EOF) {
+		return n, err
 	}
-	return
+
+	if err := er.cmd.Wait(); err != nil {
+		errBytes, _ := io.ReadAll(er.stderr)
+		klog.Fatalf("Subprocess did not execute successfully, result is: %q\n%s", er.cmd.ProcessState.ExitCode(), string(errBytes))
+	}
+
+	return n, io.EOF
 }
 
 func (er *execReader) Close() error {
@@ -57,7 +64,7 @@ func init() {
 func getEnvVarOrDie(name string) string {
 	value := os.Getenv(name)
 	if value == "" {
-		klog.Fatalf("Error geting env var %s", name)
+		klog.Fatalf("Error getting env var %s", name)
 	}
 	return value
 }
@@ -74,6 +81,7 @@ func createHTTPClient(clientKey, clientCert, serverCert []byte) *http.Client {
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{clientKeyPair},
 		RootCAs:      caCertPool,
+		MinVersion:   tls.VersionTLS12,
 	}
 	tlsConfig.BuildNameToCertificate() //nolint:staticcheck  // todo: BuildNameToCertificate() is deprecated - check this
 
@@ -92,20 +100,14 @@ func startPrometheus() {
 	prometheusutil.StartPrometheusEndpoint(certsDirectory)
 }
 
-func createProgressReader(readCloser io.ReadCloser, ownerUID string, totalBytes uint64) io.ReadCloser {
-	progress := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "clone_progress",
-			Help: "The clone progress in percentage",
-		},
-		[]string{"ownerUID"},
-	)
-	prometheus.MustRegister(progress)
-
-	promReader := prometheusutil.NewProgressReader(readCloser, totalBytes, progress, ownerUID)
+func createProgressReader(readCloser io.ReadCloser, ownerUID string, totalBytes uint64) (io.ReadCloser, error) {
+	if err := metrics.SetupMetrics(); err != nil {
+		return nil, err
+	}
+	promReader := prometheusutil.NewProgressReader(readCloser, metrics.Progress(ownerUID), totalBytes)
 	promReader.StartTimedUpdate()
 
-	return promReader
+	return promReader, nil
 }
 
 func pipeToSnappy(reader io.ReadCloser) io.ReadCloser {
@@ -145,10 +147,11 @@ func validateMount() {
 
 func newTarReader(preallocation bool) (io.ReadCloser, error) {
 	excludeMap := map[string]struct{}{
-		"lost+found": struct{}{},
+		"lost+found": {},
 	}
 
-	args := []string{"/usr/bin/tar", "cv"}
+	const path = "/usr/bin/tar"
+	args := []string{"cv"}
 	if !preallocation {
 		// -S is used to handle sparse files. It can only be used when preallocation is not requested
 		args = append(args, "-S")
@@ -173,9 +176,9 @@ func newTarReader(preallocation bool) (io.ReadCloser, error) {
 		args = append(args, "--files-from", "/dev/null")
 	}
 
-	klog.Infof("Executing %+v", args)
+	klog.Infof("Executing %s %+v", path, args)
 
-	cmd := exec.Command(args[0], args[1:]...)
+	cmd := exec.Command(path, args...)
 	cmd.Dir = mountPoint
 
 	stdout, err := cmd.StdoutPipe()
@@ -193,23 +196,25 @@ func newTarReader(preallocation bool) (io.ReadCloser, error) {
 	return &execReader{cmd: cmd, stdout: stdout, stderr: io.NopCloser(&stderr)}, nil
 }
 
-func getInputStream(preallocation bool) (rc io.ReadCloser) {
-	var err error
+func getInputStream(preallocation bool) io.ReadCloser {
 	switch contentType {
 	case "filesystem-clone":
-		rc, err = newTarReader(preallocation)
+		rc, err := newTarReader(preallocation)
 		if err != nil {
 			klog.Fatalf("Error creating tar reader for %q: %+v", mountPoint, err)
 		}
+		return rc
 	case "blockdevice-clone":
-		rc, err = os.Open(mountPoint)
+		rc, err := os.Open(mountPoint)
 		if err != nil {
 			klog.Fatalf("Error opening block device %q: %+v", mountPoint, err)
 		}
+		return rc
 	default:
 		klog.Fatalf("Invalid content-type %q", contentType)
 	}
-	return
+
+	return nil
 }
 
 func main() {
@@ -237,13 +242,17 @@ func main() {
 
 	klog.V(1).Infoln("Starting cloner target")
 
-	reader := pipeToSnappy(createProgressReader(getInputStream(preallocation), ownerUID, uploadBytes))
+	progressReader, err := createProgressReader(getInputStream(preallocation), ownerUID, uploadBytes)
+	if err != nil {
+		klog.Fatalf("Error creating progress reader: %v", err)
+	}
+	reader := pipeToSnappy(progressReader)
 
 	startPrometheus()
 
 	client := createHTTPClient(clientKey, clientCert, serverCert)
 
-	req, _ := http.NewRequest("POST", url, reader)
+	req, _ := http.NewRequest(http.MethodPost, url, reader)
 
 	if contentType != "" {
 		req.Header.Set("x-cdi-content-type", contentType)

@@ -10,6 +10,7 @@ import (
 	"text/template"
 
 	"github.com/onsi/gomega"
+
 	v1 "k8s.io/api/core/v1"
 
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -354,7 +355,7 @@ func createResponseSequences(data *imageIoInventoryData) *bytes.Buffer {
 		},
 	}
 
-	// Add responses to individual transfer finalize requests, just needs HTTP sucess
+	// Add responses to individual transfer finalize requests, just needs HTTP success
 	for index, snapshot := range data.Snapshots {
 		times := 1
 		if index == 1 {
@@ -456,7 +457,6 @@ func copyDiskImage(f *framework.Framework, pod *v1.Pod, name string) {
 
 // Add ticket to imageiotest API, so importer can download it
 func addTicket(f *framework.Framework, pod *v1.Pod, snapshot imageIoDiskSnapshot) {
-
 	// Create ticket
 	ticket := imageIoTicket{
 		UUID:    snapshot.SnapshotID,

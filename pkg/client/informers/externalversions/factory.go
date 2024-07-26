@@ -29,6 +29,7 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 	versioned "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	core "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/core"
+	forklift "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/forklift"
 	internalinterfaces "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/internalinterfaces"
 	upload "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/upload"
 )
@@ -43,6 +44,7 @@ type sharedInformerFactory struct {
 	lock             sync.Mutex
 	defaultResync    time.Duration
 	customResync     map[reflect.Type]time.Duration
+	transform        cache.TransformFunc
 
 	informers map[reflect.Type]cache.SharedIndexInformer
 	// startedInformers is used for tracking which informers have been started.
@@ -77,6 +79,14 @@ func WithTweakListOptions(tweakListOptions internalinterfaces.TweakListOptionsFu
 func WithNamespace(namespace string) SharedInformerOption {
 	return func(factory *sharedInformerFactory) *sharedInformerFactory {
 		factory.namespace = namespace
+		return factory
+	}
+}
+
+// WithTransform sets a transform on all informers.
+func WithTransform(transform cache.TransformFunc) SharedInformerOption {
+	return func(factory *sharedInformerFactory) *sharedInformerFactory {
+		factory.transform = transform
 		return factory
 	}
 }
@@ -185,6 +195,7 @@ func (f *sharedInformerFactory) InformerFor(obj runtime.Object, newFunc internal
 	}
 
 	informer = newFunc(f.client, resyncPeriod)
+	informer.SetTransform(f.transform)
 	f.informers[informerType] = informer
 
 	return informer
@@ -245,11 +256,16 @@ type SharedInformerFactory interface {
 	InformerFor(obj runtime.Object, newFunc internalinterfaces.NewInformerFunc) cache.SharedIndexInformer
 
 	Cdi() core.Interface
+	Forklift() forklift.Interface
 	Upload() upload.Interface
 }
 
 func (f *sharedInformerFactory) Cdi() core.Interface {
 	return core.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) Forklift() forklift.Interface {
+	return forklift.New(f, f.namespace, f.tweakListOptions)
 }
 
 func (f *sharedInformerFactory) Upload() upload.Interface {

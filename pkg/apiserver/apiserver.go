@@ -35,15 +35,17 @@ import (
 	"time"
 
 	restful "github.com/emicklei/go-restful/v3"
+	snapclient "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
 	"github.com/pkg/errors"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 	k8sspec "k8s.io/kube-openapi/pkg/validation/spec"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	snapclient "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
 	cdiuploadv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 	pkgcdiuploadv1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks"
@@ -59,8 +61,10 @@ import (
 
 const (
 	// APISigningKeySecretName is the selfsigned cert secret name
+	//nolint:gosec // This is not a real secret
 	APISigningKeySecretName = "cdi-api-signing-key"
 
+	//nolint:gosec // This is not a real token
 	uploadTokenGroup = "upload.cdi.kubevirt.io"
 
 	dvValidatePath = "/datavolume-validate"
@@ -155,7 +159,7 @@ func NewCdiAPIServer(bindAddress string,
 
 	err = app.getKeysAndCerts()
 	if err != nil {
-		return nil, errors.Errorf("Unable to get self signed cert: %v\n", errors.WithStack(err))
+		return nil, errors.Errorf("unable to get self signed cert: %v", errors.WithStack(err))
 	}
 
 	app.composeUploadTokenAPI()
@@ -178,7 +182,6 @@ func NewCdiAPIServer(bindAddress string,
 		klog.V(3).Infof("headers: %v", req.Request.Header)
 		klog.V(3).Infof("statusCode: %d", resp.StatusCode())
 		klog.V(3).Infof("contentLength: %d", resp.ContentLength())
-
 	})
 
 	err = app.createDataVolumeValidatingWebhook()
@@ -251,6 +254,7 @@ func (app *cdiAPIApp) getTLSConfig() (*tls.Config, error) {
 		return nil, err
 	}
 
+	//nolint: gosec // False positive: cryptoConfig.MinVersion is set by the user
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{*cert},
 		CipherSuites: cryptoConfig.CipherSuites,
@@ -292,9 +296,10 @@ func (app *cdiAPIApp) startTLS(stopChan <-chan struct{}) error {
 	}
 
 	server := &http.Server{
-		Addr:      fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort),
-		TLSConfig: tlsConfig,
-		Handler:   app.container,
+		Addr:              fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort),
+		TLSConfig:         tlsConfig,
+		Handler:           app.container,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	go func() {
@@ -521,7 +526,6 @@ func (app *cdiAPIApp) healthzHandler(req *restful.Request, resp *restful.Respons
 	if writeErr != nil {
 		klog.Error("failed to send response", writeErr)
 	}
-
 }
 
 func (app *cdiAPIApp) createDataVolumeValidatingWebhook() error {

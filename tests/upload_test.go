@@ -18,7 +18,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	ocpconfigv1 "github.com/openshift/api/config/v1"
 
 	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -111,11 +110,15 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		uploadPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
 
-		pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		delete(pvc.Annotations, controller.AnnUploadRequest)
-		pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			delete(pvc.Annotations, controller.AnnUploadRequest)
+			// We shouldn't make the test fail if there's a conflict with the update request.
+			// These errors are usually transient and should be fixed in subsequent retries.
+			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
+			return err
+		}, timeout, pollingInterval).Should(Succeed())
 
 		Eventually(func() bool {
 			_, err = f.K8sClient.CoreV1().Pods(uploadPod.Namespace).Get(context.TODO(), uploadPod.Name, metav1.GetOptions{})
@@ -138,8 +141,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		secret, err := f.K8sClient.CoreV1().Secrets(pvc.Namespace).Get(context.TODO(), utils.UploadPodName(pvc), metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(HasEnvironmentVariableFromSecret(pod, "TLS_KEY", secret)).To(BeTrue(), "Should have TLS_KEY")
-		Expect(HasEnvironmentVariableFromSecret(pod, "TLS_CERT", secret)).To(BeTrue(), "Should have TLS_CERT")
+		Expect(HasVolumeFromSecret(pod, "TLS_KEY", secret)).To(BeTrue(), "Should have TLS_KEY")
+		Expect(HasVolumeFromSecret(pod, "TLS_CERT", secret)).To(BeTrue(), "Should have TLS_CERT")
 	}
 
 	Context("Standard upload", func() {
@@ -252,11 +255,16 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(found).To(BeTrue())
-			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			pvc.Annotations[controller.AnnContentType] = XSSAttempt
-			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() error {
+				pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				pvc.Annotations[controller.AnnContentType] = XSSAttempt
+				// We shouldn't make the test fail if there's a conflict with the update request.
+				// These errors are usually transient and should be fixed in subsequent retries.
+				pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
+				return err
+			}, timeout, pollingInterval).Should(Succeed())
 
 			var token string
 			By("Get an upload token")
@@ -322,24 +330,18 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
 
 			By("Verify size error in logs")
-			Eventually(func() bool {
-				log, _ := f.RunKubectlCommand("logs", uploadPod.Name, "-n", uploadPod.Namespace)
-				if strings.Contains(log, "is larger than the reported available") {
-					return true
-				}
-				if strings.Contains(log, "no space left on device") {
-					return true
-				}
-				if strings.Contains(log, "qemu-img execution failed") {
-					return true
-				}
-				if strings.Contains(log, "calculated new size is < than current size, not resizing") {
-					return true
-				}
-				By("Failed to find error messages about a too large image in log:")
-				By(log)
-				return false
-			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
+			Eventually(func() (string, error) {
+				out, err := f.K8sClient.CoreV1().
+					Pods(uploadPod.Namespace).
+					GetLogs(uploadPod.Name, &v1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+					DoRaw(context.Background())
+				return string(out), err
+			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(Or(
+				ContainSubstring("is larger than the reported available"),
+				ContainSubstring("no space left on device"),
+				ContainSubstring("qemu-img execution failed"),
+				ContainSubstring("calculated new size is < than current size, not resizing"),
+			))
 		},
 			Entry("fail given a large virtual size RAW XZ file", utils.UploadFileLargeVirtualDiskXz),
 			Entry("fail given a large virtual size QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
@@ -460,10 +462,11 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				Expect(err).ToNot(HaveOccurred())
 			}
 
-			By("Delete upload population PVC")
-			err = f.DeletePVC(pvc)
-			Expect(err).ToNot(HaveOccurred())
-
+			if pvc != nil {
+				By("Delete upload population PVC")
+				err = f.DeletePVC(pvc)
+				Expect(err).ToNot(HaveOccurred())
+			}
 		})
 		Context("standard", func() {
 			BeforeEach(func() {
@@ -747,7 +750,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	})
 })
 
-var ErrorTestFake = errors.New("TestFakeError")
+var ErrTestFake = errors.New("TestFakeError")
 
 // LimitThenErrorReader returns a Reader that reads from r
 // but stops with FakeError after n bytes.
@@ -763,16 +766,16 @@ type limitThenErrorReader struct {
 	n int64     // max bytes remaining
 }
 
-func (l *limitThenErrorReader) Read(p []byte) (n int, err error) {
+func (l *limitThenErrorReader) Read(p []byte) (int, error) {
 	if l.n <= 0 {
-		return 0, ErrorTestFake // EOF
+		return 0, ErrTestFake // EOF
 	}
 	if int64(len(p)) > l.n {
 		p = p[0:l.n]
 	}
-	n, err = l.r.Read(p)
+	n, err := l.r.Read(p)
 	l.n -= int64(n)
-	return
+	return n, err
 }
 
 func startUploadProxyPortForward(f *framework.Framework) (string, *exec.Cmd, error) {
@@ -798,7 +801,7 @@ func formRequestFunc(url, fileName string) (*http.Request, error) {
 	pipeReader, pipeWriter := io.Pipe()
 	multipartWriter := multipart.NewWriter(pipeWriter)
 
-	req, err := http.NewRequest("POST", url, pipeReader)
+	req, err := http.NewRequest(http.MethodPost, url, pipeReader)
 	if err != nil {
 		return nil, err
 	}
@@ -837,7 +840,7 @@ func binaryRequestFunc(url, fileName string) (*http.Request, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", url, f)
+	req, err := http.NewRequest(http.MethodPost, url, f)
 	if err != nil {
 		return nil, err
 	}
@@ -853,7 +856,7 @@ func testBadRequestFunc(url, fileName string) (*http.Request, error) {
 		return nil, err
 	}
 	lr := LimitThenErrorReader(f, 2048)
-	req, err := http.NewRequest("POST", url, lr)
+	req, err := http.NewRequest(http.MethodPost, url, lr)
 	if err != nil {
 		return nil, err
 	}
@@ -900,7 +903,7 @@ func uploadFileNameToPath(requestFunc uploadFileNameRequestCreator, fileName, po
 
 	client := &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // It's not production code
 		},
 	}
 
@@ -934,7 +937,7 @@ func getUploadToPathResponse(requestFunc uploadFileNameRequestCreator, fileName,
 
 	client := &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // It's not production code
 		},
 	}
 
@@ -986,18 +989,33 @@ func uploadFileNameToPathWithClient(client *http.Client, requestFunc uploadFileN
 func findProxyURLCdiConfig(f *framework.Framework) string {
 	config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
-	if config.Status.UploadProxyURL != nil {
-		return fmt.Sprintf("https://%s", *config.Status.UploadProxyURL)
+	if config.Status.UploadProxyURL == nil {
+		return ""
 	}
-	return ""
+	if strings.HasPrefix(*config.Status.UploadProxyURL, "http://") {
+		return *config.Status.UploadProxyURL
+	}
+	if strings.HasPrefix(*config.Status.UploadProxyURL, "https://") {
+		return *config.Status.UploadProxyURL
+	}
+	return "https://" + *config.Status.UploadProxyURL
 }
 
-func HasEnvironmentVariableFromSecret(pod *v1.Pod, name string, secret *v1.Secret) bool {
-	for _, ev := range pod.Spec.Containers[0].Env {
-		if ev.Name == name &&
-			ev.ValueFrom != nil &&
-			ev.ValueFrom.SecretKeyRef != nil &&
-			ev.ValueFrom.SecretKeyRef.Name == secret.Name {
+func HasVolumeFromSecret(pod *v1.Pod, name string, secret *v1.Secret) bool {
+	volName := ""
+	for _, v := range pod.Spec.Volumes {
+		if v.Secret != nil && v.Secret.SecretName == secret.Name {
+			volName = v.Name
+			break
+		}
+	}
+
+	if volName == "" {
+		return false
+	}
+
+	for _, vm := range pod.Spec.Containers[0].VolumeMounts {
+		if vm.Name == volName {
 			return true
 		}
 	}
@@ -1047,13 +1065,16 @@ var _ = Describe("Block PV upload Test", Serial, func() {
 			portForwardCmd = nil
 		}
 
-		By("Delete upload PVC")
-		err = f.DeletePVC(pvc)
-		Expect(err).ToNot(HaveOccurred())
-		By("Wait for upload pod to be deleted")
-		deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(deleted).To(BeTrue())
+		if pvc != nil {
+			By("Delete upload PVC")
+			err = f.DeletePVC(pvc)
+			Expect(err).ToNot(HaveOccurred())
+			By("Wait for upload pod to be deleted")
+			deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(deleted).To(BeTrue())
+			pvc = nil
+		}
 	})
 
 	DescribeTable("should", func(validToken bool, expectedStatus int) {
@@ -1185,11 +1206,13 @@ var _ = Describe("CDIConfig manipulation upload tests", Serial, func() {
 		pvc = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 
 		By("Verify Quota was exceeded in logs")
-		matchString := "pods \\\"cdi-upload-upload-test\\\" is forbidden: exceeded quota: test-quota, requested"
-		Eventually(func() string {
-			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-			Expect(err).NotTo(HaveOccurred())
-			return log
+		matchString := `pods \"cdi-upload-upload-test\" is forbidden: exceeded quota: test-quota, requested`
+		Eventually(func() (string, error) {
+			out, err := f.K8sClient.CoreV1().
+				Pods(f.CdiInstallNs).
+				GetLogs(f.ControllerPod.Name, &v1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+				DoRaw(context.Background())
+			return string(out), err
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 
 		By("Check the expected event")
@@ -1207,11 +1230,13 @@ var _ = Describe("CDIConfig manipulation upload tests", Serial, func() {
 		pvc = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 
 		By("Verify Quota was exceeded in logs")
-		matchString := "pods \\\"cdi-upload-upload-test\\\" is forbidden: exceeded quota: test-quota, requested"
-		Eventually(func() string {
-			log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-			Expect(err).NotTo(HaveOccurred())
-			return log
+		matchString := `pods \"cdi-upload-upload-test\" is forbidden: exceeded quota: test-quota, requested`
+		Eventually(func() (string, error) {
+			out, err := f.K8sClient.CoreV1().
+				Pods(f.CdiInstallNs).
+				GetLogs(f.ControllerPod.Name, &v1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+				DoRaw(context.Background())
+			return string(out), err
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 
 		By("Check the expected event")
@@ -1258,11 +1283,11 @@ var _ = Describe("CDIConfig manipulation upload tests", Serial, func() {
 			Skip("OpenShift reencrypt routes are used, client tls config will be dropped")
 		}
 		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-			config.TLSSecurityProfile = &ocpconfigv1.TLSSecurityProfile{
+			config.TLSSecurityProfile = &cdiv1.TLSSecurityProfile{
 				// Modern profile requires TLS 1.3
 				// https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility
-				Type:   ocpconfigv1.TLSProfileModernType,
-				Modern: &ocpconfigv1.ModernTLSProfile{},
+				Type:   cdiv1.TLSProfileModernType,
+				Modern: &cdiv1.ModernTLSProfile{},
 			}
 		})
 		Expect(err).ToNot(HaveOccurred())
@@ -1288,6 +1313,7 @@ var _ = Describe("CDIConfig manipulation upload tests", Serial, func() {
 		Expect(token).ToNot(BeEmpty())
 		client := &http.Client{
 			Transport: &http.Transport{
+				//nolint:gosec // It's not production code
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: true,
 					MinVersion:         tls.VersionTLS12,
@@ -1306,11 +1332,11 @@ var _ = Describe("CDIConfig manipulation upload tests", Serial, func() {
 
 		// Change to intermediate, which is fine with 1.2, expect success
 		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-			config.TLSSecurityProfile = &ocpconfigv1.TLSSecurityProfile{
+			config.TLSSecurityProfile = &cdiv1.TLSSecurityProfile{
 				// Intermediate profile requires TLS 1.2
 				// https://wiki.mozilla.org/Security/Server_Side_TLS#Intermediate_compatibility_.28recommended.29
-				Type:         ocpconfigv1.TLSProfileIntermediateType,
-				Intermediate: &ocpconfigv1.IntermediateTLSProfile{},
+				Type:         cdiv1.TLSProfileIntermediateType,
+				Intermediate: &cdiv1.IntermediateTLSProfile{},
 			}
 		})
 		Expect(err).ToNot(HaveOccurred())
@@ -1377,7 +1403,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		fsOverhead := "0.055" // The default value
 		tests.SetFilesystemOverhead(f, fsOverhead, fsOverhead)
 
-		volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+		volumeMode := v1.PersistentVolumeFilesystem
 		accessModes := []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
 		dvName := "upload-dv"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))

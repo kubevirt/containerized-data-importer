@@ -21,16 +21,14 @@ import (
 	"fmt"
 	"reflect"
 
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	ocpconfigv1 "github.com/openshift/api/config/v1"
 
 	v1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,6 +38,11 @@ import (
 	"k8s.io/client-go/tools/record"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/utils/ptr"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -51,6 +54,7 @@ import (
 const (
 	storageClassName  = "testSC"
 	snapshotClassName = "testSnapClass"
+	provisionerName   = "testProvisioner"
 	cephProvisioner   = "rook-ceph.rbd.csi.ceph.com"
 )
 
@@ -470,7 +474,7 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Entry("provisioner that is known to prefer csi clone", "csi-powermax.dellemc.com", cdiv1.CloneStrategyCsiClone, false),
 	)
 
-	DescribeTable("Should set the StorageProfileStatus metric correctly", func(provisioner string, count int) {
+	DescribeTable("Should set the StorageProfileStatus metric correctly", func(provisioner string, isComplete bool) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
 		reconciler = createStorageProfileReconciler(storageClass)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
@@ -483,12 +487,60 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
 		Expect(sp.Status.ClaimPropertySets).To(BeEmpty())
 
-		labels := createLabels(storageClassName, provisioner, false, true, false, false, false)
-		Expect(int(metrics.GetStorageProfileStatus(labels))).To(Equal(count))
+		labels := createLabels(storageClassName, provisioner, isComplete, true, false, false, false, true)
+		Expect(int(metrics.GetStorageProfileStatus(labels))).To(Equal(1))
+		labels = createLabels(storageClassName, provisioner, !isComplete, true, false, false, false, true)
+		Expect(int(metrics.GetStorageProfileStatus(labels))).To(Equal(0))
 	},
-		Entry("Noobaa (not supported)", storagecapabilities.ProvisionerNoobaa, 0),
-		Entry("Unknown provisioner", "unknown-provisioner", 1),
+		Entry("Noobaa (not supported)", storagecapabilities.ProvisionerNoobaa, true),
+		Entry("Unknown provisioner", "unknown-provisioner", false),
 	)
+
+	DescribeTable("Should set the StorageProfileStatus degraded state correctly", func(accessMode v1.PersistentVolumeAccessMode, isSNO, isDegraded bool) {
+		storageClass := CreateStorageClassWithProvisioner(storageClassName, nil, nil, provisionerName)
+		driver := &storagev1.CSIDriver{ObjectMeta: metav1.ObjectMeta{Name: provisionerName}}
+		clusterInfra := &ocpconfigv1.Infrastructure{}
+		if isSNO {
+			clusterInfra.Name = "cluster"
+			clusterInfra.Status.ControlPlaneTopology = ocpconfigv1.SingleReplicaTopologyMode
+			clusterInfra.Status.InfrastructureTopology = ocpconfigv1.SingleReplicaTopologyMode
+		}
+		reconciler = createStorageProfileReconciler(storageClass, driver, clusterInfra)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+
+		sp := &cdiv1.StorageProfile{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, sp, &client.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
+		Expect(sp.Status.ClaimPropertySets).To(BeEmpty())
+
+		sp.Spec.ClaimPropertySets = []cdiv1.ClaimPropertySet{
+			{
+				AccessModes: []v1.PersistentVolumeAccessMode{accessMode},
+				VolumeMode:  &BlockMode,
+			},
+		}
+
+		cloneStrategy := cdiv1.CloneStrategyCsiClone
+		sp.Spec.CloneStrategy = &cloneStrategy
+		err = reconciler.client.Update(context.TODO(), sp, &client.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, sp, &client.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sp.Status.ClaimPropertySets).ToNot(BeEmpty())
+
+		labels := createLabels(storageClassName, provisionerName, true, false, false, accessMode == v1.ReadWriteMany, true, isDegraded)
+		Expect(int(metrics.GetStorageProfileStatus(labels))).To(Equal(1))
+	},
+		Entry("With RWX, not degraded", v1.ReadWriteMany, false, false),
+		Entry("Without RWX, degraded", v1.ReadWriteOnce, false, true),
+		Entry("Without RWX, on SNO, not degraded", v1.ReadWriteOnce, true, false),
+	)
+
 })
 
 func createStorageProfileReconciler(objects ...runtime.Object) *StorageProfileReconciler {
@@ -507,6 +559,7 @@ func createStorageProfileReconciler(objects ...runtime.Object) *StorageProfileRe
 	_ = cdiv1.AddToScheme(s)
 	_ = snapshotv1.AddToScheme(s)
 	_ = extv1.AddToScheme(s)
+	_ = ocpconfigv1.Install(s)
 
 	// Create a fake client to mock API calls.
 	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
@@ -537,7 +590,7 @@ func CreatePv(name string, storageClassName string) *v1.PersistentVolume {
 		Spec: v1.PersistentVolumeSpec{
 			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany, v1.ReadWriteOnce},
 			Capacity: v1.ResourceList{
-				v1.ResourceName(v1.ResourceStorage): resource.MustParse("1G"),
+				v1.ResourceStorage: resource.MustParse("1G"),
 			},
 			StorageClassName: storageClassName,
 			VolumeMode:       &volumeMode,

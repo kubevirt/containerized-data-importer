@@ -23,15 +23,14 @@ import (
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -40,6 +39,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
 // DataSourceReconciler members
@@ -190,13 +192,15 @@ func NewDataSourceController(mgr manager.Manager, log logr.Logger, installerLabe
 }
 
 func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
-	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{}), &handler.EnqueueRequestForObject{},
-		predicate.Funcs{
-			CreateFunc: func(e event.CreateEvent) bool { return true },
-			DeleteFunc: func(e event.DeleteEvent) bool { return true },
-			UpdateFunc: func(e event.UpdateEvent) bool { return !sameSourceSpec(e.ObjectOld, e.ObjectNew) },
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{}, &handler.TypedEnqueueRequestForObject[*cdiv1.DataSource]{},
+		predicate.TypedFuncs[*cdiv1.DataSource]{
+			CreateFunc: func(e event.TypedCreateEvent[*cdiv1.DataSource]) bool { return true },
+			DeleteFunc: func(e event.TypedDeleteEvent[*cdiv1.DataSource]) bool { return true },
+			UpdateFunc: func(e event.TypedUpdateEvent[*cdiv1.DataSource]) bool {
+				return !sameSourceSpec(e.ObjectOld, e.ObjectNew)
+			},
 		},
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
@@ -239,40 +243,39 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 		return err
 	}
 
-	mapToDataSource := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
-		reqs = appendMatchingDataSourceRequests(ctx, dataSourcePvcField, obj, reqs)
-		reqs = appendMatchingDataSourceRequests(ctx, dataSourceSnapshotField, obj, reqs)
-		return
+	mapToDataSource := func(ctx context.Context, obj client.Object) []reconcile.Request {
+		reqs := appendMatchingDataSourceRequests(ctx, dataSourcePvcField, obj, nil)
+		return appendMatchingDataSourceRequests(ctx, dataSourceSnapshotField, obj, reqs)
 	}
 
-	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{}),
-		handler.EnqueueRequestsFromMapFunc(mapToDataSource),
-		predicate.Funcs{
-			CreateFunc: func(e event.CreateEvent) bool { return true },
-			DeleteFunc: func(e event.DeleteEvent) bool { return true },
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{},
+		handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.DataVolume](func(ctx context.Context, obj *cdiv1.DataVolume) []reconcile.Request {
+			return mapToDataSource(ctx, obj)
+		}),
+		predicate.TypedFuncs[*cdiv1.DataVolume]{
+			CreateFunc: func(e event.TypedCreateEvent[*cdiv1.DataVolume]) bool { return true },
+			DeleteFunc: func(e event.TypedDeleteEvent[*cdiv1.DataVolume]) bool { return true },
 			// Only DV status phase update is interesting to reconcile
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				dvOld, okOld := e.ObjectOld.(*cdiv1.DataVolume)
-				dvNew, okNew := e.ObjectNew.(*cdiv1.DataVolume)
-				return okOld && okNew && dvOld.Status.Phase != dvNew.Status.Phase
+			UpdateFunc: func(e event.TypedUpdateEvent[*cdiv1.DataVolume]) bool {
+				return e.ObjectOld.Status.Phase != e.ObjectNew.Status.Phase
 			},
 		},
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
-	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}),
-		handler.EnqueueRequestsFromMapFunc(mapToDataSource),
-		predicate.Funcs{
-			CreateFunc: func(e event.CreateEvent) bool { return true },
-			DeleteFunc: func(e event.DeleteEvent) bool { return true },
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				pvcOld, okOld := e.ObjectOld.(*corev1.PersistentVolumeClaim)
-				pvcNew, okNew := e.ObjectNew.(*corev1.PersistentVolumeClaim)
-				return okOld && okNew && pvcOld.Status.Phase != pvcNew.Status.Phase
+	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{},
+		handler.TypedEnqueueRequestsFromMapFunc[*corev1.PersistentVolumeClaim](func(ctx context.Context, obj *corev1.PersistentVolumeClaim) []reconcile.Request {
+			return mapToDataSource(ctx, obj)
+		}),
+		predicate.TypedFuncs[*corev1.PersistentVolumeClaim]{
+			CreateFunc: func(e event.TypedCreateEvent[*corev1.PersistentVolumeClaim]) bool { return true },
+			DeleteFunc: func(e event.TypedDeleteEvent[*corev1.PersistentVolumeClaim]) bool { return true },
+			UpdateFunc: func(e event.TypedUpdateEvent[*corev1.PersistentVolumeClaim]) bool {
+				return e.ObjectOld.Status.Phase != e.ObjectNew.Status.Phase
 			},
 		},
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
@@ -285,18 +288,18 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 			return err
 		}
 	}
-	if err := c.Watch(source.Kind(mgr.GetCache(), &snapshotv1.VolumeSnapshot{}),
-		handler.EnqueueRequestsFromMapFunc(mapToDataSource),
-		predicate.Funcs{
-			CreateFunc: func(e event.CreateEvent) bool { return true },
-			DeleteFunc: func(e event.DeleteEvent) bool { return true },
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				snapOld, okOld := e.ObjectOld.(*snapshotv1.VolumeSnapshot)
-				snapNew, okNew := e.ObjectNew.(*snapshotv1.VolumeSnapshot)
-				return okOld && okNew && !reflect.DeepEqual(snapOld.Status, snapNew.Status)
+	if err := c.Watch(source.Kind(mgr.GetCache(), &snapshotv1.VolumeSnapshot{},
+		handler.TypedEnqueueRequestsFromMapFunc[*snapshotv1.VolumeSnapshot](func(ctx context.Context, obj *snapshotv1.VolumeSnapshot) []reconcile.Request {
+			return mapToDataSource(ctx, obj)
+		}),
+		predicate.TypedFuncs[*snapshotv1.VolumeSnapshot]{
+			CreateFunc: func(e event.TypedCreateEvent[*snapshotv1.VolumeSnapshot]) bool { return true },
+			DeleteFunc: func(e event.TypedDeleteEvent[*snapshotv1.VolumeSnapshot]) bool { return true },
+			UpdateFunc: func(e event.TypedUpdateEvent[*snapshotv1.VolumeSnapshot]) bool {
+				return !reflect.DeepEqual(e.ObjectOld.Status, e.ObjectNew.Status)
 			},
 		},
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 

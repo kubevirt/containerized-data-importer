@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -48,13 +49,23 @@ var (
 )
 
 type fakeCertGenerator struct {
+	expectedDuration time.Duration
+	calls            int
 }
 
 func (cg *fakeCertGenerator) MakeClientCert(name string, groups []string, duration time.Duration) ([]byte, []byte, error) {
+	if cg.expectedDuration != 0 {
+		Expect(duration).To(Equal(cg.expectedDuration))
+	}
+	cg.calls++
 	return []byte("foo"), []byte("bar"), nil
 }
 
 func (cg *fakeCertGenerator) MakeServerCert(namespace, service string, duration time.Duration) ([]byte, []byte, error) {
+	if cg.expectedDuration != 0 {
+		Expect(duration).To(Equal(cg.expectedDuration))
+	}
+	cg.calls++
 	return []byte("foo"), []byte("bar"), nil
 }
 
@@ -314,12 +325,26 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err.Error()).To(ContainSubstring("missing required " + AnnUploadClientName + " annotation"))
 	})
 
-	It("Should create cert secret", func() {
+	DescribeTable("Should create cert secret with proper dutation", func(expectedDuration time.Duration, setCertConfig bool) {
 		testPvc := cc.CreatePvc("testPvc1", "default", map[string]string{
 			cc.AnnCloneRequest: "default/source", cc.AnnPodReady: "true", cc.AnnCloneToken: "foobaz", cc.AnnCloneSourcePod: "default-testPvc1-source-pod", AnnUploadClientName: "uploadclient"}, nil)
 		sourcePod := createSourcePod(testPvc, string(testPvc.GetUID()))
 		sourcePod.Namespace = "default"
 		reconciler = createCloneReconciler(testPvc, cc.CreatePvc("source", "default", map[string]string{}, nil), sourcePod)
+		reconciler.clientCertGenerator = &fakeCertGenerator{expectedDuration: expectedDuration}
+		if setCertConfig {
+			cdi := &cdiv1.CDI{}
+			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cdi)
+			Expect(err).ToNot(HaveOccurred())
+			cdi.Spec.CertConfig = &cdiv1.CDICertConfig{
+				Client: &cdiv1.CertConfig{
+					Duration:    &metav1.Duration{Duration: expectedDuration},
+					RenewBefore: &metav1.Duration{Duration: expectedDuration / 2},
+				},
+			}
+			err = reconciler.client.Update(context.Background(), cdi)
+			Expect(err).ToNot(HaveOccurred())
+		}
 		By("Setting up the match token")
 		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Match = "foobaz"
 		reconciler.multiTokenValidator.ShortTokenValidator.(*cc.FakeValidator).Name = "source"
@@ -331,7 +356,12 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		secret := &corev1.Secret{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: sourcePod.Namespace, Name: sourcePod.Name}, secret)
 		Expect(err).ToNot(HaveOccurred())
-	})
+		fcg := reconciler.clientCertGenerator.(*fakeCertGenerator)
+		Expect(fcg.calls).To(Equal(1))
+	},
+		Entry("default cert duration", 24*time.Hour, false),
+		Entry("configured cert duration", 12*time.Hour, true),
+	)
 
 	It("Should update the PVC from the pod status", func() {
 		testPvc := cc.CreatePvc("testPvc1", "default", map[string]string{

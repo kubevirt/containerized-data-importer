@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
+
 	k8sv1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -244,7 +245,7 @@ func isExpectedNode(clientSet *kubernetes.Clientset, nodeName, podName, namespac
 			}
 			return false, err
 		}
-		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Checking Node name: %s\n", string(pod.Spec.NodeName))
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Checking Node name: %s\n", pod.Spec.NodeName)
 		if pod.Spec.NodeName == nodeName {
 			return true, nil
 		}

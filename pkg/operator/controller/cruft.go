@@ -23,6 +23,7 @@ import (
 
 	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -31,6 +32,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -151,8 +153,8 @@ func reconcileRemainingRelationshipLabels(args *callbacks.ReconcileCallbackArgs)
 // Delete after we no longer want to include CDI CRD v1alpha1 version in release YAMLs
 // Special code needed because we're not the owner of this object.
 func (r *ReconcileCDI) watchCDICRD() error {
-	if err := r.controller.Watch(source.Kind(r.getCache(), &extv1.CustomResourceDefinition{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
+	if err := r.controller.Watch(source.Kind(r.getCache(), &extv1.CustomResourceDefinition{}, handler.TypedEnqueueRequestsFromMapFunc[*extv1.CustomResourceDefinition](
+		func(ctx context.Context, obj *extv1.CustomResourceDefinition) []reconcile.Request {
 			name := obj.GetName()
 			if name != "cdis.cdi.kubevirt.io" {
 				return nil
@@ -170,7 +172,7 @@ func (r *ReconcileCDI) watchCDICRD() error {
 				},
 			}
 		},
-	)); err != nil {
+	))); err != nil {
 		return err
 	}
 

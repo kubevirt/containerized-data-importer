@@ -22,16 +22,16 @@ package webhooks
 import (
 	"encoding/json"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
 var (

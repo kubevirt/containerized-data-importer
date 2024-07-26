@@ -24,10 +24,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
-	sdkr "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/reconciler"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -36,6 +33,7 @@ import (
 	secv1 "github.com/openshift/api/security/v1"
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -48,6 +46,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -61,6 +60,9 @@ import (
 	clusterResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	namespaceResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
+	sdkr "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/reconciler"
 )
 
 const (
@@ -597,7 +599,7 @@ var _ = Describe("Controller", func() {
 				Expect(args.reconciler.namespacedArgs.Verbosity).To(Equal(strconv.Itoa(int(expectedValue))))
 			})
 
-			It("can become become ready, un-ready, and ready again", func() {
+			It("can become ready, un-ready, and ready again", func() {
 				var deployment *appsv1.Deployment
 
 				args := createArgs()
@@ -984,7 +986,7 @@ var _ = Describe("Controller", func() {
 					return ok
 				},
 				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
 						return false
@@ -1023,7 +1025,7 @@ var _ = Describe("Controller", func() {
 					return ok
 				},
 				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
 						return false
@@ -1072,7 +1074,7 @@ var _ = Describe("Controller", func() {
 					return false
 				},
 				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
 						return false
@@ -1122,7 +1124,7 @@ var _ = Describe("Controller", func() {
 					return false
 				},
 				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
 						return false
@@ -1165,7 +1167,7 @@ var _ = Describe("Controller", func() {
 					return false
 				},
 				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
 						return false
@@ -1198,7 +1200,7 @@ var _ = Describe("Controller", func() {
 					return ok
 				},
 				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					post, ok := postUpgradeObj.(*corev1.Service)
 					if !ok {
 						return false
@@ -1277,7 +1279,7 @@ var _ = Describe("Controller", func() {
 					return ok
 				},
 				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					post, ok := postUpgradeObj.(*corev1.Service)
 					if !ok {
 						return false
@@ -1459,6 +1461,61 @@ var _ = Describe("Controller", func() {
 		)
 
 	})
+
+	Describe("getCertificateDefinitions function", func() {
+		const (
+			defaultSignerLifetime = 48 * time.Hour
+			defaultSignerRefresh  = 24 * time.Hour
+			defaultServerLifetime = 24 * time.Hour
+			defaultServerRefresh  = 12 * time.Hour
+			defaultClientLifetime = 24 * time.Hour
+			defaultClientRefresh  = 12 * time.Hour
+		)
+
+		DescribeTable("should use supplied cert config", func(certConfig *cdiv1.CDICertConfig, signerLifetime, signerRefresh, serverLifetime, serverRefresh, clientLifetime, clientRefresh time.Duration) {
+			cdi := createCDI("", "")
+			cdi.Spec.CertConfig = certConfig
+			reconciler := createReconciler(createClient())
+
+			cds := reconciler.getCertificateDefinitions(cdi)
+			Expect(cds).To(HaveLen(4))
+			for _, cd := range cds {
+				Expect(cd.SignerConfig.Lifetime).To(Equal(signerLifetime))
+				Expect(cd.SignerConfig.Refresh).To(Equal(signerRefresh))
+
+				if cd.TargetService != nil {
+					Expect(cd.TargetConfig.Lifetime).To(Equal(serverLifetime))
+					Expect(cd.TargetConfig.Refresh).To(Equal(serverRefresh))
+				}
+
+				if cd.TargetUser != nil {
+					Expect(cd.TargetConfig.Lifetime).To(Equal(clientLifetime))
+					Expect(cd.TargetConfig.Refresh).To(Equal(clientRefresh))
+				}
+			}
+		},
+			Entry("with empty cert config", &cdiv1.CDICertConfig{},
+				defaultSignerLifetime, defaultSignerRefresh, defaultServerLifetime, defaultServerRefresh, defaultClientLifetime, defaultClientRefresh),
+			Entry("with CA cert config", &cdiv1.CDICertConfig{
+				CA: &cdiv1.CertConfig{
+					Duration:    &metav1.Duration{Duration: 100 * time.Hour},
+					RenewBefore: &metav1.Duration{Duration: 10 * time.Hour},
+				},
+			}, 100*time.Hour, 90*time.Hour, defaultServerLifetime, defaultServerRefresh, defaultClientLifetime, defaultClientRefresh),
+			Entry("with Server cert config", &cdiv1.CDICertConfig{
+				Server: &cdiv1.CertConfig{
+					Duration:    &metav1.Duration{Duration: 12 * time.Hour},
+					RenewBefore: &metav1.Duration{Duration: 2 * time.Hour},
+				},
+			}, defaultSignerLifetime, defaultSignerRefresh, 12*time.Hour, 10*time.Hour, defaultClientLifetime, defaultClientRefresh),
+			Entry("with Client cert config", &cdiv1.CDICertConfig{
+				Client: &cdiv1.CertConfig{
+					Duration:    &metav1.Duration{Duration: 12 * time.Hour},
+					RenewBefore: &metav1.Duration{Duration: 2 * time.Hour},
+				},
+			}, defaultSignerLifetime, defaultSignerRefresh, defaultServerLifetime, defaultServerRefresh, 12*time.Hour, 10*time.Hour),
+		)
+	})
 })
 
 func getModifiedResource(reconciler *ReconcileCDI, modify modifyResource, tomodify isModifySubject) (client.Object, client.Object, error) {
@@ -1566,7 +1623,6 @@ func setDeploymentsDegraded(args *args) {
 			err = args.client.Status().Update(context.TODO(), d)
 			Expect(err).ToNot(HaveOccurred())
 		}
-
 	}
 	doReconcile(args)
 }
@@ -1832,6 +1888,8 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.CustomResourceDefinition volumeimportsources.cdi.kubevirt.io"] = false
 	match[normalCreateSuccess+" *v1.CustomResourceDefinition volumeuploadsources.cdi.kubevirt.io"] = false
 	match[normalCreateSuccess+" *v1.CustomResourceDefinition volumeclonesources.cdi.kubevirt.io"] = false
+	match[normalCreateSuccess+" *v1.CustomResourceDefinition ovirtvolumepopulators.forklift.cdi.kubevirt.io"] = false
+	match[normalCreateSuccess+" *v1.CustomResourceDefinition openstackvolumepopulators.forklift.cdi.kubevirt.io"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.ClusterRoleBinding cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi-cronjob"] = false

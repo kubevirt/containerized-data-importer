@@ -3,6 +3,7 @@ package tests_test
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"os/exec"
 	"time"
@@ -43,7 +44,7 @@ var _ = Describe("Cert rotation tests", Serial, func() {
 
 			Eventually(func() error {
 				conn, err = tls.Dial("tcp", hostPort, &tls.Config{
-					InsecureSkipVerify: true,
+					InsecureSkipVerify: true, //nolint: gosec // It's not production code
 				})
 				return err
 			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
@@ -55,7 +56,7 @@ var _ = Describe("Cert rotation tests", Serial, func() {
 
 			Eventually(func() error {
 				conn, err = tls.Dial("tcp", hostPort, &tls.Config{
-					InsecureSkipVerify: true,
+					InsecureSkipVerify: true, //nolint: gosec // It's not production code
 				})
 
 				if err != nil {
@@ -158,8 +159,8 @@ func afterCMD(cmd *exec.Cmd) {
 		ExpectWithOffset(1, cmd.Process.Kill()).Should(Succeed())
 		err := cmd.Wait()
 		if err != nil {
-			_, ok := err.(*exec.ExitError)
-			ExpectWithOffset(1, ok).Should(BeTrue())
+			t := &exec.ExitError{}
+			ExpectWithOffset(1, errors.As(err, &t)).Should(BeTrue())
 		}
 	}
 }

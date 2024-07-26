@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -37,6 +38,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -53,6 +55,10 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 
+	runtimecache "sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiv1utils "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1/utils"
 	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
@@ -61,9 +67,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-	runtimecache "sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 const (
@@ -147,8 +150,13 @@ const (
 	// AnnVddkInitImageURL saves a per-DV VDDK image URL on the PVC
 	AnnVddkInitImageURL = AnnAPIGroup + "/storage.pod.vddk.initimageurl"
 
-	// AnnRequiresScratch provides a const for our PVC requires scratch annotation
+	// AnnRequiresScratch provides a const for our PVC requiring scratch annotation
 	AnnRequiresScratch = AnnAPIGroup + "/storage.import.requiresScratch"
+
+	// AnnRequiresDirectIO provides a const for our PVC requiring direct io annotation (due to OOMs we need to try qemu cache=none)
+	AnnRequiresDirectIO = AnnAPIGroup + "/storage.import.requiresDirectIo"
+	// OOMKilledReason provides a value that container runtimes must return in the reason field for an OOMKilled container
+	OOMKilledReason = "OOMKilled"
 
 	// AnnContentType provides a const for the PVC content-type
 	AnnContentType = AnnAPIGroup + "/storage.contentType"
@@ -216,6 +224,9 @@ const (
 	AnnDefaultVirtStorageClass = "storageclass.kubevirt.io/is-default-virt-class"
 	// AnnDefaultSnapshotClass is the annotation indicating that a snapshot class is the default one
 	AnnDefaultSnapshotClass = "snapshot.storage.kubernetes.io/is-default-class"
+
+	// AnnSourceVolumeMode is the volume mode of the source PVC specified as an annotation on snapshots
+	AnnSourceVolumeMode = AnnAPIGroup + "/storage.import.sourceVolumeMode"
 
 	// AnnOpenShiftImageLookup is the annotation for OpenShift image stream lookup
 	AnnOpenShiftImageLookup = "alpha.image.policy.openshift.io/resolve-names"
@@ -314,6 +325,7 @@ const (
 	LabelDefaultPreferenceKind = "instancetype.kubevirt.io/default-preference-kind"
 
 	// LabelDynamicCredentialSupport specifies if the OS supports updating credentials at runtime.
+	//nolint:gosec // These are not credentials
 	LabelDynamicCredentialSupport = "kubevirt.io/dynamic-credentials-support"
 
 	// ProgressDone this means we are DONE
@@ -360,6 +372,16 @@ var (
 
 	apiServerKeyOnce sync.Once
 	apiServerKey     *rsa.PrivateKey
+
+	// allowedAnnotations is a list of annotations
+	// that can be propagated from the pvc/dv to a pod
+	allowedAnnotations = map[string]string{
+		AnnPodNetwork:                 "",
+		AnnPodSidecarInjectionIstio:   AnnPodSidecarInjectionIstioDefault,
+		AnnPodSidecarInjectionLinkerd: AnnPodSidecarInjectionLinkerdDefault,
+		AnnPriorityClassName:          "",
+		AnnPodMultusDefaultNetwork:    "",
+	}
 )
 
 // FakeValidator is a fake token validator
@@ -462,6 +484,11 @@ func GetRequestedImageSize(pvc *corev1.PersistentVolumeClaim) (string, error) {
 // GetVolumeMode returns the volumeMode from PVC handling default empty value
 func GetVolumeMode(pvc *corev1.PersistentVolumeClaim) corev1.PersistentVolumeMode {
 	return util.ResolveVolumeMode(pvc.Spec.VolumeMode)
+}
+
+// IsDataVolumeUsingDefaultStorageClass checks if the DataVolume is using the default StorageClass
+func IsDataVolumeUsingDefaultStorageClass(dv *cdiv1.DataVolume) bool {
+	return GetStorageClassFromDVSpec(dv) == nil
 }
 
 // GetStorageClassFromDVSpec returns the StorageClassName from DataVolume PVC or Storage spec
@@ -786,7 +813,7 @@ func IsPopulated(pvc *corev1.PersistentVolumeClaim, c client.Client) (bool, erro
 	})
 }
 
-// GetPreallocation retuns the preallocation setting for the specified object (DV or VolumeImportSource), falling back to StorageClass and global setting (in this order)
+// GetPreallocation returns the preallocation setting for the specified object (DV or VolumeImportSource), falling back to StorageClass and global setting (in this order)
 func GetPreallocation(ctx context.Context, client client.Client, preallocation *bool) bool {
 	// First, the DV's preallocation
 	if preallocation != nil {
@@ -816,7 +843,7 @@ func GetPriorityClass(pvc *corev1.PersistentVolumeClaim) string {
 
 // ShouldDeletePod returns whether the PVC workload pod should be deleted
 func ShouldDeletePod(pvc *corev1.PersistentVolumeClaim) bool {
-	return pvc.GetAnnotations()[AnnPodRetainAfterCompletion] != "true" || pvc.GetAnnotations()[AnnRequiresScratch] == "true" || pvc.DeletionTimestamp != nil
+	return pvc.GetAnnotations()[AnnPodRetainAfterCompletion] != "true" || pvc.GetAnnotations()[AnnRequiresScratch] == "true" || pvc.GetAnnotations()[AnnRequiresDirectIO] == "true" || pvc.DeletionTimestamp != nil
 }
 
 // AddFinalizer adds a finalizer to a resource
@@ -941,7 +968,7 @@ func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNa
 
 // validateContentTypes compares the content type of a clone DV against its source PVC's one
 func validateContentTypes(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
-	sourceContentType := cdiv1.DataVolumeContentType(GetPVCContentType(sourcePVC))
+	sourceContentType := GetPVCContentType(sourcePVC)
 	targetContentType := spec.ContentType
 	if targetContentType == "" {
 		targetContentType = cdiv1.DataVolumeKubeVirt
@@ -951,7 +978,7 @@ func validateContentTypes(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.D
 
 // ValidateClone compares a clone spec against its source PVC to validate its creation
 func ValidateClone(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) error {
-	var targetResources corev1.ResourceRequirements
+	var targetResources corev1.VolumeResourceRequirements
 
 	valid, sourceContentType, targetContentType := validateContentTypes(sourcePVC, spec)
 	if !valid {
@@ -985,7 +1012,7 @@ func ValidateClone(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolu
 
 // ValidateSnapshotClone compares a snapshot clone spec against its source snapshot to validate its creation
 func ValidateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv1.DataVolumeSpec) error {
-	var sourceResources, targetResources corev1.ResourceRequirements
+	var sourceResources, targetResources corev1.VolumeResourceRequirements
 
 	if sourceSnapshot.Status == nil {
 		return fmt.Errorf("no status on source snapshot, not possible to proceed")
@@ -1099,7 +1126,7 @@ func GetEndpoint(pvc *corev1.PersistentVolumeClaim) (string, error) {
 		if !found {
 			verb = "missing"
 		}
-		return ep, errors.Errorf("annotation %q in pvc \"%s/%s\" is %s\n", AnnEndpoint, pvc.Namespace, pvc.Name, verb)
+		return ep, errors.Errorf("annotation %q in pvc \"%s/%s\" is %s", AnnEndpoint, pvc.Namespace, pvc.Name, verb)
 	}
 	return ep, nil
 }
@@ -1116,7 +1143,7 @@ func AddImportVolumeMounts() []corev1.VolumeMount {
 }
 
 // ValidateRequestedCloneSize validates the clone size requirements on block
-func ValidateRequestedCloneSize(sourceResources corev1.ResourceRequirements, targetResources corev1.ResourceRequirements) error {
+func ValidateRequestedCloneSize(sourceResources, targetResources corev1.VolumeResourceRequirements) error {
 	sourceRequest, hasSource := sourceResources.Requests[corev1.ResourceStorage]
 	targetRequest, hasTarget := targetResources.Requests[corev1.ResourceStorage]
 	if !hasSource || !hasTarget {
@@ -1214,9 +1241,9 @@ func CreatePvcInStorageClass(name, ns string, storageClassName *string, annotati
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany, corev1.ReadWriteOnce},
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("1G"),
+					corev1.ResourceStorage: resource.MustParse("1G"),
 				},
 			},
 			StorageClassName: storageClassName,
@@ -1441,11 +1468,8 @@ func GetNamespace(namespace, defaultNamespace string) string {
 
 // IsErrCacheNotStarted checked is the error is of cache not started
 func IsErrCacheNotStarted(err error) bool {
-	if err == nil {
-		return false
-	}
-	_, ok := err.(*runtimecache.ErrCacheNotStarted)
-	return ok
+	target := &runtimecache.ErrCacheNotStarted{}
+	return errors.As(err, &target)
 }
 
 // GetDataVolumeTTLSeconds gets the current DataVolume TTL in seconds if GC is enabled, or < 0 if GC is disabled
@@ -1485,16 +1509,14 @@ func NewImportDataVolume(name string) *cdiv1.DataVolume {
 func GetCloneSourceInfo(dv *cdiv1.DataVolume) (sourceType, sourceName, sourceNamespace string) {
 	// Cloning sources are mutually exclusive
 	if dv.Spec.Source.PVC != nil {
-		sourceType = "pvc"
-		sourceName = dv.Spec.Source.PVC.Name
-		sourceNamespace = dv.Spec.Source.PVC.Namespace
-	} else if dv.Spec.Source.Snapshot != nil {
-		sourceType = "snapshot"
-		sourceName = dv.Spec.Source.Snapshot.Name
-		sourceNamespace = dv.Spec.Source.Snapshot.Namespace
+		return "pvc", dv.Spec.Source.PVC.Name, dv.Spec.Source.PVC.Namespace
 	}
 
-	return
+	if dv.Spec.Source.Snapshot != nil {
+		return "snapshot", dv.Spec.Source.Snapshot.Name, dv.Spec.Source.Snapshot.Namespace
+	}
+
+	return "", "", ""
 }
 
 // IsWaitForFirstConsumerEnabled tells us if we should respect "real" WFFC behavior or just let our worker pods randomly spawn
@@ -1591,6 +1613,7 @@ func BuildHTTPClient(httpClient *http.Client) *http.Client {
 	if httpClient == nil {
 		defaultTransport := http.DefaultTransport.(*http.Transport)
 		// Create new Transport that ignores self-signed SSL
+		//nolint:gosec
 		tr := &http.Transport{
 			Proxy:                 defaultTransport.Proxy,
 			DialContext:           defaultTransport.DialContext,
@@ -1633,12 +1656,14 @@ func GetMetricsURL(pod *corev1.Pod) (string, error) {
 	if err != nil || pod.Status.PodIP == "" {
 		return "", err
 	}
-	url := fmt.Sprintf("https://%s:%d/metrics", pod.Status.PodIP, port)
+	domain := net.JoinHostPort(pod.Status.PodIP, fmt.Sprint(port))
+	url := fmt.Sprintf("https://%s/metrics", domain)
 	return url, nil
 }
 
-// GetProgressReportFromURL fetches the progress report from the passed URL according to an specific regular expression
-func GetProgressReportFromURL(url string, regExp *regexp.Regexp, httpClient *http.Client) (string, error) {
+// GetProgressReportFromURL fetches the progress report from the passed URL according to an specific metric expression and ownerUID
+func GetProgressReportFromURL(url string, httpClient *http.Client, metricExp, ownerUID string) (string, error) {
+	regExp := regexp.MustCompile(fmt.Sprintf("(%s)\\{ownerUID\\=%q\\} (\\d{1,3}\\.?\\d*)", metricExp, ownerUID))
 	resp, err := httpClient.Get(url)
 	if err != nil {
 		if ErrConnectionRefused(err) {
@@ -1651,11 +1676,12 @@ func GetProgressReportFromURL(url string, regExp *regexp.Regexp, httpClient *htt
 	if err != nil {
 		return "", err
 	}
+
 	// Parse the progress from the body
 	progressReport := ""
 	match := regExp.FindStringSubmatch(string(body))
 	if match != nil {
-		progressReport = match[1]
+		progressReport = match[len(match)-1]
 	}
 	return progressReport, nil
 }
@@ -1820,63 +1846,6 @@ func BulkDeleteResources(ctx context.Context, c client.Client, obj client.Object
 	}
 
 	return nil
-}
-
-// ProgressFromClaimArgs are the args for ProgressFromClaim
-type ProgressFromClaimArgs struct {
-	Client       client.Client
-	HTTPClient   *http.Client
-	Claim        *corev1.PersistentVolumeClaim
-	OwnerUID     string
-	PodNamespace string
-	PodName      string
-}
-
-// ProgressFromClaim returns the progres
-func ProgressFromClaim(ctx context.Context, args *ProgressFromClaimArgs) (string, error) {
-	// Just set 100.0% if pod is succeeded
-	if args.Claim.Annotations[AnnPodPhase] == string(corev1.PodSucceeded) {
-		return ProgressDone, nil
-	}
-
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: args.PodNamespace,
-			Name:      args.PodName,
-		},
-	}
-	if err := args.Client.Get(ctx, client.ObjectKeyFromObject(pod), pod); err != nil {
-		if k8serrors.IsNotFound(err) {
-			return "", nil
-		}
-		return "", err
-	}
-
-	// This will only work when the import pod is running
-	if pod.Status.Phase != corev1.PodRunning {
-		return "", nil
-	}
-	url, err := GetMetricsURL(pod)
-	if err != nil {
-		return "", err
-	}
-	if url == "" {
-		return "", nil
-	}
-
-	// We fetch the import progress from the import pod metrics
-	importRegExp := regexp.MustCompile("progress\\{ownerUID\\=\"" + args.OwnerUID + "\"\\} (\\d{1,3}\\.?\\d*)")
-	progressReport, err := GetProgressReportFromURL(url, importRegExp, args.HTTPClient)
-	if err != nil {
-		return "", err
-	}
-	if progressReport != "" {
-		if f, err := strconv.ParseFloat(progressReport, 64); err == nil {
-			return fmt.Sprintf("%.2f%%", f), nil
-		}
-	}
-
-	return "", nil
 }
 
 // ValidateSnapshotCloneSize does proper size validation when doing a clone from snapshot operation
@@ -2104,22 +2073,17 @@ func OwnedByDataVolume(obj metav1.Object) bool {
 	return owner != nil && owner.Kind == "DataVolume"
 }
 
-// SetPvcAllowedAnnotations applies PVC annotations on the given obj
-func SetPvcAllowedAnnotations(obj metav1.Object, pvc *corev1.PersistentVolumeClaim) {
-	allowedAnnotations := map[string]string{
-		AnnPodNetwork:                 "",
-		AnnPodSidecarInjectionIstio:   AnnPodSidecarInjectionIstioDefault,
-		AnnPodSidecarInjectionLinkerd: AnnPodSidecarInjectionLinkerdDefault,
-		AnnPriorityClassName:          "",
-		AnnPodMultusDefaultNetwork:    ""}
+// CopyAllowedAnnotations copies the allowed annotations from the source object
+// to the destination object
+func CopyAllowedAnnotations(srcObj, dstObj metav1.Object) {
 	for ann, def := range allowedAnnotations {
-		val, ok := pvc.Annotations[ann]
+		val, ok := srcObj.GetAnnotations()[ann]
 		if !ok && def != "" {
 			val = def
 		}
 		if val != "" {
-			klog.V(1).Info("Applying PVC annotation", "Name", obj.GetName(), ann, val)
-			AddAnnotation(obj, ann, val)
+			klog.V(1).Info("Applying annotation", "Name", dstObj.GetName(), ann, val)
+			AddAnnotation(dstObj, ann, val)
 		}
 	}
 }

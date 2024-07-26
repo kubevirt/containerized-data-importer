@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "doc.go",
+        "error_tracker.go",
+        "execute.go",
+        "generator.go",
+        "go_generator.go",
+        "import_tracker.go",
+        "simple_target.go",
+        "snippet_writer.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/k8s.io/gengo/v2/generator",
+    importpath = "k8s.io/gengo/v2/generator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/golang.org/x/tools/imports:go_default_library",
+        "//vendor/k8s.io/gengo/v2/namer:go_default_library",
+        "//vendor/k8s.io/gengo/v2/parser:go_default_library",
+        "//vendor/k8s.io/gengo/v2/types:go_default_library",
+        "//vendor/k8s.io/klog/v2:go_default_library",
+    ],
+)

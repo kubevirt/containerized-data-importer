@@ -5,42 +5,40 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"regexp"
 	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	routev1 "github.com/openshift/api/route/v1"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
-	appsv1 "k8s.io/api/apps/v1"
-	schedulev1 "k8s.io/api/scheduling/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
-	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
-	crclient "sigs.k8s.io/controller-runtime/pkg/client"
-
 	secclient "github.com/openshift/client-go/security/clientset/versioned"
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
+
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	schedulev1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
+
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-)
-
-var (
-	logIsLeaderRegex = regexp.MustCompile("successfully acquired lease")
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 )
 
 var _ = Describe("ALL Operator tests", func() {
@@ -768,7 +766,7 @@ var _ = Describe("ALL Operator tests", func() {
 				cdiConfig, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
-				By("Enable non existant featureGate")
+				By("Enable non existent featureGate")
 				cdiConfig.Spec = cdiv1.CDIConfigSpec{
 					FeatureGates: []string{feature},
 				}
@@ -882,7 +880,7 @@ var _ = Describe("ALL Operator tests", func() {
 			It("Should update infra deployments when modify customizeComponents in CDI Cr", func() {
 				By("Modify the customizeComponents separately")
 				cdi := getCDI(f)
-				testJsonPatch := "test-json-patch"
+				testJSONPatch := "test-json-patch"
 				testStrategicPatch := "test-strategic-patch"
 				testMergePatch := "test-merge-patch"
 				cdi.Spec.CustomizeComponents = cdiv1.CustomizeComponents{
@@ -890,7 +888,7 @@ var _ = Describe("ALL Operator tests", func() {
 						{
 							ResourceName: "cdi-apiserver",
 							ResourceType: "Deployment",
-							Patch:        fmt.Sprintf(`[{"op":"add","path":"/metadata/annotations/%s","value":"%s"}]`, testJsonPatch, testJsonPatch),
+							Patch:        fmt.Sprintf(`[{"op":"add","path":"/metadata/annotations/%s","value":"%s"}]`, testJSONPatch, testJSONPatch),
 							Type:         cdiv1.JSONPatchType,
 						},
 						{
@@ -942,7 +940,7 @@ var _ = Describe("ALL Operator tests", func() {
 						return depl.GetAnnotations()[annoKey] == annoValue
 					}, 5*time.Minute, 1*time.Second).Should(BeTrue())
 				}
-				verifyPatches("cdi-apiserver", testJsonPatch, testJsonPatch, "-v 5", "-skip_headers")
+				verifyPatches("cdi-apiserver", testJSONPatch, testJSONPatch, "-v 5", "-skip_headers")
 				verifyPatches("cdi-deployment", testStrategicPatch, testStrategicPatch, "-v 6", "-skip_headers")
 				verifyPatches("cdi-uploadproxy", testMergePatch, testMergePatch, "-v 7", "-skip_headers")
 
@@ -1016,8 +1014,9 @@ var _ = Describe("ALL Operator tests", func() {
 			}
 
 			It("should allow update", func() {
-				caSecretNames := []string{"cdi-apiserver-signer", "cdi-uploadproxy-signer"}
+				caSecretNames := []string{"cdi-apiserver-signer", "cdi-uploadproxy-signer", "cdi-uploadserver-client-signer"}
 				serverSecretNames := []string{"cdi-apiserver-server-cert", "cdi-uploadproxy-server-cert"}
+				clientSecretNames := []string{"cdi-uploadserver-client-cert"}
 
 				ts := time.Now()
 				// Time comparison here is in seconds, so make sure there is an interval
@@ -1034,6 +1033,10 @@ var _ = Describe("ALL Operator tests", func() {
 							Duration:    &metav1.Duration{Duration: time.Minute * 5},
 							RenewBefore: &metav1.Duration{Duration: time.Minute * 2},
 						},
+						Client: &cdiv1.CertConfig{
+							Duration:    &metav1.Duration{Duration: time.Minute * 2},
+							RenewBefore: &metav1.Duration{Duration: time.Minute * 1},
+						},
 					}
 					newCR, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
 					if errors.IsConflict(err) {
@@ -1048,8 +1051,9 @@ var _ = Describe("ALL Operator tests", func() {
 				Eventually(func() bool {
 					caSecrets := getSecrets(caSecretNames)
 					serverSecrets := getSecrets(serverSecretNames)
+					clientSecrets := getSecrets(clientSecretNames)
 
-					for _, s := range append(caSecrets, serverSecrets...) {
+					for _, s := range append(caSecrets, append(serverSecrets, clientSecrets...)...) {
 						fmt.Fprintf(GinkgoWriter, "Comparing not-before to time.Now() for all\n")
 						nba := s.Annotations["auth.openshift.io/certificate-not-before"]
 						t, err := time.Parse(time.RFC3339, nba)
@@ -1098,6 +1102,26 @@ var _ = Describe("ALL Operator tests", func() {
 						}
 						// 5m - 2m = 3m
 						validateCertConfig(&s, "5m0s", "3m0s")
+					}
+
+					for _, s := range clientSecrets {
+						fmt.Fprintf(GinkgoWriter, "Comparing not-before/not-after for clientSecrets\n")
+						nba := s.Annotations["auth.openshift.io/certificate-not-before"]
+						t, err := time.Parse(time.RFC3339, nba)
+						Expect(err).ToNot(HaveOccurred())
+						naa := s.Annotations["auth.openshift.io/certificate-not-after"]
+						t2, err := time.Parse(time.RFC3339, naa)
+						Expect(err).ToNot(HaveOccurred())
+						if t2.Sub(t) < time.Minute*2 {
+							fmt.Fprintf(GinkgoWriter, "Not-Before (%s) should be 2 minutes before Not-After (%s)\n", nba, naa)
+							return false
+						}
+						if t2.Sub(t)-(time.Minute*2) > time.Second {
+							fmt.Fprintf(GinkgoWriter, "Not-Before (%s) should be 2 minutes before Not-After (%s) with 1 second toleration\n", nba, naa)
+							return false
+						}
+						// 2m - 1m = 1m
+						validateCertConfig(&s, "2m0s", "1m0s")
 					}
 
 					return true
@@ -1159,23 +1183,28 @@ var _ = Describe("ALL Operator tests", func() {
 					prioClass = osUserCrit.Name
 				}
 				// Deployment
-				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(prioClass), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiDeploymentPodPrefix, prioClass, common.CDILabelSelector)
 				// API server
-				verifyPodPriorityClass(cdiApiServerPodPrefix, string(prioClass), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiAPIServerPodPrefix, prioClass, common.CDILabelSelector)
 				// Upload server
-				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(prioClass), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiUploadProxyPodPrefix, prioClass, common.CDILabelSelector)
 				By("Verifying there is just a single cdi controller pod")
 				Eventually(func() error {
 					_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
 					return err
 				}, 2*time.Minute, 1*time.Second).Should(BeNil())
+
+				pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
+				Expect(err).ToNot(HaveOccurred())
+
 				By("Ensuring this pod is the leader")
-				Eventually(func() bool {
-					controllerPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
-					Expect(err).ToNot(HaveOccurred())
-					log := getLog(f, controllerPod.Name)
-					return checkLogForRegEx(logIsLeaderRegex, log)
-				}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+				Eventually(func() (string, error) {
+					out, err := f.K8sClient.CoreV1().
+						Pods(f.CdiInstallNs).
+						GetLogs(pod.Name, &corev1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+						DoRaw(context.Background())
+					return string(out), err
+				}, 2*time.Minute, time.Second).Should(ContainSubstring("successfully acquired lease"))
 
 				waitCDI(f, cr, cdiPods)
 			})
@@ -1189,7 +1218,7 @@ var _ = Describe("ALL Operator tests", func() {
 				By("Verifying the CDI deployment is updated")
 				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(systemClusterCritical), common.CDILabelSelector)
 				By("Verifying the CDI api server is updated")
-				verifyPodPriorityClass(cdiApiServerPodPrefix, string(systemClusterCritical), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiAPIServerPodPrefix, string(systemClusterCritical), common.CDILabelSelector)
 				By("Verifying the CDI upload proxy server is updated")
 				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(systemClusterCritical), common.CDILabelSelector)
 			})
@@ -1203,11 +1232,11 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				By("Verifying the CDI control plane is updated")
 				// Deployment
-				verifyPodPriorityClass(cdiDeploymentPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiDeploymentPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 				// API server
-				verifyPodPriorityClass(cdiApiServerPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiAPIServerPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 				// Upload server
-				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(osUserCrit.Name), common.CDILabelSelector)
+				verifyPodPriorityClass(cdiUploadProxyPodPrefix, osUserCrit.Name, common.CDILabelSelector)
 			})
 		})
 	})
@@ -1417,13 +1446,7 @@ func scaleDeployment(f *framework.Framework, deploymentName string, replicas int
 	return originalReplicas
 }
 
-func checkLogForRegEx(regEx *regexp.Regexp, log string) bool {
-	matches := regEx.FindAllStringIndex(log, -1)
-	return len(matches) >= 1
-}
-
 func checkAntiAffinity(name string, deploymentAffinity *corev1.Affinity) {
-
 	affinityTampleValue := &corev1.PodAntiAffinity{
 		PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
 			{
@@ -1445,14 +1468,8 @@ func checkAntiAffinity(name string, deploymentAffinity *corev1.Affinity) {
 	affCopy := framework.AffinityTestValue.DeepCopy()
 	affCopy.PodAntiAffinity = affinityTampleValue
 	Expect(reflect.DeepEqual(deploymentAffinity, affCopy)).To(BeTrue())
-
 }
 
-func getLog(f *framework.Framework, name string) string {
-	log, err := f.RunKubectlCommand("logs", "--since=0", name, "-n", f.CdiInstallNs)
-	Expect(err).ToNot(HaveOccurred())
-	return log
-}
 func getPodNumByPrefix(f *framework.Framework, deploymentName string) int {
 	labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{common.CDIComponentLabel: deploymentName}}
 

@@ -1,10 +1,10 @@
 package system
 
 import (
+	"testing"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"testing"
 )
 
 func TestPrLimit(t *testing.T) {

@@ -1,7 +1,51 @@
 linters:
   enable:
+  - dupword
+  - durationcheck
+  - errname
+  - errorlint
+  - gci
   - ginkgolinter
+  - gofmt
   - goimports
+  - gosec
+  - govet
+  - misspell
+  - nakedret
+  - revive
+  - unconvert
+  - usestdlibvars
+  - whitespace
+
+run:
+  timeout: "16m"
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude:
+    # Allow dot imports for test files
+    - 'dot-imports: should not use dot import'
+    # Allow unused variables (necessary sometimes to match interfaces)
+    - "unused-parameter: parameter '.*' seems to be unused, consider removing or renaming it as _"
+    # Outdated warning, it only applies to Go < 1.22
+    # G601: Implicit memory aliasing in for loop.
+    - G601
+
 linters-settings:
+  errorlint:
+    # We want to allow for usage of %v to avoid leaking implementation details
+    errorf: false
+  gci:
+    custom-order: true
+    sections:
+      - standard                  # Standard library
+      - prefix(github.com/onsi/)  # Ginko and Gomega
+      - default                   # Everything else
+      - prefix(k8s.io)            # Kubernetes
+      - prefix(sigs.k8s.io)       # Kubernetes
+      - prefix(kubevirt.io)       # Kubevirt
   ginkgolinter:
     forbid-focus-container: true
+  nakedret:
+    max-func-lines: 0

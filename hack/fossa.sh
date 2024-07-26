@@ -9,4 +9,3 @@ if [[ "${CI:-}" == "true" ]]; then
 fi
 FOSSA_API_KEY="$(cat $FOSSA_TOKEN_FILE)" fossa analyze $FOSSA_OPTS
 FOSSA_API_KEY="$(cat $FOSSA_TOKEN_FILE)" fossa test --timeout=1800
-

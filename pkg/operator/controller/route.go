@@ -22,11 +22,13 @@ import (
 
 	"github.com/go-logr/logr"
 	routev1 "github.com/openshift/api/route/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -79,7 +81,7 @@ func ensureUploadProxyRouteExists(ctx context.Context, logger logr.Logger, c cli
 				"cdi.kubevirt.io": "",
 			},
 			Annotations: map[string]string{
-				// long timeout here to make sure client conection doesn't die during qcow->raw conversion
+				// long timeout here to make sure client connection doesn't die during qcow->raw conversion
 				"haproxy.router.openshift.io/timeout": "60m",
 			},
 		},
@@ -91,7 +93,7 @@ func ensureUploadProxyRouteExists(ctx context.Context, logger logr.Logger, c cli
 			TLS: &routev1.TLSConfig{
 				Termination:                   routev1.TLSTerminationReencrypt,
 				InsecureEdgeTerminationPolicy: routev1.InsecureEdgeTerminationPolicyRedirect,
-				DestinationCACertificate:      string(cert),
+				DestinationCACertificate:      cert,
 			},
 		},
 	}
@@ -136,7 +138,8 @@ func (r *ReconcileCDI) watchRoutes() error {
 		Limit:     1,
 	})
 	if err == nil {
-		return r.controller.Watch(source.Kind(r.getCache(), &routev1.Route{}), enqueueCDI(r.client))
+		var route client.Object = &routev1.Route{}
+		return r.controller.Watch(source.Kind(r.getCache(), route, enqueueCDI(r.client)))
 	}
 	if meta.IsNoMatchError(err) {
 		log.Info("Not watching Routes")

@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -134,7 +136,7 @@ var _ = Describe("Planner test", func() {
 				UID:       types.UID(name + "-uid"),
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: medium,
 					},
@@ -844,6 +846,54 @@ var _ = Describe("Planner test", func() {
 			validatePrepClaimPhase(planner, args, plan[1])
 			validateHostClonePhase(planner, args, plan[2])
 			validateRebindPhase(planner, args, plan[3])
+		})
+
+		Context("temp host assisted source pvc spec", func() {
+			volumeSnapshotContentWithSourceVolumeMode := func() *snapshotv1.VolumeSnapshotContent {
+				vsc := createDefaultVolumeSnapshotContent()
+				vsc.Spec.SourceVolumeMode = ptr.To[corev1.PersistentVolumeMode]("dummy")
+				return vsc
+			}
+
+			snapWithSourceVolumeModeAnnotation := func() *snapshotv1.VolumeSnapshot {
+				snap := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+				cc.AddAnnotation(snap, cc.AnnSourceVolumeMode, "dummyfromann")
+				return snap
+			}
+
+			DescribeTable("should pick correct spec for temp host assisted source in clone from snapshot", func(objs []runtime.Object, expectedVolumeMode corev1.PersistentVolumeMode, source *snapshotv1.VolumeSnapshot) {
+				target := createTargetClaim()
+				target.Spec.VolumeMode = ptr.To[corev1.PersistentVolumeMode]("dummytargetvolmode")
+				args := &PlanArgs{
+					Strategy:    cdiv1.CloneStrategyHostAssisted,
+					TargetClaim: target,
+					DataSource:  createSnapshotDataSource(),
+					Log:         log,
+				}
+				runtimeObjs := []runtime.Object{cdiConfig, source, createVolumeSnapshotClass()}
+				runtimeObjs = append(runtimeObjs, objs...)
+				planner = createPlanner(runtimeObjs...)
+				plan, err := planner.Plan(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(plan).ToNot(BeNil())
+				Expect(plan).To(HaveLen(4))
+				validateSnapshotClonePhase(planner, args, plan[0])
+				validatePrepClaimPhase(planner, args, plan[1])
+				validateHostClonePhase(planner, args, plan[2])
+				validateRebindPhase(planner, args, plan[3])
+				Expect(plan[0].(*SnapshotClonePhase).DesiredClaim.Spec.VolumeMode).To(HaveValue(Equal(expectedVolumeMode)))
+				Expect(plan[0].(*SnapshotClonePhase).DesiredClaim.Spec.AccessModes).To(ConsistOf(
+					[]corev1.PersistentVolumeAccessMode{
+						corev1.ReadWriteOnce,
+					},
+				))
+				Expect(plan[0].(*SnapshotClonePhase).DesiredClaim.Spec.DataSource).To(BeNil())
+				Expect(plan[0].(*SnapshotClonePhase).DesiredClaim.Spec.DataSourceRef).To(BeNil())
+			},
+				Entry("when volumesnapshotcontent has source volume mode", []runtime.Object{volumeSnapshotContentWithSourceVolumeMode(), createStorageClass()}, corev1.PersistentVolumeMode("dummy"), createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")),
+				Entry("when volumesnapshotcontent has no source volume mode but annotated with AnnSourceVolumeMode", []runtime.Object{createDefaultVolumeSnapshotContent(), createStorageClass()}, corev1.PersistentVolumeMode("dummyfromann"), snapWithSourceVolumeModeAnnotation()),
+				Entry("when neither source volume mode on volumesnapshotcontent nor AnnSourceVolumeMode annotation", []runtime.Object{createDefaultVolumeSnapshotContent(), createStorageClass()}, corev1.PersistentVolumeMode("dummytargetvolmode"), createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")),
+			)
 		})
 
 		It("should fail planning host-assisted clone from snapshot when no valid storage class for source PVC is found", func() {

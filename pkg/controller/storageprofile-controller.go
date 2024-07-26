@@ -9,7 +9,9 @@ import (
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	ocpconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/prometheus/client_golang/prometheus"
+
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -30,7 +33,6 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
@@ -47,6 +49,7 @@ const (
 	counterLabelVirtDefault      = "virtdefault"
 	counterLabelRWX              = "rwx"
 	counterLabelSmartClone       = "smartclone"
+	counterLabelDegraded         = "degraded"
 )
 
 // StorageProfileReconciler members
@@ -295,13 +298,26 @@ func (r *StorageProfileReconciler) computeMetrics(profile *cdiv1.StorageProfile,
 		return err
 	}
 
+	isSNO := false
+	clusterInfra := &ocpconfigv1.Infrastructure{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: "cluster"}, clusterInfra); err != nil {
+		if !meta.IsNoMatchError(err) && !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else {
+		isSNO = clusterInfra.Status.ControlPlaneTopology == ocpconfigv1.SingleReplicaTopologyMode &&
+			clusterInfra.Status.InfrastructureTopology == ocpconfigv1.SingleReplicaTopologyMode
+	}
+
+	isDegraded := (!isSNO && !isRWX) || !isSmartClone
+
 	// Setting the labeled Gauge to 1 will not delete older metric, so we need to explicitly delete them
 	scLabels := prometheus.Labels{counterLabelStorageClass: storageClass, counterLabelProvisioner: provisioner}
 	metricsDeleted := metrics.DeleteStorageProfileStatus(scLabels)
-	scLabels = createLabels(storageClass, provisioner, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone)
+	scLabels = createLabels(storageClass, provisioner, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone, isDegraded)
 	metrics.SetStorageProfileStatus(scLabels, 1)
-	r.log.Info(fmt.Sprintf("Set metric:%s complete:%t default:%t vdefault:%t rwx:%t smartclone:%t (deleted %d)",
-		storageClass, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone, metricsDeleted))
+	r.log.Info(fmt.Sprintf("Set metric:%s complete:%t default:%t vdefault:%t rwx:%t smartclone:%t degraded:%t (deleted %d)",
+		storageClass, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone, isDegraded, metricsDeleted))
 
 	return nil
 }
@@ -334,7 +350,7 @@ func (r *StorageProfileReconciler) hasSmartClone(sp *cdiv1.StorageProfile) (bool
 	return false, nil
 }
 
-func createLabels(storageClass, provisioner string, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone bool) prometheus.Labels {
+func createLabels(storageClass, provisioner string, isComplete, isDefault, isVirtDefault, isRWX, isSmartClone, isDegraded bool) prometheus.Labels {
 	return prometheus.Labels{
 		counterLabelStorageClass: storageClass,
 		counterLabelProvisioner:  provisioner,
@@ -343,6 +359,7 @@ func createLabels(storageClass, provisioner string, isComplete, isDefault, isVir
 		counterLabelVirtDefault:  strconv.FormatBool(isVirtDefault),
 		counterLabelRWX:          strconv.FormatBool(isRWX),
 		counterLabelSmartClone:   strconv.FormatBool(isSmartClone),
+		counterLabelDegraded:     strconv.FormatBool(isDegraded),
 	}
 }
 
@@ -398,42 +415,48 @@ func NewStorageProfileController(mgr manager.Manager, log logr.Logger, installer
 }
 
 func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
-	if err := c.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}), &handler.EnqueueRequestForObject{}); err != nil {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}, &handler.TypedEnqueueRequestForObject[*storagev1.StorageClass]{})); err != nil {
 		return err
 	}
 
-	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.StorageProfile{}), &handler.EnqueueRequestForObject{}); err != nil {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.StorageProfile{}, &handler.TypedEnqueueRequestForObject[*cdiv1.StorageProfile]{})); err != nil {
 		return err
 	}
 
-	if err := c.Watch(source.Kind(mgr.GetCache(), &v1.PersistentVolume{}), handler.EnqueueRequestsFromMapFunc(
-		func(_ context.Context, obj client.Object) []reconcile.Request {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &v1.PersistentVolume{}, handler.TypedEnqueueRequestsFromMapFunc[*v1.PersistentVolume](
+		func(_ context.Context, obj *v1.PersistentVolume) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: scName(obj)},
 			}}
 		},
 	),
-		predicate.Funcs{
-			CreateFunc: func(e event.CreateEvent) bool { return isNoProvisioner(scName(e.Object), mgr.GetClient()) },
-			UpdateFunc: func(e event.UpdateEvent) bool { return isNoProvisioner(scName(e.ObjectNew), mgr.GetClient()) },
-			DeleteFunc: func(e event.DeleteEvent) bool { return isNoProvisioner(scName(e.Object), mgr.GetClient()) },
-		}); err != nil {
+		predicate.TypedFuncs[*v1.PersistentVolume]{
+			CreateFunc: func(e event.TypedCreateEvent[*v1.PersistentVolume]) bool {
+				return isNoProvisioner(scName(e.Object), mgr.GetClient())
+			},
+			UpdateFunc: func(e event.TypedUpdateEvent[*v1.PersistentVolume]) bool {
+				return isNoProvisioner(scName(e.ObjectNew), mgr.GetClient())
+			},
+			DeleteFunc: func(e event.TypedDeleteEvent[*v1.PersistentVolume]) bool {
+				return isNoProvisioner(scName(e.Object), mgr.GetClient())
+			},
+		})); err != nil {
 		return err
 	}
 
-	mapSnapshotClassToProfile := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+	mapSnapshotClassToProfile := func(ctx context.Context, vsc *snapshotv1.VolumeSnapshotClass) []reconcile.Request {
 		var scList storagev1.StorageClassList
 		if err := mgr.GetClient().List(ctx, &scList); err != nil {
 			c.GetLogger().Error(err, "Unable to list StorageClasses")
-			return
+			return nil
 		}
-		vsc := obj.(*snapshotv1.VolumeSnapshotClass)
+		var reqs []reconcile.Request
 		for _, sc := range scList.Items {
 			if sc.Provisioner == vsc.Driver {
 				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: sc.Name}})
 			}
 		}
-		return
+		return reqs
 	}
 	if err := mgr.GetClient().List(context.TODO(), &snapshotv1.VolumeSnapshotClassList{}, &client.ListOptions{Limit: 1}); err != nil {
 		if meta.IsNoMatchError(err) {
@@ -444,9 +467,9 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 			return err
 		}
 	}
-	if err := c.Watch(source.Kind(mgr.GetCache(), &snapshotv1.VolumeSnapshotClass{}),
-		handler.EnqueueRequestsFromMapFunc(mapSnapshotClassToProfile),
-	); err != nil {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &snapshotv1.VolumeSnapshotClass{},
+		handler.TypedEnqueueRequestsFromMapFunc[*snapshotv1.VolumeSnapshotClass](mapSnapshotClassToProfile),
+	)); err != nil {
 		return err
 	}
 

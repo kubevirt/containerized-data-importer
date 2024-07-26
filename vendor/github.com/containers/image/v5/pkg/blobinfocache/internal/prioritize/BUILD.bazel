@@ -8,6 +8,10 @@ go_library(
     visibility = ["//vendor/github.com/containers/image/v5/pkg/blobinfocache:__subpackages__"],
     deps = [
         "//vendor/github.com/containers/image/v5/internal/blobinfocache:go_default_library",
+        "//vendor/github.com/containers/image/v5/internal/manifest:go_default_library",
+        "//vendor/github.com/containers/image/v5/pkg/compression:go_default_library",
+        "//vendor/github.com/containers/image/v5/types:go_default_library",
         "//vendor/github.com/opencontainers/go-digest:go_default_library",
+        "//vendor/github.com/sirupsen/logrus:go_default_library",
     ],
 )

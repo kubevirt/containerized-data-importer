@@ -226,9 +226,9 @@ func (m *manifestSchema2) convertToManifestOCI1(ctx context.Context, _ *types.Ma
 		layers[idx] = oci1DescriptorFromSchema2Descriptor(m.m.LayersDescriptors[idx])
 		switch m.m.LayersDescriptors[idx].MediaType {
 		case manifest.DockerV2Schema2ForeignLayerMediaType:
-			layers[idx].MediaType = imgspecv1.MediaTypeImageLayerNonDistributable
+			layers[idx].MediaType = imgspecv1.MediaTypeImageLayerNonDistributable //nolint:staticcheck // NonDistributable layers are deprecated, but we want to continue to support manipulating pre-existing images.
 		case manifest.DockerV2Schema2ForeignLayerMediaTypeGzip:
-			layers[idx].MediaType = imgspecv1.MediaTypeImageLayerNonDistributableGzip
+			layers[idx].MediaType = imgspecv1.MediaTypeImageLayerNonDistributableGzip //nolint:staticcheck // NonDistributable layers are deprecated, but we want to continue to support manipulating pre-existing images.
 		case manifest.DockerV2SchemaLayerMediaTypeUncompressed:
 			layers[idx].MediaType = imgspecv1.MediaTypeImageLayer
 		case manifest.DockerV2Schema2LayerMediaType:
@@ -366,7 +366,7 @@ func v1IDFromBlobDigestAndComponents(blobDigest digest.Digest, others ...string)
 	if err := blobDigest.Validate(); err != nil {
 		return "", err
 	}
-	parts := append([]string{blobDigest.Hex()}, others...)
+	parts := append([]string{blobDigest.Encoded()}, others...)
 	v1IDHash := sha256.Sum256([]byte(strings.Join(parts, " ")))
 	return hex.EncodeToString(v1IDHash[:]), nil
 }

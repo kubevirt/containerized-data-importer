@@ -9,9 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"cloud.google.com/go/storage"
+	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 
 	"k8s.io/klog/v2"
@@ -92,7 +91,6 @@ func NewGCSDataSource(endpoint, keyFile string) (*GCSDataSource, error) {
 		keyFile:   keyFile,
 		gcsReader: gcsReader,
 	}, nil
-
 }
 
 // Info is called to get initial information about the data.
@@ -128,7 +126,7 @@ func (sd *GCSDataSource) Transfer(path string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, ErrInvalidPath
 	}
 
-	err := util.StreamDataToFile(sd.readers.TopReader(), file)
+	err := streamDataToFile(sd.readers.TopReader(), file)
 
 	if err != nil {
 		klog.V(3).Infoln("GCS Importer: Transfer Error: ", err)
@@ -145,7 +143,7 @@ func (sd *GCSDataSource) TransferFile(fileName string) (ProcessingPhase, error) 
 		return ProcessingPhaseError, err
 	}
 
-	err := util.StreamDataToFile(sd.readers.TopReader(), fileName)
+	err := streamDataToFile(sd.readers.TopReader(), fileName)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}

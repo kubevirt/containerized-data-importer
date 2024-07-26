@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -22,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -325,7 +327,7 @@ var _ = Describe("all clone tests", func() {
 				nodeList, err := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				if len(nodeList.Items) < 2 {
-					Skip("Need at least 2 nodes to copy accross nodes")
+					Skip("Need at least 2 nodes to copy across nodes")
 				}
 				nodeMap := make(map[string]bool)
 				for _, node := range nodeList.Items {
@@ -374,26 +376,37 @@ var _ = Describe("all clone tests", func() {
 						if ok, val := nodeMap[pvNode]; ok && val {
 							nodeMap[pvNode] = false
 							By("Labeling PV " + pv.Name + " as source")
-							sourcePV = &pv
-							if sourcePV.GetLabels() == nil {
-								sourcePV.SetLabels(make(map[string]string))
-							}
-							sourcePV.GetLabels()["source-pv"] = "yes"
-							sourcePV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), sourcePV, metav1.UpdateOptions{})
-							Expect(err).ToNot(HaveOccurred())
+							Eventually(func() error {
+								sourcePV, err = f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pv.Name, metav1.GetOptions{})
+								Expect(err).ToNot(HaveOccurred())
+								if sourcePV.GetLabels() == nil {
+									sourcePV.SetLabels(make(map[string]string))
+								}
+								sourcePV.GetLabels()["source-pv"] = "yes"
+								// We shouldn't make the test fail if there's a conflict with the update request.
+								// These errors are usually transient and should be fixed in subsequent retries.
+								sourcePV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), sourcePV, metav1.UpdateOptions{})
+								return err
+							}, timeout, pollingInterval).Should(Succeed())
 						}
 					} else if targetPV == nil {
 						pvNode := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Values[0]
 						if ok, val := nodeMap[pvNode]; ok && val {
 							nodeMap[pvNode] = false
+
 							By("Labeling PV " + pv.Name + " as target")
-							targetPV = &pv
-							if targetPV.GetLabels() == nil {
-								targetPV.SetLabels(make(map[string]string))
-							}
-							targetPV.GetLabels()["target-pv"] = "yes"
-							targetPV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), targetPV, metav1.UpdateOptions{})
-							Expect(err).ToNot(HaveOccurred())
+							Eventually(func() error {
+								targetPV, err = f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pv.Name, metav1.GetOptions{})
+								Expect(err).ToNot(HaveOccurred())
+								if targetPV.GetLabels() == nil {
+									targetPV.SetLabels(make(map[string]string))
+								}
+								targetPV.GetLabels()["target-pv"] = "yes"
+								// We shouldn't make the test fail if there's a conflict with the update request.
+								// These errors are usually transient and should be fixed in subsequent retries.
+								targetPV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), targetPV, metav1.UpdateOptions{})
+								return err
+							}, timeout, pollingInterval).Should(Succeed())
 							break
 						}
 					}
@@ -499,7 +512,7 @@ var _ = Describe("all clone tests", func() {
 				sourcePvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
-				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+				volumeMode := v1.PersistentVolumeFilesystem
 				targetDV := utils.NewDataVolumeForImageCloning("target-dv", "1.1Gi", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
 				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
@@ -590,7 +603,7 @@ var _ = Describe("all clone tests", func() {
 				// should clone from fs to fs using the same size in spec.storage.size
 				// source pvc might be bigger than the size, but the clone should work
 				// as the actual data is the same
-				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+				volumeMode := v1.PersistentVolumeFilesystem
 
 				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				dataVolume.Spec.Storage.VolumeMode = &volumeMode
@@ -833,7 +846,7 @@ var _ = Describe("all clone tests", func() {
 				})
 
 				It("should report correct status for smart/CSI clones", func() {
-					volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+					volumeMode := v1.PersistentVolumeFilesystem
 
 					dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 					dataVolume.Spec.Storage.VolumeMode = &volumeMode
@@ -880,7 +893,7 @@ var _ = Describe("all clone tests", func() {
 				})
 
 				It("should succeed smart/CSI clones with immediate bind requested", func() {
-					volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+					volumeMode := v1.PersistentVolumeFilesystem
 
 					dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 					dataVolume.Spec.Storage.VolumeMode = &volumeMode
@@ -1170,7 +1183,7 @@ var _ = Describe("all clone tests", func() {
 		//	3. 'HostAssisted' is used as clone strategy.
 		Context("Clone with empty size using the size-detection pod", func() {
 			diskImagePath := filepath.Join(testBaseDir, testFile)
-			volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+			volumeMode := v1.PersistentVolumeFilesystem
 
 			deleteAndWaitForVerifierPod := func() {
 				By("Deleting verifier pod")
@@ -1369,11 +1382,15 @@ var _ = Describe("all clone tests", func() {
 				// Since modifying the original PVC's capacity would require restarting several pods,
 				// we just modify the 'AnnSourceCapacity' to mock that behavior
 				By("Modify source PVC's capacity")
-				sourcePvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourcePvc.Namespace).Get(context.TODO(), sourcePvc.Name, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				sourcePvc.Annotations[dvc.AnnSourceCapacity] = "400Mi"
-				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourcePvc.Namespace).Update(context.TODO(), sourcePvc, metav1.UpdateOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				Eventually(func() error {
+					sourcePvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourcePvc.Namespace).Get(context.TODO(), sourcePvc.Name, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					sourcePvc.Annotations[dvc.AnnSourceCapacity] = "400Mi"
+					// We shouldn't make the test fail if there's a conflict with the update request.
+					// These errors are usually transient and should be fixed in subsequent retries.
+					_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(sourcePvc.Namespace).Update(context.TODO(), sourcePvc, metav1.UpdateOptions{})
+					return err
+				}, timeout, pollingInterval).Should(Succeed())
 
 				// We attempt to create the second, sizeless clone
 				By("Create second clone")
@@ -1465,6 +1482,7 @@ var _ = Describe("all clone tests", func() {
 
 			BeforeEach(func() {
 				if !f.IsCSIVolumeCloneStorageClassAvailable() {
+					cloneStorageClassName = ""
 					Skip("CSI Volume Clone is not applicable")
 				}
 				cloneStorageClassName = f.CsiCloneSCName
@@ -1495,6 +1513,9 @@ var _ = Describe("all clone tests", func() {
 			})
 
 			AfterEach(func() {
+				if cloneStorageClassName == "" {
+					return
+				}
 				By("[AfterEach] Restore the storage class - remove annotation ")
 				storageclass, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -1508,6 +1529,7 @@ var _ = Describe("all clone tests", func() {
 					Expect(err).ToNot(HaveOccurred())
 					return storageProfile.Status.CloneStrategy
 				}, time.Minute, time.Second).Should(Equal(originalStrategy))
+				cloneStorageClassName = ""
 			})
 
 			It("Should clone  with correct strategy from storageclass annotation ", func() {
@@ -1528,8 +1550,8 @@ var _ = Describe("all clone tests", func() {
 
 		Context("Clone without a source PVC", func() {
 			diskImagePath := filepath.Join(testBaseDir, testFile)
-			fsVM := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
-			blockVM := v1.PersistentVolumeMode(v1.PersistentVolumeBlock)
+			fsVM := v1.PersistentVolumeFilesystem
+			blockVM := v1.PersistentVolumeBlock
 
 			deleteAndWaitForVerifierPod := func() {
 				By("Deleting verifier pod")
@@ -2595,7 +2617,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			annValue, preallocationAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetDataVolume.Namespace, targetPvc, controller.AnnPreallocationRequested)
 			if err != nil {
-				f.PrintControllerLog()
+				fmt.Fprintf(GinkgoWriter, "Failed to wait for PVC annotation: %v", err)
 			}
 			Expect(err).ToNot(HaveOccurred())
 			Expect(preallocationAnnotationFound).To(BeTrue())
@@ -2605,7 +2627,7 @@ var _ = Describe("all clone tests", func() {
 
 			annValue, preallocationAnnotationFound, err = utils.WaitForPVCAnnotation(f.K8sClient, targetDataVolume.Namespace, targetPvc, controller.AnnPreallocationApplied)
 			if err != nil {
-				f.PrintControllerLog()
+				fmt.Fprintf(GinkgoWriter, "Failed to wait for PVC annotation: %v", err)
 			}
 			Expect(err).ToNot(HaveOccurred())
 			Expect(preallocationAnnotationFound).To(BeTrue())
@@ -2650,11 +2672,14 @@ var _ = Describe("all clone tests", func() {
 		})
 
 		AfterEach(func() {
-			By(fmt.Sprintf("[AfterEach] Removing snapshot %s/%s", snapshot.Namespace, snapshot.Name))
-			Eventually(func() bool {
-				err := f.CrClient.Delete(context.TODO(), snapshot)
-				return err != nil && k8serrors.IsNotFound(err)
-			}, time.Minute, time.Second).Should(BeTrue())
+			if snapshot != nil {
+				By(fmt.Sprintf("[AfterEach] Removing snapshot %s/%s", snapshot.Namespace, snapshot.Name))
+				Eventually(func() bool {
+					err := f.CrClient.Delete(context.TODO(), snapshot)
+					return err != nil && k8serrors.IsNotFound(err)
+				}, time.Minute, time.Second).Should(BeTrue())
+				snapshot = nil
+			}
 
 			if targetNamespace != nil {
 				err := f.K8sClient.CoreV1().Namespaces().Delete(context.TODO(), targetNamespace.Name, metav1.DeleteOptions{})
@@ -2663,7 +2688,7 @@ var _ = Describe("all clone tests", func() {
 			}
 		})
 
-		DescribeTable("Should sucessfully clone without falling back to host assisted", func(volumeMode v1.PersistentVolumeMode, repeat int, crossNamespace bool) {
+		DescribeTable("Should successfully clone without falling back to host assisted", func(volumeMode v1.PersistentVolumeMode, repeat int, crossNamespace bool) {
 			var i int
 			var err error
 
@@ -2725,10 +2750,10 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
 		},
-			Entry("[test_id:9703] with filesystem single clone", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 1, true),
-			Entry("[test_id:9708] with filesystem multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 5, false),
-			Entry("[test_id:9709] with block single clone", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 1, false),
-			Entry("[test_id:9710] with block multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 5, false),
+			Entry("[test_id:9703] with filesystem single clone", v1.PersistentVolumeFilesystem, 1, true),
+			Entry("[test_id:9708] with filesystem multiple clones", v1.PersistentVolumeFilesystem, 5, false),
+			Entry("[test_id:9709] with block single clone", v1.PersistentVolumeBlock, 1, false),
+			Entry("[test_id:9710] with block multiple clones", v1.PersistentVolumeBlock, 5, false),
 		)
 
 		Context("Fallback to host assisted", func() {
@@ -2806,10 +2831,10 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(same).To(BeTrue())
 			},
-				Entry("[test_id:9714] with filesystem single clone", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 1, true),
-				Entry("[test_id:9715] with filesystem multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem), 5, false),
-				Entry("[test_id:9716] with block single clone", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 1, false),
-				Entry("[test_id:9717] with block multiple clones", v1.PersistentVolumeMode(v1.PersistentVolumeBlock), 5, false),
+				Entry("[test_id:9714] with filesystem single clone", v1.PersistentVolumeFilesystem, 1, true),
+				Entry("[test_id:9715] with filesystem multiple clones", v1.PersistentVolumeFilesystem, 5, false),
+				Entry("[test_id:9716] with block single clone", v1.PersistentVolumeBlock, 1, false),
+				Entry("[test_id:9717] with block multiple clones", v1.PersistentVolumeBlock, 5, false),
 			)
 		})
 
@@ -2835,7 +2860,7 @@ var _ = Describe("all clone tests", func() {
 				var err error
 
 				size := "1Gi"
-				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+				volumeMode := v1.PersistentVolumeFilesystem
 				dvName := "clone-from-snap"
 				createSnapshot(size, &wffcStorageClass.Name, volumeMode)
 
@@ -2863,7 +2888,7 @@ var _ = Describe("all clone tests", func() {
 					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
 				}
 				size := "1Gi"
-				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+				volumeMode := v1.PersistentVolumeFilesystem
 				By("Create the clone before the source snapshot")
 				cloneDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("clone-from-snap", size, f.Namespace.Name, "snap-"+dataVolumeName, &f.SnapshotSCName, &volumeMode)
 				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
@@ -2901,7 +2926,7 @@ var _ = Describe("all clone tests", func() {
 				}
 
 				recommendedSnapSize := "2Gi"
-				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+				volumeMode := v1.PersistentVolumeFilesystem
 
 				By("Create source snapshot")
 				createSnapshot(recommendedSnapSize, &f.SnapshotSCName, volumeMode)
@@ -2920,7 +2945,7 @@ var _ = Describe("all clone tests", func() {
 				}
 
 				size := "1Gi"
-				volumeMode := v1.PersistentVolumeMode(v1.PersistentVolumeFilesystem)
+				volumeMode := v1.PersistentVolumeFilesystem
 				createSnapshot(size, &f.SnapshotSCName, volumeMode)
 
 				targetDS := utils.NewSnapshotDataSource("test-datasource", snapshot.Namespace, snapshot.Name, snapshot.Namespace)
@@ -3041,7 +3066,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 		By("Verify the clone annotation is on the target PVC")
 		_, cloneAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnCloneOf)
 		if err != nil {
-			f.PrintControllerLog()
+			fmt.Fprintf(GinkgoWriter, "Failed to wait for PVC annotation: %v", err)
 		}
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cloneAnnotationFound).To(BeTrue())
@@ -3139,6 +3164,8 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 }
 
 func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string) {
+	beforeClone := time.Now()
+
 	// Create targetPvc
 	By(fmt.Sprintf("Creating target pvc: %s/target-pvc", targetNamespaceName))
 	pvcName := "target-pvc"
@@ -3155,22 +3182,16 @@ func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string
 	f.ForceBindIfWaitForFirstConsumer(targetPvc)
 
 	By("Checking no cloning pods were created")
-
-	matchString := fmt.Sprintf("{\"PVC\": {\"name\":\"%s\",\"namespace\":\"%s\"}, \"isUpload\": false, \"isCloneTarget\": true, \"isBound\": true, \"podSucceededFromPVC\": true, \"deletionTimeStamp set?\": false}", pvcName, f.Namespace.Name)
-	Eventually(func() bool {
-		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-		Expect(err).NotTo(HaveOccurred())
-		return strings.Contains(log, matchString)
-	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
-	Expect(err).ToNot(HaveOccurred())
-
-	By("Checking logs explicitly skips PVC")
-	Eventually(func() bool {
-		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-		Expect(err).NotTo(HaveOccurred())
-		return strings.Contains(log, fmt.Sprintf("{\"PVC\": {\"name\":\"%s\",\"namespace\":\"%s\"}, \"checkPVC(AnnCloneRequest)\": true, \"NOT has annotation(AnnCloneOf)\": false, \"isBound\": true, \"has finalizer?\": false}", pvcName, targetNamespaceName))
-	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
-	Expect(err).ToNot(HaveOccurred())
+	Eventually(func() (string, error) {
+		out, err := f.K8sClient.CoreV1().
+			Pods(f.CdiInstallNs).
+			GetLogs(f.ControllerPod.Name, &corev1.PodLogOptions{SinceTime: &metav1.Time{Time: beforeClone}}).
+			DoRaw(context.Background())
+		return string(out), err
+	}, time.Minute, time.Second).Should(And(
+		ContainSubstring(fmt.Sprintf(`{"PVC": {"name":%q,"namespace":%q}, "isUpload": false, "isCloneTarget": true, "isBound": true, "podSucceededFromPVC": true, "deletionTimeStamp set?": false}`, pvcName, f.Namespace.Name)),
+		ContainSubstring(fmt.Sprintf(`{"PVC": {"name":%q,"namespace":%q}, "checkPVC(AnnCloneRequest)": true, "NOT has annotation(AnnCloneOf)": false, "isBound": true, "has finalizer?": false}`, pvcName, targetNamespaceName)),
+	))
 }
 
 func cleanDv(f *framework.Framework, dv *cdiv1.DataVolume) {
@@ -3235,7 +3256,6 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 				*sourcePVC.Spec.StorageClassName == f.CsiCloneSCName &&
 				(!isCrossNamespaceClone || bindingMode == storagev1.VolumeBindingImmediate || usesPopulator) &&
 				(allowsExpansion || sourcePVC.Status.Capacity.Storage().Cmp(*targetPVC.Status.Capacity.Storage()) == 0) {
-
 				cloneType = "csi-clone"
 			}
 		}
@@ -3271,12 +3291,14 @@ func VerifyGC(f *framework.Framework, dvName, dvNamespace string, checkOwnerRefs
 func VerifyNoGC(f *framework.Framework, dvName, dvNamespace string) {
 	By("Verify DV is not garbage collected")
 	matchString := fmt.Sprintf("DataVolume is not annotated to be garbage collected\t{\"DataVolume\": {\"name\":\"%s\",\"namespace\":\"%s\"}}", dvName, dvNamespace)
-	fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
-	Eventually(func() string {
-		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-		Expect(err).NotTo(HaveOccurred())
-		return log
+	Eventually(func() (string, error) {
+		out, err := f.K8sClient.CoreV1().
+			Pods(f.CdiInstallNs).
+			GetLogs(f.ControllerPod.Name, &corev1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+			DoRaw(context.Background())
+		return string(out), err
 	}, timeout, pollingInterval).Should(ContainSubstring(matchString))
+
 	dv, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(dv.Annotations[controller.AnnDeleteAfterCompletion]).ToNot(Equal("true"))
@@ -3285,13 +3307,15 @@ func VerifyNoGC(f *framework.Framework, dvName, dvNamespace string) {
 // VerifyDisabledGC verifies DV is not deleted when garbage collection is disabled
 func VerifyDisabledGC(f *framework.Framework, dvName, dvNamespace string) {
 	By("Verify DV is not deleted when garbage collection is disabled")
-	matchString := fmt.Sprintf("Garbage Collection is disabled\t{\"DataVolume\": {\"name\":\"%s\",\"namespace\":\"%s\"}}", dvName, dvNamespace)
-	fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
-	Eventually(func() string {
-		log, err := f.RunKubectlCommand("logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
-		Expect(err).NotTo(HaveOccurred())
-		return log
+	matchString := fmt.Sprintf("Garbage Collection is disabled\t{\"DataVolume\": {\"name\":%q,\"namespace\":%q}}", dvName, dvNamespace)
+	Eventually(func() (string, error) {
+		out, err := f.K8sClient.CoreV1().
+			Pods(f.CdiInstallNs).
+			GetLogs(f.ControllerPod.Name, &corev1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+			DoRaw(context.Background())
+		return string(out), err
 	}, timeout, pollingInterval).Should(ContainSubstring(matchString))
+
 	_, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 }
@@ -3307,15 +3331,27 @@ func EnableGcAndAnnotateLegacyDv(f *framework.Framework, dvName, dvNamespace str
 	Expect(ok).To(BeFalse())
 
 	By("Add empty DeleteAfterCompletion annotation to DV for reconcile")
-	controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "")
-	dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
-	Expect(err).ToNot(HaveOccurred())
+	Eventually(func() error {
+		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "")
+		// We shouldn't make the test fail if there's a conflict with the update request.
+		// These errors are usually transient and should be fixed in subsequent retries.
+		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
+		return err
+	}, timeout, pollingInterval).Should(Succeed())
+
 	VerifyNoGC(f, dvName, dvNamespace)
 
 	By("Add true DeleteAfterCompletion annotation to DV")
-	controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "true")
-	_, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
-	Expect(err).ToNot(HaveOccurred())
+	Eventually(func() error {
+		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "true")
+		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
+		return err
+	}, timeout, pollingInterval).Should(Succeed())
+
 	VerifyGC(f, dvName, dvNamespace, false, nil)
 }
 

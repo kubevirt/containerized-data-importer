@@ -6,7 +6,10 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/pkg/operator",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/controller/common:go_default_library",
+        "//pkg/operator/resources/cert:go_default_library",
         "//pkg/util:go_default_library",
+        "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/types:go_default_library",

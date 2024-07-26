@@ -1,12 +1,14 @@
 package uploadproxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"html"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
+
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -151,6 +154,7 @@ func (c *clientCreator) CreateClient() (*http.Client, error) {
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{clientCert},
 		RootCAs:      caCertPool,
+		MinVersion:   tls.VersionTLS12,
 	}
 	tlsConfig.BuildNameToCertificate() //nolint:staticcheck // todo: BuildNameToCertificate() is deprecated - check this
 
@@ -299,6 +303,7 @@ func (app *uploadProxyApp) proxyUploadRequest(uploadPath string, w http.Response
 		return
 	}
 
+	var buff bytes.Buffer
 	p := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
 			req.URL, _ = url.Parse(uploadPath)
@@ -308,9 +313,16 @@ func (app *uploadProxyApp) proxyUploadRequest(uploadPath string, w http.Response
 			}
 		},
 		Transport: client.Transport,
+		ErrorLog:  log.New(&buff, "", 0),
 	}
 
 	p.ServeHTTP(w, r)
+
+	if buff.Len() > 0 {
+		msg := buff.String()
+		klog.Errorf("Error in reverse proxy: %s", msg)
+		fmt.Fprintf(w, "error in upload-proxy: %s", msg)
+	}
 }
 
 func (app *uploadProxyApp) getSigningKey(publicKeyPEM string) error {
@@ -330,6 +342,7 @@ func (app *uploadProxyApp) Start() error {
 func (app *uploadProxyApp) getTLSConfig() *tls.Config {
 	cryptoConfig := app.cdiConfigTLSWatcher.GetCdiTLSConfig()
 
+	//nolint:gosec // False positive (MinVersion unknown at build time)
 	tlsConfig := &tls.Config{
 		GetCertificate: app.certWatcher.GetCertificate,
 		CipherSuites:   cryptoConfig.CipherSuites,
@@ -344,8 +357,9 @@ func (app *uploadProxyApp) startTLS() error {
 	bindAddr := fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort)
 
 	server := &http.Server{
-		Addr:    bindAddr,
-		Handler: app,
+		Addr:              bindAddr,
+		Handler:           app,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	if app.certWatcher != nil {

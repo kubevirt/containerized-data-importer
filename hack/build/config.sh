@@ -29,7 +29,7 @@ FUNC_TEST_PROXY="cdi-func-test-proxy"
 FUNC_TEST_POPULATOR="cdi-func-test-sample-populator"
 
 # update this whenever new builder tag is created
-BUILDER_IMAGE=${BUILDER_IMAGE:-quay.io/kubevirt/kubevirt-cdi-bazel-builder:2401240332-bbc3643a6}
+BUILDER_IMAGE=${BUILDER_IMAGE:-quay.io/kubevirt/kubevirt-cdi-bazel-builder:2405081150-60b5fa4fc}
 
 BINARIES="cmd/${OPERATOR} cmd/${CONTROLLER} cmd/${IMPORTER} cmd/${CLONER} cmd/${APISERVER} cmd/${UPLOADPROXY} cmd/${UPLOADSERVER} cmd/${OPERATOR} tools/${FUNC_TEST_INIT} tools/${FUNC_TEST_REGISTRY_INIT} tools/${FUNC_TEST_BAD_WEBSERVER} tools/${FUNC_TEST_PROXY} tools/${FUNC_TEST_POPULATOR}"
 CDI_PKGS="cmd/ pkg/ test/"
@@ -60,6 +60,9 @@ CSV_VERSION=${CSV_VERSION:-0.0.0}
 QUAY_REPOSITORY=${QUAY_REPOSITORY:-cdi-operatorhub}
 QUAY_NAMESPACE=${QUAY_NAMESPACE:-kubevirt}
 CDI_LOGO_PATH=${CDI_LOGO_PATH:-"assets/cdi_logo.png"}
+
+# oVirt populator image, by default it is the same as the importer image
+OVIRT_POPULATOR_IMAGE_NAME=${OVIRT_POPULATOR_IMAGE_NAME:-cdi-importer}
 
 function allPkgs() {
     ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./pkg/... ./tools/... ./tests/... ./cmd/... | grep -v "pkg/client" | sort -u))

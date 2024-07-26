@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "pkg.go",
+        "util.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/gophercloud/utils/v2/internal",
+    importpath = "github.com/gophercloud/utils/v2/internal",
+    visibility = ["//vendor/github.com/gophercloud/utils/v2:__subpackages__"],
+    deps = ["//vendor/github.com/mitchellh/go-homedir:go_default_library"],
+)

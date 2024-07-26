@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"regexp"
 	"strconv"
 	"time"
 
@@ -39,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -51,7 +51,9 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	cloneMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
+	importMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -251,20 +253,19 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 	}
 
 	// Setup watches
-	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
-			dv := obj.(*cdiv1.DataVolume)
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{}, handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.DataVolume](
+		func(ctx context.Context, dv *cdiv1.DataVolume) []reconcile.Request {
 			if getDataVolumeOp(ctx, mgr.GetLogger(), dv, mgr.GetClient()) != op {
 				return nil
 			}
 			updatePendingDataVolumesGauge(ctx, mgr.GetLogger(), dv, mgr.GetClient())
 			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}}}
 		}),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
-	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.PersistentVolumeClaim](
+		func(ctx context.Context, obj *corev1.PersistentVolumeClaim) []reconcile.Request {
 			var result []reconcile.Request
 			owner := metav1.GetControllerOf(obj)
 			if owner != nil && owner.Kind == "DataVolume" {
@@ -277,22 +278,22 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 			// it is okay if result contains the same entry twice, will be deduplicated by caller
 			return result
 		}),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
-	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) []reconcile.Request {
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.Pod](
+		func(ctx context.Context, obj *corev1.Pod) []reconcile.Request {
 			owner := metav1.GetControllerOf(obj)
 			if owner == nil || owner.Kind != "DataVolume" {
 				return nil
 			}
 			return appendMatchingDataVolumeRequest(ctx, nil, mgr, obj.GetNamespace(), owner.Name)
 		}),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 	for _, k := range []client.Object{&corev1.PersistentVolumeClaim{}, &corev1.Pod{}, &cdiv1.ObjectTransfer{}} {
-		if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), k), handler.EnqueueRequestsFromMapFunc(
+		if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), k, handler.EnqueueRequestsFromMapFunc(
 			func(ctx context.Context, obj client.Object) []reconcile.Request {
 				if !hasAnnOwnedByDataVolume(obj) {
 					return nil
@@ -303,40 +304,41 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 				}
 				return appendMatchingDataVolumeRequest(ctx, nil, mgr, namespace, name)
 			}),
-		); err != nil {
+		)); err != nil {
 			return err
 		}
 	}
 
 	// Watch for SC updates and reconcile the DVs waiting for default SC
 	// Relevant only when the DV StorageSpec has no AccessModes set and no matching StorageClass yet, so PVC cannot be created (test_id:9922)
-	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}, handler.TypedEnqueueRequestsFromMapFunc[*storagev1.StorageClass](
+		func(ctx context.Context, obj *storagev1.StorageClass) []reconcile.Request {
 			dvList := &cdiv1.DataVolumeList{}
 			if err := mgr.GetClient().List(ctx, dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
-				return
+				return nil
 			}
+			var reqs []reconcile.Request
 			for _, dv := range dvList.Items {
 				if getDataVolumeOp(ctx, mgr.GetLogger(), &dv, mgr.GetClient()) == op {
 					reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
 				}
 			}
-			return
+			return reqs
 		},
 	),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
 	// Watch for PV updates to reconcile the DVs waiting for available PV
 	// Relevant only when the DV StorageSpec has no AccessModes set and no matching StorageClass yet, so PVC cannot be created (test_id:9924,9925)
-	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolume{}), handler.EnqueueRequestsFromMapFunc(
-		func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
-			pv := obj.(*corev1.PersistentVolume)
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolume{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.PersistentVolume](
+		func(ctx context.Context, pv *corev1.PersistentVolume) []reconcile.Request {
 			dvList := &cdiv1.DataVolumeList{}
 			if err := mgr.GetClient().List(ctx, dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
-				return
+				return nil
 			}
+			var reqs []reconcile.Request
 			for _, dv := range dvList.Items {
 				storage := dv.Spec.Storage
 				if storage != nil &&
@@ -347,10 +349,10 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 					reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
 				}
 			}
-			return
+			return reqs
 		},
 	),
-	); err != nil {
+	)); err != nil {
 		return err
 	}
 
@@ -408,23 +410,38 @@ func getSourceRefOp(ctx context.Context, log logr.Logger, dv *cdiv1.DataVolume, 
 }
 
 func updatePendingDataVolumesGauge(ctx context.Context, log logr.Logger, dv *cdiv1.DataVolume, c client.Client) {
-	if cc.GetStorageClassFromDVSpec(dv) != nil {
+	if !cc.IsDataVolumeUsingDefaultStorageClass(dv) {
 		return
 	}
 
-	dvList := &cdiv1.DataVolumeList{}
-	if err := c.List(ctx, dvList, client.MatchingFields{dvPhaseField: string(cdiv1.Pending)}); err != nil {
+	countPending, err := getDefaultStorageClassDataVolumeCount(ctx, c, string(cdiv1.Pending))
+	if err != nil {
 		log.V(3).Error(err, "Failed listing the pending DataVolumes")
 		return
+	}
+	countUnset, err := getDefaultStorageClassDataVolumeCount(ctx, c, string(cdiv1.PhaseUnset))
+	if err != nil {
+		log.V(3).Error(err, "Failed listing the unset DataVolumes")
+		return
+	}
+
+	metrics.SetDataVolumePending(countPending + countUnset)
+}
+
+func getDefaultStorageClassDataVolumeCount(ctx context.Context, c client.Client, dvPhase string) (int, error) {
+	dvList := &cdiv1.DataVolumeList{}
+	if err := c.List(ctx, dvList, client.MatchingFields{dvPhaseField: dvPhase}); err != nil {
+		return 0, err
 	}
 
 	dvCount := 0
 	for _, dv := range dvList.Items {
-		if cc.GetStorageClassFromDVSpec(&dv) == nil {
+		if cc.IsDataVolumeUsingDefaultStorageClass(&dv) {
 			dvCount++
 		}
 	}
-	metrics.SetDataVolumePending(dvCount)
+
+	return dvCount, nil
 }
 
 type dvController interface {
@@ -610,7 +627,7 @@ func (r *ReconcilerBase) handleStaticVolume(syncState *dvSyncState, log logr.Log
 	for _, v := range volumes {
 		if v == syncState.pvc.Spec.VolumeName {
 			pvcCpy := syncState.pvc.DeepCopy()
-			// handle as "populatedFor" going foreward
+			// handle as "populatedFor" going forward
 			cc.AddAnnotation(pvcCpy, cc.AnnPopulatedFor, syncState.dvMutated.Name)
 			delete(pvcCpy.Annotations, cc.AnnPersistentVolumeList)
 			if err := r.updatePVC(pvcCpy); err != nil {
@@ -854,7 +871,6 @@ func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 	dataVolumeCopy *cdiv1.DataVolume,
 	pvc *corev1.PersistentVolumeClaim,
 	event Event) error {
-
 	if dataVolume == nil {
 		return nil
 	}
@@ -947,7 +963,8 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 				}
 			}
 		}
-		if i, err := strconv.Atoi(pvc.Annotations[cc.AnnPodRestarts]); err == nil && i >= 0 {
+
+		if i, err := strconv.ParseInt(pvc.Annotations[cc.AnnPodRestarts], 10, 32); err == nil && i >= 0 {
 			dataVolumeCopy.Status.RestartCount = int32(i)
 		}
 		if err := r.reconcileProgressUpdate(dataVolumeCopy, pvc, &result); err != nil {
@@ -1091,11 +1108,14 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 		return nil
 	}
 
-	// Example value: import_progress{ownerUID="b856691e-1038-11e9-a5ab-525500d15501"} 13.45
-	var importRegExp = regexp.MustCompile("progress\\{ownerUID\\=\"" + string(dataVolumeCopy.UID) + "\"\\} (\\d{1,3}\\.?\\d*)")
-	if progressReport, err := cc.GetProgressReportFromURL(url, importRegExp, httpClient); err != nil {
+	// Used for both import and clone, so it should match both metric names
+	progressReport, err := cc.GetProgressReportFromURL(url, httpClient,
+		fmt.Sprintf("%s|%s", importMetrics.ImportProgressMetricName, cloneMetrics.CloneProgressMetricName),
+		string(dataVolumeCopy.UID))
+	if err != nil {
 		return err
-	} else if progressReport != "" {
+	}
+	if progressReport != "" {
 		if f, err := strconv.ParseFloat(progressReport, 64); err == nil {
 			dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress(fmt.Sprintf("%.2f%%", f))
 		}

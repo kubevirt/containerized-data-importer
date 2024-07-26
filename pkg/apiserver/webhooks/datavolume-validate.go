@@ -24,7 +24,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/docker/go-units"
 	snapclient "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
+
 	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -34,6 +36,7 @@ import (
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -438,7 +441,7 @@ func validateStorageClassName(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) 
 
 func validateStorageSize(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) (*metav1.StatusCause, bool) {
 	var name string
-	var resources v1.ResourceRequirements
+	var resources v1.VolumeResourceRequirements
 
 	if spec.PVC != nil {
 		resources = spec.PVC.Resources
@@ -457,6 +460,16 @@ func validateStorageSize(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path) (*met
 			cause := metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueInvalid,
 				Message: fmt.Sprintf("%s size can't be equal or less than zero", name),
+				Field:   field.Child(name, "resources", "requests", "size").String(),
+			}
+			return &cause, false
+		}
+		if pvcSize.Value() < units.MiB {
+			// Kubevirt doesn't allow disks smaller than 1MiB.
+			// Rejecting DataVolume for consistency.
+			cause := metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("%s size should be at least 1MiB", name),
 				Field:   field.Child(name, "resources", "requests", "size").String(),
 			}
 			return &cause, false

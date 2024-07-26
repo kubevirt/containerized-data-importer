@@ -12,12 +12,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
-
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
 
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests that modify CDI CR", Serial, func() {
@@ -222,7 +221,7 @@ func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f
 	By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
 	err := utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 	if err != nil {
-		f.PrintControllerLog()
+		fmt.Fprintf(GinkgoWriter, "Failed to wait for DataVolume phase: %v", err)
 		dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 		if dverr != nil {
 			Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))

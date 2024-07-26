@@ -26,6 +26,7 @@ go_library(
         "//vendor/github.com/containers/image/v5/manifest:go_default_library",
         "//vendor/github.com/containers/image/v5/pkg/blobinfocache/none:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",
+        "//vendor/github.com/containers/ocicrypt/spec:go_default_library",
         "//vendor/github.com/opencontainers/go-digest:go_default_library",
         "//vendor/github.com/opencontainers/image-spec/specs-go/v1:go_default_library",
         "//vendor/github.com/sirupsen/logrus:go_default_library",

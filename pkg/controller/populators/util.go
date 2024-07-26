@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -50,7 +51,7 @@ const (
 	AnnPVCPrimeName = cc.AnnAPIGroup + "/storage.populator.pvcPrime"
 
 	// annMigratedTo annotation is added to a PVC and PV that is supposed to be
-	// dynamically provisioned/deleted by by its corresponding CSI driver
+	// dynamically provisioned/deleted by its corresponding CSI driver
 	// through the CSIMigration feature flags. When this annotation is set the
 	// Kubernetes components will "stand-down" and the external-provisioner will
 	// act on the objects

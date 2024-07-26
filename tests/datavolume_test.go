@@ -5,13 +5,13 @@ import (
 	"encoding/base64"
 	"fmt"
 	"reflect"
-	"regexp"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/google/uuid"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	v1 "k8s.io/api/core/v1"
@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -1649,7 +1650,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
 			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 			if err != nil {
-				f.PrintControllerLog()
+				fmt.Fprintf(GinkgoWriter, "Failed to wait for DataVolume phase: %v", err)
 				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				if dverr != nil {
 					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
@@ -2092,7 +2093,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			spec := cdiv1.StorageSpec{
 				AccessModes: nil,
 				VolumeMode:  nil,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2121,7 +2122,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			spec := cdiv1.StorageSpec{
 				AccessModes: expectedMode,
 				VolumeMode:  nil,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2150,7 +2151,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			spec := cdiv1.StorageSpec{
 				AccessModes: nil,
 				VolumeMode:  &expectedVolumeMode,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2191,7 +2192,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				AccessModes:      nil,
 				VolumeMode:       nil,
 				StorageClassName: &storageProfileName,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2231,7 +2232,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
 			requestedSize := resource.MustParse("100Mi")
 			spec := cdiv1.StorageSpec{
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2280,7 +2281,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				AccessModes:      nil,
 				VolumeMode:       nil,
 				StorageClassName: &storageProfileName,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2337,7 +2338,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 					VolumeMode:       &volumeMode,
 					StorageClassName: &defaultScName,
-					Resources: v1.ResourceRequirements{
+					Resources: v1.VolumeResourceRequirements{
 						Requests: v1.ResourceList{
 							v1.ResourceStorage: requestedSize,
 						},
@@ -2368,7 +2369,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				cdiv1.StorageSpec{
 					AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 					StorageClassName: &defaultScName,
-					Resources: v1.ResourceRequirements{
+					Resources: v1.VolumeResourceRequirements{
 						Requests: v1.ResourceList{
 							v1.ResourceStorage: requestedSize,
 						},
@@ -2395,7 +2396,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 					VolumeMode:       &volumeMode,
 					StorageClassName: &defaultScName,
-					Resources: v1.ResourceRequirements{
+					Resources: v1.VolumeResourceRequirements{
 						Requests: v1.ResourceList{
 							v1.ResourceStorage: requestedSize,
 						},
@@ -2423,7 +2424,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume := createDataVolumeForUpload(f, cdiv1.StorageSpec{
 				AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 				VolumeMode:  &volumeMode,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2451,7 +2452,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 				VolumeMode:       &volumeMode,
 				StorageClassName: &defaultScName,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2481,7 +2482,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume := createDataVolumeForUpload(f, cdiv1.StorageSpec{
 				AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 				StorageClassName: &defaultScName,
-				Resources: v1.ResourceRequirements{
+				Resources: v1.VolumeResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceStorage: requestedSize,
 					},
@@ -2510,7 +2511,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				cdiv1.StorageSpec{
 					AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 					VolumeMode:  &volumeMode,
-					Resources: v1.ResourceRequirements{
+					Resources: v1.VolumeResourceRequirements{
 						Requests: v1.ResourceList{
 							v1.ResourceStorage: requestedSize,
 						},
@@ -2545,7 +2546,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				cdiv1.StorageSpec{
 					AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 					StorageClassName: &defaultScName,
-					Resources: v1.ResourceRequirements{
+					Resources: v1.VolumeResourceRequirements{
 						Requests: v1.ResourceList{
 							v1.ResourceStorage: requestedSize,
 						},
@@ -2572,7 +2573,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
 					VolumeMode:       &volumeMode,
 					StorageClassName: &defaultScName,
-					Resources: v1.ResourceRequirements{
+					Resources: v1.VolumeResourceRequirements{
 						Requests: v1.ResourceList{
 							v1.ResourceStorage: requestedSize,
 						},
@@ -2599,11 +2600,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		testScName := "test-sc"
 
 		updatePV := func(updateFunc func(*v1.PersistentVolume)) {
-			pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			updateFunc(pv)
-			_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() error {
+				pv, err := f.K8sClient.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				updateFunc(pv)
+				// We shouldn't make the test fail if there's a conflict with the update request.
+				// These errors are usually transient and should be fixed in subsequent retries.
+				_, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{})
+				return err
+			}, timeout, pollingInterval).Should(Succeed())
 		}
 
 		createPV := func(scName string) {
@@ -2827,20 +2832,19 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
 			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
 			if err != nil {
-				f.PrintControllerLog()
+				fmt.Fprintf(GinkgoWriter, "Failed to wait for DataVolume phase: %v", err)
 				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				if dverr != nil {
 					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 				}
 			}
 			Expect(err).ToNot(HaveOccurred())
-			progressRegExp := regexp.MustCompile(`\d{1,3}\.?\d{1,2}%`)
-			Eventually(func() bool {
+			Eventually(func(g Gomega) string {
 				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				progress := dv.Status.Progress
-				return progressRegExp.MatchString(string(progress))
-			}, timeout, pollingInterval).Should(BeTrue())
+				g.Expect(err).ToNot(HaveOccurred())
+				fmt.Fprintf(GinkgoWriter, "INFO: progress: %s\n", dv.Status.Progress)
+				return string(dv.Status.Progress)
+			}, timeout, pollingInterval).Should(MatchRegexp(`^([1-9]{1,2})(\.\d+)?%$`), "DataVolume is not reporting import progress")
 		},
 			Entry("[test_id:3934]when image is qcow2", utils.TinyCoreQcow2URLRateLimit),
 			Entry("[test_id:6902]when image is qcow2.gz", utils.TinyCoreQcow2GzURLRateLimit),
@@ -3119,11 +3123,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			// here we want to have more than 0, to be sure it started
-			Eventually(func() string {
+			Eventually(func(g Gomega) string {
 				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).ToNot(HaveOccurred())
+				fmt.Fprintf(GinkgoWriter, "INFO: progress: %s\n", dv.Status.Progress)
 				return string(dv.Status.Progress)
-			}, timeout, pollingInterval).Should(Equal("N/A"))
+			}, timeout, pollingInterval).Should(MatchRegexp(`^([1-9]{1,2})(\.\d+)?%$`), "DataVolume is not reporting import progress")
 
 			By("Remove source image file & kill http container to force restart")
 			fileHostPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, utils.FileHostName, "name="+utils.FileHostName)

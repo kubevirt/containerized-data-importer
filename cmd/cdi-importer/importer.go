@@ -35,6 +35,10 @@ import (
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
 
+const (
+	completeMessage = "Import Complete"
+)
+
 func init() {
 	klog.InitFlags(nil)
 	flag.Parse()
@@ -117,8 +121,8 @@ func main() {
 		volumeMode = v1.PersistentVolumeFilesystem
 	}
 
-	// With writeback cache mode it's possible that the process will exit before all writes have been commited to storage.
-	// To guarantee that our write was commited to storage, we make a fsync syscall and ensure success.
+	// With writeback cache mode it's possible that the process will exit before all writes have been committed to storage.
+	// To guarantee that our write was committed to storage, we make a fsync syscall and ensure success.
 	// Also might be a good idea to sync any chmod's we might have done.
 	defer fsyncDataFile(contentType, volumeMode)
 
@@ -159,7 +163,12 @@ func handleEmptyImage(contentType string, imageSize string, availableDestSpace i
 		errorEmptyDiskWithContentTypeArchive()
 	}
 
-	err := writeTerminationMessage(&common.TerminationMessage{PreallocationApplied: ptr.To(preallocation)})
+	msg := &common.TerminationMessage{
+		PreallocationApplied: ptr.To(preallocation),
+		Message:              ptr.To(completeMessage),
+	}
+
+	err := writeTerminationMessage(msg)
 	return err
 }
 
@@ -193,6 +202,7 @@ func handleImport(
 	}
 	termMsg.ScratchSpaceRequired = &scratchSpaceRequired
 	termMsg.PreallocationApplied = ptr.To(processor.PreallocationApplied())
+	termMsg.Message = ptr.To(completeMessage)
 
 	touchDoneFile()
 	if err := writeTerminationMessage(termMsg); err != nil {
@@ -224,7 +234,7 @@ func writeTerminationMessage(termMsg *common.TerminationMessage) error {
 
 func newDataProcessor(contentType string, volumeMode v1.PersistentVolumeMode, ds importer.DataSourceInterface, imageSize string, filesystemOverhead float64, preallocation bool) *importer.DataProcessor {
 	dest := getImporterDestPath(contentType, volumeMode)
-	processor := importer.NewDataProcessor(ds, dest, common.ImporterDataDir, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
+	processor := importer.NewDataProcessor(ds, dest, common.ImporterDataDir, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation, os.Getenv(common.CacheMode))
 	return processor
 }
 
@@ -362,6 +372,6 @@ func fsyncDataFile(contentType string, volumeMode v1.PersistentVolumeMode) {
 		klog.Errorf("could not fsync following qemu-img writing: %+v", err)
 		os.Exit(1)
 	}
-	klog.V(3).Infof("Successfully completed fsync(%s) syscall, commited to disk\n", dataFile)
+	klog.V(3).Infof("Successfully completed fsync(%s) syscall, committed to disk\n", dataFile)
 	file.Close()
 }

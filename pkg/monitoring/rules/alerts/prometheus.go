@@ -8,6 +8,7 @@ import (
 
 	"github.com/machadovilaca/operator-observability/pkg/operatorrules"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 

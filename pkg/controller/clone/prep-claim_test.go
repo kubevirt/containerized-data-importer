@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -85,7 +86,7 @@ var _ = Describe("PrepClaimPhase test", func() {
 				Name:      "desired",
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceStorage: defaultRequestSize,
 					},
@@ -143,7 +144,7 @@ var _ = Describe("PrepClaimPhase test", func() {
 					Name:      desiredName,
 				},
 				Spec: corev1.PersistentVolumeClaimSpec{
-					Resources: corev1.ResourceRequirements{
+					Resources: corev1.VolumeResourceRequirements{
 						Requests: corev1.ResourceList{},
 					},
 				},

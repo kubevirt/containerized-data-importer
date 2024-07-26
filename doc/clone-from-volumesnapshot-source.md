@@ -20,7 +20,10 @@ A much simpler example would be storage that can take around 5-10 minutes to sna
     * Create the restore PVC
     * Set the claim reference of the PV to point to the new target PVC ([namespace-transfer](./namespace-transfer.md))
 - If not possible:
-    * Attempt [host-assisted cloning](./clone-datavolume.md) between 2 PVCs where CDI creates a temporary restore PVC (which will be cleaned up) from the snapshot to act as the source.
+    * Attempt [host-assisted cloning](./clone-datavolume.md) between 2 PVCs where CDI creates a temporary restore PVC (which will be cleaned up) from the snapshot to act as the source.  
+
+    Note: below k8s 1.29 (which has sourceVolumeMode on snapshots) it is advised to annotate the snapshots sources not created by CDI with `cdi.kubevirt.io/storage.import.sourceVolumeMode`  
+    This is because otherwise CDI cannot infer the volume mode to create a temporary restore.
 
 ## Example
 To kick off the process, we need a source volume snapshot.  
@@ -74,8 +77,6 @@ spec:
       name: golden-volumesnapshot
   storage:
     storageClassName: rook-ceph-block
-    accessModes:
-      - ReadWriteOnce
     resources:
       requests:
         storage: 9Gi

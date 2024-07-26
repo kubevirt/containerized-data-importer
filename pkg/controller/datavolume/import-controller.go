@@ -24,21 +24,23 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 )
 
 const (
@@ -108,8 +110,8 @@ func addDataVolumeImportControllerWatches(mgr manager.Manager, datavolumeControl
 	if err := addDataVolumeControllerCommonWatches(mgr, datavolumeController, dataVolumeImport); err != nil {
 		return err
 	}
-	if err := datavolumeController.Watch(source.Kind(mgr.GetCache(), &cdiv1.VolumeImportSource{}), handler.EnqueueRequestForOwner(
-		mgr.GetScheme(), mgr.GetClient().RESTMapper(), &cdiv1.DataVolume{}, handler.OnlyControllerOwner())); err != nil {
+	if err := datavolumeController.Watch(source.Kind(mgr.GetCache(), &cdiv1.VolumeImportSource{}, handler.TypedEnqueueRequestForOwner[*cdiv1.VolumeImportSource](
+		mgr.GetScheme(), mgr.GetClient().RESTMapper(), &cdiv1.DataVolume{}, handler.OnlyControllerOwner()))); err != nil {
 		return err
 	}
 	return nil

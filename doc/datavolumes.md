@@ -38,6 +38,100 @@ The following statuses are possible.
 * Failed: The operation has failed.
 * Unknown: Unknown status.
 
+## Target Storage/PVC
+
+There are two ways to request storage - by using either the `pvc` or the `storage` section in the DataVolume resource yaml.
+Both result in CDI creating a PVC resource, but there are some differences in how they work.
+
+> [!NOTE] 
+> We recommend using the storage API as it has more convenience features.
+
+### PVC
+The `pvc` type specifies the PersistentVolumeClaim resource that will be created by the CDI. 
+All the parameters of pvc have the semantics of PersistentVolumeClaim parameters, 
+e.g when the volumeMode is not specified the kubernetes default Filesystem is used. The example shows 
+  that a PVC with at least 1Gi of storage and ReadWriteOnce accessMode will be created. 
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: blank-dv-with-pvc
+spec:
+  source:
+    blank: {}
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1Gi
+```
+
+### Storage
+The `storage` type is similar to `pvc` but it allows you to omit some parameters.
+
+> [!TIP]
+> With the storage API, CDI computes virtualization-specific defaults for optional
+> fields, otherwise falling back to k8's.
+
+If you skip the `volumeMode` parameter, CDI will search for a default value in the
+StorageProfile. See also: [storage profile documentation](storageprofile.md).
+
+If the volume mode is set to `fileSystem` (either explicitly with `volumeMode: fileSystem`,
+or implicitly as explained in the previous paragraph), CDI will take the file system
+overhead into account and request a PVC big enough to fit both an image and the file
+system metadata. This logic only applies to the `DataVolume.spec.storage`.
+
+If you skip the `storageClassName` parameter, CDI will prioritize the default
+virtualization storage class over k8s' default. You can define your default
+virtualization storage class by annotating it with
+`storageclass.kubevirt.io/is-default-virt-class` set to `"true"`.
+
+This example shows a request for a PVC with at least 1Gi of storage. Other fields are
+left for CDI to fill in.
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: blank-dv-with-storage
+spec:
+  source:
+    blank: {}
+  storage:
+    resources:
+      requests:
+        storage: 1Gi
+```
+> [!WARNING]
+> The detection and automation of storage parameters can vary depending on the `source`.
+> For example, cloning a PVC ([PVC source](#pvc-source)) allows for the ommission of storage size,
+> otherwise mandatory. Make sure you read the docs for each individual source for more information.
+
+### Block Volume Mode
+You can import, clone and upload a disk image to a raw block persistent volume, although  
+some CRIs need manual configuration to allow our rootless workload pods to utilize block devices, see [Configure CRI ownership from security context](block_cri_ownership_config.md).  
+
+Block disk image operations are initiated by assigning the value 'Block' to the PVC volumeMode field in the DataVolume yaml.
+The following is an example to import disk image to a raw block volume:
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: "example-import-dv"
+spec:
+  source:
+      http:
+         url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img" # S3 or GCS
+         secretRef: "" # Optional
+         certConfigMap: "" # Optional
+  storage:
+    volumeMode: Block
+    resources:
+      requests:
+        storage: "64Mi"
+```
+
 ## Source 
 
 ### HTTP/S3/GCS/Registry source
@@ -54,9 +148,7 @@ spec:
          url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img" # S3 or GCS
          secretRef: "" # Optional
          certConfigMap: "" # Optional
-  pvc:
-    accessModes:
-      - ReadWriteOnce
+  storage:
     resources:
       requests:
         storage: "64Mi"
@@ -90,9 +182,7 @@ spec:
          url: "http://server/archive.tar"
          secretRef: "" # Optional
    contentType: "archive"
-  pvc:
-    accessModes:
-      - ReadWriteOnce
+  storage:
     resources:
       requests:
         storage: "64Mi"
@@ -112,9 +202,7 @@ spec:
          extraHeaders:
          - "X-First-Header: 12345"
          - "X-Another-Header: abcde"
-  pvc:
-    accessModes:
-      - ReadWriteOnce
+  storage:
     resources:
       requests:
         storage: "64Mi"
@@ -136,9 +224,7 @@ spec:
          secretExtraHeaders:
            - "first-secret"
            - "second-secret"
-  pvc:
-    accessModes:
-      - ReadWriteOnce
+  storage:
     resources:
       requests:
         storage: "64Mi"
@@ -169,12 +255,10 @@ metadata:
   name: "example-clone-dv"
 spec:
   source:
-      pvc:
+      storage:
         name: source-pvc
         namespace: example-ns
   storage:
-    accessModes:
-      - ReadWriteOnce
 ```
 
 However, when using the [pvc](#pvc) API, the user needs to specify the right amount of space to allocate for the new DV, or the clone will not be able to complete.
@@ -208,9 +292,7 @@ metadata:
 spec:
   source:
     upload: {}
-  pvc:
-    accessModes:
-      - ReadWriteOnce
+  storage:
     resources:
       requests:
         storage: 1Gi
@@ -226,9 +308,7 @@ metadata:
 spec:
   source:
     blank: {}
-  pvc:
-    accessModes:
-      - ReadWriteOnce
+  storage:
     resources:
       requests:
         storage: 1Gi
@@ -248,9 +328,7 @@ spec:
          secretRef: "endpoint-secret"
          certConfigMap: "tls-certs"
          diskId: "1"
-  pvc:
-    accessModes:
-      - ReadWriteOnce
+  storage:
     resources:
       requests:
         storage: "500Mi"
@@ -275,7 +353,7 @@ spec:
            thumbprint: "20:6C:8A:5D:44:40:B3:79:4B:28:EA:76:13:60:90:6E:49:D9:D9:A3" # SSL fingerprint of vCenter/ESX host
            secretRef: "vddk-credentials"
            initImageURL: "registry:5000/vddk-init:latest"
-    pvc:
+    storage:
        accessModes:
          - ReadWriteOnce
        resources:
@@ -312,9 +390,7 @@ metadata:
       current: "1c44c27e-d2d8-49c4-841a-cc26c4b1e406"
     - previous: "1c44c27e-d2d8-49c4-841a-cc26c4b1e406"
       current: "c55bb7bb-20f2-46b5-a7f3-11fd6010b7d0"
-  pvc:
-    accessModes:
-      - ReadWriteOnce
+  storage:
     resources:
       requests:
         storage: "32Gi"
@@ -338,13 +414,13 @@ spec:
            uuid: "52260566-b032-36cb-55b1-79bf29e30490"
            thumbprint: "20:6C:8A:5D:44:40:B3:79:4B:28:EA:76:13:60:90:6E:49:D9:D9:A3" # SSL fingerprint of vCenter/ESX host
            secretRef: "vddk-credentials"
-        finalCheckpoint: true
-        checkpoints:
-          - current: "snapshot-1"
-            previous: ""
-          - current: "snapshot-2"
-            previous: "snapshot-1"
-    pvc:
+    finalCheckpoint: true
+    checkpoints:
+      - current: "snapshot-1"
+        previous: ""
+      - current: "snapshot-2"
+        previous: "snapshot-1"
+    storage:
        accessModes:
          - ReadWriteOnce
        resources:
@@ -377,97 +453,6 @@ checkpoints:
 
 This process can be repeated until the VM can be shut down for a final snapshot copy with `finalCheckpoint` set to `true`.
 
-## Target Storage/PVC
-
-There are two ways to request a storage - by using either the `pvc` or the `storage` section in the DataVolume resource yaml.
-Both result in CDI creating a PVC resource, but there are some differences in how they work.
-
-### PVC
-The `pvc` type specifies the PersistentVolumeClaim resource that will be created by the CDI. 
-All the parameters of pvc have the semantics of PersistentVolumeClaim parameters, 
-e.g when the volumeMode is not specified the kubernetes default Filesystem is used. The example shows 
-  that a PVC with at least 1Gi of storage and ReadWriteOnce accessMode will be created. 
-
-```yaml
-apiVersion: cdi.kubevirt.io/v1beta1
-kind: DataVolume
-metadata:
-  name: blank-dv-with-pvc
-spec:
-  source:
-    blank: {}
-  pvc:
-    accessModes:
-      - ReadWriteOnce
-    resources:
-      requests:
-        storage: 1Gi
-```
-### Storage
-The `storage` type is similar to `pvc` but allows for some additional logic to be applied. 
-It was introduced in order to implement detection and automation of storage parameters.
-
-That kind
-of automation changes the way default values are computed e.g. when the volumeMode is not specified the CDI will search for
-  a default value in StorageProfile, and only if it is not found the PVC with empty volumeMode will be created. 
-  Check the [storage profile](storageprofile.md) documentation for more details about the `storage` and `StorageProfile`.
-
-Example shows a request for a PVC with at least 1Gi of storage and ReadWriteOnce accessMode using `storage` section of DataVolume. 
-  The only difference is that the `storage` being used instead of `pvc`.  
-
-```yaml
-apiVersion: cdi.kubevirt.io/v1beta1
-kind: DataVolume
-metadata:
-  name: blank-dv-with-storage
-spec:
-  source:
-    blank: {}
-  storage:
-    accessModes:
-      - ReadWriteOnce
-    resources:
-      requests:
-        storage: 1Gi
-```
-
-`Storage` can request specific size the same way as `pvc`. When requesting a storage with the fileSystem volumeMode CDI 
-takes into account the file system overhead and requests PVC big enough to fit an image and file system metadata. 
-This logic is only applied for the DataVolume.spec.storage. 
-
-The Storage API is also aware of a default virtualization storage class.  
-A default virtualization storage class is defined as preferrable for VM workloads (certain combination of storage class parameters that benefit VMs) and is annotated with `storageclass.kubevirt.io/is-default-virt-class` set to `"true"`.  
-For a DataVolume request that does not explicitly specify a storage class name, such a storage class takes precedence over the k8s default storage class.
-
-Lastly, it is worth mentioning that the detection and automation of  storage parameters can vary depending on the used `source`,
-for example, using [pvc](#pvc-source) allows to ommit the storage size, while for others is still mandatory. We encourage to check the docs for each individual source for more information.
-
-### Block Volume Mode
-You can import, clone and upload a disk image to a raw block persistent volume, though,  
-Some CRIs need manual configuration to allow our rootless workload pods to utilize block devices, see [Configure CRI ownership from security context](block_cri_ownership_config.md).  
-
-Block disk image operations are initiated by assigning the value 'Block' to the PVC volumeMode field in the DataVolume yaml.
-The following is an example to import disk image to a raw block volume:
-```yaml
-apiVersion: cdi.kubevirt.io/v1beta1
-kind: DataVolume
-metadata:
-  name: "example-import-dv"
-spec:
-  source:
-      http:
-         url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img" # S3 or GCS
-         secretRef: "" # Optional
-         certConfigMap: "" # Optional
-  pvc:
-    volumeMode: Block
-    accessModes:
-      - ReadWriteOnce
-    resources:
-      requests:
-        storage: "64Mi"
-```
-
 ## Conditions
 The DataVolume status object has conditions. There are 3 conditions available for DataVolumes
 * Ready
@@ -496,8 +481,8 @@ metadata:
 spec:
   priorityClassName: kubevirt
   source:
-   ....
-  pvc:
+    ...
+  storage:
     ...
 ```
 
@@ -532,7 +517,7 @@ spec:
       creationTimestamp: null
       name: fedora-dv
     spec:
-      pvc:
+      storage:
         accessModes:
         - ReadWriteOnce
         resources:

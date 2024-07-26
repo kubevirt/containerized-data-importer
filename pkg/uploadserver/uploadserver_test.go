@@ -29,6 +29,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -44,11 +46,25 @@ import (
 )
 
 func newServer() *uploadServerApp {
-	server := NewUploadServer("127.0.0.1", 0, "disk.img", "", "", "", "", "", 0.055, false, *cryptowatch.DefaultCryptoConfig())
+	config := &Config{
+		BindAddress:        "127.0.0.1",
+		BindPort:           0,
+		Destination:        "disk.img",
+		FilesystemOverhead: 0.055,
+		CryptoConfig:       *cryptowatch.DefaultCryptoConfig(),
+	}
+	server := NewUploadServer(config)
 	return server.(*uploadServerApp)
 }
 
-func newTLSServer(clientCertName, expectedName string) (*uploadServerApp, *triple.KeyPair, *x509.Certificate) {
+func newTLSServer(clientCertName, expectedName string) (*uploadServerApp, *triple.KeyPair, *x509.Certificate, func()) {
+	dir, err := os.MkdirTemp("", "tls")
+	Expect(err).ToNot(HaveOccurred())
+
+	cleanup := func() {
+		os.RemoveAll(dir)
+	}
+
 	serverCA, err := triple.NewCA("server")
 	Expect(err).ToNot(HaveOccurred())
 
@@ -58,16 +74,28 @@ func newTLSServer(clientCertName, expectedName string) (*uploadServerApp, *tripl
 	serverKeyPair, err := triple.NewServerKeyPair(serverCA, "localhost", "localhost", "default", "local", []string{"127.0.0.1"}, []string{"localhost"})
 	Expect(err).ToNot(HaveOccurred())
 
-	tlsKey := string(cert.EncodePrivateKeyPEM(serverKeyPair.Key))
-	tlsCert := string(cert.EncodeCertPEM(serverKeyPair.Cert))
-	clientCert := string(cert.EncodeCertPEM(clientCA.Cert))
+	_ = os.WriteFile(filepath.Join(dir, "tls.key"), cert.EncodePrivateKeyPEM(serverKeyPair.Key), 0600)
+	_ = os.WriteFile(filepath.Join(dir, "tls.crt"), cert.EncodeCertPEM(serverKeyPair.Cert), 0600)
+	_ = os.WriteFile(filepath.Join(dir, "client.crt"), cert.EncodeCertPEM(clientCA.Cert), 0600)
 
-	server := NewUploadServer("127.0.0.1", 0, "disk.img", tlsKey, tlsCert, clientCert, expectedName, "", 0.055, false, *cryptowatch.DefaultCryptoConfig()).(*uploadServerApp)
+	config := &Config{
+		BindAddress:        "127.0.0.1",
+		BindPort:           0,
+		Destination:        "disk.img",
+		ServerKeyFile:      filepath.Join(dir, "tls.key"),
+		ServerCertFile:     filepath.Join(dir, "tls.crt"),
+		ClientCertFile:     filepath.Join(dir, "client.crt"),
+		ClientName:         expectedName,
+		FilesystemOverhead: 0.055,
+		CryptoConfig:       *cryptowatch.DefaultCryptoConfig(),
+	}
+
+	server := NewUploadServer(config).(*uploadServerApp)
 
 	clientKeyPair, err := triple.NewClientKeyPair(clientCA, clientCertName, []string{})
 	Expect(err).ToNot(HaveOccurred())
 
-	return server, clientKeyPair, serverCA.Cert
+	return server, clientKeyPair, serverCA.Cert, cleanup
 }
 
 func newHTTPClient(clientKeyPair *triple.KeyPair, serverCACert *x509.Certificate) *http.Client {
@@ -80,6 +108,7 @@ func newHTTPClient(clientKeyPair *triple.KeyPair, serverCACert *x509.Certificate
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{clientCert},
 		RootCAs:      caCertPool,
+		MinVersion:   tls.VersionTLS12,
 	}
 	tlsConfig.BuildNameToCertificate() //nolint:staticcheck // TODO: handle this deprecation
 
@@ -158,11 +187,11 @@ func (amd *AsyncMockDataSource) GetResumePhase() importer.ProcessingPhase {
 }
 
 func saveAsyncProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (*importer.DataProcessor, error) {
-	return importer.NewDataProcessor(&AsyncMockDataSource{}, "", "", "", "", 0.055, false), nil
+	return importer.NewDataProcessor(&AsyncMockDataSource{}, "", "", "", "", 0.055, false, ""), nil
 }
 
 func saveAsyncProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (*importer.DataProcessor, error) {
-	return importer.NewDataProcessor(&AsyncMockDataSource{}, "", "", "", "", 0.055, false), fmt.Errorf("Error using datastream")
+	return importer.NewDataProcessor(&AsyncMockDataSource{}, "", "", "", "", 0.055, false, ""), fmt.Errorf("Error using datastream")
 }
 
 func withAsyncProcessorSuccess(f func()) {
@@ -185,7 +214,7 @@ func replaceAsyncProcessorFunc(replacement func(io.ReadCloser, string, string, f
 var _ = Describe("Upload server tests", func() {
 	It("GET fails", func() {
 		withProcessorSuccess(func() {
-			req, err := http.NewRequest("GET", common.UploadPathSync, nil)
+			req, err := http.NewRequest(http.MethodGet, common.UploadPathSync, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -199,7 +228,7 @@ var _ = Describe("Upload server tests", func() {
 	})
 
 	It("healthz", func() {
-		req, err := http.NewRequest("GET", healthzPath, nil)
+		req, err := http.NewRequest(http.MethodGet, healthzPath, nil)
 		Expect(err).ToNot(HaveOccurred())
 
 		rr := httptest.NewRecorder()
@@ -215,7 +244,7 @@ var _ = Describe("Upload server tests", func() {
 
 	DescribeTable("Process unavailable", func(uploadPath string) {
 		withProcessorSuccess(func() {
-			req, err := http.NewRequest("POST", uploadPath, strings.NewReader("data"))
+			req, err := http.NewRequest(http.MethodPost, uploadPath, strings.NewReader("data"))
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -237,7 +266,7 @@ var _ = Describe("Upload server tests", func() {
 
 	DescribeTable("Completion conflict", func(uploadPath string) {
 		withAsyncProcessorSuccess(func() {
-			req, err := http.NewRequest("POST", uploadPath, strings.NewReader("data"))
+			req, err := http.NewRequest(http.MethodPost, uploadPath, strings.NewReader("data"))
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -259,7 +288,7 @@ var _ = Describe("Upload server tests", func() {
 
 	It("Success", func() {
 		withProcessorSuccess(func() {
-			req, err := http.NewRequest("POST", common.UploadPathSync, strings.NewReader("data"))
+			req, err := http.NewRequest(http.MethodPost, common.UploadPathSync, strings.NewReader("data"))
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -308,7 +337,7 @@ var _ = Describe("Upload server tests", func() {
 
 	DescribeTable("Stream fail", func(processorFunc func(func()), uploadPath string) {
 		processorFunc(func() {
-			req, err := http.NewRequest("POST", uploadPath, strings.NewReader("data"))
+			req, err := http.NewRequest(http.MethodPost, uploadPath, strings.NewReader("data"))
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -343,27 +372,28 @@ var _ = Describe("Upload server tests", func() {
 
 	DescribeTable("Real upload with client", func(certName string, expectedName string, expectedResponse int) {
 		withProcessorSuccess(func() {
-			server, clientKeyPair, serverCACert := newTLSServer(certName, expectedName)
+			server, clientKeyPair, serverCACert, cleanup := newTLSServer(certName, expectedName)
+			defer cleanup()
 
 			client := newHTTPClient(clientKeyPair, serverCACert)
 
 			ch := make(chan struct{})
 
 			go func() {
-				_ = server.Run()
+				_, _ = server.Run()
 				close(ch)
 			}()
 
 			for i := 0; i < 10; i++ {
-				if server.bindPort != 0 {
+				if server.config.BindPort != 0 {
 					break
 				}
 				time.Sleep(500 * time.Millisecond)
 			}
 
-			Expect(server.bindPort).ToNot(Equal(0))
+			Expect(server.config.BindPort).ToNot(Equal(0))
 
-			url := fmt.Sprintf("https://localhost:%d%s", server.bindPort, common.UploadPathSync)
+			url := fmt.Sprintf("https://localhost:%d%s", server.config.BindPort, common.UploadPathSync)
 			stringReader := strings.NewReader("nothing")
 
 			resp, err := client.Post(url, "application/x-www-form-urlencoded", stringReader)
@@ -380,6 +410,31 @@ var _ = Describe("Upload server tests", func() {
 		Entry("Valid data", "client", "client", 200),
 		Entry("Invalid data", "foo", "bar", 401),
 	)
+
+	It("should handle deadline", func() {
+		server, _, _, cleanup := newTLSServer("client", "client")
+		defer cleanup()
+
+		now := time.Now()
+		server.config.Deadline = &now
+
+		var runResult *RunResult
+		var err error
+		ch := make(chan struct{})
+
+		go func() {
+			runResult, err = server.Run()
+			close(ch)
+		}()
+
+		select {
+		case <-ch:
+			Expect(err).ToNot(HaveOccurred())
+			Expect(runResult.DeadlinePassed).To(BeTrue())
+		case <-time.After(10 * time.Second):
+			Fail("Timed out waiting for server to exit")
+		}
+	})
 })
 
 func newFormRequest(path string) *http.Request {
@@ -395,7 +450,7 @@ func newFormRequest(path string) *http.Request {
 	err = w.Close()
 	Expect(err).ToNot(HaveOccurred())
 
-	req, err := http.NewRequest("POST", path, &b)
+	req, err := http.NewRequest(http.MethodPost, path, &b)
 	Expect(err).ToNot(HaveOccurred())
 
 	req.Header.Set("Content-Type", w.FormDataContentType())

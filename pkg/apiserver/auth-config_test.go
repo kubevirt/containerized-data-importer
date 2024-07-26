@@ -30,7 +30,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	ocpconfigv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -144,7 +143,7 @@ var _ = Describe("Auth config tests", func() {
 		Expect(secret.Labels[common.AppKubernetesComponentLabel]).To(Equal("storage"))
 		Expect(secret.Labels[common.AppKubernetesVersionLabel]).To(Equal(installerLabels[common.AppKubernetesVersionLabel]))
 
-		req, err := http.NewRequest("GET", "/apis", nil)
+		req, err := http.NewRequest(http.MethodGet, "/apis", nil)
 		Expect(err).ToNot(HaveOccurred())
 		rr := httptest.NewRecorder()
 
@@ -190,8 +189,8 @@ var _ = Describe("Auth config tests", func() {
 	It("Crypto config update", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		intermediateType := ocpconfigv1.TLSProfileIntermediateType
-		oldType := ocpconfigv1.TLSProfileOldType
+		intermediateType := cdiv1.TLSProfileIntermediateType
+		oldType := cdiv1.TLSProfileOldType
 		cdiConfig := &cdiv1.CDIConfig{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "CDIConfig",
@@ -201,9 +200,9 @@ var _ = Describe("Auth config tests", func() {
 				Name: common.ConfigName,
 			},
 			Spec: cdiv1.CDIConfigSpec{
-				TLSSecurityProfile: &ocpconfigv1.TLSSecurityProfile{
+				TLSSecurityProfile: &cdiv1.TLSSecurityProfile{
 					Type: oldType,
-					Old:  &ocpconfigv1.OldTLSProfile{},
+					Old:  &cdiv1.OldTLSProfile{},
 				},
 			},
 		}
@@ -222,7 +221,7 @@ var _ = Describe("Auth config tests", func() {
 
 		// 'Old' has TLS 1.0 as min version
 		Expect(int(ctw.GetCdiTLSConfig().MinVersion)).To(Equal(tls.VersionTLS10))
-		Expect(ctw.GetCdiTLSConfig().CipherSuites).To(Equal(cryptowatch.CipherSuitesIDs(ocpconfigv1.TLSProfiles[oldType].Ciphers)))
+		Expect(ctw.GetCdiTLSConfig().CipherSuites).To(Equal(cryptowatch.CipherSuitesIDs(cdiv1.TLSProfiles[oldType].Ciphers)))
 
 		cdiConfig.Spec.TLSSecurityProfile = nil
 		// Should roll us back to 'Intermediate' profile (default) instead of the initial 'Old'
@@ -235,7 +234,7 @@ var _ = Describe("Auth config tests", func() {
 
 		// verify back to TLS 1.2 ('Intermediate' spec)
 		Expect(int(ctw.GetCdiTLSConfig().MinVersion)).To(Equal(tls.VersionTLS12))
-		Expect(ctw.GetCdiTLSConfig().CipherSuites).To(Equal(cryptowatch.CipherSuitesIDs(ocpconfigv1.TLSProfiles[intermediateType].Ciphers)))
+		Expect(ctw.GetCdiTLSConfig().CipherSuites).To(Equal(cryptowatch.CipherSuitesIDs(cdiv1.TLSProfiles[intermediateType].Ciphers)))
 	})
 
 	It("Get TLS config", func() {

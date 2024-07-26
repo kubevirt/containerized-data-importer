@@ -24,8 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
-
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
@@ -33,6 +31,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
 const uninstallErrorMsg = "Rejecting the uninstall request, since there are still DataVolumes present. Either delete all DataVolumes or change the uninstall strategy before uninstalling CDI."

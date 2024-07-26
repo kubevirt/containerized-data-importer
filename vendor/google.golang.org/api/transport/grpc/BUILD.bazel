@@ -13,7 +13,9 @@ go_library(
     deps = [
         "//vendor/cloud.google.com/go/compute/metadata:go_default_library",
         "//vendor/go.opencensus.io/plugin/ocgrpc:go_default_library",
+        "//vendor/go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc:go_default_library",
         "//vendor/golang.org/x/oauth2:go_default_library",
+        "//vendor/golang.org/x/time/rate:go_default_library",
         "//vendor/google.golang.org/api/internal:go_default_library",
         "//vendor/google.golang.org/api/option:go_default_library",
         "//vendor/google.golang.org/grpc:go_default_library",
@@ -21,5 +23,6 @@ go_library(
         "//vendor/google.golang.org/grpc/credentials/google:go_default_library",
         "//vendor/google.golang.org/grpc/credentials/insecure:go_default_library",
         "//vendor/google.golang.org/grpc/credentials/oauth:go_default_library",
+        "//vendor/google.golang.org/grpc/stats:go_default_library",
     ],
 )

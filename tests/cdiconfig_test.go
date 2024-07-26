@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	route1client "github.com/openshift/client-go/route/clientset/versioned"
+
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -26,12 +27,12 @@ import (
 )
 
 const (
-	ingressUrl = "www.super-duper-test.ingress.tt.org"
+	ingressURL = "www.super-duper-test.ingress.tt.org"
 	routeName  = "cdi-uploadproxy"
 )
 
 var (
-	defaultUrl = ""
+	defaultURL = ""
 )
 
 var _ = Describe("CDI storage class config tests", Serial, func() {
@@ -244,7 +245,7 @@ var _ = Describe("CDI ingress config tests, using manifests", Serial, func() {
 			}, time.Second*30, time.Second).Should(BeTrue())
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			defaultUrl = *config.Status.UploadProxyURL
+			defaultURL = *config.Status.UploadProxyURL
 		}
 		By("Making sure no url is set")
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -263,14 +264,14 @@ var _ = Describe("CDI ingress config tests, using manifests", Serial, func() {
 				return ""
 			}
 			return *config.Status.UploadProxyURL
-		}, time.Second*30, time.Second).Should(Equal(defaultUrl))
+		}, time.Second*30, time.Second).Should(Equal(defaultURL))
 	})
 
 	AfterEach(func() {
 		_, err := f.RunKubectlCommand("delete", "-f", manifestFile, "-n", f.CdiInstallNs)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		matchingVals := []string{defaultUrl}
+		matchingVals := []string{defaultURL}
 		if origUploadProxyOverride != nil {
 			matchingVals = append(matchingVals, *origUploadProxyOverride)
 		}
@@ -320,7 +321,7 @@ var _ = Describe("CDI ingress config tests, using manifests", Serial, func() {
 				return *config.Status.UploadProxyURL
 			}
 			return ""
-		}, time.Second*30, time.Second).Should(Equal(defaultUrl))
+		}, time.Second*30, time.Second).Should(Equal(defaultURL))
 		for i := 0; i < 10; i++ {
 			// Check for 20 seconds if the deployment pod crashed.
 			time.Sleep(2 * time.Second)
@@ -359,7 +360,7 @@ var _ = Describe("CDI ingress config tests", Serial, func() {
 			}, time.Second*30, time.Second).Should(BeTrue())
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			defaultUrl = *config.Status.UploadProxyURL
+			defaultURL = *config.Status.UploadProxyURL
 		}
 		By("Making sure no url is set")
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -378,11 +379,11 @@ var _ = Describe("CDI ingress config tests", Serial, func() {
 				return ""
 			}
 			return *config.Status.UploadProxyURL
-		}, time.Second*30, time.Second).Should(Equal(defaultUrl))
+		}, time.Second*30, time.Second).Should(Equal(defaultURL))
 	})
 
 	AfterEach(func() {
-		matchingVals := []string{defaultUrl}
+		matchingVals := []string{defaultURL}
 		if origUploadProxyOverride != nil {
 			matchingVals = append(matchingVals, *origUploadProxyOverride)
 		}
@@ -409,10 +410,10 @@ var _ = Describe("CDI ingress config tests", Serial, func() {
 
 	It("[test_id:3960]Should set uploadProxyURL if override is not defined", func() {
 		// TODO, don't hard code "cdi-uploadproxy", read it from container env of cdi-deployment deployment.
-		ingress = createIngress("test-ingress", f.CdiInstallNs, "cdi-uploadproxy", ingressUrl)
+		ingress = createIngress("test-ingress", f.CdiInstallNs, "cdi-uploadproxy", ingressURL)
 		_, err := f.K8sClient.NetworkingV1().Ingresses(f.CdiInstallNs).Create(context.TODO(), ingress, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		By("Expecting uploadproxy url to be " + ingressUrl)
+		By("Expecting uploadproxy url to be " + ingressURL)
 		Eventually(func() string {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
@@ -420,7 +421,7 @@ var _ = Describe("CDI ingress config tests", Serial, func() {
 				return ""
 			}
 			return *config.Status.UploadProxyURL
-		}, time.Second*30, time.Second).Should(Equal(ingressUrl))
+		}, time.Second*30, time.Second).Should(Equal(ingressURL))
 	})
 
 	It("[test_id:3961]Should keep override uploadProxyURL if override is defined", func() {
@@ -430,7 +431,7 @@ var _ = Describe("CDI ingress config tests", Serial, func() {
 		})
 		Expect(err).ToNot(HaveOccurred())
 		// TODO, don't hard code "cdi-uploadproxy", read it from container env of cdi-deployment deployment.
-		ingress = createIngress("test-ingress", f.CdiInstallNs, "cdi-uploadproxy", ingressUrl)
+		ingress = createIngress("test-ingress", f.CdiInstallNs, "cdi-uploadproxy", ingressURL)
 		_, err = f.K8sClient.NetworkingV1().Ingresses(f.CdiInstallNs).Create(context.TODO(), ingress, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		By("Expecting uploadproxy url to be " + override)
@@ -453,12 +454,12 @@ var _ = Describe("CDI ingress config tests", Serial, func() {
 		Eventually(func() string {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			proxyUrl := ""
+			proxyURL := ""
 			if config.Status.UploadProxyURL != nil {
-				proxyUrl = *config.Status.UploadProxyURL
+				proxyURL = *config.Status.UploadProxyURL
 			}
-			return proxyUrl
-		}, time.Second*30, time.Second).Should(Equal(defaultUrl))
+			return proxyURL
+		}, time.Second*30, time.Second).Should(Equal(defaultURL))
 	})
 })
 
@@ -644,7 +645,7 @@ var _ = Describe("Modifying CDIConfig spec tests", Serial, func() {
 
 })
 
-func createIngress(name, ns, service, hostUrl string) *networkingv1.Ingress {
+func createIngress(name, ns, service, hostURL string) *networkingv1.Ingress {
 	return &networkingv1.Ingress{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "networking/v1",
@@ -658,7 +659,7 @@ func createIngress(name, ns, service, hostUrl string) *networkingv1.Ingress {
 				Service: &networkingv1.IngressServiceBackend{Name: service, Port: networkingv1.ServiceBackendPort{Number: 443}},
 			},
 			Rules: []networkingv1.IngressRule{
-				{Host: hostUrl},
+				{Host: hostURL},
 			},
 		},
 	}

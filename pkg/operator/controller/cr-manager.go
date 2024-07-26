@@ -20,13 +20,6 @@ import (
 	"context"
 	"strconv"
 
-	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
-
-	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
-	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -36,7 +29,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
+	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 )

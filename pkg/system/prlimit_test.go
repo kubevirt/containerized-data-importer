@@ -116,6 +116,7 @@ func fakeCommand(command string, args ...string) *exec.Cmd {
 	cs := []string{"-test.run=TestHelperProcess", "--", command}
 	cs = append(cs, args...)
 
+	//nolint:gosec // This is not production code
 	cmd := exec.Command(os.Args[0], cs...)
 	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
 	return cmd
@@ -125,6 +126,7 @@ func fakeCommandContext(ctx context.Context, command string, args ...string) *ex
 	cs := []string{"-test.run=TestHelperProcess", "--", command}
 	cs = append(cs, args...)
 
+	//nolint:gosec // This is not production code
 	cmd := exec.CommandContext(ctx, os.Args[0], cs...)
 	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1", "GOCOVERDIR=/tmp"}
 	return cmd
@@ -210,7 +212,7 @@ func doFaker(args []string) {
 }
 
 func doSpinner(args []string) {
-	for { //nolint:staticcheck
+	for { //nolint:staticcheck,revive
 
 	}
 }

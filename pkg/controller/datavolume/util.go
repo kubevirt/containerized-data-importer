@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/docker/go-units"
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	"github.com/pkg/errors"
@@ -36,6 +37,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/utils/ptr"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -102,7 +104,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 	shouldRender := !isWebhookRenderingEnabled || dv.Labels[common.PvcApplyStorageProfileLabel] != "true"
 
 	if pvc == nil {
-		pvcSpec = copyStorageAsPvc(log, dv.Spec.Storage)
+		pvcSpec = copyStorageAsPvc(dv.Spec.Storage)
 		if shouldRender {
 			if err := renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client, recorder, &log, dv, pvcSpec, dv.Spec.ContentType); err != nil {
 				return nil, err
@@ -126,7 +128,6 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 // therefore we use wrappers for log and recorder calls
 func renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client client.Client, recorder record.EventRecorder, log *logr.Logger,
 	dv *cdiv1.DataVolume, pvcSpec *v1.PersistentVolumeClaimSpec, dvContentType cdiv1.DataVolumeContentType) error {
-
 	logInfo := func(msg string, keysAndValues ...interface{}) {
 		if log != nil {
 			log.V(1).Info(msg, keysAndValues...)
@@ -287,6 +288,11 @@ func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeC
 		return nil
 	}
 
+	// Kubevirt doesn't allow disks smaller than 1MiB. Rejecting for consistency.
+	if requestedSize.Value() < units.MiB {
+		return errors.Errorf("PVC Spec is not valid - storage size should be at least 1MiB")
+	}
+
 	requestedSize, err := cc.InflateSizeWithOverhead(context.TODO(), client, requestedSize.Value(), pvcSpec)
 	if err != nil {
 		return err
@@ -310,7 +316,7 @@ func getName(storageClass *storagev1.StorageClass) string {
 	return ""
 }
 
-func copyStorageAsPvc(log logr.Logger, storage *cdiv1.StorageSpec) *v1.PersistentVolumeClaimSpec {
+func copyStorageAsPvc(storage *cdiv1.StorageSpec) *v1.PersistentVolumeClaimSpec {
 	input := storage.DeepCopy()
 	pvcSpec := &v1.PersistentVolumeClaimSpec{
 		AccessModes:      input.AccessModes,
@@ -575,7 +581,6 @@ func createStorageProfileWithClaimPropertySets(name string,
 func createStorageProfileWithCloneStrategy(name string,
 	claimPropertySets []cdiv1.ClaimPropertySet,
 	cloneStrategy *cdiv1.CDICloneStrategy) *cdiv1.StorageProfile {
-
 	return &cdiv1.StorageProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -615,7 +620,7 @@ func setAnnOwnedByDataVolume(dest, obj metav1.Object) error {
 // CheckVolumeSatisfyClaim checks if the volume requested by the claim satisfies the requirements of the claim
 // adapted from k8s.io/kubernetes/pkg/controller/volume/persistentvolume/pv_controller.go
 func CheckVolumeSatisfyClaim(volume *v1.PersistentVolume, claim *v1.PersistentVolumeClaim) error {
-	requestedQty := claim.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)]
+	requestedQty := claim.Spec.Resources.Requests[v1.ResourceStorage]
 	requestedSize := requestedQty.Value()
 
 	// check if PV's DeletionTimeStamp is set, if so, return error.
