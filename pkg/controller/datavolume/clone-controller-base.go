@@ -104,7 +104,7 @@ const (
 	// CloneValidationFailed reports that a clone wasn't admitted by our validation mechanism (reason)
 	CloneValidationFailed = "CloneValidationFailed"
 	// MessageCloneValidationFailed reports that a clone wasn't admitted by our validation mechanism (message)
-	MessageCloneValidationFailed = "The clone doesn't meet the validation requirements"
+	MessageCloneValidationFailed = "The clone doesn't meet the validation requirements: %s"
 	// CloneWithoutSource reports that the source of a clone doesn't exists (reason)
 	CloneWithoutSource = "CloneWithoutSource"
 	// MessageCloneWithoutSource reports that the source of a clone doesn't exists (message)
@@ -519,6 +519,10 @@ func (r *CloneReconcilerBase) populateSourceIfSourceRef(dv *cdiv1.DataVolume) er
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: dv.Spec.SourceRef.Name, Namespace: ns}, dataSource); err != nil {
 		return err
 	}
+	if dataSource.Spec.Source.PVC == nil && dataSource.Spec.Source.Snapshot == nil {
+		return errors.Errorf("Empty source field in '%s'. DataSource may not be ready yet", dataSource.Name)
+	}
+
 	dv.Spec.Source = &cdiv1.DataVolumeSource{
 		PVC:      dataSource.Spec.Source.PVC,
 		Snapshot: dataSource.Spec.Source.Snapshot,
@@ -572,7 +576,7 @@ func addCloneWithoutSourceWatch(mgr manager.Manager, datavolumeController contro
 		predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool { return true },
 			DeleteFunc: func(e event.DeleteEvent) bool { return false },
-			UpdateFunc: func(e event.UpdateEvent) bool { return false },
+			UpdateFunc: func(e event.UpdateEvent) bool { return true },
 		})); err != nil {
 		return err
 	}

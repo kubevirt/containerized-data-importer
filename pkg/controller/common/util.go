@@ -966,83 +966,25 @@ func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNa
 	return nil
 }
 
-// validateContentTypes compares the content type of a clone DV against its source PVC's one
-func validateContentTypes(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
-	sourceContentType := GetPVCContentType(sourcePVC)
-	targetContentType := spec.ContentType
-	if targetContentType == "" {
-		targetContentType = cdiv1.DataVolumeKubeVirt
-	}
-	return sourceContentType == targetContentType, sourceContentType, targetContentType
-}
-
-// ValidateClone compares a clone spec against its source PVC to validate its creation
-func ValidateClone(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) error {
-	var targetResources corev1.VolumeResourceRequirements
-
-	valid, sourceContentType, targetContentType := validateContentTypes(sourcePVC, spec)
-	if !valid {
-		msg := fmt.Sprintf("Source contentType (%s) and target contentType (%s) do not match", sourceContentType, targetContentType)
-		return errors.New(msg)
-	}
-
-	isSizelessClone := false
-	explicitPvcRequest := spec.PVC != nil
-	if explicitPvcRequest {
-		targetResources = spec.PVC.Resources
-	} else {
-		targetResources = spec.Storage.Resources
-		// The storage size in the target DV can be empty
-		// when cloning using the 'Storage' API
-		if _, ok := targetResources.Requests[corev1.ResourceStorage]; !ok {
-			isSizelessClone = true
-		}
-	}
-
-	// TODO: Spec.Storage API needs a better more complex check to validate clone size - to account for fsOverhead
-	// simple size comparison will not work here
-	if (!isSizelessClone && GetVolumeMode(sourcePVC) == corev1.PersistentVolumeBlock) || explicitPvcRequest {
-		if err := ValidateRequestedCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// ValidateSnapshotClone compares a snapshot clone spec against its source snapshot to validate its creation
-func ValidateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv1.DataVolumeSpec) error {
-	var sourceResources, targetResources corev1.VolumeResourceRequirements
-
+// IsSnapshotValidForClone returns an error if the passed snapshot is not valid for cloning
+func IsSnapshotValidForClone(sourceSnapshot *snapshotv1.VolumeSnapshot) error {
 	if sourceSnapshot.Status == nil {
-		return fmt.Errorf("no status on source snapshot, not possible to proceed")
+		return fmt.Errorf("no status on source snapshot yet")
 	}
-	size := sourceSnapshot.Status.RestoreSize
-	restoreSizeAvailable := size != nil && size.Sign() > 0
-	if restoreSizeAvailable {
-		sourceResources.Requests = corev1.ResourceList{corev1.ResourceStorage: *size}
+	if !IsSnapshotReady(sourceSnapshot) {
+		klog.V(3).Info("snapshot not ReadyToUse, while we allow this, probably going to be an issue going forward", "namespace", sourceSnapshot.Namespace, "name", sourceSnapshot.Name)
 	}
-
-	isSizelessClone := false
-	explicitPvcRequest := spec.PVC != nil
-	if explicitPvcRequest {
-		targetResources = spec.PVC.Resources
-	} else {
-		targetResources = spec.Storage.Resources
-		if _, ok := targetResources.Requests["storage"]; !ok {
-			isSizelessClone = true
+	if sourceSnapshot.Status.Error != nil {
+		errMessage := "no details"
+		if msg := sourceSnapshot.Status.Error.Message; msg != nil {
+			errMessage = *msg
 		}
+		return fmt.Errorf("snapshot in error state with msg: %s", errMessage)
 	}
-
-	if !isSizelessClone && restoreSizeAvailable {
-		// Sizes available, make sure user picked something bigger than minimal
-		if err := ValidateRequestedCloneSize(sourceResources, targetResources); err != nil {
-			return err
-		}
-	} else if isSizelessClone && !restoreSizeAvailable {
-		return fmt.Errorf("size not specified by user/provisioner, can't tell how much needed for restore")
+	if sourceSnapshot.Spec.VolumeSnapshotClassName == nil ||
+		*sourceSnapshot.Spec.VolumeSnapshotClassName == "" {
+		return fmt.Errorf("snapshot %s/%s does not have volume snap class populated, can't clone", sourceSnapshot.Name, sourceSnapshot.Namespace)
 	}
-
 	return nil
 }
 
