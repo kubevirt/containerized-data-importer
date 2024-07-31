@@ -64,7 +64,7 @@ var newNbdKitLogWatcher = createNbdKitLogWatcher
 const (
 	nbdUnixSocket = "/tmp/nbd.sock"
 	nbdPidFile    = "/tmp/nbd.pid"
-	maxLogLines   = 30
+	maxLogLines   = 1000
 )
 
 var vddkVersion string
