@@ -145,6 +145,8 @@ func NewNbdkitVddk(nbdkitPidFile, socket, server, username, password, thumbprint
 	}
 	pluginArgs = append(pluginArgs, "--verbose")
 	pluginArgs = append(pluginArgs, "-D", "nbdkit.backend.datapath=0")
+	pluginArgs = append(pluginArgs, "-D", "vddk.datapath=0")
+	pluginArgs = append(pluginArgs, "-D", "vddk.stats=1")
 	p := getVddkPluginPath()
 	n := &Nbdkit{
 		NbdPidFile: nbdkitPidFile,
