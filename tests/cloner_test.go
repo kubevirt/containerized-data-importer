@@ -498,12 +498,15 @@ var _ = Describe("all clone tests", func() {
 				Entry("[test_id:XXXX]preallocated target", true),
 			)
 
-			It("[test_id:5570]Should clone data from block to filesystem", func() {
+			DescribeTable("[test_id:5570]Should clone data from block to filesystem", func(desiredPreallocation bool) {
 				if !f.IsBlockVolumeStorageClassAvailable() {
 					Skip("Storage Class for block volume is not available")
 				}
 				if cloneType == "csi-clone" {
 					Skip("csi-clone only works for the same volumeMode")
+				}
+				if !desiredPreallocation && cloneType != "copy" {
+					Skip("Sparse is only guaranteed for copy")
 				}
 				dataVolume := utils.NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs), f.BlockSCName)
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -514,6 +517,7 @@ var _ = Describe("all clone tests", func() {
 
 				volumeMode := v1.PersistentVolumeFilesystem
 				targetDV := utils.NewDataVolumeForImageCloning("target-dv", "1.1Gi", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
+				targetDV.Spec.Preallocation = &desiredPreallocation
 				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
@@ -543,7 +547,17 @@ var _ = Describe("all clone tests", func() {
 				By("Deleting verifier pod")
 				err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 				Expect(err).ToNot(HaveOccurred())
-			})
+
+				// preallocation settings only respected for copy
+				if cloneType == "copy" {
+					preallocated, err := f.VerifyImagePreallocated(f.Namespace, targetPvc)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(preallocated).To(Equal(desiredPreallocation))
+				}
+			},
+				Entry("with preallocation", true),
+				Entry("without preallocation", false),
+			)
 
 			It("bz:2079781 Should clone data from filesystem to block, when using storage API ", func() {
 				SetFilesystemOverhead(f, "0.50", "0.50")
