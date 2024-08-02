@@ -177,6 +177,7 @@ var _ = Describe("CSIClonePhase test", func() {
 			It("should succeed (immediate bind)", func() {
 				desired := getDesiredClaim()
 				desired.Spec.VolumeName = "vol"
+				desired.Status.Phase = corev1.ClaimBound
 				p := createCSIClonePhase(sourceClaim, getStorageClass(), desired)
 
 				result, err := p.Reconcile(context.Background())
