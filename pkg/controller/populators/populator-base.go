@@ -296,7 +296,7 @@ func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorCon
 	}
 
 	// Making sure to clean PVC' once population is completed
-	if cc.IsPVCComplete(pvc) && !cc.IsMultiStageImportInProgress(pvc) {
+	if cc.IsPVCComplete(pvc) && cc.IsBound(pvc) && !cc.IsMultiStageImportInProgress(pvc) {
 		res, err = r.reconcileCleanup(pvcPrime)
 	}
 

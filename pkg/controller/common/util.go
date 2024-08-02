@@ -1580,7 +1580,7 @@ func InflateSizeWithOverhead(ctx context.Context, c client.Client, imgSize int64
 
 // IsBound returns if the pvc is bound
 func IsBound(pvc *corev1.PersistentVolumeClaim) bool {
-	return pvc.Spec.VolumeName != ""
+	return pvc != nil && pvc.Status.Phase == corev1.ClaimBound
 }
 
 // IsUnbound returns if the pvc is not bound yet
