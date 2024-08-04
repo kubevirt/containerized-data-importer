@@ -4,7 +4,6 @@ go_library(
     name = "go_default_library",
     srcs = [
         "decode.go",
-        "decode_go116.go",
         "deprecated.go",
         "doc.go",
         "encode.go",

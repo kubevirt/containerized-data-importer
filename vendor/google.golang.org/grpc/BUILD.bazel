@@ -20,6 +20,7 @@ go_library(
         "service_config.go",
         "shared_buffer_pool.go",
         "stream.go",
+        "stream_interfaces.go",
         "trace.go",
         "trace_withtrace.go",
         "version.go",

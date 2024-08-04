@@ -23,6 +23,7 @@ go_library(
         "diff.go",
         "fflags_bsd.go",
         "fflags_unsupported.go",
+        "filter.go",
         "time_linux.go",
         "time_unsupported.go",
         "whiteouts.go",
