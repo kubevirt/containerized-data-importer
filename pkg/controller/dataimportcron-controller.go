@@ -330,7 +330,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	if err != nil {
 		return res, err
 	}
-	snapshot, err := r.getSnapshot(ctx, dataImportCron, format)
+	snapshot, err := r.getSnapshot(ctx, dataImportCron)
 	if err != nil {
 		return res, err
 	}
@@ -349,7 +349,8 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		return nil
 	}
 
-	if dv != nil {
+	switch {
+	case dv != nil:
 		switch dv.Status.Phase {
 		case cdiv1.Succeeded:
 			if err := handlePopulatedPvc(); err != nil {
@@ -363,12 +364,19 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			dvPhase := string(dv.Status.Phase)
 			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, fmt.Sprintf("Import DataVolume phase %s", dvPhase), dvPhase)
 		}
-	} else if pvc != nil {
+	case pvc != nil && pvc.Status.Phase == corev1.ClaimBound:
 		// TODO: with plain populator PVCs (no DataVolumes) we may need to wait for corev1.Bound
 		if err := handlePopulatedPvc(); err != nil {
 			return res, err
 		}
-	} else if snapshot != nil {
+	case snapshot != nil:
+		if format == cdiv1.DataImportCronSourceFormatPvc {
+			if err := r.client.Delete(ctx, snapshot); cc.IgnoreNotFound(err) != nil {
+				return res, err
+			}
+			r.log.Info("Snapshot is around even though format switched to PVC, requeueing")
+			return reconcile.Result{RequeueAfter: time.Second}, nil
+		}
 		// Below k8s 1.29 there's no way to know the source volume mode
 		// Let's at least expose this info on our own snapshots
 		if _, ok := snapshot.Annotations[cc.AnnSourceVolumeMode]; !ok {
@@ -384,7 +392,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			return res, err
 		}
 		importSucceeded = true
-	} else {
+	default:
 		if len(imports) > 0 {
 			imports = imports[1:]
 			dataImportCron.Status.CurrentImports = imports
@@ -479,11 +487,7 @@ func (r *DataImportCronReconciler) getImportState(ctx context.Context, cron *cdi
 }
 
 // Returns the current import DV if exists, and the last imported PVC
-func (r *DataImportCronReconciler) getSnapshot(ctx context.Context, cron *cdiv1.DataImportCron, format cdiv1.DataImportCronSourceFormat) (*snapshotv1.VolumeSnapshot, error) {
-	if format != cdiv1.DataImportCronSourceFormatSnapshot {
-		return nil, nil
-	}
-
+func (r *DataImportCronReconciler) getSnapshot(ctx context.Context, cron *cdiv1.DataImportCron) (*snapshotv1.VolumeSnapshot, error) {
 	imports := cron.Status.CurrentImports
 	if len(imports) == 0 {
 		return nil, nil
@@ -492,7 +496,7 @@ func (r *DataImportCronReconciler) getSnapshot(ctx context.Context, cron *cdiv1.
 	snapName := imports[0].DataVolumeName
 	snapshot := &snapshotv1.VolumeSnapshot{}
 	if err := r.client.Get(ctx, types.NamespacedName{Namespace: cron.Namespace, Name: snapName}, snapshot); err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if !k8serrors.IsNotFound(err) && !meta.IsNoMatchError(err) {
 			return nil, err
 		}
 		return nil, nil
