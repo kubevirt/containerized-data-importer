@@ -697,7 +697,7 @@ var _ = Describe("DataImportCron", Serial, func() {
 	})
 
 	Context("Change source format of existing DataImportCron", func() {
-		It("[test_id:10034] Should switch from PVC to snapshot sources once format changes", func() {
+		It("[test_id:10034] Should allow switching back and forth from PVC to snapshot sources", func() {
 			if !f.IsSnapshotStorageClassAvailable() {
 				Skip("Volumesnapshot support needed to test DataImportCron with Volumesnapshot sources")
 			}
@@ -771,6 +771,19 @@ var _ = Describe("DataImportCron", Serial, func() {
 			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, path, utils.UploadFileMD5, utils.UploadFileSize)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
+
+			By("Switch back from snap to PVC source")
+			configureStorageProfileResultingFormat(cdiv1.DataImportCronSourceFormatPvc)
+			currentSource = verifySourceReady(cdiv1.DataImportCronSourceFormatPvc, currentImportDv)
+			dataSource, err = f.CdiClient.CdiV1beta1().DataSources(ns).Get(context.TODO(), cron.Spec.ManagedDataSource, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			expectedSource = cdiv1.DataSourceSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Name:      currentSource.GetName(),
+					Namespace: currentSource.GetNamespace(),
+				},
+			}
+			Expect(dataSource.Spec.Source).To(Equal(expectedSource))
 		})
 	})
 })
