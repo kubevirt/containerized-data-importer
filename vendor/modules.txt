@@ -20,7 +20,7 @@ cloud.google.com/go/storage
 cloud.google.com/go/storage/internal
 cloud.google.com/go/storage/internal/apiv2
 cloud.google.com/go/storage/internal/apiv2/storagepb
-# github.com/BurntSushi/toml v1.2.1
+# github.com/BurntSushi/toml v1.3.2
 ## explicit; go 1.16
 github.com/BurntSushi/toml
 github.com/BurntSushi/toml/internal
@@ -74,7 +74,7 @@ github.com/blang/semver/v4
 # github.com/cespare/xxhash/v2 v2.2.0
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
-# github.com/containers/image/v5 v5.25.0
+# github.com/containers/image/v5 v5.27.1-0.20240528120211-942a2226c1cd
 ## explicit; go 1.18
 github.com/containers/image/v5/directory/explicitfilepath
 github.com/containers/image/v5/docker
@@ -126,8 +126,8 @@ github.com/containers/libtrust
 # github.com/containers/ocicrypt v1.1.7
 ## explicit; go 1.16
 github.com/containers/ocicrypt/spec
-# github.com/containers/storage v1.46.0
-## explicit; go 1.18
+# github.com/containers/storage v1.48.0
+## explicit; go 1.19
 github.com/containers/storage/pkg/archive
 github.com/containers/storage/pkg/chunked/compressor
 github.com/containers/storage/pkg/chunked/internal
@@ -157,7 +157,7 @@ github.com/docker/distribution/reference
 github.com/docker/distribution/registry/api/errcode
 github.com/docker/distribution/registry/api/v2
 github.com/docker/distribution/registry/client/auth/challenge
-# github.com/docker/docker v23.0.2+incompatible
+# github.com/docker/docker v24.0.2+incompatible
 ## explicit
 github.com/docker/docker/api/types/versions
 # github.com/docker/docker-credential-helpers v0.7.0
@@ -318,7 +318,7 @@ github.com/klauspost/compress/internal/cpuinfo
 github.com/klauspost/compress/internal/snapref
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
-# github.com/klauspost/pgzip v1.2.6-0.20220930104621-17e8dac29df8
+# github.com/klauspost/pgzip v1.2.6
 ## explicit
 github.com/klauspost/pgzip
 # github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1
@@ -396,14 +396,14 @@ github.com/onsi/gomega/types
 # github.com/opencontainers/go-digest v1.0.0
 ## explicit; go 1.13
 github.com/opencontainers/go-digest
-# github.com/opencontainers/image-spec v1.1.0-rc2
-## explicit; go 1.17
+# github.com/opencontainers/image-spec v1.1.0-rc3
+## explicit; go 1.18
 github.com/opencontainers/image-spec/specs-go
 github.com/opencontainers/image-spec/specs-go/v1
-# github.com/opencontainers/runc v1.1.5
-## explicit; go 1.16
+# github.com/opencontainers/runc v1.1.7
+## explicit; go 1.17
 github.com/opencontainers/runc/libcontainer/user
-# github.com/opencontainers/runtime-spec v1.1.0-rc.1
+# github.com/opencontainers/runtime-spec v1.1.0-rc.3
 ## explicit
 github.com/opencontainers/runtime-spec/specs-go
 # github.com/openshift/api v0.0.0-20230406152840-ce21e3fe5da2 => github.com/openshift/api v0.0.0-20230406152840-ce21e3fe5da2
@@ -563,7 +563,7 @@ github.com/robfig/cron
 # github.com/rs/cors v1.7.0
 ## explicit
 github.com/rs/cors
-# github.com/sirupsen/logrus v1.9.0
+# github.com/sirupsen/logrus v1.9.3
 ## explicit; go 1.13
 github.com/sirupsen/logrus
 # github.com/spf13/pflag v1.0.5
@@ -581,6 +581,8 @@ github.com/ulikunitz/xz/lzma
 # github.com/vbatts/tar-split v0.11.3
 ## explicit; go 1.15
 github.com/vbatts/tar-split/archive/tar
+github.com/vbatts/tar-split/tar/asm
+github.com/vbatts/tar-split/tar/storage
 # github.com/vmware/govmomi v0.23.1
 ## explicit; go 1.13
 github.com/vmware/govmomi

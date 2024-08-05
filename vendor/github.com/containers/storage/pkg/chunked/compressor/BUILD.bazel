@@ -12,7 +12,10 @@ go_library(
     deps = [
         "//vendor/github.com/containers/storage/pkg/chunked/internal:go_default_library",
         "//vendor/github.com/containers/storage/pkg/ioutils:go_default_library",
+        "//vendor/github.com/klauspost/compress/zstd:go_default_library",
         "//vendor/github.com/opencontainers/go-digest:go_default_library",
         "//vendor/github.com/vbatts/tar-split/archive/tar:go_default_library",
+        "//vendor/github.com/vbatts/tar-split/tar/asm:go_default_library",
+        "//vendor/github.com/vbatts/tar-split/tar/storage:go_default_library",
     ],
 )
