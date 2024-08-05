@@ -161,17 +161,6 @@ func newBearerTokenFromJSONBlob(blob []byte) (*bearerToken, error) {
 	return token, nil
 }
 
-// this is cloned from docker/go-connections because upstream docker has changed
-// it and make deps here fails otherwise.
-// We'll drop this once we upgrade to docker 1.13.x deps.
-func serverDefault() *tls.Config {
-	return &tls.Config{
-		// Avoid fallback to SSL protocols < TLS1.0
-		MinVersion:   tls.VersionTLS10,
-		CipherSuites: tlsconfig.DefaultServerAcceptedCiphers,
-	}
-}
-
 // dockerCertDir returns a path to a directory to be consumed by tlsclientconfig.SetupCertificates() depending on ctx and hostPort.
 func dockerCertDir(sys *types.SystemContext, hostPort string) (string, error) {
 	if sys != nil && sys.DockerCertPath != "" {
@@ -254,7 +243,9 @@ func newDockerClient(sys *types.SystemContext, registry, reference string) (*doc
 	if registry == dockerHostname {
 		registry = dockerRegistry
 	}
-	tlsClientConfig := serverDefault()
+	tlsClientConfig := &tls.Config{
+		CipherSuites: tlsconfig.DefaultServerAcceptedCiphers,
+	}
 
 	// It is undefined whether the host[:port] string for dockerHostname should be dockerHostname or dockerRegistry,
 	// because docker/docker does not read the certs.d subdirectory at all in that case.  We use the user-visible
@@ -497,8 +488,8 @@ func (c *dockerClient) resolveRequestURL(path string) (*url.URL, error) {
 // Checks if the auth headers in the response contain an indication of a failed
 // authorizdation because of an "insufficient_scope" error. If that's the case,
 // returns the required scope to be used for fetching a new token.
-func needsRetryWithUpdatedScope(err error, res *http.Response) (bool, *authScope) {
-	if err == nil && res.StatusCode == http.StatusUnauthorized {
+func needsRetryWithUpdatedScope(res *http.Response) (bool, *authScope) {
+	if res.StatusCode == http.StatusUnauthorized {
 		challenges := parseAuthHeader(res.Header)
 		for _, challenge := range challenges {
 			if challenge.Scheme == "bearer" {
@@ -557,6 +548,9 @@ func (c *dockerClient) makeRequestToResolvedURL(ctx context.Context, method stri
 	attempts := 0
 	for {
 		res, err := c.makeRequestToResolvedURLOnce(ctx, method, requestURL, headers, stream, streamLen, auth, extraScope)
+		if err != nil {
+			return nil, err
+		}
 		attempts++
 
 		// By default we use pre-defined scopes per operation. In
@@ -572,19 +566,24 @@ func (c *dockerClient) makeRequestToResolvedURL(ctx context.Context, method stri
 		// We also cannot retry with a body (stream != nil) as stream
 		// was already read
 		if attempts == 1 && stream == nil && auth != noAuth {
-			if retry, newScope := needsRetryWithUpdatedScope(err, res); retry {
+			if retry, newScope := needsRetryWithUpdatedScope(res); retry {
 				logrus.Debug("Detected insufficient_scope error, will retry request with updated scope")
+				res.Body.Close()
 				// Note: This retry ignores extraScope. That’s, strictly speaking, incorrect, but we don’t currently
 				// expect the insufficient_scope errors to happen for those callers. If that changes, we can add support
 				// for more than one extra scope.
 				res, err = c.makeRequestToResolvedURLOnce(ctx, method, requestURL, headers, stream, streamLen, auth, newScope)
+				if err != nil {
+					return nil, err
+				}
 				extraScope = newScope
 			}
 		}
-		if res == nil || res.StatusCode != http.StatusTooManyRequests || // Only retry on StatusTooManyRequests, success or other failure is returned to caller immediately
+
+		if res.StatusCode != http.StatusTooManyRequests || // Only retry on StatusTooManyRequests, success or other failure is returned to caller immediately
 			stream != nil || // We can't retry with a body (which is not restartable in the general case)
 			attempts == backoffNumIterations {
-			return res, err
+			return res, nil
 		}
 		// close response body before retry or context done
 		res.Body.Close()
@@ -885,6 +884,8 @@ func (c *dockerClient) detectProperties(ctx context.Context) error {
 	return c.detectPropertiesError
 }
 
+// fetchManifest fetches a manifest for (the repo of ref) + tagOrDigest.
+// The caller is responsible for ensuring tagOrDigest uses the expected format.
 func (c *dockerClient) fetchManifest(ctx context.Context, ref dockerReference, tagOrDigest string) ([]byte, string, error) {
 	path := fmt.Sprintf(manifestPath, reference.Path(ref.ref), tagOrDigest)
 	headers := map[string][]string{
@@ -967,6 +968,9 @@ func (c *dockerClient) getBlob(ctx context.Context, ref dockerReference, info ty
 		}
 	}
 
+	if err := info.Digest.Validate(); err != nil { // Make sure info.Digest.String() does not contain any unexpected characters
+		return nil, 0, err
+	}
 	path := fmt.Sprintf(blobsPath, reference.Path(ref.ref), info.Digest.String())
 	logrus.Debugf("Downloading %s", path)
 	res, err := c.makeRequest(ctx, http.MethodGet, path, nil, nil, v2Auth, nil)
@@ -1029,7 +1033,10 @@ func isManifestUnknownError(err error) bool {
 // digest in ref.
 // It returns (nil, nil) if the manifest does not exist.
 func (c *dockerClient) getSigstoreAttachmentManifest(ctx context.Context, ref dockerReference, digest digest.Digest) (*manifest.OCI1, error) {
-	tag := sigstoreAttachmentTag(digest)
+	tag, err := sigstoreAttachmentTag(digest)
+	if err != nil {
+		return nil, err
+	}
 	sigstoreRef, err := reference.WithTag(reference.TrimNamed(ref.ref), tag)
 	if err != nil {
 		return nil, err
@@ -1062,6 +1069,9 @@ func (c *dockerClient) getSigstoreAttachmentManifest(ctx context.Context, ref do
 // getExtensionsSignatures returns signatures from the X-Registry-Supports-Signatures API extension,
 // using the original data structures.
 func (c *dockerClient) getExtensionsSignatures(ctx context.Context, ref dockerReference, manifestDigest digest.Digest) (*extensionSignatureList, error) {
+	if err := manifestDigest.Validate(); err != nil { // Make sure manifestDigest.String() does not contain any unexpected characters
+		return nil, err
+	}
 	path := fmt.Sprintf(extensionsSignaturePath, reference.Path(ref.ref), manifestDigest)
 	res, err := c.makeRequest(ctx, http.MethodGet, path, nil, nil, v2Auth, nil)
 	if err != nil {
@@ -1085,8 +1095,11 @@ func (c *dockerClient) getExtensionsSignatures(ctx context.Context, ref dockerRe
 }
 
 // sigstoreAttachmentTag returns a sigstore attachment tag for the specified digest.
-func sigstoreAttachmentTag(d digest.Digest) string {
-	return strings.Replace(d.String(), ":", "-", 1) + ".sig"
+func sigstoreAttachmentTag(d digest.Digest) (string, error) {
+	if err := d.Validate(); err != nil { // Make sure d.String() doesn’t contain any unexpected characters
+		return "", err
+	}
+	return strings.Replace(d.String(), ":", "-", 1) + ".sig", nil
 }
 
 // Close removes resources associated with an initialized dockerClient, if any.
