@@ -12,12 +12,13 @@
  
  | env variable | default | option or example |
  | ------------ | ------- | -------- |
- | BUILD_ARCH | amd64 | s390x arm64 amd64 |
+ | BUILD_ARCH | amd64 | s390x aarch64 amd64 |
  | DOCKER_PREFIX | quay.io/kubevirt | icr.io/kubevirt, docker.io/ibm, ... |
  | QUAY_REPOSITORY | kubevirt-cdi-bazel-builder |  |
  | UNTAGGED_BUILDER_IMAGE | quay.io/kubevirt/kubevirt-cdi-bazel-builder | ${DOCKER_PREFIX}/${QUAY_REPOSITORY} |
  | BUILDER_TAG | <nothing> | s390xTest01 |
 
+Note: although `arm64` is equal to `aarch64` in CPU, this project only use `aarch64` in souce code.
 
 An example of setting these environment variables would be:
 ```
