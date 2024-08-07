@@ -498,6 +498,30 @@ var _ = Describe("Import populator tests", func() {
 			Expect(pvcPrime.GetAnnotations()[AnnCurrentCheckpoint]).To(Equal("current"))
 			Expect(pvcPrime.GetAnnotations()[AnnFinalCheckpoint]).To(Equal("true"))
 		})
+
+		It("Should set selector on PVC prime", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			selector := metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"foo": "bar",
+				},
+			}
+			targetPvc.Spec.Selector = &selector
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
+
+			By("Reconcile")
+			reconciler = createImportPopulatorReconciler(targetPvc, volumeImportSource, sc)
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Checking PVC' selector")
+			pvcPrime, err := reconciler.getPVCPrime(targetPvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvcPrime).ToNot(BeNil())
+			Expect(*pvcPrime.Spec.Selector).To(Equal(selector))
+		})
 	})
 
 	var _ = Describe("Import populator progress report", func() {
