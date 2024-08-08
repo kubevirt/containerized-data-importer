@@ -4,7 +4,7 @@
 
 1. Install the [prerequisites](https://github.com/kubevirt/kubevirt/blob/main/docs/build-the-builder.md#prerequisites) as in the instructions for building the KubeVirt builder container.
 2. Also install `jq` if the docker build utility you use is `podman-buildah`.  
-3. Build the KubeVirt builder container if you haven't already
+3. Build the containerized data importer builder container if you haven't already
 
 
 ## Environment Variables and defaults
