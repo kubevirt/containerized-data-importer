@@ -101,18 +101,21 @@ func (r *DataSourceReconciler) update(ctx context.Context, dataSource *cdiv1.Dat
 }
 
 func (r *DataSourceReconciler) handlePvcSource(ctx context.Context, sourcePVC *cdiv1.DataVolumeSourcePVC, dataSource *cdiv1.DataSource) error {
-	dv := &cdiv1.DataVolume{}
 	ns := cc.GetNamespace(sourcePVC.Namespace, dataSource.Namespace)
 	isReady := false
+
+	pvc := &corev1.PersistentVolumeClaim{}
+	pvcErr := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: sourcePVC.Name}, pvc)
+	if pvcErr != nil && !k8serrors.IsNotFound(pvcErr) {
+		return pvcErr
+	}
+
+	dv := &cdiv1.DataVolume{}
 	if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: sourcePVC.Name}, dv); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			return err
 		}
-		pvc := &corev1.PersistentVolumeClaim{}
-		if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: sourcePVC.Name}, pvc); err != nil {
-			if !k8serrors.IsNotFound(err) {
-				return err
-			}
+		if pvcErr != nil {
 			r.log.Info("PVC not found", "name", sourcePVC.Name)
 			updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "PVC not found", cc.NotFound)
 		} else {
@@ -123,7 +126,10 @@ func (r *DataSourceReconciler) handlePvcSource(ctx context.Context, sourcePVC *c
 	} else {
 		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, fmt.Sprintf("Import DataVolume phase %s", dv.Status.Phase), string(dv.Status.Phase))
 	}
+
 	if isReady {
+		cc.CopyAllowedLabels(dv.GetLabels(), dataSource, true)
+		cc.CopyAllowedLabels(pvc.GetLabels(), dataSource, true)
 		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionTrue, "DataSource is ready to be consumed", ready)
 	}
 
@@ -140,6 +146,7 @@ func (r *DataSourceReconciler) handleSnapshotSource(ctx context.Context, sourceS
 		r.log.Info("Snapshot not found", "name", sourceSnapshot.Name)
 		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "Snapshot not found", cc.NotFound)
 	} else if cc.IsSnapshotReady(snapshot) {
+		cc.CopyAllowedLabels(snapshot.GetLabels(), dataSource, true)
 		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionTrue, "DataSource is ready to be consumed", ready)
 	} else {
 		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "Snapshot phase is not ready", "SnapshotNotReady")
@@ -257,7 +264,8 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 			DeleteFunc: func(e event.TypedDeleteEvent[*cdiv1.DataVolume]) bool { return true },
 			// Only DV status phase update is interesting to reconcile
 			UpdateFunc: func(e event.TypedUpdateEvent[*cdiv1.DataVolume]) bool {
-				return e.ObjectOld.Status.Phase != e.ObjectNew.Status.Phase
+				return e.ObjectOld.Status.Phase != e.ObjectNew.Status.Phase ||
+					!reflect.DeepEqual(e.ObjectOld.Labels, e.ObjectNew.Labels)
 			},
 		},
 	)); err != nil {
@@ -272,7 +280,8 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 			CreateFunc: func(e event.TypedCreateEvent[*corev1.PersistentVolumeClaim]) bool { return true },
 			DeleteFunc: func(e event.TypedDeleteEvent[*corev1.PersistentVolumeClaim]) bool { return true },
 			UpdateFunc: func(e event.TypedUpdateEvent[*corev1.PersistentVolumeClaim]) bool {
-				return e.ObjectOld.Status.Phase != e.ObjectNew.Status.Phase
+				return e.ObjectOld.Status.Phase != e.ObjectNew.Status.Phase ||
+					!reflect.DeepEqual(e.ObjectOld.Labels, e.ObjectNew.Labels)
 			},
 		},
 	)); err != nil {
@@ -296,7 +305,8 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 			CreateFunc: func(e event.TypedCreateEvent[*snapshotv1.VolumeSnapshot]) bool { return true },
 			DeleteFunc: func(e event.TypedDeleteEvent[*snapshotv1.VolumeSnapshot]) bool { return true },
 			UpdateFunc: func(e event.TypedUpdateEvent[*snapshotv1.VolumeSnapshot]) bool {
-				return !reflect.DeepEqual(e.ObjectOld.Status, e.ObjectNew.Status)
+				return !reflect.DeepEqual(e.ObjectOld.Status, e.ObjectNew.Status) ||
+					!reflect.DeepEqual(e.ObjectOld.Labels, e.ObjectNew.Labels)
 			},
 		},
 	)); err != nil {
