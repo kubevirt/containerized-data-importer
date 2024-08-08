@@ -282,6 +282,35 @@ var _ = Describe("Controller", func() {
 				validateEvents(args.reconciler, createReadyEventValidationMap())
 			})
 
+			It("should update existing route", func() {
+				route := &routev1.Route{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "user-route",
+						Namespace: cdiNamespace,
+						Annotations: map[string]string{
+							"operator.cdi.kubevirt.io/injectUploadProxyCert": "true",
+						},
+					},
+					Spec: routev1.RouteSpec{
+						TLS: &routev1.TLSConfig{},
+					},
+				}
+
+				args := createArgs(route)
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				obj, err := getObject(args.client, route)
+				Expect(err).ToNot(HaveOccurred())
+				route = obj.(*routev1.Route)
+
+				Expect(route.Spec.TLS.DestinationCACertificate).Should(Equal(testCertData))
+
+				eventMap := createReadyEventValidationMap()
+				eventMap["Normal UploadProxyRouteInjectSuccess Successfully updated Route destination CA certificate"] = false
+				validateEvents(args.reconciler, eventMap)
+			})
+
 			It("should have CDIOperatorDown", func() {
 				args := createArgs()
 				doReconcile(args)
@@ -1635,9 +1664,10 @@ func createFromArgs(version string) *args {
 	}
 }
 
-func createArgs() *args {
+func createArgs(objs ...client.Object) *args {
 	cdi := createCDI("cdi", "good uid")
-	client := createClient(cdi)
+	objs = append(objs, cdi)
+	client := createClient(objs...)
 	reconciler := createReconciler(client)
 
 	return &args{
@@ -1753,6 +1783,7 @@ func createReconciler(client client.Client) *ReconcileCDI {
 		clusterArgs:    clusterArgs,
 		namespacedArgs: namespacedArgs,
 		certManager:    newFakeCertManager(client, namespace),
+		haveRoutes:     true,
 	}
 	callbackDispatcher := callbacks.NewCallbackDispatcher(log, client, client, scheme.Scheme, namespace)
 	getCache := func() cache.Cache {
