@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -49,19 +50,13 @@ func ensureUploadProxyRouteExists(ctx context.Context, logger logr.Logger, c cli
 		return fmt.Errorf("cluster scoped owner not supported")
 	}
 
-	cm := &corev1.ConfigMap{}
-	key := client.ObjectKey{Namespace: namespace, Name: uploadProxyCABundle}
-	if err := c.Get(ctx, key, cm); err != nil {
+	cert, err := getUploadProxyCABundle(ctx, c)
+	if err != nil {
 		if errors.IsNotFound(err) {
-			logger.V(3).Info("upload proxy ca cert doesn't exist yet")
+			logger.V(3).Info("ensureUploadProxyRouteExists() upload proxy ca cert doesn't exist")
 			return nil
 		}
 		return err
-	}
-
-	cert, exists := cm.Data["ca-bundle.crt"]
-	if !exists {
-		return fmt.Errorf("unexpected ConfigMap format, 'ca-bundle.crt' key missing")
 	}
 
 	cr, err := cc.GetActiveCDI(ctx, c)
@@ -100,7 +95,7 @@ func ensureUploadProxyRouteExists(ctx context.Context, logger logr.Logger, c cli
 	util.SetRecommendedLabels(desiredRoute, installerLabels, "cdi-operator")
 
 	currentRoute := &routev1.Route{}
-	key = client.ObjectKey{Namespace: namespace, Name: uploadProxyRouteName}
+	key := client.ObjectKey{Namespace: namespace, Name: uploadProxyRouteName}
 	err = c.Get(ctx, key, currentRoute)
 	if err == nil {
 		if currentRoute.Spec.To.Kind != desiredRoute.Spec.To.Kind ||
@@ -115,12 +110,6 @@ func ensureUploadProxyRouteExists(ctx context.Context, logger logr.Logger, c cli
 		return nil
 	}
 
-	if meta.IsNoMatchError(err) {
-		// not in openshift
-		logger.V(3).Info("No match error for Route, must not be in openshift")
-		return nil
-	}
-
 	if !errors.IsNotFound(err) {
 		return err
 	}
@@ -132,19 +121,76 @@ func ensureUploadProxyRouteExists(ctx context.Context, logger logr.Logger, c cli
 	return c.Create(ctx, desiredRoute)
 }
 
-func (r *ReconcileCDI) watchRoutes() error {
-	err := r.uncachedClient.List(context.TODO(), &routev1.RouteList{}, &client.ListOptions{
-		Namespace: util.GetNamespace(),
-		Limit:     1,
-	})
-	if err == nil {
-		var route client.Object = &routev1.Route{}
-		return r.controller.Watch(source.Kind(r.getCache(), route, enqueueCDI(r.client)))
+func updateUserRoutes(ctx context.Context, logger logr.Logger, c client.Client, recorder record.EventRecorder) error {
+	cert, err := getUploadProxyCABundle(ctx, c)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			logger.V(3).Info("updateUserRoutes() upload proxy ca cert doesn't exist")
+			return nil
+		}
+		return err
 	}
-	if meta.IsNoMatchError(err) {
+
+	routes := &routev1.RouteList{}
+	err = c.List(ctx, routes, &client.ListOptions{
+		Namespace: util.GetNamespace(),
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, r := range routes.Items {
+		route := r.DeepCopy()
+		if route.Annotations[annInjectUploadProxyCert] != "true" {
+			continue
+		}
+
+		if route.Spec.TLS == nil {
+			logger.V(1).Info("Route has no TLS config, skipping", "route", route.Name)
+			continue
+		}
+
+		if route.Spec.TLS.DestinationCACertificate != cert {
+			logger.V(1).Info("Updating route with new CA cert", "route", route.Name)
+			route.Spec.TLS.DestinationCACertificate = cert
+			if err := c.Update(ctx, route); err != nil {
+				return err
+			}
+			recorder.Event(route, corev1.EventTypeNormal, updateUserRouteSuccess, "Successfully updated Route destination CA certificate")
+		}
+	}
+
+	return nil
+}
+
+func getUploadProxyCABundle(ctx context.Context, c client.Client) (string, error) {
+	cm := &corev1.ConfigMap{}
+	key := client.ObjectKey{Namespace: util.GetNamespace(), Name: uploadProxyCABundle}
+	if err := c.Get(ctx, key, cm); err != nil {
+		return "", err
+	}
+	return cm.Data["ca-bundle.crt"], nil
+}
+
+func (r *ReconcileCDI) watchRoutes() error {
+	if !r.haveRoutes {
 		log.Info("Not watching Routes")
 		return nil
 	}
+	var route client.Object = &routev1.Route{}
+	return r.controller.Watch(source.Kind(r.getCache(), route, enqueueCDI(r.client)))
+}
 
-	return err
+func haveRoutes(c client.Client) (bool, error) {
+	err := c.List(context.TODO(), &routev1.RouteList{}, &client.ListOptions{
+		Namespace: util.GetNamespace(),
+		Limit:     1,
+	})
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
