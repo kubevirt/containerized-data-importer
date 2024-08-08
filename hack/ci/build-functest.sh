@@ -20,5 +20,5 @@ source "${script_dir}"/../build/common.sh
 mkdir -p ${TESTS_OUT_DIR}/
 # use vendor
 export GO111MODULE=on
-/go/bin/ginkgo build ${CDI_DIR}/tests/
+${TESTS_OUT_DIR}/ginkgo build ${CDI_DIR}/tests/
 mv ${CDI_DIR}/tests/tests.test ${TESTS_OUT_DIR}/
