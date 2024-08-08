@@ -894,7 +894,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("should pass through metadata to DataVolume and DataSource", func() {
+		It("should pass through metadata to DataVolume", func() {
 			cron = newDataImportCron(cronName)
 			cron.Annotations[AnnSourceDesiredDigest] = testDigest
 
@@ -917,20 +917,13 @@ var _ = Describe("All DataImportCron Tests", func() {
 			dvName := imports[0].DataVolumeName
 			Expect(dvName).ToNot(BeEmpty())
 
-			expectLabels := func(labels map[string]string) {
-				for _, defaultInstanceTypeLabel := range cc.DefaultInstanceTypeLabels {
-					ExpectWithOffset(1, labels).To(HaveKeyWithValue(defaultInstanceTypeLabel, defaultInstanceTypeLabel))
-				}
-				ExpectWithOffset(1, labels).To(HaveKeyWithValue(cc.LabelDynamicCredentialSupport, "true"))
-			}
-
 			dv := &cdiv1.DataVolume{}
 			Expect(reconciler.client.Get(context.TODO(), dvKey(dvName), dv)).To(Succeed())
-			expectLabels(dv.Labels)
 
-			dataSource = &cdiv1.DataSource{}
-			Expect(reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)).To(Succeed())
-			expectLabels(dataSource.Labels)
+			for _, defaultInstanceTypeLabel := range cc.DefaultInstanceTypeLabels {
+				Expect(dv.Labels).To(HaveKeyWithValue(defaultInstanceTypeLabel, defaultInstanceTypeLabel))
+			}
+			Expect(dv.Labels).To(HaveKeyWithValue(cc.LabelDynamicCredentialSupport, "true"))
 		})
 
 		var (

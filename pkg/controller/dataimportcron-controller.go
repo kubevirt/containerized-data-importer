@@ -573,12 +573,6 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 	dataSourceCopy := dataSource.DeepCopy()
 	r.setDataImportCronResourceLabels(dataImportCron, dataSource)
 
-	for _, defaultInstanceTypeLabel := range cc.DefaultInstanceTypeLabels {
-		passCronLabelToDataSource(dataImportCron, dataSource, defaultInstanceTypeLabel)
-	}
-
-	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDynamicCredentialSupport)
-
 	sourcePVC := dataImportCron.Status.LastImportedPVC
 	populateDataSource(format, dataSource, sourcePVC)
 
@@ -1448,12 +1442,6 @@ func passCronLabelToDv(cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume, ann str
 func passCronAnnotationToDv(cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume, ann string) {
 	if val := cron.Annotations[ann]; val != "" {
 		cc.AddAnnotation(dv, ann, val)
-	}
-}
-
-func passCronLabelToDataSource(cron *cdiv1.DataImportCron, ds *cdiv1.DataSource, ann string) {
-	if val := cron.Labels[ann]; val != "" {
-		cc.AddLabel(ds, ann, val)
 	}
 }
 
