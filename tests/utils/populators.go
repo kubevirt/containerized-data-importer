@@ -31,3 +31,19 @@ func NewVolumeImportSourceWithVddkWarmImport(name, pvcName, backingFile, secretR
 		},
 	}
 }
+
+// NewVolumeImportSourceWithUrlImport initializes a VolumeImportSource for a HTTP import from a given URL
+func NewVolumeImportSourceWithURLImport(name, url string) *cdiv1.VolumeImportSource {
+	return &cdiv1.VolumeImportSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: cdiv1.VolumeImportSourceSpec{
+			Source: &cdiv1.ImportSourceType{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{
+					URL: url,
+				},
+			},
+		},
+	}
+}
