@@ -29,13 +29,16 @@ type UploadDataSource struct {
 	url *url.URL
 	// contentType expected from the upload content
 	contentType cdiv1.DataVolumeContentType
+	// directWriteException indicates an exception to write directly without scratch space
+	directWriteException bool
 }
 
 // NewUploadDataSource creates a new instance of an UploadDataSource
-func NewUploadDataSource(stream io.ReadCloser, contentType cdiv1.DataVolumeContentType) *UploadDataSource {
+func NewUploadDataSource(stream io.ReadCloser, contentType cdiv1.DataVolumeContentType, directWriteException bool) *UploadDataSource {
 	return &UploadDataSource{
-		stream:      stream,
-		contentType: contentType,
+		stream:               stream,
+		contentType:          contentType,
+		directWriteException: directWriteException,
 	}
 }
 
@@ -51,8 +54,7 @@ func (ud *UploadDataSource) Info() (ProcessingPhase, error) {
 	if ud.contentType == cdiv1.DataVolumeArchive {
 		return ProcessingPhaseTransferDataDir, nil
 	}
-	if !ud.readers.Convert {
-		// Uploading a raw file, we can write that directly to the target.
+	if ud.directWriteException {
 		return ProcessingPhaseTransferDataFile, nil
 	}
 	return ProcessingPhaseTransferScratch, nil
