@@ -1042,7 +1042,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 				Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
 			})
 
-			It("Should create snapshot, and update DataImportCron and DataSource once its ready to use", func() {
+			It("Should create snapshot, and update DataImportCron once its ready to use", func() {
 				cron = newDataImportCron(cronName)
 				dataSource = nil
 				retentionPolicy := cdiv1.DataImportCronRetainNone
@@ -1071,7 +1071,9 @@ var _ = Describe("All DataImportCron Tests", func() {
 				Expect(*dv.Spec.Source.Registry.URL).To(Equal(testRegistryURL + "@" + testDigest))
 				Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
 
-				pvc := cc.CreatePvc(dv.Name, dv.Namespace, nil, nil)
+				pvc := cc.CreatePvc(dv.Name, dv.Namespace, nil, map[string]string{
+					testKubevirtIoKey: testKubevirtIoValue,
+				})
 				pvc.Spec.VolumeMode = ptr.To[corev1.PersistentVolumeMode]("dummy")
 				err = reconciler.client.Create(context.TODO(), pvc)
 				Expect(err).ToNot(HaveOccurred())
@@ -1119,6 +1121,8 @@ var _ = Describe("All DataImportCron Tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(*snap.Status.ReadyToUse).To(BeTrue())
 				Expect(*snap.Spec.Source.PersistentVolumeClaimName).To(Equal(dvName))
+				// Expect labels to be copied from the source PVC
+				Expect(snap.Labels).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
 
 				err = reconciler.client.Delete(context.TODO(), cron)
 				Expect(err).ToNot(HaveOccurred())

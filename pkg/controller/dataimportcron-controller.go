@@ -695,15 +695,14 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 	if err != nil {
 		return err
 	}
-	labels := map[string]string{
-		common.CDILabelKey:       common.CDILabelValue,
-		common.CDIComponentLabel: "",
-	}
 	desiredSnapshot := &snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      pvc.Name,
 			Namespace: dataImportCron.Namespace,
-			Labels:    labels,
+			Labels: map[string]string{
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: "",
+			},
 		},
 		Spec: snapshotv1.VolumeSnapshotSpec{
 			Source: snapshotv1.VolumeSnapshotSource{
@@ -713,6 +712,7 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 		},
 	}
 	r.setDataImportCronResourceLabels(dataImportCron, desiredSnapshot)
+	cc.CopyAllowedLabels(pvc.GetLabels(), desiredSnapshot, false)
 
 	currentSnapshot := &snapshotv1.VolumeSnapshot{}
 	if err := r.client.Get(ctx, client.ObjectKeyFromObject(desiredSnapshot), currentSnapshot); err != nil {
