@@ -3412,8 +3412,38 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, 60*time.Second, 1*time.Second).Should(BeTrue())
 		},
 			Entry("PVC", func() *cdiv1.DataVolume {
-				By("createing a DataVolume pointing to a labelled PVC")
+				By("creating a DataVolume pointing to a labelled PVC")
 				dv := utils.NewDataVolumeForImageCloning("datavolume-from-pvc", "1Gi", sourceDataVolume.Namespace, sourceDataVolume.Name, nil, nil)
+				dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+				Expect(err).ToNot(HaveOccurred())
+				return dv
+			}),
+			Entry("Snapshot", func() *cdiv1.DataVolume {
+				if !f.IsSnapshotStorageClassAvailable() {
+					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
+				}
+				By("creating a labelled VolumeSnapshot")
+				snapClass := f.GetSnapshotClass()
+				snapshot := utils.NewVolumeSnapshot(sourceDataVolume.Name, sourceDataVolume.Namespace, sourceDataVolume.Name, &snapClass.Name)
+				snapshot.Labels = make(map[string]string)
+				for _, defaultInstancetypeLabel := range controller.DefaultInstanceTypeLabels {
+					snapshot.Labels[defaultInstancetypeLabel] = "defined"
+				}
+				err = f.CrClient.Create(context.TODO(), snapshot)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("creating a DataVolume pointing to a labelled VolumeSnapshot")
+				dv := utils.NewDataVolumeForSnapshotCloning("datavolume-from-snapshot", "1Gi", sourceDataVolume.Namespace, sourceDataVolume.Name, nil, nil)
+				dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+				Expect(err).ToNot(HaveOccurred())
+				return dv
+			}),
+			Entry("Registry", func() *cdiv1.DataVolume {
+				By("creating a DataVolume pointing to a Containerdisk")
+				dv := utils.NewDataVolumeWithRegistryImport("datavolume-from-registry", "1Gi", tinyCoreIsoRegistryURL())
+				cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+				Expect(err).ToNot(HaveOccurred())
+				dv.Spec.Source.Registry.CertConfigMap = &cm
 				dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 				Expect(err).ToNot(HaveOccurred())
 				return dv
