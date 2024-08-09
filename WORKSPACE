@@ -933,6 +933,15 @@ rpm(
 )
 
 rpm(
+    name = "glibc-2.39-15.el10.x86_64",
+    sha256 = "eadc295398fbe7d00aeede3cd3e820dc4464053dfec25665db2951f0a4b6a2a7",
+    urls = [
+        "https://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/glibc-2.39-15.el10.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/eadc295398fbe7d00aeede3cd3e820dc4464053dfec25665db2951f0a4b6a2a7"
+    ],
+)
+
+rpm(
     name = "glibc-0__2.34-105.el9.aarch64",
     sha256 = "336c6903e04a6a3c1aefb45ac24c42606142978ebd42fcb7aa6280b9aca7a42b",
     urls = ["https://storage.googleapis.com/builddeps/336c6903e04a6a3c1aefb45ac24c42606142978ebd42fcb7aa6280b9aca7a42b"],
@@ -3354,11 +3363,11 @@ rpm(
 )
 
 rpm(
-    name = "tar-2__1.34-6.el9.x86_64",
-    sha256 = "9f6adb2da035d5123587a2bb401487521bd6543497003ffc6e66386d898133f3",
+    name = "tar-1.35-3.el10.x86_64",
+    sha256 = "9b28de3608607b9219ab1e93db24e421ebf2acd60efc221a6ef2eb2eb9ae6dd1",
     urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/tar-1.34-6.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/9f6adb2da035d5123587a2bb401487521bd6543497003ffc6e66386d898133f3",
+        "https://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/tar-1.35-3.el10.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/9b28de3608607b9219ab1e93db24e421ebf2acd60efc221a6ef2eb2eb9ae6dd1",
     ],
 )
 
