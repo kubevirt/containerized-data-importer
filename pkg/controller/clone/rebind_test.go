@@ -107,6 +107,7 @@ var _ = Describe("RebindPhase test", func() {
 		It("should succeed if target is bound", func() {
 			target := createTarget()
 			target.Spec.VolumeName = pvName
+			target.Status.Phase = corev1.ClaimBound
 
 			p := createRebindPhase(target)
 			result, err := p.Reconcile(context.Background())
@@ -158,6 +159,7 @@ var _ = Describe("RebindPhase test", func() {
 				volume := createVolume()
 				source := createSource()
 				source.Spec.VolumeName = volume.Name
+				source.Status.Phase = corev1.ClaimBound
 				p := createRebindPhase(createTarget(), source, volume)
 				result, err := p.Reconcile(context.Background())
 				Expect(err).ToNot(HaveOccurred())
@@ -178,6 +180,7 @@ var _ = Describe("RebindPhase test", func() {
 				volume.Spec.ClaimRef.Name = "foo"
 				source := createSource()
 				source.Spec.VolumeName = volume.Name
+				source.Status.Phase = corev1.ClaimBound
 				p := createRebindPhase(createTarget(), source, volume)
 				result, err := p.Reconcile(context.Background())
 				Expect(err).To(HaveOccurred())

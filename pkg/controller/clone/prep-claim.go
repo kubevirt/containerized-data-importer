@@ -72,11 +72,6 @@ func (p *PrepClaimPhase) Reconcile(ctx context.Context) (*reconcile.Result, erro
 
 	if !hasActual {
 		if cc.IsBound(actualClaim) {
-			// PVC is bound but its status hasn't been updated yet.
-			// We'll reconcile again once the status is updated.
-			if actualClaim.Status.Phase == corev1.ClaimPending {
-				return &reconcile.Result{}, nil
-			}
 			return nil, fmt.Errorf("actual PVC size missing")
 		}
 

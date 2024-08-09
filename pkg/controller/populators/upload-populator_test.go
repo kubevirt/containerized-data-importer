@@ -169,6 +169,8 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		pvc.Spec.VolumeName = "test-pv"
 		cc.AddAnnotation(pvc, cc.AnnPodPhase, string(corev1.PodSucceeded))
 		pvcPrime := newUploadPopulatorPVC(PVCPrimeName(pvc))
+		pvc.Status = corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound}
+		pvcPrime.Status = corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimLost}
 
 		volumeUploadSourceCR := newUploadPopulatorCR("", false)
 		scName := "test-sc"
