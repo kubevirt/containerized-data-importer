@@ -173,6 +173,13 @@ function setup_for_upgrade_testing {
 # We skip the functional test additions for external provider for now, as they're specific
 if [ "${CDI_SYNC}" == "test-infra" ]; then
   configure_storage
+  if [ "${CI}" = "true" ]; then
+    # delay log rotation so tests that rely on logs don't lose them
+    for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
+      ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "echo 'containerLogMaxSize: 20Mi' | sudo tee -a /var/lib/kubelet/config.yaml"
+      ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "sudo systemctl daemon-reload && sudo systemctl restart kubelet"
+    done
+  fi
   _kubectl apply -f "./_out/manifests/cdi-testing-sa.yaml"
   _kubectl apply -f "./_out/manifests/bad-webserver.yaml"
   _kubectl apply -f "./_out/manifests/file-host.yaml"
