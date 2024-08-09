@@ -100,6 +100,7 @@ rpm-deps: ## Update RPM dependencies
 
 ##@ Testing
 build-functest: ## Build the functional tests (content of tests/ subdirectory)
+	${DO_BAZ} ./hack/build/build-ginkgo.sh
 	${DO_BAZ} ./hack/build/build-functest.sh
 
 test: test-unit test-functional test-lint ## execute all tests (_NOTE:_ 'WHAT' is expected to match the go cli pattern for paths e.g. './pkg/...'.  This differs slightly from rest of the 'make' targets)

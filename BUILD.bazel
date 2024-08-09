@@ -226,6 +226,16 @@ genrule(
     cmd = "/usr/bin/p11-kit extract --format=pem-bundle --filter=ca-anchors --overwrite --comment --purpose server-auth $@",
 )
 
+genrule(
+    name = "build-ginkgo",
+    srcs = [
+        "//vendor/github.com/onsi/ginkgo/v2/ginkgo",
+    ],
+    outs = ["ginkgo-copier"],
+    cmd = "echo '#!/bin/sh\n\ncp -f $(SRCS) $$1' > \"$@\"",
+    executable = 1,
+)
+
 pkg_tar(
     name = "ca_anchors_tar",
     srcs = [":ca_anchors"],
