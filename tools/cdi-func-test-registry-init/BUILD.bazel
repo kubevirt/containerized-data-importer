@@ -25,11 +25,16 @@ go_binary(
 container_image(
     name = "cdi-func-test-registry-init-file-image",
     architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
     directory = "/",
     tars = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": [
+        ":test-img-tar",
+        "//rpm:testimage_s390x",
+        ],
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             ":test-img-tar",
             "//rpm:testimage_aarch64",
@@ -44,6 +49,7 @@ container_image(
 container_image(
     name = "cdi-func-test-registry-exec-init-image",
     architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
@@ -56,6 +62,7 @@ container_image(
 container_image(
     name = "cdi-func-test-registry-init-image",
     architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
@@ -78,12 +85,17 @@ pkg_tar(
 container_image(
     name = "cdi-func-test-registry-populate-image",
     architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
     directory = "/",
     entrypoint = ["./populate-registry.sh"],
     tars = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": [
+            ":populate-script-tar",
+            "//rpm:testimage_s390x",
+        ],
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             ":populate-script-tar",
             "//rpm:testimage_aarch64",
@@ -114,10 +126,12 @@ pkg_tar(
 container_image(
     name = "cdi-func-test-registry-image",
     architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
     base = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "@registry-s390x//image",
         "@io_bazel_rules_go//go/platform:linux_arm64": "@registry-aarch64//image",
         "//conditions:default": "@registry//image",
     }),

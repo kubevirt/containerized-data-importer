@@ -5,10 +5,14 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_image")
 container_image(
     name = "cdi-func-test-proxy-image-base",
     architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
     tars = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": [
+            "//rpm:testimage_s390x",
+        ],
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             "//rpm:testimage_aarch64",
         ],

@@ -21,11 +21,12 @@ source "${script_dir}"/config.sh
 
 if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
     if [ -e /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
-        BUILDAH_PLATFORM_FLAG="--platform linux/amd64,linux/arm64"
+        BUILDAH_PLATFORM_FLAG="--platform linux/s390x,linux/amd64,linux/arm64"
     else
         echo "No qemu-user-static on host machine, building only native container"
         BUILDAH_PLATFORM_FLAG=""
     fi
+    [ "`uname -m`" == "s390x" ] && BUILDAH_PLATFORM_FLAG="--platform linux/s390x"
 fi
 
 # When this runs during the post-submit job, the PR will have squashed into a single
@@ -46,7 +47,7 @@ POST_SUBMIT=$((1 - $?))
 
 if ((POST_SUBMIT)) || [ x"${ADHOC_BUILDER}" != "x" ]; then
     BUILDER_SPEC="${BUILD_DIR}/docker/builder"
-    UNTAGGED_BUILDER_IMAGE=$(DOCKER_PREFIX)/kubevirt-cdi-bazel-builder
+    UNTAGGED_BUILDER_IMAGE=${UNTAGGED_BUILDER_IMAGE:-quay.io/kubevirt/kubevirt-cdi-bazel-builder}
     BUILDER_TAG=$(date +"%y%m%d%H%M")-$(git rev-parse --short HEAD)
     BUILDER_MANIFEST=${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
     echo "export BUILDER_IMAGE=$BUILDER_MANIFEST"
