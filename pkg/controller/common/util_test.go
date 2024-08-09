@@ -318,6 +318,54 @@ var _ = Describe("GetMetricsURL", func() {
 	})
 })
 
+var _ = Describe("CopyAllowedLabels", func() {
+	const (
+		testKubevirtIoKey               = "test.kubevirt.io/test"
+		testKubevirtIoValue             = "testvalue"
+		testInstancetypeKubevirtIoKey   = "instancetype.kubevirt.io/default-preference"
+		testInstancetypeKubevirtIoValue = "testpreference"
+		testKubevirtIoKeyExisting       = "test.kubevirt.io/existing"
+		testKubevirtIoValueExisting     = "existing"
+		testKubevirtIoNewValueExisting  = "newvalue"
+		testUndesiredKey                = "undesired.key"
+	)
+
+	It("Should copy desired labels", func() {
+		srcLabels := map[string]string{
+			testKubevirtIoKey:             testKubevirtIoValue,
+			testInstancetypeKubevirtIoKey: testInstancetypeKubevirtIoValue,
+			testUndesiredKey:              "undesired.key",
+		}
+		ds := &cdiv1.DataSource{}
+		CopyAllowedLabels(srcLabels, ds, false)
+		Expect(ds.Labels).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
+		Expect(ds.Labels).To(HaveKeyWithValue(testInstancetypeKubevirtIoKey, testInstancetypeKubevirtIoValue))
+		Expect(ds.Labels).ToNot(HaveKey(testUndesiredKey))
+	})
+
+	DescribeTable("Should overwrite existing labels", func(overwrite bool) {
+		srcLabels := map[string]string{
+			testKubevirtIoKeyExisting: testKubevirtIoNewValueExisting,
+		}
+		ds := &cdiv1.DataSource{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					testKubevirtIoKeyExisting: testKubevirtIoValueExisting,
+				},
+			},
+		}
+		CopyAllowedLabels(srcLabels, ds, overwrite)
+		if overwrite {
+			Expect(ds.Labels).To(HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoNewValueExisting))
+		} else {
+			Expect(ds.Labels).To(HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoValueExisting))
+		}
+	},
+		Entry("when override enabled", true),
+		Entry("not when override disabled", false),
+	)
+})
+
 func createPvcNoSize(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
 	return &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{

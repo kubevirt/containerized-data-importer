@@ -573,12 +573,6 @@ func (r *DataImportCronReconciler) updateDataSource(ctx context.Context, dataImp
 	dataSourceCopy := dataSource.DeepCopy()
 	r.setDataImportCronResourceLabels(dataImportCron, dataSource)
 
-	for _, defaultInstanceTypeLabel := range cc.DefaultInstanceTypeLabels {
-		passCronLabelToDataSource(dataImportCron, dataSource, defaultInstanceTypeLabel)
-	}
-
-	passCronLabelToDataSource(dataImportCron, dataSource, cc.LabelDynamicCredentialSupport)
-
 	sourcePVC := dataImportCron.Status.LastImportedPVC
 	populateDataSource(format, dataSource, sourcePVC)
 
@@ -701,15 +695,14 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 	if err != nil {
 		return err
 	}
-	labels := map[string]string{
-		common.CDILabelKey:       common.CDILabelValue,
-		common.CDIComponentLabel: "",
-	}
 	desiredSnapshot := &snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      pvc.Name,
 			Namespace: dataImportCron.Namespace,
-			Labels:    labels,
+			Labels: map[string]string{
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: "",
+			},
 		},
 		Spec: snapshotv1.VolumeSnapshotSpec{
 			Source: snapshotv1.VolumeSnapshotSource{
@@ -719,6 +712,7 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 		},
 	}
 	r.setDataImportCronResourceLabels(dataImportCron, desiredSnapshot)
+	cc.CopyAllowedLabels(pvc.GetLabels(), desiredSnapshot, false)
 
 	currentSnapshot := &snapshotv1.VolumeSnapshot{}
 	if err := r.client.Get(ctx, client.ObjectKeyFromObject(desiredSnapshot), currentSnapshot); err != nil {
@@ -1448,12 +1442,6 @@ func passCronLabelToDv(cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume, ann str
 func passCronAnnotationToDv(cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume, ann string) {
 	if val := cron.Annotations[ann]; val != "" {
 		cc.AddAnnotation(dv, ann, val)
-	}
-}
-
-func passCronLabelToDataSource(cron *cdiv1.DataImportCron, ds *cdiv1.DataSource, ann string) {
-	if val := cron.Labels[ann]; val != "" {
-		cc.AddLabel(ds, ann, val)
 	}
 }
 

@@ -19,7 +19,6 @@ package populators
 import (
 	"context"
 	"reflect"
-	"regexp"
 
 	"github.com/go-logr/logr"
 
@@ -61,10 +60,6 @@ const (
 	dataSourceRefField = "spec.dataSourceRef"
 
 	uidField = "metadata.uid"
-)
-
-var (
-	validLabelsMatch = regexp.MustCompile(`^([\w.]+\.kubevirt.io|kubevirt.io)/[\w-]+$`)
 )
 
 // Interface to store populator-specific methods
@@ -256,11 +251,7 @@ func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.
 
 func (r *ReconcilerBase) updatePVCWithPVCPrimeLabels(pvc *corev1.PersistentVolumeClaim, pvcPrimeLabels map[string]string) error {
 	pvcCopy := pvc.DeepCopy()
-	for label, value := range pvcPrimeLabels {
-		if _, found := pvcCopy.GetLabels()[label]; !found && validLabelsMatch.MatchString(label) {
-			cc.AddLabel(pvcCopy, label, value)
-		}
-	}
+	cc.CopyAllowedLabels(pvcPrimeLabels, pvcCopy, false)
 	if !reflect.DeepEqual(pvc.ObjectMeta, pvcCopy.ObjectMeta) {
 		if err := r.client.Update(context.TODO(), pvcCopy); err != nil {
 			return err

@@ -53,6 +53,7 @@ go_library(
         "//vendor/k8s.io/client-go/rest:go_default_library",
         "//vendor/k8s.io/client-go/util/cert:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
+        "//vendor/k8s.io/utils/ptr:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client:go_default_library",
     ],
 )

@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/utils/ptr"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
@@ -131,6 +132,17 @@ func CreateDataVolumeFromDefinition(clientSet *cdiclientset.Clientset, namespace
 func DeleteDataVolume(clientSet *cdiclientset.Clientset, namespace, name string) error {
 	return wait.PollUntilContextTimeout(context.TODO(), dataVolumePollInterval, dataVolumeDeleteTime, true, func(ctx context.Context) (bool, error) {
 		err := clientSet.CdiV1beta1().DataVolumes(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+		if err == nil || apierrs.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	})
+}
+
+// DeleteDataVolumeOrphanPVC deletes the DataVolume with the given name and orphans the PVC owned by the DV
+func DeleteDataVolumeOrphanPVC(clientSet *cdiclientset.Clientset, namespace, name string) error {
+	return wait.PollUntilContextTimeout(context.TODO(), dataVolumePollInterval, dataVolumeDeleteTime, true, func(ctx context.Context) (bool, error) {
+		err := clientSet.CdiV1beta1().DataVolumes(namespace).Delete(ctx, name, metav1.DeleteOptions{PropagationPolicy: ptr.To(metav1.DeletePropagationOrphan)})
 		if err == nil || apierrs.IsNotFound(err) {
 			return true, nil
 		}

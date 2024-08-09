@@ -41,6 +41,13 @@ const (
 	dsName       = "test-datasource"
 	pvcName      = "test-pvc"
 	snapshotName = "test-snapshot"
+
+	testKubevirtIoKey               = "test.kubevirt.io/test"
+	testKubevirtIoValue             = "testvalue"
+	testInstancetypeKubevirtIoKey   = "instancetype.kubevirt.io/default-preference"
+	testInstancetypeKubevirtIoValue = "testpreference"
+	testKubevirtIoKeyExisting       = "test.kubevirt.io/existing"
+	testKubevirtIoNewValueExisting  = "newvalue"
 )
 
 var _ = Describe("All DataSource Tests", func() {
@@ -139,6 +146,68 @@ var _ = Describe("All DataSource Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			verifyConditions("Source snapshot Deleted", false, NotFound)
 		})
+
+		DescribeTable("Should copy labels to DataSource", func(source cdiv1.DataSourceSource, createSource func() error) {
+			ds = createDataSource()
+			ds.Spec.Source = source
+			reconciler = createDataSourceReconciler(ds)
+			verifyConditions("Source does not exist", false, NotFound)
+
+			Expect(createSource()).To(Succeed())
+			verifyConditions("DataSource is ready to be consumed", true, ready)
+
+			err := reconciler.client.Get(context.TODO(), dsKey, ds)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(ds.Labels).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
+			Expect(ds.Labels).To(HaveKeyWithValue(testInstancetypeKubevirtIoKey, testInstancetypeKubevirtIoValue))
+			Expect(ds.Labels).To(HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoNewValueExisting))
+		},
+			Entry("from DataVolume",
+				cdiv1.DataSourceSource{PVC: &cdiv1.DataVolumeSourcePVC{Namespace: metav1.NamespaceDefault, Name: pvcName}},
+				func() error {
+					dv := NewImportDataVolume(pvcName)
+					dv.Status.Phase = cdiv1.Succeeded
+					dv.Labels = map[string]string{
+						testKubevirtIoKey:             testKubevirtIoValue,
+						testInstancetypeKubevirtIoKey: testInstancetypeKubevirtIoValue,
+						testKubevirtIoKeyExisting:     testKubevirtIoNewValueExisting,
+					}
+					return reconciler.client.Create(context.TODO(), dv)
+				},
+			),
+			Entry("from PersistentVolumeClaim",
+				cdiv1.DataSourceSource{PVC: &cdiv1.DataVolumeSourcePVC{Namespace: metav1.NamespaceDefault, Name: pvcName}},
+				func() error {
+					pvc := CreatePvc(pvcName, metav1.NamespaceDefault, nil, map[string]string{
+						testKubevirtIoKey:             testKubevirtIoValue,
+						testInstancetypeKubevirtIoKey: testInstancetypeKubevirtIoValue,
+						testKubevirtIoKeyExisting:     testKubevirtIoNewValueExisting,
+					})
+					return reconciler.client.Create(context.TODO(), pvc)
+				},
+			),
+			Entry("from VolumeSnapshot",
+				cdiv1.DataSourceSource{Snapshot: &cdiv1.DataVolumeSourceSnapshot{Namespace: metav1.NamespaceDefault, Name: snapshotName}},
+				func() error {
+					snap := &snapshotv1.VolumeSnapshot{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      snapshotName,
+							Namespace: metav1.NamespaceDefault,
+							Labels: map[string]string{
+								testKubevirtIoKey:             testKubevirtIoValue,
+								testInstancetypeKubevirtIoKey: testInstancetypeKubevirtIoValue,
+								testKubevirtIoKeyExisting:     testKubevirtIoNewValueExisting,
+							},
+						},
+						Spec: snapshotv1.VolumeSnapshotSpec{},
+						Status: &snapshotv1.VolumeSnapshotStatus{
+							ReadyToUse: ptr.To[bool](true),
+						},
+					}
+					return reconciler.client.Create(context.TODO(), snap)
+				},
+			),
+		)
 	})
 })
 
@@ -161,6 +230,9 @@ func createDataSource() *cdiv1.DataSource {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dsName,
 			Namespace: metav1.NamespaceDefault,
+			Labels: map[string]string{
+				testKubevirtIoKeyExisting: "existing",
+			},
 		},
 	}
 }
