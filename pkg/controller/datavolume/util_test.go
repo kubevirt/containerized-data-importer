@@ -117,6 +117,7 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 		namespace            = "namespace"
 		sourcePVCName        = "sourcePVC"
 		sourceSnapshotName   = "sourceSnapshot"
+		sourceRegistryName   = "sourceRegistry"
 		sourceDataSourceName = "sourceDataSource"
 	)
 
@@ -124,6 +125,7 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 		fakeClient                     client.Client
 		dataVolumeWithSourcePVC        cdiv1.DataVolume
 		dataVolumeWithSourceSnapshot   cdiv1.DataVolume
+		dataVolumeWithSourceRegistry   cdiv1.DataVolume
 		dataVolumeWithSourceDataSource cdiv1.DataVolume
 	)
 
@@ -165,6 +167,20 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 			},
 		}
 
+		dataVolumeWithSourceRegistry = cdiv1.DataVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      sourceRegistryName,
+				Namespace: namespace,
+			},
+			Spec: cdiv1.DataVolumeSpec{
+				Source: &cdiv1.DataVolumeSource{
+					Registry: &cdiv1.DataVolumeSourceRegistry{
+						URL: ptr.To("docker://testurl"),
+					},
+				},
+			},
+		}
+
 		dataVolumeWithSourceDataSource = cdiv1.DataVolume{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "datasource-datavolume",
@@ -189,6 +205,13 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 			&snapshotv1.VolumeSnapshot{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      sourceSnapshotName,
+					Namespace: namespace,
+					Labels:    defaultInstancetypeLabelMap,
+				},
+			},
+			&corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      sourceRegistryName,
 					Namespace: namespace,
 					Labels:    defaultInstancetypeLabelMap,
 				},
@@ -223,6 +246,7 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 	},
 		Entry("PVC", &dataVolumeWithSourcePVC),
 		Entry("Snapshot", &dataVolumeWithSourceSnapshot),
+		Entry("Registry", &dataVolumeWithSourceRegistry),
 		Entry("dataSource", &dataVolumeWithSourceDataSource),
 	)
 
@@ -242,6 +266,7 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 	},
 		Entry("PVC", &dataVolumeWithSourcePVC),
 		Entry("Snapshot", &dataVolumeWithSourceSnapshot),
+		Entry("Registry", &dataVolumeWithSourceRegistry),
 		Entry("DataSource", &dataVolumeWithSourceDataSource),
 	)
 
@@ -279,6 +304,19 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 				},
 			},
 		}),
+		Entry("Registry", &cdiv1.DataVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "registry-datavolume-unknown",
+				Namespace: namespace,
+			},
+			Spec: cdiv1.DataVolumeSpec{
+				Source: &cdiv1.DataVolumeSource{
+					Registry: &cdiv1.DataVolumeSourceRegistry{
+						URL: ptr.To("docker://uknown"),
+					},
+				},
+			},
+		}),
 		Entry("DataSource", &cdiv1.DataVolume{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "datasource-datavolume",
@@ -307,6 +345,7 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 	},
 		Entry("PVC", &dataVolumeWithSourcePVC),
 		Entry("Snapshot", &dataVolumeWithSourceSnapshot),
+		Entry("Registry", &dataVolumeWithSourceRegistry),
 		Entry("DataSource", &dataVolumeWithSourceDataSource),
 	)
 })
