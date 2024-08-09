@@ -115,7 +115,11 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		brokenForQemuImg: brokenForQemuImg,
 		contentLength:    contentLength,
 	}
-	httpSource.n = createNbdkitCurl(nbdkitPid, accessKey, secKey, certDir, nbdkitSocket, extraHeaders, secretExtraHeaders)
+	httpSource.n, err = createNbdkitCurl(nbdkitPid, accessKey, secKey, certDir, nbdkitSocket, extraHeaders, secretExtraHeaders)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
 	// We know this is a counting reader, so no need to check.
 	countingReader := httpReader.(*util.CountingReader)
 	go httpSource.pollProgress(countingReader, 10*time.Minute, time.Second)
