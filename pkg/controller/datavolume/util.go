@@ -531,6 +531,21 @@ func updateDataVolumeDefaultInstancetypeLabels(client client.Client, syncState *
 		copyDefaultInstancetypeLabels(dv, snapshot.Labels)
 		return nil
 	}
+	if dv.Spec.Source != nil && dv.Spec.Source.Registry != nil {
+		pvc := &v1.PersistentVolumeClaim{}
+		key := types.NamespacedName{
+			Name:      dv.Name,
+			Namespace: dv.Namespace,
+		}
+		if err := client.Get(context.TODO(), key, pvc); err != nil {
+			if k8serrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+		copyDefaultInstancetypeLabels(dv, pvc.Labels)
+		return nil
+	}
 	if dv.Spec.SourceRef != nil && dv.Spec.SourceRef.Namespace != nil && dv.Spec.SourceRef.Kind == cdiv1.DataVolumeDataSource {
 		ds := &cdiv1.DataSource{}
 		key := types.NamespacedName{

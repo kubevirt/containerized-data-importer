@@ -3438,6 +3438,16 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Expect(err).ToNot(HaveOccurred())
 				return dv
 			}),
+			Entry("Registry", func() *cdiv1.DataVolume {
+				By("creating a DataVolume pointing to a Containerdisk")
+				dv := utils.NewDataVolumeWithRegistryImport("datavolume-from-registry", "1Gi", tinyCoreIsoRegistryURL())
+				cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+				Expect(err).ToNot(HaveOccurred())
+				dv.Spec.Source.Registry.CertConfigMap = &cm
+				dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+				Expect(err).ToNot(HaveOccurred())
+				return dv
+			}),
 			Entry("DataSource", func() *cdiv1.DataVolume {
 				By("createing a labelled DataSource")
 				ds := utils.NewPvcDataSource("datasource-from-pvc", f.Namespace.Name, sourceDataVolume.Name, sourceDataVolume.Namespace)
