@@ -199,6 +199,7 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 			Resources:        pvc.Spec.Resources,
 			StorageClassName: pvc.Spec.StorageClassName,
 			VolumeMode:       pvc.Spec.VolumeMode,
+			Selector:         pvc.Spec.Selector,
 		},
 	}
 	pvcPrime.OwnerReferences = []metav1.OwnerReference{
