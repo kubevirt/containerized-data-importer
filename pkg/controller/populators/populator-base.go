@@ -249,15 +249,15 @@ func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.
 	return pvcCopy, nil
 }
 
-func (r *ReconcilerBase) updatePVCWithPVCPrimeLabels(pvc *corev1.PersistentVolumeClaim, pvcPrimeLabels map[string]string) error {
+func (r *ReconcilerBase) updatePVCWithPVCPrimeLabels(pvc *corev1.PersistentVolumeClaim, pvcPrimeLabels map[string]string) (*corev1.PersistentVolumeClaim, error) {
 	pvcCopy := pvc.DeepCopy()
 	cc.CopyAllowedLabels(pvcPrimeLabels, pvcCopy, false)
 	if !reflect.DeepEqual(pvc.ObjectMeta, pvcCopy.ObjectMeta) {
 		if err := r.client.Update(context.TODO(), pvcCopy); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return pvcCopy, nil
 }
 
 // reconcile functions
