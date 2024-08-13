@@ -127,7 +127,7 @@ func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraH
 }
 
 // NewNbdkitVddk creates a new Nbdkit instance with the vddk plugin
-func NewNbdkitVddk(nbdkitPidFile, socket, server, username, password, thumbprint, moref string) (NbdkitOperation, error) {
+func NewNbdkitVddk(nbdkitPidFile, socket, server, username, password, thumbprint, moref, snapshot string) (NbdkitOperation, error) {
 
 	pluginArgs := []string{
 		"libdir=" + nbdVddkLibraryPath,
@@ -150,6 +150,9 @@ func NewNbdkitVddk(nbdkitPidFile, socket, server, username, password, thumbprint
 	}
 	if moref != "" {
 		pluginArgs = append(pluginArgs, "vm=moref="+moref)
+	}
+	if snapshot != "" {
+		pluginArgs = append(pluginArgs, "snapshot="+snapshot)
 	}
 	pluginArgs = append(pluginArgs, "--verbose")
 	pluginArgs = append(pluginArgs, "-D", "nbdkit.backend.datapath=0")
