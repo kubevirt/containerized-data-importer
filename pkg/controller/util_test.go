@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -425,6 +426,59 @@ var _ = Describe("check PVC", func() {
 		Entry("return true if annotation provided that matches test http", pvcWithEndPointAnno, AnnEndpoint, true),
 		Entry("return true if annotation provided that matches test clone", pvcWithCloneRequestAnno, AnnCloneRequest, true),
 	)
+})
+
+var _ = Describe("createScratchPersistentVolumeClaim", func() {
+	DescribeTable("Should create a scratch PVC of the correct size, taking fs overhead into account", func(scratchOverhead, scOverhead cdiv1.Percent, expectedValue int64) {
+		cdiConfig := createCDIConfigWithStorageClass(common.ConfigName, scratchStorageClassName)
+		cdiConfig.Status.FilesystemOverhead = &cdiv1.FilesystemOverhead{
+			Global: "0.05",
+			StorageClass: map[string]cdiv1.Percent{
+				scratchStorageClassName: scratchOverhead,
+				storageClassName:        scOverhead,
+			},
+		}
+		cl := CreateClient(cdiConfig, CreateStorageClass(scratchStorageClassName, nil), CreateStorageClass(storageClassName, nil))
+		rec := record.NewFakeRecorder(10)
+		By("Create a 1Gi pvc")
+		testPvc := CreatePvcInStorageClass("testPvc", "default", ptr.To[string](storageClassName), nil, nil, v1.ClaimBound)
+		testPvc.Spec.Resources.Requests[v1.ResourceStorage] = resource.MustParse("1Gi")
+		name := "test-scratchspace-pvc"
+		pod := &v1.Pod{}
+		res, err := createScratchPersistentVolumeClaim(cl, testPvc, pod, name, scratchStorageClassName, nil, rec)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(res).ToNot(BeNil())
+		Expect(res.Spec.Resources).ToNot(BeNil())
+		Expect(res.Spec.Resources.Requests.Storage()).ToNot(BeNil())
+		scratchPVCSize := *res.Spec.Resources.Requests.Storage()
+		Expect(scratchPVCSize.Value()).To(Equal(expectedValue * 1024 * 1024))
+	},
+		Entry("same scratch and storage class overhead", cdiv1.Percent("0.03"), cdiv1.Percent("0.03"), int64(1024)),
+		Entry("scratch  > storage class overhead", cdiv1.Percent("0.1"), cdiv1.Percent("0.03"), int64(1104)),
+		Entry("scratch  < storage class overhead", cdiv1.Percent("0.03"), cdiv1.Percent("0.1"), int64(950)),
+	)
+
+	It("Should calculate the correct size for a scratch PVC from a block volume", func() {
+		cdiConfig := createCDIConfigWithStorageClass(common.ConfigName, scratchStorageClassName)
+		cdiConfig.Status.FilesystemOverhead = &cdiv1.FilesystemOverhead{
+			Global: "0.05",
+		}
+		cl := CreateClient(cdiConfig)
+		rec := record.NewFakeRecorder(10)
+		By("Create a 1Gi pvc")
+		testPvc := CreatePvcInStorageClass("testPvc", "default", ptr.To[string](storageClassName), nil, nil, v1.ClaimBound)
+		testPvc.Spec.Resources.Requests[v1.ResourceStorage] = resource.MustParse("1Gi")
+		testPvc.Spec.VolumeMode = ptr.To[v1.PersistentVolumeMode](v1.PersistentVolumeBlock)
+		name := "test-scratchspace-pvc"
+		pod := &v1.Pod{}
+		res, err := createScratchPersistentVolumeClaim(cl, testPvc, pod, name, scratchStorageClassName, nil, rec)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(res).ToNot(BeNil())
+		Expect(res.Spec.Resources).ToNot(BeNil())
+		Expect(res.Spec.Resources.Requests.Storage()).ToNot(BeNil())
+		scratchPVCSize := *res.Spec.Resources.Requests.Storage()
+		Expect(scratchPVCSize.Value()).To(Equal(int64(1078 * 1024 * 1024)))
+	})
 })
 
 func createDataVolumeWithStorageClass(name, ns, storageClassName string) *cdiv1.DataVolume {

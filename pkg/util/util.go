@@ -240,13 +240,18 @@ func Md5sum(filePath string) (string, error) {
 	return hex.EncodeToString(hashInBytes), nil
 }
 
-// GetUsableSpace calculates space to use taking file system overhead into account
+// GetUsableSpace calculates usable space to use taking file system overhead into account
 func GetUsableSpace(filesystemOverhead float64, availableSpace int64) int64 {
 	// +1 always rounds up.
 	spaceWithOverhead := int64(math.Ceil((1 - filesystemOverhead) * float64(availableSpace)))
 	// qemu-img will round up, making us use more than the usable space.
 	// This later conflicts with image size validation.
 	return RoundDown(spaceWithOverhead, DefaultAlignBlockSize)
+}
+
+func CalculateOverheadSpace(filesystemOverhead float64, availableSpace int64) int64 {
+	spaceWithOverhead := int64(math.Ceil(float64(availableSpace) / (1 - filesystemOverhead)))
+	return RoundUp(spaceWithOverhead, DefaultAlignBlockSize)
 }
 
 // ResolveVolumeMode returns the volume mode if set, otherwise defaults to file system mode
