@@ -14,7 +14,7 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-set -e
+set -ex
 script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
@@ -33,8 +33,10 @@ fi
 # be 0 in this case, so negating it indicates that yes this is a post-submit job and
 # we should re-build the builder. Separating out this logic from the test for clarity
 
+set +e
 git diff-index --quiet HEAD~1 hack/build/docker
-POST_SUBMIT=$((1 - $?))
+diffret=$?
+set -e
 
 # The other circumstance in which we need to build the builder image is
 # in the course of test and development of the builder image itself.
@@ -44,9 +46,9 @@ POST_SUBMIT=$((1 - $?))
 # to use DOCKER_PREFIX as it is set in config.sh and used elsewhere in
 # the build system, to introduce a little more consistency
 
-if ((POST_SUBMIT)) || [ x"${ADHOC_BUILDER}" != "x" ]; then
+if [ $diffret -ne 0 ] || [ x"${ADHOC_BUILDER}" != "x" ]; then
     BUILDER_SPEC="${BUILD_DIR}/docker/builder"
-    UNTAGGED_BUILDER_IMAGE=$(DOCKER_PREFIX)/kubevirt-cdi-bazel-builder
+    UNTAGGED_BUILDER_IMAGE="${DOCKER_PREFIX}/kubevirt-cdi-bazel-builder"
     BUILDER_TAG=$(date +"%y%m%d%H%M")-$(git rev-parse --short HEAD)
     BUILDER_MANIFEST=${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
     echo "export BUILDER_IMAGE=$BUILDER_MANIFEST"
