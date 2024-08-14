@@ -44,6 +44,13 @@ if [ -z "$(${CDI_CRI} volume list | grep ${BUILDER_VOLUME})" ]; then
     ${CDI_CRI} volume create ${BUILDER_VOLUME}
 fi
 
+# Wait until builder image is pulled
+pullcount=0
+until ${CDI_CRI} pull ${BUILDER_IMAGE}; do
+    ((pullcount++)) && ((pullcount == 5)) && echo "Couldn't pull builder image" && exit 1
+    sleep $((2**pullcount))
+done
+
 # Make sure that the output directory exists
 echo "Making sure output directory exists..."
 ${CDI_CRI} run -v "${BUILDER_VOLUME}:/root:rw,z" --security-opt label=disable $DISABLE_SECCOMP --rm --entrypoint "/entrypoint-bazel.sh" ${BUILDER_IMAGE} mkdir -p /root/go/src/kubevirt.io/containerized-data-importer/_out
