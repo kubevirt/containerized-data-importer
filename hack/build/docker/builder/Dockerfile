@@ -1,6 +1,8 @@
 FROM quay.io/centos/centos:stream9
 LABEL maintainer="The KubeVirt Project <kubevirt-dev@googlegroups.com>"
 
+ARG ARCH
+
 RUN 	dnf -y install dnf-plugins-core && \
 	dnf config-manager --set-enable crb && dnf update -y && \
 	dnf install -y \
@@ -50,7 +52,11 @@ ENV BAZEL_VERSION=5.4.1
 
 COPY output-bazel-arch.sh /output-bazel-arch.sh
 
-RUN curl -L -o /usr/bin/bazel https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-$(sh /output-bazel-arch.sh) && chmod u+x /usr/bin/bazel
+# Consider using multi-stage builds here instead
+RUN if test "${ARCH}" != "s390x"; then \
+		curl -L -o /usr/bin/bazel https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-$(sh /output-bazel-arch.sh) && \
+		chmod u+x /usr/bin/bazel; \
+    fi
 
 # Until we use a ver including the fix for this Bazel issue:
 # https://github.com/bazelbuild/bazel/issues/11554

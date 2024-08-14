@@ -21,11 +21,12 @@ source "${script_dir}"/config.sh
 
 if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
     if [ -e /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
-        BUILDAH_PLATFORM_FLAG="--platform linux/amd64,linux/arm64"
+        BUILDAH_PLATFORM_FLAG="--platform linux/s390x,linux/amd64,linux/arm64"
     else
         echo "No qemu-user-static on host machine, building only native container"
         BUILDAH_PLATFORM_FLAG=""
     fi
+    [ "`uname -m`" == "s390x" ] && BUILDAH_PLATFORM_FLAG="--platform linux/s390x"
 fi
 
 # When this runs during the post-submit job, the PR will have squashed into a single
@@ -55,11 +56,11 @@ if [ $diffret -ne 0 ] || [ x"${ADHOC_BUILDER}" != "x" ]; then
 
     #Build the encapsulated compile and test container
     if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
-        (cd ${BUILDER_SPEC} && buildah build ${BUILDAH_PLATFORM_FLAG} --manifest ${BUILDER_MANIFEST} .)
+        (cd ${BUILDER_SPEC} && buildah build ${BUILDAH_PLATFORM_FLAG} --build-arg ARCH=${ARCH} --manifest ${BUILDER_MANIFEST} .)
         buildah manifest push --all ${BUILDER_MANIFEST} docker://${BUILDER_MANIFEST}
         DIGEST=$(podman inspect $(podman images | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $3 }') | jq '.[]["Digest"]')
     else
-        (cd ${BUILDER_SPEC} && docker build --tag ${BUILDER_MANIFEST} .)
+        (cd ${BUILDER_SPEC} && docker build --build-arg ARCH=${ARCH} --tag ${BUILDER_MANIFEST} .)
         docker push ${BUILDER_MANIFEST}
         DIGEST=$(docker images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
     fi
