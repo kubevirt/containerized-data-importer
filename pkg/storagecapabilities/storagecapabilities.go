@@ -118,6 +118,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// huawei
 	"csi.huawei.com":     createAllButRWXFileCapabilities(),
 	"csi.huawei.com/nfs": createAllFSCapabilities(),
+	// Longhorn
+	"driver.longhorn.io":            {{rwo, block}},
+	"driver.longhorn.io/migratable": {{rwx, block}, {rwo, block}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
@@ -339,6 +342,13 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		default:
 			return "csi.huawei.com"
 		}
+	},
+	"driver.longhorn.io": func(sc *storagev1.StorageClass) string {
+		migratable := sc.Parameters["migratable"]
+		if migratable == "true" {
+			return "driver.longhorn.io/migratable"
+		}
+		return "driver.longhorn.io"
 	},
 }
 
