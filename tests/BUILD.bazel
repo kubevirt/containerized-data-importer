@@ -146,6 +146,10 @@ container_image(
     env = {
         "TEST_KUBEVIRT_IO_TEST": "testvalue",
         "TEST_KUBEVIRT_IO_EXISTING": "somethingelse",
+        "INSTANCETYPE_KUBEVIRT_IO_DEFAULT_INSTANCETYPE": "test-instancetype",
+        "INSTANCETYPE_KUBEVIRT_IO_DEFAULT_INSTANCETYPE_KIND": "VirtualMachineClusterInstancetype",
+        "INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE": "test-preference",
+        "INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE_KIND": "VirtualMachineClusterPreference",
     },
     tars = [":tinycore-tar"],
     visibility = ["//visibility:public"],

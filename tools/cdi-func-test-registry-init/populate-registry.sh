@@ -76,6 +76,10 @@ function prepareImages {
                 COPY $FILENAME $IMAGE_LOCATION
                 ENV TEST_KUBEVIRT_IO_TEST=testvalue
                 ENV TEST_KUBEVIRT_IO_EXISTING=somethingelse
+                ENV INSTANCETYPE_KUBEVIRT_IO_DEFAULT_INSTANCETYPE=test-instancetype
+                ENV INSTANCETYPE_KUBEVIRT_IO_DEFAULT_INSTANCETYPE_KIND=VirtualMachineClusterInstancetype
+                ENV INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE=test-preference
+                ENV INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE_KIND=VirtualMachineClusterPreference
 EOF
 
         rm $FILENAME
