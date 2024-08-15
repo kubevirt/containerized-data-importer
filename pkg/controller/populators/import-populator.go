@@ -160,7 +160,10 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		}
 
 		if cc.IsPVCComplete(pvcPrime) && cc.IsUnbound(pvc) {
-			// Once the import is succeeded, we copy labels and rebind the PV from PVC to target PVC
+			// Once the import is succeeded, we copy annotations and labels and rebind the PV from PVC to target PVC
+			if pvcCopy, err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations); err != nil {
+				return reconcile.Result{}, err
+			}
 			if pvcCopy, err = r.updatePVCWithPVCPrimeLabels(pvcCopy, pvcPrime.GetLabels()); err != nil {
 				return reconcile.Result{}, err
 			}
