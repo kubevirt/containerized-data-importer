@@ -26,14 +26,16 @@ RUN 	dnf -y install dnf-plugins-core && \
 	nbdkit-devel \
 	unzip \
 	java-11-openjdk-devel \
+	rubygems \
 	&& dnf clean all
 
-RUN pip3 install --upgrade j2cli operator-courier==2.1.11 && \
-	curl -sL https://services.gradle.org/distributions/gradle-6.6-bin.zip -o gradle-6.6-bin.zip && \
-	mkdir /opt/gradle && \
-	unzip -d /opt/gradle gradle-6.6-bin.zip && \
-	ln -s /opt/gradle/gradle-6.6/bin/gradle /usr/local/bin/gradle && \
-	rm gradle-6.6-bin.zip
+# Necessary for generation of HTML-formatted API docs (.adoc)
+RUN gem install asciidoctor
+
+# Generates Asciidoc files from swagger.json
+ADD https://storage.googleapis.com/builddeps/swagger2markup-cli-1.3.3.jar /opt/swagger2markup-cli/swagger2markup-cli-1.3.3.jar
+
+ENV JAVA_HOME=/usr/lib/jvm/java-11
 
 ENV GIMME_GO_VERSION=1.22.3 GOPATH="/go" GO111MODULE="on"
 
