@@ -30,7 +30,7 @@ void fakevddk_close(void *handle) {
 int fakevddk_config(const char *key, const char *value) {
     arg_count++;
     if (strcmp(key, "snapshot") == 0) {
-        expected_arg_count = 8;
+        expected_arg_count = 9; // Expect one for 'snapshot' and one for 'transports'
     }
     return 0;
 }

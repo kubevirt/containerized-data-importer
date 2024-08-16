@@ -163,6 +163,7 @@ func NewNbdkitVddk(nbdkitPidFile, socket string, args NbdKitVddkPluginArgs) (Nbd
 	}
 	if args.Snapshot != "" {
 		pluginArgs = append(pluginArgs, "snapshot="+args.Snapshot)
+		pluginArgs = append(pluginArgs, "transports=file:nbdssl:nbd")
 	}
 	pluginArgs = append(pluginArgs, "--verbose")
 	pluginArgs = append(pluginArgs, "-D", "nbdkit.backend.datapath=0")
