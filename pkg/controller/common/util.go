@@ -382,6 +382,8 @@ var (
 		AnnPriorityClassName:          "",
 		AnnPodMultusDefaultNetwork:    "",
 	}
+
+	validLabelsMatch = regexp.MustCompile(`^([\w.]+\.kubevirt.io|kubevirt.io)/[\w-]+$`)
 )
 
 // FakeValidator is a fake token validator
@@ -2026,6 +2028,16 @@ func CopyAllowedAnnotations(srcObj, dstObj metav1.Object) {
 		if val != "" {
 			klog.V(1).Info("Applying annotation", "Name", dstObj.GetName(), ann, val)
 			AddAnnotation(dstObj, ann, val)
+		}
+	}
+}
+
+// CopyAllowedLabels copies allowed labels matching the validLabelsMatch regexp from the
+// source map to the destination object allowing overwrites
+func CopyAllowedLabels(srcLabels map[string]string, dstObj metav1.Object, overwrite bool) {
+	for label, value := range srcLabels {
+		if _, found := dstObj.GetLabels()[label]; (!found || overwrite) && validLabelsMatch.MatchString(label) {
+			AddLabel(dstObj, label, value)
 		}
 	}
 }

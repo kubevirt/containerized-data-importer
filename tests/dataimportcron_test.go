@@ -36,6 +36,8 @@ const (
 	importsToKeep         = 1
 	emptySchedule         = ""
 	errorDigest           = "sha256:12345678900987654321"
+	testKubevirtIoKey     = "test.kubevirt.io/test"
+	testKubevirtIoValue   = "testvalue"
 )
 
 var _ = Describe("DataImportCron", Serial, func() {
@@ -154,6 +156,7 @@ var _ = Describe("DataImportCron", Serial, func() {
 				},
 			}
 			snapshot = utils.WaitSnapshotReady(f.CrClient, snapshot)
+			Expect(snapshot.Labels).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
 			deleted, err := utils.WaitPVCDeleted(f.K8sClient, name, ns, 30*time.Second)
 			if err != nil {
 				// work around https://github.com/kubernetes-csi/external-snapshotter/issues/957
@@ -325,16 +328,15 @@ var _ = Describe("DataImportCron", Serial, func() {
 
 			By("Verify DataSource was updated")
 			var dataSource *cdiv1.DataSource
-			Eventually(func() bool {
+			Eventually(func(g Gomega) {
 				dataSource, err = f.CdiClient.CdiV1beta1().DataSources(ns).Get(context.TODO(), cron.Spec.ManagedDataSource, metav1.GetOptions{})
-				if errors.IsNotFound(err) {
-					return false
-				}
-				Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).ToNot(HaveOccurred())
 				readyCond := controller.FindDataSourceConditionByType(dataSource, cdiv1.DataSourceReady)
-				return readyCond != nil && readyCond.Status == corev1.ConditionTrue &&
-					getDataSourceName(format, dataSource) == currentImportDv
-			}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "DataSource was not updated")
+				g.Expect(readyCond).ToNot(BeNil())
+				g.Expect(readyCond.Status).To(Equal(corev1.ConditionTrue))
+				g.Expect(getDataSourceName(format, dataSource)).To(Equal(currentImportDv))
+				g.Expect(dataSource.Labels).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
+			}, dataImportCronTimeout, pollingInterval).Should(Succeed(), "DataSource was not updated")
 
 			By("Verify cron was updated")
 			Expect(cron.Status.LastImportedPVC).ToNot(BeNil())
