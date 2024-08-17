@@ -22,23 +22,21 @@ if [ "$OUTPUT_FORMAT" = "html" ]; then
     LINK1_TEMPLATE="\* \<\<\${VERSION}.\$m\>\>"
     LINK_DEFINITIONS="* link:./definitions.html[Types Definition]"
     LINK_OPERATIONS="* link:./operations.html[Operations]"
-    GRADLE_EXTRA_PARAMS=""
 elif [ "$OUTPUT_FORMAT" = "markdown" ]; then
     SUFFIX="md"
     HEADER="#"
     LINK1_TEMPLATE="\* [\${VERSION}.\$m]\(definitions.md#\${VERSION}-\${m,,}\)"
     LINK_DEFINITIONS="* [Types Definition](definitions.md)"
     LINK_OPERATIONS="* [Operations](operations.md)"
-    GRADLE_EXTRA_PARAMS="-PmarkupLanguage=MARKDOWN"
 else
     echo "Unknown OUTPUT_FORMAT=${OUTPUT_FORMAT}"
     exit 1
 fi
 WORKDIR="hack/gen-swagger-doc"
-GRADLE_BUILD_FILE="$WORKDIR/build.gradle"
+SWAGGER_JSON="api/openapi-spec/swagger.json"
 
 # Generate *.adoc files from swagger.json
-gradle -b $GRADLE_BUILD_FILE $GRADLE_EXTRA_PARAMS convertSwagger2markup --info --stacktrace
+java -jar /opt/swagger2markup-cli/swagger2markup-cli-1.3.3.jar convert -i $SWAGGER_JSON -d $WORKDIR/
 
 #insert a TOC for top level API objects
 buf="${HEADER}${HEADER} Top Level API Objects\n\n"
@@ -84,7 +82,16 @@ if [ "$OUTPUT_FORMAT" = "html" ]; then
         "$WORKDIR/overview.adoc"
 
     # Generate *.html files from *.adoc
-    gradle -b $GRADLE_BUILD_FILE asciidoctor --info
+    rm -rf "$WORKDIR/html5" && mkdir -p "$WORKDIR/html5"
+    adoc_files=("definitions.adoc" "overview.adoc" "security.adoc" "operations.adoc")
+    for html_file in ${adoc_files[@]}; do
+        asciidoctor \
+            --failure-level INFO \
+            --attribute toc=right \
+            --destination-dir $WORKDIR/html5 \
+            $PWD/$WORKDIR/$html_file
+    done
+
     rm -rf "$WORKDIR/html5/content" && mkdir "$WORKDIR/html5/content" && mv -f "$WORKDIR/html5/"*.html "$WORKDIR/html5/content"
     mv -f "$WORKDIR/html5/content/overview.html" "$WORKDIR/html5/content/index.html"
 elif [ "$OUTPUT_FORMAT" = "markdown" ]; then
