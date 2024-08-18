@@ -1,0 +1,56 @@
+v1.60.0
+BugFix: Fix resources configuration missing from the configuration of the cdi-containerimage-server initcontainer
+BugFix: Clone from snapshot - fix volume/access mode inferring for temp host assisted source PVC
+Enhancement: Suppress alerts to reduce noise of dependent ones
+BugFix: Support IPv6 for controller metrics URL
+BugFix: Stop handling error phase as "unknown" in clone-populator
+Cleanup: Enable misspell linter and fix spelling errors in comments and strings
+Enhancement: Remove API dependency on openshift/api
+Enhancement: Reject volumes with storage smaller than 1MiB
+BugFix: Improve metrics reporting behavior for upstream rook-ceph deployments, identifying RGW bucket provisioners
+Cleanup: Enable unconvert linter and remove all redundant type conversions
+Enhancement: Mesh annotations now copied from the DV/PVCs to worker pods
+Cleanup: Add linters for error handling and fix detected issues
+Cleanup: Enable durationcheck linter and fix detected issues
+Enhancement: Add a DataVolume Running condition, with Reason field of "ImagePullFailed"
+Cleanup: Enable nakedret linter and populate all naked returns
+Cleanup: Enable autoformatting linters and format the project
+Cleanup: Enable linter dupword to avoid stuttering comments and strings
+BugFix: Use scratch space (and thus qemu-img convert flow) when importing non-archived images to avoid losing sparseness of images
+BugFix: Set default clone strategy for trident ONTAP to "snapshot"
+BugFix: CDIStorageProfilesIncomplete should not impact operator health
+BugFix: Fix VDDK failure with "No new block status data at offset" messages
+Cleanup: Parameterize hard coded environment variables in bazel-build-builder.sh
+Enhancement: Introduce a controller to handle forklift's volume populators (ovirt, openstack)
+Cleanup: Golang 1.22.3 builder is now used
+Cleanup: Align progress metrics names with kubevirt and Prometheus metrics naming conventions
+Enhancement: Provide RPM support for s390x platform
+Enhancement: Onboard Infinibox CSI driver
+BugFix: On deletion of the last import DV of DataImportCron with Snapshot source format, re-create an import DV
+BugFix: Fix progress metric registration and parsing
+Enhancement: Make upload client/server certs configurable and rotate uploadserver pods
+BugFix: Use direct io (cache=none) with qemu-img convert if target supports it in case of OOMKilled
+Enhancement: Improve error reporting in upload-proxy
+BugFix: Properly transfer instancetype labels during containerdisk imports
+BugFix: Suppress CDIDefaultStorageClassDegraded alert on SNO
+Enhancement: Set LVM based provisioners clone strategy to host assisted by default
+Enhancement: Add storagecapabilities to vSphere provisioner
+BugFix: Fix wrong storagecapabilities for DELL provisioners
+Enhancement: Delete and recreate pending DataImportCron PVCs on default storage class update
+Enhancement: Expose the upload-proxy's certificate in the CDI config status
+Enhancement: Added KubeSAN CSI plugin storage capabilities so the CDI StorageProfile is automatically populated
+Cleanup: k8s 1.30 libs and controller-runtime 0.18.4
+BugFix: Fix progress reporting for http imports
+BugFix: Fix race condition when updating warm import checkpoints
+Enhancement: Remove datavolume clone source validation from webhook
+Cleanup: Bump CI to test 1.30/1.29
+BugFix: GKE fix: cdi-apiserver: unencode authorization extra headers
+BugFix: Allow dataimportcron snap->pvc automatic source switch
+Enhancement: VDDK datasource: Increase number of nbdkit lines logged
+Enhancement: Inject cdi-uploadproxy CA cert into user created routes
+Enhancement: Adding storagecapabilities to the longhorn provisioner
+Enhancement: Default instance type labels are now added from registry imported PVCs/cloned VolumeSnapshots to DataVolumes
+Enhancement: add s390x support for builder image
+Enhancement: Properly handle DataVolume preallocation setting for all host assisted (copy) clones
+Enhancement: Copy labels from the source of a DataSource (DV/PVC/VolumeSnapshot)
+Cleanup: generate-apidocs: remove gradle dependency
