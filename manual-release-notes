@@ -47,3 +47,20 @@ BugFix: Allow Deployed CDI to get out of Error Phase
 
 v1.58.3
 BugFix: CNV-39618 - cdi.kubevirt.io/allowClaimAdoption annotation broken
+
+v1.58.4
+BugFix: Add HPE RWX/Block capability
+BugFix: Clone from snapshot - fix volume/access mode inferring for temp host assisted source PVC
+BugFix: Suppress alerts to reduce noise of dependent ones
+BugFix: Update portworx CSI to have CSI-clone clone strategy
+BugFix: Trident ONTAP tuned to default to snapshot clone strategy & snapshot dataimportcron sources
+BugFix: Use scratch space when importing non-archived images
+BugFix: CDIStorageProfilesIncomplete should not impact operator health
+Enhancement: Onboard Infinibox CSI driver
+BugFix: On deletion of the last import DV of DataImportCron with Snapshot source format, re-create an import DV
+Enhancement: Use direct io (cache=none) with qemu-img convert if target supports it in case of OOMKilled
+BugFix: Fix progress reporting for http imports
+Cleanup: Bump containers/image
+BugFix: Allow dataimportcron snap->pvc automatic source switch
+Cleanup: VDDK datasource: Increase number of nbdkit lines logged
+Enhancement: Add nbdkit command line parameters to improve reliability of multi-stage VDDK imports.
