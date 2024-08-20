@@ -85,8 +85,16 @@ type NbdKitLogWatcherVddk struct {
 }
 
 // createNbdKitWrapper starts nbdkit and returns a process handle for further management
-func createNbdKitWrapper(vmware *VMwareClient, diskFileName string) (*NbdKitWrapper, error) {
-	n, err := image.NewNbdkitVddk(nbdPidFile, nbdUnixSocket, vmware.url.Host, vmware.username, vmware.password, vmware.thumbprint, vmware.moref)
+func createNbdKitWrapper(vmware *VMwareClient, diskFileName, snapshot string) (*NbdKitWrapper, error) {
+	args := image.NbdKitVddkPluginArgs{
+		Server:     vmware.url.Host,
+		Username:   vmware.username,
+		Password:   vmware.password,
+		Thumbprint: vmware.thumbprint,
+		Moref:      vmware.moref,
+		Snapshot:   snapshot,
+	}
+	n, err := image.NewNbdkitVddk(nbdPidFile, nbdUnixSocket, args)
 	if err != nil {
 		klog.Errorf("Error validating nbdkit plugins: %v", err)
 		return nil, err
@@ -891,7 +899,7 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		}
 		klog.Infof("Set disk file name from current snapshot: %s", diskFileName)
 	}
-	nbdkit, err := newNbdKitWrapper(vmware, diskFileName)
+	nbdkit, err := newNbdKitWrapper(vmware, diskFileName, currentCheckpoint)
 	if err != nil {
 		klog.Errorf("Unable to start nbdkit: %v", err)
 		return nil, err
