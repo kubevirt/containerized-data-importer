@@ -276,9 +276,9 @@ var _ = Describe("VDDK data source", func() {
 		var returnedDiskName string
 
 		newVddkDataSource = createVddkDataSource
-		newNbdKitWrapper = func(vmware *VMwareClient, fileName string) (*NbdKitWrapper, error) {
+		newNbdKitWrapper = func(vmware *VMwareClient, fileName, snapshot string) (*NbdKitWrapper, error) {
 			returnedDiskName = fileName
-			return createMockNbdKitWrapper(vmware, fileName)
+			return createMockNbdKitWrapper(vmware, fileName, snapshot)
 		}
 		currentVMwareFunctions.Properties = func(ctx context.Context, ref types.ManagedObjectReference, property []string, result interface{}) error {
 			switch out := result.(type) {
@@ -311,6 +311,38 @@ var _ = Describe("VDDK data source", func() {
 		Entry("should find base backing file even if not listed as first snapshot", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile-000001.vmdk", "[teststore] testvm/testfile-000002.vmdk", "[teststore] testvm/testfile.vmdk", true),
 		Entry("should fail if backing file is not found in snapshot tree", "[teststore] testvm/testfile.vmdk", "wrong disk 1.vmdk", "wrong disk 2.vmdk", "wrong disk 1.vmdk", false),
 	)
+
+	It("should pass snapshot reference through to nbdkit", func() {
+		expectedSnapshot := "snapshot-10"
+
+		var receivedSnapshotRef string
+		newVddkDataSource = createVddkDataSource
+		newNbdKitWrapper = func(vmware *VMwareClient, fileName, snapshot string) (*NbdKitWrapper, error) {
+			receivedSnapshotRef = snapshot
+			return createMockNbdKitWrapper(vmware, fileName, snapshot)
+		}
+
+		currentVMwareFunctions.Properties = func(ctx context.Context, ref types.ManagedObjectReference, property []string, result interface{}) error {
+			switch out := result.(type) {
+			case *mo.VirtualMachine:
+				if property[0] == "config.hardware.device" {
+					out.Config = createVirtualDiskConfig("disk1", 12345)
+				} else if property[0] == "snapshot" {
+					out.Snapshot = createSnapshots(expectedSnapshot, "snapshot-11")
+				}
+			case *mo.VirtualMachineSnapshot:
+				out.Config = *createVirtualDiskConfig("snapshot-disk", 123456)
+				disk := out.Config.Hardware.Device[0].(*types.VirtualDisk)
+				parent := disk.Backing.(*types.VirtualDiskFlatVer1BackingInfo).Parent
+				parent.FileName = "snapshot-root"
+			}
+			return nil
+		}
+
+		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", "disk1", expectedSnapshot, "", "", v1.PersistentVolumeFilesystem)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(receivedSnapshotRef).To(Equal(expectedSnapshot))
+	})
 
 	It("should find two snapshots and get a list of changed blocks", func() {
 		newVddkDataSource = createVddkDataSource
@@ -629,7 +661,7 @@ func createMockVMwareClient(endpoint string, accessKey string, secKey string, th
 	}, nil
 }
 
-func createMockNbdKitWrapper(vmware *VMwareClient, diskFileName string) (*NbdKitWrapper, error) {
+func createMockNbdKitWrapper(vmware *VMwareClient, diskFileName, snapshot string) (*NbdKitWrapper, error) {
 	u, _ := url.Parse("http://vcenter.test")
 	return &NbdKitWrapper{
 		n:      &image.Nbdkit{},

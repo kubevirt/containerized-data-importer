@@ -126,30 +126,43 @@ func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraH
 	return n, nil
 }
 
-// NewNbdkitVddk creates a new Nbdkit instance with the vddk plugin
-func NewNbdkitVddk(nbdkitPidFile, socket, server, username, password, thumbprint, moref string) (NbdkitOperation, error) {
+// Keep these in a struct to keep NewNbdkitVddk from going over the argument limit
+type NbdKitVddkPluginArgs struct {
+	Server     string
+	Username   string
+	Password   string
+	Thumbprint string
+	Moref      string
+	Snapshot   string
+}
 
+// NewNbdkitVddk creates a new Nbdkit instance with the vddk plugin
+func NewNbdkitVddk(nbdkitPidFile, socket string, args NbdKitVddkPluginArgs) (NbdkitOperation, error) {
 	pluginArgs := []string{
 		"libdir=" + nbdVddkLibraryPath,
 	}
-	if server != "" {
-		pluginArgs = append(pluginArgs, "server="+server)
+	if args.Server != "" {
+		pluginArgs = append(pluginArgs, "server="+args.Server)
 	}
-	if username != "" {
-		pluginArgs = append(pluginArgs, "user="+username)
+	if args.Username != "" {
+		pluginArgs = append(pluginArgs, "user="+args.Username)
 	}
-	if password != "" {
-		passwordfile, err := writePasswordFile(password)
+	if args.Password != "" {
+		passwordfile, err := writePasswordFile(args.Password)
 		if err != nil {
 			return nil, err
 		}
 		pluginArgs = append(pluginArgs, "password=+"+passwordfile)
 	}
-	if thumbprint != "" {
-		pluginArgs = append(pluginArgs, "thumbprint="+thumbprint)
+	if args.Thumbprint != "" {
+		pluginArgs = append(pluginArgs, "thumbprint="+args.Thumbprint)
 	}
-	if moref != "" {
-		pluginArgs = append(pluginArgs, "vm=moref="+moref)
+	if args.Moref != "" {
+		pluginArgs = append(pluginArgs, "vm=moref="+args.Moref)
+	}
+	if args.Snapshot != "" {
+		pluginArgs = append(pluginArgs, "snapshot="+args.Snapshot)
+		pluginArgs = append(pluginArgs, "transports=file:nbdssl:nbd")
 	}
 	pluginArgs = append(pluginArgs, "--verbose")
 	pluginArgs = append(pluginArgs, "-D", "nbdkit.backend.datapath=0")
