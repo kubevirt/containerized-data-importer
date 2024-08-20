@@ -53,7 +53,7 @@ COPY output-bazel-arch.sh /output-bazel-arch.sh
 RUN curl -L -o /usr/bin/bazel https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-$(sh /output-bazel-arch.sh) && chmod u+x /usr/bin/bazel
 
 
-RUN if test "${ARCH}" = x86_64; then \
+RUN if test "$(sh /output-bazel-arch.sh)" = x86_64; then \
       dnf install -y --setopt=install_weak_deps=False  --installroot /usr/s390x-linux-gnu/sys-root --forcearch s390x --releasever 9 \
           glibc-devel \
           glibc-static && \
