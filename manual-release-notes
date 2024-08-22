@@ -35,3 +35,21 @@ Enhancement: Registry imports can now set PVC labels derived from env vars on co
 BugFix: Add HPE RWX/Block capability
 Enhancement: add forklift populators apps to cdi-importer image
 Cleanup: Switch to using maintained non-archived go-jose
+
+v1.59.1
+BugFix: Clone from snapshot - fix volume/access mode inferring for temp host assisted source PVC
+BugFix: Suppress alerts to reduce noise of dependent ones
+Enhancement: New DataVolume Reason field of "ImagePullFailed"
+BugFix: Use scratch space when importing non-archived images
+BugFix: CDIStorageProfilesIncomplete should not impact operator health
+Enhancement: Introduce a controller to handle forklift's volume populators (ovirt, openstack)
+BugFix: Properly transfer instancetype labels during containerdisk imports
+BugFix: On deletion of the last import DV of DataImportCron with Snapshot source format, re-create an import DV
+BugFix: Suppress CDIDefaultStorageClassDegraded alert on SNO
+Enhancement: Onboard Infinibox CSI driver
+Enhancement: Use direct io (cache=none) with qemu-img convert if target supports it in case of OOMKilled
+Enhancement: Add vSphere capabilities, fix DELL ones
+BugFix: Allow dataimportcron snap->pvc automatic source switch
+Cleanup: VDDK datasource: Increase number of nbdkit lines logged
+Enhancement: Add nbdkit command line parameters to improve reliability of multi-stage VDDK imports
+Cleanup: apidocs: remove gradle dep (builder)
