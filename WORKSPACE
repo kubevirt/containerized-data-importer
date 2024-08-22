@@ -2879,19 +2879,13 @@ rpm(
 rpm(
     name = "pcre2-0__10.37-3.el9.1.aarch64",
     sha256 = "82de22426c96c26e987befb1056e2a6ecd71ba6966736cd3810522e7da77a0f2",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/pcre2-10.37-3.el9.1.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/82de22426c96c26e987befb1056e2a6ecd71ba6966736cd3810522e7da77a0f2",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/82de22426c96c26e987befb1056e2a6ecd71ba6966736cd3810522e7da77a0f2"],
 )
 
 rpm(
     name = "pcre2-0__10.37-3.el9.1.x86_64",
     sha256 = "441e71f24e95b7c319f02264db53f88aa49778b2214f7dd5c75f1a3838e72dea",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/pcre2-10.37-3.el9.1.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/441e71f24e95b7c319f02264db53f88aa49778b2214f7dd5c75f1a3838e72dea",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/441e71f24e95b7c319f02264db53f88aa49778b2214f7dd5c75f1a3838e72dea"],
 )
 
 rpm(
@@ -2915,19 +2909,13 @@ rpm(
 rpm(
     name = "pcre2-syntax-0__10.37-3.el9.1.aarch64",
     sha256 = "55d7d2bc962334c236418b78199a496b05dea4efdc89e52453154bd1a5ad0e2e",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/pcre2-syntax-10.37-3.el9.1.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/55d7d2bc962334c236418b78199a496b05dea4efdc89e52453154bd1a5ad0e2e",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/55d7d2bc962334c236418b78199a496b05dea4efdc89e52453154bd1a5ad0e2e"],
 )
 
 rpm(
     name = "pcre2-syntax-0__10.37-3.el9.1.x86_64",
     sha256 = "55d7d2bc962334c236418b78199a496b05dea4efdc89e52453154bd1a5ad0e2e",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/pcre2-syntax-10.37-3.el9.1.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/55d7d2bc962334c236418b78199a496b05dea4efdc89e52453154bd1a5ad0e2e",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/55d7d2bc962334c236418b78199a496b05dea4efdc89e52453154bd1a5ad0e2e"],
 )
 
 rpm(
@@ -2951,37 +2939,25 @@ rpm(
 rpm(
     name = "python3-0__3.9.18-3.el9.aarch64",
     sha256 = "4e509117a42305e4f838038a65a9fc7591db4c8b77489142cf9580139a4736c2",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/python3-3.9.18-3.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/4e509117a42305e4f838038a65a9fc7591db4c8b77489142cf9580139a4736c2",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/4e509117a42305e4f838038a65a9fc7591db4c8b77489142cf9580139a4736c2"],
 )
 
 rpm(
     name = "python3-0__3.9.18-3.el9.x86_64",
     sha256 = "945d92552069d5d5d8f7df6971e85d33306cad1699cae78f214278a8ff194d52",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/python3-3.9.18-3.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/945d92552069d5d5d8f7df6971e85d33306cad1699cae78f214278a8ff194d52",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/945d92552069d5d5d8f7df6971e85d33306cad1699cae78f214278a8ff194d52"],
 )
 
 rpm(
     name = "python3-libs-0__3.9.18-3.el9.aarch64",
     sha256 = "85540bd23e1760677b50336b473ade669c8f5d913917a4d17a2df8f16d14e01d",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/python3-libs-3.9.18-3.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/85540bd23e1760677b50336b473ade669c8f5d913917a4d17a2df8f16d14e01d",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/85540bd23e1760677b50336b473ade669c8f5d913917a4d17a2df8f16d14e01d"],
 )
 
 rpm(
     name = "python3-libs-0__3.9.18-3.el9.x86_64",
     sha256 = "9cb7d0c11da84e4bd258af8d8e2dd6cd94c15b96ffe12b90e896a5f88d9238fe",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/python3-libs-3.9.18-3.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/9cb7d0c11da84e4bd258af8d8e2dd6cd94c15b96ffe12b90e896a5f88d9238fe",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/9cb7d0c11da84e4bd258af8d8e2dd6cd94c15b96ffe12b90e896a5f88d9238fe"],
 )
 
 rpm(
