@@ -197,6 +197,7 @@ var _ = Describe("SnapshotClonePhase test", func() {
 			It("should succeed (immediate bind)", func() {
 				desired := getDesiredClaim()
 				desired.Spec.VolumeName = "vol"
+				desired.Status.Phase = corev1.ClaimBound
 				p := createSnapshotClonePhase(getStorageClass(), desired)
 
 				result, err := p.Reconcile(context.Background())
