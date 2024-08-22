@@ -1588,6 +1588,11 @@ func IsUnbound(pvc *corev1.PersistentVolumeClaim) bool {
 	return !IsBound(pvc)
 }
 
+// IsLost returns if the pvc is lost
+func IsLost(pvc *corev1.PersistentVolumeClaim) bool {
+	return pvc != nil && pvc.Status.Phase == corev1.ClaimLost
+}
+
 // IsImageStream returns true if registry source is ImageStream
 func IsImageStream(pvc *corev1.PersistentVolumeClaim) bool {
 	return pvc.Annotations[AnnRegistryImageStream] == "true"
