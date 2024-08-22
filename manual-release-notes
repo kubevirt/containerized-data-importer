@@ -54,3 +54,6 @@ Enhancement: add s390x support for builder image
 Enhancement: Properly handle DataVolume preallocation setting for all host assisted (copy) clones
 Enhancement: Copy labels from the source of a DataSource (DV/PVC/VolumeSnapshot)
 Cleanup: generate-apidocs: remove gradle dependency
+
+v1.60.2
+Enhancement: Add nbdkit command line parameters to improve reliability of multi-stage VDDK imports.
