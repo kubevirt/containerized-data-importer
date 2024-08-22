@@ -332,10 +332,10 @@ func (r *ReconcilerBase) reconcileCommon(pvc *corev1.PersistentVolumeClaim, popu
 		return nil, err
 	}
 
-	// If PVC' doesn't exist and target PVC is not bound, we should create the PVC' to start the population.
+	// If PVC' doesn't exist and target PVC is rebindable, we should create the PVC' to start the population.
 	// We still return nil as we'll get called again once PVC' exists.
 	// If target PVC is bound, we don't really need to populate anything.
-	if cc.IsUnbound(pvc) {
+	if cc.IsUnbound(pvc) && !cc.IsLost(pvc) {
 		_, err := r.createPVCPrime(pvc, populationSource, nodeName != "", populator.updatePVCForPopulation)
 		if err != nil {
 			r.recorder.Eventf(pvc, corev1.EventTypeWarning, errCreatingPVCPrime, err.Error())
