@@ -52,7 +52,6 @@ import (
 func addReconcileCallbacks(r *ReconcileCDI) {
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileDeleteControllerDeployment)
 	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileSCC)
-	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCreateRoute)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCreatePrometheusInfra)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileRemainingRelationshipLabels)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileDeleteDeprecatedResources)
@@ -60,6 +59,9 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcilePvcMutatingWebhook)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileSetConfigAuthority)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileHandleOldVersion)
+	if r.haveRoutes {
+		r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileRoute)
+	}
 }
 
 func isControllerDeployment(d *appsv1.Deployment) bool {
@@ -109,7 +111,7 @@ func reconcileDeleteControllerDeployment(args *callbacks.ReconcileCallbackArgs) 
 	return nil
 }
 
-func reconcileCreateRoute(args *callbacks.ReconcileCallbackArgs) error {
+func reconcileRoute(args *callbacks.ReconcileCallbackArgs) error {
 	if args.State != callbacks.ReconcileStatePostRead {
 		return nil
 	}
@@ -125,6 +127,10 @@ func reconcileCreateRoute(args *callbacks.ReconcileCallbackArgs) error {
 		return err
 	}
 	args.Recorder.Event(cr, corev1.EventTypeNormal, createResourceSuccess, "Successfully ensured upload proxy route exists")
+
+	if err := updateUserRoutes(context.TODO(), args.Logger, args.Client, args.Recorder); err != nil {
+		return err
+	}
 
 	return nil
 }
