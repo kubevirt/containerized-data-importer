@@ -14,7 +14,7 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-set -e
+set -ex
 script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
@@ -34,8 +34,10 @@ fi
 # be 0 in this case, so negating it indicates that yes this is a post-submit job and
 # we should re-build the builder. Separating out this logic from the test for clarity
 
+set +e
 git diff-index --quiet HEAD~1 hack/build/docker
-POST_SUBMIT=$((1 - $?))
+diffret=$?
+set -e
 
 # The other circumstance in which we need to build the builder image is
 # in the course of test and development of the builder image itself.
@@ -45,20 +47,20 @@ POST_SUBMIT=$((1 - $?))
 # to use DOCKER_PREFIX as it is set in config.sh and used elsewhere in
 # the build system, to introduce a little more consistency
 
-if ((POST_SUBMIT)) || [ x"${ADHOC_BUILDER}" != "x" ]; then
+if [ $diffret -ne 0 ] || [ x"${ADHOC_BUILDER}" != "x" ]; then
     BUILDER_SPEC="${BUILD_DIR}/docker/builder"
-    UNTAGGED_BUILDER_IMAGE=${UNTAGGED_BUILDER_IMAGE:-quay.io/kubevirt/kubevirt-cdi-bazel-builder}
+    UNTAGGED_BUILDER_IMAGE="${DOCKER_PREFIX}/kubevirt-cdi-bazel-builder"
     BUILDER_TAG=$(date +"%y%m%d%H%M")-$(git rev-parse --short HEAD)
     BUILDER_MANIFEST=${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
     echo "export BUILDER_IMAGE=$BUILDER_MANIFEST"
 
     #Build the encapsulated compile and test container
     if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
-        (cd ${BUILDER_SPEC} && buildah build ${BUILDAH_PLATFORM_FLAG} --manifest ${BUILDER_MANIFEST} .)
+        (cd ${BUILDER_SPEC} && buildah build ${BUILDAH_PLATFORM_FLAG} --build-arg ARCH=${ARCH} --manifest ${BUILDER_MANIFEST} .)
         buildah manifest push --all ${BUILDER_MANIFEST} docker://${BUILDER_MANIFEST}
         DIGEST=$(podman inspect $(podman images | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $3 }') | jq '.[]["Digest"]')
     else
-        (cd ${BUILDER_SPEC} && docker build --tag ${BUILDER_MANIFEST} .)
+        (cd ${BUILDER_SPEC} && docker build --build-arg ARCH=${ARCH} --tag ${BUILDER_MANIFEST} .)
         docker push ${BUILDER_MANIFEST}
         DIGEST=$(docker images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
     fi
