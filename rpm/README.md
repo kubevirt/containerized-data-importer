@@ -103,4 +103,10 @@ bazel run \
     $centos_extra
 ```
 
+### Periodic rpm list maintenance, manual and automated
+
+Currently the rpm lists in `WORKSPACE` and `rpm/BUILD.bazel` are maintained by checking in manual runs of `make rpm-deps` to the main branch of kubevirt/containerized-data-importer on an infrequent _ad hoc_ basis. 
+
+In future this will be automated with a periodic CI/CD run as described in https://github.com/kubevirt/project-infra/issues/3595 , probably monthly. 
+
 For further documentation on how `bazeldnf` works, please consult https://github.com/rmohr/bazeldnf
