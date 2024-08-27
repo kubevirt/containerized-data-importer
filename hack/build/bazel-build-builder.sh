@@ -20,24 +20,20 @@ source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
 if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
-    if [ -e /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
-        BUILDAH_PLATFORM_FLAG="--platform linux/s390x,linux/amd64,linux/arm64"
-    else
-        echo "No qemu-user-static on host machine, building only native container"
-        BUILDAH_PLATFORM_FLAG=""
+    BUILDAH_PLATFORM_FLAG="--platform linux/amd64"
+    
+    # Check for qemu-user-static for arm64
+    if rpm -qa | grep -q qemu-user-static-aarch64; then
+        BUILDAH_PLATFORM_FLAG="${BUILDAH_PLATFORM_FLAG},linux/arm64"
     fi
-    [ "`uname -m`" == "s390x" ] && BUILDAH_PLATFORM_FLAG="--platform linux/s390x"
+    
+    # Check for qemu-user-static for s390x
+    if rpm -qa | grep -q qemu-user-static-s390x; then
+        BUILDAH_PLATFORM_FLAG="${BUILDAH_PLATFORM_FLAG},linux/s390x"
+    fi
+    
+    echo "Building with $BUILDAH_PLATFORM_FLAG"
 fi
-
-# When this runs during the post-submit job, the PR will have squashed into a single
-# commit and we can use HEAD~1 to compare. The exit code of the git diff will therefore
-# be 0 in this case, so negating it indicates that yes this is a post-submit job and
-# we should re-build the builder. Separating out this logic from the test for clarity
-
-set +e
-git diff-index --quiet HEAD~1 hack/build/docker
-diffret=$?
-set -e
 
 # The other circumstance in which we need to build the builder image is
 # in the course of test and development of the builder image itself.
