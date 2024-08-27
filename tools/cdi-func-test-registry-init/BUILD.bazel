@@ -32,8 +32,8 @@ container_image(
     directory = "/",
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": [
-        ":test-img-tar",
-        "//rpm:testimage_s390x",
+            ":test-img-tar",
+            "//rpm:testimage_s390x",
         ],
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             ":test-img-tar",
