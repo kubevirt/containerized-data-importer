@@ -22,12 +22,10 @@ source "${script_dir}"/config.sh
 if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
     BUILDAH_PLATFORM_FLAG="--platform linux/amd64"
     
-    # Check for qemu-user-static for arm64
     if rpm -qa | grep -q qemu-user-static-aarch64; then
         BUILDAH_PLATFORM_FLAG="${BUILDAH_PLATFORM_FLAG},linux/arm64"
     fi
     
-    # Check for qemu-user-static for s390x
     if rpm -qa | grep -q qemu-user-static-s390x; then
         BUILDAH_PLATFORM_FLAG="${BUILDAH_PLATFORM_FLAG},linux/s390x"
     fi
@@ -43,7 +41,7 @@ fi
 # to use DOCKER_PREFIX as it is set in config.sh and used elsewhere in
 # the build system, to introduce a little more consistency
 
-if [ $diffret -ne 0 ] || [ x"${ADHOC_BUILDER}" != "x" ]; then
+if [ x"${ADHOC_BUILDER}" != "x" ]; then
     BUILDER_SPEC="${BUILD_DIR}/docker/builder"
     UNTAGGED_BUILDER_IMAGE="${DOCKER_PREFIX}/kubevirt-cdi-bazel-builder"
     BUILDER_TAG=$(date +"%y%m%d%H%M")-$(git rev-parse --short HEAD)
