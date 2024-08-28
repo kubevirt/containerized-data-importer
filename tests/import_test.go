@@ -1545,6 +1545,10 @@ var _ = Describe("Import populator", func() {
 	})
 
 	DescribeTable("should import fileSystem PVC", func(expectedMD5 string, originalVirtualSize int, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error, preallocation, webhookRendering bool) {
+		// ImageIO raw images are not passed through any sparsification mechanism
+		// VDDK ones do, but the fake plugin used for testing lies that they're not
+		skipSparseCheckIDs := []string{"[test_id:11007]", "[test_id:11009]"}
+
 		pvc = importPopulationPVCDefinition()
 
 		if webhookRendering {
@@ -1571,12 +1575,19 @@ var _ = Describe("Import populator", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(expectedMD5))
 
+		var excluded bool
+		for _, id := range skipSparseCheckIDs {
+			if strings.Contains(CurrentSpecReport().LeafNodeText, id) {
+				excluded = true
+				break
+			}
+		}
 		if preallocation {
 			By("Verifying the image is preallocated")
 			ok, err := f.VerifyImagePreallocated(f.Namespace, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(ok).To(BeTrue())
-		} else {
+		} else if !excluded {
 			By("Verifying the image is sparse")
 			Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath, int64(originalVirtualSize))).To(BeTrue())
 		}
