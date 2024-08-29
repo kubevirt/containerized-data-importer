@@ -30,7 +30,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	snapclientfake "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake"
 
 	admissionv1 "k8s.io/api/admission/v1"
@@ -620,55 +619,6 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(BeTrue())
 		})
 
-		It("should reject snapshot clone when input size is lower than recommended restore size", func() {
-			size := resource.MustParse("1G")
-			snapshot := &snapshotv1.VolumeSnapshot{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "testsnap",
-					Namespace: testNamespace,
-				},
-				Status: &snapshotv1.VolumeSnapshotStatus{
-					RestoreSize: &size,
-				},
-			}
-			storage := &cdiv1.StorageSpec{
-				Resources: corev1.VolumeResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: resource.MustParse("500Mi"),
-					},
-				},
-			}
-			snapSource := &cdiv1.DataVolumeSource{
-				Snapshot: &cdiv1.DataVolumeSourceSnapshot{
-					Namespace: snapshot.Namespace,
-					Name:      snapshot.Name,
-				},
-			}
-			dv := newDataVolumeWithStorageSpec("testDV", snapSource, nil, storage)
-			resp := validateDataVolumeCreateEx(dv, nil, nil, []runtime.Object{snapshot}, nil)
-			Expect(resp.Allowed).To(BeFalse())
-		})
-
-		It("should reject snapshot clone when no input size/recommended restore size", func() {
-			snapshot := &snapshotv1.VolumeSnapshot{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "testsnap",
-					Namespace: testNamespace,
-				},
-				Status: &snapshotv1.VolumeSnapshotStatus{},
-			}
-			storage := &cdiv1.StorageSpec{}
-			snapSource := &cdiv1.DataVolumeSource{
-				Snapshot: &cdiv1.DataVolumeSourceSnapshot{
-					Namespace: snapshot.Namespace,
-					Name:      snapshot.Name,
-				},
-			}
-			dv := newDataVolumeWithStorageSpec("testDV", snapSource, nil, storage)
-			resp := validateDataVolumeCreateEx(dv, nil, nil, []runtime.Object{snapshot}, nil)
-			Expect(resp.Allowed).To(BeFalse())
-		})
-
 		DescribeTable("should", func(oldFinalCheckpoint bool, oldCheckpoints []string, newFinalCheckpoint bool, newCheckpoints []string, modifyDV func(*cdiv1.DataVolume), expectedSuccess bool, sourceFunc func() *cdiv1.DataVolumeSource) {
 			oldDV := newMultistageDataVolume("multi-stage", oldFinalCheckpoint, oldCheckpoints, sourceFunc)
 			oldBytes, _ := json.Marshal(&oldDV)
@@ -844,14 +794,14 @@ var _ = Describe("Validating Webhook", func() {
 			Entry("accept DataVolume with PVC and sourceRef missing namespace on create", &emptyNamespace),
 		)
 
-		It("should reject DataVolume with SourceRef on create if DataSource does not exist", func() {
+		It("should allow DataVolume with SourceRef on create if DataSource does not exist", func() {
 			ns := "testNamespace"
 			dataVolume := newDataSourceDataVolume("testDV", &ns, "test")
 			resp := validateDataVolumeCreate(dataVolume)
-			Expect(resp.Allowed).To(BeFalse())
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
-		It("should reject DataVolume with SourceRef on create if DataSource exists but its PVC field is not populated", func() {
+		It("should allow DataVolume with SourceRef on create if DataSource exists but its PVC field is not populated", func() {
 			dataVolume := newDataSourceDataVolume("testDV", &testNamespace, "test")
 			dataSource := &cdiv1.DataSource{
 				ObjectMeta: metav1.ObjectMeta{
@@ -865,7 +815,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource}, nil, nil)
-			Expect(resp.Allowed).To(BeFalse())
+			Expect(resp.Allowed).To(BeTrue())
 		})
 
 		It("should accept DataVolume with SourceRef on create if DataSource exists but PVC does not exist", func() {

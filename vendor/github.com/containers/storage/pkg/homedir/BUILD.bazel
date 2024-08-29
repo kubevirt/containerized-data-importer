@@ -4,7 +4,6 @@ go_library(
     name = "go_default_library",
     srcs = [
         "homedir.go",
-        "homedir_others.go",
         "homedir_unix.go",
         "homedir_windows.go",
     ],

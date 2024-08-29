@@ -291,6 +291,8 @@ var _ = Describe("Import populator tests", func() {
 			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
 			pvcPrime := getPVCPrime(targetPvc, nil)
 			pvcPrime.Annotations = map[string]string{AnnPodRetainAfterCompletion: "true"}
+			targetPvc.Status = corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound}
+			pvcPrime.Status = corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimLost}
 
 			By("Reconcile")
 			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, volumeImportSource, sc)

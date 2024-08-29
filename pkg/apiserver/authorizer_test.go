@@ -30,6 +30,7 @@ import (
 
 	"github.com/emicklei/go-restful/v3"
 
+	authorization "k8s.io/api/authorization/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
@@ -42,6 +43,19 @@ func fakeRequest() *restful.Request {
 	req.Request.Header[userHeader] = []string{"user"}
 	req.Request.Header[groupHeader] = []string{"userGroup"}
 	req.Request.Header[userExtraHeaderPrefix+"test"] = []string{"userExtraValue"}
+	req.Request.URL.Path = "/apis/upload.cdi.kubevirt.io/v1beta1/namespaces/default/uploadtokenrequests"
+	return req
+}
+
+func fakeRequestWithEncodedExtraHeader() *restful.Request {
+	req := &restful.Request{}
+	req.Request = &http.Request{}
+	req.Request.Method = "POST"
+	req.Request.URL = &url.URL{}
+	req.Request.Header = make(map[string][]string)
+	req.Request.Header[userHeader] = []string{"user"}
+	req.Request.Header[groupHeader] = []string{"userGroup"}
+	req.Request.Header[userExtraHeaderPrefix+"test%2fvalue"] = []string{"userExtraValue"}
 	req.Request.URL.Path = "/apis/upload.cdi.kubevirt.io/v1beta1/namespaces/default/uploadtokenrequests"
 	return req
 }
@@ -101,6 +115,16 @@ var _ = Describe("Authorizer test", func() {
 		authReview, err := app.generateAccessReview(req)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(authReview).ToNot(BeNil())
+	})
+
+	It("Generate access review with encoded extra header", func() {
+		app := newAuthorizor()
+		req := fakeRequestWithEncodedExtraHeader()
+		authReview, err := app.generateAccessReview(req)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(authReview).ToNot(BeNil())
+		extraValue := authorization.ExtraValue{"userExtraValue"}
+		Expect(authReview.Spec.Extra["test/value"]).To(Equal(extraValue))
 	})
 
 	It("Generate access review path err resource", func() {

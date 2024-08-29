@@ -59,7 +59,7 @@ CDI only supports certain combinations of `source` and `contentType` as indicate
 * `http` &rarr; `kubevirt`, `archive`
 * `registry` &rarr; `kubevirt`
 * `pvc` &rarr; Not applicable - content is cloned
-* `upload` &rarr; `kubevirt`
+* `upload` &rarr; `kubevirt`, `archive`
 * `imageio` &rarr; `kubevirt`
 * `vddk` &rarr; `kubevirt`
 

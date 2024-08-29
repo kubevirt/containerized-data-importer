@@ -21,6 +21,5 @@ mkdir -p ${TESTS_OUT_DIR}/
 # use vendor
 export GO111MODULE=${GO111MODULE:-off}
 
-ginkgo build ${CDI_DIR}/tests/
+${TESTS_OUT_DIR}/ginkgo build ${CDI_DIR}/tests/
 mv ${CDI_DIR}/tests/tests.test ${TESTS_OUT_DIR}/
-cp -f /go/bin/ginkgo ${TESTS_OUT_DIR}/

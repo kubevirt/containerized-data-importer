@@ -18,7 +18,7 @@
 #
 
 set -ex
-export TARGET=k8s-1.28
+export TARGET=k8s-1.29
 #ensure no hard coded cdi cr in tests.
 export RANDOM_CR=true
 export KUBEVIRT_STORAGE=rook-ceph-default

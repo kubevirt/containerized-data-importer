@@ -128,7 +128,7 @@ func formReadCloser(r *http.Request) (io.ReadCloser, error) {
 	return filePart, nil
 }
 
-func isCloneTraget(contentType string) bool {
+func isCloneTarget(contentType string) bool {
 	return contentType == common.BlockdeviceClone || contentType == common.FilesystemCloneContentType
 }
 
@@ -420,7 +420,7 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 			defer close(app.doneChan)
 			app.done = true
 			app.preallocationApplied = processor.PreallocationApplied()
-			app.cloneTarget = isCloneTraget(cdiContentType)
+			app.cloneTarget = isCloneTarget(cdiContentType)
 			klog.Infof("Wrote data to %s", app.config.Destination)
 		}()
 
@@ -456,7 +456,7 @@ func (app *uploadServerApp) processUpload(irc imageReadCloser, w http.ResponseWr
 
 	app.done = true
 	app.preallocationApplied = preallocationApplied
-	app.cloneTarget = isCloneTraget(cdiContentType)
+	app.cloneTarget = isCloneTarget(cdiContentType)
 	close(app.doneChan)
 
 	if dvContentType == cdiv1.DataVolumeArchive {
@@ -479,8 +479,8 @@ func (app *uploadServerApp) uploadArchiveHandler(irc imageReadCloser) http.Handl
 }
 
 func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string) (*importer.DataProcessor, error) {
-	if sourceContentType == common.FilesystemCloneContentType {
-		return nil, fmt.Errorf("async filesystem clone not supported")
+	if isCloneTarget(sourceContentType) {
+		return nil, fmt.Errorf("async clone not supported")
 	}
 
 	uds := importer.NewAsyncUploadDataSource(newContentReader(stream, sourceContentType))
@@ -489,76 +489,116 @@ func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string,
 }
 
 func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string, dvContentType cdiv1.DataVolumeContentType) (bool, error) {
-	if sourceContentType == common.FilesystemCloneContentType {
-		return false, filesystemCloneProcessor(stream, dest)
+	stream = newContentReader(stream, sourceContentType)
+	if isCloneTarget(sourceContentType) {
+		return cloneProcessor(stream, sourceContentType, dest, preallocation)
 	}
 
 	// Clone block device to block device or file system
-	uds := importer.NewUploadDataSource(newContentReader(stream, sourceContentType), dvContentType)
+	uds := importer.NewUploadDataSource(stream, dvContentType)
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation, "")
 	err := processor.ProcessData()
 	return processor.PreallocationApplied(), err
 }
 
-// Clone file system to block device or file system
-func filesystemCloneProcessor(stream io.ReadCloser, dest string) error {
-	// Clone to block device
-	if dest == common.WriteBlockPath {
-		if err := untarToBlockdev(newSnappyReadCloser(stream), dest); err != nil {
-			return errors.Wrapf(err, "error unarchiving to %s", dest)
+func cloneProcessor(stream io.ReadCloser, contentType, dest string, preallocate bool) (bool, error) {
+	if contentType == common.FilesystemCloneContentType {
+		if dest != common.WriteBlockPath {
+			return fileToFileCloneProcessor(stream)
 		}
-		return nil
+
+		tarImageReader, err := newTarDiskImageReader(stream)
+		if err != nil {
+			stream.Close()
+			return false, err
+		}
+		stream = tarImageReader
 	}
 
-	// Clone to file system
-	destDir := common.ImporterVolumePath
-	if err := util.UnArchiveTar(newSnappyReadCloser(stream), destDir); err != nil {
-		return errors.Wrapf(err, "error unarchiving to %s", destDir)
+	defer stream.Close()
+	bytesRead, bytesWrittenn, err := util.StreamDataToFile(stream, dest, preallocate)
+	if err != nil {
+		return false, err
 	}
-	return nil
+
+	klog.Infof("Read %d bytes, wrote %d bytes to %s", bytesRead, bytesWrittenn, dest)
+
+	return false, nil
 }
 
-func untarToBlockdev(stream io.Reader, dest string) error {
+func fileToFileCloneProcessor(stream io.ReadCloser) (bool, error) {
+	defer stream.Close()
+	if err := util.UnArchiveTar(stream, common.ImporterVolumePath); err != nil {
+		return false, errors.Wrapf(err, "error unarchiving to %s", common.ImporterVolumePath)
+	}
+	return true, nil
+}
+
+type closeWrapper struct {
+	io.Reader
+	closers []io.Closer
+}
+
+func (c *closeWrapper) Close() error {
+	var err error
+	for _, closer := range c.closers {
+		if e := closer.Close(); e != nil {
+			err = e
+		}
+	}
+	return err
+}
+
+type tarDiskImageReader struct {
+	tr           *tar.Reader
+	size, offset int64
+}
+
+func (r *tarDiskImageReader) Read(p []byte) (int, error) {
+	if r.offset >= r.size {
+		return 0, io.EOF
+	}
+	remaining := r.size - r.offset
+	if int(remaining) < len(p) {
+		p = p[:remaining]
+	}
+	n, err := r.tr.Read(p)
+	r.offset += int64(n)
+	klog.V(3).Infof("Read %d bytes, offset %d, size %d", n, r.offset, r.size)
+	return n, err
+}
+
+func newTarDiskImageReader(stream io.ReadCloser) (io.ReadCloser, error) {
 	tr := tar.NewReader(stream)
 	for {
 		header, err := tr.Next()
-		switch {
-		case err == io.EOF:
-			return nil
-		case err != nil:
-			return err
-		case header == nil:
-			continue
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
 		}
 		if !strings.Contains(header.Name, common.DiskImageName) {
 			continue
 		}
-		switch header.Typeflag {
-		case tar.TypeReg, tar.TypeGNUSparse:
-			klog.Infof("Untaring %d bytes to %s", header.Size, dest)
-			f, err := os.OpenFile(dest, os.O_APPEND|os.O_WRONLY, os.ModeDevice|os.ModePerm)
-			if err != nil {
-				return err
-			}
-			written, err := io.CopyN(f, tr, header.Size)
-			if err != nil {
-				return err
-			}
-			klog.Infof("Written %d", written)
-			f.Close()
-			return nil
-		}
+		return &closeWrapper{
+			Reader:  &tarDiskImageReader{tr: tr, size: header.Size},
+			closers: []io.Closer{stream},
+		}, nil
 	}
+	return nil, fmt.Errorf("no disk image found in tar")
 }
 
 func newContentReader(stream io.ReadCloser, contentType string) io.ReadCloser {
-	if contentType == common.BlockdeviceClone {
+	if isCloneTarget(contentType) {
 		return newSnappyReadCloser(stream)
 	}
-
 	return stream
 }
 
 func newSnappyReadCloser(stream io.ReadCloser) io.ReadCloser {
-	return io.NopCloser(snappy.NewReader(stream))
+	return &closeWrapper{
+		Reader:  snappy.NewReader(stream),
+		closers: []io.Closer{stream},
+	}
 }

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -38,6 +39,13 @@ import (
 var _ = Describe("Process Limits", func() {
 	limits := &ProcessLimitValues{1, 1}
 	nullLimiter := newTestProcessLimiter(nil, nil)
+
+	realLimits := &ProcessLimitValues{1 << 30, 10}
+
+	//workaround for https://github.com/kubevirt/containerized-data-importer/issues/3341
+	if runtime.GOARCH == "s390x" {
+		realLimits = &ProcessLimitValues{1 << 31, 10}
+	}
 
 	DescribeTable("exec", func(commandOverride func(context.Context, string, ...string) *exec.Cmd, limiter ProcessLimiter, limits *ProcessLimitValues, command, output, errString string, args ...string) {
 		replaceExecCommandContext(commandOverride, func() {
@@ -59,7 +67,7 @@ var _ = Describe("Process Limits", func() {
 			})
 		})
 	},
-		Entry("command success with real limits", fakeCommandContext, nil, &ProcessLimitValues{1 << 30, 10}, "faker", "", "", "0", "", ""),
+		Entry("command success with real limits", fakeCommandContext, nil, realLimits, "faker", "", "", "0", "", ""),
 		Entry("command start fails", badCommand, nullLimiter, limits, "faker", "", "fork/exec /usr/bin/doesnotexist: no such file or directory", "", "", ""),
 		Entry("address space limit fails", fakeCommandContext, newTestProcessLimiter(errors.New("Set address limit fails"), nil), limits, "faker", "", "Set address limit fails", "", "", ""),
 		Entry("command exit bad", fakeCommandContext, nullLimiter, limits, "faker", "", "exit status 1", "1", "", ""),

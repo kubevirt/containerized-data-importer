@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -115,12 +116,16 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 	const (
 		namespace            = "namespace"
 		sourcePVCName        = "sourcePVC"
+		sourceSnapshotName   = "sourceSnapshot"
+		sourceRegistryName   = "sourceRegistry"
 		sourceDataSourceName = "sourceDataSource"
 	)
 
 	var (
 		fakeClient                     client.Client
 		dataVolumeWithSourcePVC        cdiv1.DataVolume
+		dataVolumeWithSourceSnapshot   cdiv1.DataVolume
+		dataVolumeWithSourceRegistry   cdiv1.DataVolume
 		dataVolumeWithSourceDataSource cdiv1.DataVolume
 	)
 
@@ -147,6 +152,35 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 			},
 		}
 
+		dataVolumeWithSourceSnapshot = cdiv1.DataVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "snapshot-datavolume",
+				Namespace: namespace,
+			},
+			Spec: cdiv1.DataVolumeSpec{
+				Source: &cdiv1.DataVolumeSource{
+					Snapshot: &cdiv1.DataVolumeSourceSnapshot{
+						Name:      sourceSnapshotName,
+						Namespace: namespace,
+					},
+				},
+			},
+		}
+
+		dataVolumeWithSourceRegistry = cdiv1.DataVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      sourceRegistryName,
+				Namespace: namespace,
+			},
+			Spec: cdiv1.DataVolumeSpec{
+				Source: &cdiv1.DataVolumeSource{
+					Registry: &cdiv1.DataVolumeSourceRegistry{
+						URL: ptr.To("docker://testurl"),
+					},
+				},
+			},
+		}
+
 		dataVolumeWithSourceDataSource = cdiv1.DataVolume{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "datasource-datavolume",
@@ -164,6 +198,20 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 			&corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      sourcePVCName,
+					Namespace: namespace,
+					Labels:    defaultInstancetypeLabelMap,
+				},
+			},
+			&snapshotv1.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      sourceSnapshotName,
+					Namespace: namespace,
+					Labels:    defaultInstancetypeLabelMap,
+				},
+			},
+			&corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      sourceRegistryName,
 					Namespace: namespace,
 					Labels:    defaultInstancetypeLabelMap,
 				},
@@ -197,6 +245,8 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 		}
 	},
 		Entry("PVC", &dataVolumeWithSourcePVC),
+		Entry("Snapshot", &dataVolumeWithSourceSnapshot),
+		Entry("Registry", &dataVolumeWithSourceRegistry),
 		Entry("dataSource", &dataVolumeWithSourceDataSource),
 	)
 
@@ -215,6 +265,8 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 		Expect(syncState.dvMutated.Labels).To(HaveKeyWithValue(LabelDefaultInstancetype, customDefaultInstancetype))
 	},
 		Entry("PVC", &dataVolumeWithSourcePVC),
+		Entry("Snapshot", &dataVolumeWithSourceSnapshot),
+		Entry("Registry", &dataVolumeWithSourceRegistry),
 		Entry("DataSource", &dataVolumeWithSourceDataSource),
 	)
 
@@ -234,6 +286,33 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 					PVC: &cdiv1.DataVolumeSourcePVC{
 						Name:      "unknown",
 						Namespace: namespace,
+					},
+				},
+			},
+		}),
+		Entry("Snapshot", &cdiv1.DataVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "snapshot-datavolume",
+				Namespace: namespace,
+			},
+			Spec: cdiv1.DataVolumeSpec{
+				Source: &cdiv1.DataVolumeSource{
+					Snapshot: &cdiv1.DataVolumeSourceSnapshot{
+						Name:      "unknown",
+						Namespace: namespace,
+					},
+				},
+			},
+		}),
+		Entry("Registry", &cdiv1.DataVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "registry-datavolume-unknown",
+				Namespace: namespace,
+			},
+			Spec: cdiv1.DataVolumeSpec{
+				Source: &cdiv1.DataVolumeSource{
+					Registry: &cdiv1.DataVolumeSourceRegistry{
+						URL: ptr.To("docker://uknown"),
 					},
 				},
 			},
@@ -265,6 +344,8 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 		Expect(errors.IsServiceUnavailable(err)).To(BeTrue())
 	},
 		Entry("PVC", &dataVolumeWithSourcePVC),
+		Entry("Snapshot", &dataVolumeWithSourceSnapshot),
+		Entry("Registry", &dataVolumeWithSourceRegistry),
 		Entry("DataSource", &dataVolumeWithSourceDataSource),
 	)
 })
@@ -288,6 +369,7 @@ func createClient(objs ...client.Object) client.Client {
 	_ = cdiv1.AddToScheme(s)
 	// Register other types with the runtime scheme.
 	_ = ocpconfigv1.Install(s)
+	_ = snapshotv1.AddToScheme(s)
 	// Create a fake client to mock API calls.
 	return fake.NewClientBuilder().WithScheme(s).WithObjects(objs...).Build()
 }

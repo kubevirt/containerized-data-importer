@@ -24,6 +24,9 @@ ppc64le)
 aarch64* | arm64*)
     ARCH="arm64"
     ;;
+s390x)
+    ARCH="s390x"
+    ;;
 *)
     echo "invalid Arch, only support x86_64, ppc64le, aarch64"
     exit 1
@@ -171,7 +174,7 @@ function _fix_node_labels() {
     master_nodes=$(_get_nodes | grep -i $MASTER_NODES_PATTERN | awk '{print $1}')
     for node in ${master_nodes[@]}; do
         # removing NoSchedule taint if is there
-        if _kubectl taint nodes $node node-role.kubernetes.io/master:NoSchedule-; then
+        if _kubectl taint nodes $node node-role.kubernetes.io/master:NoSchedule- || _kubectl taint nodes $node node-role.kubernetes.io/control-plane:NoSchedule-; then
             _kubectl label node $node kubevirt.io/schedulable=true
         fi
     done

@@ -7,8 +7,10 @@ go_library(
     importpath = "github.com/containers/storage/pkg/chunked/internal",
     visibility = ["//vendor/github.com/containers/storage/pkg/chunked:__subpackages__"],
     deps = [
+        "//vendor/github.com/containers/storage/pkg/archive:go_default_library",
         "//vendor/github.com/json-iterator/go:go_default_library",
         "//vendor/github.com/klauspost/compress/zstd:go_default_library",
         "//vendor/github.com/opencontainers/go-digest:go_default_library",
+        "//vendor/github.com/vbatts/tar-split/archive/tar:go_default_library",
     ],
 )

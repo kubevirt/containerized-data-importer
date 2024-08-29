@@ -69,6 +69,9 @@ const (
 	deleteResourceFailed   = "DeleteResourceFailed"
 	deleteResourceSuccess  = "DeleteResourceSuccess"
 	dumpInstallStrategyKey = "DUMP_INSTALL_STRATEGY"
+
+	annInjectUploadProxyCert = "operator.cdi.kubevirt.io/injectUploadProxyCert"
+	updateUserRouteSuccess   = "UploadProxyRouteInjectSuccess"
 )
 
 var (
@@ -139,6 +142,11 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 
 	recorder := mgr.GetEventRecorderFor("operator-controller")
 
+	haveRoutes, err := haveRoutes(uncachedClient)
+	if err != nil {
+		return nil, err
+	}
+
 	r := &ReconcileCDI{
 		client:              restClient,
 		uncachedClient:      uncachedClient,
@@ -149,6 +157,7 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 		clusterArgs:         clusterArgs,
 		namespacedArgs:      &namespacedArgs,
 		dumpInstallStrategy: dumpInstallStrategy,
+		haveRoutes:          haveRoutes,
 	}
 	callbackDispatcher := callbacks.NewCallbackDispatcher(log, restClient, uncachedClient, scheme, namespace)
 	r.reconciler = sdkr.NewReconciler(r, log, restClient, callbackDispatcher, scheme, mgr.GetCache, createVersionLabel, updateVersionLabel, LastAppliedConfigAnnotation, certPollInterval, finalizerName, false, recorder)
@@ -181,6 +190,7 @@ type ReconcileCDI struct {
 	certManager         CertManager
 	reconciler          *sdkr.Reconciler
 	dumpInstallStrategy bool
+	haveRoutes          bool
 }
 
 // SetController sets the controller dependency

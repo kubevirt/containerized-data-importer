@@ -20,8 +20,8 @@
 
 #define THREAD_MODEL NBDKIT_THREAD_MODEL_SERIALIZE_ALL_REQUESTS
 
-#define EXPECTED_ARG_COUNT 7
 int arg_count = 0;
+int expected_arg_count = 7;
 
 void fakevddk_close(void *handle) {
     close(*((int *) handle));
@@ -29,15 +29,18 @@ void fakevddk_close(void *handle) {
 
 int fakevddk_config(const char *key, const char *value) {
     arg_count++;
+    if (strcmp(key, "snapshot") == 0) {
+        expected_arg_count = 9; // Expect one for 'snapshot' and one for 'transports'
+    }
     return 0;
 }
 
 int fakevddk_config_complete(void) {
     nbdkit_debug("VMware VixDiskLib (1.2.3) Release build-12345");
-    if (arg_count == EXPECTED_ARG_COUNT) {
+    if (arg_count == expected_arg_count) {
         return 0;
     } else {
-        nbdkit_error("Expected %d arguments to fake VDDK test plugin, but got %d!\n", EXPECTED_ARG_COUNT, arg_count);
+        nbdkit_error("Expected %d arguments to fake VDDK test plugin, but got %d!\n", expected_arg_count, arg_count);
         return -1;
     }
 }

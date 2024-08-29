@@ -12,6 +12,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -29,6 +30,13 @@ var _ = Describe("DataSource", func() {
 		pvc2Name  = "pvc2"
 		snap1Name = "snap1"
 		snap2Name = "snap2"
+
+		testKubevirtIoKey               = "test.kubevirt.io/test"
+		testKubevirtIoValue             = "testvalue"
+		testInstancetypeKubevirtIoKey   = "instancetype.kubevirt.io/default-preference"
+		testInstancetypeKubevirtIoValue = "testpreference"
+		testKubevirtIoKeyExisting       = "test.kubevirt.io/existing"
+		testKubevirtIoNewValueExisting  = "newvalue"
 	)
 
 	f := framework.NewFramework("datasource-func-test")
@@ -59,15 +67,32 @@ var _ = Describe("DataSource", func() {
 	}
 
 	testURL := func() string { return fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs) }
-	createDv := func(pvcName, url string) {
+	createDv := func(pvcName, url string, labels map[string]string) {
 		By(fmt.Sprintf("creating DataVolume %s %s", pvcName, url))
 		dv := utils.NewDataVolumeWithHTTPImport(pvcName, "1Gi", url)
+		dv.Labels = labels
 		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 		By("verifying pvc was created")
 		pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindIfWaitForFirstConsumer(pvc)
+	}
+
+	createSnap := func(name string, labels map[string]string) *snapshotv1.VolumeSnapshot {
+		pvcDef := utils.NewPVCDefinition("snap-source-pvc", "1Gi", nil, nil)
+		pvcDef.Namespace = f.Namespace.Name
+		pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Create(context.TODO(), pvcDef, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		snapClass := f.GetSnapshotClass()
+		snapshot := utils.NewVolumeSnapshot(name, pvc.Namespace, pvc.Name, &snapClass.Name)
+		snapshot.Labels = labels
+		err = f.CrClient.Create(context.TODO(), snapshot)
+		Expect(err).ToNot(HaveOccurred())
+
+		return snapshot
 	}
 
 	It("[test_id:8041]status conditions should be updated on pvc create/update/delete", func() {
@@ -98,7 +123,7 @@ var _ = Describe("DataSource", func() {
 		f.ExpectEvent(dv.Namespace).Should(ContainSubstring(dvc.CloneWithoutSource))
 
 		By("Create import DV so the missing DataSource source PVC will be ready")
-		createDv(pvc1Name, testURL())
+		createDv(pvc1Name, testURL(), nil)
 		ds = waitForReadyCondition(ds, corev1.ConditionTrue, "Ready")
 
 		By("Wait for the clone DV success")
@@ -113,6 +138,88 @@ var _ = Describe("DataSource", func() {
 		Expect(err).ToNot(HaveOccurred())
 		_ = waitForReadyCondition(ds, corev1.ConditionFalse, "NoSource")
 	})
+
+	DescribeTable("[test_id:TODO] Labels should be copied to DataSource", func(sourceFn func() cdiv1.DataSourceSource, createSource func()) {
+		By("Create source for DataSource")
+		createSource()
+
+		By("Create DataSource")
+		ds := newDataSource(ds1Name)
+		ds.Spec.Source = sourceFn()
+		ds, err := f.CdiClient.CdiV1beta1().DataSources(ds.Namespace).Create(context.TODO(), ds, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		ds = waitForReadyCondition(ds, corev1.ConditionTrue, "Ready")
+
+		By("Check for labels on DataSource")
+		Eventually(func(g Gomega) {
+			ds, err := f.CdiClient.CdiV1beta1().DataSources(ds.Namespace).Get(context.TODO(), ds.Name, metav1.GetOptions{})
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(ds.Labels).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
+			g.Expect(ds.Labels).To(HaveKeyWithValue(testInstancetypeKubevirtIoKey, testInstancetypeKubevirtIoValue))
+			g.Expect(ds.Labels).To(HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoNewValueExisting))
+		}, 60*time.Second, pollingInterval).Should(Succeed())
+	},
+		Entry("from DataVolume",
+			func() cdiv1.DataSourceSource {
+				return cdiv1.DataSourceSource{
+					PVC: &cdiv1.DataVolumeSourcePVC{Namespace: f.Namespace.Name, Name: pvc1Name},
+				}
+			},
+			func() {
+				createDv(pvc1Name, testURL(), map[string]string{
+					testKubevirtIoKey:             testKubevirtIoValue,
+					testInstancetypeKubevirtIoKey: testInstancetypeKubevirtIoValue,
+					testKubevirtIoKeyExisting:     testKubevirtIoNewValueExisting,
+				})
+			},
+		),
+		Entry("from PersistentVolumeClaim",
+			func() cdiv1.DataSourceSource {
+				return cdiv1.DataSourceSource{
+					PVC: &cdiv1.DataVolumeSourcePVC{Namespace: f.Namespace.Name, Name: pvc1Name},
+				}
+			},
+			func() {
+				source := utils.NewVolumeImportSourceWithURLImport(pvc1Name, testURL())
+				source, err := f.CdiClient.CdiV1beta1().VolumeImportSources(f.Namespace.Name).Create(context.TODO(), source, metav1.CreateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				pvc := utils.NewPVCDefinition(pvc1Name, "1Gi", nil, map[string]string{
+					testKubevirtIoKey:             testKubevirtIoValue,
+					testInstancetypeKubevirtIoKey: testInstancetypeKubevirtIoValue,
+					testKubevirtIoKeyExisting:     testKubevirtIoNewValueExisting,
+				})
+				pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
+					APIGroup: ptr.To(cc.AnnAPIGroup),
+					Kind:     cdiv1.VolumeImportSourceRef,
+					Name:     source.Name,
+				}
+				pvc, err = utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, pvc)
+				Expect(err).ToNot(HaveOccurred())
+
+				f.ForceBindIfWaitForFirstConsumer(pvc)
+				err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, corev1.ClaimBound, pvc.Name)
+				Expect(err).ToNot(HaveOccurred())
+			},
+		),
+		Entry("from VolumeSnapshot",
+			func() cdiv1.DataSourceSource {
+				return cdiv1.DataSourceSource{
+					Snapshot: &cdiv1.DataVolumeSourceSnapshot{Namespace: f.Namespace.Name, Name: snap1Name},
+				}
+			},
+			func() {
+				if !f.IsSnapshotStorageClassAvailable() {
+					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
+				}
+				createSnap(snap1Name, map[string]string{
+					testKubevirtIoKey:             testKubevirtIoValue,
+					testInstancetypeKubevirtIoKey: testInstancetypeKubevirtIoValue,
+					testKubevirtIoKeyExisting:     testKubevirtIoNewValueExisting,
+				})
+			},
+		),
+	)
 
 	createDs := func(dsName, pvcName string) *cdiv1.DataSource {
 		By(fmt.Sprintf("creating DataSource %s -> %s", dsName, pvcName))
@@ -131,7 +238,7 @@ var _ = Describe("DataSource", func() {
 	}
 
 	It("[test_id:8067]status conditions should be updated when several DataSources refer the same pvc", func() {
-		createDv(pvc1Name, testURL())
+		createDv(pvc1Name, testURL(), nil)
 		ds1 := createDs(ds1Name, pvc1Name)
 		ds2 := createDs(ds2Name, pvc1Name)
 
@@ -142,7 +249,7 @@ var _ = Describe("DataSource", func() {
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionFalse, "NotFound")
 		ds2 = waitForReadyCondition(ds2, corev1.ConditionFalse, "NotFound")
 
-		createDv(pvc2Name, testURL()+"bad")
+		createDv(pvc2Name, testURL()+"bad", nil)
 		updateDsPvc(ds1, pvc2Name)
 		updateDsPvc(ds2, pvc2Name)
 		ds1 = waitForReadyCondition(ds1, corev1.ConditionFalse, "ImportInProgress")
@@ -154,14 +261,14 @@ var _ = Describe("DataSource", func() {
 	})
 
 	It("status conditions timestamp should be updated when DataSource referred pvc is updated, although condition status does not change", func() {
-		createDv(pvc1Name, testURL())
+		createDv(pvc1Name, testURL(), nil)
 		ds := createDs(ds1Name, pvc1Name)
 		ds = waitForReadyCondition(ds, corev1.ConditionTrue, "Ready")
 		cond := controller.FindDataSourceConditionByType(ds, cdiv1.DataSourceReady)
 		Expect(cond).ToNot(BeNil())
 		ts := cond.LastTransitionTime
 
-		createDv(pvc2Name, testURL())
+		createDv(pvc2Name, testURL(), nil)
 		err := utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, pvc2Name)
 		Expect(err).ToNot(HaveOccurred())
 		updateDsPvc(ds, pvc2Name)
@@ -177,21 +284,6 @@ var _ = Describe("DataSource", func() {
 	})
 
 	Context("snapshot source", func() {
-		createSnap := func(name string) *snapshotv1.VolumeSnapshot {
-			pvcDef := utils.NewPVCDefinition("snap-source-pvc", "1Gi", nil, nil)
-			pvcDef.Namespace = f.Namespace.Name
-			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Create(context.TODO(), pvcDef, metav1.CreateOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindIfWaitForFirstConsumer(pvc)
-
-			snapClass := f.GetSnapshotClass()
-			snapshot := utils.NewVolumeSnapshot(name, pvc.Namespace, pvc.Name, &snapClass.Name)
-			err = f.CrClient.Create(context.TODO(), snapshot)
-			Expect(err).ToNot(HaveOccurred())
-
-			return snapshot
-		}
-
 		createSnapDs := func(dsName, snapName string) *cdiv1.DataSource {
 			By(fmt.Sprintf("creating DataSource %s -> %s", dsName, snapName))
 			ds := newDataSource(dsName)
@@ -227,19 +319,15 @@ var _ = Describe("DataSource", func() {
 			dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 			Expect(err).ToNot(HaveOccurred())
 
-			pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
-			Expect(err).ToNot(HaveOccurred())
-			if pvc.Spec.DataSourceRef == nil || pvc.Spec.DataSourceRef.Kind != cdiv1.VolumeCloneSourceRef {
-				By("Verify DV conditions")
-				utils.WaitForConditions(f, dv.Name, dv.Namespace, time.Minute, pollingInterval,
-					&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeBound, Status: corev1.ConditionUnknown, Message: "The source snapshot snap1 doesn't exist", Reason: dvc.CloneWithoutSource},
-					&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeReady, Status: corev1.ConditionFalse, Reason: dvc.CloneWithoutSource},
-					&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: corev1.ConditionFalse})
-			}
+			By("Verify DV conditions")
+			utils.WaitForConditions(f, dv.Name, dv.Namespace, time.Minute, pollingInterval,
+				&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeBound, Status: corev1.ConditionUnknown, Message: "The source snapshot snap1 doesn't exist", Reason: dvc.CloneWithoutSource},
+				&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeReady, Status: corev1.ConditionFalse, Reason: dvc.CloneWithoutSource},
+				&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: corev1.ConditionFalse})
 			f.ExpectEvent(dv.Namespace).Should(ContainSubstring(dvc.CloneWithoutSource))
 
 			By("Create snapshot so the DataSource will be ready")
-			snapshot := createSnap(snap1Name)
+			snapshot := createSnap(snap1Name, nil)
 			ds = waitForReadyCondition(ds, corev1.ConditionTrue, "Ready")
 
 			By("Wait for the clone DV success")
@@ -257,7 +345,7 @@ var _ = Describe("DataSource", func() {
 		})
 
 		It("[test_id:9763] status conditions should be updated when several DataSources refer the same snapshot", func() {
-			snapshot := createSnap(snap1Name)
+			snapshot := createSnap(snap1Name, nil)
 			ds1 := createSnapDs(ds1Name, snap1Name)
 			ds2 := createSnapDs(ds2Name, snap1Name)
 
