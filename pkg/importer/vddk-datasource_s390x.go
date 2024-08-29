@@ -8,6 +8,9 @@ import (
 	"net/url"
 
 	v1 "k8s.io/api/core/v1"
+
+
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 // VDDKDataSource is the data provider for vddk.
@@ -27,6 +30,10 @@ func (V VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
 }
 
 func (V VDDKDataSource) GetURL() *url.URL {
+	panic("not support")
+}
+
+func (V VDDKDataSource) GetTerminationMessage() *common.TerminationMessage {
 	panic("not support")
 }
 
