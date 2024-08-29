@@ -60,7 +60,19 @@ RUN if test "${ARCH}" != "s390x"; then \
 		chmod u+x /usr/bin/bazel; \
     fi
 
-# Until we use a ver including the fix for this Bazel issue:
+
+RUN if test "$(sh /output-bazel-arch.sh)" = x86_64; then \
+      dnf install -y --setopt=install_weak_deps=False  --installroot /usr/s390x-linux-gnu/sys-root --forcearch s390x --releasever 9 \
+          glibc-devel \
+          glibc-static && \
+      dnf install -y epel-release && \
+      dnf install -y --setopt=install_weak_deps=False \
+          gcc-s390x-linux-gnu && \
+      dnf clean -y all; \
+    fi
+
+# Until we use a version including the fix for this Bazel issue:
+
 # https://github.com/bazelbuild/bazel/issues/11554
 RUN ln -s /usr/bin/python3 /usr/bin/python
 
