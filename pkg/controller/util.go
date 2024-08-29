@@ -159,7 +159,7 @@ func newScratchPersistentVolumeClaimSpec(pvc *corev1.PersistentVolumeClaim, pod 
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{"ReadWriteOnce"},
-			Resources:   pvc.Spec.Resources,
+			Resources:   *pvc.Spec.Resources.DeepCopy(),
 		},
 	}
 	if storageClassName != "" {

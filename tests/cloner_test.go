@@ -516,7 +516,7 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				volumeMode := v1.PersistentVolumeFilesystem
-				targetDV := utils.NewDataVolumeForImageCloning("target-dv", "1.1Gi", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
+				targetDV := utils.NewDataVolumeForImageCloning("target-dv", "1.2Gi", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
 				targetDV.Spec.Preallocation = &desiredPreallocation
 				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
