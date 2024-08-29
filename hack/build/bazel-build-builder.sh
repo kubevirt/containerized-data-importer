@@ -20,51 +20,40 @@ source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
 if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
-    if [ -e /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
-        BUILDAH_PLATFORM_FLAG="--platform linux/s390x,linux/amd64,linux/arm64"
-    else
-        echo "No qemu-user-static on host machine, building only native container"
-        BUILDAH_PLATFORM_FLAG=""
+    BUILDAH_PLATFORM_FLAG="--platform linux/amd64"
+    
+    if rpm -qa | grep -q qemu-user-static-aarch64; then
+        BUILDAH_PLATFORM_FLAG="${BUILDAH_PLATFORM_FLAG},linux/arm64"
     fi
-    [ "`uname -m`" == "s390x" ] && BUILDAH_PLATFORM_FLAG="--platform linux/s390x"
+    
+    if rpm -qa | grep -q qemu-user-static-s390x; then
+        BUILDAH_PLATFORM_FLAG="${BUILDAH_PLATFORM_FLAG},linux/s390x"
+    fi
+    
+    echo "Building with $BUILDAH_PLATFORM_FLAG"
 fi
 
-# When this runs during the post-submit job, the PR will have squashed into a single
-# commit and we can use HEAD~1 to compare. The exit code of the git diff will therefore
-# be 0 in this case, so negating it indicates that yes this is a post-submit job and
-# we should re-build the builder. Separating out this logic from the test for clarity
 
-set +e
-git diff-index --quiet HEAD~1 hack/build/docker
-diffret=$?
-set -e
-
-# The other circumstance in which we need to build the builder image is
-# in the course of test and development of the builder image itself.
-# we'll signal this circumstance by setting the env variable ADHOC_BUILDER
-#
-# also instead of hard-coding the UNTAGGED_BUILDER_IMAGE, we're going
+# Instead of hard-coding the UNTAGGED_BUILDER_IMAGE, we're going
 # to use DOCKER_PREFIX as it is set in config.sh and used elsewhere in
 # the build system, to introduce a little more consistency
 
-if [ $diffret -ne 0 ] || [ x"${ADHOC_BUILDER}" != "x" ]; then
-    BUILDER_SPEC="${BUILD_DIR}/docker/builder"
-    UNTAGGED_BUILDER_IMAGE="${DOCKER_PREFIX}/kubevirt-cdi-bazel-builder"
-    BUILDER_TAG=$(date +"%y%m%d%H%M")-$(git rev-parse --short HEAD)
-    BUILDER_MANIFEST=${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
-    echo "export BUILDER_IMAGE=$BUILDER_MANIFEST"
+BUILDER_SPEC="${BUILD_DIR}/docker/builder"
+UNTAGGED_BUILDER_IMAGE="${DOCKER_PREFIX}/kubevirt-cdi-bazel-builder"
+BUILDER_TAG=$(date +"%y%m%d%H%M")-$(git rev-parse --short HEAD)
+BUILDER_MANIFEST=${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG}
+echo "export BUILDER_IMAGE=$BUILDER_MANIFEST"
 
-    #Build the encapsulated compile and test container
-    if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
-        (cd ${BUILDER_SPEC} && buildah build ${BUILDAH_PLATFORM_FLAG} --build-arg ARCH=${ARCH} --manifest ${BUILDER_MANIFEST} .)
-        buildah manifest push --all ${BUILDER_MANIFEST} docker://${BUILDER_MANIFEST}
-        DIGEST=$(podman inspect $(podman images | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $3 }') | jq '.[]["Digest"]')
-    else
-        (cd ${BUILDER_SPEC} && docker build --build-arg ARCH=${ARCH} --tag ${BUILDER_MANIFEST} .)
-        docker push ${BUILDER_MANIFEST}
-        DIGEST=$(docker images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
-    fi
-
-    echo "Image: ${BUILDER_MANIFEST}"
-    echo "Digest: ${DIGEST}"
+#Build the encapsulated compile and test container
+if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
+    (cd ${BUILDER_SPEC} && buildah build ${BUILDAH_PLATFORM_FLAG} --build-arg ARCH=${ARCH} --manifest ${BUILDER_MANIFEST} .)
+    buildah manifest push --all ${BUILDER_MANIFEST} docker://${BUILDER_MANIFEST}
+    DIGEST=$(podman inspect $(podman images | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $3 }') | jq '.[]["Digest"]')
+else
+    (cd ${BUILDER_SPEC} && docker build --build-arg ARCH=${ARCH} --tag ${BUILDER_MANIFEST} .)
+    docker push ${BUILDER_MANIFEST}
+    DIGEST=$(docker images --digests | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $4 }')
 fi
+
+echo "Image: ${BUILDER_MANIFEST}"
+echo "Digest: ${DIGEST}"
