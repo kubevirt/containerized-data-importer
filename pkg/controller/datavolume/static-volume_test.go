@@ -255,6 +255,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		pvc := newPendingPVC(dv, pv)
 		pvc.Spec.VolumeName = pv.Name
 		pv.Status.Phase = corev1.VolumeBound
+		pvc.Status.Phase = corev1.ClaimBound
 		reconciler, client := args.newReconciler(dv, pv, pvc)
 		_, err := reconciler.Reconcile(context.TODO(), requestFunc(dv))
 		Expect(err).ToNot(HaveOccurred())
@@ -278,6 +279,7 @@ var _ = Describe("checkStaticVolume Tests", func() {
 		pvc := newPendingPVC(dv, pv)
 		pvc.Spec.VolumeName = "foobar"
 		pv.Status.Phase = corev1.VolumeBound
+		pvc.Status.Phase = corev1.ClaimBound
 		reconciler, client := args.newReconciler(dv, pv, pvc)
 		_, err := reconciler.Reconcile(context.TODO(), requestFunc(dv))
 		Expect(err).To(HaveOccurred())

@@ -295,8 +295,8 @@ func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorCon
 		return res, err
 	}
 
-	// Making sure to clean PVC once it is complete
-	if cc.IsPVCComplete(pvc) && !cc.IsMultiStageImportInProgress(pvc) {
+	// Making sure to clean PVC' once population is completed
+	if cc.IsPVCComplete(pvc) && cc.IsBound(pvc) && !cc.IsMultiStageImportInProgress(pvc) {
 		res, err = r.reconcileCleanup(pvcPrime)
 	}
 
@@ -342,10 +342,10 @@ func (r *ReconcilerBase) reconcileCommon(pvc *corev1.PersistentVolumeClaim, popu
 		return nil, err
 	}
 
-	// If PVC' doesn't exist and target PVC is not bound, we should create the PVC' to start the population.
+	// If PVC' doesn't exist and target PVC is rebindable, we should create the PVC' to start the population.
 	// We still return nil as we'll get called again once PVC' exists.
 	// If target PVC is bound, we don't really need to populate anything.
-	if cc.IsUnbound(pvc) {
+	if cc.IsUnbound(pvc) && !cc.IsLost(pvc) {
 		_, err := r.createPVCPrime(pvc, populationSource, nodeName != "", populator.updatePVCForPopulation)
 		if err != nil {
 			r.recorder.Eventf(pvc, corev1.EventTypeWarning, errCreatingPVCPrime, err.Error())
@@ -357,14 +357,16 @@ func (r *ReconcilerBase) reconcileCommon(pvc *corev1.PersistentVolumeClaim, popu
 }
 
 func (r *ReconcilerBase) reconcileCleanup(pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
-	if pvcPrime != nil {
-		if pvcPrime.Annotations[cc.AnnPodRetainAfterCompletion] == "true" {
-			// Retaining PVC' in Lost state. We can then keep the pod for debugging purposes.
-			r.recorder.Eventf(pvcPrime, corev1.EventTypeWarning, retainedPVCPrime, messageRetainedPVCPrime)
-		} else {
-			if err := r.client.Delete(context.TODO(), pvcPrime); err != nil {
-				return reconcile.Result{}, err
-			}
+	// If exists, make sure PVC' is rebound before deletion
+	if pvcPrime == nil || pvcPrime.Status.Phase != corev1.ClaimLost {
+		return reconcile.Result{}, nil
+	}
+	if pvcPrime.Annotations[cc.AnnPodRetainAfterCompletion] == "true" {
+		// Retaining PVC' in Lost state. We can then keep the pod for debugging purposes.
+		r.recorder.Eventf(pvcPrime, corev1.EventTypeWarning, retainedPVCPrime, messageRetainedPVCPrime)
+	} else {
+		if err := r.client.Delete(context.TODO(), pvcPrime); err != nil {
+			return reconcile.Result{}, err
 		}
 	}
 	return reconcile.Result{}, nil

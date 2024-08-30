@@ -278,6 +278,8 @@ var _ = Describe("Forklift populator tests", func() {
 			AnnPodRetainAfterCompletion: "true",
 			AnnPodPhase:                 string(corev1.PodSucceeded),
 		}
+		pvcPrime.Status = corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimLost}
+
 		pv := &corev1.PersistentVolume{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "pv",

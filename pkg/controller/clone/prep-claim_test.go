@@ -226,6 +226,7 @@ var _ = Describe("PrepClaimPhase test", func() {
 			claim := getClaim()
 			cc.AddAnnotation(claim, cc.AnnSelectedNode, "node1")
 			claim.Spec.Resources.Requests[corev1.ResourceStorage] = defaultRequestSize
+			claim.Status.Phase = corev1.ClaimPending
 
 			p := createPrepClaimPhase(claim)
 

@@ -186,6 +186,7 @@ var _ = Describe("Planner test", func() {
 	createSourceClaim := func() *corev1.PersistentVolumeClaim {
 		s := createClaim(sourceName)
 		s.Spec.VolumeName = volumeName
+		s.Status.Phase = corev1.ClaimBound
 		s.Status.Capacity = corev1.ResourceList{
 			corev1.ResourceStorage: s.Spec.Resources.Requests[corev1.ResourceStorage],
 		}
