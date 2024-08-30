@@ -101,7 +101,6 @@ func GetAvailableSpaceByVolumeMode(volumeMode v1.PersistentVolumeMode) (int64, e
 	return GetAvailableSpace(common.ImporterVolumePath)
 }
 
-
 // MinQuantity calculates the minimum of two quantities.
 func MinQuantity(availableSpace, imageSize *resource.Quantity) resource.Quantity {
 	if imageSize.Cmp(*availableSpace) == 1 {
