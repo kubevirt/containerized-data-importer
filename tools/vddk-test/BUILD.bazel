@@ -22,6 +22,9 @@ container_image(
         "//tests:images/cirros.raw",
     ],
     tars = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": [
+            "//rpm:testimage_s390x",
+        ],
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             "//rpm:testimage_aarch64",
         ],

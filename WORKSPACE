@@ -182,6 +182,14 @@ container_pull(
     tag = "2.8",
 )
 
+container_pull(
+    name = "registry-s390x",
+    digest = "sha256:7e1926b82e5b862a633b83acf8f456e1619be720aff346e1b634db2f843082b7",
+    registry = "quay.io",
+    repository = "libpod/registry",
+    tag = "2.8",
+)
+
 http_file(
     name = "vcenter-govc-tar",
     downloaded_file_path = "govc.tar.gz",
