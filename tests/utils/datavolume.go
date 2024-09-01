@@ -9,7 +9,6 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
-	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -363,7 +362,7 @@ func NewDataVolumeWithImageioWarmImport(dataVolumeName string, size string, http
 
 // NewDataVolumeWithHTTPImportToBlockPV initializes a DataVolume struct with HTTP annotations to import to block PV
 func NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName string, size string, httpURL, storageClassName string) *cdiv1.DataVolume {
-	volumeMode := corev1.PersistentVolumeBlock
+	volumeMode := k8sv1.PersistentVolumeBlock
 	dataVolume := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
@@ -390,13 +389,13 @@ func NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName string, size string, ht
 }
 
 // NewDataVolumeWithExternalPopulation initializes a DataVolume struct meant to be externally populated
-func NewDataVolumeWithExternalPopulation(dataVolumeName, size, storageClassName string, volumeMode corev1.PersistentVolumeMode, dataSource *corev1.TypedLocalObjectReference, dataSourceRef *corev1.TypedObjectReference) *cdiv1.DataVolume {
+func NewDataVolumeWithExternalPopulation(dataVolumeName, size, storageClassName string, volumeMode k8sv1.PersistentVolumeMode, dataSource *k8sv1.TypedLocalObjectReference, dataSourceRef *k8sv1.TypedObjectReference) *cdiv1.DataVolume {
 	dataVolume := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			PVC: &corev1.PersistentVolumeClaimSpec{
+			PVC: &k8sv1.PersistentVolumeClaimSpec{
 				VolumeMode:       &volumeMode,
 				StorageClassName: &storageClassName,
 				AccessModes:      []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
@@ -414,7 +413,7 @@ func NewDataVolumeWithExternalPopulation(dataVolumeName, size, storageClassName 
 }
 
 // NewDataVolumeWithExternalPopulationAndStorageSpec initializes a DataVolume struct meant to be externally populated (with storage spec)
-func NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, size, storageClassName string, volumeMode corev1.PersistentVolumeMode, dataSource *corev1.TypedLocalObjectReference, dataSourceRef *corev1.TypedObjectReference) *cdiv1.DataVolume {
+func NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, size, storageClassName string, volumeMode k8sv1.PersistentVolumeMode, dataSource *k8sv1.TypedLocalObjectReference, dataSourceRef *k8sv1.TypedObjectReference) *cdiv1.DataVolume {
 	dataVolume := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
@@ -439,7 +438,7 @@ func NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, size, sto
 
 // NewDataVolumeCloneToBlockPV initializes a DataVolume for block cloning
 func NewDataVolumeCloneToBlockPV(dataVolumeName string, size string, srcNamespace, srcName, storageClassName string) *cdiv1.DataVolume {
-	volumeMode := corev1.PersistentVolumeBlock
+	volumeMode := k8sv1.PersistentVolumeBlock
 	dataVolume := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
@@ -468,7 +467,7 @@ func NewDataVolumeCloneToBlockPV(dataVolumeName string, size string, srcNamespac
 
 // NewDataVolumeCloneToBlockPVStorageAPI initializes a DataVolume for block cloning with Storage API
 func NewDataVolumeCloneToBlockPVStorageAPI(dataVolumeName string, size string, srcNamespace, srcName, storageClassName string) *cdiv1.DataVolume {
-	volumeMode := corev1.PersistentVolumeBlock
+	volumeMode := k8sv1.PersistentVolumeBlock
 	dataVolume := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
@@ -565,7 +564,7 @@ func NewDataVolumeForBlankRawImage(dataVolumeName, size string) *cdiv1.DataVolum
 
 // NewDataVolumeForBlankRawImageBlock initializes a DataVolume struct for creating blank raw image for a block device
 func NewDataVolumeForBlankRawImageBlock(dataVolumeName, size string, storageClassName string) *cdiv1.DataVolume {
-	volumeMode := corev1.PersistentVolumeBlock
+	volumeMode := k8sv1.PersistentVolumeBlock
 	dataVolume := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
@@ -699,7 +698,7 @@ func NewDataVolumeForSnapshotCloning(dataVolumeName, size, namespace, snapshot s
 					Name:      snapshot,
 				},
 			},
-			PVC: &corev1.PersistentVolumeClaimSpec{
+			PVC: &k8sv1.PersistentVolumeClaimSpec{
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.VolumeResourceRequirements{
 					Requests: k8sv1.ResourceList{
@@ -778,7 +777,7 @@ func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registr
 
 // ModifyDataVolumeWithImportToBlockPV modifies a DataVolume struct for import to a block PV
 func ModifyDataVolumeWithImportToBlockPV(dataVolume *cdiv1.DataVolume, storageClassName string) *cdiv1.DataVolume {
-	volumeMode := corev1.PersistentVolumeBlock
+	volumeMode := k8sv1.PersistentVolumeBlock
 	dataVolume.Spec.PVC.VolumeMode = &volumeMode
 	dataVolume.Spec.PVC.StorageClassName = &storageClassName
 	return dataVolume
@@ -1011,14 +1010,14 @@ func NewDataVolumeWithArchiveContentStorage(dataVolumeName string, size string, 
 }
 
 // PersistentVolumeClaimFromDataVolume creates a PersistentVolumeClaim definition so we can use PersistentVolumeClaim for various operations.
-func PersistentVolumeClaimFromDataVolume(datavolume *cdiv1.DataVolume) *corev1.PersistentVolumeClaim {
+func PersistentVolumeClaimFromDataVolume(datavolume *cdiv1.DataVolume) *k8sv1.PersistentVolumeClaim {
 	// This function can work with DVs that use the 'Storage' field instead of the 'PVC' field
-	spec := corev1.PersistentVolumeClaimSpec{}
+	spec := k8sv1.PersistentVolumeClaimSpec{}
 	if datavolume.Spec.PVC != nil {
 		spec = *datavolume.Spec.PVC
 	}
 
-	return &corev1.PersistentVolumeClaim{
+	return &k8sv1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      datavolume.Name,
 			Namespace: datavolume.Namespace,
