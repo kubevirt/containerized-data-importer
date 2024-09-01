@@ -40,6 +40,8 @@ type objectTransferValidatingWebhook struct {
 	cdiClient cdiclient.Interface
 }
 
+// ObjectTransfer is now deprecated and will be removed in v1.
+// github issue: https://github.com/kubevirt/containerized-data-importer/issues/3417
 func (wh *objectTransferValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 	klog.V(3).Infof("Got AdmissionReview %+v", ar)
 
@@ -107,5 +109,8 @@ func (wh *objectTransferValidatingWebhook) Admit(ar admissionv1.AdmissionReview)
 		return toAdmissionResponseError(err)
 	}
 
-	return allowedAdmissionResponse()
+	return &admissionv1.AdmissionResponse{
+		Allowed:  true,
+		Warnings: []string{"ObjectTransfer feature is deprecated, and will be deleted soon"},
+	}
 }

@@ -196,7 +196,7 @@ var _ = Describe("ObjectTransfer webhook", func() {
 			}}, nil),
 		)
 
-		It("Should accept good stuff", func() {
+		It("Should accept good stuff with deprecation warning", func() {
 			ot := &cdiv1.ObjectTransfer{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "ot",
@@ -231,6 +231,8 @@ var _ = Describe("ObjectTransfer webhook", func() {
 
 			resp := validateObjectTransfers(ar, nil, nil)
 			Expect(resp.Allowed).To(BeTrue())
+			Expect(resp.Warnings).ToNot(BeEmpty())
+			Expect(resp.Warnings[0]).To(ContainSubstring("ObjectTransfer feature is deprecated"))
 		})
 	})
 
