@@ -57,7 +57,7 @@ COPY output-bazel-arch.sh /output-bazel-arch.sh
 # Consider using multi-stage builds here instead
 RUN if test "${ARCH}" != "s390x"; then \
 		curl -L -o /usr/bin/bazel https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-$(sh /output-bazel-arch.sh) && \
-		chmod u+x /usr/bin/bazel; \
+		chmod +x /usr/bin/bazel; \
     fi
 
 
