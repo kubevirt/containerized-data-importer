@@ -43,6 +43,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	openapicommon "k8s.io/kube-openapi/pkg/common"
 	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -315,6 +316,15 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		if deleted, err := r.deleteOutdatedPendingPvc(ctx, pvc, desiredStorageClass.Name, dataImportCron.Name); deleted || err != nil {
 			return res, err
 		}
+		currentSc, hasCurrent := dataImportCron.Annotations[AnnStorageClass]
+		desiredSc := desiredStorageClass.Name
+		if hasCurrent && currentSc != desiredSc {
+			r.log.Info("Storage class changed, delete most recent source on the old sc as it's no longer the desired", "currentSc", currentSc, "desiredSc", desiredSc)
+			if err := r.handleStorageClassChange(ctx, dataImportCron, desiredSc); err != nil {
+				return res, err
+			}
+			return reconcile.Result{RequeueAfter: time.Second}, nil
+		}
 		cc.AddAnnotation(dataImportCron, AnnStorageClass, desiredStorageClass.Name)
 	}
 	format, err := r.getSourceFormat(ctx, desiredStorageClass)
@@ -356,7 +366,6 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse, fmt.Sprintf("Import DataVolume phase %s", dvPhase), dvPhase)
 		}
 	case pvc != nil && pvc.Status.Phase == corev1.ClaimBound:
-		// TODO: with plain populator PVCs (no DataVolumes) we may need to wait for corev1.Bound
 		if err := handlePopulatedPvc(); err != nil {
 			return res, err
 		}
@@ -687,6 +696,38 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 
 	dv := r.newSourceDataVolume(dataImportCron, dvName)
 	if err := r.client.Create(ctx, dv); err != nil && !k8serrors.IsAlreadyExists(err) {
+		return err
+	}
+
+	return nil
+}
+
+func (r *DataImportCronReconciler) handleStorageClassChange(ctx context.Context, dataImportCron *cdiv1.DataImportCron, desiredStorageClass string) error {
+	digest, ok := dataImportCron.Annotations[AnnSourceDesiredDigest]
+	if !ok {
+		// nothing to delete
+		return nil
+	}
+	name, err := createDvName(dataImportCron.Spec.ManagedDataSource, digest)
+	if err != nil {
+		return err
+	}
+	om := metav1.ObjectMeta{Name: name, Namespace: dataImportCron.Namespace}
+	sources := []client.Object{&snapshotv1.VolumeSnapshot{ObjectMeta: om}, &cdiv1.DataVolume{ObjectMeta: om}, &corev1.PersistentVolumeClaim{ObjectMeta: om}}
+	for _, src := range sources {
+		if err := r.client.Delete(ctx, src); cc.IgnoreNotFound(err) != nil {
+			return err
+		}
+	}
+	for _, src := range sources {
+		if err := r.client.Get(ctx, client.ObjectKeyFromObject(src), src); err == nil || !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("waiting for old sources to get cleaned up: %w", err)
+		}
+	}
+	// Only update desired storage class once garbage collection went through
+	annPatch := fmt.Sprintf(`[{"op":"add","path":"/metadata/annotations/%s","value":"%s" }]`, openapicommon.EscapeJsonPointer(AnnStorageClass), desiredStorageClass)
+	err = r.client.Patch(ctx, dataImportCron, client.RawPatch(types.JSONPatchType, []byte(annPatch)))
+	if err != nil {
 		return err
 	}
 
@@ -1129,7 +1170,7 @@ func addDefaultStorageClassUpdateWatch(mgr manager.Manager, c controller.Control
 				log.Info("Update", "sc", obj.GetName(),
 					"default", obj.GetAnnotations()[cc.AnnDefaultStorageClass] == "true",
 					"defaultVirt", obj.GetAnnotations()[cc.AnnDefaultVirtStorageClass] == "true")
-				reqs, err := getReconcileRequestsForDicsWithPendingPvc(ctx, mgr.GetClient())
+				reqs, err := getReconcileRequestsForDicsWithoutExplicitStorageClass(ctx, mgr.GetClient())
 				if err != nil {
 					log.Error(err, "Failed getting DataImportCrons with pending PVCs")
 				}
@@ -1151,7 +1192,7 @@ func addDefaultStorageClassUpdateWatch(mgr manager.Manager, c controller.Control
 	return nil
 }
 
-func getReconcileRequestsForDicsWithPendingPvc(ctx context.Context, c client.Client) ([]reconcile.Request, error) {
+func getReconcileRequestsForDicsWithoutExplicitStorageClass(ctx context.Context, c client.Client) ([]reconcile.Request, error) {
 	dicList := &cdiv1.DataImportCronList{}
 	if err := c.List(ctx, dicList); err != nil {
 		return nil, err
@@ -1162,23 +1203,7 @@ func getReconcileRequestsForDicsWithPendingPvc(ctx context.Context, c client.Cli
 			continue
 		}
 
-		imports := dic.Status.CurrentImports
-		if len(imports) == 0 {
-			continue
-		}
-
-		pvcName := imports[0].DataVolumeName
-		pvc := &corev1.PersistentVolumeClaim{}
-		if err := c.Get(ctx, types.NamespacedName{Namespace: dic.Namespace, Name: pvcName}, pvc); err != nil {
-			if k8serrors.IsNotFound(err) {
-				continue
-			}
-			return nil, err
-		}
-
-		if pvc.Status.Phase == corev1.ClaimPending {
-			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dic.Name, Namespace: dic.Namespace}})
-		}
+		reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dic.Name, Namespace: dic.Namespace}})
 	}
 
 	return reqs, nil

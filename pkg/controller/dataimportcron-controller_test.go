@@ -981,9 +981,10 @@ var _ = Describe("All DataImportCron Tests", func() {
 
 		Context("Snapshot source format", func() {
 			snapFormat := cdiv1.DataImportCronSourceFormatSnapshot
+			var sc *storagev1.StorageClass
 
 			BeforeEach(func() {
-				sc := cc.CreateStorageClass(storageClassName, map[string]string{cc.AnnDefaultStorageClass: "true"})
+				sc = cc.CreateStorageClass(storageClassName, map[string]string{cc.AnnDefaultStorageClass: "true"})
 				sp := &cdiv1.StorageProfile{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: storageClassName,
@@ -1003,6 +1004,94 @@ var _ = Describe("All DataImportCron Tests", func() {
 				err := reconciler.client.Get(context.TODO(), client.ObjectKeyFromObject(storageProfile), storageProfile)
 				Expect(err).ToNot(HaveOccurred())
 			})
+
+			DescribeTable("Should handle sources in the event of storage class change", func(shouldCleanupOldScSource bool) {
+				cron = newDataImportCron(cronName)
+				dataSource = nil
+				dvName := "test-datasource-68b44fc891f3"
+				retentionPolicy := cdiv1.DataImportCronRetainNone
+				cron.Spec.RetentionPolicy = &retentionPolicy
+				cron.Status = cdiv1.DataImportCronStatus{
+					CurrentImports: []cdiv1.ImportStatus{
+						{
+							DataVolumeName: dvName,
+							Digest:         testDigest,
+						},
+					},
+				}
+				cc.AddAnnotation(cron, AnnStorageClass, sc.Name)
+				cc.AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
+				err := reconciler.client.Create(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+
+				dataSource = &cdiv1.DataSource{}
+				snap := &snapshotv1.VolumeSnapshot{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      dvName,
+						Namespace: metav1.NamespaceDefault,
+						Annotations: map[string]string{
+							cc.AnnSourceVolumeMode: "dummy",
+						},
+					},
+					Spec: snapshotv1.VolumeSnapshotSpec{
+						Source: snapshotv1.VolumeSnapshotSource{
+							PersistentVolumeClaimName: &dvName,
+						},
+					},
+					Status: &snapshotv1.VolumeSnapshotStatus{
+						ReadyToUse: ptr.To[bool](true),
+					},
+				}
+				err = reconciler.client.Create(context.TODO(), snap)
+				Expect(err).ToNot(HaveOccurred())
+
+				verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready, &snapshotv1.VolumeSnapshot{})
+
+				// Trigger desired storage class by spawning virt default sc variation
+				virtSc := cc.CreateStorageClass(sc.Name+"-virt", map[string]string{cc.AnnDefaultVirtStorageClass: strconv.FormatBool(shouldCleanupOldScSource)})
+				virtSp := &cdiv1.StorageProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: virtSc.Name,
+					},
+					Status: cdiv1.StorageProfileStatus{
+						DataImportCronSourceFormat: &snapFormat,
+					},
+				}
+				err = reconciler.client.Create(context.TODO(), virtSc)
+				Expect(err).ToNot(HaveOccurred())
+				err = reconciler.client.Create(context.TODO(), virtSp)
+				Expect(err).ToNot(HaveOccurred())
+				if shouldCleanupOldScSource {
+					// simulate first reconcile deleting old sources and requeueing
+					_, err := reconciler.Reconcile(context.TODO(), cronReq)
+					Expect(err).ToNot(HaveOccurred())
+					verifyConditions("After DesiredDigest is set", false, false, false, noImport, outdated, "NotFound", &snapshotv1.VolumeSnapshot{})
+					err = reconciler.client.Get(context.TODO(), cronKey, cron)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(cron.Annotations[AnnStorageClass]).To(Equal(virtSc.Name))
+				} else {
+					verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready, &snapshotv1.VolumeSnapshot{})
+					err = reconciler.client.Get(context.TODO(), cronKey, cron)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(cron.Annotations[AnnStorageClass]).To(Equal(sc.Name))
+				}
+
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), snap)
+				if !shouldCleanupOldScSource {
+					Expect(err).ToNot(HaveOccurred())
+					return
+				}
+				// Snapshot created by old storage class is gone
+				Expect(err).To(And(HaveOccurred(), Satisfy(k8serrors.IsNotFound)))
+				dv := &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(*dv.Spec.Source.Registry.URL).To(Equal(testRegistryURL + "@" + testDigest))
+				Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
+			},
+				Entry("source deleted when appropriate", true),
+				Entry("source not deleted when not appropriate", false),
+			)
 
 			It("Should proceed to at least creating a PVC when no default storage class", func() {
 				// Simulate an environment without default storage class
