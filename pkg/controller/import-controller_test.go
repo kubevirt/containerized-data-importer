@@ -469,7 +469,9 @@ var _ = Describe("Update PVC from POD", func() {
 		// Once all controllers are converted, we will use the runtime lib client instead of client-go and retrieval needs to change here.
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1-scratch", Namespace: "default"}, scratchPvc)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(scratchPvc.Spec.Resources).To(Equal(pvc.Spec.Resources))
+		// Since fsOverhead is 0, the scratch space size should be 1Mi aligned close to 1G
+		requestSize := scratchPvc.Spec.Resources.Requests[corev1.ResourceStorage]
+		Expect(requestSize.Value()).To(Equal(int64(999292928)))
 		Expect(scratchPvc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 
 		resPvc := &corev1.PersistentVolumeClaim{}

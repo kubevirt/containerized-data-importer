@@ -465,7 +465,6 @@ func (r *ImportReconciler) cleanup(pvc *corev1.PersistentVolumeClaim, pod *corev
 }
 
 func (r *ImportReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
-	log.V(1).Info("Annotations are now", "pvc.anno", pvc.GetAnnotations())
 	if err := r.client.Update(context.TODO(), pvc); err != nil {
 		return err
 	}
