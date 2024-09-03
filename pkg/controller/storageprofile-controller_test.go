@@ -52,10 +52,11 @@ import (
 )
 
 const (
-	storageClassName  = "testSC"
-	snapshotClassName = "testSnapClass"
-	provisionerName   = "testProvisioner"
-	cephProvisioner   = "rook-ceph.rbd.csi.ceph.com"
+	storageClassName        = "testSC"
+	scratchStorageClassName = "testScratchSC"
+	snapshotClassName       = "testSnapClass"
+	provisionerName         = "testProvisioner"
+	cephProvisioner         = "rook-ceph.rbd.csi.ceph.com"
 )
 
 var (
