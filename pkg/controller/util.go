@@ -29,6 +29,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -158,7 +159,7 @@ func newScratchPersistentVolumeClaimSpec(pvc *corev1.PersistentVolumeClaim, pod 
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{"ReadWriteOnce"},
-			Resources:   pvc.Spec.Resources,
+			Resources:   *pvc.Spec.Resources.DeepCopy(),
 		},
 	}
 	if storageClassName != "" {
@@ -170,6 +171,24 @@ func newScratchPersistentVolumeClaimSpec(pvc *corev1.PersistentVolumeClaim, pod 
 // createScratchPersistentVolumeClaim creates and returns a pointer to a scratch PVC which is created based on the passed-in pvc and storage class name.
 func createScratchPersistentVolumeClaim(client client.Client, pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, name, storageClassName string, installerLabels map[string]string, recorder record.EventRecorder) (*corev1.PersistentVolumeClaim, error) {
 	scratchPvcSpec := newScratchPersistentVolumeClaimSpec(pvc, pod, name, storageClassName)
+
+	sizeRequest := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+	scratchFsOverhead, err := GetFilesystemOverhead(context.TODO(), client, scratchPvcSpec)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get filesystem overhead for scratch PVC")
+	}
+	scratchFsOverheadFloat, _ := strconv.ParseFloat(string(scratchFsOverhead), 64)
+	pvcFsOverhead, err := GetFilesystemOverhead(context.TODO(), client, pvc)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get filesystem overhead for original PVC")
+	}
+	pvcFsOverheadFloat, _ := strconv.ParseFloat(string(pvcFsOverhead), 64)
+	expectedVirtualSize := util.GetUsableSpace(pvcFsOverheadFloat, sizeRequest.Value())
+
+	usableSpaceRaw := util.CalculateOverheadSpace(scratchFsOverheadFloat, expectedVirtualSize)
+
+	scratchPvcSpec.Spec.Resources.Requests[corev1.ResourceStorage] = *resource.NewScaledQuantity(usableSpaceRaw, 0)
+
 	util.SetRecommendedLabels(scratchPvcSpec, installerLabels, "cdi-controller")
 	if err := client.Create(context.TODO(), scratchPvcSpec); err != nil {
 		if cc.ErrQuotaExceeded(err) {
