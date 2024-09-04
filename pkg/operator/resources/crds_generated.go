@@ -7371,7 +7371,11 @@ spec:
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: ObjectTransfer is the cluster scoped object transfer resource
+        description: |-
+          Deprecated for removal in v1.
+
+
+          ObjectTransfer is the cluster scoped object transfer resource
         properties:
           apiVersion:
             description: |-

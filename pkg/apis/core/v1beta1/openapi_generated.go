@@ -18470,7 +18470,7 @@ func schema_pkg_apis_core_v1beta1_ObjectTransfer(ref common.ReferenceCallback) c
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "ObjectTransfer is the cluster scoped object transfer resource",
+				Description: "Deprecated for removal in v1.\n\nObjectTransfer is the cluster scoped object transfer resource",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
