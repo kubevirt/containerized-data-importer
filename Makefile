@@ -23,7 +23,7 @@ else
 	DO_BAZ=eval
 endif
 # x86_64 aarch64 crossbuild-aarch64 s390x crossbuild-s390x
-BUILD_ARCH?=x86_64
+BUILD_ARCH?=$(shell uname -m)
 
 ##@ General
 .DEFAULT_GOAL := help
