@@ -57,3 +57,7 @@ Cleanup: generate-apidocs: remove gradle dependency
 
 v1.60.2
 Enhancement: Add nbdkit command line parameters to improve reliability of multi-stage VDDK imports.
+
+v1.60.3
+BugFix: Fix PVC deletion logic in CDI populators
+BugFix: Increased size of scratch space to take fs overhead into account
