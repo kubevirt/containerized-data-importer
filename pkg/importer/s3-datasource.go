@@ -72,7 +72,7 @@ func NewS3DataSource(endpoint string, accessKey string, secKey string, certDir s
 	}, nil
 }
 
-// NewS3DataSource creates a new instance of the S3DataSource using chain credentials
+// NewChainCredentialsS3DataSource creates a new instance of the S3DataSource using chain credentials (wraps NewS3DataSource)
 func NewChainCredentialsS3DataSource(endpoint, certDir string) (*S3DataSource, error) {
 	/*
 		Quick Note on IRSA credential chain:
@@ -86,20 +86,7 @@ func NewChainCredentialsS3DataSource(endpoint, certDir string) (*S3DataSource, e
 
 				- If your application is running on an Amazon EC2 instance, IAM role for Amazon EC2.
 	*/
-	ep, err := ParseEndpoint(endpoint)
-	if err != nil {
-		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpoint))
-	}
-	s3Reader, err := createS3Reader(ep, emptyAccessKey, emptySecretKey, certDir)
-	if err != nil {
-		return nil, err
-	}
-	return &S3DataSource{
-		ep:        ep,
-		accessKey: emptyAccessKey,
-		secKey:    emptySecretKey,
-		s3Reader:  s3Reader,
-	}, nil
+	return NewS3DataSource(endpoint, emptyAccessKey, emptySecretKey, certDir)
 }
 
 // Info is called to get initial information about the data.
