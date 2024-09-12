@@ -255,6 +255,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 	ep, _ := util.ParseEnvVar(common.ImporterEndpoint, false)
 	acc, _ := util.ParseEnvVar(common.ImporterAccessKeyID, false)
 	sec, _ := util.ParseEnvVar(common.ImporterSecretKey, false)
+	service_account, _ := util.ParseEnvVar(common.ImporterServiceAccountName, false)
 	keyf, _ := util.ParseEnvVar(common.ImporterGoogleCredentialFileVar, false)
 	diskID, _ := util.ParseEnvVar(common.ImporterDiskID, false)
 	uuid, _ := util.ParseEnvVar(common.ImporterUUID, false)
@@ -271,34 +272,45 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 	case cc.SourceHTTP:
 		ds, err := importer.NewHTTPDataSource(getHTTPEp(ep), acc, sec, certDir, cdiv1.DataVolumeContentType(contentType))
 		if err != nil {
-			errorCannotConnectDataSource(err, "http")
+			errorCannotConnectDataSource(err, cc.SourceHTTP)
 		}
 		return ds
 	case cc.SourceImageio:
 		ds, err := importer.NewImageioDataSource(ep, acc, sec, certDir, diskID, currentCheckpoint, previousCheckpoint)
 		if err != nil {
-			errorCannotConnectDataSource(err, "imageio")
+			errorCannotConnectDataSource(err, cc.SourceImageio)
 		}
 		return ds
 	case cc.SourceRegistry:
 		ds := importer.NewRegistryDataSource(ep, acc, sec, certDir, insecureTLS)
 		return ds
 	case cc.SourceS3:
-		ds, err := importer.NewS3DataSource(ep, acc, sec, certDir)
+		var (
+			ds  *importer.S3DataSource
+			err error
+		)
+		if service_account != "" {
+			// use this as a flag to say the user has a SAN set up with creds that IRSA will read
+			klog.Infof("Attempting to create your S3 Data Source with cloud provider creds.\n")
+			ds, err = importer.NewChainCredentialsS3DataSource(ep, certDir)
+		} else {
+			// default behaviour of using supplied access key and secret key to configure S3 client
+			ds, err = importer.NewS3DataSource(ep, acc, sec, certDir)
+		}
 		if err != nil {
-			errorCannotConnectDataSource(err, "s3")
+			errorCannotConnectDataSource(err, cc.SourceS3)
 		}
 		return ds
 	case cc.SourceGCS:
 		ds, err := importer.NewGCSDataSource(ep, keyf)
 		if err != nil {
-			errorCannotConnectDataSource(err, "gcs")
+			errorCannotConnectDataSource(err, cc.SourceGCS)
 		}
 		return ds
 	case cc.SourceVDDK:
 		ds, err := importer.NewVDDKDataSource(ep, acc, sec, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, volumeMode)
 		if err != nil {
-			errorCannotConnectDataSource(err, "vddk")
+			errorCannotConnectDataSource(err, cc.SourceVDDK)
 		}
 		return ds
 	default:

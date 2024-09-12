@@ -21,8 +21,10 @@ import (
 )
 
 const (
-	s3FolderSep = "/"
-	httpScheme  = "http"
+	s3FolderSep    = "/"
+	httpScheme     = "http"
+	emptyAccessKey = ""
+	emptySecretKey = ""
 )
 
 // S3Client is the interface to the used S3 client.
@@ -53,7 +55,7 @@ type S3DataSource struct {
 }
 
 // NewS3DataSource creates a new instance of the S3DataSource
-func NewS3DataSource(endpoint, accessKey, secKey string, certDir string) (*S3DataSource, error) {
+func NewS3DataSource(endpoint string, accessKey string, secKey string, certDir string) (*S3DataSource, error) {
 	ep, err := ParseEndpoint(endpoint)
 	if err != nil {
 		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpoint))
@@ -66,6 +68,36 @@ func NewS3DataSource(endpoint, accessKey, secKey string, certDir string) (*S3Dat
 		ep:        ep,
 		accessKey: accessKey,
 		secKey:    secKey,
+		s3Reader:  s3Reader,
+	}, nil
+}
+
+// NewS3DataSource creates a new instance of the S3DataSource using chain credentials
+func NewChainCredentialsS3DataSource(endpoint, certDir string) (*S3DataSource, error) {
+	/*
+		Quick Note on IRSA credential chain:
+			When you initialize a new service client without providing any credential arguments, the SDK uses the default credential provider chain to find AWS credentials. The SDK uses the first provider in the chain that returns credentials without an error. The default provider chain looks for credentials in the following order:
+
+				- Environment variables.  (* set when a `serviceAccountName` is supplied)
+
+				- Shared credentials file.
+
+				- If your application uses an ECS task definition or RunTask API operation, IAM role for tasks.
+
+				- If your application is running on an Amazon EC2 instance, IAM role for Amazon EC2.
+	*/
+	ep, err := ParseEndpoint(endpoint)
+	if err != nil {
+		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpoint))
+	}
+	s3Reader, err := createS3Reader(ep, emptyAccessKey, emptySecretKey, certDir)
+	if err != nil {
+		return nil, err
+	}
+	return &S3DataSource{
+		ep:        ep,
+		accessKey: emptyAccessKey,
+		secKey:    emptySecretKey,
 		s3Reader:  s3Reader,
 	}, nil
 }
@@ -140,7 +172,7 @@ func (sd *S3DataSource) Close() error {
 	return err
 }
 
-func createS3Reader(ep *url.URL, accessKey, secKey string, certDir string) (io.ReadCloser, error) {
+func createS3Reader(ep *url.URL, accessKey string, secKey string, certDir string) (io.ReadCloser, error) {
 	klog.V(3).Infoln("Using S3 client to get data")
 
 	endpoint := ep.Host
@@ -168,31 +200,38 @@ func createS3Reader(ep *url.URL, accessKey, secKey string, certDir string) (io.R
 	return objectReader, nil
 }
 
-func getS3Client(endpoint, accessKey, secKey string, certDir string, urlScheme string) (S3Client, error) {
+func getS3Client(endpoint string, accessKey string, secKey string, certDir string, urlScheme string) (S3Client, error) {
 	// Adding certs using CustomCABundle will overwrite the SystemCerts, so we opt by creating a custom HTTPClient
 	httpClient, err := createHTTPClient(certDir)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating http client for s3")
 	}
+	var creds *credentials.Credentials = nil
+	if accessKey != emptyAccessKey && secKey != emptySecretKey {
+		creds = credentials.NewStaticCredentials(accessKey, secKey, "")
+	}
 
-	creds := credentials.NewStaticCredentials(accessKey, secKey, "")
 	region := extractRegion(endpoint)
 	disableSSL := false
 	// Disable SSL for http endpoint. This should cause the s3 client to create http requests.
 	if urlScheme == httpScheme {
 		disableSSL = true
 	}
-
-	sess, err := session.NewSession(&aws.Config{
+	sessionConfig := &aws.Config{
 		Region:           aws.String(region),
 		Endpoint:         aws.String(endpoint),
-		Credentials:      creds,
 		S3ForcePathStyle: aws.Bool(true),
 		HTTPClient:       httpClient,
 		DisableSSL:       &disableSSL,
-	},
-	)
+	}
+	if creds != nil {
+		sessionConfig.Credentials = creds
+	} else {
+		// recommended value to set when relying on credential chains
+		sessionConfig.CredentialsChainVerboseErrors = aws.Bool(true)
+	}
+	sess, err := session.NewSession(sessionConfig)
 	if err != nil {
 		return nil, err
 	}
