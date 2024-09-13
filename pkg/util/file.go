@@ -167,6 +167,9 @@ func PunchHole(outFile *os.File, start, length int64) error {
 	return err
 }
 
+// unit test support to simulate failure and fallback to zero writes
+var appendZeroWithTruncateFunc = AppendZeroWithTruncate
+
 // AppendZeroWithTruncate resizes the file to append zeroes, meant only for newly-created (empty and zero-length) regular files.
 func AppendZeroWithTruncate(outFile *os.File, start, length int64) error {
 	klog.V(4).Infof("Truncating %d-bytes from offset %d", length, start)
@@ -227,7 +230,7 @@ func StreamDataToFile(r io.Reader, fileName string, preallocate bool) (int64, in
 
 	if !preallocate {
 		var isDevice bool
-		zeroWriter := AppendZeroWithTruncate
+		zeroWriter := appendZeroWithTruncateFunc
 		isDevice, err = IsDevice(fileName)
 		if err != nil {
 			return 0, 0, err
@@ -260,6 +263,21 @@ func StreamDataToFile(r io.Reader, fileName string, preallocate bool) (int64, in
 
 type zeroWriterFunc func(*os.File, int64, int64) error
 
+func zeroWriterWithFallback(zwf zeroWriterFunc) func(dst *os.File, start, length int64) (int64, error) {
+	return func(dst *os.File, start, length int64) (int64, error) {
+		err := zwf(dst, start, length)
+		if err != nil {
+			klog.Errorf("Error zeroing range in destination file: %v, will write zeros directly", err)
+			err = AppendZeroWithWrite(dst, start, length)
+			if err != nil {
+				return 0, err
+			}
+			return length, nil
+		}
+		return 0, nil
+	}
+}
+
 func copyWithSparseCheck(dst *os.File, src io.Reader, zeroWriter zeroWriterFunc) (int64, int64, error) {
 	klog.Infof("copyWithSparseCheck to %s", dst.Name())
 	const buffSize = 32 * 1024
@@ -267,20 +285,27 @@ func copyWithSparseCheck(dst *os.File, src io.Reader, zeroWriter zeroWriterFunc)
 	zeroBuf := make([]byte, buffSize)
 	writeBuf := make([]byte, buffSize)
 	var writeOffset int64
+	checkZeros := true
+	zeroWriterFunc := zeroWriterWithFallback(zeroWriter)
 	for {
 		nr, er := src.Read(writeBuf)
 		if nr > 0 {
 			var nw int
 			var ew error
-			if bytes.Equal(writeBuf[0:nr], zeroBuf[0:nr]) {
+			var zbw int64
+			if checkZeros && bytes.Equal(writeBuf[0:nr], zeroBuf[0:nr]) {
 				bytesRead += int64(nr)
 			} else {
 				if bytesRead > writeOffset {
-					// zeroWriter func should seek to bytesRead before returning
-					ew = zeroWriter(dst, writeOffset, bytesRead-writeOffset)
+					// func should seek to bytesRead before returning
+					zbw, ew = zeroWriterFunc(dst, writeOffset, bytesRead-writeOffset)
 					if ew != nil {
-						klog.Errorf("Error zeroing range in destination file: %v", ew)
+						klog.Errorf("Error writing zeroes to destination file: %v", ew)
 						return bytesRead, bytesWritten, ew
+					}
+					bytesWritten += zbw
+					if zbw > 0 {
+						checkZeros = false
 					}
 				}
 				nw, ew = dst.Write(writeBuf[0:nr])
@@ -309,10 +334,12 @@ func copyWithSparseCheck(dst *os.File, src io.Reader, zeroWriter zeroWriterFunc)
 		}
 	}
 	if bytesRead > writeOffset {
-		if err := zeroWriter(dst, writeOffset, bytesRead-writeOffset); err != nil {
-			klog.Errorf("Error zeroing range in destination file: %v", err)
+		zbw, err := zeroWriterFunc(dst, writeOffset, bytesRead-writeOffset)
+		if err != nil {
+			klog.Errorf("Error writing zeroes to destination file: %v", err)
 			return bytesRead, bytesWritten, err
 		}
+		bytesWritten += zbw
 	}
 	return bytesRead, bytesWritten, nil
 }
