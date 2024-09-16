@@ -49,13 +49,15 @@ import (
 )
 
 const (
-	storageClassName  = "testSC"
-	snapshotClassName = "testSnapClass"
-	cephProvisioner   = "rook-ceph.rbd.csi.ceph.com"
+	scratchStorageClassName = "testScratchSC"
+	snapshotClassName       = "testSnapClass"
+	provisionerName         = "testProvisioner"
+	cephProvisioner         = "rook-ceph.rbd.csi.ceph.com"
 )
 
 var (
 	storageProfileLog = logf.Log.WithName("storageprofile-controller-test")
+	storageClassName  = "testSC"
 )
 
 var _ = Describe("Storage profile controller reconcile loop", func() {
