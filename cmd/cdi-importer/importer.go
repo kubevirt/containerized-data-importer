@@ -255,7 +255,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 	ep, _ := util.ParseEnvVar(common.ImporterEndpoint, false)
 	acc, _ := util.ParseEnvVar(common.ImporterAccessKeyID, false)
 	sec, _ := util.ParseEnvVar(common.ImporterSecretKey, false)
-	service_account, _ := util.ParseEnvVar(common.ImporterServiceAccountName, false)
+	serviceAccount, _ := util.ParseEnvVar(common.ImporterServiceAccountName, false)
 	keyf, _ := util.ParseEnvVar(common.ImporterGoogleCredentialFileVar, false)
 	diskID, _ := util.ParseEnvVar(common.ImporterDiskID, false)
 	uuid, _ := util.ParseEnvVar(common.ImporterUUID, false)
@@ -289,7 +289,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 			ds  *importer.S3DataSource
 			err error
 		)
-		if service_account != "" {
+		if serviceAccount != "" {
 			// use this as a flag to say the user has a SAN set up with creds that IRSA will read
 			klog.Infof("Attempting to create your S3 Data Source with cloud provider creds.\n")
 			ds, err = importer.NewChainCredentialsS3DataSource(ep, certDir)

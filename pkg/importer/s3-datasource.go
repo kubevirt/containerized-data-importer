@@ -194,7 +194,7 @@ func getS3Client(endpoint string, accessKey string, secKey string, certDir strin
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating http client for s3")
 	}
-	var creds *credentials.Credentials = nil
+	var creds *credentials.Credentials
 	if accessKey != emptyAccessKey && secKey != emptySecretKey {
 		creds = credentials.NewStaticCredentials(accessKey, secKey, "")
 	}
