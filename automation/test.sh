@@ -83,6 +83,9 @@ build --remote_http_cache=${BAZEL_CACHE}
 build --jobs=4
 EOF
 
+# test with less etcd flushes
+export KUBEVIRT_NO_ETCD_FSYNC=true
+
 make cluster-up
 
 # Wait for nodes to become ready
