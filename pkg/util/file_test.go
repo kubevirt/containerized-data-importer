@@ -134,6 +134,10 @@ var _ = Describe("All tests", func() {
 
 	Describe("StreamDataToFile tests", func() {
 		Context("with tmp directory", func() {
+			const (
+				sparseBoundary int64 = 32 * 1024
+			)
+
 			var destTmp string
 			var err error
 			var random *rand.Rand
@@ -158,8 +162,7 @@ var _ = Describe("All tests", func() {
 
 			DescribeTable("Should stream data to file", func(writeSize int, preallocate bool) {
 				const (
-					totalBytes     int64 = 1024 * 1024
-					sparseBoundary int64 = 32 * 1024
+					totalBytes int64 = 1024 * 1024
 				)
 
 				// validate  writeSize
@@ -207,6 +210,66 @@ var _ = Describe("All tests", func() {
 				Entry("with preallocation 32k block", 32*1024, true),
 				Entry("with preallocation 64k block", 64*1024, true),
 			)
+
+			Context("with fake zero writer", func() {
+
+				fakeAppendWithTruncate := func(outFile *os.File, start, length int64) error {
+					return fmt.Errorf("fake append with truncate")
+				}
+
+				alternatingBytes := func(numRanges int) []byte {
+					var byteBuf bytes.Buffer
+					for i := 0; i < numRanges; i++ {
+						b := byte(0)
+						if i%2 == 0 {
+							b = 1
+						}
+						byteBuf.Write(bytes.Repeat([]byte{b}, int(sparseBoundary)))
+					}
+					return byteBuf.Bytes()
+				}
+
+				leadingZeroes := func(numRanges int) []byte {
+					var byteBuf bytes.Buffer
+					byteBuf.Write(bytes.Repeat([]byte{0}, int(sparseBoundary)))
+					for i := 0; i < numRanges-1; i++ {
+						byteBuf.Write(bytes.Repeat([]byte{1}, int(sparseBoundary)))
+					}
+					return byteBuf.Bytes()
+				}
+
+				trailingZeroes := func(numRanges int) []byte {
+					var byteBuf bytes.Buffer
+					for i := 0; i < numRanges-1; i++ {
+						byteBuf.Write(bytes.Repeat([]byte{1}, int(sparseBoundary)))
+					}
+					byteBuf.Write(bytes.Repeat([]byte{0}, int(sparseBoundary)))
+					return byteBuf.Bytes()
+				}
+
+				AfterEach(func() {
+					appendZeroWithTruncateFunc = AppendZeroWithTruncate
+				})
+
+				DescribeTable("should fallback to writing zeroes if truncate fails", func(fail bool, data []byte, expectedBytesWritten int64) {
+					if fail {
+						appendZeroWithTruncateFunc = fakeAppendWithTruncate
+					}
+
+					destName := filepath.Join(destTmp, "disk.img")
+					bytesRead, bytesWritten, err := StreamDataToFile(bytes.NewReader(data), destName, false)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(bytesRead).To(Equal(sparseBoundary * 4))
+					Expect(bytesWritten).To(Equal(expectedBytesWritten))
+				},
+					Entry("no failure", false, alternatingBytes(4), sparseBoundary*2),
+					Entry("with failure", true, alternatingBytes(4), sparseBoundary*4),
+					Entry("no failure leading", false, leadingZeroes(4), sparseBoundary*3),
+					Entry("no failure trailing", false, trailingZeroes(4), sparseBoundary*3),
+					Entry("with failure leading", true, leadingZeroes(4), sparseBoundary*4),
+					Entry("with failure trailing", true, trailingZeroes(4), sparseBoundary*4),
+				)
+			})
 		})
 	})
 })
