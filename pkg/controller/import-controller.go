@@ -102,6 +102,7 @@ type importPodEnvVar struct {
 	extraHeaders       []string
 	secretExtraHeaders []string
 	cacheMode          string
+	serviceAccountName string
 }
 
 type importerPodArgs struct {
@@ -1262,6 +1263,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.CacheMode,
 			Value: podEnvVar.cacheMode,
+		},
+		{
+			Name:  common.ImporterServiceAccountName,
+			Value: podEnvVar.serviceAccountName,
 		},
 	}
 	if podEnvVar.secretName != "" && podEnvVar.source != cc.SourceGCS {
