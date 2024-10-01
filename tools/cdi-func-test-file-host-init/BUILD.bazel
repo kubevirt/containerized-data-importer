@@ -92,7 +92,7 @@ container_image(
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": [
             ":nginx-conf-tar",
-            "//rpm:testimage_aarch64",
+            "//rpm:testimage_s390x",
         ],
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             ":nginx-conf-tar",
