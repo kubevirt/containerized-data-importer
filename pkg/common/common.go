@@ -111,8 +111,8 @@ const (
 	ImporterAccessKeyID = "IMPORTER_ACCESS_KEY_ID"
 	// ImporterSecretKey provides a constant to capture our env variable "IMPORTER_SECRET_KEY"
 	ImporterSecretKey = "IMPORTER_SECRET_KEY"
-	// ImporterSecretKey provides a constant to capture our env variable "IMPORTER_SECRET_KEY"
-	ImporterServiceAccountName = "IMPORTER_SERVICE_ACCOUNT_NAME"
+	// UseS3CredentialsChainAuth flags whether or not to use the default aws config chain
+	UseS3CredentialsChainAuth = "S3_CREDENTIALS_CHAIN_AUTH"
 	// ImporterImageSize provides a constant to capture our env variable "IMPORTER_IMAGE_SIZE"
 	ImporterImageSize = "IMPORTER_IMAGE_SIZE"
 	// ImporterCertDirVar provides a constant to capture our env variable "IMPORTER_CERT_DIR"
