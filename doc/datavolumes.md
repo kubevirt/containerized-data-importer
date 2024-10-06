@@ -83,6 +83,7 @@ or implicitly as explained in the previous paragraph), CDI will take the file sy
 overhead into account and request a PVC big enough to fit both an image and the file
 system metadata. This logic only applies to the `DataVolume.spec.storage`.
 
+#### Default virtualization storage class
 If you skip the `storageClassName` parameter, CDI will prioritize the default
 virtualization storage class over k8s' default. You can define your default
 virtualization storage class by annotating it with

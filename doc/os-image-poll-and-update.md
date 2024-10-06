@@ -109,3 +109,13 @@ spec:
 ```
 
 To ensure smooth transition, existing DataImportCrons can be switchd to maintaining snapshots instead of PVCs by updating their corresponding storage profiles.
+
+## DataImportCron storage class
+Unless specified explicitly, similarly to PVCs, DataImportCrons will be provisioned using the default [virt](./datavolumes.md#default-virtualization-storage-class)/k8s storage class.  
+In previous versions, an admin would have to actively delete the old sources upon change of the storage class  
+(either explicitly by editing the DataImportCron or a cluster-wide change of the default storage class)  
+
+Today, the controller performs this automatically;  
+However, changing the storage class should be a conscious decision and in some cases (complex CI setups) it's advised to specify it explicitly
+to avoid exercising a different storage class for golden images throughout installation.  
+This flip flop could be costly and in some cases outright surprising to cluster admins.
