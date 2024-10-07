@@ -167,10 +167,11 @@ const (
 
 // UnsupportedProvisioners is a hash of provisioners which are known not to work with CDI
 var UnsupportedProvisioners = map[string]struct{}{
-	ProvisionerOCSBucket:      {},
-	ProvisionerRookCephBucket: {},
-	ProvisionerNoobaa:         {},
-	ProvisionerStorkSnapshot:  {},
+	ProvisionerOCSBucket:                   {},
+	ProvisionerRookCephBucket:              {},
+	ProvisionerNoobaa:                      {},
+	ProvisionerStorkSnapshot:               {},
+	storagehelpers.NotSupportedProvisioner: {},
 }
 
 // GetCapabilities finds and returns a predefined StorageCapabilities for a given StorageClass
