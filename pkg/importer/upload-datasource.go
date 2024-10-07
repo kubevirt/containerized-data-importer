@@ -51,10 +51,6 @@ func (ud *UploadDataSource) Info() (ProcessingPhase, error) {
 	if ud.contentType == cdiv1.DataVolumeArchive {
 		return ProcessingPhaseTransferDataDir, nil
 	}
-	if !ud.readers.Convert {
-		// Uploading a raw file, we can write that directly to the target.
-		return ProcessingPhaseTransferDataFile, nil
-	}
 	return ProcessingPhaseTransferScratch, nil
 }
 
