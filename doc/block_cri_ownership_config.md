@@ -8,10 +8,16 @@ This makes it problematic for our workloads to populate block devices, and has m
 As explained in the source below, a solution that is seamless to end-users was chosen by the k8s community, without getting the device plugin vendors involved.  
 The selected approach was to re-use `runAsUser` and `runAsGroup` for devices, with an opt-in config entry for the CRI (`device_ownership_from_security_context`) that ensures no existing deployment breaks.  
 To use CDI, it is advised to opt-in.  
-For containerd:
+For Containerd v1:
 ```toml
 [plugins]
   [plugins."io.containerd.grpc.v1.cri"]
+    device_ownership_from_security_context = true
+```
+For Containerd v2:
+```toml
+[plugins]
+  [plugins."io.containerd.cri.v1.runtime"]
     device_ownership_from_security_context = true
 ```
 CRI-O:
