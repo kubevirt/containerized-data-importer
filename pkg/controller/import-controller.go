@@ -76,32 +76,33 @@ type ImportReconciler struct {
 }
 
 type importPodEnvVar struct {
-	ep                 string
-	secretName         string
-	source             string
-	contentType        string
-	imageSize          string
-	certConfigMap      string
-	diskID             string
-	uuid               string
-	pullMethod         string
-	readyFile          string
-	doneFile           string
-	backingFile        string
-	thumbprint         string
-	filesystemOverhead string
-	insecureTLS        bool
-	currentCheckpoint  string
-	previousCheckpoint string
-	finalCheckpoint    string
-	preallocation      bool
-	httpProxy          string
-	httpsProxy         string
-	noProxy            string
-	certConfigMapProxy string
-	extraHeaders       []string
-	secretExtraHeaders []string
-	cacheMode          string
+	ep                           string
+	secretName                   string
+	source                       string
+	contentType                  string
+	imageSize                    string
+	certConfigMap                string
+	diskID                       string
+	uuid                         string
+	pullMethod                   string
+	readyFile                    string
+	doneFile                     string
+	backingFile                  string
+	thumbprint                   string
+	filesystemOverhead           string
+	insecureTLS                  bool
+	currentCheckpoint            string
+	previousCheckpoint           string
+	finalCheckpoint              string
+	preallocation                bool
+	httpProxy                    string
+	httpsProxy                   string
+	noProxy                      string
+	certConfigMapProxy           string
+	extraHeaders                 []string
+	secretExtraHeaders           []string
+	cacheMode                    string
+	use_s3_credential_chain_auth bool
 }
 
 type importerPodArgs struct {
@@ -117,6 +118,7 @@ type importerPodArgs struct {
 	workloadNodePlacement   *sdkapi.NodePlacement
 	vddkImageName           *string
 	priorityClassName       string
+	serviceAccountName      string
 }
 
 // NewImportController creates a new instance of the import controller.
@@ -912,15 +914,16 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			},
 		},
 		Spec: corev1.PodSpec{
-			Containers:        makeImporterContainerSpec(args),
-			InitContainers:    makeImporterInitContainersSpec(args),
-			Volumes:           makeImporterVolumeSpec(args),
-			RestartPolicy:     corev1.RestartPolicyOnFailure,
-			NodeSelector:      args.workloadNodePlacement.NodeSelector,
-			Tolerations:       args.workloadNodePlacement.Tolerations,
-			Affinity:          args.workloadNodePlacement.Affinity,
-			PriorityClassName: args.priorityClassName,
-			ImagePullSecrets:  args.imagePullSecrets,
+			Containers:         makeImporterContainerSpec(args),
+			InitContainers:     makeImporterInitContainersSpec(args),
+			Volumes:            makeImporterVolumeSpec(args),
+			RestartPolicy:      corev1.RestartPolicyOnFailure,
+			NodeSelector:       args.workloadNodePlacement.NodeSelector,
+			Tolerations:        args.workloadNodePlacement.Tolerations,
+			Affinity:           args.workloadNodePlacement.Affinity,
+			PriorityClassName:  args.priorityClassName,
+			ImagePullSecrets:   args.imagePullSecrets,
+			ServiceAccountName: args.serviceAccountName,
 		},
 	}
 
@@ -948,6 +951,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 }
 
 func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
+	args.podEnvVar.use_s3_credential_chain_auth = args.serviceAccountName != "" // prep podEnvVar for Import method below
 	containers := []corev1.Container{
 		{
 			Name:            common.ImporterPodName,
@@ -1262,6 +1266,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.CacheMode,
 			Value: podEnvVar.cacheMode,
+		},
+		{
+			Name:  common.UseS3CredentialsChainAuth,
+			Value: strconv.FormatBool(podEnvVar.use_s3_credential_chain_auth),
 		},
 	}
 	if podEnvVar.secretName != "" && podEnvVar.source != cc.SourceGCS {
