@@ -304,7 +304,7 @@ var _ = Describe("Validate", func() {
 		Entry("should return error on bad json", mockExecFunction(badValidateJSON, "", expectedLimits), "unexpected end of JSON input", imageName),
 		Entry("should return error on bad format", mockExecFunction(badFormatValidateJSON, "", expectedLimits), fmt.Sprintf("Invalid format raw2 for image %s", imageName), imageName),
 		Entry("should return error on invalid backing file", mockExecFunction(backingFileValidateJSON, "", expectedLimits), fmt.Sprintf("Image %s is invalid because it has invalid backing file backing-file.qcow2", imageName), imageName),
-		Entry("should return error when PVC is too small", mockExecFunction(hugeValidateJSON, "", expectedLimits), fmt.Sprintf("virtual image size %d is larger than the reported available storage %d. A larger PVC is required", 52949672960, 42949672960), imageName),
+		Entry("should return error when PVC is too small", mockExecFunction(hugeValidateJSON, "", expectedLimits), fmt.Sprintf("virtual image size %d is smaller than the reported available storage %d. A larger PVC is required", 42949672960, 52949672960), imageName),
 	)
 
 })
