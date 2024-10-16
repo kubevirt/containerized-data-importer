@@ -363,12 +363,12 @@ func (dp *DataProcessor) calculateTargetSize() int64 {
 			klog.Error(err)
 		}
 		targetQuantity = resource.NewScaledQuantity(size, 0)
-	}
-	if dp.requestImageSize != "" {
-		klog.V(1).Infof("Request image size not empty.\n")
-		newImageSizeQuantity := resource.MustParse(dp.requestImageSize)
-		minQuantity := util.MinQuantity(targetQuantity, &newImageSizeQuantity)
-		targetQuantity = &minQuantity
+		if dp.requestImageSize != "" {
+			klog.V(1).Infof("Request image size not empty.\n")
+			newImageSizeQuantity := resource.MustParse(dp.requestImageSize)
+			minQuantity := util.MinQuantity(targetQuantity, &newImageSizeQuantity)
+			targetQuantity = &minQuantity
+		}
 	}
 	klog.V(1).Infof("Target size %s.\n", targetQuantity.String())
 	targetSize := targetQuantity.Value()
