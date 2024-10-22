@@ -1089,5 +1089,10 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		}
 	}
 
+	if vs.PreviousSnapshot != "" {
+		// Don't resize when applying snapshot deltas as the resize has already happened
+		// when the first snapshot was imported.
+		return ProcessingPhaseComplete, nil
+	}
 	return ProcessingPhaseResize, nil
 }
