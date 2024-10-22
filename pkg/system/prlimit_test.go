@@ -42,8 +42,8 @@ var _ = Describe("Process Limits", func() {
 
 	realLimits := &ProcessLimitValues{1 << 30, 10}
 
-	//workaround for https://github.com/kubevirt/containerized-data-importer/issues/3341
-	if runtime.GOARCH == "s390x" {
+	//workaround for issue #3341 and #3467
+	if runtime.GOARCH == "s390x" || runtime.GOARCH == "arm64" {
 		realLimits = &ProcessLimitValues{1 << 31, 10}
 	}
 
