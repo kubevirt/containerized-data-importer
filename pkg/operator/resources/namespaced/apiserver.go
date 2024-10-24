@@ -98,7 +98,8 @@ func createAPIServerDeployment(image, verbosity, pullPolicy string, imagePullSec
 	if replicas > 1 {
 		deployment.Spec.Replicas = &replicas
 	}
-	container := utils.CreateContainer(common.CDIApiServerResourceName, image, verbosity, pullPolicy)
+	container := utils.CreatePortsContainer(common.CDIApiServerResourceName, image, pullPolicy, createAPIServerPorts(common.CDIApiServerResourceName))
+	container.Args = []string{"-v=" + verbosity}
 	container.Env = []corev1.EnvVar{
 		{
 			Name: common.InstallerPartOfLabel,
@@ -194,4 +195,14 @@ func createAPIServerDeployment(image, verbosity, pullPolicy string, imagePullSec
 		},
 	}
 	return deployment
+}
+
+func createAPIServerPorts(name string) []corev1.ContainerPort {
+	return []corev1.ContainerPort{
+		{
+			Name:          name,
+			ContainerPort: 8443,
+			Protocol:      "TCP",
+		},
+	}
 }
