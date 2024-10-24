@@ -221,7 +221,7 @@ var _ = Describe("VDDK data source", func() {
 
 		phase, err = snap2.TransferFile(".")
 		Expect(err).ToNot(HaveOccurred())
-		Expect(phase).To(Equal(ProcessingPhaseResize))
+		Expect(phase).To(Equal(ProcessingPhaseComplete))
 
 		deltaSum := md5.Sum(mockSinkBuffer)
 		Expect(changedSourceSum).To(Equal(deltaSum))
