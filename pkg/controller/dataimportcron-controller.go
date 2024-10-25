@@ -686,6 +686,9 @@ func (r *DataImportCronReconciler) handleCronFormat(ctx context.Context, dataImp
 }
 
 func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImportCron *cdiv1.DataImportCron, pvc *corev1.PersistentVolumeClaim, desiredStorageClass *storagev1.StorageClass) error {
+	if pvc == nil {
+		return nil
+	}
 	if sc := pvc.Spec.StorageClassName; sc != nil && *sc != desiredStorageClass.Name {
 		r.log.Info("Attempt to change storage class, will not try making a snapshot of the old PVC")
 		return nil
