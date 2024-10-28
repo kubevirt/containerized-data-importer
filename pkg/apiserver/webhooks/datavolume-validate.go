@@ -492,6 +492,9 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 				return toAdmissionResponseError(err)
 			}
 		} else {
+			// We are planning to remove the Claim adoption feature gate
+			// https://github.com/kubevirt/containerized-data-importer/issues/3480
+			// once removed we should remove the check for it in this webhook.
 			allow, err := cc.ClaimMayExistBeforeDataVolume(wh.controllerRuntimeClient, pvc, &dv)
 			if err != nil {
 				return toAdmissionResponseError(err)
