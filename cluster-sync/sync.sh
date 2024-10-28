@@ -181,8 +181,8 @@ if [ "${CDI_SYNC}" == "test-infra" ]; then
   _kubectl apply -f "./_out/manifests/sample-populator.yaml"
   _kubectl apply -f "./_out/manifests/uploadproxy-nodeport.yaml"
 
-  # Check if CPU architecture is s390x
-  if [ "$(uname -m)" != "s390x" ]; then
+  # Disable unsupported functest images for s390x
+  if [ "${ARCHITECTURE}" != "s390x" ]; then
     # Imageio test service:
     _kubectl apply -f "./_out/manifests/imageio.yaml"
     # vCenter (VDDK) test service:
