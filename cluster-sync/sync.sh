@@ -180,10 +180,15 @@ if [ "${CDI_SYNC}" == "test-infra" ]; then
   _kubectl apply -f "./_out/manifests/test-proxy.yaml"
   _kubectl apply -f "./_out/manifests/sample-populator.yaml"
   _kubectl apply -f "./_out/manifests/uploadproxy-nodeport.yaml"
-  # Imageio test service:
-  _kubectl apply -f "./_out/manifests/imageio.yaml"
-  # vCenter (VDDK) test service:
-  _kubectl apply -f "./_out/manifests/vcenter.yaml"
+
+  # Disable unsupported functest images for s390x
+  if [ "${ARCHITECTURE}" != "s390x" ]; then
+    # Imageio test service:
+    _kubectl apply -f "./_out/manifests/imageio.yaml"
+    # vCenter (VDDK) test service:
+    _kubectl apply -f "./_out/manifests/vcenter.yaml"
+  fi
+ 
   if _kubectl get crd securitycontextconstraints.security.openshift.io >/dev/null 2>&1; then
     _kubectl apply -f "./_out/manifests/cdi-testing-scc.yaml"
   fi
