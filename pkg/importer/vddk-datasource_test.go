@@ -60,6 +60,7 @@ var _ = Describe("VDDK data source", func() {
 		newTerminationChannel = createMockTerminationChannel
 		currentExport = defaultMockNbdExport()
 		currentVMwareFunctions = defaultMockVMwareFunctions()
+		currentMockNbdFunctions = defaultMockNbdFunctions()
 	})
 
 	AfterEach(func() {
@@ -462,10 +463,10 @@ var _ = Describe("VDDK data source", func() {
 		}
 		_, err := NewVDDKDataSource("http://esx.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(MaxPreadLength).To(Equal(uint32(MaxPreadLengthESX)))
+		Expect(MaxPreadLength).To(Equal(MaxPreadLengthESX))
 		_, err = NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(MaxPreadLength).To(Equal(uint32(MaxPreadLengthVC)))
+		Expect(MaxPreadLength).To(Equal(MaxPreadLengthVC))
 	})
 
 	It("GetTerminationMessage should contain VDDK connection information", func() {
@@ -514,26 +515,266 @@ var _ = Describe("VDDK log watcher", func() {
 	)
 })
 
+var _ = Describe("VDDK get block status", func() {
+	defaultMockNbd := defaultMockNbdFunctions()
+	BeforeEach(func() {
+		currentMockNbdFunctions = defaultMockNbdFunctions()
+	})
+
+	It("should not request block status for a range smaller than 1MB", func() {
+		nbdCalled := false
+		currentMockNbdFunctions.GetSize = func() (uint64, error) {
+			nbdCalled = true
+			return defaultMockNbd.GetSize()
+		}
+		currentMockNbdFunctions.Pread = func(buf []byte, offset uint64, optargs *libnbd.PreadOptargs) error {
+			nbdCalled = true
+			return defaultMockNbd.Pread(buf, offset, optargs)
+		}
+		currentMockNbdFunctions.Close = func() *libnbd.LibnbdError {
+			nbdCalled = true
+			return defaultMockNbd.Close()
+		}
+		currentMockNbdFunctions.BlockStatus = func(length uint64, offset uint64, callback libnbd.ExtentCallback, optargs *libnbd.BlockStatusOptargs) error {
+			nbdCalled = true
+			return defaultMockNbd.BlockStatus(length, offset, callback, optargs)
+		}
+
+		extent := types.DiskChangeExtent{
+			Start:  0,
+			Length: 1024*1024 - 1,
+		}
+		expectedBlocks := []*BlockStatusData{
+			{
+				Offset: extent.Start,
+				Length: extent.Length,
+				Flags:  0,
+			},
+		}
+
+		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
+		Expect(blocks).To(Equal(expectedBlocks))
+		Expect(nbdCalled).To(BeFalse())
+	})
+
+	It("should return the whole block when libnbd returns an error", func() {
+		nbdCalled := false
+		currentMockNbdFunctions.BlockStatus = func(length uint64, offset uint64, callback libnbd.ExtentCallback, optargs *libnbd.BlockStatusOptargs) error {
+			nbdCalled = true
+			return errors.New("Block status failure")
+		}
+
+		extent := types.DiskChangeExtent{
+			Start:  0,
+			Length: 1024 * 1024,
+		}
+		expectedBlocks := []*BlockStatusData{
+			{
+				Offset: extent.Start,
+				Length: extent.Length,
+				Flags:  0,
+			},
+		}
+
+		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
+		Expect(blocks).To(Equal(expectedBlocks))
+		Expect(nbdCalled).To(BeTrue())
+	})
+
+	It("should return the whole block when block list is unchanged after status request", func() {
+		// Default mock block status callback always returns the same extents,
+		// so force it to return multiple blocks in the list by asking for more
+		// than the maximum single block status length. This triggers the
+		// "No new block status data" codepath in GetBlockStatus.
+		extent := types.DiskChangeExtent{
+			Start:  0,
+			Length: MaxBlockStatusLength + 1024,
+		}
+		expectedBlocks := []*BlockStatusData{
+			{
+				Offset: extent.Start,
+				Length: extent.Length,
+				Flags:  0,
+			},
+		}
+
+		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
+		Expect(blocks).To(Equal(expectedBlocks))
+	})
+
+	It("should chunk up block status requests when asking for more than the maximum status request length", func() {
+		timesCalled := 0
+		currentMockNbdFunctions.BlockStatus = func(length uint64, offset uint64, callback libnbd.ExtentCallback, optargs *libnbd.BlockStatusOptargs) error {
+			if timesCalled == 0 {
+				Expect(offset).To(Equal(uint64(0)))
+				Expect(length).To(Equal(uint64(MaxBlockStatusLength)))
+			}
+			if timesCalled == 1 {
+				Expect(offset).To(Equal(uint64(MaxBlockStatusLength)))
+				Expect(length).To(Equal(uint64(1024)))
+			}
+			timesCalled++
+			err := 0
+			callback("base:allocation", offset, []uint32{uint32(length), 0}, &err)
+			return nil
+		}
+
+		extent := types.DiskChangeExtent{
+			Start:  0,
+			Length: MaxBlockStatusLength + 1024,
+		}
+		expectedBlocks := []*BlockStatusData{
+			{
+				Offset: extent.Start,
+				Length: extent.Length,
+				Flags:  0,
+			},
+		}
+
+		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
+		Expect(blocks).To(Equal(expectedBlocks))
+		Expect(timesCalled).To(Equal(2))
+	})
+
+	It("should return multiple blocks when data source ranges have different flags", func() {
+		const blockSize = 1024 * 1024
+
+		currentMockNbdFunctions.BlockStatus = func(length uint64, offset uint64, callback libnbd.ExtentCallback, optargs *libnbd.BlockStatusOptargs) error {
+			err := 0
+			if offset == 0 {
+				callback("base:allocation", offset, []uint32{blockSize, 0}, &err)
+			}
+			if offset == blockSize {
+				callback("base:allocation", offset, []uint32{blockSize, 3}, &err)
+			}
+			return nil
+		}
+
+		extent := types.DiskChangeExtent{
+			Start:  0,
+			Length: 2 * blockSize,
+		}
+		expectedBlocks := []*BlockStatusData{
+			{
+				Offset: 0,
+				Length: blockSize,
+				Flags:  0,
+			},
+			{
+				Offset: blockSize,
+				Length: blockSize,
+				Flags:  3,
+			},
+		}
+
+		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
+		Expect(blocks).To(Equal(expectedBlocks))
+	})
+
+	It("should handle large blocks with the same flags", func() {
+		const blockSize = MaxBlockStatusLength * 2
+
+		extent := types.DiskChangeExtent{
+			Start:  0,
+			Length: blockSize,
+		}
+		expectedBlocks := []*BlockStatusData{
+			{
+				Offset: extent.Start,
+				Length: extent.Length,
+				Flags:  0,
+			},
+		}
+
+		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
+		Expect(blocks).To(Equal(expectedBlocks))
+	})
+
+	It("should handle large blocks with different flags", func() {
+		const blockSize = 1024 * 1024 * 1024 * 1024 * 1024
+
+		// Alternate flags between blocks, so GetBlockStatus returns a long
+		// list of different blocks instead of one giant block.
+		flagSetting := true
+		currentMockNbdFunctions.BlockStatus = func(length uint64, offset uint64, callback libnbd.ExtentCallback, optargs *libnbd.BlockStatusOptargs) error {
+			err := 0
+			len := uint32(MaxBlockStatusLength)
+			if length < MaxBlockStatusLength {
+				len = uint32(length)
+			}
+			if flagSetting {
+				callback("base:allocation", offset, []uint32{len, 0}, &err)
+			} else {
+				callback("base:allocation", offset, []uint32{len, 3}, &err)
+			}
+			flagSetting = !flagSetting
+			return nil
+		}
+
+		extent := types.DiskChangeExtent{
+			Start:  0,
+			Length: blockSize,
+		}
+
+		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
+		for index, block := range blocks {
+			Expect(block.Offset).To(Equal(int64(index * MaxBlockStatusLength)))
+			Expect(block.Length).To(Equal(int64(MaxBlockStatusLength)))
+			if index%2 == 0 {
+				Expect(block.Flags).To(Equal(uint32(0)))
+			} else {
+				Expect(block.Flags).To(Equal(uint32(3)))
+			}
+		}
+	})
+})
+
+type mockNbdFunctions struct {
+	GetSize     func() (uint64, error)
+	Pread       func(buf []byte, offset uint64, optargs *libnbd.PreadOptargs) error
+	Close       func() *libnbd.LibnbdError
+	BlockStatus func(length uint64, offset uint64, callback libnbd.ExtentCallback, optargs *libnbd.BlockStatusOptargs) error
+}
+
+func defaultMockNbdFunctions() mockNbdFunctions {
+	ops := mockNbdFunctions{}
+	ops.GetSize = func() (uint64, error) {
+		return currentExport.Size()
+	}
+	ops.Pread = func(buf []byte, offset uint64, optargs *libnbd.PreadOptargs) error {
+		fakebuf, err := currentExport.Read(offset)
+		copy(buf, fakebuf[offset:offset+uint64(len(buf))])
+		return err
+	}
+	ops.Close = func() *libnbd.LibnbdError {
+		return nil
+	}
+	ops.BlockStatus = func(length uint64, offset uint64, callback libnbd.ExtentCallback, optargs *libnbd.BlockStatusOptargs) error {
+		err := 0
+		callback("base:allocation", offset, []uint32{uint32(length), 0}, &err)
+		return nil
+	}
+	return ops
+}
+
+var currentMockNbdFunctions mockNbdFunctions
+
 type mockNbdOperations struct{}
 
 func (handle *mockNbdOperations) GetSize() (uint64, error) {
-	return currentExport.Size()
+	return currentMockNbdFunctions.GetSize()
 }
 
 func (handle *mockNbdOperations) Pread(buf []byte, offset uint64, optargs *libnbd.PreadOptargs) error {
-	fakebuf, err := currentExport.Read(offset)
-	copy(buf, fakebuf[offset:offset+uint64(len(buf))])
-	return err
+	return currentMockNbdFunctions.Pread(buf, offset, optargs)
 }
 
 func (handle *mockNbdOperations) Close() *libnbd.LibnbdError {
-	return nil
+	return currentMockNbdFunctions.Close()
 }
 
 func (handle *mockNbdOperations) BlockStatus(length uint64, offset uint64, callback libnbd.ExtentCallback, optargs *libnbd.BlockStatusOptargs) error {
-	err := 0
-	callback("base:allocation", offset, []uint32{uint32(length), 0}, &err)
-	return nil
+	return currentMockNbdFunctions.BlockStatus(length, offset, callback, optargs)
 }
 
 func createMockVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode) (*VDDKDataSource, error) {
@@ -566,9 +807,9 @@ type mockVddkDataSink struct {
 	position int
 }
 
-func (sink *mockVddkDataSink) ZeroRange(offset uint64, length uint32) error {
+func (sink *mockVddkDataSink) ZeroRange(offset int64, length int64) error {
 	buf := bytes.Repeat([]byte{0x00}, int(length))
-	_, err := sink.Pwrite(buf, offset)
+	_, err := sink.Pwrite(buf, uint64(offset))
 	return err
 }
 
