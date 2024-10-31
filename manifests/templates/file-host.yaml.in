@@ -60,7 +60,7 @@ spec:
           initialDelaySeconds: 20
           periodSeconds: 20
       - name: s3
-        image: quay.io/kubevirt/minio:RELEASE.2018-08-02T23-11-36Z
+        image: quay.io/kubevirt/minio:RELEASE.2024-10-02T17-50-41Z
         imagePullPolicy: {{ .PullPolicy }}
         env:
         - name: MINIO_ACCESS_KEY
