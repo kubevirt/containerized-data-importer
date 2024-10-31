@@ -73,6 +73,8 @@ func CreateContainer(name, image, verbosity, pullPolicy string) corev1.Container
 // CreatePortsContainer creates container with ports
 func CreatePortsContainer(name, image, pullPolicy string, ports []corev1.ContainerPort) corev1.Container {
 	container := ResourceBuilder.CreatePortsContainer(name, image, pullPolicy, ports)
+	container.TerminationMessagePolicy = corev1.TerminationMessageReadFile
+	container.TerminationMessagePath = corev1.TerminationMessagePathDefault
 	container.SecurityContext = &corev1.SecurityContext{
 		Capabilities: &corev1.Capabilities{
 			Drop: []corev1.Capability{
