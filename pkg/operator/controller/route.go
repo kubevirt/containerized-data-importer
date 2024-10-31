@@ -44,27 +44,27 @@ const (
 	uploadProxyCABundle    = "cdi-uploadproxy-signer-bundle"
 )
 
-func ensureUploadProxyRouteExists(ctx context.Context, logger logr.Logger, c client.Client, scheme *runtime.Scheme, owner metav1.Object) error {
+func ensureUploadProxyRouteExists(ctx context.Context, logger logr.Logger, c client.Client, scheme *runtime.Scheme, owner metav1.Object) (bool, error) {
 	namespace := owner.GetNamespace()
 	if namespace == "" {
-		return fmt.Errorf("cluster scoped owner not supported")
+		return false, fmt.Errorf("cluster scoped owner not supported")
 	}
 
 	cert, err := getUploadProxyCABundle(ctx, c)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			logger.V(3).Info("ensureUploadProxyRouteExists() upload proxy ca cert doesn't exist")
-			return nil
+			return false, nil
 		}
-		return err
+		return false, err
 	}
 
 	cr, err := cc.GetActiveCDI(ctx, c)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if cr == nil {
-		return fmt.Errorf("no active CDI")
+		return false, fmt.Errorf("no active CDI")
 	}
 	installerLabels := util.GetRecommendedInstallerLabelsFromCr(cr)
 
@@ -104,21 +104,29 @@ func ensureUploadProxyRouteExists(ctx context.Context, logger logr.Logger, c cli
 			currentRoute.Spec.TLS.Termination != desiredRoute.Spec.TLS.Termination ||
 			currentRoute.Spec.TLS.DestinationCACertificate != desiredRoute.Spec.TLS.DestinationCACertificate {
 			currentRoute.Spec = desiredRoute.Spec
-			return c.Update(ctx, currentRoute)
+			if err := c.Update(ctx, currentRoute); err != nil {
+				return false, err
+			}
+
+			return true, nil
 		}
 
-		return nil
+		return false, nil
 	}
 
 	if !errors.IsNotFound(err) {
-		return err
+		return false, err
 	}
 
 	if err = controllerutil.SetControllerReference(owner, desiredRoute, scheme); err != nil {
-		return err
+		return false, err
 	}
 
-	return c.Create(ctx, desiredRoute)
+	if err := c.Create(ctx, desiredRoute); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func updateUserRoutes(ctx context.Context, logger logr.Logger, c client.Client, recorder record.EventRecorder) error {
