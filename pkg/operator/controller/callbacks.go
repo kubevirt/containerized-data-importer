@@ -122,11 +122,15 @@ func reconcileRoute(args *callbacks.ReconcileCallbackArgs) error {
 	}
 
 	cr := args.Resource.(runtime.Object)
-	if err := ensureUploadProxyRouteExists(context.TODO(), args.Logger, args.Client, args.Scheme, deployment); err != nil {
+	updated, err := ensureUploadProxyRouteExists(context.TODO(), args.Logger, args.Client, args.Scheme, deployment)
+	if err != nil {
 		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure upload proxy route exists, %v", err))
 		return err
 	}
-	args.Recorder.Event(cr, corev1.EventTypeNormal, createResourceSuccess, "Successfully ensured upload proxy route exists")
+
+	if updated {
+		args.Recorder.Event(cr, corev1.EventTypeNormal, createResourceSuccess, "Successfully ensured upload proxy route exists")
+	}
 
 	if err := updateUserRoutes(context.TODO(), args.Logger, args.Client, args.Recorder); err != nil {
 		return err
