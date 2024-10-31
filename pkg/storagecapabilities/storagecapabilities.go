@@ -47,29 +47,33 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"cephfs.csi.ceph.com":                   {{rwx, file}},
 	"openshift-storage.cephfs.csi.ceph.com": {{rwx, file}},
 	// LINSTOR
-	"linstor.csi.linbit.com": createLinstorCapabilities(),
-	// dell-unity-csi
-	"csi-unity.dellemc.com": createDellUnityCapabilities(),
-	// PowerFlex
-	"csi-vxflexos.dellemc.com": createDellPowerCapabilities(),
-	// PowerScale
-	"csi-isilon.dellemc.com": createDellPowerCapabilities(),
-	// PowerMax
-	"csi-powermax.dellemc.com": createDellPowerCapabilities(),
-	// PowerStore
-	"csi-powerstore.dellemc.com": createDellPowerCapabilities(),
+	"linstor.csi.linbit.com": createAllButRWXFileCapabilities(),
+	// DELL Unity XT
+	"csi-unity.dellemc.com":     createAllButRWXFileCapabilities(),
+	"csi-unity.dellemc.com/nfs": createAllFSCapabilities(),
+	// DELL PowerFlex
+	"csi-vxflexos.dellemc.com":     createDellPowerFlexCapabilities(),
+	"csi-vxflexos.dellemc.com/nfs": createAllFSCapabilities(),
+	// DELL PowerScale
+	"csi-isilon.dellemc.com": createAllFSCapabilities(),
+	// DELL PowerMax
+	"csi-powermax.dellemc.com":     createDellPowerMaxCapabilities(),
+	"csi-powermax.dellemc.com/nfs": createAllFSCapabilities(),
+	// DELL PowerStore
+	"csi-powerstore.dellemc.com":     createDellPowerStoreCapabilities(),
+	"csi-powerstore.dellemc.com/nfs": createAllFSCapabilities(),
 	// storageos
 	"kubernetes.io/storageos": {{rwo, file}},
 	"storageos":               {{rwo, file}},
-	//AWSElasticBlockStore
+	// AWSElasticBlockStore
 	"kubernetes.io/aws-ebs": {{rwo, block}},
 	"ebs.csi.aws.com":       {{rwo, block}},
-	//AWSElasticFileSystem
+	// AWSElasticFileSystem
 	"efs.csi.aws.com": {{rwx, file}, {rwo, file}},
-	//Azure disk
+	// Azure disk
 	"kubernetes.io/azure-disk": {{rwo, block}},
 	"disk.csi.azure.com":       {{rwo, block}},
-	//Azure file
+	// Azure file
 	"kubernetes.io/azure-file": {{rwx, file}},
 	"file.csi.azure.com":       {{rwx, file}},
 	// GCE Persistent Disk
@@ -106,6 +110,15 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// Infinidat
 	"infinibox-csi-driver/iscsiorfibrechannel": {{rwx, block}, {rwo, block}, {rwo, file}},
 	"infinibox-csi-driver/nfs":                 {{rwx, file}, {rwo, file}},
+	// vSphere
+	"csi.vsphere.vmware.com":     {{rwo, block}, {rwo, file}},
+	"csi.vsphere.vmware.com/nfs": {{rwx, file}, {rwo, block}, {rwo, file}},
+	// huawei
+	"csi.huawei.com":     createAllButRWXFileCapabilities(),
+	"csi.huawei.com/nfs": createAllFSCapabilities(),
+	// Longhorn
+	"driver.longhorn.io":            {{rwo, block}},
+	"driver.longhorn.io/migratable": {{rwx, block}, {rwo, block}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
@@ -275,6 +288,71 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 			return "UNKNOWN"
 		}
 	},
+	"csi.vsphere.vmware.com": func(sc *storagev1.StorageClass) string {
+		fsType := getFSType(sc)
+		if strings.Contains(fsType, "nfs") {
+			return "csi.vsphere.vmware.com/nfs"
+		}
+		return "csi.vsphere.vmware.com"
+	},
+	"csi-unity.dellemc.com": func(sc *storagev1.StorageClass) string {
+		// https://github.com/dell/csi-unity/blob/1f42af327f4130df65c5532f6029559e4ab579b5/samples/storageclass
+		switch strings.ToLower(sc.Parameters["protocol"]) {
+		case "nfs":
+			return "csi-unity.dellemc.com/nfs"
+		default:
+			return "csi-unity.dellemc.com"
+		}
+	},
+	"csi-powerstore.dellemc.com": func(sc *storagev1.StorageClass) string {
+		// https://github.com/dell/csi-powerstore/blob/76e2cb671bd3cb28aa860e9057649d1d911e1deb/samples/storageclass
+		fsType := getFSType(sc)
+		switch fsType {
+		case "nfs":
+			return "csi-powerstore.dellemc.com/nfs"
+		default:
+			return "csi-powerstore.dellemc.com"
+		}
+	},
+	"csi-vxflexos.dellemc.com": func(sc *storagev1.StorageClass) string {
+		// https://github.com/dell/csi-powerflex/tree/main/samples/storageclass
+		fsType := getFSType(sc)
+		switch fsType {
+		case "nfs":
+			return "csi-vxflexos.dellemc.com/nfs"
+		default:
+			return "csi-vxflexos.dellemc.com"
+		}
+	},
+	"csi-powermax.dellemc.com": func(sc *storagev1.StorageClass) string {
+		// https://github.com/dell/csi-powermax/tree/main/samples/storageclass
+		fsType := getFSType(sc)
+		switch fsType {
+		case "nfs":
+			return "csi-powermax.dellemc.com/nfs"
+		default:
+			return "csi-powermax.dellemc.com"
+		}
+	},
+	"csi.huawei.com": func(sc *storagev1.StorageClass) string {
+		switch sc.Parameters["protocol"] {
+		case "nfs":
+			return "csi.huawei.com/nfs"
+		default:
+			return "csi.huawei.com"
+		}
+	},
+	"driver.longhorn.io": func(sc *storagev1.StorageClass) string {
+		migratable := sc.Parameters["migratable"]
+		if migratable == "true" {
+			return "driver.longhorn.io/migratable"
+		}
+		return "driver.longhorn.io"
+	},
+}
+
+func getFSType(sc *storagev1.StorageClass) string {
+	return strings.ToLower(sc.Parameters["csi.storage.k8s.io/fstype"])
 }
 
 func createRbdCapabilities() []StorageCapabilities {
@@ -285,7 +363,7 @@ func createRbdCapabilities() []StorageCapabilities {
 	}
 }
 
-func createLinstorCapabilities() []StorageCapabilities {
+func createAllButRWXFileCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
 		{rwx, block},
 		{rwo, block},
@@ -295,7 +373,16 @@ func createLinstorCapabilities() []StorageCapabilities {
 	}
 }
 
-func createDellUnityCapabilities() []StorageCapabilities {
+func createDellPowerMaxCapabilities() []StorageCapabilities {
+	return []StorageCapabilities{
+		{rwx, block},
+		{rwo, block},
+		{rwo, file},
+		{rox, block},
+	}
+}
+
+func createDellPowerFlexCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
 		{rwx, block},
 		{rwo, block},
@@ -305,11 +392,20 @@ func createDellUnityCapabilities() []StorageCapabilities {
 	}
 }
 
-func createDellPowerCapabilities() []StorageCapabilities {
+func createAllFSCapabilities() []StorageCapabilities {
+	return []StorageCapabilities{
+		{rwx, file},
+		{rwo, file},
+		{rox, file},
+	}
+}
+
+func createDellPowerStoreCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
 		{rwx, block},
 		{rwo, block},
 		{rwo, file},
+		{rox, block},
 	}
 }
 
