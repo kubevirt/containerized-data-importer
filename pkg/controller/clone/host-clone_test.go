@@ -105,6 +105,7 @@ var _ = Describe("HostClonePhase test", func() {
 		Expect(pvc.Annotations[cc.AnnPodRestarts]).To(Equal("0"))
 		Expect(pvc.Annotations[cc.AnnCloneRequest]).To(Equal("ns/source"))
 		Expect(pvc.Annotations[cc.AnnPopulatorKind]).To(Equal(cdiv1.VolumeCloneSourceRef))
+		Expect(pvc.Annotations[cc.AnnExcludeFromVeleroBackup]).To(Equal("true"))
 		Expect(pvc.Labels[p.OwnershipLabel]).To(Equal("uid"))
 		Expect(pvc.Annotations[cc.AnnImmediateBinding]).To(Equal(""))
 		_, ok := pvc.Annotations[cc.AnnPriorityClassName]
