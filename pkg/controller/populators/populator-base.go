@@ -179,6 +179,7 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 	labels := make(map[string]string)
 	labels[common.CDILabelKey] = common.CDILabelValue
 	annotations := make(map[string]string)
+	annotations[cc.AnnExcludeFromVeleroBackup] = "true"
 	annotations[cc.AnnImmediateBinding] = ""
 	if waitForFirstConsumer {
 		annotations[cc.AnnSelectedNode] = pvc.Annotations[cc.AnnSelectedNode]
