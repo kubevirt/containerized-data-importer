@@ -20,6 +20,10 @@ export DOCKER_TAG="${build_date}_$(git show -s --format=%h)${ARCH_SUFFIX}"
 make manifests
 make bazel-push-images
 
-bucket_dir="kubevirt-prow/devel/nightly/release/kubevirt/containerized-data-importer/${build_date}"
+base_url="kubevirt-prow/devel/nightly/release/kubevirt/containerized-data-importer"
+bucket_dir="${base_url}/${build_date}"
 gsutil cp ./_out/manifests/release/cdi-operator.yaml gs://$bucket_dir/cdi-operator${ARCH_SUFFIX}.yaml
 gsutil cp ./_out/manifests/release/cdi-cr.yaml gs://$bucket_dir/cdi-cr${ARCH_SUFFIX}.yaml
+
+echo ${build_date} > ./_out/build_date
+gsutil cp ./_out/build_date gs://${base_url}/latest${ARCH_SUFFIX}
