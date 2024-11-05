@@ -175,6 +175,7 @@ var _ = Describe("SnapshotClonePhase test", func() {
 			Expect(pvc.Spec.DataSourceRef.Namespace).To(BeNil())
 			Expect(pvc.Spec.DataSourceRef.Name).To(Equal(sourceName))
 			Expect(pvc.Annotations[cc.AnnPopulatorKind]).To(Equal(cdiv1.VolumeCloneSourceRef))
+			Expect(pvc.Annotations[cc.AnnExcludeFromVeleroBackup]).To(Equal("true"))
 			Expect(pvc.Spec.Resources.Requests[corev1.ResourceStorage]).To(Equal(restoreSize))
 			Expect(pvc.Labels[p.OwnershipLabel]).To(Equal("uid"))
 		})
