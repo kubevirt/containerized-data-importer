@@ -84,7 +84,7 @@ func NewNbdkit(plugin NbdkitPlugin, nbdkitPidFile string) *Nbdkit {
 }
 
 // NewNbdkitCurl creates a new Nbdkit instance with the curl plugin
-func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraHeaders, secretExtraHeaders []string) NbdkitOperation {
+func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraHeaders, secretExtraHeaders []string) (NbdkitOperation, error) {
 	var pluginArgs []string
 	var redactArgs []string
 	args := []string{"-r"}
@@ -93,7 +93,11 @@ func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraH
 		pluginArgs = append(pluginArgs, "user="+user)
 	}
 	if password != "" {
-		pluginArgs = append(pluginArgs, "password="+password)
+		passwordfile, err := writePasswordFile(password)
+		if err != nil {
+			return nil, err
+		}
+		pluginArgs = append(pluginArgs, "password=+"+passwordfile)
 	}
 	if certDir != "" {
 		pluginArgs = append(pluginArgs, fmt.Sprintf("cainfo=%s/%s", certDir, "tls.crt"))
@@ -119,33 +123,51 @@ func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraH
 	n.AddFilter(NbdkitReadAheadFilter)
 	// Should be last filter
 	n.AddFilter(NbdkitRetryFilter)
-	return n
+	return n, nil
+}
+
+// Keep these in a struct to keep NewNbdkitVddk from going over the argument limit
+type NbdKitVddkPluginArgs struct {
+	Server     string
+	Username   string
+	Password   string
+	Thumbprint string
+	Moref      string
+	Snapshot   string
 }
 
 // NewNbdkitVddk creates a new Nbdkit instance with the vddk plugin
-func NewNbdkitVddk(nbdkitPidFile, socket, server, username, password, thumbprint, moref string) (NbdkitOperation, error) {
-
+func NewNbdkitVddk(nbdkitPidFile, socket string, args NbdKitVddkPluginArgs) (NbdkitOperation, error) {
 	pluginArgs := []string{
 		"libdir=" + nbdVddkLibraryPath,
 	}
-	if server != "" {
-		pluginArgs = append(pluginArgs, "server="+server)
+	if args.Server != "" {
+		pluginArgs = append(pluginArgs, "server="+args.Server)
 	}
-	if username != "" {
-		pluginArgs = append(pluginArgs, "user="+username)
+	if args.Username != "" {
+		pluginArgs = append(pluginArgs, "user="+args.Username)
 	}
-	if password != "" {
-		pluginArgs = append(pluginArgs, "password="+password)
+	if args.Password != "" {
+		passwordfile, err := writePasswordFile(args.Password)
+		if err != nil {
+			return nil, err
+		}
+		pluginArgs = append(pluginArgs, "password=+"+passwordfile)
 	}
-	if thumbprint != "" {
-		pluginArgs = append(pluginArgs, "thumbprint="+thumbprint)
+	if args.Thumbprint != "" {
+		pluginArgs = append(pluginArgs, "thumbprint="+args.Thumbprint)
 	}
-	if moref != "" {
-		pluginArgs = append(pluginArgs, "vm=moref="+moref)
+	if args.Moref != "" {
+		pluginArgs = append(pluginArgs, "vm=moref="+args.Moref)
+	}
+	if args.Snapshot != "" {
+		pluginArgs = append(pluginArgs, "snapshot="+args.Snapshot)
+		pluginArgs = append(pluginArgs, "transports=file:nbdssl:nbd")
 	}
 	pluginArgs = append(pluginArgs, "--verbose")
-	pluginArgs = append(pluginArgs, "-D", "nbdkit.backend.controlpath=0")
 	pluginArgs = append(pluginArgs, "-D", "nbdkit.backend.datapath=0")
+	pluginArgs = append(pluginArgs, "-D", "vddk.datapath=0")
+	pluginArgs = append(pluginArgs, "-D", "vddk.stats=1")
 	p := getVddkPluginPath()
 	n := &Nbdkit{
 		NbdPidFile: nbdkitPidFile,
@@ -160,6 +182,25 @@ func NewNbdkitVddk(nbdkitPidFile, socket, server, username, password, thumbprint
 		return nil, err
 	}
 	return n, nil
+}
+
+func writePasswordFile(password string) (string, error) {
+	f, err := os.CreateTemp("", "password")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	// This would be nice but we don't want to delete it until
+	// program exit.
+	// defer os.Remove(f.Name())
+
+	if _, err := f.Write([]byte(password)); err != nil {
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		return "", err
+	}
+	return f.Name(), nil
 }
 
 // AddEnvVariable adds an environmental variable to the nbdkit command
@@ -234,9 +275,7 @@ func (n *Nbdkit) StartNbdkit(source string) error {
 
 	quotedArgs := make([]string, len(argsNbdkit))
 	for index, value := range argsNbdkit {
-		if strings.HasPrefix(value, "password=") {
-			quotedArgs[index] = "'password=*****'"
-		} else if isRedacted(value) {
+		if isRedacted(value) {
 			if strings.HasPrefix(value, "header=") {
 				quotedArgs[index] = "'header=/secret redacted/'"
 			} else {
@@ -400,8 +439,8 @@ func (n *Nbdkit) validatePlugin() error {
 type mockNbdkit struct{}
 
 // NewMockNbdkitCurl creates a mock nbdkit curl plugin for testing
-func NewMockNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraHeaders, secretExtraHeaders []string) NbdkitOperation {
-	return &mockNbdkit{}
+func NewMockNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraHeaders, secretExtraHeaders []string) (NbdkitOperation, error) {
+	return &mockNbdkit{}, nil
 }
 
 func (m *mockNbdkit) StartNbdkit(source string) error {
