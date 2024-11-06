@@ -413,6 +413,9 @@ func getCacheOptions(apiClient client.Client, cdiNamespace string) cache.Options
 			&v1.ConfigMap{}: {
 				Field: namespaceSelector,
 			},
+			&v1.Secret{}: {
+				Field: namespaceSelector,
+			},
 		},
 	}
 
