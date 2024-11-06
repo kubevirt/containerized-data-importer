@@ -76,33 +76,33 @@ type ImportReconciler struct {
 }
 
 type importPodEnvVar struct {
-	ep                           string
-	secretName                   string
-	source                       string
-	contentType                  string
-	imageSize                    string
-	certConfigMap                string
-	diskID                       string
-	uuid                         string
-	pullMethod                   string
-	readyFile                    string
-	doneFile                     string
-	backingFile                  string
-	thumbprint                   string
-	filesystemOverhead           string
-	insecureTLS                  bool
-	currentCheckpoint            string
-	previousCheckpoint           string
-	finalCheckpoint              string
-	preallocation                bool
-	httpProxy                    string
-	httpsProxy                   string
-	noProxy                      string
-	certConfigMapProxy           string
-	extraHeaders                 []string
-	secretExtraHeaders           []string
-	cacheMode                    string
-	use_s3_credential_chain_auth bool
+	ep                 string
+	secretName         string
+	source             string
+	contentType        string
+	imageSize          string
+	certConfigMap      string
+	diskID             string
+	uuid               string
+	pullMethod         string
+	readyFile          string
+	doneFile           string
+	backingFile        string
+	thumbprint         string
+	filesystemOverhead string
+	insecureTLS        bool
+	currentCheckpoint  string
+	previousCheckpoint string
+	finalCheckpoint    string
+	preallocation      bool
+	httpProxy          string
+	httpsProxy         string
+	noProxy            string
+	certConfigMapProxy string
+	extraHeaders       []string
+	secretExtraHeaders []string
+	cacheMode          string
+	s3ChainAuth        bool
 }
 
 type importerPodArgs struct {
@@ -951,7 +951,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 }
 
 func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
-	args.podEnvVar.use_s3_credential_chain_auth = args.serviceAccountName != "" // prep podEnvVar for Import method below
+	args.podEnvVar.s3ChainAuth = args.serviceAccountName != "" // prep podEnvVar for Import method below
 	containers := []corev1.Container{
 		{
 			Name:            common.ImporterPodName,
@@ -1269,7 +1269,7 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		},
 		{
 			Name:  common.UseS3CredentialsChainAuth,
-			Value: strconv.FormatBool(podEnvVar.use_s3_credential_chain_auth),
+			Value: strconv.FormatBool(podEnvVar.s3ChainAuth),
 		},
 	}
 	if podEnvVar.secretName != "" && podEnvVar.source != cc.SourceGCS {
