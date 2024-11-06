@@ -24,14 +24,16 @@ RUN 	dnf -y install dnf-plugins-core && \
 	nbdkit-devel \
 	unzip \
 	java-11-openjdk-devel \
+	rubygems \
 	&& dnf clean all
 
-RUN pip3 install --upgrade j2cli operator-courier==2.1.11 && \
-	curl -sL https://services.gradle.org/distributions/gradle-6.6-bin.zip -o gradle-6.6-bin.zip && \
-	mkdir /opt/gradle && \
-	unzip -d /opt/gradle gradle-6.6-bin.zip && \
-	ln -s /opt/gradle/gradle-6.6/bin/gradle /usr/local/bin/gradle && \
-	rm gradle-6.6-bin.zip
+# Necessary for generation of HTML-formatted API docs (.adoc)
+RUN gem install asciidoctor
+
+# Generates Asciidoc files from swagger.json
+ADD https://storage.googleapis.com/builddeps/swagger2markup-cli-1.3.3.jar /opt/swagger2markup-cli/swagger2markup-cli-1.3.3.jar
+
+ENV JAVA_HOME=/usr/lib/jvm/java-11
 
 ENV GIMME_GO_VERSION=1.20.10 GOPATH="/go" GO111MODULE="on"
 
@@ -40,14 +42,14 @@ RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimm
 RUN \
 	source /etc/profile.d/gimme.sh && \
 	eval $(go env) && \
-	go install github.com/onsi/ginkgo/ginkgo@v2.12.0 && \
-	go install golang.org/x/tools/cmd/goimports@latest && \
+	go install github.com/onsi/ginkgo/ginkgo@v1.14.1 && \
+	go install golang.org/x/tools/cmd/goimports@v0.7.0 && \
 	go install mvdan.cc/sh/cmd/shfmt@latest && \
 	go install github.com/mattn/goveralls@latest && \
 	go install golang.org/x/lint/golint@latest && \
 	go install github.com/rmohr/go-swagger-utils/swagger-doc@latest && \
 	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.13.0 && \
-	go install github.com/securego/gosec/v2/cmd/gosec@latest && \
+	go install github.com/securego/gosec/v2/cmd/gosec@v2.15.0 && \
 	rm -rf "${GOPATH}/pkg"
 
 ENV BAZEL_VERSION 5.4.0
