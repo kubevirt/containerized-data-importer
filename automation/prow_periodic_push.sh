@@ -27,3 +27,6 @@ gsutil cp ./_out/manifests/release/cdi-cr.yaml gs://$bucket_dir/cdi-cr${ARCH_SUF
 
 echo ${build_date} > ./_out/build_date
 gsutil cp ./_out/build_date gs://${base_url}/latest${ARCH_SUFFIX}
+
+git show -s --format=%H > ./_out/commit
+gsutil cp ./_out/commit gs://${base_url}/commit${ARCH_SUFFIX}
