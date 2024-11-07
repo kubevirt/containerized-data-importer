@@ -140,7 +140,7 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"csi-vxflexos.dellemc.com":                 cdiv1.CloneStrategyCsiClone,
 	"csi-isilon.dellemc.com":                   cdiv1.CloneStrategyCsiClone,
 	"csi-powermax.dellemc.com":                 cdiv1.CloneStrategyCsiClone,
-	"csi-powerstore.dellemc.com":               cdiv1.CloneStrategyCsiClone,
+	"csi-powerstore.dellemc.com":               cdiv1.CloneStrategyHostAssisted,
 	"hspc.csi.hitachi.com":                     cdiv1.CloneStrategyCsiClone,
 	"csi.hpe.com":                              cdiv1.CloneStrategyCsiClone,
 	"spectrumscale.csi.ibm.com":                cdiv1.CloneStrategyCsiClone,
