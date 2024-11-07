@@ -10,3 +10,6 @@ BugFix: Fix race condition in populators so we clean PVC' after population in al
 BugFix: Always use scratchspace when importing and converting (#2832) (#2841)
 BugFix: Fix broken local -> rook-ceph-block clone (#2842)
 BugFix: Don't use scratch space for registry node pull imports (#2846)
+
+v1.57.1
+https://github.com/kubevirt/containerized-data-importer/pulls?q=is%3Apr+merged%3A2023-08-16..2024-11-07+base%3Arelease-v1.57+sort%3Aupdated-desc+is%3Aclosed+
