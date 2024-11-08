@@ -29,4 +29,4 @@ echo ${build_date} > ./_out/build_date
 gsutil cp ./_out/build_date gs://${base_url}/latest${ARCH_SUFFIX}
 
 git show -s --format=%H > ./_out/commit
-gsutil cp ./_out/commit gs://${base_url}/commit${ARCH_SUFFIX}
+gsutil cp ./_out/commit gs://${bucket_dir}/commit${ARCH_SUFFIX}
