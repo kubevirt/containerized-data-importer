@@ -252,9 +252,6 @@ const (
 	// AnnImmediateBinding provides a const to indicate whether immediate binding should be performed on the PV (overrides global config)
 	AnnImmediateBinding = AnnAPIGroup + "/storage.bind.immediate.requested"
 
-	//AnnExcludeFromVeleroBackup provides a const to indicate whether an object should be excluded from velero backup
-	AnnExcludeFromVeleroBackup = "velero.io/exclude-from-backup"
-
 	// AnnSelectedNode annotation is added to a PVC that has been triggered by scheduler to
 	// be dynamically provisioned. Its value is the name of the selected node.
 	AnnSelectedNode = "volume.kubernetes.io/selected-node"
@@ -330,6 +327,9 @@ const (
 	// LabelDynamicCredentialSupport specifies if the OS supports updating credentials at runtime.
 	//nolint:gosec // These are not credentials
 	LabelDynamicCredentialSupport = "kubevirt.io/dynamic-credentials-support"
+
+	// LabelExcludeFromVeleroBackup provides a const to indicate whether an object should be excluded from velero backup
+	LabelExcludeFromVeleroBackup = "velero.io/exclude-from-backup"
 
 	// ProgressDone this means we are DONE
 	ProgressDone = "100.0%"
