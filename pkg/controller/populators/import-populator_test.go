@@ -268,11 +268,11 @@ var _ = Describe("Import populator tests", func() {
 			Expect(pvcPrime.GetAnnotations()[AnnImmediateBinding]).To(Equal(""))
 			Expect(pvcPrime.GetAnnotations()[AnnUploadRequest]).To(Equal(""))
 			Expect(pvcPrime.GetAnnotations()[AnnPopulatorKind]).To(Equal(cdiv1.VolumeImportSourceRef))
-			Expect(pvcPrime.GetAnnotations()[AnnExcludeFromVeleroBackup]).To(Equal("true"))
 			Expect(pvcPrime.GetAnnotations()[AnnPreallocationRequested]).To(Equal("true"))
 			Expect(pvcPrime.GetAnnotations()[AnnEndpoint]).To(Equal("http://example.com/data"))
 			Expect(pvcPrime.GetAnnotations()[AnnSource]).To(Equal(SourceHTTP))
 			Expect(pvcPrime.Annotations[key]).To(Equal(expectedValue))
+			Expect(pvcPrime.GetLabels()[LabelExcludeFromVeleroBackup]).To(Equal("true"))
 		},
 			Entry("No extra annotations", "", "", ""),
 			Entry("Invalid extra annotation is not passed", "invalid", "test", ""),
