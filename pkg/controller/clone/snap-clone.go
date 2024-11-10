@@ -102,10 +102,10 @@ func (p *SnapshotClonePhase) createClaim(ctx context.Context, snapshot *snapshot
 	}
 
 	cc.AddAnnotation(claim, cc.AnnPopulatorKind, cdiv1.VolumeCloneSourceRef)
-	cc.AddAnnotation(claim, cc.AnnExcludeFromVeleroBackup, "true")
 	if p.OwnershipLabel != "" {
 		AddOwnershipLabel(p.OwnershipLabel, claim, p.Owner)
 	}
+	cc.AddLabel(claim, cc.LabelExcludeFromVeleroBackup, "true")
 
 	if err := p.Client.Create(ctx, claim); err != nil {
 		checkQuotaExceeded(p.Recorder, p.Owner, err)
