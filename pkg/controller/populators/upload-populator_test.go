@@ -79,7 +79,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(pvcPrime.GetAnnotations()[cc.AnnContentType]).To(Equal(contentType))
 		Expect(pvcPrime.GetAnnotations()[cc.AnnPreallocationRequested]).To(Equal(strconv.FormatBool(preallocation)))
 		Expect(pvcPrime.GetAnnotations()[cc.AnnPopulatorKind]).To(Equal(cdiv1.VolumeUploadSourceRef))
-		Expect(pvcPrime.GetAnnotations()[cc.AnnExcludeFromVeleroBackup]).To(Equal("true"))
+		Expect(pvcPrime.GetLabels()[cc.LabelExcludeFromVeleroBackup]).To(Equal("true"))
 
 		_, err = r.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-pvc", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())
@@ -326,8 +326,8 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(pvcPrime.GetAnnotations()[cc.AnnImmediateBinding]).To(Equal(""))
 		Expect(pvcPrime.GetAnnotations()[cc.AnnUploadRequest]).To(Equal(""))
 		Expect(pvcPrime.GetAnnotations()[cc.AnnPopulatorKind]).To(Equal(cdiv1.VolumeUploadSourceRef))
-		Expect(pvcPrime.GetAnnotations()[cc.AnnExcludeFromVeleroBackup]).To(Equal("true"))
 		Expect(pvcPrime.Annotations[key]).To(Equal(expectedValue))
+		Expect(pvcPrime.GetLabels()[cc.LabelExcludeFromVeleroBackup]).To(Equal("true"))
 	},
 		Entry("No extra annotations", "", "", ""),
 		Entry("Invalid extra annotation is not passed", "invalid", "test", ""),
