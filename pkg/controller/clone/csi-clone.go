@@ -106,10 +106,10 @@ func (p *CSIClonePhase) createClaim(ctx context.Context) (*corev1.PersistentVolu
 	desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage] = sourceSize
 
 	cc.AddAnnotation(desiredClaim, cc.AnnPopulatorKind, cdiv1.VolumeCloneSourceRef)
-	cc.AddAnnotation(desiredClaim, cc.AnnExcludeFromVeleroBackup, "true")
 	if p.OwnershipLabel != "" {
 		AddOwnershipLabel(p.OwnershipLabel, desiredClaim, p.Owner)
 	}
+	cc.AddLabel(desiredClaim, cc.LabelExcludeFromVeleroBackup, "true")
 
 	if err := p.Client.Create(ctx, desiredClaim); err != nil {
 		checkQuotaExceeded(p.Recorder, p.Owner, err)
