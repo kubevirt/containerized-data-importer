@@ -68,6 +68,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// AWSElasticBlockStore
 	"kubernetes.io/aws-ebs": {{rwo, block}},
 	"ebs.csi.aws.com":       {{rwo, block}},
+	"ebs.csi.aws.com/io2":   {{rwx, block}, {rwo, block}, {rwo, file}},
 	// AWSElasticFileSystem
 	"efs.csi.aws.com": {{rwx, file}, {rwo, file}},
 	// Azure disk
@@ -346,6 +347,13 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 			return "driver.longhorn.io/migratable"
 		}
 		return "driver.longhorn.io"
+	},
+	"ebs.csi.aws.com": func(sc *storagev1.StorageClass) string {
+		val := sc.Parameters["type"]
+		if val == "io2" {
+			return "ebs.csi.aws.com/io2"
+		}
+		return "ebs.csi.aws.com"
 	},
 }
 
