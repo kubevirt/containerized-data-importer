@@ -100,8 +100,16 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	AfterEach(func() {
 		By("Stop port forwarding")
 		if portForwardCmd != nil {
-			Expect(portForwardCmd.Process.Kill()).To(Succeed())
-			Expect(portForwardCmd.Wait()).To(Succeed())
+			// Check if the process is still running before attempting to kill it
+			if portForwardCmd.Process != nil && portForwardCmd.ProcessState == nil {
+				// Attempt to gracefully terminate the process first
+				err := portForwardCmd.Process.Signal(os.Interrupt)
+				if err != nil {
+					// If the graceful termination fails, try to forcefully kill the process
+					Expect(portForwardCmd.Process.Kill()).To(Succeed())
+				}
+				Expect(portForwardCmd.Wait()).To(Succeed())
+			}
 			portForwardCmd = nil
 		}
 	})
@@ -1060,8 +1068,16 @@ var _ = Describe("Block PV upload Test", Serial, func() {
 	AfterEach(func() {
 		By("Stop port forwarding")
 		if portForwardCmd != nil {
-			Expect(portForwardCmd.Process.Kill()).To(Succeed())
-			Expect(portForwardCmd.Wait()).To(Succeed())
+			// Check if the process is still running before attempting to kill it
+			if portForwardCmd.Process != nil && portForwardCmd.ProcessState == nil {
+				// Attempt to gracefully terminate the process first
+				err := portForwardCmd.Process.Signal(os.Interrupt)
+				if err != nil {
+					// If the graceful termination fails, try to forcefully kill the process
+					Expect(portForwardCmd.Process.Kill()).To(Succeed())
+				}
+				Expect(portForwardCmd.Wait()).To(Succeed())
+			}
 			portForwardCmd = nil
 		}
 
@@ -1159,8 +1175,16 @@ var _ = Describe("CDIConfig manipulation upload tests", Serial, func() {
 		Expect(err).ToNot(HaveOccurred())
 		By("Stop port forwarding")
 		if portForwardCmd != nil {
-			Expect(portForwardCmd.Process.Kill()).To(Succeed())
-			Expect(portForwardCmd.Wait()).To(Succeed())
+			// Check if the process is still running before attempting to kill it
+			if portForwardCmd.Process != nil && portForwardCmd.ProcessState == nil {
+				// Attempt to gracefully terminate the process first
+				err := portForwardCmd.Process.Signal(os.Interrupt)
+				if err != nil {
+					// If the graceful termination fails, try to forcefully kill the process
+					Expect(portForwardCmd.Process.Kill()).To(Succeed())
+				}
+				Expect(portForwardCmd.Wait()).To(Succeed())
+			}
 			portForwardCmd = nil
 		}
 
@@ -1380,8 +1404,16 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	AfterEach(func() {
 		By("Stop port forwarding")
 		if portForwardCmd != nil {
-			Expect(portForwardCmd.Process.Kill()).To(Succeed())
-			Expect(portForwardCmd.Wait()).To(Succeed())
+			// Check if the process is still running before attempting to kill it
+			if portForwardCmd.Process != nil && portForwardCmd.ProcessState == nil {
+				// Attempt to gracefully terminate the process first
+				err := portForwardCmd.Process.Signal(os.Interrupt)
+				if err != nil {
+					// If the graceful termination fails, try to forcefully kill the process
+					Expect(portForwardCmd.Process.Kill()).To(Succeed())
+				}
+				Expect(portForwardCmd.Wait()).To(Succeed())
+			}
 			portForwardCmd = nil
 		}
 
