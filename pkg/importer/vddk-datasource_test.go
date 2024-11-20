@@ -255,7 +255,7 @@ var _ = Describe("VDDK data source", func() {
 		}
 
 		changeInfo := types.DiskChangeInfo{
-			StartOffset: 100,
+			StartOffset: 0,
 			Length:      1000,
 			ChangedArea: []types.DiskChangeExtent{
 				{
@@ -379,25 +379,34 @@ var _ = Describe("VDDK data source", func() {
 			}
 			return nil, errors.New("could not find snapshot")
 		}
-
-		changedBlockList := types.DiskChangeInfo{
-			StartOffset: 0,
-			Length:      10240,
-			ChangedArea: []types.DiskChangeExtent{
-				{
-					Start:  1024,
-					Length: 512,
-				},
-				{
-					Start:  4096,
-					Length: 4096,
-				},
-			},
-		}
+		counter := 0
 		currentVMwareFunctions.QueryChangedDiskAreas = func(ctx context.Context, baseSnapshot *types.ManagedObjectReference, changedSnapshot *types.ManagedObjectReference, disk *types.VirtualDisk, offset int64) (types.DiskChangeInfo, error) {
-			return changedBlockList, nil
+			var resp types.DiskChangeInfo
+			if counter == 0 {
+				resp = types.DiskChangeInfo{
+					StartOffset: 0,
+					Length:      10240,
+					ChangedArea: []types.DiskChangeExtent{
+						{
+							Start:  1024,
+							Length: 512,
+						},
+						{
+							Start:  4096,
+							Length: 4096,
+						},
+					},
+				}
+			} else {
+				resp = types.DiskChangeInfo{
+					StartOffset: 10240,
+					Length:      0,
+					ChangedArea: []types.DiskChangeExtent{},
+				}
+			}
+			counter++
+			return resp, nil
 		}
-
 		// Expect source.ChangedBlocks to equal local changed blocks
 		source, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "snapshot-1", "snapshot-2", "false", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
@@ -479,6 +488,95 @@ var _ = Describe("VDDK data source", func() {
 		vddkVersion = testVersion
 		vddkHost = testHost
 		Expect(*source.GetTerminationMessage()).To(Equal(common.TerminationMessage{VddkInfo: &common.VddkInfo{Version: testVersion, Host: testHost}}))
+	})
+	It("VDDK return more than 2000 changed block area", func() {
+		diskName := "disk"
+		snapshotName := "checkpoint-2"
+		changeID := "52 de c0 d9 b9 43 9d 10-61 d5 4c 1b e9 7b 65 63/81"
+		newVddkDataSource = createVddkDataSource
+
+		snapshots := createSnapshots(snapshotName, "")
+		currentVMwareFunctions.FindSnapshot = func(ctx context.Context, nameOrID string) (*types.ManagedObjectReference, error) {
+			return &snapshots.RootSnapshotList[0].Snapshot, nil
+		}
+		currentVMwareFunctions.Properties = func(ctx context.Context, ref types.ManagedObjectReference, property []string, result interface{}) error {
+			switch out := result.(type) {
+			case *mo.VirtualMachine:
+				if property[0] == "config.hardware.device" {
+					out.Config = createVirtualDiskConfig(diskName, 12345)
+				} else if property[0] == "snapshot" {
+					out.Snapshot = snapshots
+				}
+			case *mo.VirtualMachineSnapshot:
+				out.Config = *createVirtualDiskConfig("snapshotdisk", 123456)
+			}
+			return nil
+		}
+
+		expectedInfo := types.DiskChangeInfo{
+			StartOffset: 0,
+			Length:      9563078656,
+			ChangedArea: []types.DiskChangeExtent{},
+		}
+		for i := 0; i < 4500; i++ {
+			expectedInfo.ChangedArea = append(expectedInfo.ChangedArea, types.DiskChangeExtent{})
+		}
+		counter := 0
+		QueryChangedDiskAreas = func(ctx context.Context, r soap.RoundTripper, req *types.QueryChangedDiskAreas) (*types.QueryChangedDiskAreasResponse, error) {
+			var resp *types.QueryChangedDiskAreasResponse
+			if counter == 0 {
+				respInfo := types.DiskChangeInfo{
+					StartOffset: 0,
+					Length:      4194369536,
+					ChangedArea: []types.DiskChangeExtent{},
+				}
+				for i := 0; i < 2000; i++ {
+					respInfo.ChangedArea = append(respInfo.ChangedArea, types.DiskChangeExtent{})
+				}
+				resp = &types.QueryChangedDiskAreasResponse{
+					Returnval: respInfo,
+				}
+			} else if counter == 1 {
+				respInfo := types.DiskChangeInfo{
+					StartOffset: 4194369536,
+					Length:      4194369536,
+					ChangedArea: []types.DiskChangeExtent{},
+				}
+				for i := 0; i < 2000; i++ {
+					respInfo.ChangedArea = append(respInfo.ChangedArea, types.DiskChangeExtent{})
+				}
+				resp = &types.QueryChangedDiskAreasResponse{
+					Returnval: respInfo,
+				}
+			} else if counter == 2 {
+				respInfo := types.DiskChangeInfo{
+					StartOffset: 8388739072,
+					Length:      1174339584,
+					ChangedArea: []types.DiskChangeExtent{},
+				}
+				for i := 0; i < 500; i++ {
+					respInfo.ChangedArea = append(respInfo.ChangedArea, types.DiskChangeExtent{})
+				}
+				resp = &types.QueryChangedDiskAreasResponse{
+					Returnval: respInfo,
+				}
+			} else {
+				respInfo := types.DiskChangeInfo{
+					StartOffset: 9563078656,
+					Length:      0,
+					ChangedArea: []types.DiskChangeExtent{},
+				}
+				resp = &types.QueryChangedDiskAreasResponse{
+					Returnval: respInfo,
+				}
+			}
+			counter++
+			return resp, nil
+		}
+
+		ds, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, snapshotName, changeID, "", v1.PersistentVolumeFilesystem)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ds.ChangedBlocks).To(Equal(&expectedInfo))
 	})
 })
 
