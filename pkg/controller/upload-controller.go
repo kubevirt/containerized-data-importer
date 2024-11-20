@@ -856,8 +856,9 @@ func (r *UploadReconciler) makeUploadPodContainers(args UploadPodArgs, resourceR
 						Path: "/healthz",
 						Port: intstr.IntOrString{
 							Type:   intstr.Int,
-							IntVal: 8080,
+							IntVal: 8443,
 						},
+						Scheme: corev1.URISchemeHTTPS,
 					},
 				},
 				InitialDelaySeconds: 2,
