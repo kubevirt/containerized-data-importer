@@ -855,22 +855,30 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	// then get the list of changed blocks from VMware for a delta copy.
 	var changed *types.DiskChangeInfo
 	if currentSnapshot != nil && previousCheckpoint != "" {
+		// The QueryChangedDiskAreas returns maximally 2000 changed blocks. If the disk has more than 2000 blocks
+		// we need to query the next chunk of the blocks starting from previous
+		var lastChangedSize = 0
+		changed = &types.DiskChangeInfo{}
 		// Check if this is a snapshot or a change ID, and query disk areas as appropriate.
 		// Change IDs look like: 52 de c0 d9 b9 43 9d 10-61 d5 4c 1b e9 7b 65 63/81
 		changeIDPattern := `([0-9a-fA-F]{2}\s?)*-([0-9a-fA-F]{2}\s?)*\/([0-9a-fA-F]*)`
 		if matched, _ := regexp.MatchString(changeIDPattern, previousCheckpoint); matched {
-			request := types.QueryChangedDiskAreas{
-				ChangeId:    previousCheckpoint,
-				DeviceKey:   backingFileObject.Key,
-				Snapshot:    currentSnapshot,
-				StartOffset: 0,
-				This:        vmware.vm.Reference(),
+			for changed.Length == 0 || lastChangedSize != 0 {
+				request := types.QueryChangedDiskAreas{
+					ChangeId:    previousCheckpoint,
+					DeviceKey:   backingFileObject.Key,
+					Snapshot:    currentSnapshot,
+					StartOffset: changed.Length,
+					This:        vmware.vm.Reference(),
+				}
+				response, err := QueryChangedDiskAreas(vmware.context, vmware.vm.Client(), &request)
+				if err != nil {
+					return nil, err
+				}
+				lastChangedSize = len(response.Returnval.ChangedArea)
+				changed.ChangedArea = append(changed.ChangedArea, response.Returnval.ChangedArea...)
+				changed.Length += response.Returnval.Length
 			}
-			response, err := QueryChangedDiskAreas(vmware.context, vmware.vm.Client(), &request)
-			if err != nil {
-				return nil, err
-			}
-			changed = &response.Returnval
 		} else { // Previous checkpoint is a snapshot
 			previousSnapshot, err := vmware.vm.FindSnapshot(vmware.context, previousCheckpoint)
 			if err != nil {
@@ -878,12 +886,16 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 				return nil, err
 			}
 			if previousSnapshot != nil {
-				changedAreas, err := vmware.vm.QueryChangedDiskAreas(vmware.context, previousSnapshot, currentSnapshot, backingFileObject, 0)
-				if err != nil {
-					klog.Errorf("Unable to query changed areas: %s", err)
-					return nil, err
+				for changed.Length == 0 || lastChangedSize != 0 {
+					changedAreas, err := vmware.vm.QueryChangedDiskAreas(vmware.context, previousSnapshot, currentSnapshot, backingFileObject, changed.Length)
+					if err != nil {
+						klog.Errorf("Unable to query changed areas: %s", err)
+						return nil, err
+					}
+					lastChangedSize = len(changedAreas.ChangedArea)
+					changed.ChangedArea = append(changed.ChangedArea, changedAreas.ChangedArea...)
+					changed.Length += changedAreas.Length
 				}
-				changed = &changedAreas
 			}
 		}
 	}
