@@ -251,6 +251,7 @@ var _ = Describe("VDDK data source", func() {
 			return nil
 		}
 
+		counter := 0
 		changeInfo := types.DiskChangeInfo{
 			StartOffset: 0,
 			Length:      1000,
@@ -262,6 +263,12 @@ var _ = Describe("VDDK data source", func() {
 			},
 		}
 		QueryChangedDiskAreas = func(ctx context.Context, r soap.RoundTripper, req *types.QueryChangedDiskAreas) (*types.QueryChangedDiskAreasResponse, error) {
+			if counter > 0 {
+				return &types.QueryChangedDiskAreasResponse{
+					Returnval: types.DiskChangeInfo{},
+				}, nil
+			}
+			counter++
 			return &types.QueryChangedDiskAreasResponse{
 				Returnval: changeInfo,
 			}, nil
@@ -376,24 +383,25 @@ var _ = Describe("VDDK data source", func() {
 			}
 			return nil, errors.New("could not find snapshot")
 		}
+		changedBlockList := types.DiskChangeInfo{
+			StartOffset: 0,
+			Length:      10240,
+			ChangedArea: []types.DiskChangeExtent{
+				{
+					Start:  1024,
+					Length: 512,
+				},
+				{
+					Start:  4096,
+					Length: 4096,
+				},
+			},
+		}
 		counter := 0
 		currentVMwareFunctions.QueryChangedDiskAreas = func(ctx context.Context, baseSnapshot *types.ManagedObjectReference, changedSnapshot *types.ManagedObjectReference, disk *types.VirtualDisk, offset int64) (types.DiskChangeInfo, error) {
 			var resp types.DiskChangeInfo
 			if counter == 0 {
-				resp = types.DiskChangeInfo{
-					StartOffset: 0,
-					Length:      10240,
-					ChangedArea: []types.DiskChangeExtent{
-						{
-							Start:  1024,
-							Length: 512,
-						},
-						{
-							Start:  4096,
-							Length: 4096,
-						},
-					},
-				}
+				resp = changedBlockList
 			} else {
 				resp = types.DiskChangeInfo{
 					StartOffset: 10240,
