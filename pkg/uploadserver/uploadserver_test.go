@@ -47,6 +47,7 @@ import (
 
 func newServer() *uploadServerApp {
 	config := &Config{
+		Insecure:           true,
 		BindAddress:        "127.0.0.1",
 		BindPort:           0,
 		Destination:        "disk.img",
@@ -233,9 +234,8 @@ var _ = Describe("Upload server tests", func() {
 
 		rr := httptest.NewRecorder()
 
-		app := uploadServerApp{}
-		server, _ := app.createHealthzServer()
-		server.Handler.ServeHTTP(rr, req)
+		server := newServer()
+		server.ServeHTTP(rr, req)
 
 		status := rr.Code
 		Expect(status).To(Equal(http.StatusOK))

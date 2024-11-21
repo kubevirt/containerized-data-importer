@@ -806,8 +806,9 @@ func createUploadClonePod(pvc *corev1.PersistentVolumeClaim, clientName string) 
 								Path: "/healthz",
 								Port: intstr.IntOrString{
 									Type:   intstr.Int,
-									IntVal: 8080,
+									IntVal: 8443,
 								},
+								Scheme: corev1.URISchemeHTTPS,
 							},
 						},
 						InitialDelaySeconds: 2,

@@ -47,11 +47,11 @@ import (
 )
 
 const (
-	healthzPort = 8080
 	healthzPath = "/healthz"
 )
 
 type Config struct {
+	Insecure    bool
 	BindAddress string
 	BindPort    int
 
@@ -143,6 +143,7 @@ func NewUploadServer(config *Config) UploadServer {
 		errChan:   make(chan error),
 	}
 
+	server.mux.HandleFunc(healthzPath, server.healthzHandler)
 	for _, path := range common.SyncUploadPaths {
 		server.mux.HandleFunc(path, server.uploadHandler(bodyReadCloser))
 	}
@@ -168,19 +169,9 @@ func (app *uploadServerApp) Run() (*RunResult, error) {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	healthzServer, err := app.createHealthzServer()
-	if err != nil {
-		return nil, errors.Wrap(err, "Error creating healthz http server")
-	}
-
 	uploadListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", app.config.BindAddress, app.config.BindPort))
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating upload listerner")
-	}
-
-	healthzListener, err := net.Listen("tcp", fmt.Sprintf(":%d", healthzPort))
-	if err != nil {
-		return nil, errors.Wrap(err, "Error creating healthz listerner")
 	}
 
 	tlsConfig, err := app.getTLSConfig()
@@ -204,12 +195,6 @@ func (app *uploadServerApp) Run() (*RunResult, error) {
 		app.errChan <- uploadServer.Serve(uploadListener)
 	}()
 
-	go func() {
-		defer healthzServer.Close()
-
-		app.errChan <- healthzServer.Serve(healthzListener)
-	}()
-
 	var timeChan <-chan time.Time
 
 	if app.config.Deadline != nil {
@@ -228,9 +213,6 @@ func (app *uploadServerApp) Run() (*RunResult, error) {
 		}
 	case <-app.doneChan:
 		klog.Info("Shutting down http server after successful upload")
-		if err := healthzServer.Shutdown(context.Background()); err != nil {
-			klog.Errorf("failed to shutdown healthzServer; %v", err)
-		}
 		if err := uploadServer.Shutdown(context.Background()); err != nil {
 			klog.Errorf("failed to shutdown uploadServer; %v", err)
 		}
@@ -264,13 +246,16 @@ func (app *uploadServerApp) Run() (*RunResult, error) {
 
 func (app *uploadServerApp) getTLSConfig() (*tls.Config, error) {
 	if app.config.ServerCertFile == "" || app.config.ServerKeyFile == "" {
+		if !app.config.Insecure {
+			return nil, errors.New("invalid TLS config")
+		}
 		return nil, nil
 	}
 
 	//nolint:gosec // False positive: Min version is not known statically
 	config := &tls.Config{
 		CipherSuites: app.config.CryptoConfig.CipherSuites,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientAuth:   tls.VerifyClientCertIfGiven,
 		MinVersion:   app.config.CryptoConfig.MinVersion,
 	}
 
@@ -298,15 +283,6 @@ func (app *uploadServerApp) getTLSConfig() (*tls.Config, error) {
 	return config, nil
 }
 
-func (app *uploadServerApp) createHealthzServer() (*http.Server, error) {
-	mux := http.NewServeMux()
-	mux.HandleFunc(healthzPath, app.healthzHandler)
-	return &http.Server{
-		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-	}, nil
-}
-
 func (app *uploadServerApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	app.mux.ServeHTTP(w, r)
 }
@@ -324,8 +300,12 @@ func (app *uploadServerApp) validateShouldHandleRequest(w http.ResponseWriter, r
 	}
 
 	if r.TLS != nil {
-		found := false
+		if len(r.TLS.VerifiedChains) == 0 {
+			w.WriteHeader(http.StatusUnauthorized)
+			return false
+		}
 
+		found := false
 		for _, cert := range r.TLS.PeerCertificates {
 			if cert.Subject.CommonName == app.config.ClientName {
 				found = true
@@ -338,6 +318,10 @@ func (app *uploadServerApp) validateShouldHandleRequest(w http.ResponseWriter, r
 			return false
 		}
 	} else {
+		if !app.config.Insecure {
+			w.WriteHeader(http.StatusUnauthorized)
+			return false
+		}
 		klog.V(3).Infof("Handling HTTP connection")
 	}
 
