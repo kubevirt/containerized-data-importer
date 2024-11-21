@@ -438,25 +438,34 @@ func (vmware *VMwareClient) FindDiskFromName(fileName string) (*types.VirtualDis
 
 // FindSnapshotDiskName finds the name of the given disk at the time the snapshot was taken
 func (vmware *VMwareClient) FindSnapshotDiskName(snapshotRef *types.ManagedObjectReference, diskID string) (string, error) {
+	disk, err := vmware.FindSnapshotDisk(snapshotRef, diskID)
+	if err != nil {
+		return "", err
+	}
+	device := disk.GetVirtualDevice()
+	backing := device.Backing.(types.BaseVirtualDeviceFileBackingInfo)
+	info := backing.GetVirtualDeviceFileBackingInfo()
+	return info.FileName, nil
+}
+
+// FindSnapshotDisk finds the name of the given disk at the time the snapshot was taken
+func (vmware *VMwareClient) FindSnapshotDisk(snapshotRef *types.ManagedObjectReference, diskID string) (*types.VirtualDisk, error) {
 	var snapshot mo.VirtualMachineSnapshot
 	err := vmware.vm.Properties(vmware.context, *snapshotRef, []string{"config.hardware.device"}, &snapshot)
 	if err != nil {
 		klog.Errorf("Unable to get snapshot properties: %v", err)
-		return "", err
+		return nil, err
 	}
 
 	for _, device := range snapshot.Config.Hardware.Device {
 		switch disk := device.(type) {
 		case *types.VirtualDisk:
 			if disk.DiskObjectId == diskID {
-				device := disk.GetVirtualDevice()
-				backing := device.Backing.(types.BaseVirtualDeviceFileBackingInfo)
-				info := backing.GetVirtualDeviceFileBackingInfo()
-				return info.FileName, nil
+				return disk, nil
 			}
 		}
 	}
-	return "", fmt.Errorf("Could not find disk image with ID %s in snapshot %s", diskID, snapshotRef.Value)
+	return nil, fmt.Errorf("Could not find disk image with ID %s in snapshot %s", diskID, snapshotRef.Value)
 }
 
 // FindVM takes the UUID of the VM to migrate and finds its MOref
@@ -862,6 +871,11 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	// then get the list of changed blocks from VMware for a delta copy.
 	var changed *types.DiskChangeInfo
 	if currentSnapshot != nil && previousCheckpoint != "" {
+		disk, err := vmware.FindSnapshotDisk(currentSnapshot, backingFileObject.DiskObjectId)
+		if err != nil {
+			klog.Errorf("Could not find matching disk in current snapshot: %v", err)
+			return nil, err
+		}
 		// QueryChangedDiskAreas needs to be called multiple times to get all possible disk changes.
 		// Experimentation shows it returns maximally 2000 changed blocks. If the disk has more than
 		// 2000 changed blocks we need to query the next chunk of the blocks starting from previous.
@@ -885,12 +899,17 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 					klog.Errorf("Failed to query changed areas: %s", err)
 					return nil, err
 				}
-				klog.Infof("%d changed areas reported at offset %d", len(response.Returnval.ChangedArea), changed.Length)
+				klog.Infof("%d changed areas reported at offset %d with data length %d", len(response.Returnval.ChangedArea), changed.Length, response.Returnval.Length)
 				if len(response.Returnval.ChangedArea) == 0 { // No more changes
 					break
 				}
 				changed.ChangedArea = append(changed.ChangedArea, response.Returnval.ChangedArea...)
 				changed.Length += response.Returnval.Length
+				// The start offset should not be the size of the disk otherwise the QueryChangedDiskAreas will fail
+				if changed.Length >= disk.CapacityInBytes {
+					klog.Infof("the offset %d is greater or equal to disk capacity %d", changed.Length, disk.CapacityInBytes)
+					break
+				}
 			}
 		} else { // Previous checkpoint is a snapshot
 			previousSnapshot, err := vmware.vm.FindSnapshot(vmware.context, previousCheckpoint)
@@ -906,12 +925,17 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 						klog.Errorf("Unable to query changed areas: %s", err)
 						return nil, err
 					}
-					klog.Infof("%d changed areas reported at offset %d", len(changedAreas.ChangedArea), changed.Length)
+					klog.Infof("%d changed areas reported at offset %d with data length %d", len(changedAreas.ChangedArea), changed.Length, changedAreas.Length)
 					if len(changedAreas.ChangedArea) == 0 {
 						break
 					}
 					changed.ChangedArea = append(changed.ChangedArea, changedAreas.ChangedArea...)
 					changed.Length += changedAreas.Length
+					// The start offset should not be the size of the disk otherwise the QueryChangedDiskAreas will fail
+					if changed.Length >= disk.CapacityInBytes {
+						klog.Infof("the offset %d is greater or equal to disk capacity %d", changed.Length, disk.CapacityInBytes)
+						break
+					}
 				}
 			}
 		}

@@ -497,12 +497,12 @@ var _ = Describe("VDDK data source", func() {
 			switch out := result.(type) {
 			case *mo.VirtualMachine:
 				if property[0] == "config.hardware.device" {
-					out.Config = createVirtualDiskConfig(diskName, 12345)
+					out.Config = createVirtualDiskConfigWithSize(diskName, 12345, 9563078656)
 				} else if property[0] == "snapshot" {
 					out.Snapshot = snapshots
 				}
 			case *mo.VirtualMachineSnapshot:
-				out.Config = *createVirtualDiskConfig("snapshotdisk", 123456)
+				out.Config = *createVirtualDiskConfigWithSize("snapshotdisk", 123456, 9563078656)
 			}
 			return nil
 		}
@@ -1025,6 +1025,27 @@ func createVirtualDiskConfig(fileName string, key int32) *types.VirtualMachineCo
 			Device: []types.BaseVirtualDevice{
 				&types.VirtualDisk{
 					DiskObjectId: "test-1",
+					VirtualDevice: types.VirtualDevice{
+						Key: key,
+						Backing: &types.VirtualDiskFlatVer1BackingInfo{
+							VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+								FileName: fileName,
+							},
+							Parent: &types.VirtualDiskFlatVer1BackingInfo{},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+func createVirtualDiskConfigWithSize(fileName string, key int32, size int64) *types.VirtualMachineConfigInfo {
+	return &types.VirtualMachineConfigInfo{
+		Hardware: types.VirtualHardware{
+			Device: []types.BaseVirtualDevice{
+				&types.VirtualDisk{
+					DiskObjectId:    "test-1",
+					CapacityInBytes: size,
 					VirtualDevice: types.VirtualDevice{
 						Key: key,
 						Backing: &types.VirtualDiskFlatVer1BackingInfo{
