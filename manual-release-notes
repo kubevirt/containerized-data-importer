@@ -61,3 +61,6 @@ Enhancement: Add nbdkit command line parameters to improve reliability of multi-
 v1.60.3
 BugFix: Fix PVC deletion logic in CDI populators
 BugFix: Increased size of scratch space to take fs overhead into account
+
+v1.60.4
+https://github.com/kubevirt/containerized-data-importer/pulls?q=is%3Apr+merged%3A2024-09-11..2024-11-21+base%3Arelease-v1.60+sort%3Aupdated-desc+is%3Aclosed+
