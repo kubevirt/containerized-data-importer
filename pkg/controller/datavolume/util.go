@@ -31,7 +31,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
@@ -129,21 +128,22 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 func renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client client.Client, recorder record.EventRecorder, log *logr.Logger,
 	dv *cdiv1.DataVolume, pvcSpec *v1.PersistentVolumeClaimSpec, dvContentType cdiv1.DataVolumeContentType) error {
 	logInfo := func(msg string, keysAndValues ...interface{}) {
-		if log != nil {
-			log.V(1).Info(msg, keysAndValues...)
+		if log != nil && dv != nil {
+			keysAndValuesWithDv := append(keysAndValues, "namespace", dv.Namespace, "name", dv.Name)
+			log.V(1).Info(msg, keysAndValuesWithDv...)
 		}
 	}
 
-	recordEventf := func(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
-		if recorder != nil {
-			recorder.Eventf(object, eventtype, reason, messageFmt, args...)
+	recordEventf := func(eventtype, reason, messageFmt string, args ...interface{}) {
+		if recorder != nil && dv != nil {
+			recorder.Eventf(dv, eventtype, reason, messageFmt, args...)
 		}
 	}
 
 	if dvContentType == cdiv1.DataVolumeArchive {
 		if pvcSpec.VolumeMode != nil && *pvcSpec.VolumeMode == v1.PersistentVolumeBlock {
-			logInfo("ContentType Archive cannot have block volumeMode", "namespace", dv.Namespace, "name", dv.Name)
-			recordEventf(dv, v1.EventTypeWarning, cc.ErrClaimNotValid, "ContentType Archive cannot have block volumeMode")
+			logInfo("ContentType Archive cannot have block volumeMode")
+			recordEventf(v1.EventTypeWarning, cc.ErrClaimNotValid, "ContentType Archive cannot have block volumeMode")
 			return errors.Errorf("ContentType Archive cannot have block volumeMode")
 		}
 		pvcSpec.VolumeMode = ptr.To[v1.PersistentVolumeMode](v1.PersistentVolumeFilesystem)
@@ -159,8 +159,8 @@ func renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client client.Client, 
 		}
 		// Not even default storageClass on the cluster, cannot apply the defaults, verify spec is ok
 		if len(pvcSpec.AccessModes) == 0 {
-			logInfo("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
-			recordEventf(dv, v1.EventTypeWarning, cc.ErrClaimNotValid, MessageErrStorageClassNotFound)
+			logInfo("Cannot set accessMode for new pvc")
+			recordEventf(v1.EventTypeWarning, cc.ErrClaimNotValid, MessageErrStorageClassNotFound)
 			return ErrStorageClassNotFound
 		}
 		return nil
@@ -171,8 +171,8 @@ func renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client client.Client, 
 	if (pvcSpec.VolumeMode == nil || *pvcSpec.VolumeMode == "") && len(pvcSpec.AccessModes) == 0 {
 		accessModes, volumeMode, err := getDefaultVolumeAndAccessMode(client, storageClass)
 		if err != nil {
-			logInfo("Cannot set accessMode and volumeMode for new pvc", "namespace", dv.Namespace, "name", dv.Name, "Error", err)
-			recordEventf(dv, v1.EventTypeWarning, cc.ErrClaimNotValid,
+			logInfo("Cannot set accessMode and volumeMode for new pvc", "Error", err)
+			recordEventf(v1.EventTypeWarning, cc.ErrClaimNotValid,
 				fmt.Sprintf("Spec is missing accessMode and volumeMode, cannot get access mode from StorageProfile %s", getName(storageClass)))
 			return err
 		}
@@ -181,8 +181,8 @@ func renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client client.Client, 
 	} else if len(pvcSpec.AccessModes) == 0 {
 		accessModes, err := getDefaultAccessModes(client, storageClass, pvcSpec.VolumeMode)
 		if err != nil {
-			logInfo("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name, "Error", err)
-			recordEventf(dv, v1.EventTypeWarning, cc.ErrClaimNotValid,
+			logInfo("Cannot set accessMode for new pvc", "Error", err)
+			recordEventf(v1.EventTypeWarning, cc.ErrClaimNotValid,
 				fmt.Sprintf("Spec is missing accessMode and cannot get access mode from StorageProfile %s", getName(storageClass)))
 			return err
 		}
