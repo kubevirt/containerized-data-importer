@@ -237,6 +237,19 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 		},
 		{
 			APIGroups: []string{
+				"discovery.k8s.io",
+			},
+			Resources: []string{
+				"endpointslices",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
 				"apps",
 			},
 			Resources: []string{

@@ -28,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -250,7 +251,8 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 	}
 
 	svcName := naming.GetServiceNameFromResourceName(pod.Name)
-	if _, err = r.getOrCreateUploadService(pvc, svcName); err != nil {
+	svc, err := r.getOrCreateUploadService(pvc, svcName)
+	if err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -271,6 +273,32 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		anno[cc.AnnPodPhase] = ""
 		anno[cc.AnnPodReady] = "false"
 	} else {
+		if pod.Status.Phase != corev1.PodSucceeded {
+			// Service readiness check, weird that this is not exposed on the Service status
+			endpointSliceList := &discoveryv1.EndpointSliceList{}
+			if err := r.client.List(context.TODO(), endpointSliceList,
+				client.InNamespace(svc.Namespace),
+				client.MatchingLabels(map[string]string{"kubernetes.io/service-name": svc.Name})); err != nil {
+				return reconcile.Result{}, err
+			}
+			if len(endpointSliceList.Items) == 0 {
+				return reconcile.Result{RequeueAfter: time.Second}, nil
+			}
+			if len(endpointSliceList.Items[0].Endpoints) == 0 {
+				return reconcile.Result{RequeueAfter: time.Second}, nil
+			}
+			if len(endpointSliceList.Items[0].Endpoints[0].Addresses) == 0 {
+				return reconcile.Result{RequeueAfter: time.Second}, nil
+			}
+			ready := endpointSliceList.Items[0].Endpoints[0].Conditions.Ready
+			serving := endpointSliceList.Items[0].Endpoints[0].Conditions.Serving
+			if ready != nil && !*ready {
+				return reconcile.Result{RequeueAfter: time.Second}, nil
+			}
+			if serving != nil && !*serving {
+				return reconcile.Result{RequeueAfter: time.Second}, nil
+			}
+		}
 		anno[cc.AnnPodPhase] = string(pod.Status.Phase)
 		anno[cc.AnnPodReady] = strconv.FormatBool(isPodReady(pod))
 	}
