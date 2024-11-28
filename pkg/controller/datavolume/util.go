@@ -360,7 +360,7 @@ func renderPvcSpecFromAvailablePv(c client.Client, pvcSpec *v1.PersistentVolumeC
 
 func getDefaultVolumeAndAccessMode(c client.Client, storageClass *storagev1.StorageClass) ([]v1.PersistentVolumeAccessMode, *v1.PersistentVolumeMode, error) {
 	if storageClass == nil {
-		return nil, nil, errors.Errorf("no accessMode defined on DV and no StorageProfile")
+		return nil, nil, errors.Errorf("no accessMode specified and StorageClass not found")
 	}
 
 	storageProfile := &cdiv1.StorageProfile{}
@@ -377,7 +377,7 @@ func getDefaultVolumeAndAccessMode(c client.Client, storageClass *storagev1.Stor
 	}
 
 	// no accessMode configured on storageProfile
-	return nil, nil, errors.Errorf("no accessMode defined DV nor on StorageProfile for %s StorageClass", storageClass.Name)
+	return nil, nil, errors.Errorf("no accessMode specified in StorageProfile %s", storageProfile.Name)
 }
 
 func getDefaultVolumeMode(c client.Client, storageClass *storagev1.StorageClass, pvcAccessModes []v1.PersistentVolumeAccessMode) (*v1.PersistentVolumeMode, error) {
@@ -416,13 +416,13 @@ func getDefaultVolumeMode(c client.Client, storageClass *storagev1.StorageClass,
 
 func getDefaultAccessModes(c client.Client, storageClass *storagev1.StorageClass, pvcVolumeMode *v1.PersistentVolumeMode) ([]v1.PersistentVolumeAccessMode, error) {
 	if storageClass == nil {
-		return nil, errors.Errorf("no accessMode defined on DV, no StorageProfile ")
+		return nil, errors.Errorf("no accessMode specified and no StorageProfile")
 	}
 
 	storageProfile := &cdiv1.StorageProfile{}
 	err := c.Get(context.TODO(), types.NamespacedName{Name: storageClass.Name}, storageProfile)
 	if err != nil {
-		return nil, errors.Wrap(err, "no accessMode defined on DV, cannot get StorageProfile")
+		return nil, errors.Wrapf(err, "no accessMode specified and cannot get StorageProfile %s", storageClass.Name)
 	}
 
 	if len(storageProfile.Status.ClaimPropertySets) > 0 {
@@ -444,7 +444,7 @@ func getDefaultAccessModes(c client.Client, storageClass *storagev1.StorageClass
 	}
 
 	// no accessMode configured on storageProfile
-	return nil, errors.Errorf("no accessMode defined on StorageProfile for %s StorageClass", storageClass.Name)
+	return nil, errors.Errorf("no accessMode specified in StorageProfile %s", storageProfile.Name)
 }
 
 // storageClassCSIDriverExists returns true if the passed storage class has CSI drivers available
