@@ -55,6 +55,7 @@ go_test(
         "datavolume-mutate_test.go",
         "datavolume-validate_test.go",
         "populators-validate_test.go",
+        "pvc-mutate_test.go",
         "transfer-validate_test.go",
         "webhook_suite_test.go",
     ],
