@@ -1,0 +1,25 @@
+v1.61.0
+Enhancement: Add nbdkit command line parameters to improve reliability of multi-stage VDDK imports
+Enhancement: enable cross compile tools for s390x for CDI builder
+BugFix: Fix PVC deletion logic in CDI populators
+Enhancement: enable s390x native build
+BugFix: Bump tar rpm to fix concurrent host-assisted clone tar failure on file change during read
+BugFix: Increased size of scratch space to take fs overhead into account
+Enhancement: Handle desired storage class changes automatically in cron controller by deleting old storage class sources
+Cleanup: Deprecating ObjectTransfer feature
+Enhancement: provide s390x support for functional tests
+Enhancement: Add s390x nightly build automation
+BugFix: Handle PunchHole/AppendZeroWithTruncate failures
+Enhancement: Suppress alerting for static provisioning
+Cleanup: Document device_ownership_from_security_context=true for containerd v2
+BugFix: Warm imports to filesystem volumes would fail size validation on subsequent snapshots
+Enhancement: Explicitly declaring containerPort in cdi-apiserver deployment
+BugFix: Reduce frequency of SCC management Events
+BugFix: Reduce frequency of Route management events
+BugFix: Fix uploading for block devices that exceed requested size
+Cleanup: Standardize go.mod to not specify patch version
+BugFix: nil pointer in handleSnapshot
+BugFix: config controller broken with ingresses
+Enhancement: Add RWX to AWS EBS io2 storage capabilities
+BugFix: VDDK Fix Incomplete transfer of change blocks leads to data corruption
+Cleanup: cdi-uploadserver: healthcheck and application use same port
