@@ -632,8 +632,8 @@ func (r *PvcCloneReconciler) getSizeFromPod(targetPvc, sourcePvc *corev1.Persist
 	if err := r.updateClonePVCAnnotations(sourcePvc, termMsg); err != nil {
 		return imgSize, err
 	}
-	// Finally, detelete the pod
-	if cc.ShouldDeletePod(sourcePvc) {
+	// Finally, delete the pod
+	if targetPvc != nil && cc.ShouldDeletePod(targetPvc) {
 		err = r.client.Delete(context.TODO(), pod)
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return imgSize, err
