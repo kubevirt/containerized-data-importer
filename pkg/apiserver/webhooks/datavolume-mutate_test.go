@@ -38,11 +38,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
-	"k8s.io/utils/ptr"
 
 	cdicorev1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
@@ -144,7 +142,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			}
 			resp := mutateDVs(key, ar, true)
 			Expect(resp.Allowed).To(BeTrue())
-			Expect(resp.Patch).ToNot(BeNil())
+			Expect(resp.Patch).To(BeNil())
 		},
 			Entry("with static volume annotation", cc.AnnCheckStaticVolume),
 			Entry("with prePopulated volume annotation", cc.AnnPrePopulated),
@@ -183,10 +181,9 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 				},
 			}
 
-			resp := mutateDVsEx(key, ar, true, 0, []runtime.Object{dataSource})
+			resp := mutateDVs(key, ar, true, dataSource)
 			Expect(resp.Allowed).To(BeTrue())
 			Expect(resp.Patch).ToNot(BeNil())
-
 			var patchObjs []jsonpatch.Operation
 			err := json.Unmarshal(resp.Patch, &patchObjs)
 			Expect(err).ToNot(HaveOccurred())
@@ -272,7 +269,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 
 			resp := mutateDVs(key, ar, false)
 			Expect(resp.Allowed).To(BeTrue())
-			Expect(resp.Patch).ToNot(BeNil())
+			Expect(resp.Patch).To(BeNil())
 		},
 			Entry("with static volume annotation", cc.AnnCheckStaticVolume),
 			Entry("with prePopulated volume annotation", cc.AnnPrePopulated),
@@ -323,7 +320,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 
 			resp := mutateDVs(key, ar, false)
 			Expect(resp.Allowed).To(BeTrue())
-			Expect(resp.Patch).ToNot(BeNil())
+			Expect(resp.Patch).To(BeNil())
 		},
 			Entry("with static volume annotation", cc.AnnCheckStaticVolume),
 			Entry("with prePopulated volume annotation", cc.AnnPrePopulated),
@@ -350,72 +347,21 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			resp := mutateDVs(key, ar, true)
 			Expect(resp.Allowed).To(BeTrue())
 			Expect(resp.Patch).ToNot(BeNil())
-
 			var patchObjs []jsonpatch.Operation
 			err := json.Unmarshal(resp.Patch, &patchObjs)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(patchObjs).Should(HaveLen(1))
 			Expect(patchObjs[0].Operation).Should(Equal("add"))
 			Expect(patchObjs[0].Path).Should(Equal("/metadata/annotations"))
-
 		},
 			Entry("succeed with explicit namespace", "testNamespace"),
 			Entry("succeed with same (default) namespace", "default"),
 			Entry("succeed with empty namespace", ""),
 		)
-
-		DescribeTable("should", func(ttl int) {
-			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
-			dvBytes, _ := json.Marshal(&dataVolume)
-
-			ar := &admissionv1.AdmissionReview{
-				Request: &admissionv1.AdmissionRequest{
-					Operation: admissionv1.Create,
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1.SchemeGroupVersion.Group,
-						Version:  cdicorev1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := mutateDVsEx(key, ar, true, int32(ttl), nil)
-			Expect(resp.Allowed).To(BeTrue())
-
-			if ttl < 0 {
-				Expect(resp.Patch).To(BeNil())
-				return
-			}
-
-			Expect(resp.Patch).ToNot(BeNil())
-
-			var patchObjs []jsonpatch.Operation
-			err := json.Unmarshal(resp.Patch, &patchObjs)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(patchObjs).Should(HaveLen(1))
-			Expect(patchObjs[0].Operation).Should(Equal("add"))
-			Expect(patchObjs[0].Path).Should(Equal("/metadata/annotations"))
-
-			ann, ok := patchObjs[0].Value.(map[string]interface{})
-			Expect(ok).Should(BeTrue())
-			val, ok := ann[cc.AnnDeleteAfterCompletion].(string)
-			Expect(ok).Should(BeTrue())
-			Expect(val).Should(Equal("true"))
-		},
-			Entry("set GC annotation if TTL is set", 0),
-			Entry("not set GC annotation if TTL is disabled", -1),
-		)
 	})
 })
 
-func mutateDVs(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthorized bool) *admissionv1.AdmissionResponse {
-	return mutateDVsEx(key, ar, isAuthorized, 0, nil)
-}
-
-func mutateDVsEx(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthorized bool, ttl int32, cdiObjects []runtime.Object) *admissionv1.AdmissionResponse {
+func mutateDVs(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthorized bool, cdiObjects ...runtime.Object) *admissionv1.AdmissionResponse {
 	defaultNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}}
 	testNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "testNamespace"}}
 	client := fakeclient.NewSimpleClientset(&defaultNs, &testNs)
@@ -433,11 +379,7 @@ func mutateDVsEx(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthori
 		return true, sar, nil
 	})
 
-	cdiConfig := cc.MakeEmptyCDIConfigSpec(common.ConfigName)
-	cdiConfig.Spec.DataVolumeTTLSeconds = ptr.To[int32](ttl)
-	objs := []runtime.Object{cdiConfig}
-	objs = append(objs, cdiObjects...)
-	cdiClient := cdiclientfake.NewSimpleClientset(objs...)
+	cdiClient := cdiclientfake.NewSimpleClientset(cdiObjects...)
 	wh := NewDataVolumeMutatingWebhook(client, cdiClient, key)
 	return serve(ar, wh)
 }

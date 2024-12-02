@@ -117,7 +117,6 @@ var _ = Describe("ALL Operator tests", func() {
 
 					By("Creating datavolume without GC and custom changes")
 					dv := utils.NewDataVolumeWithHTTPImport("alpha-tests-dv", "500Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-					dv.Annotations[cc.AnnDeleteAfterCompletion] = "false"
 					dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 					Expect(err).ToNot(HaveOccurred())
 					f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)

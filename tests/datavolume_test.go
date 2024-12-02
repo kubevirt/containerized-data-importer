@@ -319,7 +319,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		testDataVolume := func(args dataVolumeTestArguments) {
 			// Have to call the function in here, to make sure the BeforeEach in the Framework has run.
 			dataVolume := args.dvFunc(args.name, args.size, args.url())
-			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			if args.addClaimAdoptionAnnotation {
 				controller.AddAnnotation(dataVolume, controller.AnnAllowClaimAdoption, "true")
 			}
@@ -391,7 +390,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			// Have to call the function in here, to make sure the BeforeEach in the Framework has run.
 			dataVolume := args.dvFunc(args.name, args.size, args.url())
-			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -1500,12 +1498,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 
-			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			if controller.GetDataVolumeTTLSeconds(config) >= 0 {
-				return
-			}
-
 			By("Verifying PVC owned by DV")
 			Eventually(func() bool {
 				pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
@@ -1524,7 +1516,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By(fmt.Sprintf("creating new populated datavolume %s", dataVolumeName))
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", cirrosURL())
-			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -1552,7 +1543,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By(fmt.Sprintf("creating new populated datavolume %s", dataVolumeName))
 			dataVolume := utils.NewDataVolumeForUpload(dataVolumeName, "1Gi")
-			controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -1773,7 +1763,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					By(fmt.Sprintf("running loop %d", i))
 					url := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
 					dv := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
-					dv.Annotations[controller.AnnDeleteAfterCompletion] = "false"
 
 					By(fmt.Sprintf("creating new datavolume %s", dataVolumeName))
 					// the DV creation must not fail eventhough the PVC of the previous created DV is still terminating
@@ -2818,7 +2807,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	Describe("Progress reporting on import datavolume", func() {
 		DescribeTable("Should report progress while importing", func(url string) {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(url, f.CdiInstallNs))
-			dataVolume.Annotations[controller.AnnDeleteAfterCompletion] = "false"
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
@@ -3112,7 +3100,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dvName := "import-file-removed"
 			By(fmt.Sprintf("Creating new datavolume %s", dvName))
 			dv := utils.NewDataVolumeWithHTTPImport(dvName, "500Mi", tinyCoreIsoRateLimitURL())
-			dv.Annotations[controller.AnnDeleteAfterCompletion] = "false"
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)

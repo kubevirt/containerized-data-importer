@@ -140,77 +140,6 @@ var _ = Describe("all clone tests", func() {
 			Expect(uploader.DeletionTimestamp).To(BeNil())
 		})
 
-		Context("DataVolume Garbage Collection", func() {
-			var (
-				ns       string
-				err      error
-				config   *cdiv1.CDIConfig
-				origSpec *cdiv1.CDIConfigSpec
-			)
-
-			BeforeEach(func() {
-				ns = f.Namespace.Name
-				config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				origSpec = config.Spec.DeepCopy()
-			})
-
-			AfterEach(func() {
-				By("Restoring CDIConfig to original state")
-				err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-					origSpec.DeepCopyInto(config)
-				})
-				Expect(err).ToNot(HaveOccurred())
-				Eventually(func() bool {
-					config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-					Expect(err).ToNot(HaveOccurred())
-					return reflect.DeepEqual(config.Spec, *origSpec)
-				}, timeout, pollingInterval).Should(BeTrue())
-			})
-
-			verifyGC := func(dvName string) {
-				VerifyGC(f, dvName, ns, false, nil)
-			}
-			verifyDisabledGC := func(dvName string) {
-				VerifyDisabledGC(f, dvName, ns)
-			}
-			enableGcAndAnnotateLegacyDv := func(dvName string) {
-				EnableGcAndAnnotateLegacyDv(f, dvName, ns)
-			}
-
-			DescribeTable("Should", func(ttl int, verifyGCFunc, additionalTestFunc func(dvName string)) {
-				SetConfigTTL(f, ttl)
-
-				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-				By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
-				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, dataVolume)
-				Expect(err).ToNot(HaveOccurred())
-				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
-				verifyGCFunc(dataVolume.Name)
-
-				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvc)
-				delete(targetDV.Annotations, controller.AnnDeleteAfterCompletion)
-				By(fmt.Sprintf("Create new target datavolume %s", targetDV.Name))
-				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, targetDV)
-				Expect(err).ToNot(HaveOccurred())
-				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
-
-				By("Wait for target datavolume phase Succeeded")
-				Expect(utils.WaitForDataVolumePhaseWithTimeout(f, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)).Should(Succeed())
-				verifyGCFunc(targetDV.Name)
-
-				if additionalTestFunc != nil {
-					additionalTestFunc(dataVolume.Name)
-					additionalTestFunc(targetDV.Name)
-				}
-			},
-				Entry("[test_id:8565] garbage collect dvs after completion when TTL is 0", 0, verifyGC, nil),
-				Entry("[test_id:8569] Add DeleteAfterCompletion annotation to a legacy DV", -1, verifyDisabledGC, enableGcAndAnnotateLegacyDv),
-			)
-		})
-
 		ClonerBehavior := func(storageClass string, cloneType string) {
 
 			DescribeTable("[test_id:1354]Should clone data within same namespace", func(targetSize string) {
@@ -568,7 +497,6 @@ var _ = Describe("all clone tests", func() {
 					Skip("csi-clone only works for the same volumeMode")
 				}
 				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "2Gi", fmt.Sprintf(utils.LargeVirtualDiskQcow, f.CdiInstallNs))
-				controller.AddAnnotation(dataVolume, controller.AnnDeleteAfterCompletion, "false")
 				filesystem := v1.PersistentVolumeFilesystem
 				dataVolume.Spec.Storage.VolumeMode = &filesystem
 
@@ -628,7 +556,6 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				targetDV := utils.NewDataVolumeForImageCloningAndStorageSpec("target-dv", "1Gi", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
-				controller.AddAnnotation(targetDV, controller.AnnDeleteAfterCompletion, "false")
 				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
 				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
@@ -793,7 +720,6 @@ var _ = Describe("all clone tests", func() {
 						targetDV.Spec.Storage.StorageClassName = &targetSCName
 					}
 
-					controller.AddAnnotation(targetDV, controller.AnnDeleteAfterCompletion, "false")
 					targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 					Expect(err).ToNot(HaveOccurred())
 					targetPvc, err = utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
@@ -1264,7 +1190,6 @@ var _ = Describe("all clone tests", func() {
 
 				SetFilesystemOverhead(f, targetOverHead, targetOverHead)
 				targetDV := utils.NewDataVolumeForCloningWithEmptySize("target-dv", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
-				controller.AddAnnotation(targetDV, controller.AnnDeleteAfterCompletion, "false")
 				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
 				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
@@ -1306,7 +1231,6 @@ var _ = Describe("all clone tests", func() {
 
 				// We attempt to create the sizeless clone
 				targetDataVolume := utils.NewDataVolumeForCloningWithEmptySize("target-dv", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
-				controller.AddAnnotation(targetDataVolume, controller.AnnDeleteAfterCompletion, "false")
 				targetDataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDataVolume)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1331,7 +1255,6 @@ var _ = Describe("all clone tests", func() {
 
 				// We attempt to create the second, sizeless clone
 				secondTargetDV := utils.NewDataVolumeForCloningWithEmptySize("second-target-dv", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
-				controller.AddAnnotation(secondTargetDV, controller.AnnDeleteAfterCompletion, "false")
 				secondTargetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, secondTargetDV)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1370,7 +1293,6 @@ var _ = Describe("all clone tests", func() {
 
 				// We attempt to create the sizeless clone
 				targetDV := utils.NewDataVolumeForCloningWithEmptySize("target-dv", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
-				controller.AddAnnotation(targetDV, controller.AnnDeleteAfterCompletion, "false")
 				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1409,7 +1331,6 @@ var _ = Describe("all clone tests", func() {
 				// We attempt to create the second, sizeless clone
 				By("Create second clone")
 				secondTargetDV := utils.NewDataVolumeForCloningWithEmptySize("second-target-dv", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
-				controller.AddAnnotation(secondTargetDV, controller.AnnDeleteAfterCompletion, "false")
 				secondTargetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, secondTargetDV)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1455,7 +1376,6 @@ var _ = Describe("all clone tests", func() {
 
 				// We attempt to create the sizeless clone
 				targetDataVolume := utils.NewDataVolumeForCloningWithEmptySize("target-dv", f.Namespace.Name, sourcePvc.Name, nil, &volumeMode)
-				controller.AddAnnotation(targetDataVolume, controller.AnnDeleteAfterCompletion, "false")
 				targetDataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDataVolume)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1658,7 +1578,6 @@ var _ = Describe("all clone tests", func() {
 				f.CreateBoundPVCFromDefinition(
 					utils.NewPVCDefinition(targetName, "1Gi", map[string]string{controller.AnnPopulatedFor: targetName}, nil))
 				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec(targetName, "1Gi", f.Namespace.Name, "non-existing-source", nil, &fsVM)
-				controller.AddAnnotation(cloneDV, controller.AnnDeleteAfterCompletion, "false")
 				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				Expect(err).ToNot(HaveOccurred())
 				By("Wait for clone DV Succeeded phase")
@@ -1889,7 +1808,6 @@ var _ = Describe("all clone tests", func() {
 			f.AddNamespaceToDelete(targetNs)
 
 			targetDV := utils.NewDataVolumeCloneToBlockPV("target-dv", targetSize, sourcePvc.Namespace, sourcePvc.Name, f.BlockSCName)
-			controller.AddAnnotation(targetDV, controller.AnnDeleteAfterCompletion, "false")
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -3139,104 +3057,4 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 	}
 
 	Expect(utils.GetCloneType(f.CdiClient, dv)).To(Equal(cloneType))
-}
-
-// VerifyGC verifies DV is garbage collected
-func VerifyGC(f *framework.Framework, dvName, dvNamespace string, checkOwnerRefs bool, config *cdiv1.CDIConfig) {
-	By("Wait for DV to be in phase succeeded")
-	err := utils.WaitForDataVolumePhase(f, dvNamespace, cdiv1.Succeeded, dvName)
-	Expect(err).ToNot(HaveOccurred(), "DV is not in phase succeeded in time")
-
-	By("Wait for DV to be garbage collected")
-	Eventually(func() bool {
-		_, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
-		return k8serrors.IsNotFound(err)
-	}, timeout, pollingInterval).Should(BeTrue())
-
-	By("Verify PVC still exists")
-	pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
-	Expect(err).ToNot(HaveOccurred())
-
-	if checkOwnerRefs && config != nil {
-		By("Verify PVC gets DV original OwnerReferences, and the DV reference is removed")
-		Expect(pvc.OwnerReferences).Should(HaveLen(1))
-		Expect(pvc.OwnerReferences[0].UID).Should(Equal(config.UID))
-	}
-}
-
-// VerifyNoGC verifies DV is not garbage collected
-func VerifyNoGC(f *framework.Framework, dvName, dvNamespace string) {
-	By("Verify DV is not garbage collected")
-	matchString := fmt.Sprintf("DataVolume is not annotated to be garbage collected\t{\"DataVolume\": {\"name\":\"%s\",\"namespace\":\"%s\"}}", dvName, dvNamespace)
-	Eventually(func() (string, error) {
-		out, err := f.K8sClient.CoreV1().
-			Pods(f.CdiInstallNs).
-			GetLogs(f.ControllerPod.Name, &corev1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
-			DoRaw(context.Background())
-		return string(out), err
-	}, timeout, pollingInterval).Should(ContainSubstring(matchString))
-
-	dv, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
-	Expect(err).ToNot(HaveOccurred())
-	Expect(dv.Annotations[controller.AnnDeleteAfterCompletion]).ToNot(Equal("true"))
-}
-
-// VerifyDisabledGC verifies DV is not deleted when garbage collection is disabled
-func VerifyDisabledGC(f *framework.Framework, dvName, dvNamespace string) {
-	By("Verify DV is not deleted when garbage collection is disabled")
-	matchString := fmt.Sprintf("Garbage Collection is disabled\t{\"DataVolume\": {\"name\":%q,\"namespace\":%q}}", dvName, dvNamespace)
-	Eventually(func() (string, error) {
-		out, err := f.K8sClient.CoreV1().
-			Pods(f.CdiInstallNs).
-			GetLogs(f.ControllerPod.Name, &corev1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
-			DoRaw(context.Background())
-		return string(out), err
-	}, timeout, pollingInterval).Should(ContainSubstring(matchString))
-
-	_, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
-	Expect(err).ToNot(HaveOccurred())
-}
-
-// EnableGcAndAnnotateLegacyDv enables garbage collection, annotates the DV and verifies it is garbage collected
-func EnableGcAndAnnotateLegacyDv(f *framework.Framework, dvName, dvNamespace string) {
-	By("Enable Garbage Collection")
-	SetConfigTTL(f, 0)
-
-	dv, err := f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
-	Expect(err).ToNot(HaveOccurred())
-	_, ok := dv.Annotations[controller.AnnDeleteAfterCompletion]
-	Expect(ok).To(BeFalse())
-
-	By("Add empty DeleteAfterCompletion annotation to DV for reconcile")
-	Eventually(func() error {
-		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "")
-		// We shouldn't make the test fail if there's a conflict with the update request.
-		// These errors are usually transient and should be fixed in subsequent retries.
-		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
-		return err
-	}, timeout, pollingInterval).Should(Succeed())
-
-	VerifyNoGC(f, dvName, dvNamespace)
-
-	By("Add true DeleteAfterCompletion annotation to DV")
-	Eventually(func() error {
-		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		controller.AddAnnotation(dv, controller.AnnDeleteAfterCompletion, "true")
-		dv, err = f.CdiClient.CdiV1beta1().DataVolumes(dvNamespace).Update(context.TODO(), dv, metav1.UpdateOptions{})
-		return err
-	}, timeout, pollingInterval).Should(Succeed())
-
-	VerifyGC(f, dvName, dvNamespace, false, nil)
-}
-
-// SetConfigTTL set CDIConfig DataVolumeTTLSeconds
-func SetConfigTTL(f *framework.Framework, ttl int) {
-	By(fmt.Sprintf("Set DataVolumeTTLSeconds to %d", ttl))
-	err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-		config.DataVolumeTTLSeconds = ptr.To(int32(ttl))
-	})
-	Expect(err).ToNot(HaveOccurred())
 }

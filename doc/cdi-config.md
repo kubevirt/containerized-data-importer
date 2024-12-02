@@ -16,7 +16,6 @@ CDI configuration in specified by administrators in the `spec.config` of the `CD
 | preallocation            | nil           | Preallocation setting to use unless a per-dataVolume value is set                                                                                                                                                            |
 | importProxy              | nil           | The proxy configuration to be used by the importer pod when accessing a http data source. When the ImportProxy is empty, the Cluster Wide-Proxy (Openshift) configurations are used. ImportProxy has four parameters: `ImportProxy.HTTPProxy` that defines the proxy http url, the `ImportProxy.HTTPSProxy` that determines the roxy https url, and the `ImportProxy.noProxy` which enforce that a list of hostnames and/or CIDRs will be not proxied, and finally, the `ImportProxy.TrustedCAProxy`, the ConfigMap name of an user-provided trusted certificate authority (CA) bundle to be added to the importer pod CA bundle. |
 | insecureRegistries       | nil           | List of TLS disabled registries. |
-| dataVolumeTTLSeconds     | nil           | Time in seconds after DataVolume completion it can be garbage collected. Disabled by default. |
 | tlsSecurityProfile       | nil           | Used by operators to apply cluster-wide TLS security settings to operands. |
 
 filesystemOverhead configuration:
@@ -37,10 +36,6 @@ kubectl patch cdi cdi  --type='json' -p='[{ "op" : "add" , "path" : "/spec/confi
 - Configure global value
 ```bash
 kubectl patch cdi cdi  --type='json' -p='[{ "op" : "add" , "path" : "/spec/config/filesystemOverhead/global" , "value" : "0.0" }]'
-```
-To configure dataVolumeTTLSeconds (e.g. enable DataVolume garbage collection)
-```bash
-kubectl patch cdi cdi --patch '{"spec": {"config": {"dataVolumeTTLSeconds": "0"}}}' --type merge
 ```
 ## Getting
 
