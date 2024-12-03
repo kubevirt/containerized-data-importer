@@ -200,7 +200,75 @@ func (r *PvcCloneReconciler) cleanup(syncState *dvSyncState) error {
 		return nil
 	}
 
-	return r.reconcileVolumeCloneSourceCR(syncState)
+	r.log.V(3).Info("Cleanup initiated in dv pvc clone controller")
+
+	if err := r.reconcileVolumeCloneSourceCR(syncState); err != nil {
+		return err
+	}
+
+	if err := r.cleanupSizeDetectionPod(dv, syncState.pvc); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *PvcCloneReconciler) cleanupSizeDetectionPod(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+	if pvc != nil && !cc.ShouldDeletePod(pvc) {
+		return nil
+	}
+
+	nn := types.NamespacedName{Namespace: dv.Spec.Source.PVC.Namespace, Name: dv.Spec.Source.PVC.Name}
+	sourcePvc := &corev1.PersistentVolumeClaim{}
+	if err := r.client.Get(context.TODO(), nn, sourcePvc); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+	pod := &corev1.Pod{
+		ObjectMeta: *makeSizeDetectionObjectMeta(sourcePvc),
+	}
+	if err := r.client.Get(context.TODO(), client.ObjectKeyFromObject(pod), pod); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	ownerRef := metav1.GetControllerOf(pod)
+	var hasDataVolumeOwner bool
+	var ownerNamespace, ownerName string
+	if ownerRef != nil && ownerRef.Kind == "DataVolume" {
+		hasDataVolumeOwner = true
+		ownerNamespace = pod.GetNamespace()
+		ownerName = ownerRef.Name
+	} else if hasAnnOwnedByDataVolume(pod) {
+		hasDataVolumeOwner = true
+		var err error
+		ownerNamespace, ownerName, err = getAnnOwnedByDataVolume(pod)
+		if err != nil {
+			return nil
+		}
+	}
+	if !hasDataVolumeOwner {
+		return nil
+	}
+
+	if ownerNamespace != dv.Namespace || ownerName != dv.Name {
+		return nil
+	}
+	if _, ok := pod.Labels[common.CDIComponentLabel]; !ok {
+		return nil
+	}
+
+	if err := r.client.Delete(context.TODO(), pod); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func addCloneToken(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
