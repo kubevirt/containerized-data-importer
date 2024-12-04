@@ -36,10 +36,8 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -128,53 +126,6 @@ func (r *PvcCloneReconciler) addDataVolumeCloneControllerWatches(mgr manager.Man
 	}
 
 	if err := r.addVolumeCloneSourceWatch(mgr, datavolumeController); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func addDataSourceWatch(mgr manager.Manager, c controller.Controller, indexingKey string, op dataVolumeOp) error {
-	getKey := func(namespace, name string) string {
-		return namespace + "/" + name
-	}
-
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, indexingKey, func(obj client.Object) []string {
-		dv := obj.(*cdiv1.DataVolume)
-		if sourceRef := dv.Spec.SourceRef; sourceRef != nil && sourceRef.Kind == cdiv1.DataVolumeDataSource {
-			ns := obj.GetNamespace()
-			if sourceRef.Namespace != nil && *sourceRef.Namespace != "" {
-				ns = *sourceRef.Namespace
-			}
-			if getDataVolumeOp(context.TODO(), mgr.GetLogger(), dv, mgr.GetClient()) == op && sourceRef.Name != "" {
-				return []string{getKey(ns, sourceRef.Name)}
-			}
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	mapToDataVolume := func(ctx context.Context, obj *cdiv1.DataSource) []reconcile.Request {
-		var dvs cdiv1.DataVolumeList
-		matchingFields := client.MatchingFields{indexingKey: getKey(obj.GetNamespace(), obj.GetName())}
-		if err := mgr.GetClient().List(ctx, &dvs, matchingFields); err != nil {
-			c.GetLogger().Error(err, "Unable to list DataVolumes", "matchingFields", matchingFields)
-			return nil
-		}
-		var reqs []reconcile.Request
-		for _, dv := range dvs.Items {
-			if getDataVolumeOp(ctx, c.GetLogger(), &dv, mgr.GetClient()) != op {
-				continue
-			}
-			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
-		}
-		return reqs
-	}
-
-	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{},
-		handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.DataSource](mapToDataVolume),
-	)); err != nil {
 		return err
 	}
 
