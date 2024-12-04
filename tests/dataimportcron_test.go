@@ -514,7 +514,6 @@ var _ = Describe("DataImportCron", Serial, func() {
 			dv := utils.NewDataVolumeWithRegistryImport(oldDvName, "5Gi", "")
 			dv.Spec.Source.Registry = reg
 			dv.Labels = map[string]string{common.DataImportCronLabel: cronName}
-			cc.AddAnnotation(dv, cc.AnnDeleteAfterCompletion, "false")
 			dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, dv)
 			Expect(err).ToNot(HaveOccurred())
 

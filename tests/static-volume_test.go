@@ -62,7 +62,6 @@ var _ = Describe("checkStaticVolume tests", func() {
 			By("Creating source DV")
 			// source here shouldn't matter
 			dvDef := importDef()
-			controller.AddAnnotation(dvDef, controller.AnnDeleteAfterCompletion, "false")
 			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dvDef)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -133,7 +132,6 @@ var _ = Describe("checkStaticVolume tests", func() {
 			By("Creating target DV")
 			dvDef := defFunc()
 			controller.AddAnnotation(dvDef, controller.AnnCheckStaticVolume, "")
-			controller.AddAnnotation(dvDef, controller.AnnDeleteAfterCompletion, "false")
 			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dvDef)
 			Expect(err).ToNot(HaveOccurred())
 

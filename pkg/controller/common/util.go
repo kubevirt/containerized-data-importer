@@ -95,8 +95,6 @@ const (
 	// AnnExternalPopulation annotation marks a PVC as "externally populated", allowing the import-controller to skip it
 	AnnExternalPopulation = AnnAPIGroup + "/externalPopulation"
 
-	// AnnDeleteAfterCompletion is PVC annotation for deleting DV after completion
-	AnnDeleteAfterCompletion = AnnAPIGroup + "/storage.deleteAfterCompletion"
 	// AnnPodRetainAfterCompletion is PVC annotation for retaining transfer pods after completion
 	AnnPodRetainAfterCompletion = AnnAPIGroup + "/storage.pod.retainAfterCompletion"
 
@@ -255,9 +253,6 @@ const (
 	// AnnSelectedNode annotation is added to a PVC that has been triggered by scheduler to
 	// be dynamically provisioned. Its value is the name of the selected node.
 	AnnSelectedNode = "volume.kubernetes.io/selected-node"
-
-	// AnnGarbageCollected is a PVC annotation indicating that the PVC was garbage collected
-	AnnGarbageCollected = AnnAPIGroup + "/garbageCollected"
 
 	// CloneUniqueID is used as a special label to be used when we search for the pod
 	CloneUniqueID = AnnAPIGroup + "/storage.clone.cloneUniqeId"
@@ -1417,16 +1412,6 @@ func GetNamespace(namespace, defaultNamespace string) string {
 func IsErrCacheNotStarted(err error) bool {
 	target := &runtimecache.ErrCacheNotStarted{}
 	return errors.As(err, &target)
-}
-
-// GetDataVolumeTTLSeconds gets the current DataVolume TTL in seconds if GC is enabled, or < 0 if GC is disabled
-// Garbage collection is disabled by default
-func GetDataVolumeTTLSeconds(config *cdiv1.CDIConfig) int32 {
-	const defaultDataVolumeTTLSeconds = -1
-	if config.Spec.DataVolumeTTLSeconds != nil {
-		return *config.Spec.DataVolumeTTLSeconds
-	}
-	return defaultDataVolumeTTLSeconds
 }
 
 // NewImportDataVolume returns new import DataVolume CR

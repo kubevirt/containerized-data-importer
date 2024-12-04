@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -1451,106 +1450,10 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	Context("DataVolume Garbage Collection", func() {
-		var (
-			ns       string
-			err      error
-			config   *cdiv1.CDIConfig
-			origSpec *cdiv1.CDIConfigSpec
-		)
-
-		BeforeEach(func() {
-			ns = f.Namespace.Name
-			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			origSpec = config.Spec.DeepCopy()
-		})
-
-		AfterEach(func() {
-			By("Restoring CDIConfig to original state")
-			err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-				origSpec.DeepCopyInto(config)
-			})
-			Expect(err).ToNot(HaveOccurred())
-			Eventually(func() bool {
-				config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				return reflect.DeepEqual(config.Spec, *origSpec)
-			}, 30*time.Second, time.Second).Should(BeTrue())
-		})
-
-		verifyGC := func(dvName string) {
-			tests.VerifyGC(f, dvName, ns, false, nil)
-		}
-		verifyDisabledGC := func(dvName string) {
-			tests.VerifyDisabledGC(f, dvName, ns)
-		}
-		enableGcAndAnnotateLegacyDv := func(dvName string) {
-			tests.EnableGcAndAnnotateLegacyDv(f, dvName, ns)
-		}
-
-		DescribeTable("Should", func(ttl int, verifyGCFunc, additionalTestFunc func(dvName string)) {
-			tests.SetConfigTTL(f, ttl)
-
-			dvName := "upload-dv"
-			By(fmt.Sprintf("Creating new datavolume %s", dvName))
-			dv := utils.NewDataVolumeForUpload(dvName, "100Mi")
-			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, dv)
-			pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
-
-			By("verifying pvc was created, force bind if needed")
-			pvc, err := utils.WaitForPVC(f.K8sClient, pvc.Namespace, pvc.Name)
-			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindIfWaitForFirstConsumer(pvc)
-
-			phase := cdiv1.UploadReady
-			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-			err = utils.WaitForDataVolumePhase(f, ns, phase, dataVolume.Name)
-			if err != nil {
-				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(ns).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				if dverr != nil {
-					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
-				}
-			}
-			Expect(err).ToNot(HaveOccurred())
-
-			By("Get an upload token")
-			token, err := utils.RequestUploadToken(f.CdiClient, pvc)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(token).ToNot(BeEmpty())
-
-			By("Do upload")
-			Eventually(func() error {
-				return uploadImage(uploadProxyURL, token, http.StatusOK)
-			}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
-
-			phase = cdiv1.Succeeded
-			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-			err = utils.WaitForDataVolumePhase(f, ns, phase, dataVolume.Name)
-			if err != nil {
-				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(ns).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				if dverr != nil {
-					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
-				}
-			}
-			Expect(err).ToNot(HaveOccurred())
-
-			verifyGCFunc(dv.Name)
-
-			if additionalTestFunc != nil {
-				additionalTestFunc(dv.Name)
-			}
-		},
-			Entry("[test_id:8566] garbage collect dvs after completion when TTL is 0", 0, verifyGC, nil),
-			Entry("[test_id:8570] Add DeleteAfterCompletion annotation to a legacy DV", -1, verifyDisabledGC, enableGcAndAnnotateLegacyDv),
-		)
-	})
-
 	It("[test_id:3993] Upload image to data volume and verify retry count", func() {
 		dvName := "upload-dv"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
 		dv := utils.NewDataVolumeForUpload(dvName, "100Mi")
-		dv.Annotations[controller.AnnDeleteAfterCompletion] = "false"
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
 

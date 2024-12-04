@@ -18,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -63,7 +62,6 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", Serial, func() 
 
 	createDV := func(namespace, name string) *cdiv1.DataVolume {
 		dataVolume := utils.NewDataVolumeWithHTTPImport(name, "500Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-		dataVolume.Annotations[controller.AnnDeleteAfterCompletion] = "false"
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, namespace, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
 

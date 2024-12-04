@@ -542,12 +542,6 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 	}
 
 	if syncState.pvc != nil {
-		if err := r.garbageCollect(&syncState, log); err != nil {
-			return syncState, err
-		}
-		if syncState.result != nil || syncState.dv == nil {
-			return syncState, nil
-		}
 		if err := r.validatePVC(dv, syncState.pvc); err != nil {
 			return syncState, err
 		}

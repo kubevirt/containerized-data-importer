@@ -60,7 +60,6 @@ var _ = Describe("PVC adoption tests", func() {
 			By("Creating source DV")
 			// source here shouldn't matter
 			dvDef := importDef()
-			controller.AddAnnotation(dvDef, controller.AnnDeleteAfterCompletion, "false")
 			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dvDef)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -121,7 +120,6 @@ var _ = Describe("PVC adoption tests", func() {
 
 				By("Creating target DV")
 				dvDef := defFunc()
-				controller.AddAnnotation(dvDef, controller.AnnDeleteAfterCompletion, "false")
 				controller.AddAnnotation(dvDef, controller.AnnAllowClaimAdoption, "true")
 				dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dvDef)
 				Expect(err).ToNot(HaveOccurred())
@@ -168,7 +166,6 @@ var _ = Describe("PVC adoption tests", func() {
 
 				By("Creating target DV")
 				dvDef := defFunc()
-				controller.AddAnnotation(dvDef, controller.AnnDeleteAfterCompletion, "false")
 				dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dvDef)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -190,7 +187,6 @@ var _ = Describe("PVC adoption tests", func() {
 			It("should not be adopted if annotation says not to", func() {
 				By("Creating target DV")
 				dvDef := importDef()
-				controller.AddAnnotation(dvDef, controller.AnnDeleteAfterCompletion, "false")
 				controller.AddAnnotation(dvDef, controller.AnnAllowClaimAdoption, "false")
 				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dvDef)
 				Expect(err).To(HaveOccurred())

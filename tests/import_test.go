@@ -26,10 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/ptr"
-
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -192,95 +189,6 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			Expect(importer.DeletionTimestamp).To(BeNil())
 		}
 	})
-})
-
-var _ = Describe("DataVolume Garbage Collection", Serial, func() {
-	var (
-		f        = framework.NewFramework(namespacePrefix)
-		ns       string
-		err      error
-		config   *cdiv1.CDIConfig
-		origSpec *cdiv1.CDIConfigSpec
-	)
-
-	BeforeEach(func() {
-		ns = f.Namespace.Name
-		config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		origSpec = config.Spec.DeepCopy()
-	})
-
-	AfterEach(func() {
-		By("Restoring CDIConfig to original state")
-		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-			origSpec.DeepCopyInto(config)
-		})
-		Expect(err).ToNot(HaveOccurred())
-		Eventually(func() bool {
-			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			return reflect.DeepEqual(config.Spec, *origSpec)
-		}, 30*time.Second, time.Second).Should(BeTrue())
-	})
-
-	verifyGC := func(dvName string) {
-		tests.VerifyGC(f, dvName, ns, true, config)
-	}
-
-	verifyNoGC := func(dvName string) {
-		tests.VerifyNoGC(f, dvName, ns)
-	}
-
-	verifyDisabledGC := func(dvName string) {
-		tests.VerifyDisabledGC(f, dvName, ns)
-	}
-
-	enableGcAndAnnotateLegacyDv := func(dvName string) {
-		tests.EnableGcAndAnnotateLegacyDv(f, dvName, ns)
-	}
-
-	DescribeTable("Should", func(ttl int, annDeleteAfterCompletion string, verifyGCFunc, additionalTestFunc func(dvName string), verifyContent bool) {
-		tests.SetConfigTTL(f, ttl)
-
-		dv := utils.NewDataVolumeWithHTTPImport("gc-test", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-		if annDeleteAfterCompletion != "" {
-			dv.Annotations[controller.AnnDeleteAfterCompletion] = annDeleteAfterCompletion
-		}
-		err = controllerutil.SetOwnerReference(config, dv, scheme.Scheme)
-		Expect(err).ToNot(HaveOccurred())
-
-		By(fmt.Sprintf("Create new datavolume %s", dv.Name))
-		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, dv)
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Verify pvc was created")
-		pvc, err := utils.WaitForPVC(f.K8sClient, ns, dv.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
-
-		verifyGCFunc(dv.Name)
-
-		if additionalTestFunc != nil {
-			additionalTestFunc(dv.Name)
-		}
-
-		if verifyContent {
-			By("Verify PVC content")
-			md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(md5).To(Equal(utils.TinyCoreMD5))
-
-			By("Delete verifier pod")
-			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
-			Expect(err).ToNot(HaveOccurred())
-		}
-	},
-		Entry("[test_id:8562] garbage collect dv after completion when TTL is 0", 0, "", verifyGC, nil, true),
-		Entry("[test_id:8563] not garbage collect dv after completion when TTL is disabled", -1, "", verifyDisabledGC, nil, false),
-		Entry("[test_id:8564] garbage collect dv after completion when TTL is 10s", 10, "", verifyGC, nil, true),
-		Entry("[test_id:8568] Add DeleteAfterCompletion annotation to a legacy DV", -1, "", verifyDisabledGC, enableGcAndAnnotateLegacyDv, true),
-		Entry("[test_id:8688] not garbage collect dv after completion when DeleteAfterCompletion is false", 0, "false", verifyNoGC, nil, false),
-	)
 })
 
 var _ = Describe("[Istio] Namespace sidecar injection", Serial, func() {
@@ -928,7 +836,6 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		dvName := "import-dv"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
 		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", tinyCoreIsoURL())
-		dv.Annotations[controller.AnnDeleteAfterCompletion] = "false"
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 

@@ -34,7 +34,6 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 )
@@ -81,20 +80,6 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 	}
 
 	modifiedDataVolume := dataVolume.DeepCopy()
-
-	if ar.Request.Operation == admissionv1.Create {
-		config, err := wh.cdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-		if err != nil {
-			return toAdmissionResponseError(err)
-		}
-		// Garbage collection is disabled by default
-		// Annotate DV for GC only if GC is enabled in CDIConfig and the DV is not annotated to prevent GC
-		if cc.GetDataVolumeTTLSeconds(config) >= 0 {
-			if modifiedDataVolume.Annotations[cc.AnnDeleteAfterCompletion] != "false" {
-				cc.AddAnnotation(modifiedDataVolume, cc.AnnDeleteAfterCompletion, "true")
-			}
-		}
-	}
 
 	targetNamespace, targetName := dataVolume.Namespace, dataVolume.Name
 	if targetNamespace == "" {
