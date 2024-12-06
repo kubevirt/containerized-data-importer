@@ -944,22 +944,31 @@ func (vs *VDDKDataSource) Transfer(path string) (ProcessingPhase, error) {
 	return ProcessingPhaseTransferDataFile, nil
 }
 
+// IsWarm returns true if this is a multi-stage transfer.
+func (vs *VDDKDataSource) IsWarm() bool {
+	return vs.CurrentSnapshot != ""
+}
+
 // IsDeltaCopy is called to determine if this is a full copy or one delta copy stage
-// in a warm migration.
+// in a warm migration. This is different from IsWarm because the first step is
+// a full copy, and subsequent steps are delta copies.
 func (vs *VDDKDataSource) IsDeltaCopy() bool {
 	result := vs.PreviousSnapshot != "" && vs.CurrentSnapshot != ""
 	return result
 }
 
+// Mockable stat
+var Stat = os.Stat
+
 // TransferFile is called to transfer the data from the source to the file passed in.
 func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
-	if !vs.IsDeltaCopy() {
+	if !vs.IsWarm() {
 		if err := CleanAll(fileName); err != nil {
 			return ProcessingPhaseError, err
 		}
 
 		// Make sure file exists before applying deltas.
-		_, err := os.Stat(fileName)
+		_, err := Stat(fileName)
 		if os.IsNotExist(err) {
 			klog.Infof("Disk image does not exist, cannot apply deltas for warm migration: %v", err)
 			return ProcessingPhaseError, err

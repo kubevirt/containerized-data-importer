@@ -9,6 +9,8 @@ import (
 	"context"
 	"crypto/md5" //nolint:gosec // This is test code
 	"errors"
+	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"strings"
@@ -144,12 +146,43 @@ var _ = Describe("VDDK data source", func() {
 	})
 
 	It("VDDK delta copy should return immediately if there are no changed blocks", func() {
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "checkpoint-2", "", v1.PersistentVolumeFilesystem)
+		dp, err := NewVDDKDataSource("", "", "", "", "", "testdisk.vmdk", "snapshot-1", "snapshot-2", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
-		dp.ChangedBlocks = &types.DiskChangeInfo{
-			StartOffset: 0,
-			Length:      0,
-			ChangedArea: []types.DiskChangeExtent{},
+		snapshots := createSnapshots("snapshot-1", "snapshot-2")
+		snapshotList := []*types.ManagedObjectReference{
+			&snapshots.RootSnapshotList[0].Snapshot,
+			&snapshots.RootSnapshotList[0].ChildSnapshotList[0].Snapshot,
+		}
+		currentVMwareFunctions.Properties = func(ctx context.Context, ref types.ManagedObjectReference, property []string, result interface{}) error {
+			switch out := result.(type) {
+			case *mo.VirtualMachine:
+				if property[0] == "config.hardware.device" {
+					out.Config = createVirtualDiskConfig("testdisk.vmdk", 12345)
+				} else if property[0] == "snapshot" {
+					out.Snapshot = createSnapshots("snapshot-1", "snapshot-2")
+				}
+			case *mo.VirtualMachineSnapshot:
+				out.Config = *createVirtualDiskConfig("testdisk-00001.vmdk", 123456)
+			}
+			return nil
+		}
+		currentVMwareFunctions.FindSnapshot = func(ctx context.Context, nameOrID string) (*types.ManagedObjectReference, error) {
+			for _, snap := range snapshotList {
+				if snap.Value == nameOrID {
+					return snap, nil
+				}
+			}
+			return nil, errors.New("could not find snapshot")
+		}
+		currentVMwareFunctions.QueryChangedDiskAreas = func(context.Context, *types.ManagedObjectReference, *types.ManagedObjectReference, *types.VirtualDisk, int64) (types.DiskChangeInfo, error) {
+			return types.DiskChangeInfo{
+				StartOffset: 0,
+				Length:      0,
+				ChangedArea: []types.DiskChangeExtent{},
+			}, nil
+		}
+		currentMockNbdFunctions.BlockStatus = func(uint64, uint64, libnbd.ExtentCallback, *libnbd.BlockStatusOptargs) error {
+			return fmt.Errorf("this should not be called on zero-change test")
 		}
 		phase, err := dp.TransferFile("")
 		Expect(err).ToNot(HaveOccurred())
@@ -184,7 +217,7 @@ var _ = Describe("VDDK data source", func() {
 	It("VDDK delta copy should successfully apply a delta to a base disk image", func() {
 
 		// Copy base disk ("snapshot 1")
-		snap1, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "", "", v1.PersistentVolumeFilesystem)
+		snap1, err := NewVDDKDataSource("", "", "", "", "", "testdisk.vmdk", "checkpoint-1", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		snap1.Size = 40 << 20
 		sourceBytes := bytes.Repeat([]byte{0x55}, int(snap1.Size))
@@ -199,6 +232,9 @@ var _ = Describe("VDDK data source", func() {
 
 		mockSinkBuffer = bytes.Repeat([]byte{0x00}, int(snap1.Size))
 
+		Stat = func(string) (fs.FileInfo, error) {
+			return nil, nil
+		}
 		phase, err := snap1.TransferFile("target")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseResize))
@@ -208,19 +244,59 @@ var _ = Describe("VDDK data source", func() {
 		Expect(sourceSum).To(Equal(destSum))
 
 		// Write some data to the first snapshot, then copy the delta from difference between the two snapshots
-		snap2, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "checkpoint-2", "", v1.PersistentVolumeFilesystem)
+		snap2, err := NewVDDKDataSource("", "", "", "", "", "testdisk.vmdk", "checkpoint-1", "checkpoint-2", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		snap2.Size = 40 << 20
 		copy(sourceBytes[1024:2048], bytes.Repeat([]byte{0xAA}, 1024))
-		snap2.ChangedBlocks = &types.DiskChangeInfo{
-			StartOffset: 1024,
-			Length:      1024,
-			ChangedArea: []types.DiskChangeExtent{{
-				Start:  1024,
-				Length: 1024,
-			}},
+		currentVMwareFunctions.Properties = func(ctx context.Context, ref types.ManagedObjectReference, property []string, result interface{}) error {
+			switch out := result.(type) {
+			case *mo.VirtualMachine:
+				if property[0] == "config.hardware.device" {
+					out.Config = createVirtualDiskConfigWithSize("testdisk.vmdk", 12345, int64(snap1.Size))
+				} else if property[0] == "snapshot" {
+					out.Snapshot = createSnapshots("checkpoint-1", "checkpoint-2")
+				}
+			case *mo.VirtualMachineSnapshot:
+				out.Config = *createVirtualDiskConfigWithSize("testdisk-00001.vmdk", 123456, int64(snap1.Size))
+			}
+			return nil
+		}
+		callcount := 0
+		currentVMwareFunctions.QueryChangedDiskAreas = func(context.Context, *types.ManagedObjectReference, *types.ManagedObjectReference, *types.VirtualDisk, int64) (types.DiskChangeInfo, error) {
+			if callcount > 0 {
+				return types.DiskChangeInfo{
+					StartOffset: 1024,
+					Length:      0,
+					ChangedArea: []types.DiskChangeExtent{},
+				}, nil
+			}
+			callcount++
+			return types.DiskChangeInfo{
+				StartOffset: 1024,
+				Length:      1024,
+				ChangedArea: []types.DiskChangeExtent{{
+					Start:  1024,
+					Length: 1024,
+				}},
+			}, nil
+		}
+		snapshots := createSnapshots("checkpoint-1", "checkpoint-2")
+		snapshotList := []*types.ManagedObjectReference{
+			&snapshots.RootSnapshotList[0].Snapshot,
+			&snapshots.RootSnapshotList[0].ChildSnapshotList[0].Snapshot,
+		}
+		currentVMwareFunctions.FindSnapshot = func(ctx context.Context, nameOrID string) (*types.ManagedObjectReference, error) {
+			for _, snap := range snapshotList {
+				if snap.Value == nameOrID {
+					return snap, nil
+				}
+			}
+			return nil, errors.New("could not find snapshot")
 		}
 		changedSourceSum := md5.Sum(sourceBytes) //nolint:gosec // This is test code
+
+		fmt.Printf("Source: %v", sourceBytes[900:1100])
+		fmt.Printf("Dest: %v", mockSinkBuffer[900:1100])
 
 		phase, err = snap2.TransferFile(".")
 		Expect(err).ToNot(HaveOccurred())
@@ -277,9 +353,10 @@ var _ = Describe("VDDK data source", func() {
 			}, nil
 		}
 
-		ds, err := NewVDDKDataSource("", "", "", "", "", diskName, snapshotName, changeID, "", v1.PersistentVolumeFilesystem)
+		//ds, err := NewVDDKDataSource("", "", "", "", "", diskName, snapshotName, changeID, "", v1.PersistentVolumeFilesystem)
+		_, err := NewVDDKDataSource("", "", "", "", "", diskName, snapshotName, changeID, "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(ds.ChangedBlocks).To(Equal(&changeInfo))
+		//Expect(ds.ChangedBlocks).To(Equal(&changeInfo))
 	})
 
 	DescribeTable("disk name lookup", func(targetDiskName, diskName, snapshotDiskName, rootSnapshotParentName string, expectedSuccess bool) {
@@ -354,78 +431,6 @@ var _ = Describe("VDDK data source", func() {
 		Expect(receivedSnapshotRef).To(Equal(expectedSnapshot))
 	})
 
-	It("should find two snapshots and get a list of changed blocks", func() {
-		newVddkDataSource = createVddkDataSource
-		diskName := "testdisk.vmdk"
-
-		currentVMwareFunctions.Properties = func(ctx context.Context, ref types.ManagedObjectReference, property []string, result interface{}) error {
-			switch out := result.(type) {
-			case *mo.VirtualMachine:
-				if property[0] == "config.hardware.device" {
-					out.Config = createVirtualDiskConfig(diskName, 12345)
-				} else if property[0] == "snapshot" {
-					out.Snapshot = createSnapshots("snapshot-1", "snapshot-2")
-				}
-			case *mo.VirtualMachineSnapshot:
-				out.Config = *createVirtualDiskConfig("testdisk-00001.vmdk", 123456)
-			}
-			return nil
-		}
-
-		snapshots := createSnapshots("snapshot-1", "snapshot-2")
-		snapshotList := []*types.ManagedObjectReference{
-			&snapshots.RootSnapshotList[0].Snapshot,
-			&snapshots.RootSnapshotList[0].ChildSnapshotList[0].Snapshot,
-		}
-
-		currentVMwareFunctions.FindSnapshot = func(ctx context.Context, nameOrID string) (*types.ManagedObjectReference, error) {
-			for _, snap := range snapshotList {
-				if snap.Value == nameOrID {
-					return snap, nil
-				}
-			}
-			return nil, errors.New("could not find snapshot")
-		}
-		changedBlockList := types.DiskChangeInfo{
-			StartOffset: 0,
-			Length:      10240,
-			ChangedArea: []types.DiskChangeExtent{
-				{
-					Start:  1024,
-					Length: 512,
-				},
-				{
-					Start:  4096,
-					Length: 4096,
-				},
-			},
-		}
-		counter := 0
-		currentVMwareFunctions.QueryChangedDiskAreas = func(ctx context.Context, baseSnapshot *types.ManagedObjectReference, changedSnapshot *types.ManagedObjectReference, disk *types.VirtualDisk, offset int64) (types.DiskChangeInfo, error) {
-			var resp types.DiskChangeInfo
-			if counter == 0 {
-				resp = changedBlockList
-			} else {
-				resp = types.DiskChangeInfo{
-					StartOffset: 10240,
-					Length:      0,
-					ChangedArea: []types.DiskChangeExtent{},
-				}
-			}
-			counter++
-			return resp, nil
-		}
-		// Expect source.ChangedBlocks to equal local changed blocks
-		source, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "snapshot-1", "snapshot-2", "false", v1.PersistentVolumeFilesystem)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(changedBlockList.StartOffset).To(Equal(source.ChangedBlocks.StartOffset))
-		Expect(changedBlockList.Length).To(Equal(source.ChangedBlocks.Length))
-		for index, extent := range changedBlockList.ChangedArea {
-			Expect(extent.Start).To(Equal(source.ChangedBlocks.ChangedArea[index].Start))
-			Expect(extent.Length).To(Equal(source.ChangedBlocks.ChangedArea[index].Length))
-		}
-	})
-
 	It("should not crash when the disk is not found and has no snapshots", func() {
 		newVddkDataSource = createVddkDataSource
 		diskName := "testdisk.vmdk"
@@ -497,6 +502,7 @@ var _ = Describe("VDDK data source", func() {
 		vddkHost = testHost
 		Expect(*source.GetTerminationMessage()).To(Equal(common.TerminationMessage{VddkInfo: &common.VddkInfo{Version: testVersion, Host: testHost}}))
 	})
+
 	It("VDDK return more than 2000 changed block area", func() {
 		diskName := "disk"
 		snapshotName := "checkpoint-2"
@@ -530,6 +536,7 @@ var _ = Describe("VDDK data source", func() {
 			expectedInfo.ChangedArea = append(expectedInfo.ChangedArea, types.DiskChangeExtent{})
 		}
 		counter := 0
+		queries := [4]bool{}
 		QueryChangedDiskAreas = func(ctx context.Context, r soap.RoundTripper, req *types.QueryChangedDiskAreas) (*types.QueryChangedDiskAreasResponse, error) {
 			var resp *types.QueryChangedDiskAreasResponse
 			if counter == 0 {
@@ -578,13 +585,18 @@ var _ = Describe("VDDK data source", func() {
 					Returnval: respInfo,
 				}
 			}
+			queries[counter] = true
 			counter++
 			return resp, nil
 		}
 
 		ds, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, snapshotName, changeID, "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(ds.ChangedBlocks).To(Equal(&expectedInfo))
+		_, err = ds.TransferFile("")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(queries[0]).To(BeTrue())
+		Expect(queries[1]).To(BeTrue())
+		Expect(queries[2]).To(BeTrue())
 	})
 })
 
@@ -894,9 +906,14 @@ func createMockVddkDataSource(endpoint string, accessKey string, secKey string, 
 		Handle: handle,
 	}
 
+	vmware, err := newVMwareClient(endpoint, accessKey, secKey, thumbprint, uuid)
+	if err != nil {
+		return nil, err
+	}
+
 	return &VDDKDataSource{
+		VMware:           vmware,
 		NbdKit:           nbdkit,
-		ChangedBlocks:    nil,
 		CurrentSnapshot:  currentCheckpoint,
 		PreviousSnapshot: previousCheckpoint,
 		Size:             0,
