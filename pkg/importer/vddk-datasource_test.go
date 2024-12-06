@@ -110,6 +110,9 @@ var _ = Describe("VDDK data source", func() {
 		replaceExport.Read = func(uint64) ([]byte, error) {
 			return bytes.Repeat([]byte{0x55}, 512), nil
 		}
+		MockableStat = func(string) (fs.FileInfo, error) {
+			return nil, nil
+		}
 		currentExport = replaceExport
 		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
@@ -203,6 +206,9 @@ var _ = Describe("VDDK data source", func() {
 		}
 		currentExport = replaceExport
 
+		MockableStat = func(string) (fs.FileInfo, error) {
+			return nil, nil
+		}
 		mockSinkBuffer = bytes.Repeat([]byte{0x00}, int(dp.Size))
 
 		phase, err := dp.TransferFile("target")
@@ -232,7 +238,7 @@ var _ = Describe("VDDK data source", func() {
 
 		mockSinkBuffer = bytes.Repeat([]byte{0x00}, int(snap1.Size))
 
-		Stat = func(string) (fs.FileInfo, error) {
+		MockableStat = func(string) (fs.FileInfo, error) {
 			return nil, nil
 		}
 		phase, err := snap1.TransferFile("target")

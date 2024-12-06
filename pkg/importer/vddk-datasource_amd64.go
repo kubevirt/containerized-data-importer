@@ -957,8 +957,8 @@ func (vs *VDDKDataSource) IsDeltaCopy() bool {
 	return result
 }
 
-// Mockable stat
-var Stat = os.Stat
+// Mockable stat, so unit tests can run through TransferFile
+var MockableStat = os.Stat
 
 // TransferFile is called to transfer the data from the source to the file passed in.
 func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
@@ -968,7 +968,7 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		}
 
 		// Make sure file exists before applying deltas.
-		_, err := Stat(fileName)
+		_, err := MockableStat(fileName)
 		if os.IsNotExist(err) {
 			klog.Infof("Disk image does not exist, cannot apply deltas for warm migration: %v", err)
 			return ProcessingPhaseError, err
