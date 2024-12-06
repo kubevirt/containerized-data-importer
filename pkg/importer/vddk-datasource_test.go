@@ -301,9 +301,6 @@ var _ = Describe("VDDK data source", func() {
 		}
 		changedSourceSum := md5.Sum(sourceBytes) //nolint:gosec // This is test code
 
-		fmt.Printf("Source: %v", sourceBytes[900:1100])
-		fmt.Printf("Dest: %v", mockSinkBuffer[900:1100])
-
 		phase, err = snap2.TransferFile(".")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseComplete))
