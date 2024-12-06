@@ -842,7 +842,6 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		klog.Errorf("Unable to log in to VMware: %v", err)
 		return nil, err
 	}
-	defer func() { _ = vmware.Close() }()
 
 	// Find disk object for backingFile disk image path
 	backingFileObject, err := vmware.FindDiskFromName(backingFile)
@@ -962,6 +961,8 @@ var MockableStat = os.Stat
 
 // TransferFile is called to transfer the data from the source to the file passed in.
 func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+	defer func() { _ = vs.VMware.Close() }()
+
 	if !vs.IsWarm() {
 		if err := CleanAll(fileName); err != nil {
 			return ProcessingPhaseError, err
