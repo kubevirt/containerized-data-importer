@@ -17,7 +17,7 @@ function seed_images(){
 
   # We don't need to seed the nodes, but in the case of the default dev setup we'll just leave this here
   for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
-      ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "echo \"${container}\" | xargs \-\-max-args=1 sudo crictl pull"
+      until ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "echo \"${container}\" | xargs \-\-max-args=1 sudo crictl pull"; do sleep 1; done
       # Temporary until image is updated with provisioner that sets this field
       # This field is required by buildah tool
       ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "sudo sysctl \-w user.max_user_namespaces=1024"
