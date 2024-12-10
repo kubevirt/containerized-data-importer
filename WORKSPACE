@@ -4522,55 +4522,37 @@ rpm(
 rpm(
     name = "selinux-policy-0__38.1.44-1.el9.aarch64",
     sha256 = "8294a55f3a71b08aec593e674c27b903ee6f0c35e83139a55f416af7accb10b6",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/selinux-policy-38.1.44-1.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/8294a55f3a71b08aec593e674c27b903ee6f0c35e83139a55f416af7accb10b6",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/8294a55f3a71b08aec593e674c27b903ee6f0c35e83139a55f416af7accb10b6"],
 )
 
 rpm(
     name = "selinux-policy-0__38.1.44-1.el9.s390x",
     sha256 = "8294a55f3a71b08aec593e674c27b903ee6f0c35e83139a55f416af7accb10b6",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/s390x/os/Packages/selinux-policy-38.1.44-1.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/8294a55f3a71b08aec593e674c27b903ee6f0c35e83139a55f416af7accb10b6",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/8294a55f3a71b08aec593e674c27b903ee6f0c35e83139a55f416af7accb10b6"],
 )
 
 rpm(
     name = "selinux-policy-0__38.1.44-1.el9.x86_64",
     sha256 = "8294a55f3a71b08aec593e674c27b903ee6f0c35e83139a55f416af7accb10b6",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/selinux-policy-38.1.44-1.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/8294a55f3a71b08aec593e674c27b903ee6f0c35e83139a55f416af7accb10b6",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/8294a55f3a71b08aec593e674c27b903ee6f0c35e83139a55f416af7accb10b6"],
 )
 
 rpm(
     name = "selinux-policy-targeted-0__38.1.44-1.el9.aarch64",
     sha256 = "66888f5ef55fe723dfd73ac5ce7bef7e84d7276d936fc72a0467a5f7032c6f67",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/selinux-policy-targeted-38.1.44-1.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/66888f5ef55fe723dfd73ac5ce7bef7e84d7276d936fc72a0467a5f7032c6f67",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/66888f5ef55fe723dfd73ac5ce7bef7e84d7276d936fc72a0467a5f7032c6f67"],
 )
 
 rpm(
     name = "selinux-policy-targeted-0__38.1.44-1.el9.s390x",
     sha256 = "66888f5ef55fe723dfd73ac5ce7bef7e84d7276d936fc72a0467a5f7032c6f67",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/s390x/os/Packages/selinux-policy-targeted-38.1.44-1.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/66888f5ef55fe723dfd73ac5ce7bef7e84d7276d936fc72a0467a5f7032c6f67",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/66888f5ef55fe723dfd73ac5ce7bef7e84d7276d936fc72a0467a5f7032c6f67"],
 )
 
 rpm(
     name = "selinux-policy-targeted-0__38.1.44-1.el9.x86_64",
     sha256 = "66888f5ef55fe723dfd73ac5ce7bef7e84d7276d936fc72a0467a5f7032c6f67",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/selinux-policy-targeted-38.1.44-1.el9.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/66888f5ef55fe723dfd73ac5ce7bef7e84d7276d936fc72a0467a5f7032c6f67",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/66888f5ef55fe723dfd73ac5ce7bef7e84d7276d936fc72a0467a5f7032c6f67"],
 )
 
 rpm(
