@@ -214,7 +214,7 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 		klog.Error(err)
 		w.WriteHeader(http.StatusServiceUnavailable)
 		// Return the error to the caller in the body.
-		_, err = fmt.Fprint(w, err.Error())
+		_, err = fmt.Fprint(w, html.EscapeString(err.Error()))
 		if err != nil {
 			klog.Errorf("handleUploadRequest: failed to send error response: %v", err)
 		}
@@ -226,7 +226,7 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 		klog.Error(err)
 		w.WriteHeader(http.StatusServiceUnavailable)
 		// Return the error to the caller in the body.
-		_, err = fmt.Fprint(w, err.Error())
+		_, err = fmt.Fprint(w, html.EscapeString(err.Error()))
 		if err != nil {
 			klog.Errorf("handleUploadRequest: failed to send error response: %v", err)
 		}
@@ -249,8 +249,8 @@ func (app *uploadProxyApp) resolveUploadPath(pvc *v1.PersistentVolumeClaim, pvcN
 			path = common.UploadArchivePath
 		}
 	default:
-		// Escaping user-controlled strings to avoid cross-site scripting (XSS) attacks
-		return "", fmt.Errorf("rejecting upload request for PVC %s - upload content-type %s is invalid", html.EscapeString(pvcName), html.EscapeString(contentType))
+		// Caller is escaping user-controlled strings to avoid cross-site scripting (XSS) attacks
+		return "", fmt.Errorf("rejecting upload request for PVC %s - upload content-type %s is invalid", pvcName, contentType)
 	}
 
 	return app.urlResolver(pvc.Namespace, pvc.Name, path), nil
