@@ -311,25 +311,28 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 		}
 	}
 
-	// Watch for SC updates and reconcile the DVs waiting for default SC
-	// Relevant only when the DV StorageSpec has no AccessModes set and no matching StorageClass yet, so PVC cannot be created (test_id:9922)
-	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &storagev1.StorageClass{}, handler.TypedEnqueueRequestsFromMapFunc[*storagev1.StorageClass](
-		func(ctx context.Context, obj *storagev1.StorageClass) []reconcile.Request {
-			dvList := &cdiv1.DataVolumeList{}
-			if err := mgr.GetClient().List(ctx, dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
-				return nil
-			}
-			var reqs []reconcile.Request
-			for _, dv := range dvList.Items {
-				if getDataVolumeOp(ctx, mgr.GetLogger(), &dv, mgr.GetClient()) == op {
-					reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
+	// Watch for StorageClass and StorageProfile updates and reconcile the DVs waiting for StorageClass or its complete StorageProfile.
+	// Relevant only when the DV StorageSpec has no AccessModes set and no matching StorageClass with compelete StorageProfile yet,
+	// so PVC cannot be created (test_id:9922).
+	for _, k := range []client.Object{&storagev1.StorageClass{}, &cdiv1.StorageProfile{}} {
+		if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), k, handler.EnqueueRequestsFromMapFunc(
+			func(ctx context.Context, obj client.Object) []reconcile.Request {
+				dvList := &cdiv1.DataVolumeList{}
+				if err := mgr.GetClient().List(ctx, dvList, client.MatchingFields{dvPhaseField: ""}); err != nil {
+					return nil
 				}
-			}
-			return reqs
-		},
-	),
-	)); err != nil {
-		return err
+				var reqs []reconcile.Request
+				for _, dv := range dvList.Items {
+					if getDataVolumeOp(ctx, mgr.GetLogger(), &dv, mgr.GetClient()) == op {
+						reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
+					}
+				}
+				return reqs
+			},
+		),
+		)); err != nil {
+			return err
+		}
 	}
 
 	// Watch for PV updates to reconcile the DVs waiting for available PV
