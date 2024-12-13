@@ -95,14 +95,10 @@ fi
 
 (
     export TESTS_WORKDIR=${CDI_DIR}/tests
-    ginkgo_args="--trace --timeout=8h --v"
-
-    if [[ -n "$CDI_E2E_SKIP" ]]; then
-        ginkgo_args="${ginkgo_args} --skip=${CDI_E2E_SKIP}"
-    fi
+    ginkgo_args="--trace --timeout=8h --v --skip=${CDI_E2E_SKIP} --label-filter=${CDI_LABEL_FILTER}"
 
     if [[ -n "$CDI_E2E_FOCUS" || -n "$CDI_E2E_SKIP" ]]; then
-            ginkgo_args="${ginkgo_args} --nodes=6"
+        ginkgo_args="${ginkgo_args} --nodes=6"
     fi
 
     if [[ "$CDI_E2E_FOCUS" =~ /.+\.go/ ]]; then
