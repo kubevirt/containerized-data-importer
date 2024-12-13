@@ -157,7 +157,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(importer.DeletionTimestamp).To(BeNil())
 	})
 
-	It("[test_id:6688] [VDDK] Should retain all multi-stage importer pods after completion with dv annotation cdi.kubevirt.io/storage.pod.retainAfterCompletion=true", func() {
+	It("[test_id:6688] Should retain all multi-stage importer pods after completion with dv annotation cdi.kubevirt.io/storage.pod.retainAfterCompletion=true", Label("VDDK"), func() {
 		vcenterURL := fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
 		dataVolume := f.CreateVddkWarmImportDataVolume("import-pod-retain-test", "100Mi", vcenterURL)
 
