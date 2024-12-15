@@ -55,6 +55,7 @@ go_test(
         "datavolume-mutate_test.go",
         "datavolume-validate_test.go",
         "populators-validate_test.go",
+        "pvc-mutate_test.go",
         "transfer-validate_test.go",
         "webhook_suite_test.go",
     ],
@@ -71,6 +72,7 @@ go_test(
         "//vendor/k8s.io/api/admission/v1:go_default_library",
         "//vendor/k8s.io/api/authorization/v1:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
+        "//vendor/k8s.io/api/storage/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/api/resource:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
@@ -78,6 +80,7 @@ go_test(
         "//vendor/k8s.io/client-go/testing:go_default_library",
         "//vendor/k8s.io/utils/ptr:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/api:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/client:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client/fake:go_default_library",
     ],
 )
