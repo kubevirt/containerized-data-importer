@@ -114,6 +114,9 @@ make cluster-sync
 
 kubectl version
 
+echo "Nil check --PRE-- test run"
+kubectl get pods -n $CDI_NAMESPACE -o'custom-columns=NAME:.metadata.name,NAMESPACE:.metadata.namespace,RESTARTS:status.containerStatuses[*].restartCount' --no-headers
+
 ginko_params="--test-args=--ginkgo.no-color --ginkgo.junit-report=${ARTIFACTS_PATH}/junit.functest.xml"
 
 if [[ -n "$CDI_DV_GC" ]]; then
@@ -122,3 +125,7 @@ fi
 
 # Run functional tests
 TEST_ARGS=$ginko_params make test-functional
+
+echo "Nil check --POST-- test run"
+kubectl get pods -n $CDI_NAMESPACE -o'custom-columns=NAME:.metadata.name,NAMESPACE:.metadata.namespace,RESTARTS:status.containerStatuses[*].restartCount' --no-headers
+kubectl logs -n $CDI_NAMESPACE $(kubectl get pod -n $CDI_NAMESPACE -l=cdi.kubevirt.io=cdi-deployment --output=jsonpath='{$.items[0].metadata.name}') --previous || echo "this is fine"
