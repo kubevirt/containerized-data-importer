@@ -36,10 +36,8 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -123,54 +121,11 @@ func (r *PvcCloneReconciler) addDataVolumeCloneControllerWatches(mgr manager.Man
 		return err
 	}
 
-	if err := addDataSourceWatch(mgr, datavolumeController); err != nil {
+	if err := addDataSourceWatch(mgr, datavolumeController, "pvcdatasource", dataVolumePvcClone); err != nil {
 		return err
 	}
 
 	if err := r.addVolumeCloneSourceWatch(mgr, datavolumeController); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func addDataSourceWatch(mgr manager.Manager, c controller.Controller) error {
-	const dvDataSourceField = "datasource"
-
-	getKey := func(namespace, name string) string {
-		return namespace + "/" + name
-	}
-
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataVolume{}, dvDataSourceField, func(obj client.Object) []string {
-		if sourceRef := obj.(*cdiv1.DataVolume).Spec.SourceRef; sourceRef != nil && sourceRef.Kind == cdiv1.DataVolumeDataSource {
-			ns := obj.GetNamespace()
-			if sourceRef.Namespace != nil && *sourceRef.Namespace != "" {
-				ns = *sourceRef.Namespace
-			}
-			return []string{getKey(ns, sourceRef.Name)}
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	mapToDataVolume := func(ctx context.Context, obj *cdiv1.DataSource) []reconcile.Request {
-		var dvs cdiv1.DataVolumeList
-		matchingFields := client.MatchingFields{dvDataSourceField: getKey(obj.GetNamespace(), obj.GetName())}
-		if err := mgr.GetClient().List(ctx, &dvs, matchingFields); err != nil {
-			c.GetLogger().Error(err, "Unable to list DataVolumes", "matchingFields", matchingFields)
-			return nil
-		}
-		var reqs []reconcile.Request
-		for _, dv := range dvs.Items {
-			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}})
-		}
-		return reqs
-	}
-
-	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{},
-		handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.DataSource](mapToDataVolume),
-	)); err != nil {
 		return err
 	}
 
@@ -200,7 +155,75 @@ func (r *PvcCloneReconciler) cleanup(syncState *dvSyncState) error {
 		return nil
 	}
 
-	return r.reconcileVolumeCloneSourceCR(syncState)
+	r.log.V(3).Info("Cleanup initiated in dv pvc clone controller")
+
+	if err := r.reconcileVolumeCloneSourceCR(syncState); err != nil {
+		return err
+	}
+
+	if err := r.cleanupSizeDetectionPod(dv, syncState.pvc); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *PvcCloneReconciler) cleanupSizeDetectionPod(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+	if pvc != nil && !cc.ShouldDeletePod(pvc) {
+		return nil
+	}
+
+	nn := types.NamespacedName{Namespace: dv.Spec.Source.PVC.Namespace, Name: dv.Spec.Source.PVC.Name}
+	sourcePvc := &corev1.PersistentVolumeClaim{}
+	if err := r.client.Get(context.TODO(), nn, sourcePvc); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+	pod := &corev1.Pod{
+		ObjectMeta: *makeSizeDetectionObjectMeta(sourcePvc),
+	}
+	if err := r.client.Get(context.TODO(), client.ObjectKeyFromObject(pod), pod); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	ownerRef := metav1.GetControllerOf(pod)
+	var hasDataVolumeOwner bool
+	var ownerNamespace, ownerName string
+	if ownerRef != nil && ownerRef.Kind == "DataVolume" {
+		hasDataVolumeOwner = true
+		ownerNamespace = pod.GetNamespace()
+		ownerName = ownerRef.Name
+	} else if hasAnnOwnedByDataVolume(pod) {
+		hasDataVolumeOwner = true
+		var err error
+		ownerNamespace, ownerName, err = getAnnOwnedByDataVolume(pod)
+		if err != nil {
+			return nil
+		}
+	}
+	if !hasDataVolumeOwner {
+		return nil
+	}
+
+	if ownerNamespace != dv.Namespace || ownerName != dv.Name {
+		return nil
+	}
+	if _, ok := pod.Labels[common.CDIComponentLabel]; !ok {
+		return nil
+	}
+
+	if err := r.client.Delete(context.TODO(), pod); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func addCloneToken(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
@@ -632,8 +655,8 @@ func (r *PvcCloneReconciler) getSizeFromPod(targetPvc, sourcePvc *corev1.Persist
 	if err := r.updateClonePVCAnnotations(sourcePvc, termMsg); err != nil {
 		return imgSize, err
 	}
-	// Finally, detelete the pod
-	if cc.ShouldDeletePod(sourcePvc) {
+	// Finally, delete the pod
+	if targetPvc != nil && cc.ShouldDeletePod(targetPvc) {
 		err = r.client.Delete(context.TODO(), pod)
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return imgSize, err
