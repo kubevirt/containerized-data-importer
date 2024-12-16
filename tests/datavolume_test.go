@@ -1184,6 +1184,28 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return dv
 		}
 
+		createVddkDataVolumeWithExtraArgs := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			dv := createVddkDataVolumeWithInitImageURL(dataVolumeName, size, url)
+			extraArguments := v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: f.Namespace.Name,
+					Name:      "vddk-extra-args-map",
+				},
+				Data: map[string]string{ // Must match vddk-test-plugin
+					"vddk-config-file": "VixDiskLib.nfcAio.Session.BufSizeIn64KB=16",
+				},
+			}
+			_, err := f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Create(context.TODO(), &extraArguments, metav1.CreateOptions{})
+			if !k8serrors.IsAlreadyExists(err) {
+				Expect(err).ToNot(HaveOccurred())
+			}
+			if dv.Annotations == nil {
+				dv.Annotations = make(map[string]string)
+			}
+			dv.Annotations[controller.AnnVddkExtraArgs] = extraArguments.Name
+			return dv
+		}
+
 		// Similar to previous table, but with additional cleanup steps to save and restore VDDK image config map
 		DescribeTable("should", Serial, func(args dataVolumeTestArguments) {
 			_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, common.VddkConfigMap, f.CdiInstallNs, savedVddkConfigMap, "")
@@ -1235,6 +1257,30 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              vcenterURL,
 				dvFunc:           createVddkDataVolumeWithInitImageURL,
+				eventReason:      dvc.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: false,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-import-vddk Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			Entry("[test_id:5083]succeed importing VDDK data volume with extra arguments ConfigMap set", dataVolumeTestArguments{
+				name:             "dv-import-vddk",
+				size:             "1Gi",
+				url:              vcenterURL,
+				dvFunc:           createVddkDataVolumeWithExtraArgs,
 				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: false,
