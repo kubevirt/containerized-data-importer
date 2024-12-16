@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -168,6 +169,13 @@ func NewNbdkitVddk(nbdkitPidFile, socket string, args NbdKitVddkPluginArgs) (Nbd
 	pluginArgs = append(pluginArgs, "-D", "nbdkit.backend.datapath=0")
 	pluginArgs = append(pluginArgs, "-D", "vddk.datapath=0")
 	pluginArgs = append(pluginArgs, "-D", "vddk.stats=1")
+	config, err := getVddkConfig()
+	if err != nil {
+		return nil, err
+	}
+	if config != "" {
+		pluginArgs = append(pluginArgs, "config="+config)
+	}
 	p := getVddkPluginPath()
 	n := &Nbdkit{
 		NbdPidFile: nbdkitPidFile,
@@ -226,6 +234,30 @@ func getVddkPluginPath() NbdkitPlugin {
 		return NbdkitVddkMockPlugin
 	}
 	return NbdkitVddkPlugin
+}
+
+// Extra VDDK configuration options are stored in a ConfigMap mounted to the
+// importer pod. Just look for the first file in the mounted directory, and
+// pass that through nbdkit via the "config=" option.
+func getVddkConfig() (string, error) {
+	withHidden, err := os.ReadDir(common.VddkArgsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	files := []fs.DirEntry{}
+	for _, file := range withHidden { // Ignore hidden files
+		if !strings.HasPrefix(file.Name(), ".") {
+			files = append(files, file)
+		}
+	}
+	if len(files) < 1 {
+		return "", fmt.Errorf("no VDDK configuration files found under %s", common.VddkArgsDir)
+	}
+	path := filepath.Join(common.VddkArgsDir, files[0].Name())
+	return path, nil
 }
 
 func (n *Nbdkit) getSourceArg(s string) string {
