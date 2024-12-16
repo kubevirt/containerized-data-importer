@@ -935,6 +935,36 @@ var _ = Describe("Create Importer Pod", func() {
 		Entry("with long PVC name", strings.Repeat("test-pvc-", 20), "snap1"),
 		Entry("with long PVC and checkpoint names", strings.Repeat("test-pvc-", 20), strings.Repeat("repeating-checkpoint-id-", 10)),
 	)
+
+	It("should mount extra VDDK arguments ConfigMap when annotation is set", func() {
+		pvcName := "testPvc1"
+		podName := "testpod"
+		extraArgs := "testing-123"
+		annotations := map[string]string{
+			cc.AnnEndpoint:         testEndPoint,
+			cc.AnnImportPod:        podName,
+			cc.AnnSource:           cc.SourceVDDK,
+			cc.AnnVddkInitImageURL: "testing-vddk",
+			cc.AnnVddkExtraArgs:    extraArgs,
+		}
+		pvc := cc.CreatePvcInStorageClass(pvcName, "default", &testStorageClass, annotations, nil, corev1.ClaimBound)
+		reconciler := createImportReconciler(pvc)
+
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: pvcName, Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+
+		found := false // Look for vddk-args mount
+		for _, volume := range pod.Spec.Volumes {
+			if volume.ConfigMap != nil && volume.ConfigMap.Name == extraArgs {
+				found = true
+			}
+		}
+		Expect(found).To(BeTrue())
+	})
 })
 
 var _ = Describe("Import test env", func() {
