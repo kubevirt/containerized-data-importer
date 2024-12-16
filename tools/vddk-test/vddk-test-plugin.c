@@ -13,6 +13,7 @@
 #define NBDKIT_API_VERSION 2
 #include <nbdkit-plugin.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -31,6 +32,26 @@ int fakevddk_config(const char *key, const char *value) {
     arg_count++;
     if (strcmp(key, "snapshot") == 0) {
         expected_arg_count = 9; // Expect one for 'snapshot' and one for 'transports'
+    }
+    if (strcmp(key, "config") == 0) {
+        expected_arg_count = 8;
+        nbdkit_debug("Extra config option set to: %s\n", value);
+
+        FILE *f  = fopen(value, "r");
+        if (f == NULL) {
+            nbdkit_error("Failed to open VDDK extra configuration file %s!\n", value);
+            return -1;
+        }
+        char extras[50];
+        if (fgets(extras, 50, f) == NULL) { // Expect only one line of test data
+            nbdkit_error("Failed to read VDDK extra configuration file %s! Error was: %s", value, strerror(errno));
+            return -1;
+        }
+        if (strcmp(extras, "VixDiskLib.nfcAio.Session.BufSizeIn64KB=16") != 0) { // Must match datavolume_test
+            nbdkit_error("Unexpected content in VDDK extra configuration file %s: %s\n", value, extras);
+            return -1;
+        }
+        fclose(f);
     }
     return 0;
 }
