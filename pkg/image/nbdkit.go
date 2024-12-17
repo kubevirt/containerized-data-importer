@@ -242,7 +242,7 @@ func getVddkPluginPath() NbdkitPlugin {
 func getVddkConfig() (string, error) {
 	withHidden, err := os.ReadDir(common.VddkArgsDir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if os.IsNotExist(err) { // No extra arguments ConfigMap specified, so mount directory does not exist
 			return "", nil
 		}
 		return "", err
