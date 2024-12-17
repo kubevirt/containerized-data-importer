@@ -349,6 +349,13 @@ spec:
 [Get VDDK ConfigMap example](../manifests/example/vddk-configmap.yaml)
 [Ways to find thumbprint](https://libguestfs.org/nbdkit-vddk-plugin.1.html#THUMBPRINTS)
 
+#### Extra VDDK Configuration Options
+
+The VDDK library itself looks in a configuration file (such as `/etc/vmware/config`) for extra options to fine tune data transfers. To pass these options through to the VDDK, store the configuration file contents in a ConfigMap and add a `cdi.kubevirt.io/storage.pod.vddk.extraargs` annotation to the DataVolume specification. The ConfigMap will be mounted to the importer pod as a volume, and the first file in the mounted directory will be passed to the VDDK. This means that the ConfigMap must be placed in the same namespace as the DataVolume, and the ConfigMap should only have one file entry.
+
+[Example annotation](../manifests/example/vddk-args-annotation.yaml)
+[Example ConfigMap](../manifests/example/vddk-args-configmap.yaml)
+
 ## Multi-stage Import
  In a multi-stage import, multiple pods are started in succession to copy different parts of the source to an existing base disk image. Currently only the [ImageIO](#multi-stage-imageio-import) and [VDDK](#multi-stage-vddk-import) data sources support multi-stage imports.
 
