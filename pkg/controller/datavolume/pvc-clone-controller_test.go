@@ -343,6 +343,43 @@ var _ = Describe("All DataVolume Tests", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 			})
+
+			It("should delete size detection pod on success", func() {
+				dv := newCloneDataVolumeWithEmptyStorage("test-dv", "other")
+				dv.Status.Phase = cdiv1.Succeeded
+				anno := map[string]string{
+					AnnExtendedCloneToken:    "test-token",
+					AnnCloneType:             string(cdiv1.CloneStrategySnapshot),
+					populators.AnnClonePhase: clone.SucceededPhaseName,
+					AnnUsePopulator:          "true",
+				}
+				annKubevirt := map[string]string{AnnContentType: "kubevirt"}
+				sourcePvc := CreatePvcInStorageClass("test", "other", &scName, annKubevirt, nil, corev1.ClaimBound)
+				pvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, anno, nil, corev1.ClaimBound)
+				pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
+					Kind: cdiv1.VolumeCloneSourceRef,
+					Name: volumeCloneSourceName(dv),
+				}
+				pvc.OwnerReferences = append(pvc.OwnerReferences, metav1.OwnerReference{
+					Kind:       "DataVolume",
+					Controller: ptr.To[bool](true),
+					Name:       "test-dv",
+					UID:        dv.UID,
+				})
+				pod := &corev1.Pod{
+					ObjectMeta: *makeSizeDetectionObjectMeta(sourcePvc),
+				}
+				err := setAnnOwnedByDataVolume(pod, dv)
+				Expect(err).ToNot(HaveOccurred())
+				reconciler = createCloneReconciler(storageClass, csiDriver, dv, sourcePvc, pvc, pod)
+				result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(result.Requeue).To(BeFalse())
+				Expect(result.RequeueAfter).To(BeZero())
+				err = reconciler.client.Get(context.TODO(), client.ObjectKeyFromObject(pod), pod)
+				Expect(err).To(HaveOccurred())
+				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+			})
 		})
 	})
 
