@@ -1199,10 +1199,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			if !k8serrors.IsAlreadyExists(err) {
 				Expect(err).ToNot(HaveOccurred())
 			}
-			if dv.Annotations == nil {
-				dv.Annotations = make(map[string]string)
-			}
-			dv.Annotations[controller.AnnVddkExtraArgs] = extraArguments.Name
+			controller.AddAnnotation(dv, controller.AnnVddkExtraArgs, extraArguments.Name)
 			return dv
 		}
 
