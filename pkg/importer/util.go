@@ -21,6 +21,40 @@ const (
 	kubevirtLabelPrefix = "kubevirt.io/"
 )
 
+// FsyncWriter is a custom writer that wraps an os.File
+// and calls fsync after writing a certain amount of data.
+type FsyncWriter struct {
+    file      *os.File
+    bytesWritten int64 // Keeps track of how many bytes have been written
+    threshold    int64 // Threshold for calling fsync
+}
+
+// NewFsyncWriter initializes a new FsyncWriter
+func NewFsyncWriter(file *os.File, threshold int64) *FsyncWriter {
+    return &FsyncWriter{
+        file:      file,
+        threshold: threshold,
+    }
+}
+
+// Write writes data to the underlying file and calls fsync
+// after the threshold is exceeded.
+func (w *FsyncWriter) Write(p []byte) (n int, err error) {
+    n, err = w.file.Write(p)
+    if err != nil {
+        return n, err
+    }
+    w.bytesWritten += int64(n)
+    if w.bytesWritten >= w.threshold {
+        err = w.file.Sync() // Call fsync after threshold is reached
+        if err != nil {
+            return n, err
+        }
+        w.bytesWritten = 0 // Reset counter after sync
+    }
+    return n, nil
+}
+
 // ParseEndpoint parses the required endpoint and return the url struct.
 func ParseEndpoint(endpt string) (*url.URL, error) {
 	if endpt == "" {
@@ -93,8 +127,11 @@ func streamDataToFile(r io.Reader, fileName string) error {
 		return err
 	}
 	defer outFile.Close()
+	// Wrap the file with FsyncWriter
+    threshold := int64(32 * 1024 * 1024) // Set threshold to 32 MiB
+	fsyncWriter := NewFsyncWriter(outFile, threshold)
 	klog.V(1).Infof("Writing data...\n")
-	if _, err = io.Copy(outFile, r); err != nil {
+	if _, err = io.Copy(fsyncWriter, r); err != nil {
 		klog.Errorf("Unable to write file from dataReader: %v\n", err)
 		os.Remove(outFile.Name())
 		if strings.Contains(err.Error(), "no space left on device") {
