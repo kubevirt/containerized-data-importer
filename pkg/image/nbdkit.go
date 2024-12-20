@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -240,23 +239,15 @@ func getVddkPluginPath() NbdkitPlugin {
 // importer pod. Just look for the first file in the mounted directory, and
 // pass that through nbdkit via the "config=" option.
 func getVddkConfig() (string, error) {
-	withHidden, err := os.ReadDir(common.VddkArgsDir)
+	path := filepath.Join(common.VddkArgsDir, common.VddkArgsKeyName)
+	_, err := os.Stat(path)
 	if err != nil {
-		if os.IsNotExist(err) { // No extra arguments ConfigMap specified, so mount directory does not exist
+		if os.IsNotExist(err) { // No configuration file found, so no extra arguments to give to VDDK
 			return "", nil
 		}
 		return "", err
 	}
-	files := []fs.DirEntry{}
-	for _, file := range withHidden { // Ignore hidden files
-		if !strings.HasPrefix(file.Name(), ".") {
-			files = append(files, file)
-		}
-	}
-	if len(files) < 1 {
-		return "", fmt.Errorf("no VDDK configuration files found under %s", common.VddkArgsDir)
-	}
-	path := filepath.Join(common.VddkArgsDir, files[0].Name())
+
 	return path, nil
 }
 
