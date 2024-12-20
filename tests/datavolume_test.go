@@ -1192,7 +1192,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Name:      "vddk-extra-args-map",
 				},
 				Data: map[string]string{ // Must match vddk-test-plugin
-					"vddk-config-file": "VixDiskLib.nfcAio.Session.BufSizeIn64KB=16",
+					common.VddkArgsKeyName: "VixDiskLib.nfcAio.Session.BufSizeIn64KB=16",
 				},
 			}
 			_, err := f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Create(context.TODO(), &extraArguments, metav1.CreateOptions{})

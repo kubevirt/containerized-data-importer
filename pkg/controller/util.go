@@ -52,9 +52,6 @@ const (
 	//nolint:gosec // This is not a real secret
 	SecretVolName = "cdi-secret-vol"
 
-	// VddkArgsVolName is the name of the volume referencing the extra VDDK arguments ConfigMap
-	VddkArgsVolName = "vddk-extra-args"
-
 	// AnnOwnerRef is used when owner is in a different namespace
 	AnnOwnerRef = cc.AnnAPIGroup + "/storage.ownerRef"
 

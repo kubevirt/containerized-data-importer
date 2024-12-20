@@ -1009,7 +1009,7 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 	}
 	if args.vddkExtraArgs != nil {
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
-			Name:      VddkArgsVolName,
+			Name:      common.VddkArgsVolName,
 			MountPath: common.VddkArgsDir,
 		})
 	}
@@ -1086,7 +1086,7 @@ func makeImporterVolumeSpec(args *importerPodArgs) []corev1.Volume {
 	}
 	if args.vddkExtraArgs != nil {
 		volumes = append(volumes, corev1.Volume{
-			Name: VddkArgsVolName,
+			Name: common.VddkArgsVolName,
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &v1.ConfigMapVolumeSource{
 					LocalObjectReference: v1.LocalObjectReference{
