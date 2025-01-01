@@ -543,7 +543,8 @@ func (r *DataImportCronReconciler) updateSource(ctx context.Context, cron *cdiv1
 func (r *DataImportCronReconciler) deleteErroneousDataVolume(ctx context.Context, cron *cdiv1.DataImportCron, dv *cdiv1.DataVolume) error {
 	log := r.log.WithValues("name", dv.Name).WithValues("uid", dv.UID)
 	if cond := dvc.FindConditionByType(cdiv1.DataVolumeRunning, dv.Status.Conditions); cond != nil {
-		if cond.Status == corev1.ConditionFalse && cond.Reason == common.GenericError {
+		if cond.Status == corev1.ConditionFalse &&
+			(cond.Reason == common.GenericError || cond.Reason == ImagePullFailedReason) {
 			log.Info("Delete DataVolume and reset DesiredDigest due to error", "message", cond.Message)
 			// Unlabel the DV before deleting it, to eliminate reconcile before DIC is updated
 			dv.Labels[common.DataImportCronLabel] = ""
