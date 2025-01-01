@@ -35,9 +35,10 @@ const (
 	scheduleOnceAYear     = "0 0 1 1 *"
 	importsToKeep         = 1
 	emptySchedule         = ""
-	errorDigest           = "sha256:12345678900987654321"
 	testKubevirtIoKey     = "test.kubevirt.io/test"
 	testKubevirtIoValue   = "testvalue"
+	// Digest must be 64 characters long
+	errorDigest = "sha256:1234567890123456789012345678901234567890123456789012345678901234"
 )
 
 var _ = Describe("DataImportCron", Serial, func() {
