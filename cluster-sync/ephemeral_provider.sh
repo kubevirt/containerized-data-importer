@@ -49,10 +49,14 @@ function configure_storage() {
 }
 
 function configure_hpp() {
-  for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
-      ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "sudo mkdir -p /var/hpvolumes"
-      ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "sudo chcon -t container_file_t -R /var/hpvolumes"
-  done
+  if [[ $KUBEVIRT_PROVIDER =~ kind.* ]]; then
+      ./cluster-up/ssh.sh ${KUBEVIRT_PROVIDER}-control-plane mkdir -p /var/hpvolumes
+  else
+      for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
+         ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "sudo mkdir -p /var/hpvolumes"
+         ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "sudo chcon -t container_file_t -R /var/hpvolumes"
+      done
+  fi
   HPP_RELEASE=$(get_latest_release "kubevirt/hostpath-provisioner-operator")
   _kubectl apply -f https://github.com/kubevirt/hostpath-provisioner-operator/releases/download/$HPP_RELEASE/namespace.yaml
   #install cert-manager
