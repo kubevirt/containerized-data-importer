@@ -57,7 +57,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		ns = f.Namespace.Name
 	})
 
-	DescribeTable("[test_id:2329] Should fail to import images that require too much space", func(uploadURL string) {
+	DescribeTable("[test_id:2329] Should fail to import images that require too much space", Label("no-kubernetes-in-docker"), func(uploadURL string) {
 		imageURL := fmt.Sprintf(uploadURL, f.CdiInstallNs)
 
 		By(imageURL)
