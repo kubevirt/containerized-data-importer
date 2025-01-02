@@ -203,6 +203,10 @@ if [ "${CDI_SYNC}" == "test-infra" ]; then
   if [ "${ARCHITECTURE}" != "s390x" ]; then
     # Imageio test service:
     _kubectl apply -f "./_out/manifests/imageio.yaml"
+  fi
+
+  # Disable deploy VDDK on s390x and arm64
+  if [ "${ARCHITECTURE}" != "s390x" ] && [ "${ARCHITECTURE}" != "aarch64" ]; then
     # vCenter (VDDK) test service:
     _kubectl apply -f "./_out/manifests/vcenter.yaml"
   fi
