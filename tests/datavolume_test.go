@@ -1074,7 +1074,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			Entry("[test_id:5077]succeed creating import dv from VDDK source", dataVolumeTestArguments{
+			Entry("[test_id:5077]succeed creating import dv from VDDK source", Label("VDDK"), dataVolumeTestArguments{
 				name:             "dv-import-vddk",
 				size:             "1Gi",
 				url:              vcenterURL,
@@ -1202,7 +1202,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			testDataVolume(args)
 		},
-			Entry("[test_id:5079]should fail with \"AwaitingVDDK\" reason when VDDK image config map is not present", dataVolumeTestArguments{
+			Entry("[test_id:5079]should fail with \"AwaitingVDDK\" reason when VDDK image config map is not present", Label("VDDK"), dataVolumeTestArguments{
 				name:             "dv-awaiting-vddk",
 				size:             "1Gi",
 				url:              vcenterURL,
@@ -1230,7 +1230,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:   cdiv1.DataVolumeRunning,
 					Status: v1.ConditionFalse,
 				}}),
-			Entry("[test_id:5080]succeed importing VDDK data volume with init image URL set", dataVolumeTestArguments{
+			Entry("[test_id:5080]succeed importing VDDK data volume with init image URL set", Label("VDDK"), dataVolumeTestArguments{
 				name:             "dv-import-vddk",
 				size:             "1Gi",
 				url:              vcenterURL,
