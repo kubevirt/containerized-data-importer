@@ -180,6 +180,15 @@ function setup_for_upgrade_testing {
   _kubectl apply -f "./_out/manifests/cdi-testing-sa.yaml"
   _kubectl apply -f "./_out/manifests/file-host.yaml"
   _kubectl apply -f "./_out/manifests/registry-host.yaml"
+
+  # In the kind cluster, registry-populate need more capability to use buildah
+  if [[ $KUBEVIRT_PROVIDER =~ kind.* ]]; then
+    _kubectl patch deployment \
+      -n ${CDI_NAMESPACE} cdi-docker-registry-host \
+      --type=json \
+      -p='[{"op": "add", "path": "/spec/template/spec/containers/2/securityContext/capabilities/add", "value": ["SETFCAP", "SYS_ADMIN", "SYS_CHROOT"]}]'
+  fi
+
   echo "Waiting for testing tools to be ready"
   _kubectl wait pod -n ${CDI_NAMESPACE} --for=condition=Ready --all --timeout=${CDI_AVAILABLE_TIMEOUT}s
   _kubectl apply -f "./_out/manifests/upgrade-testing-artifacts.yaml"
@@ -198,6 +207,14 @@ if [ "${CDI_SYNC}" == "test-infra" ]; then
   _kubectl apply -f "./_out/manifests/test-proxy.yaml"
   _kubectl apply -f "./_out/manifests/sample-populator.yaml"
   _kubectl apply -f "./_out/manifests/uploadproxy-nodeport.yaml"
+
+  # In the kind cluster, registry-populate need more capability to use buildah
+  if [[ $KUBEVIRT_PROVIDER =~ kind.* ]]; then
+    _kubectl patch deployment \
+      -n ${CDI_NAMESPACE} cdi-docker-registry-host \
+      --type=json \
+      -p='[{"op": "add", "path": "/spec/template/spec/containers/2/securityContext/capabilities/add", "value": ["SETFCAP", "SYS_ADMIN", "SYS_CHROOT"]}]'
+  fi
 
   # Disable unsupported functest images for s390x
   if [ "${ARCHITECTURE}" != "s390x" ]; then
