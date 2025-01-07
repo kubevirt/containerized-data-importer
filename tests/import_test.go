@@ -240,7 +240,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(importer.DeletionTimestamp).To(BeNil())
 
 		logs, err := f.RunKubectlCommand("logs", "-n", dataVolume.Namespace, importer.Name)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		for _, option := range vddkConfigOptions {
 			By(fmt.Sprintf("Check for configuration value %s in nbdkit logs", option))
 			Expect(strings.Contains(logs, option)).To(BeTrue())
