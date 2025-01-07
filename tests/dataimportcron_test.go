@@ -35,9 +35,10 @@ const (
 	scheduleOnceAYear     = "0 0 1 1 *"
 	importsToKeep         = 1
 	emptySchedule         = ""
-	errorDigest           = "sha256:12345678900987654321"
 	testKubevirtIoKey     = "test.kubevirt.io/test"
 	testKubevirtIoValue   = "testvalue"
+	// Digest must be 64 characters long
+	errorDigest = "sha256:1234567890123456789012345678901234567890123456789012345678901234"
 )
 
 var _ = Describe("DataImportCron", Serial, func() {
@@ -734,11 +735,9 @@ var _ = Describe("DataImportCron", Serial, func() {
 			// Now simulate an upgrade, where a new CDI version has identified
 			// more storage types that scale better with snapshots
 			configureStorageProfileResultingFormat(cdiv1.DataImportCronSourceFormatSnapshot)
-			// Switches to not ready because the snapshot wasn't created yet
-			waitForConditions(corev1.ConditionFalse, corev1.ConditionFalse)
-			waitForConditions(corev1.ConditionFalse, corev1.ConditionTrue)
 			// Check snapshot now exists and PVC is gone
 			currentSource := verifySourceReady(cdiv1.DataImportCronSourceFormatSnapshot, currentImportDv)
+			waitForConditions(corev1.ConditionFalse, corev1.ConditionTrue)
 			// DataSource is updated to point to a snapshot
 			dataSource, err := f.CdiClient.CdiV1beta1().DataSources(ns).Get(context.TODO(), cron.Spec.ManagedDataSource, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
