@@ -189,6 +189,63 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			Expect(importer.DeletionTimestamp).To(BeNil())
 		}
 	})
+
+	It("[test_id:6689]succeed importing VDDK data volume with extra arguments ConfigMap set", Label("VDDK"), func() {
+		vddkConfigOptions := []string{
+			"VixDiskLib.nfcAio.Session.BufSizeIn64KB=16",
+			"vixDiskLib.nfcAio.Session.BufCount=4",
+		}
+
+		vddkConfigMap := &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vddk-extras",
+			},
+			Data: map[string]string{
+				common.VddkArgsKeyName: strings.Join(vddkConfigOptions, "\n"),
+			},
+		}
+
+		_, err := f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Create(context.TODO(), vddkConfigMap, metav1.CreateOptions{})
+		if !k8serrors.IsAlreadyExists(err) {
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		vcenterURL := fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
+		dataVolume := f.CreateVddkDataVolume("import-pod-vddk-config-test", "100Mi", vcenterURL)
+
+		By(fmt.Sprintf("Create new DataVolume %s", dataVolume.Name))
+		controller.AddAnnotation(dataVolume, controller.AnnPodRetainAfterCompletion, "true")
+		controller.AddAnnotation(dataVolume, controller.AnnVddkExtraArgs, "vddk-extras")
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred(), "DataVolume not in phase succeeded in time")
+
+		By("Find importer pods after completion")
+		pvcName := dataVolume.Name
+		// When using populators, the PVC Prime name is used to build the importer pod
+		if usePopulator, _ := dvc.CheckPVCUsingPopulators(pvc); usePopulator {
+			pvcName = populators.PVCPrimeName(pvc)
+		}
+		By("Find importer pod " + pvcName)
+		importer, err := utils.FindPodByPrefixOnce(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(importer.DeletionTimestamp).To(BeNil())
+
+		logs, err := f.RunKubectlCommand("logs", "-n", dataVolume.Namespace, importer.Name)
+		Expect(err).To(BeNil())
+		for _, option := range vddkConfigOptions {
+			By(fmt.Sprintf("Check for configuration value %s in nbdkit logs", option))
+			Expect(strings.Contains(logs, option)).To(BeTrue())
+		}
+	})
 })
 
 var _ = Describe("[Istio] Namespace sidecar injection", Serial, func() {

@@ -42,14 +42,9 @@ int fakevddk_config(const char *key, const char *value) {
             nbdkit_error("Failed to open VDDK extra configuration file %s!\n", value);
             return -1;
         }
-        char extras[50];
-        if (fgets(extras, 50, f) == NULL) { // Expect only one line of test data
-            nbdkit_error("Failed to read VDDK extra configuration file %s! Error was: %s", value, strerror(errno));
-            return -1;
-        }
-        if (strcmp(extras, "VixDiskLib.nfcAio.Session.BufSizeIn64KB=16") != 0) { // Must match datavolume_test
-            nbdkit_error("Unexpected content in VDDK extra configuration file %s: %s\n", value, extras);
-            return -1;
+        char extras[512]; // Importer test will scan debug log for given values, just pass them back
+        while (fgets(extras, 512, f) != NULL) {
+            nbdkit_debug("Extra configuration data: %s\n", extras);
         }
         fclose(f);
     }
