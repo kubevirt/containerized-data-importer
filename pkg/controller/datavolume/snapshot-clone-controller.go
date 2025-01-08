@@ -418,7 +418,7 @@ func (r *SnapshotCloneReconciler) createTempHostAssistedSourcePvc(dv *cdiv1.Data
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *snapshot.Spec.VolumeSnapshotClassName}, vsc); err != nil {
 		return err
 	}
-	sc, err := r.getStorageClassCorrespondingToSnapClass(vsc.Driver)
+	sc, err := r.getStorageClassCorrespondingToSnapClass(dv, vsc.Driver)
 	if err != nil {
 		return err
 	}
@@ -450,7 +450,12 @@ func (r *SnapshotCloneReconciler) createTempHostAssistedSourcePvc(dv *cdiv1.Data
 	return nil
 }
 
-func (r *SnapshotCloneReconciler) getStorageClassCorrespondingToSnapClass(driver string) (string, error) {
+func (r *SnapshotCloneReconciler) getStorageClassCorrespondingToSnapClass(dv *cdiv1.DataVolume, driver string) (string, error) {
+	if sc, found := dv.Annotations[cc.AnnSnapshotRestoreStorageClass]; found {
+		r.log.V(3).Info("Using storage class from annotation for host-assisted source PVC operation", "storageClass.Name", sc)
+		return sc, nil
+	}
+
 	matches := []storagev1.StorageClass{}
 
 	storageClasses := &storagev1.StorageClassList{}

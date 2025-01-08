@@ -225,6 +225,9 @@ const (
 
 	// AnnSourceVolumeMode is the volume mode of the source PVC specified as an annotation on snapshots
 	AnnSourceVolumeMode = AnnAPIGroup + "/storage.import.sourceVolumeMode"
+	// AnnSnapshotRestoreStorageClass indicates the storage class to use for restoring snapshots.
+	// This annotation should be added to DataVolumes for the temporary host-assisted source PVC.
+	AnnSnapshotRestoreStorageClass = AnnAPIGroup + "/snapshot.restore.storageClass"
 
 	// AnnOpenShiftImageLookup is the annotation for OpenShift image stream lookup
 	AnnOpenShiftImageLookup = "alpha.image.policy.openshift.io/resolve-names"
