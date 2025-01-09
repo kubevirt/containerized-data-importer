@@ -10,6 +10,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
 
 	"github.com/google/uuid"
 
@@ -3437,6 +3438,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	Describe("extra configuration options for VDDK imports", func() {
 		It("[test_id:XXXX]succeed importing VDDK data volume with extra arguments ConfigMap set", Label("VDDK"), func() {
+			format.MaxLength = 0
 			vddkConfigOptions := []string{
 				"VixDiskLib.nfcAio.Session.BufSizeIn64KB=16",
 				"vixDiskLib.nfcAio.Session.BufCount=4",
