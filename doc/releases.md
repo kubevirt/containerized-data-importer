@@ -75,4 +75,4 @@ Ensure that the new images are available in quay.io/repository/kubevirt/containe
 * [CDI operator](https://quay.io/repository/kubevirt/cdi-operator?tab=tags)
 ## PROW CI
 
-Track the CI job for the pushed tag.  Navigate to the [CDI PROW postsubmit dashboard](https://prow.apps.ovirt.org/?repo=kubevirt%2Fcontainerized-data-importer&type=postsubmit) and you can select the releases from there.
+Track the CI job for the pushed tag.  Navigate to the [CDI PROW postsubmit dashboard](https://prow.ci.kubevirt.io/?repo=kubevirt/containerized-data-importer&type=postsubmit) and you can select the releases from there.
