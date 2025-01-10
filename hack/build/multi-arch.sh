@@ -17,7 +17,7 @@
 # Copyright 2023 NVIDIA CORPORATION
 #
 
-source hack/common.sh
+source hack/build/common.sh
 
 COMMAND=$1
 
@@ -29,9 +29,9 @@ if [ "$build_count" -gt 1 ]; then
         echo "[INFO] -- working on $arch --"
         arch=$(format_archname $arch)
         tag=$(format_archname $arch tag)
-        DOCKER_TAG=$DOCKER_TAG-$tag ARCHITECTURE=$arch hack/bazel-${COMMAND}.sh
+        DOCKER_TAG=$DOCKER_TAG-$tag ARCHITECTURE=$arch hack/build/bazel-${COMMAND}.sh
     done
 else
     arch=$(format_archname ${BUILD_ARCH})
-    ARCHITECTURE=${arch} hack/bazel-${COMMAND}.sh
+    ARCHITECTURE=${arch} hack/build/bazel-${COMMAND}.sh
 fi
