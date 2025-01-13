@@ -236,7 +236,7 @@ func getVddkPluginPath() NbdkitPlugin {
 }
 
 // Extra VDDK configuration options are stored in a ConfigMap mounted to the
-// importer pod. Just look for the first file in the mounted directory, and
+// importer pod. Make sure a "vddk-config-file" exists in that directory and
 // pass that through nbdkit via the "config=" option.
 func getVddkConfig() (string, error) {
 	path := filepath.Join(common.VddkArgsDir, common.VddkArgsKeyName)
