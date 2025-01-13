@@ -145,7 +145,7 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 			conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, "Claim Lost", cc.ClaimLost)
 			conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 		default:
-			conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionUnknown, fmt.Sprintf("PVC %s phase unknown", pvc.Name), string(corev1.ConditionUnknown))
+			conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, "", "")
 			conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 		}
 	} else {
@@ -155,7 +155,7 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 		if reason == "" {
 			reason = cc.NotFound
 		}
-		conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionUnknown, message, reason)
+		conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, message, reason)
 		conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 	}
 	return conditions

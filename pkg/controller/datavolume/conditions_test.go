@@ -141,7 +141,7 @@ var _ = Describe("updateBoundCondition", func() {
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
 		Expect(condition.Message).To(Equal("No PVC found"))
 		Expect(condition.Reason).To(Equal(NotFound))
-		Expect(condition.Status).To(Equal(corev1.ConditionUnknown))
+		Expect(condition.Status).To(Equal(corev1.ConditionFalse))
 	})
 
 	It("should create condition with reason if it doesn't exist", func() {
@@ -153,7 +153,7 @@ var _ = Describe("updateBoundCondition", func() {
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
 		Expect(condition.Message).To(Equal("No PVC found"))
 		Expect(condition.Reason).To(Equal(reason))
-		Expect(condition.Status).To(Equal(corev1.ConditionUnknown))
+		Expect(condition.Status).To(Equal(corev1.ConditionFalse))
 	})
 
 	It("should create condition with message if one passed", func() {
@@ -165,7 +165,20 @@ var _ = Describe("updateBoundCondition", func() {
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
 		Expect(condition.Message).To(Equal(message))
 		Expect(condition.Reason).To(Equal(NotFound))
-		Expect(condition.Status).To(Equal(corev1.ConditionUnknown))
+		Expect(condition.Status).To(Equal(corev1.ConditionFalse))
+	})
+
+	It("should not be bound if PVC has no phase set", func() {
+		conditions := make([]cdiv1.DataVolumeCondition, 0)
+		pvc := CreatePvc("test", corev1.NamespaceDefault, nil, nil)
+		pvc.Status.Phase = ""
+		conditions = updateBoundCondition(conditions, pvc, "", "")
+		Expect(conditions).To(HaveLen(2))
+		condition := FindConditionByType(cdiv1.DataVolumeBound, conditions)
+		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
+		Expect(condition.Status).To(Equal(corev1.ConditionFalse))
+		Expect(condition.Message).To(BeEmpty())
+		Expect(condition.Reason).To(BeEmpty())
 	})
 
 	It("should be bound if PVC bound", func() {

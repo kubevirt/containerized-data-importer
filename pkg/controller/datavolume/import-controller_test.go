@@ -1117,7 +1117,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(dv.Status.Phase).To(Equal(expected))
 			Expect(dv.Status.Conditions).To(HaveLen(3))
 			boundCondition := FindConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
-			Expect(boundCondition.Status).To(Equal(corev1.ConditionUnknown))
+			Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
 			Expect(boundCondition.Message).To(Equal("No PVC found"))
 
 			By("Checking events recorded")

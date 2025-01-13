@@ -125,7 +125,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(cc.ErrExceededQuota))
 		boundCondition := &cdiv1.DataVolumeCondition{
 			Type:    cdiv1.DataVolumeBound,
-			Status:  v1.ConditionUnknown,
+			Status:  v1.ConditionFalse,
 			Message: "exceeded quota",
 			Reason:  cc.ErrExceededQuota,
 		}
