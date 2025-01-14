@@ -902,7 +902,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Unable to process data",
 					Reason:  "Error",
 				}}),
-			Entry("[test_id:3932]succeed creating dv from imageio source", Serial, dataVolumeTestArguments{
+			Entry("[test_id:3932]succeed creating dv from imageio source", Label("ImageIO"), Serial, dataVolumeTestArguments{
 				name:             "dv-imageio-test",
 				size:             "1Gi",
 				url:              imageioURL,
@@ -926,7 +926,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			PEntry("[quarantine][test_id:3937]succeed creating warm import dv from imageio source", Serial, dataVolumeTestArguments{
+			PEntry("[quarantine][test_id:3937]succeed creating warm import dv from imageio source", Label("ImageIO"), Serial, dataVolumeTestArguments{
 				// The final snapshot importer pod will give an error due to the static response from the fake imageio
 				// it returns the previous snapshot data, which will fail the commit to the target image.
 				// the importer pod will restart and then succeed because the fake imageio now sends the
@@ -954,7 +954,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			Entry("[test_id:3945]succeed creating dv from imageio source that does not support extents query", Serial, dataVolumeTestArguments{
+			Entry("[test_id:3945]succeed creating dv from imageio source that does not support extents query", Label("ImageIO"), Serial, dataVolumeTestArguments{
 				name:             "dv-imageio-test",
 				size:             "1Gi",
 				url:              imageioURL,
@@ -1098,7 +1098,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			PEntry("[quarantine][test_id:5078]succeed creating warm import dv from VDDK source", dataVolumeTestArguments{
+			PEntry("[quarantine][test_id:5078]succeed creating warm import dv from VDDK source", Label("VDDK"), dataVolumeTestArguments{
 				name:             "dv-import-vddk",
 				size:             "1Gi",
 				url:              vcenterURL,
@@ -1185,7 +1185,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		// Similar to previous table, but with additional cleanup steps to save and restore VDDK image config map
-		DescribeTable("should", Serial, func(args dataVolumeTestArguments) {
+		DescribeTable("should", Serial, Label("VDDK"), func(args dataVolumeTestArguments) {
 			_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, common.VddkConfigMap, f.CdiInstallNs, savedVddkConfigMap, "")
 			Expect(err).ToNot(HaveOccurred())
 
@@ -1665,10 +1665,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, timeout, pollingInterval).Should(BeTrue())
 		},
 			Entry("[test_id:3933]succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", dvc.ImportSucceeded, cdiv1.Succeeded),
-			Entry("[test_id:3935]succeed import from VDDK to block volume", "import-vddk", "", nil, "dv-vddk-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
-			Entry("[test_id:3936]succeed warm import from VDDK to block volume", "warm-import-vddk", "", nil, "dv-vddk-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
-			Entry("[test_id:3938]succeed import from ImageIO to block volume", Serial, "import-imageio", "", nil, "dv-imageio-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
-			Entry("[test_id:3944]succeed warm import from ImageIO to block volume", Serial, "warm-import-imageio", "", nil, "dv-imageio-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
+			Entry("[test_id:3935]succeed import from VDDK to block volume", "import-vddk", "", nil, "dv-vddk-import-test", dvc.ImportSucceeded, cdiv1.Succeeded, Label("VDDK")),
+			Entry("[test_id:3936]succeed warm import from VDDK to block volume", "warm-import-vddk", "", nil, "dv-vddk-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded, Label("VDDK")),
+			Entry("[test_id:3938]succeed import from ImageIO to block volume", Serial, "import-imageio", "", nil, "dv-imageio-import-test", dvc.ImportSucceeded, cdiv1.Succeeded, Label("ImageIO")),
+			Entry("[test_id:3944]succeed warm import from ImageIO to block volume", Serial, "warm-import-imageio", "", nil, "dv-imageio-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded, Label("ImageIO")),
 		)
 	})
 
