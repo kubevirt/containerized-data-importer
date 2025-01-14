@@ -126,7 +126,7 @@ func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraH
 	return n, nil
 }
 
-// Keep these in a struct to keep NewNbdkitVddk from going over the argument limit
+// NbdKitVddkPluginArgs is a struct to keep NewNbdkitVddk from going over the argument limit
 type NbdKitVddkPluginArgs struct {
 	Server     string
 	Username   string
