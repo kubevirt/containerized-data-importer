@@ -98,7 +98,7 @@ fi
     ginkgo_args="--trace --timeout=8h --v"
 
     if [[ -n "$CDI_LABEL_FILTER" ]]; then
-        ginkgo_args="${ginkgo_args} --label-filter=\"${CDI_LABEL_FILTER}\""
+        ginkgo_args="${ginkgo_args} --label-filter=${CDI_LABEL_FILTER}"
     fi
 
     if [[ -n "$CDI_E2E_SKIP" ]]; then
