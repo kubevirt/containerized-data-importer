@@ -307,7 +307,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Entry("fail given a large physical size QCOW2 file", utils.UploadFileLargePhysicalDiskQcow),
 		)
 
-		DescribeTable("[posneg:negative][test_id:2330]Verify failure on sync upload if virtual size > pvc size", Serial, func(filename string) {
+		DescribeTable("[posneg:negative][test_id:2330]Verify failure on sync upload if virtual size > pvc size", Label("no-kubernetes-in-docker"), Serial, func(filename string) {
 			By("Verify PVC annotation says ready")
 			found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 			Expect(err).ToNot(HaveOccurred())

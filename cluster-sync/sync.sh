@@ -37,9 +37,19 @@ PULL_POLICY=${PULL_POLICY:-IfNotPresent}
 # have to refactor/rewrite any of the code that works currently.
 MANIFEST_REGISTRY=$DOCKER_PREFIX
 if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
-  registry=${IMAGE_REGISTRY:-localhost:$(_port registry)}
+  if [[ $KUBEVIRT_PROVIDER =~ kind.* ]]; then
+    registry=${IMAGE_REGISTRY:-localhost:5000}
+  else
+    registry=${IMAGE_REGISTRY:-localhost:$(_port registry)}
+  fi
   DOCKER_PREFIX=${registry}
   MANIFEST_REGISTRY="registry:5000"
+fi
+
+# When the Kubevirt provider is kind, We set up the cluster level hostname resolution for registry, thus, we can
+# visit the registry:5000 in pods.
+if [[ $KUBEVIRT_PROVIDER =~ kind.* ]]; then
+  setup_hostname_resolution_for_registry
 fi
 
 if [ "${KUBEVIRT_PROVIDER}" == "external" ]; then
@@ -96,8 +106,16 @@ function wait_cdi_available {
 }
 
 function configure_uploadproxy_override {
-  host_port=$(./cluster-up/cli.sh ports uploadproxy | xargs)
-  override="https://127.0.0.1:$host_port"
+  if [[ $KUBEVIRT_PROVIDER =~ kind.* ]]; then
+    # To enable port mapping, it must be configured both in the Kind configuration and the uploadProxyURLOverride.
+    # We use the environment variable KIND_PORT_MAPPING to ensure the setup is applied in both locations.
+    container_port=$(echo "$KIND_PORT_MAPPING" | awk -F: '{print $1}')
+    host_port=$(echo "$KIND_PORT_MAPPING" | awk -F: '{print $2}')
+    override="https://127.0.0.1:$host_port"
+  else
+    host_port=$(./cluster-up/cli.sh ports uploadproxy | xargs)
+    override="https://127.0.0.1:$host_port"
+  fi
   _kubectl patch cdi ${CR_NAME} --type=merge -p '{"spec": {"config": {"uploadProxyURLOverride": "'"$override"'"}}}'
 }
 
@@ -162,6 +180,15 @@ function setup_for_upgrade_testing {
   _kubectl apply -f "./_out/manifests/cdi-testing-sa.yaml"
   _kubectl apply -f "./_out/manifests/file-host.yaml"
   _kubectl apply -f "./_out/manifests/registry-host.yaml"
+
+  # In the kind cluster, registry-populate need more capability to use buildah
+  if [[ $KUBEVIRT_PROVIDER =~ kind.* ]]; then
+    _kubectl patch deployment \
+      -n ${CDI_NAMESPACE} cdi-docker-registry-host \
+      --type=json \
+      -p='[{"op": "add", "path": "/spec/template/spec/containers/2/securityContext/capabilities/add", "value": ["SETFCAP", "SYS_ADMIN", "SYS_CHROOT"]}]'
+  fi
+
   echo "Waiting for testing tools to be ready"
   _kubectl wait pod -n ${CDI_NAMESPACE} --for=condition=Ready --all --timeout=${CDI_AVAILABLE_TIMEOUT}s
   _kubectl apply -f "./_out/manifests/upgrade-testing-artifacts.yaml"
@@ -181,10 +208,22 @@ if [ "${CDI_SYNC}" == "test-infra" ]; then
   _kubectl apply -f "./_out/manifests/sample-populator.yaml"
   _kubectl apply -f "./_out/manifests/uploadproxy-nodeport.yaml"
 
+  # In the kind cluster, registry-populate need more capability to use buildah
+  if [[ $KUBEVIRT_PROVIDER =~ kind.* ]]; then
+    _kubectl patch deployment \
+      -n ${CDI_NAMESPACE} cdi-docker-registry-host \
+      --type=json \
+      -p='[{"op": "add", "path": "/spec/template/spec/containers/2/securityContext/capabilities/add", "value": ["SETFCAP", "SYS_ADMIN", "SYS_CHROOT"]}]'
+  fi
+
   # Disable unsupported functest images for s390x
   if [ "${ARCHITECTURE}" != "s390x" ]; then
     # Imageio test service:
     _kubectl apply -f "./_out/manifests/imageio.yaml"
+  fi
+
+  # Disable deploy VDDK on s390x and arm64
+  if [ "${ARCHITECTURE}" != "s390x" ] && [ "${ARCHITECTURE}" != "aarch64" ]; then
     # vCenter (VDDK) test service:
     _kubectl apply -f "./_out/manifests/vcenter.yaml"
   fi
@@ -198,7 +237,9 @@ fi
 mkdir -p ./_out/tests
 rm -f $OLD_CDI_VER_PODS $NEW_CDI_VER_PODS
 
-seed_images
+if [[ ! $KUBEVIRT_PROVIDER =~ kind.* ]]; then
+  seed_images
+fi
 
 # Install CDI
 install_cdi
