@@ -95,25 +95,26 @@ fi
 
 (
     export TESTS_WORKDIR=${CDI_DIR}/tests
-    ginkgo_args="--trace --timeout=8h --v"
+    declare -a ginkgo_args
+    ginkgo_args+=(--trace --timeout=8h --v)
 
     if [[ -n "$CDI_LABEL_FILTER" ]]; then
-        ginkgo_args="${ginkgo_args} --label-filter=${CDI_LABEL_FILTER}"
+        ginkgo_args+=(--label-filter="${CDI_LABEL_FILTER}")
     fi
 
     if [[ -n "$CDI_E2E_SKIP" ]]; then
-        ginkgo_args="${ginkgo_args} --skip=${CDI_E2E_SKIP}"
+        ginkgo_args+=(--skip="${CDI_E2E_SKIP}")
     fi
 
     if [[ "$CDI_E2E_FOCUS" =~ /.+\.go/ ]]; then
-        ginkgo_args="${ginkgo_args} --focus-file=${CDI_E2E_FOCUS}"
+        ginkgo_args+=(--focus-file="${CDI_E2E_FOCUS}")
     elif [[ -n "$CDI_E2E_FOCUS" ]]; then
-        ginkgo_args="${ginkgo_args} --focus=${CDI_E2E_FOCUS}"
+        ginkgo_args+=(--focus="${CDI_E2E_FOCUS}")
     fi
 
     if [[ -n "$CDI_E2E_FOCUS" || -n "$CDI_E2E_SKIP" ]]; then
-        ginkgo_args="${ginkgo_args} --nodes=6"
+        ginkgo_args+=(--nodes=6)
     fi
 
-    ${TESTS_OUT_DIR}/ginkgo ${ginkgo_args} ${TESTS_OUT_DIR}/tests.test -- ${test_args}
+    ${TESTS_OUT_DIR}/ginkgo "${ginkgo_args[@]}" ${TESTS_OUT_DIR}/tests.test -- ${test_args}
 )
