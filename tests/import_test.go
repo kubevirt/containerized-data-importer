@@ -1228,7 +1228,7 @@ var _ = Describe("Preallocation", func() {
 
 			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreQcow2URL(), f.BlockSCName)
 		}),
-		Entry("ImageIO import", Serial, true, utils.ImageioMD5, utils.DefaultImagePath, Label("ImageIO"), func() *cdiv1.DataVolume {
+		Entry("ImageIO import", Label("ImageIO"), Serial, true, utils.ImageioMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
 			cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 			Expect(err).ToNot(HaveOccurred())
 			stringData := map[string]string{
@@ -1607,10 +1607,10 @@ var _ = Describe("Import populator", func() {
 		Entry("[rfe_id:10985][crit:high][test_id:11003]with HTTP image and preallocation, with incomplete PVC webhook rendering", Serial, utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, true),
 		Entry("[test_id:11004]with Registry image and preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, true, false),
 		Entry("[test_id:11005]with Registry image without preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, false, false),
-		Entry("[test_id:11006]with ImageIO image with preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, true, false, Label("ImageIO")),
-		Entry("[test_id:11007]with ImageIO image without preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, false, false, Label("ImageIO")),
-		Entry("[test_id:11008]with VDDK image with preallocation", utils.VcenterMD5, createVDDKImportPopulatorCR, true, false, Label("VDDK")),
-		Entry("[test_id:11009]with VDDK image without preallocation", utils.VcenterMD5, createVDDKImportPopulatorCR, false, false, Label("VDDK")),
+		Entry("[test_id:11006]with ImageIO image with preallocation", Label("ImageIO"), Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, true, false),
+		Entry("[test_id:11007]with ImageIO image without preallocation", Label("ImageIO"), Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, false, false),
+		Entry("[test_id:11008]with VDDK image with preallocation", Label("VDDK"), utils.VcenterMD5, createVDDKImportPopulatorCR, true, false),
+		Entry("[test_id:11009]with VDDK image without preallocation", Label("VDDK"), utils.VcenterMD5, createVDDKImportPopulatorCR, false, false),
 		Entry("[test_id:11010]with Blank image with preallocation", utils.BlankMD5, createBlankImportPopulatorCR, true, false),
 		Entry("[test_id:11011]with Blank image without preallocation", utils.BlankMD5, createBlankImportPopulatorCR, false, false),
 	)
@@ -1657,8 +1657,8 @@ var _ = Describe("Import populator", func() {
 	},
 		Entry("with HTTP image", utils.TinyCoreMD5, createHTTPImportPopulatorCR),
 		Entry("with Registry image", utils.TinyCoreMD5, createRegistryImportPopulatorCR),
-		Entry("with ImageIO image", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, Label("ImageIO")),
-		Entry("with VDDK image", utils.VcenterMD5, createVDDKImportPopulatorCR, Label("VDDK")),
+		Entry("with ImageIO image", Label("ImageIO"), Serial, utils.ImageioMD5, createImageIOImportPopulatorCR),
+		Entry("with VDDK image", Label("VDDK"), utils.VcenterMD5, createVDDKImportPopulatorCR),
 		Entry("with Blank image", utils.BlankMD5, createBlankImportPopulatorCR),
 	)
 

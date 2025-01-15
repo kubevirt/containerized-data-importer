@@ -1665,10 +1665,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, timeout, pollingInterval).Should(BeTrue())
 		},
 			Entry("[test_id:3933]succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", dvc.ImportSucceeded, cdiv1.Succeeded),
-			Entry("[test_id:3935]succeed import from VDDK to block volume", "import-vddk", "", nil, "dv-vddk-import-test", dvc.ImportSucceeded, cdiv1.Succeeded, Label("VDDK")),
-			Entry("[test_id:3936]succeed warm import from VDDK to block volume", "warm-import-vddk", "", nil, "dv-vddk-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded, Label("VDDK")),
-			Entry("[test_id:3938]succeed import from ImageIO to block volume", Serial, "import-imageio", "", nil, "dv-imageio-import-test", dvc.ImportSucceeded, cdiv1.Succeeded, Label("ImageIO")),
-			Entry("[test_id:3944]succeed warm import from ImageIO to block volume", Serial, "warm-import-imageio", "", nil, "dv-imageio-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded, Label("ImageIO")),
+			Entry("[test_id:3935]succeed import from VDDK to block volume", Label("VDDK"), "import-vddk", "", nil, "dv-vddk-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
+			Entry("[test_id:3936]succeed warm import from VDDK to block volume", Label("VDDK"), "warm-import-vddk", "", nil, "dv-vddk-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
+			Entry("[test_id:3938]succeed import from ImageIO to block volume", Label("ImageIO"), Serial, "import-imageio", "", nil, "dv-imageio-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
+			Entry("[test_id:3944]succeed warm import from ImageIO to block volume", Label("ImageIO"), Serial, "warm-import-imageio", "", nil, "dv-imageio-warm-import-test", dvc.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 
