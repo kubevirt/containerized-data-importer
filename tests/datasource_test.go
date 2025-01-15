@@ -117,7 +117,7 @@ var _ = Describe("DataSource", func() {
 
 		By("Verify DV conditions")
 		utils.WaitForConditions(f, dv.Name, dv.Namespace, time.Minute, pollingInterval,
-			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeBound, Status: corev1.ConditionUnknown, Message: "The source pvc pvc1 doesn't exist", Reason: dvc.CloneWithoutSource},
+			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeBound, Status: corev1.ConditionFalse, Message: "The source pvc pvc1 doesn't exist", Reason: dvc.CloneWithoutSource},
 			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeReady, Status: corev1.ConditionFalse, Reason: dvc.CloneWithoutSource},
 			&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: corev1.ConditionFalse})
 		f.ExpectEvent(dv.Namespace).Should(ContainSubstring(dvc.CloneWithoutSource))
@@ -321,7 +321,7 @@ var _ = Describe("DataSource", func() {
 
 			By("Verify DV conditions")
 			utils.WaitForConditions(f, dv.Name, dv.Namespace, time.Minute, pollingInterval,
-				&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeBound, Status: corev1.ConditionUnknown, Message: "The source snapshot snap1 doesn't exist", Reason: dvc.CloneWithoutSource},
+				&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeBound, Status: corev1.ConditionFalse, Message: "The source snapshot snap1 doesn't exist", Reason: dvc.CloneWithoutSource},
 				&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeReady, Status: corev1.ConditionFalse, Reason: dvc.CloneWithoutSource},
 				&cdiv1.DataVolumeCondition{Type: cdiv1.DataVolumeRunning, Status: corev1.ConditionFalse})
 			f.ExpectEvent(dv.Namespace).Should(ContainSubstring(dvc.CloneWithoutSource))

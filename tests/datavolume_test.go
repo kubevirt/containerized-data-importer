@@ -399,7 +399,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			expectedPhase := cdiv1.Pending
 			boundCondition := &cdiv1.DataVolumeCondition{
 				Type:    cdiv1.DataVolumeBound,
-				Status:  v1.ConditionUnknown,
+				Status:  v1.ConditionFalse,
 				Message: "exceeded quota",
 				Reason:  controller.ErrExceededQuota,
 			}
@@ -2660,7 +2660,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("verifying conditions")
 			boundCondition := &cdiv1.DataVolumeCondition{
 				Type:    cdiv1.DataVolumeBound,
-				Status:  v1.ConditionUnknown,
+				Status:  v1.ConditionFalse,
 				Message: dvc.MessageErrStorageClassNotFound,
 				Reason:  controller.ErrClaimNotValid,
 			}
@@ -2680,7 +2680,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("verifying conditions")
 			boundCondition := &cdiv1.DataVolumeCondition{
 				Type:    cdiv1.DataVolumeBound,
-				Status:  v1.ConditionUnknown,
+				Status:  v1.ConditionFalse,
 				Message: "No PVC found",
 				Reason:  controller.NotFound,
 			}
