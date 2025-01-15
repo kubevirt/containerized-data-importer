@@ -1,0 +1,10 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["tmpdir.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/internal/tmpdir",
+    importpath = "github.com/containers/image/v5/internal/tmpdir",
+    visibility = ["//vendor/github.com/containers/image/v5:__subpackages__"],
+    deps = ["//vendor/github.com/containers/image/v5/types:go_default_library"],
+)

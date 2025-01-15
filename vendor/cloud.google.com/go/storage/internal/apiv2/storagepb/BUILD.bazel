@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["storage.pb.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/cloud.google.com/go/storage/internal/apiv2/storagepb",
+    importpath = "cloud.google.com/go/storage/internal/apiv2/storagepb",
+    visibility = ["//vendor/cloud.google.com/go/storage:__subpackages__"],
+    deps = [
+        "//vendor/cloud.google.com/go/iam/apiv1/iampb:go_default_library",
+        "//vendor/google.golang.org/genproto/googleapis/api/annotations:go_default_library",
+        "//vendor/google.golang.org/genproto/googleapis/type/date:go_default_library",
+        "//vendor/google.golang.org/grpc:go_default_library",
+        "//vendor/google.golang.org/grpc/codes:go_default_library",
+        "//vendor/google.golang.org/grpc/status:go_default_library",
+        "//vendor/google.golang.org/protobuf/reflect/protoreflect:go_default_library",
+        "//vendor/google.golang.org/protobuf/runtime/protoimpl:go_default_library",
+        "//vendor/google.golang.org/protobuf/types/known/durationpb:go_default_library",
+        "//vendor/google.golang.org/protobuf/types/known/emptypb:go_default_library",
+        "//vendor/google.golang.org/protobuf/types/known/fieldmaskpb:go_default_library",
+        "//vendor/google.golang.org/protobuf/types/known/timestamppb:go_default_library",
+    ],
+)
