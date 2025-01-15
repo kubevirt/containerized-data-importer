@@ -44,6 +44,9 @@ if [[ $TARGET =~ openshift-.* ]]; then
 elif [[ $TARGET =~ k8s-.* ]]; then
   export KUBEVIRT_NUM_NODES=2
   export KUBEVIRT_MEMORY_SIZE=8192
+elif [[ $TARGET =~ kind-.* ]]; then
+  export KUBEVIRT_NUM_NODES=1
+  export KIND_PORT_MAPPING=31001:31002
 fi
 
 if [ ! -d "cluster-up/cluster/$KUBEVIRT_PROVIDER" ]; then
@@ -68,7 +71,6 @@ if [[ -z "$UPGRADE_FROM" ]] && [[ -z "$RANDOM_CR" ]]; then
   fi
   echo "Upgrading from versions: $UPGRADE_FROM"
 fi
-export KUBEVIRT_NUM_NODES=2
 
 kubectl() { cluster-up/kubectl.sh "$@"; }
 

@@ -25,6 +25,17 @@ function seed_images(){
 
 }
 
+# For the Kind provider, we need to configure hostname resolution for the local image registry in the CoreDNS service.
+# This ensures that local container images can be successfully pulled into Kubernetes pods during certain e2e tests.
+function setup_hostname_resolution_for_registry {
+ host_name="registry"
+ host_ip=$(${CDI_CRI} inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(${CDI_CRI} ps|grep registry|awk '{print $1}'))
+ _kubectl patch configmap coredns \
+   -n kube-system \
+   --type merge \
+   -p "{\"data\":{\"Corefile\":\".:53 {\n    errors\n    health {\n       lameduck 5s\n    }\n    ready\n    kubernetes cluster.local in-addr.arpa ip6.arpa {\n       pods insecure\n       fallthrough in-addr.arpa ip6.arpa\n       ttl 30\n    }\n    prometheus :9153\n    forward . /etc/resolv.conf {\n       max_concurrent 1000\n    }\n    cache 30\n    loop\n    reload\n    loadbalance\n    hosts {\n        $host_ip   $host_name\n        fallthrough\n    }\n}\"}}"
+}
+
 function verify() {
   echo 'Wait until all nodes are ready'
   until [[ $(_kubectl get nodes --no-headers | wc -l) -eq $(_kubectl get nodes --no-headers | grep " Ready" | wc -l) ]]; do
@@ -38,10 +49,14 @@ function configure_storage() {
 }
 
 function configure_hpp() {
-  for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
-      ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "sudo mkdir -p /var/hpvolumes"
-      ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "sudo chcon -t container_file_t -R /var/hpvolumes"
-  done
+  if [[ $KUBEVIRT_PROVIDER =~ kind.* ]]; then
+      ./cluster-up/ssh.sh ${KUBEVIRT_PROVIDER}-control-plane mkdir -p /var/hpvolumes
+  else
+      for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
+         ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "sudo mkdir -p /var/hpvolumes"
+         ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "sudo chcon -t container_file_t -R /var/hpvolumes"
+      done
+  fi
   HPP_RELEASE=$(get_latest_release "kubevirt/hostpath-provisioner-operator")
   _kubectl apply -f https://github.com/kubevirt/hostpath-provisioner-operator/releases/download/$HPP_RELEASE/namespace.yaml
   #install cert-manager

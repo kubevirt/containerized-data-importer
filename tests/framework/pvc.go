@@ -340,7 +340,7 @@ func (f *Framework) VerifyPermissions(namespace *k8sv1.Namespace, pvc *k8sv1.Per
 	return f.verifyInPod(namespace, pvc, cmd, func(output, stderr string) (bool, error) {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: permissions of disk.img: %s\n", output)
 
-		return strings.Compare(output, "-rw-rw----.") == 0, nil
+		return strings.Contains(output, "-rw-rw----"), nil
 	})
 }
 
