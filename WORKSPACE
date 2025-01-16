@@ -638,13 +638,19 @@ rpm(
 rpm(
     name = "crypto-policies-0__20231113-1.gite9247c2.el9.aarch64",
     sha256 = "8a81571397a2a1bab63b60caabf089cc2a821b7105bf5b3f6f1c1d430880862d",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/crypto-policies-20231113-1.gite9247c2.el9.noarch.rpm"],
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/crypto-policies-20231113-1.gite9247c2.el9.noarch.rpm",
+        "https://storage.googleapis.com/builddeps/8a81571397a2a1bab63b60caabf089cc2a821b7105bf5b3f6f1c1d430880862d",
+    ],
 )
 
 rpm(
     name = "crypto-policies-0__20231113-1.gite9247c2.el9.x86_64",
     sha256 = "8a81571397a2a1bab63b60caabf089cc2a821b7105bf5b3f6f1c1d430880862d",
-    urls = ["http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/crypto-policies-20231113-1.gite9247c2.el9.noarch.rpm"],
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/crypto-policies-20231113-1.gite9247c2.el9.noarch.rpm",
+        "https://storage.googleapis.com/builddeps/8a81571397a2a1bab63b60caabf089cc2a821b7105bf5b3f6f1c1d430880862d",
+    ],
 )
 
 rpm(
