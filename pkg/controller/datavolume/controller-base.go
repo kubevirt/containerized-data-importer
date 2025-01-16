@@ -335,6 +335,28 @@ func addDataVolumeControllerCommonWatches(mgr manager.Manager, dataVolumeControl
 		}
 	}
 
+	// Watch for ResourceQuota updates to reconcile the pending DVs which exceeded the quota
+	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.ResourceQuota{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.ResourceQuota](
+		func(ctx context.Context, rq *corev1.ResourceQuota) []reconcile.Request {
+			dvList := &cdiv1.DataVolumeList{}
+			if err := mgr.GetClient().List(ctx, dvList, client.MatchingFields{
+				dvPhaseField: string(cdiv1.Pending)},
+				&client.ListOptions{Namespace: rq.Namespace}); err != nil {
+				return nil
+			}
+			var reqs []reconcile.Request
+			for _, dv := range dvList.Items {
+				if getDataVolumeOp(ctx, mgr.GetLogger(), &dv, mgr.GetClient()) == op {
+					reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
+				}
+			}
+			return reqs
+		},
+	),
+	)); err != nil {
+		return err
+	}
+
 	// Watch for PV updates to reconcile the DVs waiting for available PV
 	// Relevant only when the DV StorageSpec has no AccessModes set and no matching StorageClass yet, so PVC cannot be created (test_id:9924,9925)
 	if err := dataVolumeController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolume{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.PersistentVolume](
