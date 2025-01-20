@@ -114,6 +114,7 @@ type importerPodArgs struct {
 	imagePullSecrets        []corev1.LocalObjectReference
 	workloadNodePlacement   *sdkapi.NodePlacement
 	vddkImageName           *string
+	vddkExtraArgs           *string
 	priorityClassName       string
 }
 
@@ -475,6 +476,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 	r.log.V(1).Info("Creating importer POD for PVC", "pvc.Name", pvc.Name)
 	var scratchPvcName *string
 	var vddkImageName *string
+	var vddkExtraArgs *string
 	var err error
 
 	requiresScratch := r.requiresScratchSpace(pvc)
@@ -503,6 +505,11 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 			}
 			return errors.New(message)
 		}
+
+		if extraArgs, ok := anno[cc.AnnVddkExtraArgs]; ok && extraArgs != "" {
+			r.log.V(1).Info("Mounting extra VDDK args ConfigMap to importer pod", "ConfigMap", extraArgs)
+			vddkExtraArgs = &extraArgs
+		}
 	}
 
 	podEnvVar, err := r.createImportEnvVar(pvc)
@@ -518,6 +525,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		pvc:               pvc,
 		scratchPvcName:    scratchPvcName,
 		vddkImageName:     vddkImageName,
+		vddkExtraArgs:     vddkExtraArgs,
 		priorityClassName: cc.GetPriorityClass(pvc),
 	}
 
@@ -1105,6 +1113,19 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
 			Name:      "vddk-vol-mount",
 			MountPath: "/opt",
+		})
+	}
+
+	if args.vddkExtraArgs != nil {
+		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+			Name: common.VddkArgsVolName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: *args.vddkExtraArgs,
+					},
+				},
+			},
 		})
 	}
 

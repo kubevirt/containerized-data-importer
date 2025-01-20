@@ -180,6 +180,9 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 	if _, ok := pvc.Annotations[cc.AnnPodRetainAfterCompletion]; ok {
 		annotations[cc.AnnPodRetainAfterCompletion] = pvc.Annotations[cc.AnnPodRetainAfterCompletion]
 	}
+	if vddkExtraArgs, ok := pvc.Annotations[cc.AnnVddkExtraArgs]; ok && vddkExtraArgs != "" {
+		annotations[cc.AnnVddkExtraArgs] = vddkExtraArgs
+	}
 
 	// Assemble PVC' spec
 	pvcPrime := &corev1.PersistentVolumeClaim{
