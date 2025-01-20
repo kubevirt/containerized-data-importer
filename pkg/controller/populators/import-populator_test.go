@@ -501,6 +501,62 @@ var _ = Describe("Import populator tests", func() {
 			Expect(pvcPrime.GetAnnotations()[AnnCurrentCheckpoint]).To(Equal("current"))
 			Expect(pvcPrime.GetAnnotations()[AnnFinalCheckpoint]).To(Equal("true"))
 		})
+
+		It("Should create PVC prime with proper VDDK import annotations", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, map[string]string{}, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			targetPvc.Annotations[AnnVddkExtraArgs] = "vddk-extras"
+
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
+			volumeImportSource.Spec.Source = &cdiv1.ImportSourceType{
+				VDDK: &cdiv1.DataVolumeSourceVDDK{
+					BackingFile: "testBackingFile",
+					SecretRef:   "testSecret",
+					Thumbprint:  "testThumbprint",
+					URL:         "testUrl",
+					UUID:        "testUUID",
+				},
+			}
+
+			By("Reconcile")
+			reconciler = createImportPopulatorReconciler(targetPvc, volumeImportSource, sc)
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Checking events recorded")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, createdPVCPrimeSuccessfully) {
+					found = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(found).To(BeTrue())
+
+			By("Checking PVC' annotations")
+			pvcPrime, err := reconciler.getPVCPrime(targetPvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvcPrime).ToNot(BeNil())
+			// make sure we didnt inflate size
+			Expect(pvcPrime.Spec.Resources.Requests[corev1.ResourceStorage]).To(Equal(resource.MustParse("1G")))
+			Expect(pvcPrime.GetAnnotations()).ToNot(BeNil())
+			Expect(pvcPrime.GetAnnotations()[AnnImmediateBinding]).To(Equal(""))
+			Expect(pvcPrime.GetAnnotations()[AnnUploadRequest]).To(Equal(""))
+			Expect(pvcPrime.GetAnnotations()[AnnPopulatorKind]).To(Equal(cdiv1.VolumeImportSourceRef))
+			Expect(pvcPrime.GetAnnotations()[AnnPreallocationRequested]).To(Equal("true"))
+			Expect(pvcPrime.GetAnnotations()[AnnBackingFile]).To(Equal("testBackingFile"))
+			Expect(pvcPrime.GetAnnotations()[AnnSecret]).To(Equal("testSecret"))
+			Expect(pvcPrime.GetAnnotations()[AnnThumbprint]).To(Equal("testThumbprint"))
+			Expect(pvcPrime.GetAnnotations()[AnnEndpoint]).To(Equal("testUrl"))
+			Expect(pvcPrime.GetAnnotations()[AnnUUID]).To(Equal("testUUID"))
+			Expect(pvcPrime.GetAnnotations()[AnnSource]).To(Equal(SourceVDDK))
+			Expect(pvcPrime.GetLabels()[LabelExcludeFromVeleroBackup]).To(Equal("true"))
+
+			Expect(pvcPrime.GetAnnotations()[AnnVddkExtraArgs]).To(Equal("vddk-extras"))
+		})
+
 	})
 
 	var _ = Describe("Import populator progress report", func() {
