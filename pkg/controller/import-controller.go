@@ -1127,6 +1127,10 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 				},
 			},
 		})
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, v1.VolumeMount{
+			Name:      common.VddkArgsVolName,
+			MountPath: common.VddkArgsDir,
+		})
 	}
 
 	if args.podEnvVar.certConfigMap != "" {
