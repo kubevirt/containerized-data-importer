@@ -837,6 +837,33 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Entry("has no tag", imageStreamName, 1),
 		)
 
+		It("Should fail with non-existing source PVC", func() {
+			cron := newDataImportCron(cronName)
+			cron.Spec.Template.Spec.Source = &cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Name: "no-such-pvc",
+				},
+			}
+			reconciler = createDataImportCronReconciler(cron)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+
+		It("Should succeed with existing source PVC", func() {
+			pvc := newPVC("test-pvc")
+			cron := newDataImportCron(cronName)
+			cron.Spec.Template.Spec.Source = &cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Name:      pvc.Name,
+					Namespace: pvc.Namespace,
+				},
+			}
+			reconciler = createDataImportCronReconciler(cron, pvc)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
 		It("Should succeed garbage collecting old version DVs", func() {
 			cron = newDataImportCron(cronName)
 			importsToKeep := int32(1)
@@ -1464,6 +1491,15 @@ func newDataImportCronWithImageStream(dataImportCronName, taggedImageStreamName 
 	return cron
 }
 
+func newPVC(name string) *corev1.PersistentVolumeClaim {
+	return &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: metav1.NamespaceDefault,
+			UID:       types.UID(metav1.NamespaceDefault + "-" + name),
+		},
+	}
+}
 func newImageStream(name string) *imagev1.ImageStream {
 	return &imagev1.ImageStream{
 		TypeMeta: metav1.TypeMeta{APIVersion: imagev1.SchemeGroupVersion.String()},

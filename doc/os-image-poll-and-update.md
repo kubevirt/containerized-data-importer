@@ -86,6 +86,26 @@ Or on CRC:
 
 More information on image streams is available [here](https://docs.openshift.com/container-platform/4.13/openshift_images/image-streams-manage.html) and [here](https://www.tutorialworks.com/openshift-imagestreams).
 
+## PVC Source
+
+A `PVC` from any namespace can also be the source for a `DataImportCron`. The source digest is based on the `PVC` `UID`, which is polled according to the schedule, so when a new `PVC` is detected it will be imported.
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataImportCron
+metadata:
+  name: pvc-import-cron
+  namespace: ns1
+spec:
+  template:
+    spec:
+      source:
+        pvc:
+          name: my-pvc
+          namespace: ns2
+...
+```
+
 ## DataImportCron source formats
 
 * PersistentVolumeClaim
