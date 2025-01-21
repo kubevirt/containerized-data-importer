@@ -3421,7 +3421,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Eventually(func() (string, error) {
 				out, err := f.K8sClient.CoreV1().
 					Pods(importer.Namespace).
-					GetLogs(importer.Name, &core.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
+					GetLogs(importer.Name, &v1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
 					DoRaw(context.Background())
 				return string(out), err
 			}, time.Minute, pollingInterval).Should(And(
