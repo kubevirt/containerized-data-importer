@@ -13,6 +13,7 @@
 #define NBDKIT_API_VERSION 2
 #include <nbdkit-plugin.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -31,6 +32,21 @@ int fakevddk_config(const char *key, const char *value) {
     arg_count++;
     if (strcmp(key, "snapshot") == 0) {
         expected_arg_count = 9; // Expect one for 'snapshot' and one for 'transports'
+    }
+    if (strcmp(key, "config") == 0) {
+        expected_arg_count = 8;
+        nbdkit_debug("Extra config option set to: %s\n", value);
+
+        FILE *f  = fopen(value, "r");
+        if (f == NULL) {
+            nbdkit_error("Failed to open VDDK extra configuration file %s!\n", value);
+            return -1;
+        }
+        char extras[512]; // Importer test will scan debug log for given values, just pass them back
+        while (fgets(extras, 512, f) != NULL) {
+            nbdkit_debug("Extra configuration data: %s\n", extras);
+        }
+        fclose(f);
     }
     return 0;
 }

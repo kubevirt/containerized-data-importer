@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: cdi
+  name: vddk-arguments
+data:
+  vddk-config-file: -| 
+      VixDiskLib.nfcAio.Session.BufSizeIn64KB=16
+      VixDiskLib.nfcAio.Session.BufCount=4
