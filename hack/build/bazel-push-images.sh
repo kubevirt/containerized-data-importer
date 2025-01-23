@@ -47,12 +47,3 @@ bazel run \
     --define container_tag=${DOCKER_TAG} \
     --host_force_python=PY3 \
     //:push-test-images
-
-rm -rf ${DIGESTS_DIR}/${ARCHITECTURE}
-mkdir -p ${DIGESTS_DIR}/${ARCHITECTURE}
-
-for f in $(find bazel-bin/ -name '*.digest'); do
-    dir=${DIGESTS_DIR}/${ARCHITECTURE}/$(dirname $f)
-    mkdir -p ${dir}
-    cp -f ${f} ${dir}/$(basename ${f})
-done
