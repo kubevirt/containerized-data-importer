@@ -64,3 +64,6 @@ Cleanup: Bump containers/image
 BugFix: Allow dataimportcron snap->pvc automatic source switch
 Cleanup: VDDK datasource: Increase number of nbdkit lines logged
 Enhancement: Add nbdkit command line parameters to improve reliability of multi-stage VDDK imports.
+
+v1.58.5
+https://github.com/kubevirt/containerized-data-importer/pulls?q=is%3Apr+merged%3A2024-08-21..2025-01-23+base%3Arelease-v1.58+sort%3Aupdated-desc+is%3Aclosed+
