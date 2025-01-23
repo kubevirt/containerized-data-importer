@@ -4195,10 +4195,7 @@ rpm(
 rpm(
     name = "python3-ovirt-engine-sdk4-0__4.6.3-0.1.master.20230324091708.el9.aarch64",
     sha256 = "c5df06df25aff5c99bfcda8373c95e3607e0624be64fe8369870aeb29f1b2fcf",
-    urls = [
-        "https://download.copr.fedorainfracloud.org/results/ovirt/ovirt-master-snapshot/centos-stream-9-aarch64/05703348-python-ovirt-engine-sdk4/python3-ovirt-engine-sdk4-4.6.3-0.1.master.20230324091708.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/c5df06df25aff5c99bfcda8373c95e3607e0624be64fe8369870aeb29f1b2fcf",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/c5df06df25aff5c99bfcda8373c95e3607e0624be64fe8369870aeb29f1b2fcf"],
 )
 
 rpm(
