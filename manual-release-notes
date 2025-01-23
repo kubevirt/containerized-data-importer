@@ -53,3 +53,6 @@ BugFix: Allow dataimportcron snap->pvc automatic source switch
 Cleanup: VDDK datasource: Increase number of nbdkit lines logged
 Enhancement: Add nbdkit command line parameters to improve reliability of multi-stage VDDK imports
 Cleanup: apidocs: remove gradle dep (builder)
+
+v1.59.2
+https://github.com/kubevirt/containerized-data-importer/pulls?q=is%3Apr+merged%3A2024-08-22..2025-01-23+base%3Arelease-v1.59+sort%3Aupdated-desc+is%3Aclosed+
