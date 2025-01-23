@@ -169,6 +169,13 @@ func NewNbdkitVddk(nbdkitPidFile, socket string, args NbdKitVddkPluginArgs) (Nbd
 	pluginArgs = append(pluginArgs, "-D", "nbdkit.backend.datapath=0")
 	pluginArgs = append(pluginArgs, "-D", "vddk.datapath=0")
 	pluginArgs = append(pluginArgs, "-D", "vddk.stats=1")
+	config, err := getVddkConfig()
+	if err != nil {
+		return nil, err
+	}
+	if config != "" {
+		pluginArgs = append(pluginArgs, "config="+config)
+	}
 	p := getVddkPluginPath()
 	n := &Nbdkit{
 		NbdPidFile: nbdkitPidFile,
@@ -227,6 +234,22 @@ func getVddkPluginPath() NbdkitPlugin {
 		return NbdkitVddkMockPlugin
 	}
 	return NbdkitVddkPlugin
+}
+
+// Extra VDDK configuration options are stored in a ConfigMap mounted to the
+// importer pod. Make sure a "vddk-config-file" exists in that directory and
+// pass that through nbdkit via the "config=" option.
+func getVddkConfig() (string, error) {
+	path := filepath.Join(common.VddkArgsDir, common.VddkArgsKeyName)
+	_, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) { // No configuration file found, so no extra arguments to give to VDDK
+			return "", nil
+		}
+		return "", err
+	}
+
+	return path, nil
 }
 
 func (n *Nbdkit) getSourceArg(s string) string {
