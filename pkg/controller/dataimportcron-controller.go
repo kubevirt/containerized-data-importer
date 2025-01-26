@@ -250,21 +250,24 @@ func splitImageStreamName(imageStreamName string) (string, string, error) {
 }
 
 func (r *DataImportCronReconciler) pollSourceDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
-	if nextTimeStr := dataImportCron.Annotations[AnnNextCronTime]; nextTimeStr != "" {
-		nextTime, err := time.Parse(time.RFC3339, nextTimeStr)
-		if err != nil {
+	nextTimeStr := dataImportCron.Annotations[AnnNextCronTime]
+	if nextTimeStr == "" {
+		return r.setNextCronTime(dataImportCron)
+	}
+	nextTime, err := time.Parse(time.RFC3339, nextTimeStr)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	if nextTime.After(time.Now()) {
+		return r.setNextCronTime(dataImportCron)
+	}
+	if isImageStreamSource(dataImportCron) {
+		if err := r.updateImageStreamDesiredDigest(ctx, dataImportCron); err != nil {
 			return reconcile.Result{}, err
 		}
-		if nextTime.Before(time.Now()) {
-			if isImageStreamSource(dataImportCron) {
-				if err := r.updateImageStreamDesiredDigest(ctx, dataImportCron); err != nil {
-					return reconcile.Result{}, err
-				}
-			} else if isPvcSource(dataImportCron) {
-				if err := r.updatePvcDesiredDigest(ctx, dataImportCron); err != nil {
-					return reconcile.Result{}, err
-				}
-			}
+	} else if isPvcSource(dataImportCron) {
+		if err := r.updatePvcDesiredDigest(ctx, dataImportCron); err != nil {
+			return reconcile.Result{}, err
 		}
 	}
 	return r.setNextCronTime(dataImportCron)
@@ -1562,15 +1565,12 @@ func (r *DataImportCronReconciler) newDataSource(cron *cdiv1.DataImportCron) *cd
 
 // Create DataVolume name based on the DataSource name + prefix of the digest
 func createDvName(prefix, digest string) (string, error) {
-	validDigestPrefixes := []string{digestSha256Prefix, digestUIDPrefix}
 	digestPrefix := ""
-	for _, p := range validDigestPrefixes {
-		if strings.HasPrefix(digest, p) {
-			digestPrefix = p
-			break
-		}
-	}
-	if digestPrefix == "" {
+	if strings.HasPrefix(digest, digestSha256Prefix) {
+		digestPrefix = digestSha256Prefix
+	} else if strings.HasPrefix(digest, digestUIDPrefix) {
+		digestPrefix = digestUIDPrefix
+	} else {
 		return "", errors.Errorf("Digest has no supported prefix")
 	}
 	fromIdx := len(digestPrefix)
