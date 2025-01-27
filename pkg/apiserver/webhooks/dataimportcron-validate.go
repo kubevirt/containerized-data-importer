@@ -89,11 +89,11 @@ func (wh *dataImportCronValidatingWebhook) Admit(ar admissionv1.AdmissionReview)
 
 func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *admissionv1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataImportCronSpec, namespace *string) []metav1.StatusCause {
 	var causes []metav1.StatusCause
-
-	if spec.Template.Spec.Source == nil || spec.Template.Spec.Source.Registry == nil {
+	source := spec.Template.Spec.Source
+	if source == nil || (source.Registry == nil && source.PVC == nil) {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: "Missing registry source",
+			Message: "Missing source",
 			Field:   field.Child("Template").String(),
 		})
 		return causes

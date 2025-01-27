@@ -100,7 +100,8 @@ const (
 	AnnStorageClass = cc.AnnAPIGroup + "/storage.import.storageClass"
 
 	dataImportControllerName    = "dataimportcron-controller"
-	digestPrefix                = "sha256:"
+	digestSha256Prefix          = "sha256:"
+	digestUIDPrefix             = "uid:"
 	digestDvNameSuffixLength    = 12
 	cronJobUIDSuffixLength      = 8
 	defaultImportsToKeepPerCron = 3
@@ -161,7 +162,7 @@ func (r *DataImportCronReconciler) initCron(ctx context.Context, dataImportCron 
 	if dataImportCron.Spec.Schedule == "" {
 		return nil
 	}
-	if isImageStreamSource(dataImportCron) {
+	if isControllerPolledSource(dataImportCron) {
 		if dataImportCron.Annotations[AnnNextCronTime] == "" {
 			cc.AddAnnotation(dataImportCron, AnnNextCronTime, time.Now().Format(time.RFC3339))
 		}
@@ -248,16 +249,25 @@ func splitImageStreamName(imageStreamName string) (string, string, error) {
 	return "", "", errors.Errorf("Illegal ImageStream name %s", imageStreamName)
 }
 
-func (r *DataImportCronReconciler) pollImageStreamDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
-	if nextTimeStr := dataImportCron.Annotations[AnnNextCronTime]; nextTimeStr != "" {
-		nextTime, err := time.Parse(time.RFC3339, nextTimeStr)
-		if err != nil {
+func (r *DataImportCronReconciler) pollSourceDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
+	nextTimeStr := dataImportCron.Annotations[AnnNextCronTime]
+	if nextTimeStr == "" {
+		return r.setNextCronTime(dataImportCron)
+	}
+	nextTime, err := time.Parse(time.RFC3339, nextTimeStr)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	if nextTime.After(time.Now()) {
+		return r.setNextCronTime(dataImportCron)
+	}
+	if isImageStreamSource(dataImportCron) {
+		if err := r.updateImageStreamDesiredDigest(ctx, dataImportCron); err != nil {
 			return reconcile.Result{}, err
 		}
-		if nextTime.Before(time.Now()) {
-			if err := r.updateImageStreamDesiredDigest(ctx, dataImportCron); err != nil {
-				return reconcile.Result{}, err
-			}
+	} else if isPvcSource(dataImportCron) {
+		if err := r.updatePvcDesiredDigest(ctx, dataImportCron); err != nil {
+			return reconcile.Result{}, err
 		}
 	}
 	return r.setNextCronTime(dataImportCron)
@@ -287,11 +297,31 @@ func isURLSource(dataImportCron *cdiv1.DataImportCron) bool {
 }
 
 func getCronRegistrySource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourceRegistry, error) {
-	source := cron.Spec.Template.Spec.Source
-	if source == nil || source.Registry == nil {
-		return nil, errors.Errorf("Cron with no registry source %s", cron.Name)
+	if !isCronRegistrySource(cron) {
+		return nil, errors.Errorf("Cron has no registry source %s", cron.Name)
 	}
-	return source.Registry, nil
+	return cron.Spec.Template.Spec.Source.Registry, nil
+}
+
+func isCronRegistrySource(cron *cdiv1.DataImportCron) bool {
+	source := cron.Spec.Template.Spec.Source
+	return source != nil && source.Registry != nil
+}
+
+func getCronPvcSource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourcePVC, error) {
+	if !isPvcSource(cron) {
+		return nil, errors.Errorf("Cron has no PVC source %s", cron.Name)
+	}
+	return cron.Spec.Template.Spec.Source.PVC, nil
+}
+
+func isPvcSource(cron *cdiv1.DataImportCron) bool {
+	source := cron.Spec.Template.Spec.Source
+	return source != nil && source.PVC != nil
+}
+
+func isControllerPolledSource(cron *cdiv1.DataImportCron) bool {
+	return isImageStreamSource(cron) || isPvcSource(cron)
 }
 
 func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
@@ -424,9 +454,9 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	}
 
 	// Skip if schedule is disabled
-	if isImageStreamSource(dataImportCron) && dataImportCron.Spec.Schedule != "" {
+	if isControllerPolledSource(dataImportCron) && dataImportCron.Spec.Schedule != "" {
 		// We use the poll returned reconcile.Result for RequeueAfter if needed
-		pollRes, err := r.pollImageStreamDigest(ctx, dataImportCron)
+		pollRes, err := r.pollSourceDigest(ctx, dataImportCron)
 		if err != nil {
 			return pollRes, err
 		}
@@ -582,6 +612,29 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 		log.Info("Updating DataImportCron", "digest", digest)
 		cc.AddAnnotation(dataImportCron, AnnSourceDesiredDigest, digest)
 		cc.AddAnnotation(dataImportCron, AnnImageStreamDockerRef, dockerRef)
+	}
+	return nil
+}
+
+func (r *DataImportCronReconciler) updatePvcDesiredDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+	log := r.log.WithValues("name", dataImportCron.Name).WithValues("uid", dataImportCron.UID)
+	pvcSource, err := getCronPvcSource(dataImportCron)
+	if err != nil {
+		return err
+	}
+	ns := pvcSource.Namespace
+	if ns == "" {
+		ns = dataImportCron.Namespace
+	}
+	pvc := &corev1.PersistentVolumeClaim{}
+	if err := r.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: pvcSource.Name}, pvc); err != nil {
+		return err
+	}
+	digest := fmt.Sprintf("%s%s", digestUIDPrefix, pvc.UID)
+	cc.AddAnnotation(dataImportCron, AnnLastCronTime, time.Now().Format(time.RFC3339))
+	if digest != "" && dataImportCron.Annotations[AnnSourceDesiredDigest] != digest {
+		log.Info("Updating DataImportCron", "digest", digest)
+		cc.AddAnnotation(dataImportCron, AnnSourceDesiredDigest, digest)
 	}
 	return nil
 }
@@ -1434,16 +1487,18 @@ func (r *DataImportCronReconciler) setJobCommon(cron *cdiv1.DataImportCron, obj 
 }
 
 func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdiv1.DataVolume {
-	var digestedURL string
 	dv := cron.Spec.Template.DeepCopy()
-	if isURLSource(cron) {
-		digestedURL = untagDigestedDockerURL(*dv.Spec.Source.Registry.URL + "@" + cron.Annotations[AnnSourceDesiredDigest])
-	} else if isImageStreamSource(cron) {
-		// No way to import image stream by name when we want specific digest, so we use its docker reference
-		digestedURL = "docker://" + cron.Annotations[AnnImageStreamDockerRef]
-		dv.Spec.Source.Registry.ImageStream = nil
+	if isCronRegistrySource(cron) {
+		var digestedURL string
+		if isURLSource(cron) {
+			digestedURL = untagDigestedDockerURL(*dv.Spec.Source.Registry.URL + "@" + cron.Annotations[AnnSourceDesiredDigest])
+		} else if isImageStreamSource(cron) {
+			// No way to import image stream by name when we want specific digest, so we use its docker reference
+			digestedURL = "docker://" + cron.Annotations[AnnImageStreamDockerRef]
+			dv.Spec.Source.Registry.ImageStream = nil
+		}
+		dv.Spec.Source.Registry.URL = &digestedURL
 	}
-	dv.Spec.Source.Registry.URL = &digestedURL
 	dv.Name = dataVolumeName
 	dv.Namespace = cron.Namespace
 	r.setDataImportCronResourceLabels(cron, dv)
@@ -1508,13 +1563,18 @@ func (r *DataImportCronReconciler) newDataSource(cron *cdiv1.DataImportCron) *cd
 	return dataSource
 }
 
-// Create DataVolume name based on the DataSource name + prefix of the digest sha256
+// Create DataVolume name based on the DataSource name + prefix of the digest
 func createDvName(prefix, digest string) (string, error) {
-	fromIdx := len(digestPrefix)
-	toIdx := fromIdx + digestDvNameSuffixLength
-	if !strings.HasPrefix(digest, digestPrefix) {
+	digestPrefix := ""
+	if strings.HasPrefix(digest, digestSha256Prefix) {
+		digestPrefix = digestSha256Prefix
+	} else if strings.HasPrefix(digest, digestUIDPrefix) {
+		digestPrefix = digestUIDPrefix
+	} else {
 		return "", errors.Errorf("Digest has no supported prefix")
 	}
+	fromIdx := len(digestPrefix)
+	toIdx := fromIdx + digestDvNameSuffixLength
 	if len(digest) < toIdx {
 		return "", errors.Errorf("Digest is too short")
 	}
