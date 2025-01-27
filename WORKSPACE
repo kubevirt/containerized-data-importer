@@ -3820,10 +3820,7 @@ rpm(
 rpm(
     name = "ovirt-imageio-client-0__2.5.1-0.202402212040.git21dd9f7.el9.aarch64",
     sha256 = "e090bdf62b0ae862878306c2b0e259f0845a9cbdc234dbd652e274507380362f",
-    urls = [
-        "https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/07047345-ovirt-imageio/ovirt-imageio-client-2.5.1-0.202402212040.git21dd9f7.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/e090bdf62b0ae862878306c2b0e259f0845a9cbdc234dbd652e274507380362f",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/e090bdf62b0ae862878306c2b0e259f0845a9cbdc234dbd652e274507380362f"],
 )
 
 rpm(
@@ -3838,10 +3835,7 @@ rpm(
 rpm(
     name = "ovirt-imageio-common-0__2.5.1-0.202402212040.git21dd9f7.el9.aarch64",
     sha256 = "7127fea08ebc8a5985ddda539afe7b0e45a18be7212c8e91bbd2ed672ee8d2e6",
-    urls = [
-        "https://download.copr.fedorainfracloud.org/results/nsoffer/ovirt-imageio-preview/centos-stream-9-aarch64/07047345-ovirt-imageio/ovirt-imageio-common-2.5.1-0.202402212040.git21dd9f7.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/7127fea08ebc8a5985ddda539afe7b0e45a18be7212c8e91bbd2ed672ee8d2e6",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/7127fea08ebc8a5985ddda539afe7b0e45a18be7212c8e91bbd2ed672ee8d2e6"],
 )
 
 rpm(
@@ -4201,10 +4195,7 @@ rpm(
 rpm(
     name = "python3-ovirt-engine-sdk4-0__4.6.3-0.1.master.20230324091708.el9.x86_64",
     sha256 = "900c474489b51040051f3ff5eb289372b9f72fd8a39228fc7e6047d63be5b0ba",
-    urls = [
-        "https://download.copr.fedorainfracloud.org/results/ovirt/ovirt-master-snapshot/centos-stream-9-x86_64/05703348-python-ovirt-engine-sdk4/python3-ovirt-engine-sdk4-4.6.3-0.1.master.20230324091708.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/900c474489b51040051f3ff5eb289372b9f72fd8a39228fc7e6047d63be5b0ba",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/900c474489b51040051f3ff5eb289372b9f72fd8a39228fc7e6047d63be5b0ba"],
 )
 
 rpm(
