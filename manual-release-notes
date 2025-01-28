@@ -23,3 +23,6 @@ BugFix: config controller broken with ingresses
 Enhancement: Add RWX to AWS EBS io2 storage capabilities
 BugFix: VDDK Fix Incomplete transfer of change blocks leads to data corruption
 Cleanup: cdi-uploadserver: healthcheck and application use same port
+
+v1.61.1
+https://github.com/kubevirt/containerized-data-importer/pulls?q=is%3Apr+merged%3A2024-11-28..2025-01-28+base%3Arelease-v1.61+sort%3Aupdated-desc+is%3Aclosed+
