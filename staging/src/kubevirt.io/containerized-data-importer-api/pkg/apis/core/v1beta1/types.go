@@ -1001,6 +1001,9 @@ type CDIConfigSpec struct {
 	ScratchSpaceStorageClass *string `json:"scratchSpaceStorageClass,omitempty"`
 	// ResourceRequirements describes the compute resource requirements.
 	PodResourceRequirements *corev1.ResourceRequirements `json:"podResourceRequirements,omitempty"`
+	// RestartPolicy describes how the container should be restarted.
+	// +kubebuilder:validation::Enum=Always;OnFailure;Never
+	ImportPodRestartPolicy corev1.RestartPolicy `json:"restartPolicy,omitempty"`
 	// FeatureGates are a list of specific enabled feature gates
 	FeatureGates []string `json:"featureGates,omitempty"`
 	// FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)
@@ -1031,6 +1034,9 @@ type CDIConfigStatus struct {
 	// ImportProxy contains importer pod proxy configuration.
 	// +optional
 	ImportProxy *ImportProxy `json:"importProxy,omitempty"`
+	// RestartPolicy describes how the container should be restarted.
+	// +kubebuilder:validation::Enum=Always;OnFailure;Never
+	ImportPodRestartPolicy corev1.RestartPolicy `json:"restartPolicy,omitempty"`
 	// The calculated storage class to be used for scratch space
 	ScratchSpaceStorageClass string `json:"scratchSpaceStorageClass,omitempty"`
 	// ResourceRequirements describes the compute resource requirements.

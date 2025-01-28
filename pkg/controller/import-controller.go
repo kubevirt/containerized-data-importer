@@ -69,6 +69,7 @@ type ImportReconciler struct {
 	image              string
 	verbose            string
 	pullPolicy         string
+	restartPolicy      string
 	filesystemOverhead string //nolint:unused // TODO: check if need to remove this field
 	cdiNamespace       string
 	featureGates       featuregates.FeatureGates
@@ -118,10 +119,11 @@ type importerPodArgs struct {
 	vddkImageName           *string
 	vddkExtraArgs           *string
 	priorityClassName       string
+	restartPolicy           string
 }
 
 // NewImportController creates a new instance of the import controller.
-func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pullPolicy, verbose string, installerLabels map[string]string) (controller.Controller, error) {
+func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pullPolicy, restartPolicy, verbose string, installerLabels map[string]string) (controller.Controller, error) {
 	uncachedClient, err := client.New(mgr.GetConfig(), client.Options{
 		Scheme: mgr.GetScheme(),
 		Mapper: mgr.GetRESTMapper(),
@@ -138,6 +140,7 @@ func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pu
 		image:           importerImage,
 		verbose:         verbose,
 		pullPolicy:      pullPolicy,
+		restartPolicy:   restartPolicy,
 		recorder:        mgr.GetEventRecorderFor("import-controller"),
 		cdiNamespace:    util.GetNamespace(),
 		featureGates:    featuregates.NewFeatureGates(client),
@@ -526,6 +529,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		image:             r.image,
 		verbose:           r.verbose,
 		pullPolicy:        r.pullPolicy,
+		restartPolicy:     r.restartPolicy,
 		podEnvVar:         podEnvVar,
 		pvc:               pvc,
 		scratchPvcName:    scratchPvcName,
@@ -867,6 +871,13 @@ func createImporterPod(ctx context.Context, log logr.Logger, client client.Clien
 		return nil, err
 	}
 
+	var restartPolicy *corev1.RestartPolicy
+	restartPolicy, err = cc.GetImportPodRestartPolicy(client)
+	if err != nil {
+		return nil, err
+	}
+	args.restartPolicy = string(*restartPolicy)
+
 	if isRegistryNodeImport(args) {
 		args.importImage, err = getRegistryImportImage(args.pvc)
 		if err != nil {
@@ -923,7 +934,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			Containers:        makeImporterContainerSpec(args),
 			InitContainers:    makeImporterInitContainersSpec(args),
 			Volumes:           makeImporterVolumeSpec(args),
-			RestartPolicy:     corev1.RestartPolicyOnFailure,
+			RestartPolicy:     v1.RestartPolicy(args.restartPolicy),
 			NodeSelector:      args.workloadNodePlacement.NodeSelector,
 			Tolerations:       args.workloadNodePlacement.Tolerations,
 			Affinity:          args.workloadNodePlacement.Affinity,

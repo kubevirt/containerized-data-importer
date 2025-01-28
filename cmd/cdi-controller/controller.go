@@ -65,6 +65,7 @@ var (
 	ovirtPopulatorImage    string
 	configName             string
 	pullPolicy             string
+	restartPolicy          string
 	verbose                string
 	installerLabels        map[string]string
 	log                    = logf.Log.WithName("controller")
@@ -116,6 +117,10 @@ func init() {
 		pullPolicy = pp
 	}
 
+	restartPolicy = common.DefaultRestartPolicy
+	if rp := os.Getenv(common.RestartPolicy); len(rp) != 0 {
+		restartPolicy = rp
+	}
 	// We will need to put those on every resource our controller creates
 	if partOfVal := os.Getenv(common.InstallerPartOfLabel); len(partOfVal) != 0 {
 		installerLabels[common.AppKubernetesPartOfLabel] = partOfVal
@@ -261,7 +266,7 @@ func start() {
 		os.Exit(1)
 	}
 
-	if _, err := controller.NewImportController(mgr, log, importerImage, pullPolicy, verbose, installerLabels); err != nil {
+	if _, err := controller.NewImportController(mgr, log, importerImage, pullPolicy, restartPolicy, verbose, installerLabels); err != nil {
 		klog.Errorf("Unable to setup import controller: %v", err)
 		os.Exit(1)
 	}

@@ -92,6 +92,8 @@ const (
 	ImporterCertDir = "/certs"
 	// DefaultPullPolicy imports k8s "IfNotPresent" string for the import_controller_gingko_test and the cdi-controller executable
 	DefaultPullPolicy = string(v1.PullIfNotPresent)
+	// DefaultRestartPolicy imports k8s "OnFailure" string for the import-controller_test and cdi-controller executable
+	DefaultRestartPolicy = string(v1.RestartPolicyOnFailure)
 	// ImportProxyConfigMapName provides the key for getting the name of the ConfigMap in the cdi namespace containing a CA certificate bundle
 	ImportProxyConfigMapName = "trusted-ca-proxy-bundle-cm"
 	// ImportProxyConfigMapKey provides the key name of the ConfigMap in the cdi namespace containing a CA certificate bundle
@@ -101,6 +103,8 @@ const (
 
 	// PullPolicy provides a constant to capture our env variable "PULL_POLICY" (only used by cmd/cdi-controller/controller.go)
 	PullPolicy = "PULL_POLICY"
+	// RestartPolicy provides a constant to capture our env variable "RESTART_POLICY" (only used by cmd/cdi-controller/controller.go)
+	RestartPolicy = "RESTART_POLICY"
 	// ImporterSource provides a constant to capture our env variable "IMPORTER_SOURCE"
 	ImporterSource = "IMPORTER_SOURCE"
 	// ImporterContentType provides a constant to capture our env variable "IMPORTER_CONTENTTYPE"

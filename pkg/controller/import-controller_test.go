@@ -51,9 +51,10 @@ import (
 )
 
 const (
-	testEndPoint   = "http://test.somewhere.tt.blah"
-	testImage      = "test/image"
-	testPullPolicy = "Always"
+	testEndPoint      = "http://test.somewhere.tt.blah"
+	testImage         = "test/image"
+	testPullPolicy    = "Always"
+	testRestartPolicy = corev1.RestartPolicyOnFailure
 )
 
 var (
@@ -934,6 +935,39 @@ var _ = Describe("Create Importer Pod", func() {
 		Entry("with long checkpoint name", "testPvc1", strings.Repeat("repeating-checkpoint-id-", 10)),
 		Entry("with long PVC name", strings.Repeat("test-pvc-", 20), "snap1"),
 		Entry("with long PVC and checkpoint names", strings.Repeat("test-pvc-", 20), strings.Repeat("repeating-checkpoint-id-", 10)),
+	)
+
+	DescribeTable("should use the correct restart policy", func(restartPolicy string) {
+		pvc := cc.CreatePvc(pvcName, "default", map[string]string{cc.AnnEndpoint: testEndPoint}, nil)
+		reconciler := createImportReconciler(pvc)
+		podEnvVar := &importPodEnvVar{
+			ep:                 "",
+			httpProxy:          "",
+			httpsProxy:         "",
+			secretName:         "",
+			source:             "",
+			contentType:        "",
+			imageSize:          "1G",
+			certConfigMap:      "",
+			diskID:             "",
+			filesystemOverhead: "0.055",
+			insecureTLS:        false,
+		}
+		podArgs := &importerPodArgs{
+			image:             testImage,
+			verbose:           "5",
+			pullPolicy:        testPullPolicy,
+			podEnvVar:         podEnvVar,
+			pvc:               pvc,
+			scratchPvcName:    &scratchPvcName,
+			priorityClassName: pvc.Annotations[cc.AnnPriorityClassName],
+		}
+		pod, err := createImporterPod(context.TODO(), reconciler.log, reconciler.client, podArgs, map[string]string{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pod.Spec.RestartPolicy).To(BeEquivalentTo(restartPolicy))
+	},
+		Entry("with an on failure restart policy", string(corev1.RestartPolicyOnFailure)),
+		Entry("with a never restart policy", string(corev1.RestartPolicyNever)),
 	)
 
 	It("should mount extra VDDK arguments ConfigMap when annotation is set", func() {

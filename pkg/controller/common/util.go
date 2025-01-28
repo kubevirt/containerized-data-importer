@@ -650,6 +650,17 @@ func GetDefaultPodResourceRequirements(client client.Client) (*corev1.ResourceRe
 	return cdiconfig.Status.DefaultPodResourceRequirements, nil
 }
 
+// GetImportPodRestartPolicy gets the current import pod restart policy from cdi config
+func GetImportPodRestartPolicy(client client.Client) (*corev1.RestartPolicy, error) {
+	cdiconfig := &cdiv1.CDIConfig{}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiconfig); err != nil {
+		klog.Errorf("Unable to find CDI configuration, %v\n", err)
+		return nil, err
+	}
+	// return &cdiconfig.Status.ImportPodRestartPolicy, nil
+	return nil, nil
+}
+
 // GetImagePullSecrets gets the imagePullSecrets needed to pull images from the cdi config
 func GetImagePullSecrets(client client.Client) ([]corev1.LocalObjectReference, error) {
 	cdiconfig := &cdiv1.CDIConfig{}
