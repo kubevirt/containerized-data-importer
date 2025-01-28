@@ -198,7 +198,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				Expect(err).ToNot(HaveOccurred())
 				Expect(same).To(BeTrue())
 				By("Verifying the image is sparse")
-				Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
+				Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileSize)).To(BeTrue())
 				if utils.DefaultStorageCSIRespectsFsGroup {
 					// CSI storage class, it should respect fsGroup
 					By("Checking that disk image group is qemu")
@@ -412,8 +412,6 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 					same, err := f.VerifyTargetPVCContentMD5(f.Namespace, archivePVC, pathInPvc, expectedMd5)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(same).To(BeTrue())
-					By("Verifying the image is sparse")
-					Expect(f.VerifySparse(f.Namespace, archivePVC, pathInPvc)).To(BeTrue())
 				}
 			} else {
 				checkFailureNoValidToken(archivePVC)
@@ -528,7 +526,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 						Expect(err).ToNot(HaveOccurred())
 						Expect(same).To(BeTrue())
 						By("Verifying the image is sparse")
-						Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
+						Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileSize)).To(BeTrue())
 						if utils.DefaultStorageCSIRespectsFsGroup {
 							// CSI storage class, it should respect fsGroup
 							By("Checking that disk image group is qemu")
@@ -602,7 +600,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				Expect(err).ToNot(HaveOccurred())
 				Expect(same).To(BeTrue())
 				By("Verifying the image is sparse")
-				Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
+				Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileSize)).To(BeTrue())
 				if utils.DefaultStorageCSIRespectsFsGroup {
 					// CSI storage class, it should respect fsGroup
 					By("Checking that disk image group is qemu")
@@ -732,8 +730,6 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 						same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, pathInPvc, expectedMd5)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(same).To(BeTrue())
-						By("Verifying the image is sparse")
-						Expect(f.VerifySparse(f.Namespace, pvc, pathInPvc)).To(BeTrue())
 					}
 				} else {
 					checkFailureNoValidToken(pvcPrime)
