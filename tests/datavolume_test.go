@@ -3466,68 +3466,73 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		)
 	})
 
-	Describe("extra configuration options for VDDK imports", func() {
-		It("[test_id:XXXX]succeed importing VDDK data volume with extra arguments ConfigMap set", Label("VDDK"), func() {
-			vddkConfigOptions := []string{
-				"VixDiskLib.nfcAio.Session.BufSizeIn64KB=16",
-				"vixDiskLib.nfcAio.Session.BufCount=4",
-			}
+	DescribeTable("extra configuration options for VDDK imports", Label("VDDK"), func(tweakDataVolume func(*cdiv1.DataVolume)) {
+		vddkConfigOptions := []string{
+			"VixDiskLib.nfcAio.Session.BufSizeIn64KB=16",
+			"vixDiskLib.nfcAio.Session.BufCount=4",
+		}
 
-			vddkConfigMap := &v1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "vddk-extras",
-				},
-				Data: map[string]string{
-					common.VddkArgsKeyName: strings.Join(vddkConfigOptions, "\n"),
-				},
-			}
+		vddkConfigMap := &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vddk-extras",
+			},
+			Data: map[string]string{
+				common.VddkArgsKeyName: strings.Join(vddkConfigOptions, "\n"),
+			},
+		}
 
-			_, err := f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Create(context.TODO(), vddkConfigMap, metav1.CreateOptions{})
-			if !k8serrors.IsAlreadyExists(err) {
-				Expect(err).ToNot(HaveOccurred())
-			}
+		_, err := f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Create(context.TODO(), vddkConfigMap, metav1.CreateOptions{})
+		if !k8serrors.IsAlreadyExists(err) {
+			Expect(err).ToNot(HaveOccurred())
+		}
 
-			vcenterURL := fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
-			dataVolume := createVddkDataVolume("import-pod-vddk-config-test", "100Mi", vcenterURL)
+		vcenterURL := fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
 
-			By(fmt.Sprintf("Create new DataVolume %s", dataVolume.Name))
-			controller.AddAnnotation(dataVolume, controller.AnnPodRetainAfterCompletion, "true")
+		dataVolume := createVddkDataVolume("import-pod-vddk-config-test", "100Mi", vcenterURL)
+		By(fmt.Sprintf("Create new DataVolume %s", dataVolume.Name))
+		tweakDataVolume(dataVolume)
+		controller.AddAnnotation(dataVolume, controller.AnnPodRetainAfterCompletion, "true")
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred(), "DataVolume not in phase succeeded in time")
+
+		By("Find importer pods after completion")
+		pvcName := dataVolume.Name
+		// When using populators, the PVC Prime name is used to build the importer pod
+		if usePopulator, _ := dvc.CheckPVCUsingPopulators(pvc); usePopulator {
+			pvcName = populators.PVCPrimeName(pvc)
+		}
+		By("Find importer pod " + pvcName)
+		importer, err := utils.FindPodByPrefixOnce(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(importer.DeletionTimestamp).To(BeNil())
+
+		Eventually(func() (string, error) {
+			out, err := f.K8sClient.CoreV1().
+				Pods(importer.Namespace).
+				GetLogs(importer.Name, &core.PodLogOptions{SinceTime: &meta.Time{Time: CurrentSpecReport().StartTime}}).
+				DoRaw(context.Background())
+			return string(out), err
+		}, time.Minute, pollingInterval).Should(And(
+			ContainSubstring(vddkConfigOptions[0]),
+			ContainSubstring(vddkConfigOptions[1]),
+		))
+	},
+		Entry("[test_id:XXXX]succeed importing VDDK data volume with extra arguments ConfigMap annotation set", func(dataVolume *cdiv1.DataVolume) {
 			controller.AddAnnotation(dataVolume, controller.AnnVddkExtraArgs, "vddk-extras")
-			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-			Expect(err).ToNot(HaveOccurred())
-
-			By("Verify PVC was created")
-			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindIfWaitForFirstConsumer(pvc)
-
-			By("Wait for import to be completed")
-			err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred(), "DataVolume not in phase succeeded in time")
-
-			By("Find importer pods after completion")
-			pvcName := dataVolume.Name
-			// When using populators, the PVC Prime name is used to build the importer pod
-			if usePopulator, _ := dvc.CheckPVCUsingPopulators(pvc); usePopulator {
-				pvcName = populators.PVCPrimeName(pvc)
-			}
-			By("Find importer pod " + pvcName)
-			importer, err := utils.FindPodByPrefixOnce(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(importer.DeletionTimestamp).To(BeNil())
-
-			Eventually(func() (string, error) {
-				out, err := f.K8sClient.CoreV1().
-					Pods(importer.Namespace).
-					GetLogs(importer.Name, &core.PodLogOptions{SinceTime: &meta.Time{Time: CurrentSpecReport().StartTime}}).
-					DoRaw(context.Background())
-				return string(out), err
-			}, time.Minute, pollingInterval).Should(And(
-				ContainSubstring(vddkConfigOptions[0]),
-				ContainSubstring(vddkConfigOptions[1]),
-			))
-		})
-	})
+		}),
+		Entry("[test_id:XXXX]succeed importing VDDK data volume with extra arguments ConfigMap field set", func(dataVolume *cdiv1.DataVolume) {
+			dataVolume.Spec.Source.VDDK.ExtraArgs = "vddk-extras"
+		}),
+	)
 })
 
 func SetFilesystemOverhead(f *framework.Framework, globalOverhead, scOverhead string) {
