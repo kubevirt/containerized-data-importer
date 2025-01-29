@@ -6129,6 +6129,11 @@ spec:
                                 description: BackingFile is the path to the virtual
                                   hard disk to migrate from vCenter/ESXi
                                 type: string
+                              extraArgs:
+                                description: ExtraArgs is a reference to a ConfigMap
+                                  containing extra arguments to pass directly to the
+                                  VDDK library
+                                type: string
                               initImageURL:
                                 description: InitImageURL is an optional URL to an
                                   image containing an extracted VDDK library, overrides
@@ -7083,6 +7088,10 @@ spec:
                       backingFile:
                         description: BackingFile is the path to the virtual hard disk
                           to migrate from vCenter/ESXi
+                        type: string
+                      extraArgs:
+                        description: ExtraArgs is a reference to a ConfigMap containing
+                          extra arguments to pass directly to the VDDK library
                         type: string
                       initImageURL:
                         description: InitImageURL is an optional URL to an image containing
@@ -8089,6 +8098,10 @@ spec:
                       backingFile:
                         description: BackingFile is the path to the virtual hard disk
                           to migrate from vCenter/ESXi
+                        type: string
+                      extraArgs:
+                        description: ExtraArgs is a reference to a ConfigMap containing
+                          extra arguments to pass directly to the VDDK library
                         type: string
                       initImageURL:
                         description: InitImageURL is an optional URL to an image containing
