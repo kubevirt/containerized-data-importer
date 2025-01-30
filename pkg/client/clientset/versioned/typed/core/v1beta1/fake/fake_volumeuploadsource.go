@@ -41,22 +41,24 @@ var volumeuploadsourcesKind = v1beta1.SchemeGroupVersion.WithKind("VolumeUploadS
 
 // Get takes name of the volumeUploadSource, and returns the corresponding volumeUploadSource object, and an error if there is any.
 func (c *FakeVolumeUploadSources) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.VolumeUploadSource, err error) {
+	emptyResult := &v1beta1.VolumeUploadSource{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(volumeuploadsourcesResource, c.ns, name), &v1beta1.VolumeUploadSource{})
+		Invokes(testing.NewGetActionWithOptions(volumeuploadsourcesResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VolumeUploadSource), err
 }
 
 // List takes label and field selectors, and returns the list of VolumeUploadSources that match those selectors.
 func (c *FakeVolumeUploadSources) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.VolumeUploadSourceList, err error) {
+	emptyResult := &v1beta1.VolumeUploadSourceList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(volumeuploadsourcesResource, volumeuploadsourcesKind, c.ns, opts), &v1beta1.VolumeUploadSourceList{})
+		Invokes(testing.NewListActionWithOptions(volumeuploadsourcesResource, volumeuploadsourcesKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeVolumeUploadSources) List(ctx context.Context, opts v1.ListOptions)
 // Watch returns a watch.Interface that watches the requested volumeUploadSources.
 func (c *FakeVolumeUploadSources) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(volumeuploadsourcesResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(volumeuploadsourcesResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a volumeUploadSource and creates it.  Returns the server's representation of the volumeUploadSource, and an error, if there is any.
 func (c *FakeVolumeUploadSources) Create(ctx context.Context, volumeUploadSource *v1beta1.VolumeUploadSource, opts v1.CreateOptions) (result *v1beta1.VolumeUploadSource, err error) {
+	emptyResult := &v1beta1.VolumeUploadSource{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(volumeuploadsourcesResource, c.ns, volumeUploadSource), &v1beta1.VolumeUploadSource{})
+		Invokes(testing.NewCreateActionWithOptions(volumeuploadsourcesResource, c.ns, volumeUploadSource, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VolumeUploadSource), err
 }
 
 // Update takes the representation of a volumeUploadSource and updates it. Returns the server's representation of the volumeUploadSource, and an error, if there is any.
 func (c *FakeVolumeUploadSources) Update(ctx context.Context, volumeUploadSource *v1beta1.VolumeUploadSource, opts v1.UpdateOptions) (result *v1beta1.VolumeUploadSource, err error) {
+	emptyResult := &v1beta1.VolumeUploadSource{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(volumeuploadsourcesResource, c.ns, volumeUploadSource), &v1beta1.VolumeUploadSource{})
+		Invokes(testing.NewUpdateActionWithOptions(volumeuploadsourcesResource, c.ns, volumeUploadSource, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VolumeUploadSource), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeVolumeUploadSources) UpdateStatus(ctx context.Context, volumeUploadSource *v1beta1.VolumeUploadSource, opts v1.UpdateOptions) (*v1beta1.VolumeUploadSource, error) {
+func (c *FakeVolumeUploadSources) UpdateStatus(ctx context.Context, volumeUploadSource *v1beta1.VolumeUploadSource, opts v1.UpdateOptions) (result *v1beta1.VolumeUploadSource, err error) {
+	emptyResult := &v1beta1.VolumeUploadSource{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(volumeuploadsourcesResource, "status", c.ns, volumeUploadSource), &v1beta1.VolumeUploadSource{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(volumeuploadsourcesResource, "status", c.ns, volumeUploadSource, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VolumeUploadSource), err
 }
@@ -123,7 +128,7 @@ func (c *FakeVolumeUploadSources) Delete(ctx context.Context, name string, opts 
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeVolumeUploadSources) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(volumeuploadsourcesResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(volumeuploadsourcesResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.VolumeUploadSourceList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeVolumeUploadSources) DeleteCollection(ctx context.Context, opts v1.
 
 // Patch applies the patch and returns the patched volumeUploadSource.
 func (c *FakeVolumeUploadSources) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.VolumeUploadSource, err error) {
+	emptyResult := &v1beta1.VolumeUploadSource{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(volumeuploadsourcesResource, c.ns, name, pt, data, subresources...), &v1beta1.VolumeUploadSource{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(volumeuploadsourcesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VolumeUploadSource), err
 }

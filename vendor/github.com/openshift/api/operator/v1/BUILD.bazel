@@ -21,6 +21,7 @@ go_library(
         "types_kubestorageversionmigrator.go",
         "types_machineconfiguration.go",
         "types_network.go",
+        "types_olm.go",
         "types_openshiftapiserver.go",
         "types_openshiftcontrollermanager.go",
         "types_scheduler.go",

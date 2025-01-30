@@ -19,8 +19,8 @@ limitations under the License.
 package v1beta1
 
 import (
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/listers"
 	"k8s.io/client-go/tools/cache"
 	v1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1"
 )
@@ -38,25 +38,17 @@ type UploadTokenRequestLister interface {
 
 // uploadTokenRequestLister implements the UploadTokenRequestLister interface.
 type uploadTokenRequestLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*v1beta1.UploadTokenRequest]
 }
 
 // NewUploadTokenRequestLister returns a new UploadTokenRequestLister.
 func NewUploadTokenRequestLister(indexer cache.Indexer) UploadTokenRequestLister {
-	return &uploadTokenRequestLister{indexer: indexer}
-}
-
-// List lists all UploadTokenRequests in the indexer.
-func (s *uploadTokenRequestLister) List(selector labels.Selector) (ret []*v1beta1.UploadTokenRequest, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.UploadTokenRequest))
-	})
-	return ret, err
+	return &uploadTokenRequestLister{listers.New[*v1beta1.UploadTokenRequest](indexer, v1beta1.Resource("uploadtokenrequest"))}
 }
 
 // UploadTokenRequests returns an object that can list and get UploadTokenRequests.
 func (s *uploadTokenRequestLister) UploadTokenRequests(namespace string) UploadTokenRequestNamespaceLister {
-	return uploadTokenRequestNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return uploadTokenRequestNamespaceLister{listers.NewNamespaced[*v1beta1.UploadTokenRequest](s.ResourceIndexer, namespace)}
 }
 
 // UploadTokenRequestNamespaceLister helps list and get UploadTokenRequests.
@@ -74,26 +66,5 @@ type UploadTokenRequestNamespaceLister interface {
 // uploadTokenRequestNamespaceLister implements the UploadTokenRequestNamespaceLister
 // interface.
 type uploadTokenRequestNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all UploadTokenRequests in the indexer for a given namespace.
-func (s uploadTokenRequestNamespaceLister) List(selector labels.Selector) (ret []*v1beta1.UploadTokenRequest, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.UploadTokenRequest))
-	})
-	return ret, err
-}
-
-// Get retrieves the UploadTokenRequest from the indexer for a given namespace and name.
-func (s uploadTokenRequestNamespaceLister) Get(name string) (*v1beta1.UploadTokenRequest, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta1.Resource("uploadtokenrequest"), name)
-	}
-	return obj.(*v1beta1.UploadTokenRequest), nil
+	listers.ResourceIndexer[*v1beta1.UploadTokenRequest]
 }

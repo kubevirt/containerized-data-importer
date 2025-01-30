@@ -19,8 +19,8 @@ limitations under the License.
 package v1beta1
 
 import (
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/listers"
 	"k8s.io/client-go/tools/cache"
 	v1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
@@ -38,25 +38,17 @@ type DataImportCronLister interface {
 
 // dataImportCronLister implements the DataImportCronLister interface.
 type dataImportCronLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*v1beta1.DataImportCron]
 }
 
 // NewDataImportCronLister returns a new DataImportCronLister.
 func NewDataImportCronLister(indexer cache.Indexer) DataImportCronLister {
-	return &dataImportCronLister{indexer: indexer}
-}
-
-// List lists all DataImportCrons in the indexer.
-func (s *dataImportCronLister) List(selector labels.Selector) (ret []*v1beta1.DataImportCron, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.DataImportCron))
-	})
-	return ret, err
+	return &dataImportCronLister{listers.New[*v1beta1.DataImportCron](indexer, v1beta1.Resource("dataimportcron"))}
 }
 
 // DataImportCrons returns an object that can list and get DataImportCrons.
 func (s *dataImportCronLister) DataImportCrons(namespace string) DataImportCronNamespaceLister {
-	return dataImportCronNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return dataImportCronNamespaceLister{listers.NewNamespaced[*v1beta1.DataImportCron](s.ResourceIndexer, namespace)}
 }
 
 // DataImportCronNamespaceLister helps list and get DataImportCrons.
@@ -74,26 +66,5 @@ type DataImportCronNamespaceLister interface {
 // dataImportCronNamespaceLister implements the DataImportCronNamespaceLister
 // interface.
 type dataImportCronNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all DataImportCrons in the indexer for a given namespace.
-func (s dataImportCronNamespaceLister) List(selector labels.Selector) (ret []*v1beta1.DataImportCron, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.DataImportCron))
-	})
-	return ret, err
-}
-
-// Get retrieves the DataImportCron from the indexer for a given namespace and name.
-func (s dataImportCronNamespaceLister) Get(name string) (*v1beta1.DataImportCron, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta1.Resource("dataimportcron"), name)
-	}
-	return obj.(*v1beta1.DataImportCron), nil
+	listers.ResourceIndexer[*v1beta1.DataImportCron]
 }

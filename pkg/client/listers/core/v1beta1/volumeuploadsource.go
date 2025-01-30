@@ -19,8 +19,8 @@ limitations under the License.
 package v1beta1
 
 import (
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/listers"
 	"k8s.io/client-go/tools/cache"
 	v1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
@@ -38,25 +38,17 @@ type VolumeUploadSourceLister interface {
 
 // volumeUploadSourceLister implements the VolumeUploadSourceLister interface.
 type volumeUploadSourceLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*v1beta1.VolumeUploadSource]
 }
 
 // NewVolumeUploadSourceLister returns a new VolumeUploadSourceLister.
 func NewVolumeUploadSourceLister(indexer cache.Indexer) VolumeUploadSourceLister {
-	return &volumeUploadSourceLister{indexer: indexer}
-}
-
-// List lists all VolumeUploadSources in the indexer.
-func (s *volumeUploadSourceLister) List(selector labels.Selector) (ret []*v1beta1.VolumeUploadSource, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.VolumeUploadSource))
-	})
-	return ret, err
+	return &volumeUploadSourceLister{listers.New[*v1beta1.VolumeUploadSource](indexer, v1beta1.Resource("volumeuploadsource"))}
 }
 
 // VolumeUploadSources returns an object that can list and get VolumeUploadSources.
 func (s *volumeUploadSourceLister) VolumeUploadSources(namespace string) VolumeUploadSourceNamespaceLister {
-	return volumeUploadSourceNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return volumeUploadSourceNamespaceLister{listers.NewNamespaced[*v1beta1.VolumeUploadSource](s.ResourceIndexer, namespace)}
 }
 
 // VolumeUploadSourceNamespaceLister helps list and get VolumeUploadSources.
@@ -74,26 +66,5 @@ type VolumeUploadSourceNamespaceLister interface {
 // volumeUploadSourceNamespaceLister implements the VolumeUploadSourceNamespaceLister
 // interface.
 type volumeUploadSourceNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all VolumeUploadSources in the indexer for a given namespace.
-func (s volumeUploadSourceNamespaceLister) List(selector labels.Selector) (ret []*v1beta1.VolumeUploadSource, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.VolumeUploadSource))
-	})
-	return ret, err
-}
-
-// Get retrieves the VolumeUploadSource from the indexer for a given namespace and name.
-func (s volumeUploadSourceNamespaceLister) Get(name string) (*v1beta1.VolumeUploadSource, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta1.Resource("volumeuploadsource"), name)
-	}
-	return obj.(*v1beta1.VolumeUploadSource), nil
+	listers.ResourceIndexer[*v1beta1.VolumeUploadSource]
 }
