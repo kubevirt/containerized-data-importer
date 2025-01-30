@@ -8,6 +8,8 @@ go_library(
         "fnv.go",
         "labels.go",
         "labelset.go",
+        "labelset_string.go",
+        "labelset_string_go120.go",
         "metadata.go",
         "metric.go",
         "model.go",

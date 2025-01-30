@@ -41,22 +41,24 @@ var volumeclonesourcesKind = v1beta1.SchemeGroupVersion.WithKind("VolumeCloneSou
 
 // Get takes name of the volumeCloneSource, and returns the corresponding volumeCloneSource object, and an error if there is any.
 func (c *FakeVolumeCloneSources) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.VolumeCloneSource, err error) {
+	emptyResult := &v1beta1.VolumeCloneSource{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(volumeclonesourcesResource, c.ns, name), &v1beta1.VolumeCloneSource{})
+		Invokes(testing.NewGetActionWithOptions(volumeclonesourcesResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VolumeCloneSource), err
 }
 
 // List takes label and field selectors, and returns the list of VolumeCloneSources that match those selectors.
 func (c *FakeVolumeCloneSources) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.VolumeCloneSourceList, err error) {
+	emptyResult := &v1beta1.VolumeCloneSourceList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(volumeclonesourcesResource, volumeclonesourcesKind, c.ns, opts), &v1beta1.VolumeCloneSourceList{})
+		Invokes(testing.NewListActionWithOptions(volumeclonesourcesResource, volumeclonesourcesKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,28 +77,30 @@ func (c *FakeVolumeCloneSources) List(ctx context.Context, opts v1.ListOptions) 
 // Watch returns a watch.Interface that watches the requested volumeCloneSources.
 func (c *FakeVolumeCloneSources) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(volumeclonesourcesResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(volumeclonesourcesResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a volumeCloneSource and creates it.  Returns the server's representation of the volumeCloneSource, and an error, if there is any.
 func (c *FakeVolumeCloneSources) Create(ctx context.Context, volumeCloneSource *v1beta1.VolumeCloneSource, opts v1.CreateOptions) (result *v1beta1.VolumeCloneSource, err error) {
+	emptyResult := &v1beta1.VolumeCloneSource{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(volumeclonesourcesResource, c.ns, volumeCloneSource), &v1beta1.VolumeCloneSource{})
+		Invokes(testing.NewCreateActionWithOptions(volumeclonesourcesResource, c.ns, volumeCloneSource, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VolumeCloneSource), err
 }
 
 // Update takes the representation of a volumeCloneSource and updates it. Returns the server's representation of the volumeCloneSource, and an error, if there is any.
 func (c *FakeVolumeCloneSources) Update(ctx context.Context, volumeCloneSource *v1beta1.VolumeCloneSource, opts v1.UpdateOptions) (result *v1beta1.VolumeCloneSource, err error) {
+	emptyResult := &v1beta1.VolumeCloneSource{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(volumeclonesourcesResource, c.ns, volumeCloneSource), &v1beta1.VolumeCloneSource{})
+		Invokes(testing.NewUpdateActionWithOptions(volumeclonesourcesResource, c.ns, volumeCloneSource, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VolumeCloneSource), err
 }
@@ -111,7 +115,7 @@ func (c *FakeVolumeCloneSources) Delete(ctx context.Context, name string, opts v
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeVolumeCloneSources) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(volumeclonesourcesResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(volumeclonesourcesResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.VolumeCloneSourceList{})
 	return err
@@ -119,11 +123,12 @@ func (c *FakeVolumeCloneSources) DeleteCollection(ctx context.Context, opts v1.D
 
 // Patch applies the patch and returns the patched volumeCloneSource.
 func (c *FakeVolumeCloneSources) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.VolumeCloneSource, err error) {
+	emptyResult := &v1beta1.VolumeCloneSource{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(volumeclonesourcesResource, c.ns, name, pt, data, subresources...), &v1beta1.VolumeCloneSource{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(volumeclonesourcesResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.VolumeCloneSource), err
 }
