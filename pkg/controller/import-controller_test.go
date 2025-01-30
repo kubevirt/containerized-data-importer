@@ -937,8 +937,8 @@ var _ = Describe("Create Importer Pod", func() {
 		Entry("with long PVC and checkpoint names", strings.Repeat("test-pvc-", 20), strings.Repeat("repeating-checkpoint-id-", 10)),
 	)
 
-	DescribeTable("should use the correct restart policy", func(restartPolicy string) {
-		pvc := cc.CreatePvc(pvcName, "default", map[string]string{cc.AnnEndpoint: testEndPoint}, nil)
+	DescribeTable("should use the correct restart policy", func(restartPolicy string, expectedPolicy corev1.RestartPolicy) {
+		pvc := cc.CreatePvc(pvcName, "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnImportPod: "podName"}, nil)
 		reconciler := createImportReconciler(pvc)
 		podEnvVar := &importPodEnvVar{
 			ep:                 "",
@@ -957,6 +957,7 @@ var _ = Describe("Create Importer Pod", func() {
 			image:             testImage,
 			verbose:           "5",
 			pullPolicy:        testPullPolicy,
+			restartPolicy:     restartPolicy,
 			podEnvVar:         podEnvVar,
 			pvc:               pvc,
 			scratchPvcName:    &scratchPvcName,
@@ -964,10 +965,11 @@ var _ = Describe("Create Importer Pod", func() {
 		}
 		pod, err := createImporterPod(context.TODO(), reconciler.log, reconciler.client, podArgs, map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pod.Spec.RestartPolicy).To(BeEquivalentTo(restartPolicy))
+		Expect(pod.Spec.RestartPolicy).To(BeEquivalentTo(expectedPolicy))
 	},
-		Entry("with an on failure restart policy", string(corev1.RestartPolicyOnFailure)),
-		Entry("with a never restart policy", string(corev1.RestartPolicyNever)),
+		Entry("with an on failure restart policy", string(corev1.RestartPolicyOnFailure), corev1.RestartPolicyOnFailure),
+		Entry("with a never restart policy", string(corev1.RestartPolicyNever), corev1.RestartPolicyNever),
+		Entry("without a specified restart policy", "", corev1.RestartPolicy(common.DefaultRestartPolicy)),
 	)
 
 	It("should mount extra VDDK arguments ConfigMap when annotation is set", func() {

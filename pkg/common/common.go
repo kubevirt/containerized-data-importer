@@ -103,8 +103,6 @@ const (
 
 	// PullPolicy provides a constant to capture our env variable "PULL_POLICY" (only used by cmd/cdi-controller/controller.go)
 	PullPolicy = "PULL_POLICY"
-	// RestartPolicy provides a constant to capture our env variable "RESTART_POLICY" (only used by cmd/cdi-controller/controller.go)
-	RestartPolicy = "RESTART_POLICY"
 	// ImporterSource provides a constant to capture our env variable "IMPORTER_SOURCE"
 	ImporterSource = "IMPORTER_SOURCE"
 	// ImporterContentType provides a constant to capture our env variable "IMPORTER_CONTENTTYPE"
