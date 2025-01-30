@@ -16299,6 +16299,14 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 							Ref:         ref("k8s.io/api/core/v1.ResourceRequirements"),
 						},
 					},
+					"restartPolicy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "RestartPolicy describes how the container should be restarted.\n\nPossible enum values:\n - `\"Always\"`\n - `\"Never\"`\n - `\"OnFailure\"`",
+							Type:        []string{"string"},
+							Format:      "",
+							Enum:        []interface{}{"Always", "Never", "OnFailure"},
+						},
+					},
 					"featureGates": {
 						SchemaProps: spec.SchemaProps{
 							Description: "FeatureGates are a list of specific enabled feature gates",
@@ -16409,6 +16417,14 @@ func schema_pkg_apis_core_v1beta1_CDIConfigStatus(ref common.ReferenceCallback) 
 						SchemaProps: spec.SchemaProps{
 							Description: "ImportProxy contains importer pod proxy configuration.",
 							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportProxy"),
+						},
+					},
+					"restartPolicy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "RestartPolicy describes how the container should be restarted.\n\nPossible enum values:\n - `\"Always\"`\n - `\"Never\"`\n - `\"OnFailure\"`",
+							Type:        []string{"string"},
+							Format:      "",
+							Enum:        []interface{}{"Always", "Never", "OnFailure"},
 						},
 					},
 					"scratchSpaceStorageClass": {
