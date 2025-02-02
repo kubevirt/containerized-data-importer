@@ -202,6 +202,7 @@ func (cm *certManager) createOrGetSecret(namespace, name string) (*corev1.Secret
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
+		Type: corev1.SecretTypeTLS,
 	}
 
 	secret, err := cm.k8sClient.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
