@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -48,7 +49,7 @@ func newFakeCertManager(crClient client.Client, namespace string) CertManager {
 }
 
 func newCertManagerForTest(client kubernetes.Interface, namespace string) CertManager {
-	return newCertManager(client, namespace)
+	return newCertManager(client, namespace, clocktesting.NewFakePassiveClock(time.Now()))
 }
 
 func toSerializedCertConfig(l, r time.Duration) string {

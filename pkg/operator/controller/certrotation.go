@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	toolscache "k8s.io/client-go/tools/cache"
+	"k8s.io/utils/clock"
 
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -76,7 +77,7 @@ func NewCertManager(mgr manager.Manager, installNamespace string, additionalName
 		return nil, err
 	}
 
-	cm := newCertManager(k8sClient, installNamespace, additionalNamespaces...)
+	cm := newCertManager(k8sClient, installNamespace, clock.RealClock{}, additionalNamespaces...)
 
 	// so we can start caches
 	if err = mgr.Add(cm); err != nil {
@@ -86,7 +87,7 @@ func NewCertManager(mgr manager.Manager, installNamespace string, additionalName
 	return cm, nil
 }
 
-func newCertManager(client kubernetes.Interface, installNamespace string, additionalNamespaces ...string) *certManager {
+func newCertManager(client kubernetes.Interface, installNamespace string, clock clock.PassiveClock, additionalNamespaces ...string) *certManager {
 	namespaces := append(additionalNamespaces, installNamespace)
 	informers := v1helpers.NewKubeInformersForNamespaces(client, namespaces...)
 
@@ -95,7 +96,7 @@ func newCertManager(client kubernetes.Interface, installNamespace string, additi
 		log.Info("Unable to get controller reference, using namespace")
 	}
 
-	eventRecorder := events.NewRecorder(client.CoreV1().Events(installNamespace), installNamespace, controllerRef)
+	eventRecorder := events.NewRecorder(client.CoreV1().Events(installNamespace), installNamespace, controllerRef, clock)
 
 	return &certManager{
 		namespaces:    namespaces,
