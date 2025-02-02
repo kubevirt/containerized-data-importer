@@ -274,7 +274,7 @@ func (cm *certManager) ensureCertBundle(cd cdicerts.CertificateDefinition, ca *c
 		EventRecorder: cm.eventRecorder,
 	}
 
-	certs, err := br.EnsureConfigMapCABundle(context.TODO(), ca)
+	certs, err := br.EnsureConfigMapCABundle(context.TODO(), ca, fmt.Sprintf("%s/%s", cd.SignerSecret.Namespace, cd.SignerSecret.Name))
 	if err != nil {
 		return nil, err
 	}
