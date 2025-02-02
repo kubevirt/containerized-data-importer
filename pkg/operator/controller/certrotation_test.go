@@ -13,8 +13,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/testing"
 	clocktesting "k8s.io/utils/clock/testing"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -23,6 +25,12 @@ import (
 )
 
 const testCertData = "test"
+
+var secretNames = []string{
+	"cdi-apiserver-signer", "cdi-apiserver-server-cert",
+	"cdi-uploadproxy-signer", "cdi-uploadproxy-server-cert",
+	"cdi-uploadserver-signer", "cdi-uploadserver-client-signer", "cdi-uploadserver-client-cert",
+}
 
 type fakeCertManager struct {
 	client    client.Client
@@ -87,16 +95,39 @@ func checkSecret(client kubernetes.Interface, namespace, name string, exists boo
 }
 
 func checkCerts(client kubernetes.Interface, namespace string, exists bool) {
-	checkSecret(client, namespace, "cdi-apiserver-signer", exists)
-	checkSecret(client, namespace, "cdi-apiserver-server-cert", exists)
+	for _, name := range secretNames {
+		checkSecret(client, namespace, name, exists)
+	}
+}
 
-	checkSecret(client, namespace, "cdi-uploadproxy-signer", exists)
-	checkSecret(client, namespace, "cdi-uploadproxy-server-cert", exists)
+func populateClientAndStoreWithSecrets(client kubernetes.Interface, cm *certManager, ns string) {
+	for _, name := range secretNames {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns,
+				Name:      name,
+			},
+		}
+		Expect(
+			cm.informers.InformersFor(ns).Core().V1().Secrets().Informer().GetStore().Add(secret),
+		).To(Succeed())
+		_, err := client.CoreV1().Secrets(ns).Create(context.TODO(), secret, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+	}
+}
 
-	checkSecret(client, namespace, "cdi-uploadserver-signer", exists)
-
-	checkSecret(client, namespace, "cdi-uploadserver-client-signer", exists)
-	checkSecret(client, namespace, "cdi-uploadserver-client-cert", exists)
+func syncStoreWithLocalUpdateCalls(client *fake.Clientset, cm *certManager, ns string) {
+	// This is not needed in production since the informer is going to react to the updates
+	client.Fake.PrependReactor("update", "secrets", func(action testing.Action) (handled bool, obj runtime.Object, err error) {
+		update, ok := action.(testing.UpdateAction)
+		Expect(ok).To(BeTrue())
+		secret, ok := update.GetObject().(*corev1.Secret)
+		Expect(ok).To(BeTrue())
+		Expect(
+			cm.informers.InformersFor(ns).Core().V1().Secrets().Informer().GetStore().Update(secret),
+		).To(Succeed())
+		return false, secret, nil
+	})
 }
 
 var _ = Describe("Cert rotation tests", func() {
@@ -116,6 +147,8 @@ var _ = Describe("Cert rotation tests", func() {
 
 			checkCerts(client, namespace, false)
 
+			populateClientAndStoreWithSecrets(client, cm.(*certManager), namespace)
+			syncStoreWithLocalUpdateCalls(client, cm.(*certManager), namespace)
 			certs := cert.CreateCertificateDefinitions(&cert.FactoryArgs{Namespace: namespace})
 			err := cm.Sync(certs)
 			Expect(err).ToNot(HaveOccurred())
@@ -140,6 +173,8 @@ var _ = Describe("Cert rotation tests", func() {
 			Expect(cm.(*certManager).Start(ctx)).To(Succeed())
 
 			certs := cert.CreateCertificateDefinitions(&cert.FactoryArgs{Namespace: namespace})
+			populateClientAndStoreWithSecrets(client, cm.(*certManager), namespace)
+			syncStoreWithLocalUpdateCalls(client, cm.(*certManager), namespace)
 			err := cm.Sync(certs)
 			Expect(err).ToNot(HaveOccurred())
 
