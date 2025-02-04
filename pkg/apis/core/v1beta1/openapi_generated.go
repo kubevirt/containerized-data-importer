@@ -17983,6 +17983,13 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceS3(ref common.ReferenceCallbac
 							Format:      "",
 						},
 					},
+					"serviceAccountName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ServiceAccountName provides the SAN needed if we want to use chain creds for S3 access (optional, if SecretRef supplied)",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"certConfigMap": {
 						SchemaProps: spec.SchemaProps{
 							Description: "CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate",
