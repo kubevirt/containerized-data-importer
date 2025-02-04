@@ -122,6 +122,7 @@ go_library(
         "networkstatus.go",
         "node.go",
         "nodespec.go",
+        "nodestatus.go",
         "nutanixfailuredomain.go",
         "nutanixplatformloadbalancer.go",
         "nutanixplatformspec.go",

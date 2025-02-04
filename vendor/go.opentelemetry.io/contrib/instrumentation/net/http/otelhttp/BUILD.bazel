@@ -18,6 +18,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//vendor/github.com/felixge/httpsnoop:go_default_library",
+        "//vendor/go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconv:go_default_library",
         "//vendor/go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconvutil:go_default_library",
         "//vendor/go.opentelemetry.io/otel:go_default_library",
         "//vendor/go.opentelemetry.io/otel/attribute:go_default_library",

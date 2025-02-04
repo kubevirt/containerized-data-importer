@@ -41,22 +41,24 @@ var dataimportcronsKind = v1beta1.SchemeGroupVersion.WithKind("DataImportCron")
 
 // Get takes name of the dataImportCron, and returns the corresponding dataImportCron object, and an error if there is any.
 func (c *FakeDataImportCrons) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.DataImportCron, err error) {
+	emptyResult := &v1beta1.DataImportCron{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(dataimportcronsResource, c.ns, name), &v1beta1.DataImportCron{})
+		Invokes(testing.NewGetActionWithOptions(dataimportcronsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.DataImportCron), err
 }
 
 // List takes label and field selectors, and returns the list of DataImportCrons that match those selectors.
 func (c *FakeDataImportCrons) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.DataImportCronList, err error) {
+	emptyResult := &v1beta1.DataImportCronList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(dataimportcronsResource, dataimportcronsKind, c.ns, opts), &v1beta1.DataImportCronList{})
+		Invokes(testing.NewListActionWithOptions(dataimportcronsResource, dataimportcronsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeDataImportCrons) List(ctx context.Context, opts v1.ListOptions) (re
 // Watch returns a watch.Interface that watches the requested dataImportCrons.
 func (c *FakeDataImportCrons) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(dataimportcronsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(dataimportcronsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a dataImportCron and creates it.  Returns the server's representation of the dataImportCron, and an error, if there is any.
 func (c *FakeDataImportCrons) Create(ctx context.Context, dataImportCron *v1beta1.DataImportCron, opts v1.CreateOptions) (result *v1beta1.DataImportCron, err error) {
+	emptyResult := &v1beta1.DataImportCron{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(dataimportcronsResource, c.ns, dataImportCron), &v1beta1.DataImportCron{})
+		Invokes(testing.NewCreateActionWithOptions(dataimportcronsResource, c.ns, dataImportCron, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.DataImportCron), err
 }
 
 // Update takes the representation of a dataImportCron and updates it. Returns the server's representation of the dataImportCron, and an error, if there is any.
 func (c *FakeDataImportCrons) Update(ctx context.Context, dataImportCron *v1beta1.DataImportCron, opts v1.UpdateOptions) (result *v1beta1.DataImportCron, err error) {
+	emptyResult := &v1beta1.DataImportCron{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(dataimportcronsResource, c.ns, dataImportCron), &v1beta1.DataImportCron{})
+		Invokes(testing.NewUpdateActionWithOptions(dataimportcronsResource, c.ns, dataImportCron, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.DataImportCron), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeDataImportCrons) UpdateStatus(ctx context.Context, dataImportCron *v1beta1.DataImportCron, opts v1.UpdateOptions) (*v1beta1.DataImportCron, error) {
+func (c *FakeDataImportCrons) UpdateStatus(ctx context.Context, dataImportCron *v1beta1.DataImportCron, opts v1.UpdateOptions) (result *v1beta1.DataImportCron, err error) {
+	emptyResult := &v1beta1.DataImportCron{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(dataimportcronsResource, "status", c.ns, dataImportCron), &v1beta1.DataImportCron{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(dataimportcronsResource, "status", c.ns, dataImportCron, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.DataImportCron), err
 }
@@ -123,7 +128,7 @@ func (c *FakeDataImportCrons) Delete(ctx context.Context, name string, opts v1.D
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeDataImportCrons) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(dataimportcronsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(dataimportcronsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.DataImportCronList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeDataImportCrons) DeleteCollection(ctx context.Context, opts v1.Dele
 
 // Patch applies the patch and returns the patched dataImportCron.
 func (c *FakeDataImportCrons) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.DataImportCron, err error) {
+	emptyResult := &v1beta1.DataImportCron{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(dataimportcronsResource, c.ns, name, pt, data, subresources...), &v1beta1.DataImportCron{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(dataimportcronsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.DataImportCron), err
 }

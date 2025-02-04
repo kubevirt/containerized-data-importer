@@ -40,20 +40,22 @@ var objecttransfersKind = v1beta1.SchemeGroupVersion.WithKind("ObjectTransfer")
 
 // Get takes name of the objectTransfer, and returns the corresponding objectTransfer object, and an error if there is any.
 func (c *FakeObjectTransfers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.ObjectTransfer, err error) {
+	emptyResult := &v1beta1.ObjectTransfer{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(objecttransfersResource, name), &v1beta1.ObjectTransfer{})
+		Invokes(testing.NewRootGetActionWithOptions(objecttransfersResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.ObjectTransfer), err
 }
 
 // List takes label and field selectors, and returns the list of ObjectTransfers that match those selectors.
 func (c *FakeObjectTransfers) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.ObjectTransferList, err error) {
+	emptyResult := &v1beta1.ObjectTransferList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(objecttransfersResource, objecttransfersKind, opts), &v1beta1.ObjectTransferList{})
+		Invokes(testing.NewRootListActionWithOptions(objecttransfersResource, objecttransfersKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,36 +74,39 @@ func (c *FakeObjectTransfers) List(ctx context.Context, opts v1.ListOptions) (re
 // Watch returns a watch.Interface that watches the requested objectTransfers.
 func (c *FakeObjectTransfers) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(objecttransfersResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(objecttransfersResource, opts))
 }
 
 // Create takes the representation of a objectTransfer and creates it.  Returns the server's representation of the objectTransfer, and an error, if there is any.
 func (c *FakeObjectTransfers) Create(ctx context.Context, objectTransfer *v1beta1.ObjectTransfer, opts v1.CreateOptions) (result *v1beta1.ObjectTransfer, err error) {
+	emptyResult := &v1beta1.ObjectTransfer{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(objecttransfersResource, objectTransfer), &v1beta1.ObjectTransfer{})
+		Invokes(testing.NewRootCreateActionWithOptions(objecttransfersResource, objectTransfer, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.ObjectTransfer), err
 }
 
 // Update takes the representation of a objectTransfer and updates it. Returns the server's representation of the objectTransfer, and an error, if there is any.
 func (c *FakeObjectTransfers) Update(ctx context.Context, objectTransfer *v1beta1.ObjectTransfer, opts v1.UpdateOptions) (result *v1beta1.ObjectTransfer, err error) {
+	emptyResult := &v1beta1.ObjectTransfer{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(objecttransfersResource, objectTransfer), &v1beta1.ObjectTransfer{})
+		Invokes(testing.NewRootUpdateActionWithOptions(objecttransfersResource, objectTransfer, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.ObjectTransfer), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeObjectTransfers) UpdateStatus(ctx context.Context, objectTransfer *v1beta1.ObjectTransfer, opts v1.UpdateOptions) (*v1beta1.ObjectTransfer, error) {
+func (c *FakeObjectTransfers) UpdateStatus(ctx context.Context, objectTransfer *v1beta1.ObjectTransfer, opts v1.UpdateOptions) (result *v1beta1.ObjectTransfer, err error) {
+	emptyResult := &v1beta1.ObjectTransfer{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(objecttransfersResource, "status", objectTransfer), &v1beta1.ObjectTransfer{})
+		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(objecttransfersResource, "status", objectTransfer, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.ObjectTransfer), err
 }
@@ -115,7 +120,7 @@ func (c *FakeObjectTransfers) Delete(ctx context.Context, name string, opts v1.D
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeObjectTransfers) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(objecttransfersResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(objecttransfersResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.ObjectTransferList{})
 	return err
@@ -123,10 +128,11 @@ func (c *FakeObjectTransfers) DeleteCollection(ctx context.Context, opts v1.Dele
 
 // Patch applies the patch and returns the patched objectTransfer.
 func (c *FakeObjectTransfers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.ObjectTransfer, err error) {
+	emptyResult := &v1beta1.ObjectTransfer{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(objecttransfersResource, name, pt, data, subresources...), &v1beta1.ObjectTransfer{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(objecttransfersResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.ObjectTransfer), err
 }

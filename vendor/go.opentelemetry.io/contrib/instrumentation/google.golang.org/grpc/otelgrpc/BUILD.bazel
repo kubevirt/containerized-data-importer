@@ -22,6 +22,7 @@ go_library(
         "//vendor/go.opentelemetry.io/otel/baggage:go_default_library",
         "//vendor/go.opentelemetry.io/otel/codes:go_default_library",
         "//vendor/go.opentelemetry.io/otel/metric:go_default_library",
+        "//vendor/go.opentelemetry.io/otel/metric/noop:go_default_library",
         "//vendor/go.opentelemetry.io/otel/propagation:go_default_library",
         "//vendor/go.opentelemetry.io/otel/semconv/v1.17.0:go_default_library",
         "//vendor/go.opentelemetry.io/otel/trace:go_default_library",

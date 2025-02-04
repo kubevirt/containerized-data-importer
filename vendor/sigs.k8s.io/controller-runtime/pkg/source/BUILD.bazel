@@ -18,5 +18,6 @@ go_library(
         "//vendor/sigs.k8s.io/controller-runtime/pkg/handler:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/internal/source:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/predicate:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/reconcile:go_default_library",
     ],
 )

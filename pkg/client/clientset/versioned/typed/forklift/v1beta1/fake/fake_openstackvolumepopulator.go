@@ -41,22 +41,24 @@ var openstackvolumepopulatorsKind = v1beta1.SchemeGroupVersion.WithKind("Opensta
 
 // Get takes name of the openstackVolumePopulator, and returns the corresponding openstackVolumePopulator object, and an error if there is any.
 func (c *FakeOpenstackVolumePopulators) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.OpenstackVolumePopulator, err error) {
+	emptyResult := &v1beta1.OpenstackVolumePopulator{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(openstackvolumepopulatorsResource, c.ns, name), &v1beta1.OpenstackVolumePopulator{})
+		Invokes(testing.NewGetActionWithOptions(openstackvolumepopulatorsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.OpenstackVolumePopulator), err
 }
 
 // List takes label and field selectors, and returns the list of OpenstackVolumePopulators that match those selectors.
 func (c *FakeOpenstackVolumePopulators) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.OpenstackVolumePopulatorList, err error) {
+	emptyResult := &v1beta1.OpenstackVolumePopulatorList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(openstackvolumepopulatorsResource, openstackvolumepopulatorsKind, c.ns, opts), &v1beta1.OpenstackVolumePopulatorList{})
+		Invokes(testing.NewListActionWithOptions(openstackvolumepopulatorsResource, openstackvolumepopulatorsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeOpenstackVolumePopulators) List(ctx context.Context, opts v1.ListOp
 // Watch returns a watch.Interface that watches the requested openstackVolumePopulators.
 func (c *FakeOpenstackVolumePopulators) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(openstackvolumepopulatorsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(openstackvolumepopulatorsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a openstackVolumePopulator and creates it.  Returns the server's representation of the openstackVolumePopulator, and an error, if there is any.
 func (c *FakeOpenstackVolumePopulators) Create(ctx context.Context, openstackVolumePopulator *v1beta1.OpenstackVolumePopulator, opts v1.CreateOptions) (result *v1beta1.OpenstackVolumePopulator, err error) {
+	emptyResult := &v1beta1.OpenstackVolumePopulator{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(openstackvolumepopulatorsResource, c.ns, openstackVolumePopulator), &v1beta1.OpenstackVolumePopulator{})
+		Invokes(testing.NewCreateActionWithOptions(openstackvolumepopulatorsResource, c.ns, openstackVolumePopulator, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.OpenstackVolumePopulator), err
 }
 
 // Update takes the representation of a openstackVolumePopulator and updates it. Returns the server's representation of the openstackVolumePopulator, and an error, if there is any.
 func (c *FakeOpenstackVolumePopulators) Update(ctx context.Context, openstackVolumePopulator *v1beta1.OpenstackVolumePopulator, opts v1.UpdateOptions) (result *v1beta1.OpenstackVolumePopulator, err error) {
+	emptyResult := &v1beta1.OpenstackVolumePopulator{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(openstackvolumepopulatorsResource, c.ns, openstackVolumePopulator), &v1beta1.OpenstackVolumePopulator{})
+		Invokes(testing.NewUpdateActionWithOptions(openstackvolumepopulatorsResource, c.ns, openstackVolumePopulator, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.OpenstackVolumePopulator), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeOpenstackVolumePopulators) UpdateStatus(ctx context.Context, openstackVolumePopulator *v1beta1.OpenstackVolumePopulator, opts v1.UpdateOptions) (*v1beta1.OpenstackVolumePopulator, error) {
+func (c *FakeOpenstackVolumePopulators) UpdateStatus(ctx context.Context, openstackVolumePopulator *v1beta1.OpenstackVolumePopulator, opts v1.UpdateOptions) (result *v1beta1.OpenstackVolumePopulator, err error) {
+	emptyResult := &v1beta1.OpenstackVolumePopulator{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(openstackvolumepopulatorsResource, "status", c.ns, openstackVolumePopulator), &v1beta1.OpenstackVolumePopulator{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(openstackvolumepopulatorsResource, "status", c.ns, openstackVolumePopulator, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.OpenstackVolumePopulator), err
 }
@@ -123,7 +128,7 @@ func (c *FakeOpenstackVolumePopulators) Delete(ctx context.Context, name string,
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeOpenstackVolumePopulators) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(openstackvolumepopulatorsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(openstackvolumepopulatorsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.OpenstackVolumePopulatorList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeOpenstackVolumePopulators) DeleteCollection(ctx context.Context, op
 
 // Patch applies the patch and returns the patched openstackVolumePopulator.
 func (c *FakeOpenstackVolumePopulators) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.OpenstackVolumePopulator, err error) {
+	emptyResult := &v1beta1.OpenstackVolumePopulator{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(openstackvolumepopulatorsResource, c.ns, name, pt, data, subresources...), &v1beta1.OpenstackVolumePopulator{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(openstackvolumepopulatorsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.OpenstackVolumePopulator), err
 }

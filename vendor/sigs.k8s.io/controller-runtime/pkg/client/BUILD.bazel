@@ -9,6 +9,7 @@ go_library(
         "doc.go",
         "dryrun.go",
         "fieldowner.go",
+        "fieldvalidation.go",
         "interfaces.go",
         "metadata_client.go",
         "namespaced_client.go",

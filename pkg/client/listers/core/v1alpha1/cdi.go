@@ -19,8 +19,8 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/listers"
 	"k8s.io/client-go/tools/cache"
 	v1alpha1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1"
 )
@@ -39,30 +39,10 @@ type CDILister interface {
 
 // cDILister implements the CDILister interface.
 type cDILister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*v1alpha1.CDI]
 }
 
 // NewCDILister returns a new CDILister.
 func NewCDILister(indexer cache.Indexer) CDILister {
-	return &cDILister{indexer: indexer}
-}
-
-// List lists all CDIs in the indexer.
-func (s *cDILister) List(selector labels.Selector) (ret []*v1alpha1.CDI, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha1.CDI))
-	})
-	return ret, err
-}
-
-// Get retrieves the CDI from the index for a given name.
-func (s *cDILister) Get(name string) (*v1alpha1.CDI, error) {
-	obj, exists, err := s.indexer.GetByKey(name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1alpha1.Resource("cdi"), name)
-	}
-	return obj.(*v1alpha1.CDI), nil
+	return &cDILister{listers.New[*v1alpha1.CDI](indexer, v1alpha1.Resource("cdi"))}
 }
