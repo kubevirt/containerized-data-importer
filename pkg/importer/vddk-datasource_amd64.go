@@ -1106,11 +1106,7 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 				klog.Infof("No changes reported between snapshot %s and snapshot %s, marking transfer complete.", vs.PreviousSnapshot, vs.CurrentSnapshot)
 				return ProcessingPhaseComplete, nil
 			}
-			// The start offset should not be the size of the disk otherwise the QueryChangedDiskAreas will fail
-			if changed.Length >= disk.CapacityInBytes {
-				klog.Infof("the offset %d is greater or equal to disk capacity %d", changed.Length, disk.CapacityInBytes)
-				break
-			}
+
 			// Copy actual data from query ranges to destination
 			for _, extent := range changed.ChangedArea {
 				blocks := GetBlockStatus(vs.NbdKit.Handle, extent)
@@ -1121,6 +1117,12 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 						return ProcessingPhaseError, err
 					}
 				}
+			}
+
+			// The start offset should not be the size of the disk otherwise the next QueryChangedDiskAreas will fail
+			if changed.Length >= disk.CapacityInBytes {
+				klog.Infof("The offset %d is greater or equal to disk capacity %d, assuming no further changes", changed.Length, disk.CapacityInBytes)
+				break
 			}
 		}
 	} else { // Cold migration full copy
