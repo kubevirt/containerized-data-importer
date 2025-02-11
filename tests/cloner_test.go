@@ -1268,7 +1268,6 @@ var _ = Describe("all clone tests", func() {
 			It("[test_id:8498]Should only use size-detection pod when cloning a PVC for the first time", func() {
 				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "200Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				dataVolume.Spec.Storage.VolumeMode = &volumeMode
-				controller.AddAnnotation(dataVolume, controller.AnnPodRetainAfterCompletion, "true")
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -1282,6 +1281,7 @@ var _ = Describe("all clone tests", func() {
 				// We attempt to create the sizeless clone
 				targetDataVolume := utils.NewDataVolumeForCloningWithEmptySize("target-dv", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
 				controller.AddAnnotation(targetDataVolume, controller.AnnDeleteAfterCompletion, "false")
+				controller.AddAnnotation(targetDataVolume, controller.AnnPodRetainAfterCompletion, "true")
 				targetDataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDataVolume)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1332,7 +1332,6 @@ var _ = Describe("all clone tests", func() {
 			It("[test_id:8762]Should use size-detection pod when cloning if the source PVC has changed its original capacity", func() {
 				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				dataVolume.Spec.Storage.VolumeMode = &volumeMode
-				controller.AddAnnotation(dataVolume, controller.AnnPodRetainAfterCompletion, "true")
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -1346,6 +1345,7 @@ var _ = Describe("all clone tests", func() {
 				// We attempt to create the sizeless clone
 				targetDV := utils.NewDataVolumeForCloningWithEmptySize("target-dv", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
 				controller.AddAnnotation(targetDV, controller.AnnDeleteAfterCompletion, "false")
+				controller.AddAnnotation(targetDV, controller.AnnPodRetainAfterCompletion, "true")
 				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1406,7 +1406,6 @@ var _ = Describe("all clone tests", func() {
 			It("Should clone using size-detection pod across namespaces", func() {
 				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "200Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				dataVolume.Spec.Storage.VolumeMode = &volumeMode
-				controller.AddAnnotation(dataVolume, controller.AnnPodRetainAfterCompletion, "true")
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -1427,6 +1426,7 @@ var _ = Describe("all clone tests", func() {
 				// We attempt to create the sizeless clone
 				targetDataVolume := utils.NewDataVolumeForCloningWithEmptySize("target-dv", f.Namespace.Name, sourcePvc.Name, nil, &volumeMode)
 				controller.AddAnnotation(targetDataVolume, controller.AnnDeleteAfterCompletion, "false")
+				controller.AddAnnotation(targetDataVolume, controller.AnnPodRetainAfterCompletion, "true")
 				targetDataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDataVolume)
 				Expect(err).ToNot(HaveOccurred())
 
