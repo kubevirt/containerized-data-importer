@@ -124,6 +124,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// Longhorn
 	"driver.longhorn.io":            {{rwo, block}},
 	"driver.longhorn.io/migratable": {{rwx, block}, {rwo, block}},
+	// Oracle cloud
+	"blockvolume.csi.oraclecloud.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
