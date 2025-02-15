@@ -1055,7 +1055,6 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		// Change IDs look like: 52 de c0 d9 b9 43 9d 10-61 d5 4c 1b e9 7b 65 63/81
 		changeIDPattern := `([0-9a-fA-F]{2}\s?)*-([0-9a-fA-F]{2}\s?)*\/([0-9a-fA-F]*)`
 		isChangeID, _ := regexp.MatchString(changeIDPattern, vs.PreviousSnapshot)
-		var changed types.DiskChangeInfo
 		var previousSnapshot *types.ManagedObjectReference
 		if !isChangeID {
 			previousSnapshot, err = vs.VMware.vm.FindSnapshot(vs.VMware.context, vs.PreviousSnapshot)
@@ -1072,14 +1071,16 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		// Experimentation shows it returns maximally 2000 changed blocks. If the disk has more than
 		// 2000 changed blocks we need to query the next chunk of the blocks starting from previous.
 		// Loop until QueryChangedDiskAreas starts returning zero-length block lists.
+		offset := int64(0) // Next offset to query
 		for {
-			klog.Infof("Querying changed disk areas at offset %d", changed.Length)
+			klog.Infof("Querying changed disk areas at offset %d", offset)
+			var changed types.DiskChangeInfo
 			if isChangeID { // Previous checkpoint is a change ID
 				request := types.QueryChangedDiskAreas{
 					ChangeId:    vs.PreviousSnapshot,
 					DeviceKey:   backingFileObject.Key,
 					Snapshot:    currentSnapshot,
-					StartOffset: changed.Length,
+					StartOffset: offset,
 					This:        vs.VMware.vm.Reference(),
 				}
 				response, err := QueryChangedDiskAreas(vs.VMware.context, vs.VMware.vm.Client(), &request)
@@ -1087,24 +1088,26 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 					klog.Errorf("Failed to query changed areas: %s", err)
 					return ProcessingPhaseError, err
 				}
-				klog.Infof("%d changed areas reported at offset %d with data length %d", len(response.Returnval.ChangedArea), changed.Length, response.Returnval.Length)
+				klog.Infof("%d changed areas reported at offset %d with data length %d", len(response.Returnval.ChangedArea), response.Returnval.StartOffset, response.Returnval.Length)
 				if len(response.Returnval.ChangedArea) == 0 { // No more changes
 					break
 				}
-				changed.ChangedArea = append(changed.ChangedArea, response.Returnval.ChangedArea...)
-				changed.Length += response.Returnval.Length
+				changed.ChangedArea = response.Returnval.ChangedArea
+				changed.StartOffset = response.Returnval.StartOffset
+				changed.Length = response.Returnval.Length
 			} else { // Previous checkpoint is a snapshot
 				changedAreas, err := vs.VMware.vm.QueryChangedDiskAreas(vs.VMware.context, previousSnapshot, currentSnapshot, backingFileObject, changed.Length)
 				if err != nil {
 					klog.Errorf("Unable to query changed areas: %s", err)
 					return ProcessingPhaseError, err
 				}
-				klog.Infof("%d changed areas reported at offset %d with data length %d", len(changedAreas.ChangedArea), changed.Length, changedAreas.Length)
+				klog.Infof("%d changed areas reported at offset %d with data length %d", len(changedAreas.ChangedArea), changedAreas.StartOffset, changedAreas.Length)
 				if len(changedAreas.ChangedArea) == 0 {
 					break
 				}
-				changed.ChangedArea = append(changed.ChangedArea, changedAreas.ChangedArea...)
-				changed.Length += changedAreas.Length
+				changed.ChangedArea = changedAreas.ChangedArea
+				changed.StartOffset = changedAreas.StartOffset
+				changed.Length = changedAreas.Length
 			}
 
 			// No changes? Immediately return success.
@@ -1126,8 +1129,9 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 			}
 
 			// The start offset should not be the size of the disk otherwise the next QueryChangedDiskAreas will fail
-			if changed.Length >= disk.CapacityInBytes {
-				klog.Infof("The offset %d is greater or equal to disk capacity %d, assuming no further changes", changed.Length, disk.CapacityInBytes)
+			offset = changed.StartOffset + changed.Length
+			if offset >= disk.CapacityInBytes {
+				klog.Infof("The offset %d is greater or equal to disk capacity %d, assuming no further changes", offset, disk.CapacityInBytes)
 				break
 			}
 		}
