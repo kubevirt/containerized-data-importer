@@ -378,7 +378,7 @@ func (r *ForkliftPopulatorReconciler) updatePVCPrime(pvc, pvcPrime *corev1.Persi
 func (r *ForkliftPopulatorReconciler) updateAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim) {
 	phase := pvcPrime.Annotations[cc.AnnPodPhase]
 	if err := r.updateImportProgress(phase, pvc, pvcPrime); err != nil {
-		r.log.Error(err, "Failed to update import progress for pvc %s/%s", pvc.Namespace, pvc.Name)
+		r.log.Error(err, fmt.Sprintf("Failed to update import progress for pvc %s/%s", pvc.Namespace, pvc.Name))
 	}
 }
 
