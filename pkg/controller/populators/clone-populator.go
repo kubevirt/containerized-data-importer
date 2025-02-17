@@ -23,16 +23,23 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
@@ -79,6 +86,90 @@ type ClonePopulatorReconciler struct {
 	ReconcilerBase
 	planner             Planner
 	multiTokenValidator *cc.MultiTokenValidator
+}
+
+var supportedCloneSources = map[string]client.Object{
+	"VolumeSnapshot":        &snapshotv1.VolumeSnapshot{},
+	"PersistentVolumeClaim": &corev1.PersistentVolumeClaim{},
+}
+
+func isSourceReady(obj client.Object) bool {
+	switch obj := obj.(type) {
+	case *snapshotv1.VolumeSnapshot:
+		return cc.IsSnapshotReady(obj)
+	case *corev1.PersistentVolumeClaim:
+		return cc.IsBound(obj)
+	}
+	return false
+}
+
+func addCloneSourceWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
+	getKey := func(kind, namespace, name string) string {
+		return kind + "/" + namespace + "/" + name
+	}
+
+	if err := mgr.GetClient().List(context.TODO(), &snapshotv1.VolumeSnapshotList{}); err != nil {
+		if meta.IsNoMatchError(err) {
+			// Back out if there's no point to attempt watch
+			return nil
+		}
+		if !cc.IsErrCacheNotStarted(err) {
+			return err
+		}
+	}
+
+	indexingKey := "spec.source"
+
+	// Indexing field for clone sources
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.VolumeCloneSource{}, indexingKey, func(obj client.Object) []string {
+		cloneSource := obj.(*cdiv1.VolumeCloneSource)
+		sourceName := cloneSource.Spec.Source.Name
+		sourceNamespace := cloneSource.Namespace
+		sourceKind := cloneSource.Spec.Source.Kind
+
+		if _, supported := supportedCloneSources[sourceKind]; !supported || sourceName == "" {
+			return nil
+		}
+
+		ns := cc.GetNamespace(sourceNamespace, obj.GetNamespace())
+		return []string{getKey(sourceKind, ns, sourceName)}
+	}); err != nil {
+		return err
+	}
+
+	// Generic mapper function for supported clone sources
+	genericSourceMapper := func(sourceKind string) handler.MapFunc {
+		return func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
+			var cloneSources cdiv1.VolumeCloneSourceList
+			matchingFields := client.MatchingFields{indexingKey: getKey(sourceKind, obj.GetNamespace(), obj.GetName())}
+
+			if err := mgr.GetClient().List(ctx, &cloneSources, matchingFields); err != nil {
+				log.Error(err, "Failed to list VolumeCloneSources")
+				return nil
+			}
+
+			for _, cs := range cloneSources.Items {
+				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: cs.Namespace, Name: cs.Name}})
+			}
+			return reqs
+		}
+	}
+
+	// Register watches for all supported clone source types
+	for kind, obj := range supportedCloneSources {
+		if err := c.Watch(source.Kind(mgr.GetCache(), obj,
+			handler.EnqueueRequestsFromMapFunc(genericSourceMapper(kind)),
+			predicate.Funcs{
+				CreateFunc: func(e event.CreateEvent) bool { return true },
+				DeleteFunc: func(e event.DeleteEvent) bool { return false },
+				UpdateFunc: func(e event.UpdateEvent) bool { return isSourceReady(obj) },
+			},
+		)); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // NewClonePopulator creates a new instance of the clone-populator controller
@@ -128,6 +219,10 @@ func NewClonePopulator(
 	reconciler.planner = planner
 
 	if err := addCommonPopulatorsWatches(mgr, clonePopulator, log, cdiv1.VolumeCloneSourceRef, &cdiv1.VolumeCloneSource{}); err != nil {
+		return nil, err
+	}
+
+	if err := addCloneSourceWatches(mgr, clonePopulator, log); err != nil {
 		return nil, err
 	}
 
