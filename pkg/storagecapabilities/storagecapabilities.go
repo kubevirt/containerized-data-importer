@@ -112,6 +112,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"csi.ovirt.org": createRWOBlockAndFilesystemCapabilities(),
 	// Infinidat
 	"infinibox-csi-driver/iscsiorfibrechannel": {{rwx, block}, {rwo, block}, {rwo, file}},
+	"infinibox-csi-driver/nvme":                {{rwx, block}, {rwo, block}, {rwo, file}},
 	"infinibox-csi-driver/nfs":                 {{rwx, file}, {rwo, file}},
 	// vSphere
 	"csi.vsphere.vmware.com":     {{rwo, block}, {rwo, file}},
@@ -157,6 +158,7 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"topolvm.cybozu.com":                       cdiv1.CloneStrategyHostAssisted,
 	"topolvm.io":                               cdiv1.CloneStrategyHostAssisted,
 	"infinibox-csi-driver/iscsiorfibrechannel": cdiv1.CloneStrategyCsiClone,
+	"infinibox-csi-driver/nvme":                cdiv1.CloneStrategyCsiClone,
 	"infinibox-csi-driver/nfs":                 cdiv1.CloneStrategyCsiClone,
 	"csi.trident.netapp.io/ontap-nas":          cdiv1.CloneStrategySnapshot,
 	"csi.trident.netapp.io/ontap-san":          cdiv1.CloneStrategySnapshot,
@@ -290,6 +292,8 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		switch sc.Parameters["storage_protocol"] {
 		case "iscsi", "fc":
 			return "infinibox-csi-driver/iscsiorfibrechannel"
+		case "nvme":
+			return "infinibox-csi-driver/nvme"
 		case "nfs", "nfs_treeq":
 			return "infinibox-csi-driver/nfs"
 		default:
