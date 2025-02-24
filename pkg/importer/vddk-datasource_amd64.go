@@ -973,7 +973,9 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		if err := CleanAll(fileName); err != nil {
 			return ProcessingPhaseError, err
 		}
+	}
 
+	if vs.IsDeltaCopy() {
 		// Make sure file exists before applying deltas.
 		_, err := MockableStat(fileName)
 		if os.IsNotExist(err) {
