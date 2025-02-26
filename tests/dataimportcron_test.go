@@ -99,7 +99,7 @@ var _ = Describe("DataImportCron", Serial, func() {
 		// Wait for all DataImportCrons to converge
 		By("[AfterEach] Wait for DataImportCrons UpToDate")
 		dataImportCrons := &cdiv1.DataImportCronList{}
-		err = f.CrClient.List(context.TODO(), dataImportCrons, &client.ListOptions{Namespace: metav1.NamespaceAll, LabelSelector: l})
+		err = f.CrClient.List(context.TODO(), dataImportCrons, &client.ListOptions{Namespace: metav1.NamespaceAll})
 		Expect(err).ToNot(HaveOccurred())
 		for i := range dataImportCrons.Items {
 			cronItem := &dataImportCrons.Items[i]
