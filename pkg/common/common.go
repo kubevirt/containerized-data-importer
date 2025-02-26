@@ -309,6 +309,9 @@ const (
 	// ImagePullFailureText is the text of the ErrImagePullFailed error. We need it as a common constant because we're using
 	// both to create and to later check the error in the termination text of the importer pod.
 	ImagePullFailureText = "failed to pull image"
+
+	// The restricted SCC and particularly v2 is considered best practice for workloads that can manage without extended privileges
+	RestrictedSCCName = "restricted-v2"
 )
 
 // ProxyPaths are all supported paths
