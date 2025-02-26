@@ -95,6 +95,21 @@ var _ = Describe("DataImportCron", Serial, func() {
 				Satisfy(meta.IsNoMatchError),
 			))
 		}
+
+		// Wait for all DataImportCrons to converge
+		By("[AfterEach] Wait for DataImportCrons UpToDate")
+		dataImportCrons := &cdiv1.DataImportCronList{}
+		err = f.CrClient.List(context.TODO(), dataImportCrons, &client.ListOptions{Namespace: metav1.NamespaceAll, LabelSelector: l})
+		Expect(err).ToNot(HaveOccurred())
+		for i := range dataImportCrons.Items {
+			cronItem := &dataImportCrons.Items[i]
+			Eventually(func() bool {
+				condProgressing := controller.FindDataImportCronConditionByType(cronItem, cdiv1.DataImportCronProgressing)
+				condUpToDate := controller.FindDataImportCronConditionByType(cronItem, cdiv1.DataImportCronUpToDate)
+				return condProgressing != nil && condProgressing.Status == corev1.ConditionFalse &&
+					condUpToDate != nil && condUpToDate.Status == corev1.ConditionTrue
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "Timeout waiting for DataImportCron conditions")
+		}
 	})
 
 	updateDigest := func(digest string) func(cron *cdiv1.DataImportCron) *cdiv1.DataImportCron {
@@ -785,7 +800,6 @@ var _ = Describe("DataImportCron", Serial, func() {
 				},
 			}
 			Expect(dataSource.Spec.Source).To(Equal(expectedSource))
-			waitForConditions(corev1.ConditionFalse, corev1.ConditionTrue)
 		})
 	})
 })
