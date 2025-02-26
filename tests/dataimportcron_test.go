@@ -785,6 +785,7 @@ var _ = Describe("DataImportCron", Serial, func() {
 				},
 			}
 			Expect(dataSource.Spec.Source).To(Equal(expectedSource))
+			waitForConditions(corev1.ConditionFalse, corev1.ConditionTrue)
 		})
 	})
 })
