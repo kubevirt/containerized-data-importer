@@ -18,7 +18,7 @@
 #
 
 set -ex
-export TARGET=k8s-1.31
+export TARGET=k8s-1.32
 export KUBEVIRT_STORAGE=hpp
 export HPP_CLASSIC=true
 export CDI_E2E_SKIP=Destructive
