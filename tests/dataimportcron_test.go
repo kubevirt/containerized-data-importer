@@ -95,6 +95,29 @@ var _ = Describe("DataImportCron", Serial, func() {
 				Satisfy(meta.IsNoMatchError),
 			))
 		}
+
+		By("[AfterEach] Delete the DataImportCron under test")
+		// Delete the DataImportCron under test
+		_ = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Delete(context.TODO(), cronName, metav1.DeleteOptions{})
+		Eventually(func() bool {
+			_, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
+			return errors.IsNotFound(err)
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "DataImportCron was not deleted")
+
+		By("[AfterEach] Wait for all DataImportCrons UpToDate")
+		// Wait for all DataImportCrons to converge
+		dataImportCrons := &cdiv1.DataImportCronList{}
+		err = f.CrClient.List(context.TODO(), dataImportCrons, &client.ListOptions{Namespace: metav1.NamespaceAll})
+		Expect(err).ToNot(HaveOccurred())
+		for i := range dataImportCrons.Items {
+			cronItem := &dataImportCrons.Items[i]
+			Eventually(func() bool {
+				condProgressing := controller.FindDataImportCronConditionByType(cronItem, cdiv1.DataImportCronProgressing)
+				condUpToDate := controller.FindDataImportCronConditionByType(cronItem, cdiv1.DataImportCronUpToDate)
+				return condProgressing != nil && condProgressing.Status == corev1.ConditionFalse &&
+					condUpToDate != nil && condUpToDate.Status == corev1.ConditionTrue
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "Timeout waiting for DataImportCron conditions")
+		}
 	})
 
 	updateDigest := func(digest string) func(cron *cdiv1.DataImportCron) *cdiv1.DataImportCron {
