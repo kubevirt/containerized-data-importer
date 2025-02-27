@@ -272,6 +272,10 @@ spec:
                     description: Preallocation controls whether storage for DataVolumes
                       should be allocated in advance.
                     type: boolean
+                  restartPolicy:
+                    description: RestartPolicy describes how the container should
+                      be restarted.
+                    type: string
                   scratchSpaceStorageClass:
                     description: 'Override the storage class to used for scratch space
                       during transfer operations. The scratch space storage class
@@ -2804,6 +2808,10 @@ spec:
                     description: Preallocation controls whether storage for DataVolumes
                       should be allocated in advance.
                     type: boolean
+                  restartPolicy:
+                    description: RestartPolicy describes how the container should
+                      be restarted.
+                    type: string
                   scratchSpaceStorageClass:
                     description: 'Override the storage class to used for scratch space
                       during transfer operations. The scratch space storage class
@@ -5290,6 +5298,9 @@ spec:
                 description: Preallocation controls whether storage for DataVolumes
                   should be allocated in advance.
                 type: boolean
+              restartPolicy:
+                description: RestartPolicy describes how the container should be restarted.
+                type: string
               scratchSpaceStorageClass:
                 description: 'Override the storage class to used for scratch space
                   during transfer operations. The scratch space storage class is determined
@@ -5609,6 +5620,9 @@ spec:
                 description: Preallocation controls whether storage for DataVolumes
                   should be allocated in advance.
                 type: boolean
+              restartPolicy:
+                description: RestartPolicy describes how the container should be restarted.
+                type: string
               scratchSpaceStorageClass:
                 description: The calculated storage class to be used for scratch space
                 type: string
