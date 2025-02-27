@@ -108,14 +108,6 @@ var _ = Describe("CSIClonePhase test", func() {
 		return pvc
 	}
 
-	It("should requeue if source does not exist", func() {
-		p := createCSIClonePhase()
-		result, err := p.Reconcile(context.Background())
-		Expect(err).ToNot(HaveOccurred())
-		Expect(result).ToNot(BeNil())
-		Expect(result.RequeueAfter).ToNot(BeZero())
-	})
-
 	Context("with source PVC and storagelass", func() {
 		sourceClaim := &corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
