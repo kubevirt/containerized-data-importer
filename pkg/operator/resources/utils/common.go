@@ -17,6 +17,8 @@ limitations under the License.
 package utils
 
 import (
+	secv1 "github.com/openshift/api/security/v1"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -146,6 +148,11 @@ func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAcco
 	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{common.PrometheusLabelKey: common.PrometheusLabelValue, common.CDIComponentLabel: common.CDIOperatorName})
 	deployment.SetLabels(labels)
 	deployment.Spec.Template.SetLabels(labels)
+	if deployment.Spec.Template.Annotations == nil {
+		deployment.Spec.Template.Annotations = make(map[string]string)
+	}
+	deployment.Spec.Template.Annotations[secv1.RequiredSCCAnnotation] = common.RestrictedSCCName
+
 	return deployment
 }
 
