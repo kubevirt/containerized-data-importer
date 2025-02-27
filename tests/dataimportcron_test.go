@@ -98,8 +98,8 @@ var _ = Describe("DataImportCron", Serial, func() {
 
 		By("[AfterEach] Delete the DataImportCron under test")
 		// Delete the DataImportCron under test
+		_ = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Delete(context.TODO(), cronName, metav1.DeleteOptions{})
 		Eventually(func() bool {
-			_ = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Delete(context.TODO(), cronName, metav1.DeleteOptions{})
 			_, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
 			return errors.IsNotFound(err)
 		}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "DataImportCron was not deleted")
