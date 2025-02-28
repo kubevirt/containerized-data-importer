@@ -3,7 +3,6 @@ package clone
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/go-logr/logr"
 
@@ -63,8 +62,7 @@ func (p *CSIClonePhase) Reconcile(ctx context.Context) (*reconcile.Result, error
 		}
 
 		if !ready {
-			// TODO - maybe make this event based
-			return &reconcile.Result{RequeueAfter: 2 * time.Second}, nil
+			return &reconcile.Result{}, nil
 		}
 
 		pvc, err = p.createClaim(ctx)
