@@ -29,6 +29,7 @@ import (
 	"github.com/google/uuid"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	imagev1 "github.com/openshift/api/image/v1"
+	secv1 "github.com/openshift/api/security/v1"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -225,6 +226,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			containers := cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers
 			Expect(containers).To(HaveLen(1))
+			Expect(cronjob.Spec.JobTemplate.Spec.Template.GetAnnotations()[secv1.RequiredSCCAnnotation]).To(Equal(common.RestrictedSCCName))
 
 			env := containers[0].Env
 			Expect(getEnvVar(env, common.ImportProxyHTTP)).To(Equal(httpProxy))
@@ -415,6 +417,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(podSpec.Affinity).To(Equal(workloads.Affinity))
 			Expect(podSpec.NodeSelector).To(Equal(workloads.NodeSelector))
 			Expect(podSpec.Tolerations).To(Equal(workloads.Tolerations))
+			Expect(job.Spec.Template.GetAnnotations()[secv1.RequiredSCCAnnotation]).To(Equal(common.RestrictedSCCName))
 		})
 
 		It("Should not modify new CronJob on initCronJob", func() {
