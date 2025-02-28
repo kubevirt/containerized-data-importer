@@ -96,6 +96,7 @@ container_bundle(
         "$(container_prefix)/cdi-func-test-file-host-init:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image",
         "$(container_prefix)/cdi-func-test-file-host-http:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image",
         "$(container_prefix)/cdi-func-test-registry-init:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image",
+        "$(container_prefix)/cdi-func-test-tinycore:$(container_tag)": "//tests:cdi-func-test-tinycore",
         "$(container_prefix)/cdi-func-test-registry-populate:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-populate-image",
         "$(container_prefix)/cdi-func-test-registry:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-image",
         "$(container_prefix)/vcenter-simulator:$(container_tag)": "//tools/vddk-test:vcenter-simulator",
