@@ -2,6 +2,8 @@ package tests
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -146,6 +148,34 @@ var _ = Describe("Aggregated role in-action tests", Serial, func() {
 	},
 		Entry("[test_id:3948]can do everything with admin", "admin"),
 		Entry("[test_id:3949]can do everything with edit", "edit"),
+	)
+
+	DescribeTable("check all user facing resources can be manipulated by non-cluster-admin", func(user string) {
+		var namespacedCDIAPIResourcesPlural []string
+		// Also retrieves API resources that are not served via CRDs
+		outputAPIResources, err := f.RunKubectlCommand("api-resources", "--namespaced", "-o", "name")
+		Expect(err).ToNot(HaveOccurred(), "ERR: %s, OUT: %s", err, outputAPIResources)
+		for _, apiResource := range strings.Split(strings.TrimSpace(outputAPIResources), "\n") {
+			if strings.HasSuffix(apiResource, "cdi.kubevirt.io") {
+				plural := strings.Split(apiResource, ".")[0]
+				namespacedCDIAPIResourcesPlural = append(namespacedCDIAPIResourcesPlural, plural)
+			}
+		}
+		fmt.Fprintf(GinkgoWriter, "CDI namespaced API resources: %+v\n", namespacedCDIAPIResourcesPlural)
+		Expect(len(namespacedCDIAPIResourcesPlural)).To(BeNumerically(">=", 5))
+
+		createServiceAccount(f.K8sClient, f.Namespace.Name, user)
+		createRoleBinding(f.K8sClient, user, f.Namespace.Name, user)
+
+		for _, resource := range namespacedCDIAPIResourcesPlural {
+			sa := fmt.Sprintf("system:serviceaccount:%s:%s", f.Namespace.Name, user)
+			result, err := f.RunKubectlCommand("auth", "can-i", "--as", sa, "*", resource, "--namespace", f.Namespace.Name)
+			Expect(err).ToNot(HaveOccurred(), "no permission for %s, result: %s", resource, result)
+			Expect(strings.TrimSpace(result)).To(Equal("yes"))
+		}
+	},
+		Entry("[test_id:XXXX]for admin", "admin"),
+		Entry("[test_id:XXXX]for edit", "edit"),
 	)
 
 	It("[test_id:3950]view datavolume permission checks", func() {
