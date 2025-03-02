@@ -49,3 +49,8 @@ linters-settings:
     forbid-focus-container: true
   nakedret:
     max-func-lines: 0
+  gosec:
+    excludes:
+      # This is changing things up quite a bit and requires evaluation
+      # per conversion
+      - G115
