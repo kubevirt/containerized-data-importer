@@ -217,7 +217,7 @@ func (o *qemuOperations) Info(url *url.URL) (*ImgInfo, error) {
 		if nbdkitLog, err := os.ReadFile(common.NbdkitLogPath); err == nil {
 			errorMsg += " " + string(nbdkitLog)
 		}
-		return nil, errors.Errorf(errorMsg)
+		return nil, errors.New(errorMsg)
 	}
 	return checkOutputQemuImgInfo(output, url.String())
 }

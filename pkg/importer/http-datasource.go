@@ -89,7 +89,7 @@ var createNbdkitCurl = image.NewNbdkitCurl
 func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType cdiv1.DataVolumeContentType) (*HTTPDataSource, error) {
 	ep, err := ParseEndpoint(endpoint)
 	if err != nil {
-		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpoint))
+		return nil, errors.Wrapf(err, "unable to parse endpoint %q", endpoint)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 

@@ -716,7 +716,7 @@ func (r *ReconcilerBase) validatePVC(dv *cdiv1.DataVolume, pvc *corev1.Persisten
 	if pvc.DeletionTimestamp != nil {
 		msg := fmt.Sprintf(MessageResourceMarkedForDeletion, pvc.Name)
 		r.recorder.Event(dv, corev1.EventTypeWarning, ErrResourceMarkedForDeletion, msg)
-		return errors.Errorf(msg)
+		return errors.New(msg)
 	}
 	// If the PVC is not controlled by this DataVolume resource, we should log
 	// a warning to the event recorder and return
@@ -732,7 +732,7 @@ func (r *ReconcilerBase) validatePVC(dv *cdiv1.DataVolume, pvc *corev1.Persisten
 		} else {
 			msg := fmt.Sprintf(MessageResourceExists, pvc.Name)
 			r.recorder.Event(dv, corev1.EventTypeWarning, ErrResourceExists, msg)
-			return errors.Errorf(msg)
+			return errors.New(msg)
 		}
 	}
 	return nil

@@ -1,7 +1,6 @@
 package importer
 
 import (
-	"fmt"
 	"io"
 	"net/url"
 	"path/filepath"
@@ -56,7 +55,7 @@ type S3DataSource struct {
 func NewS3DataSource(endpoint, accessKey, secKey string, certDir string) (*S3DataSource, error) {
 	ep, err := ParseEndpoint(endpoint)
 	if err != nil {
-		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpoint))
+		return nil, errors.Wrapf(err, "unable to parse endpoint %q", endpoint)
 	}
 	s3Reader, err := createS3Reader(ep, accessKey, secKey, certDir)
 	if err != nil {
