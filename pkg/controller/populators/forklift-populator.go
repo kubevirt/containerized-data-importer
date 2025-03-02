@@ -321,7 +321,7 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 		return reconcile.Result{}, nil
 	}
 
-	if pod.Status.ContainerStatuses == nil || len(pod.Status.ContainerStatuses) == 0 {
+	if len(pod.Status.ContainerStatuses) == 0 {
 		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 	}
 
