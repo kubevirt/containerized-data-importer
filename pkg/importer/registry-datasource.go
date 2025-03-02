@@ -191,6 +191,12 @@ func CreateCertificateDir(registryCertDir string) (string, error) {
 	if err := collectCerts(common.ImporterProxyCertDir, allCerts, "proxy-"); err != nil {
 		return allCerts, err
 	}
+
+	if registryCertDir == "" {
+		klog.Info("Registry certs directory not configured")
+		return allCerts, nil
+	}
+
 	klog.Info("Copying registry certs")
 	if err := collectCerts(registryCertDir, allCerts, ""); err != nil {
 		return allCerts, err
